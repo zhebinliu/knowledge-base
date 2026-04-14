@@ -72,14 +72,29 @@ jobs:
           echo "MINIO_ENDPOINT=localhost:9000" >> $GITHUB_ENV
           echo "MINIO_USER=minioadmin" >> $GITHUB_ENV
           echo "MINIO_PASSWORD=minioadmin" >> $GITHUB_ENV
-          # 模拟 API Key 用于基础测试
+          echo "MINIO_BUCKET=kb-documents" >> $GITHUB_ENV
+          
+          # 设置用于 CI 跳过逻辑的 dummy key
           echo "EMBEDDING_API_KEY=dummy" >> $GITHUB_ENV
           echo "RERANK_API_KEY=dummy" >> $GITHUB_ENV
+          echo "ZHIPU_API_KEY=dummy" >> $GITHUB_ENV
+          echo "MINIMAX_API_KEY=dummy" >> $GITHUB_ENV
+
+      - name: Initialize Infrastructure
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)/backend
+          python scripts/init_db.py
+          python scripts/init_qdrant.py
+          python scripts/init_minio.py
+
+      - name: Start API Service in background
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)/backend
+          cd backend && uvicorn main:app --host 0.0.0.0 --port 8000 &
+          sleep 5
 
       - name: Run Tests
         run: |
-          # 仅运行 Phase 0 的基础连通性测试（假设大部分服务已在 Services 启动）
-          # 对于涉及真实 LLM 的测试，如果 Secrets 未配置则跳过
           export PYTHONPATH=$PYTHONPATH:$(pwd)/backend
           pytest backend/tests/test_phase0.py -v
 
