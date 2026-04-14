@@ -1,0 +1,50 @@
+# 环境变量（绝不提交）
+.env
+*.env.local
+*.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+*.cover
+
+# 虚拟环境
+venv/
+.venv/
+env/
+
+# 日志
+*.log
+logs/
+
+# Docker 数据卷（本地挂载）
+data/
+postgres_data/
+qdrant_data/
+minio_data/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# 测试文档（用户提供，不入库）
+backend/tests/fixtures/sample_docs/
+backend/tests/fixtures/golden_labels.json
+
+# 上传的文件
+uploads/

@@ -1,0 +1,39 @@
+import uuid
+from datetime import datetime
+from sqlalchemy import String, Text, Float, Integer, DateTime, JSON, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column
+from models import Base
+
+
+class Chunk(Base):
+    __tablename__ = "chunks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    document_id: Mapped[str] = mapped_column(String(36), ForeignKey("documents.id", ondelete="CASCADE"))
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # LTC 标签
+    ltc_stage: Mapped[str | None] = mapped_column(String(50))
+    ltc_stage_confidence: Mapped[float | None] = mapped_column(Float)
+
+    # 分类标签
+    industry: Mapped[str | None] = mapped_column(String(100))
+    project_id: Mapped[str | None] = mapped_column(String(100))
+    module: Mapped[str | None] = mapped_column(String(100))
+    tags: Mapped[list] = mapped_column(JSON, default=list)
+
+    # 来源
+    source_section: Mapped[str | None] = mapped_column(String(500))
+    char_count: Mapped[int | None] = mapped_column(Integer)
+
+    # 审核状态
+    review_status: Mapped[str] = mapped_column(String(20), default="auto_approved")
+    reviewed_by: Mapped[str | None] = mapped_column(String(100))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    # Qdrant point ID
+    vector_id: Mapped[str | None] = mapped_column(String(100))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

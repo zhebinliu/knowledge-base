@@ -1,0 +1,102 @@
+version: "3.9"
+
+services:
+  backend:
+    image: ${BACKEND_IMAGE:-kb-backend:latest}
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file: .env
+    mem_limit: 512m
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_started
+      minio:
+        condition: service_started
+    volumes:
+      - upload_data:/app/uploads
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  celery_worker:
+    image: ${BACKEND_IMAGE:-kb-backend:latest}
+    build: ./backend
+    env_file: .env
+    mem_limit: 512m
+    depends_on:
+      - postgres
+      - redis
+    command: celery -A tasks worker --loglevel=info --concurrency=1
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    mem_limit: 512m
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_DB: kb_system
+      POSTGRES_USER: kb_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    command: >
+      postgres
+      -c shared_buffers=64MB
+      -c work_mem=4MB
+      -c maintenance_work_mem=32MB
+      -c effective_cache_size=256MB
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kb_admin -d kb_system"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    mem_limit: 256m
+    ports:
+      - "127.0.0.1:6333:6333"
+    environment:
+      QDRANT__STORAGE__OPTIMIZERS__MEMMAP_THRESHOLD_KB: 10000
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    mem_limit: 128m
+    ports:
+      - "127.0.0.1:6379:6379"
+    command: redis-server --maxmemory 64mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    mem_limit: 256m
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  minio_data:
+  upload_data:
