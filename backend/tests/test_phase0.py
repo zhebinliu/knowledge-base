@@ -144,9 +144,10 @@ def test_qdrant_insert_and_search():
     from qdrant_client import QdrantClient
     from qdrant_client.models import PointStruct, PointIdsList
 
+    import uuid
     client = QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
     collection = settings.qdrant_collection
-    test_id = "pytest-phase0-" + str(random.randint(100000, 999999))
+    test_id = str(uuid.uuid4())
 
     try:
         # 写入
