@@ -37,19 +37,16 @@ jobs:
         image: qdrant/qdrant:latest
         ports:
           - 6333:6333
-      minio:
-        image: minio/minio:latest
-        env:
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: minioadmin
-        ports:
-          - 9000:9000
-          - 9001:9001
-        options: server /data
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Start MinIO manually
+        run: |
+          docker run -d -p 9000:9000 -p 9001:9001 --name minio \
+            -e "MINIO_ROOT_USER=minioadmin" \
+            -e "MINIO_ROOT_PASSWORD=minioadmin" \
+            minio/minio server /data
 
       - name: Set up Python
         uses: actions/setup-python@v5
