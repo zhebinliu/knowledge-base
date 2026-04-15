@@ -48,9 +48,11 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
+        # ssl=disable: Docker 内的 PostgreSQL 未开启 SSL，asyncpg 默认尝试 SSL 会失败
         return (
             f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+            f"?ssl=disable"
         )
 
     @property
