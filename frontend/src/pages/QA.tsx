@@ -105,7 +105,7 @@ export default function QA() {
                   <div className="mt-1 space-y-1">
                     {msg.sources.map((s, si) => (
                       <div key={si} className="bg-gray-50 rounded p-2 text-gray-600 line-clamp-2">
-                        [{s.ltc_stage}] {s.content.slice(0, 100)}…
+                        [{s.ltc_stage ?? '—'}] {s.content ? s.content.slice(0, 100) + '…' : `ID: ${s.id}`}
                       </div>
                     ))}
                   </div>
