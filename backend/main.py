@@ -104,6 +104,24 @@ async def health_models():
     return results
 
 
+@app.get("/health/worker")
+async def health_worker():
+    """检测 Celery Worker 存活性"""
+    from tasks.convert_task import celery_app
+    try:
+        inspect = celery_app.control.inspect()
+        active = inspect.active()
+        if active is None:
+            return {"status": "error", "message": "No active workers found"}
+        return {
+            "status": "ok",
+            "active_workers": list(active.keys()),
+            "stats": inspect.stats()
+        }
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+
 @app.get("/api/stats")
 async def stats():
     from services.vector_store import vector_store
