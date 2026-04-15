@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Bot, User, Loader, MessageSquare, Trash2, ChevronRight, FileSearch } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface SourceItem {
   id: string
@@ -288,15 +290,54 @@ export default function QA() {
                 }
               </div>
               <div className={`max-w-[80%] flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                   msg.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-tr-sm'
-                    : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm'
+                    ? 'bg-blue-600 text-white rounded-tr-sm whitespace-pre-wrap'
+                    : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm prose prose-sm prose-gray max-w-none'
                 }`}>
-                  {msg.content}
-                  {/* Blinking cursor while streaming the last assistant message */}
-                  {streaming && i === messages.length - 1 && msg.role === 'assistant' && (
-                    <span className="inline-block w-0.5 h-4 bg-gray-400 ml-0.5 animate-pulse align-middle"/>
+                  {msg.role === 'user' ? msg.content : (
+                    <>
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          // Style inline code
+                          code: ({ children, className }) =>
+                            className
+                              ? <code className="block bg-gray-50 border border-gray-200 rounded px-3 py-2 text-xs font-mono overflow-x-auto whitespace-pre my-2">{children}</code>
+                              : <code className="bg-gray-100 text-gray-800 rounded px-1 py-0.5 text-xs font-mono">{children}</code>,
+                          // Style links
+                          a: ({ href, children }) =>
+                            <a href={href} className="text-blue-600 hover:underline" target="_blank" rel="noreferrer">{children}</a>,
+                          // Style tables
+                          table: ({ children }) =>
+                            <div className="overflow-x-auto my-2"><table className="w-full text-xs border-collapse">{children}</table></div>,
+                          th: ({ children }) =>
+                            <th className="border border-gray-200 bg-gray-50 px-3 py-1.5 text-left font-semibold">{children}</th>,
+                          td: ({ children }) =>
+                            <td className="border border-gray-200 px-3 py-1.5">{children}</td>,
+                          // Tighter list spacing
+                          ul: ({ children }) => <ul className="list-disc pl-5 space-y-0.5 my-1">{children}</ul>,
+                          ol: ({ children }) => <ol className="list-decimal pl-5 space-y-0.5 my-1">{children}</ol>,
+                          // Headings
+                          h1: ({ children }) => <h1 className="text-base font-bold mt-3 mb-1">{children}</h1>,
+                          h2: ({ children }) => <h2 className="text-sm font-bold mt-2 mb-1">{children}</h2>,
+                          h3: ({ children }) => <h3 className="text-sm font-semibold mt-2 mb-1">{children}</h3>,
+                          // Paragraph spacing
+                          p: ({ children }) => <p className="my-1 leading-relaxed">{children}</p>,
+                          // Blockquote
+                          blockquote: ({ children }) =>
+                            <blockquote className="border-l-4 border-gray-300 pl-3 text-gray-600 italic my-2">{children}</blockquote>,
+                          // HR
+                          hr: () => <hr className="my-2 border-gray-200"/>,
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+                      {/* Blinking cursor while streaming */}
+                      {streaming && i === messages.length - 1 && (
+                        <span className="inline-block w-0.5 h-4 bg-gray-400 ml-0.5 animate-pulse align-middle"/>
+                      )}
+                    </>
                   )}
                 </div>
                 {msg.sources && msg.sources.length > 0 && (
