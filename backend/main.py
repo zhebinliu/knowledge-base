@@ -45,10 +45,9 @@ async def health():
 
 @app.get("/health/db")
 async def health_db():
-    from sqlalchemy.ext.asyncio import create_async_engine
     from sqlalchemy import text
+    from models import engine  # 使用共享 engine（已配置 ssl=False）
     try:
-        engine = create_async_engine(settings.database_url, connect_args={"ssl": False})
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         return {"status": "ok"}

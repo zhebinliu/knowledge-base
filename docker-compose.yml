@@ -21,6 +21,8 @@ services:
       - upload_data:/app/uploads
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
     restart: unless-stopped
+    dns_opt:
+      - ndots:5      # 覆盖 GCP 的 ndots:0，让 Docker 内置 DNS 能正确解析容器名
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -37,6 +39,8 @@ services:
       - redis
     command: celery -A tasks worker --loglevel=info --concurrency=1
     restart: unless-stopped
+    dns_opt:
+      - ndots:5
 
   postgres:
     image: postgres:16-alpine
