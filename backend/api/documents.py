@@ -43,7 +43,7 @@ async def upload_document(
 
     # 触发异步任务
     from tasks.convert_task import process_document
-    process_document.delay(doc.id)
+    process_document.delay(str(doc.id))
 
     logger.info("document_uploaded", doc_id=doc.id, filename=filename)
     return {"id": doc.id, "filename": filename, "status": "pending"}

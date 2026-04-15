@@ -30,7 +30,20 @@ def run_async(coro):
 
 @celery_app.task(name="process_document", bind=True, max_retries=2)
 def process_document(self, doc_id: str):
+    # 立即更新状态，解决 Pending 问题
+    from models import async_session_maker
+    from models.document import Document
+    
+    async def _update_status():
+        async with async_session_maker() as session:
+            doc = await session.get(Document, doc_id)
+            if doc:
+                doc.conversion_status = "converting"
+                await session.commit()
+    
     try:
+        run_async(_update_status())
+        logger.info("task_received", doc_id=doc_id, task_id=self.request.id)
         run_async(_process_document_async(doc_id))
     except Exception as exc:
         logger.error("process_document_failed", doc_id=doc_id, error=str(exc))
@@ -54,10 +67,8 @@ async def _process_document_async(doc_id: str):
             logger.error("document_not_found", doc_id=doc_id)
             return
 
-        # 1. 立即标记为正在处理
-        doc.conversion_status = "converting"
-        await session.commit()
-        logger.info("task_started", doc_id=doc_id, filename=doc.filename)
+        # 此处状态已经在同步入口更新过，这里仅作记录
+        logger.info("task_processing_start", doc_id=doc_id, filename=doc.filename)
 
         try:
             # 2. 从 MinIO 获取原始文件

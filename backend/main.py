@@ -137,6 +137,11 @@ async def stats():
     async with async_session() as session:
         doc_count = await session.scalar(select(func.count()).select_from(Document))
         chunk_count = await session.scalar(select(func.count()).select_from(Chunk))
+        
+        # 统计各状态文档数量
+        from sqlalchemy import text
+        status_res = await session.execute(text("SELECT conversion_status, count(*) FROM documents GROUP BY conversion_status"))
+        status_map = {r[0]: r[1] for r in status_res}
 
     qdrant_info = await vector_store.collection_info()
 
@@ -144,4 +149,19 @@ async def stats():
         "documents": doc_count,
         "chunks": chunk_count,
         "vectors": qdrant_info.get("vectors_count", 0),
+        "status_distribution": status_map
     }
+
+
+@app.get("/health/test_redis")
+async def test_redis():
+    import redis.asyncio as aioredis
+    import uuid
+    try:
+        r = aioredis.from_url(settings.redis_url)
+        test_key = f"diag:{uuid.uuid4()}"
+        await r.set(test_key, "working", ex=10)
+        val = await r.get(test_key)
+        return {"status": "ok", "test_key": test_key, "value": val}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
