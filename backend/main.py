@@ -53,6 +53,19 @@ async def startup():
             await conn.execute(text(stmt))
     logger.info("DB tables & indexes ready")
     await vector_store.ensure_collection()
+    # 自动创建 MinIO bucket（幂等）
+    from minio import Minio
+    _mc = Minio(
+        settings.minio_endpoint,
+        access_key=settings.minio_user,
+        secret_key=settings.minio_password,
+        secure=False,
+    )
+    if not _mc.bucket_exists(settings.minio_bucket):
+        _mc.make_bucket(settings.minio_bucket)
+        logger.info("MinIO bucket created", bucket=settings.minio_bucket)
+    else:
+        logger.info("MinIO bucket ready", bucket=settings.minio_bucket)
     logger.info("Startup complete")
 
 
