@@ -44,6 +44,8 @@ services:
     build: ./backend
     env_file: .env
     mem_limit: 512m
+    environment:
+      PYTHONPATH: /app
     depends_on:
       - postgres
       - redis
