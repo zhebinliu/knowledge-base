@@ -74,12 +74,17 @@ async def classify_chunk(
     result = await model_router.chat(
         model or "minimax-m2.5",
         [{"role": "user", "content": prompt}],
-        max_tokens=500,
+        max_tokens=2000,   # 推理模型需要更多 token 容纳 <think> 块
         temperature=0.1,
     )
     try:
+        # 剥离推理模型的 <think>…</think> 思考块（GLM-5 / Qwen3 等）
+        clean = re.sub(r"<think>.*?</think>", "", result, flags=re.DOTALL)
         # 清理可能的 markdown 代码块
-        clean = re.sub(r"```(?:json)?|```", "", result).strip()
+        clean = re.sub(r"```(?:json)?|```", "", clean).strip()
+        # 提取第一个 JSON 对象（防止模型在 JSON 后继续输出文字）
+        m = re.search(r"\{.*\}", clean, re.DOTALL)
+        clean = m.group(0) if m else clean
         return json.loads(clean)
     except Exception as e:
         logger.warning("classification_parse_failed", error=str(e), raw=result[:200])
