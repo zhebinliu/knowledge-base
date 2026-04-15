@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { listChunks, type Chunk } from '../api/client'
 import { ChevronDown, ChevronUp, Tag } from 'lucide-react'
+import MarkdownView from '../components/MarkdownView'
 
 const LTC_STAGES = ['', '线索', '商机', '报价', '合同', '回款', '售后']
 const REVIEW_STATUS = ['', 'pending', 'approved', 'rejected', 'needs_review']
@@ -28,9 +29,11 @@ function ChunkRow({ chunk }: { chunk: Chunk }) {
         onClick={() => setExpanded(e => !e)}
       >
         <div className="flex-1 min-w-0">
-          <p className={`text-sm text-gray-800 ${expanded ? '' : 'line-clamp-2'}`}>
-            {chunk.content}
-          </p>
+          {expanded ? (
+            <MarkdownView content={chunk.content} size="sm" />
+          ) : (
+            <p className="text-sm text-gray-800 line-clamp-2">{chunk.content}</p>
+          )}
           <div className="flex flex-wrap items-center gap-2 mt-2">
             {chunk.ltc_stage && (
               <span className="px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700">{chunk.ltc_stage}</span>

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { Brain, Play, ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader, Square, HelpCircle } from 'lucide-react'
+import MarkdownView from '../components/MarkdownView'
 
 const ALL_STAGES = ['线索', '商机', '报价', '合同', '回款', '售后']
 
@@ -276,12 +277,12 @@ export default function Challenge() {
                 <div className="border-t border-gray-100 px-5 py-4 space-y-3">
                   <div>
                     <p className="text-xs font-semibold text-gray-500 mb-1.5">答案</p>
-                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{card.answer}</p>
+                    {card.answer && <MarkdownView content={card.answer} />}
                   </div>
                   {card.reasoning && (
                     <div className="pt-3 border-t border-gray-100">
                       <p className="text-xs font-semibold text-gray-500 mb-1.5">评分理由</p>
-                      <p className="text-xs text-gray-500 leading-relaxed">{card.reasoning}</p>
+                      <MarkdownView content={card.reasoning} size="sm" toolbar={false} />
                     </div>
                   )}
                 </div>

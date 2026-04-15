@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listReviewQueue, approveReview, rejectReview } from '../api/client'
 import { CheckCircle, XCircle, ClipboardCheck, AlertTriangle } from 'lucide-react'
+import MarkdownView from '../components/MarkdownView'
 
 export default function Review() {
   const qc = useQueryClient()
@@ -63,9 +64,7 @@ export default function Review() {
             {/* Chunk content */}
             <div className="px-5 py-4">
               {item.chunk_content ? (
-                <p className="text-sm text-gray-800 leading-relaxed">
-                  {item.chunk_content}
-                </p>
+                <MarkdownView content={item.chunk_content} size="sm" />
               ) : (
                 <p className="text-sm text-gray-400 italic">
                   Chunk ID: {item.chunk_id}（内容加载中或已删除）

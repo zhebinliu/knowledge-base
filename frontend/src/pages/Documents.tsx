@@ -8,6 +8,7 @@ import {
   Upload, Trash2, Clock, CheckCircle, AlertCircle, Loader,
   FileText, Eye, Layers, X, ChevronRight,
 } from 'lucide-react'
+import MarkdownView from '../components/MarkdownView'
 
 const STATUS_BADGE: Record<string, JSX.Element> = {
   pending:    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-yellow-50 text-yellow-700"><Clock size={11}/>等待处理</span>,
@@ -246,9 +247,7 @@ export default function Documents() {
                   </p>
                 )}
                 {markdownData?.markdown_content && (
-                  <pre className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed font-mono bg-gray-50 rounded-lg p-4">
-                    {markdownData.markdown_content}
-                  </pre>
+                  <MarkdownView content={markdownData.markdown_content} />
                 )}
               </div>
             )}
