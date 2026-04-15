@@ -21,14 +21,19 @@ async def generate_questions(target_stage: str, chunks: list[dict]) -> list[dict
     result = await model_router.chat_with_routing(
         "challenge_questioning",
         [{"role": "user", "content": prompt}],
-        max_tokens=1000,
+        max_tokens=1500,
         temperature=0.7,
     )
     try:
-        clean = re.sub(r"```(?:json)?|```", "", result).strip()
+        # Strip <think>...</think> blocks from reasoning models
+        clean = re.sub(r"<think>.*?</think>", "", result, flags=re.DOTALL)
+        clean = re.sub(r"```(?:json)?|```", "", clean).strip()
+        # Extract JSON array
+        m = re.search(r"\[.*\]", clean, re.DOTALL)
+        clean = m.group(0) if m else clean
         return json.loads(clean)
     except Exception as e:
-        logger.warning("question_parse_failed", error=str(e))
+        logger.warning("question_parse_failed", error=str(e), raw=result[:200])
         return []
 
 
@@ -37,14 +42,18 @@ async def judge_answer(question: str, answer: str, source_chunks: list[dict]) ->
     result = await model_router.chat_with_routing(
         "challenge_judging",
         [{"role": "user", "content": prompt}],
-        max_tokens=500,
+        max_tokens=800,
         temperature=0.1,
     )
     try:
-        clean = re.sub(r"```(?:json)?|```", "", result).strip()
+        # Strip <think>...</think> blocks
+        clean = re.sub(r"<think>.*?</think>", "", result, flags=re.DOTALL)
+        clean = re.sub(r"```(?:json)?|```", "", clean).strip()
+        m = re.search(r"\{.*\}", clean, re.DOTALL)
+        clean = m.group(0) if m else clean
         return json.loads(clean)
     except Exception as e:
-        logger.warning("judge_parse_failed", error=str(e))
+        logger.warning("judge_parse_failed", error=str(e), raw=result[:200])
         return {"overall_score": 0.5, "decision": "pending_review", "reasoning": "解析失败"}
 
 
@@ -59,27 +68,47 @@ async def run_challenge_batch(
 
     for stage in target_stages:
         # 获取该阶段的切片作为出题素材
-        query_vector = await embedding_service.embed(f"{stage} 知识库内容")
+        query_vector = await embedding_service.embed(f"{stage} 实施知识 CRM 业务流程")
+
+        # 先尝试按 ltc_stage 过滤
         raw_results = await vector_store.search(query_vector, top_k=10, ltc_stage=stage)
-        chunks = [{"id": r["id"], "content": r["payload"].get("content_preview", ""), "ltc_stage": stage} for r in raw_results]
+
+        # 如果该阶段没有专属内容（如 ltc_stage 为 general），回退到全量检索
+        if not raw_results:
+            logger.info("no_stage_chunks_fallback", stage=stage, action="search_all")
+            raw_results = await vector_store.search(query_vector, top_k=10)
+
+        chunks = [
+            {"id": r["id"], "content": r["payload"].get("content_preview", ""), "ltc_stage": stage}
+            for r in raw_results
+        ]
 
         if not chunks:
-            logger.warning("no_chunks_for_stage", stage=stage)
+            logger.warning("no_chunks_at_all", stage=stage)
             continue
 
         questions = await generate_questions(stage, chunks)
         logger.info("questions_generated", stage=stage, count=len(questions))
+
+        if not questions:
+            logger.warning("question_generation_returned_empty", stage=stage)
+            continue
 
         for q_data in questions[:questions_per_stage]:
             question = q_data.get("question", "")
             if not question:
                 continue
 
-            # 用 KB Agent 回答
-            answer_result = await answer_question(question, ltc_stage=stage)
+            # 用 KB Agent 回答（不限阶段，避免空结果）
+            answer_result = await answer_question(question, ltc_stage=None)
             answer = answer_result["answer"]
             source_ids = [s["id"] for s in answer_result["sources"]]
-            source_chunks = [{"id": r["id"], "content": r["payload"].get("content_preview", "")} for r in raw_results if r["id"] in source_ids]
+            source_chunks = [
+                {"id": r["id"], "content": r["payload"].get("content_preview", "")}
+                for r in raw_results if r["id"] in source_ids
+            ]
+            if not source_chunks:
+                source_chunks = [{"id": r["id"], "content": r["payload"].get("content_preview", "")} for r in raw_results[:3]]
 
             # 评判
             judgment = await judge_answer(question, answer, source_chunks)

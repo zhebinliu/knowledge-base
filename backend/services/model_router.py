@@ -163,6 +163,74 @@ class ModelRouter:
             logger.warning("falling_back", task=task, primary=primary, fallback=fallback, reason=str(e)[:100])
             return await self.chat(fallback, messages, **kwargs)
 
+    async def chat_stream(
+        self,
+        model_name: str,
+        messages: list[dict],
+        max_tokens: int = 2000,
+        temperature: float = 0.3,
+        timeout: float = 120.0,
+    ):
+        """Async generator that yields raw text tokens from a streaming LLM call."""
+        import json as _json
+        config = MODEL_REGISTRY[model_name]
+        api_key = self._get_api_key(model_name)
+        payload: dict = {
+            "model": config["model_id"],
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "stream": True,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                async with client.stream(
+                    "POST",
+                    f"{config['api_base']}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                ) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
+                        data = line[6:].strip()
+                        if data == "[DONE]":
+                            return
+                        try:
+                            chunk = _json.loads(data)
+                            delta = chunk["choices"][0]["delta"].get("content") or ""
+                            if delta:
+                                yield delta
+                        except Exception:
+                            pass
+        except Exception as e:
+            self._failure_counts[model_name] = self._failure_counts.get(model_name, 0) + 1
+            logger.error("stream_failed", model=model_name, error=str(e)[:200])
+            raise
+
+    async def chat_stream_with_routing(
+        self,
+        task: str,
+        messages: list[dict],
+        **kwargs,
+    ):
+        """Async generator with automatic fallback routing for streaming."""
+        rule = ROUTING_RULES.get(task, {"primary": "qwen3-next-80b-a3b", "fallback": "glm-5"})
+        primary = rule["primary"]
+        fallback = rule["fallback"]
+
+        try:
+            async for token in self.chat_stream(primary, messages, **kwargs):
+                yield token
+        except Exception as e:
+            logger.warning("stream_falling_back", task=task, primary=primary, fallback=fallback, reason=str(e)[:100])
+            async for token in self.chat_stream(fallback, messages, **kwargs):
+                yield token
+
     async def test_connectivity(self) -> dict:
         test_msg = [{"role": "user", "content": "回复OK"}]
         results = {}

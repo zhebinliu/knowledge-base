@@ -19,10 +19,24 @@ class ReviewAction(BaseModel):
 @router.get("/queue")
 async def get_review_queue(session: AsyncSession = Depends(get_session)):
     result = await session.execute(
-        select(ReviewQueue).where(ReviewQueue.status == "pending").order_by(ReviewQueue.created_at)
+        select(ReviewQueue, Chunk)
+        .join(Chunk, ReviewQueue.chunk_id == Chunk.id, isouter=True)
+        .where(ReviewQueue.status == "pending")
+        .order_by(ReviewQueue.created_at)
     )
-    items = result.scalars().all()
-    return [{"id": i.id, "chunk_id": i.chunk_id, "reason": i.reason, "created_at": i.created_at} for i in items]
+    rows = result.all()
+    return [
+        {
+            "id": item.id,
+            "chunk_id": item.chunk_id,
+            "reason": item.reason,
+            "created_at": item.created_at,
+            "chunk_content": chunk.content if chunk else None,
+            "chunk_ltc_stage": chunk.ltc_stage if chunk else None,
+            "chunk_index": chunk.chunk_index if chunk else None,
+        }
+        for item, chunk in rows
+    ]
 
 
 @router.post("/{review_id}/approve")

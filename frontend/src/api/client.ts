@@ -39,7 +39,9 @@ export interface ReviewItem {
   chunk_id: string
   reason: string
   created_at: string
-  chunk?: Chunk
+  chunk_content?: string | null
+  chunk_ltc_stage?: string | null
+  chunk_index?: number | null
 }
 
 export interface Stats {
@@ -66,6 +68,12 @@ export const deleteDocument = (id: string) =>
 
 export const getDocumentStatus = (id: string) =>
   api.get<{ id: string; conversion_status: string; chunk_count: number }>(`/documents/${id}/status`).then(r => r.data)
+
+export const getDocumentMarkdown = (id: string) =>
+  api.get<{ id: string; filename: string; status: string; markdown_content: string | null }>(`/documents/${id}`).then(r => r.data)
+
+export const getDocumentChunks = (id: string) =>
+  api.get<Chunk[]>(`/documents/${id}/chunks`).then(r => r.data)
 
 // ── Chunks ───────────────────────────────────────────────────────────────────
 

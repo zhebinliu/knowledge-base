@@ -75,6 +75,32 @@ async def get_document_status(doc_id: str, session: AsyncSession = Depends(get_s
     return {"id": doc.id, "conversion_status": doc.conversion_status, "chunk_count": chunk_count}
 
 
+@router.get("/{doc_id}/chunks")
+async def get_document_chunks(doc_id: str, session: AsyncSession = Depends(get_session)):
+    from models.chunk import Chunk
+    doc = await session.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(404, "文档不存在")
+    result = await session.execute(
+        select(Chunk).where(Chunk.document_id == doc_id).order_by(Chunk.chunk_index)
+    )
+    chunks = result.scalars().all()
+    return [
+        {
+            "id": c.id,
+            "chunk_index": c.chunk_index,
+            "content": c.content,
+            "ltc_stage": c.ltc_stage,
+            "industry": c.industry,
+            "module": c.module,
+            "tags": c.tags,
+            "char_count": c.char_count,
+            "review_status": c.review_status,
+        }
+        for c in chunks
+    ]
+
+
 @router.delete("/{doc_id}")
 async def delete_document(doc_id: str, session: AsyncSession = Depends(get_session)):
     doc = await session.get(Document, doc_id)

@@ -16,13 +16,24 @@ const nav = [
 
 export default function Layout() {
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-gray-100">
       {/* Sidebar */}
-      <aside className="w-56 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col">
-        <div className="h-16 flex items-center px-5 border-b border-gray-200">
-          <span className="text-lg font-bold text-blue-600">📚 KB System</span>
+      <aside className="w-60 flex-shrink-0 bg-gray-900 flex flex-col">
+        {/* Logo */}
+        <div className="h-16 flex items-center px-5 border-b border-gray-700/50">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+              <BookOpen size={16} className="text-white" />
+            </div>
+            <div>
+              <p className="text-white text-sm font-bold leading-tight">实施知识</p>
+              <p className="text-gray-400 text-xs leading-tight">综合管理</p>
+            </div>
+          </div>
         </div>
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
           {nav.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
@@ -30,20 +41,22 @@ export default function Layout() {
               end={to === '/'}
               className={({ isActive }) =>
                 clsx(
-                  'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
                   isActive
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-400 hover:bg-gray-800 hover:text-gray-100',
                 )
               }
             >
-              <Icon size={18} />
+              <Icon size={17} />
               {label}
             </NavLink>
           ))}
         </nav>
-        <div className="px-4 py-3 border-t border-gray-200 text-xs text-gray-400">
-          纷享销客 CRM · 知识库管理
+
+        {/* Footer */}
+        <div className="px-4 py-3 border-t border-gray-700/50">
+          <p className="text-xs text-gray-500">纷享销客 · 实施团队</p>
         </div>
       </aside>
 
