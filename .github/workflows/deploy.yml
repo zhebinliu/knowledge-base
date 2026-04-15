@@ -8,7 +8,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}-backend
+  BACKEND_IMAGE:  ${{ github.repository }}-backend
+  FRONTEND_IMAGE: ${{ github.repository }}-frontend
   DOCKER_BUILDKIT: 1
 
 jobs:
@@ -73,8 +74,6 @@ jobs:
           echo "MINIO_USER=minioadmin" >> $GITHUB_ENV
           echo "MINIO_PASSWORD=minioadmin" >> $GITHUB_ENV
           echo "MINIO_BUCKET=kb-documents" >> $GITHUB_ENV
-          
-          # 设置用于 CI 跳过逻辑的 dummy key
           echo "EMBEDDING_API_KEY=dummy" >> $GITHUB_ENV
           echo "RERANK_API_KEY=dummy" >> $GITHUB_ENV
           echo "ZHIPU_API_KEY=dummy" >> $GITHUB_ENV
@@ -99,7 +98,7 @@ jobs:
           pytest backend/tests/test_phase0.py -v
 
   build-and-push:
-    name: Build and Push Docker Image
+    name: Build and Push Docker Images
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -121,25 +120,45 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
+      - name: Extract metadata for backend
+        id: meta-backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}
           tags: |
             type=ref,event=branch
             type=sha,format=short
             latest
 
-      - name: Build and push Docker image
+      - name: Build and push backend image
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Extract metadata for frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=sha,format=short
+            latest
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
 
   deploy:
     name: Deploy to Server
@@ -160,13 +179,12 @@ jobs:
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
-            # 更新部署脚本/配置
             git pull origin main || echo "Not a git repo or no changes"
-            
-            # 设置镜像环境变量并重新启动
-            export BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            docker compose pull backend celery_worker
+
+            export BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest
+            export FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest
+
+            docker compose pull backend celery_worker frontend
             docker compose up -d
-            
-            # 运行检查
+
             docker compose ps
