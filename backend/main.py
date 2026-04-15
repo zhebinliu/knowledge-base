@@ -34,6 +34,24 @@ app.include_router(export.router, prefix="/api/transfer", tags=["transfer"])
 @app.on_event("startup")
 async def startup():
     logger.info("Starting KB System...")
+    # 自动建表（幂等，生产环境安全）
+    from models import Base, engine as db_engine
+    from models.document import Document  # noqa: F401 — side-effect import
+    from models.chunk import Chunk  # noqa: F401
+    from models.challenge import Challenge  # noqa: F401
+    from models.review_queue import ReviewQueue  # noqa: F401
+    from sqlalchemy import text
+    async with db_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+        # 建索引（幂等）
+        for stmt in [
+            "CREATE INDEX IF NOT EXISTS idx_chunks_ltc ON chunks(ltc_stage)",
+            "CREATE INDEX IF NOT EXISTS idx_chunks_industry ON chunks(industry)",
+            "CREATE INDEX IF NOT EXISTS idx_chunks_review ON chunks(review_status)",
+            "CREATE INDEX IF NOT EXISTS idx_chunks_doc ON chunks(document_id)",
+        ]:
+            await conn.execute(text(stmt))
+    logger.info("DB tables & indexes ready")
     await vector_store.ensure_collection()
     logger.info("Startup complete")
 
