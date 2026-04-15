@@ -71,12 +71,24 @@ async def classify_chunk(
     model: str | None = None,
 ) -> dict:
     prompt = build_slicing_prompt(doc_title, section_path, content)
-    result = await model_router.chat(
-        model or "minimax-m2.5",
-        [{"role": "user", "content": prompt}],
-        max_tokens=2000,   # 推理模型需要更多 token 容纳 <think> 块
-        temperature=0.1,
-    )
+    if model is None:
+        # 默认路径：走 routing（带跨上游 fallback）
+        result = await model_router.chat_with_routing(
+            "slicing_classification",
+            [{"role": "user", "content": prompt}],
+            max_tokens=2000,   # 推理模型需要更多 token 容纳 <think> 块
+            temperature=0.1,
+            timeout=180.0,
+        )
+    else:
+        # 明确指定模型时（如 GLM 复审）直接调用
+        result = await model_router.chat(
+            model,
+            [{"role": "user", "content": prompt}],
+            max_tokens=2000,
+            temperature=0.1,
+            timeout=180.0,
+        )
     try:
         # 剥离推理模型的 <think>…</think> 思考块（GLM-5 / Qwen3 等）
         clean = re.sub(r"<think>.*?</think>", "", result, flags=re.DOTALL)

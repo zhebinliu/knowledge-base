@@ -89,10 +89,10 @@ MODEL_REGISTRY = {
 }
 
 ROUTING_RULES = {
-    "conversion":             {"primary": "minimax-m2.5",      "fallback": "glm-5"},
+    "conversion":             {"primary": "minimax-m2.5",      "fallback": "mimo-v2-pro"},
     "daily_qa":               {"primary": "qwen3-next-80b-a3b", "fallback": "glm-5"},
     "doc_generation":         {"primary": "minimax-m2.7",      "fallback": "glm-5"},
-    "slicing_classification": {"primary": "minimax-m2.5",      "fallback": "qwen3-next-80b-a3b"},
+    "slicing_classification": {"primary": "minimax-m2.5",      "fallback": "mimo-v2-pro"},
     "slicing_review":         {"primary": "glm-5",             "fallback": "minimax-m2.5"},
     "challenge_questioning":  {"primary": "mimo-v2-pro",       "fallback": "glm-5"},
     "challenge_judging":      {"primary": "glm-5",             "fallback": "qwen3-next-80b-a3b"},

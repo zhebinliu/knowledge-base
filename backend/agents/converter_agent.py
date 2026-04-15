@@ -108,6 +108,7 @@ async def convert_to_markdown(filename: str, content: bytes) -> str:
             "conversion",
             [{"role": "user", "content": prompt}],
             max_tokens=4000,
+            timeout=180.0,
         )
         markdown_parts.append(result)
         logger.info("segment_converted", filename=filename, segment=i + 1, total=len(segments))
