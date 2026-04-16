@@ -9,6 +9,7 @@ import re
 import structlog
 from services.model_router import model_router
 from prompts.slicing import build_slicing_prompt
+from agents.challenger_agent import _extract_json
 
 logger = structlog.get_logger()
 
@@ -90,14 +91,11 @@ async def classify_chunk(
             timeout=180.0,
         )
     try:
-        # 剥离推理模型的 <think>…</think> 思考块（GLM-5 / Qwen3 等）
-        clean = re.sub(r"<think>.*?</think>", "", result, flags=re.DOTALL)
-        # 清理可能的 markdown 代码块
-        clean = re.sub(r"```(?:json)?|```", "", clean).strip()
-        # 提取第一个 JSON 对象（防止模型在 JSON 后继续输出文字）
-        m = re.search(r"\{.*\}", clean, re.DOTALL)
-        clean = m.group(0) if m else clean
-        return json.loads(clean)
+        # 健壮提取：先在原始文本中找 JSON（包括 <think> 内部），再剥掉 think 找
+        found = _extract_json(result, target="object")
+        if found:
+            return json.loads(found)
+        raise ValueError("No valid JSON found")
     except Exception as e:
         logger.warning("classification_parse_failed", error=str(e), raw=result[:200])
         return {

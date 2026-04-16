@@ -16,6 +16,67 @@ from prompts.challenge import build_question_prompt, build_judge_prompt
 
 logger = structlog.get_logger()
 
+
+def _extract_json(text: str, target: str = "object") -> str | None:
+    """
+    从 LLM 原始输出中健壮地提取 JSON object / array。
+    1. 先在原始文本中找（覆盖 GLM-5 把 JSON 放在 <think> 里的情况）
+    2. 再剥掉 <think> 和代码块后找
+    target: "object" 找 {}, "array" 找 []
+    """
+    open_ch, close_ch = ('{', '}') if target == "object" else ('[', ']')
+
+    def _find_balanced(s: str) -> str | None:
+        start = s.find(open_ch)
+        if start == -1:
+            return None
+        depth = 0
+        in_str = False
+        escape = False
+        for i in range(start, len(s)):
+            c = s[i]
+            if escape:
+                escape = False
+                continue
+            if c == '\\':
+                escape = True
+                continue
+            if c == '"':
+                in_str = not in_str
+                continue
+            if in_str:
+                continue
+            if c == open_ch:
+                depth += 1
+            elif c == close_ch:
+                depth -= 1
+                if depth == 0:
+                    return s[start:i + 1]
+        return None
+
+    # 尝试 1：从原始文本直接提取（覆盖 think 内含 JSON 的场景）
+    raw_stripped_code = re.sub(r"```(?:json)?|```", "", text).strip()
+    found = _find_balanced(raw_stripped_code)
+    if found:
+        try:
+            json.loads(found)
+            return found
+        except json.JSONDecodeError:
+            pass
+
+    # 尝试 2：剥掉 <think> 后再提取
+    no_think = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    no_think = re.sub(r"```(?:json)?|```", "", no_think).strip()
+    found = _find_balanced(no_think)
+    if found:
+        try:
+            json.loads(found)
+            return found
+        except json.JSONDecodeError:
+            pass
+
+    return None
+
 # 所有知识挑战产物都挂到这条虚拟文档下，便于 Documents 列表里单独浏览
 VIRTUAL_CHALLENGE_DOC_ID = "00000000-0000-0000-0000-000000000001"
 VIRTUAL_CHALLENGE_FILENAME = "知识挑战"
@@ -127,15 +188,14 @@ async def generate_questions(target_stage: str, chunks: list[dict]) -> list[dict
         max_tokens=1500,
         temperature=0.7,
     )
-    try:
-        clean = re.sub(r"<think>.*?</think>", "", result, flags=re.DOTALL)
-        clean = re.sub(r"```(?:json)?|```", "", clean).strip()
-        m = re.search(r"\[.*\]", clean, re.DOTALL)
-        clean = m.group(0) if m else clean
-        return json.loads(clean)
-    except Exception as e:
-        logger.warning("question_parse_failed", error=str(e), raw=result[:200])
-        return []
+    found = _extract_json(result, target="array")
+    if found:
+        try:
+            return json.loads(found)
+        except Exception:
+            pass
+    logger.warning("question_parse_failed", raw=result[:300])
+    return []
 
 
 async def judge_answer(question: str, answer: str, source_chunks: list[dict]) -> dict:
@@ -146,15 +206,21 @@ async def judge_answer(question: str, answer: str, source_chunks: list[dict]) ->
         max_tokens=800,
         temperature=0.1,
     )
-    try:
-        clean = re.sub(r"<think>.*?</think>", "", result, flags=re.DOTALL)
-        clean = re.sub(r"```(?:json)?|```", "", clean).strip()
-        m = re.search(r"\{.*\}", clean, re.DOTALL)
-        clean = m.group(0) if m else clean
-        return json.loads(clean)
-    except Exception as e:
-        logger.warning("judge_parse_failed", error=str(e), raw=result[:200])
-        return {"overall_score": 0.5, "decision": "pending_review", "reasoning": "解析失败"}
+    found = _extract_json(result, target="object")
+    if found:
+        try:
+            parsed = json.loads(found)
+            # 标准化 decision 值
+            decision = parsed.get("decision", "")
+            if decision in ("auto_accept", "accept"):
+                parsed["decision"] = "pass"
+            elif decision in ("reject",):
+                parsed["decision"] = "fail"
+            return parsed
+        except Exception:
+            pass
+    logger.warning("judge_parse_failed", raw=result[:300])
+    return {"overall_score": 0.5, "decision": "fail", "reasoning": "评分结果解析失败"}
 
 
 async def run_challenge_stream(
