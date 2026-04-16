@@ -70,20 +70,19 @@ async def classify_chunk(
     doc_title: str,
     section_path: str,
     model: str | None = None,
-) -> dict:
+) -> tuple[dict, str]:
+    """Returns (classification_dict, model_name)."""
     prompt = await build_slicing_prompt(doc_title, section_path, content)
     if model is None:
-        # 默认路径：走 routing（带跨上游 fallback）
-        result = await model_router.chat_with_routing(
+        result, used_model = await model_router.chat_with_routing(
             "slicing_classification",
             [{"role": "user", "content": prompt}],
-            max_tokens=8000,   # 推理模型需要充分思考空间
+            max_tokens=8000,
             temperature=0.1,
             timeout=180.0,
         )
     else:
-        # 明确指定模型时（如 GLM 复审）直接调用
-        result = await model_router.chat(
+        result, used_model = await model_router.chat(
             model,
             [{"role": "user", "content": prompt}],
             max_tokens=8000,
@@ -91,10 +90,9 @@ async def classify_chunk(
             timeout=180.0,
         )
     try:
-        # 健壮提取：先在原始文本中找 JSON（包括 <think> 内部），再剥掉 think 找
         found = _extract_json(result, target="object")
         if found:
-            return json.loads(found)
+            return json.loads(found), used_model
         raise ValueError("No valid JSON found")
     except Exception as e:
         logger.warning("classification_parse_failed", error=str(e), raw=result[:200])
@@ -105,7 +103,7 @@ async def classify_chunk(
             "module": "",
             "tags": [],
             "reasoning": "解析失败，默认分类",
-        }
+        }, used_model
 
 
 async def slice_and_classify(markdown: str, doc_title: str, confidence_threshold: float = 0.85) -> list[dict]:
@@ -119,7 +117,7 @@ async def slice_and_classify(markdown: str, doc_title: str, confidence_threshold
 
     results = []
     for i, chunk in enumerate(raw_chunks):
-        classification = await classify_chunk(chunk["content"], doc_title, chunk["section_path"])
+        classification, classify_model = await classify_chunk(chunk["content"], doc_title, chunk["section_path"])
 
         confidence = classification.get("ltc_stage_confidence", 0.5)
         if confidence >= confidence_threshold:
@@ -134,9 +132,10 @@ async def slice_and_classify(markdown: str, doc_title: str, confidence_threshold
         if review_status == "needs_review":
             logger.info("review_with_glm", chunk_index=i, confidence=confidence)
             try:
-                review = await classify_chunk(chunk["content"], doc_title, chunk["section_path"], model="glm-5")
+                review, review_model = await classify_chunk(chunk["content"], doc_title, chunk["section_path"], model="glm-5")
                 if review.get("ltc_stage_confidence", 0) > confidence:
                     classification = review
+                    classify_model = review_model
                     if review["ltc_stage_confidence"] >= confidence_threshold:
                         review_status = "auto_approved"
             except Exception as e:
@@ -153,6 +152,7 @@ async def slice_and_classify(markdown: str, doc_title: str, confidence_threshold
             "module": classification.get("module", ""),
             "tags": classification.get("tags", []),
             "review_status": review_status,
+            "classified_by_model": classify_model,
         })
 
     return results
@@ -170,9 +170,10 @@ async def classify_single_chunk(content: str, model: str = "minimax-m2.5") -> di
     Returns:
         {ltc_stage, ltc_stage_confidence, industry, module, tags, reasoning}
     """
-    return await classify_chunk(
+    result, model_used = await classify_chunk(
         content=content,
         doc_title="",
         section_path="",
         model=model,
     )
+    return result

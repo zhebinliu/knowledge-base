@@ -1,6 +1,19 @@
 # 任务跟踪
 
-## 当前迭代：系统设置页面 + API Key 管理
+## 当前迭代：模型来源追踪（Model Attribution）
+
+### 进行中
+
+- [x] **model_router 返回值改造** — `chat()` 和 `chat_with_routing()` 返回 `(content, model_name)` 元组，streaming yield `(token, None)` + `(None, model_name)` 结束信号
+- [x] **所有 agent 适配** — converter / slicer / challenger / kb_agent 全部接收元组，传递 model_name
+- [x] **Chunk 模型加字段** — `generated_by_model` 字段，切片入库时记录分类模型名
+- [x] **Challenge SSE 带模型信息** — question 事件带 question_model，result 事件带 answer_model + judge_model
+- [x] **QA SSE 带模型信息** — sources 事件附带 model 字段
+- [x] **前端显示模型标签** — Chunks 页(indigo badge) / Challenge 卡片(出题/回答/评判 3色badge) / QA 消息(indigo badge)
+
+---
+
+## 上一迭代：系统设置页面 + API Key 管理（已完成）
 
 ### 已完成
 

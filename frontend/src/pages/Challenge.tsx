@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Brain, Play, ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader, Square, HelpCircle, ThumbsUp, ThumbsDown, Plus, Clock, Trash2, Power } from 'lucide-react'
+import { Brain, Play, ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader, Square, HelpCircle, ThumbsUp, ThumbsDown, Plus, Clock, Trash2, Power, Cpu } from 'lucide-react'
 import MarkdownView from '../components/MarkdownView'
 import {
   approveReview, rejectReview,
@@ -24,6 +24,10 @@ interface QuestionCard {
   chunk_id?: string | null
   review_status?: 'auto_approved' | 'needs_review' | 'approved' | 'rejected' | null
   review_id?: string | null
+  // Model attribution:
+  question_model?: string | null
+  answer_model?: string | null
+  judge_model?: string | null
 }
 
 export default function Challenge() {
@@ -111,12 +115,12 @@ export default function Challenge() {
             }
 
             if (ev.type === 'question') {
-              // Phase 1: append new question card (no answer yet)
               setCards(prev => [...prev, {
                 q_index:  ev.q_index,
                 question: ev.question,
                 ltc_stage: ev.ltc_stage,
                 answering: false,
+                question_model: ev.question_model ?? null,
               }])
             }
 
@@ -134,6 +138,9 @@ export default function Challenge() {
                       chunk_id: ev.chunk_id ?? null,
                       review_status: ev.review_status ?? null,
                       review_id: ev.review_id ?? null,
+                      question_model: ev.question_model ?? c.question_model ?? null,
+                      answer_model: ev.answer_model ?? null,
+                      judge_model: ev.judge_model ?? null,
                     }
                   : c
               ))
@@ -370,6 +377,28 @@ export default function Challenge() {
                     <div className="pt-3 border-t border-gray-100">
                       <p className="text-xs font-semibold text-gray-500 mb-1.5">评分理由</p>
                       <MarkdownView content={card.reasoning} size="sm" toolbar={false} />
+                    </div>
+                  )}
+
+                  {/* Model attribution */}
+                  {(card.question_model || card.answer_model || card.judge_model) && (
+                    <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-semibold text-gray-500">模型</span>
+                      {card.question_model && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-600 border border-indigo-100">
+                          <Cpu size={10} /> 出题: {card.question_model}
+                        </span>
+                      )}
+                      {card.answer_model && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-teal-50 text-teal-600 border border-teal-100">
+                          <Cpu size={10} /> 回答: {card.answer_model}
+                        </span>
+                      )}
+                      {card.judge_model && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-600 border border-amber-100">
+                          <Cpu size={10} /> 评判: {card.judge_model}
+                        </span>
+                      )}
                     </div>
                   )}
 

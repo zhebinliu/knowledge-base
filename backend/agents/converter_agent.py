@@ -102,15 +102,16 @@ async def convert_to_markdown(filename: str, content: bytes) -> str:
         segments = [raw_text[i:i + MAX_CHUNK_CHARS] for i in range(0, len(raw_text), MAX_CHUNK_CHARS)]
 
     markdown_parts = []
+    used_model = None
     for i, segment in enumerate(segments):
         prompt = await build_conversion_prompt(segment)
-        result = await model_router.chat_with_routing(
+        result, used_model = await model_router.chat_with_routing(
             "conversion",
             [{"role": "user", "content": prompt}],
             max_tokens=8000,
             timeout=180.0,
         )
         markdown_parts.append(result)
-        logger.info("segment_converted", filename=filename, segment=i + 1, total=len(segments))
+        logger.info("segment_converted", filename=filename, segment=i + 1, total=len(segments), model=used_model)
 
-    return "\n\n".join(markdown_parts)
+    return "\n\n".join(markdown_parts), used_model

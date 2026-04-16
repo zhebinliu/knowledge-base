@@ -106,6 +106,7 @@ async def get_document_chunks(doc_id: str, session: AsyncSession = Depends(get_s
             "tags": c.tags,
             "char_count": c.char_count,
             "review_status": c.review_status,
+            "generated_by_model": c.generated_by_model,
         }
         for c in chunks
     ]

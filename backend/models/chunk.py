@@ -32,6 +32,9 @@ class Chunk(Base):
     reviewed_by: Mapped[str | None] = mapped_column(String(100))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
 
+    # 模型来源
+    generated_by_model: Mapped[str | None] = mapped_column(String(100))
+
     # Qdrant point ID
     vector_id: Mapped[str | None] = mapped_column(String(100))
 

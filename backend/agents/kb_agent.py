@@ -54,7 +54,7 @@ async def answer_question(
 
     # 5. 生成回答
     prompt = await build_qa_prompt(question, chunks_for_prompt)
-    answer = await model_router.chat_with_routing(
+    answer, used_model = await model_router.chat_with_routing(
         "daily_qa",
         [{"role": "user", "content": prompt}],
         max_tokens=2000,
@@ -62,6 +62,7 @@ async def answer_question(
 
     return {
         "answer": answer,
+        "model": used_model,
         "sources": [{"id": r["id"], "score": r["score"], "ltc_stage": r["payload"].get("ltc_stage")} for r in top_results],
     }
 
@@ -117,25 +118,28 @@ async def answer_question_stream(
 
     in_think = False
     buf = ""
+    used_model = None
 
-    async for raw_token in model_router.chat_stream_with_routing(
+    async for raw_token, model_name in model_router.chat_stream_with_routing(
         "daily_qa",
         [{"role": "user", "content": prompt}],
         max_tokens=2000,
     ):
+        # End-of-stream signal: (None, model_name)
+        if raw_token is None:
+            used_model = model_name
+            continue
+
         buf += raw_token
 
         if in_think:
-            # 等待 </think> 结束
             end_idx = buf.find("</think>")
             if end_idx != -1:
                 buf = buf[end_idx + 8:]
                 in_think = False
             else:
-                # 只保留尾部用于检测标签
                 buf = buf[-15:]
         else:
-            # 检测是否进入 think 块
             start_idx = buf.find("<think>")
             if start_idx != -1:
                 visible = buf[:start_idx]
@@ -144,7 +148,6 @@ async def answer_question_stream(
                 buf = buf[start_idx + 7:]
                 in_think = True
             else:
-                # 安全输出（保留尾部防止跨 chunk 的标签）
                 safe_len = max(0, len(buf) - 8)
                 if safe_len > 0:
                     yield _json.dumps({"token": buf[:safe_len]})
@@ -154,12 +157,12 @@ async def answer_question_stream(
     if buf and not in_think:
         yield _json.dumps({"token": buf})
 
-    # 7. 发送来源信息
+    # 7. 发送来源信息 + 模型名
     sources = [
         {"id": r["id"], "score": r["score"], "ltc_stage": r["payload"].get("ltc_stage")}
         for r in top_results
     ]
-    yield _json.dumps({"sources": sources})
+    yield _json.dumps({"sources": sources, "model": used_model})
 
 
 async def generate_doc(
@@ -175,8 +178,9 @@ async def generate_doc(
     chunks = [{"id": r["id"], "content": r["payload"].get("content_preview", "")} for r in raw_results[:RERANK_TOP_K]]
     prompt = await build_doc_generate_prompt(template, chunks, project_name, industry)
 
-    return await model_router.chat_with_routing(
+    content, used_model = await model_router.chat_with_routing(
         "doc_generation",
         [{"role": "user", "content": prompt}],
         max_tokens=4000,
     )
+    return content

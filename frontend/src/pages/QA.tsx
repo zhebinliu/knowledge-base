@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Bot, User, Loader, MessageSquare, Trash2, ChevronRight, FileSearch } from 'lucide-react'
+import { Send, Bot, User, Loader, MessageSquare, Trash2, ChevronRight, FileSearch, Cpu } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -14,6 +14,7 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   sources?: SourceItem[]
+  model?: string | null
 }
 
 interface Conversation {
@@ -161,7 +162,7 @@ export default function QA() {
                 const msgs = [...c.messages]
                 const last = msgs[msgs.length - 1]
                 if (last?.role === 'assistant') {
-                  msgs[msgs.length - 1] = { ...last, sources: parsed.sources }
+                  msgs[msgs.length - 1] = { ...last, sources: parsed.sources, model: parsed.model ?? null }
                 }
                 return { ...c, messages: msgs }
               }))
@@ -340,6 +341,11 @@ export default function QA() {
                     </>
                   )}
                 </div>
+                {msg.model && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-600 border border-indigo-100 mt-1">
+                    <Cpu size={10} />{msg.model}
+                  </span>
+                )}
                 {msg.sources && msg.sources.length > 0 && (
                   <p className="text-xs text-gray-400 px-1">参考了 {msg.sources.length} 个来源 →</p>
                 )}

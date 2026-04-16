@@ -88,10 +88,11 @@ async def _process_document_async(doc_id: str):
             content = response.read()
 
             # 3. 文档解析与 Markdown 转化
-            markdown = await convert_to_markdown(doc.filename, content)
+            markdown, convert_model = await convert_to_markdown(doc.filename, content)
             doc.markdown_content = markdown
             doc.conversion_status = "slicing"
             await session.commit()
+            logger.info("conversion_model_used", doc_id=doc_id, model=convert_model)
 
             # 4. 高级切片与 LTC 分类
             slices = await slice_and_classify(markdown, doc.filename)
@@ -110,6 +111,7 @@ async def _process_document_async(doc_id: str):
                     source_section=slice_data["section_path"],
                     char_count=slice_data["char_count"],
                     review_status=slice_data["review_status"],
+                    generated_by_model=slice_data.get("classified_by_model"),
                 )
                 session.add(chunk)
                 await session.flush()

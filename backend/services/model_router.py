@@ -145,7 +145,8 @@ class ModelRouter:
         temperature: float = 0.3,
         response_format: dict | None = None,
         timeout: float = 180.0,
-    ) -> str:
+    ) -> tuple[str, str]:
+        """Returns (content, model_name) tuple."""
         config = await self._get_model_config(model_name)
         api_key = await self._get_api_key(config)
 
@@ -170,7 +171,8 @@ class ModelRouter:
                 )
                 resp.raise_for_status()
                 self._failure_counts[model_name] = 0
-                return resp.json()["choices"][0]["message"]["content"]
+                content = resp.json()["choices"][0]["message"]["content"]
+                return content, model_name
         except Exception as e:
             self._failure_counts[model_name] = self._failure_counts.get(model_name, 0) + 1
             logger.error("model_call_failed", model=model_name, error=str(e)[:200])
@@ -181,7 +183,8 @@ class ModelRouter:
         task: str,
         messages: list[dict],
         **kwargs,
-    ) -> str:
+    ) -> tuple[str, str]:
+        """Returns (content, model_name) tuple with automatic fallback."""
         rule = await self._get_routing_rule(task)
         primary = rule["primary"]
         fallback = rule["fallback"]
@@ -203,7 +206,7 @@ class ModelRouter:
         temperature: float = 0.3,
         timeout: float = 180.0,
     ):
-        """Async generator that yields raw text tokens from a streaming LLM call."""
+        """Async generator yielding (token, None) during streaming, then (None, model_name) at end."""
         import json as _json
         config = await self._get_model_config(model_name)
         api_key = await self._get_api_key(config)
@@ -231,12 +234,13 @@ class ModelRouter:
                             continue
                         data = line[6:].strip()
                         if data == "[DONE]":
+                            yield None, model_name  # signal end with model name
                             return
                         try:
                             chunk = _json.loads(data)
                             delta = chunk["choices"][0]["delta"].get("content") or ""
                             if delta:
-                                yield delta
+                                yield delta, None
                         except Exception:
                             pass
         except Exception as e:
@@ -250,7 +254,7 @@ class ModelRouter:
         messages: list[dict],
         **kwargs,
     ):
-        """Async generator with automatic fallback routing for streaming."""
+        """Async generator yielding (token, None) during streaming, then (None, model_name) at end."""
         rule = await self._get_routing_rule(task)
         primary = rule["primary"]
         fallback = rule["fallback"]
@@ -258,19 +262,19 @@ class ModelRouter:
         kwargs = {**db_params, **kwargs}
 
         try:
-            async for token in self.chat_stream(primary, messages, **kwargs):
-                yield token
+            async for token, model in self.chat_stream(primary, messages, **kwargs):
+                yield token, model
         except Exception as e:
             logger.warning("stream_falling_back", task=task, primary=primary, fallback=fallback, reason=str(e)[:100])
-            async for token in self.chat_stream(fallback, messages, **kwargs):
-                yield token
+            async for token, model in self.chat_stream(fallback, messages, **kwargs):
+                yield token, model
 
     async def test_connectivity(self) -> dict:
         test_msg = [{"role": "user", "content": "回复OK"}]
         results = {}
         for model_name in ["minimax-m2.5", "glm-5", "qwen3-next-80b-a3b", "mimo-v2-pro"]:
             try:
-                await self.chat(model_name, test_msg, max_tokens=5, timeout=15.0)
+                _content, _model = await self.chat(model_name, test_msg, max_tokens=5, timeout=15.0)
                 results[model_name] = "ok"
             except Exception as e:
                 results[model_name] = f"error: {str(e)[:120]}"

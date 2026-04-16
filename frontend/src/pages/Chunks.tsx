@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listChunks, updateChunk, type Chunk } from '../api/client'
-import { ChevronDown, ChevronUp, Tag, Pencil, Check, X, Loader } from 'lucide-react'
+import { ChevronDown, ChevronUp, Tag, Pencil, Check, X, Loader, Cpu } from 'lucide-react'
 import MarkdownView from '../components/MarkdownView'
 
 const LTC_STAGES = ['', '线索', '客户', '商机', '报价', '订单', '合同', '交付', '回款', '售后', '通用']
@@ -84,6 +84,11 @@ function ChunkRow({ chunk }: { chunk: Chunk }) {
             <span className={`px-2 py-0.5 rounded-full text-xs ${REVIEW_BADGE[chunk.review_status] ?? 'bg-gray-100 text-gray-600'}`}>
               {REVIEW_LABEL[chunk.review_status] ?? chunk.review_status}
             </span>
+            {(chunk as any).generated_by_model && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-600 border border-indigo-100">
+                <Cpu size={10} />{(chunk as any).generated_by_model}
+              </span>
+            )}
             {chunk.tags?.map(t => (
               <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
                 <Tag size={10} />{t}

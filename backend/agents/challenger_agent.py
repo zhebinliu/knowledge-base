@@ -180,9 +180,10 @@ async def _persist_challenge_chunk(
         return None, None, None
 
 
-async def generate_questions(target_stage: str, chunks: list[dict]) -> list[dict]:
+async def generate_questions(target_stage: str, chunks: list[dict]) -> tuple[list[dict], str]:
+    """Returns (questions_list, model_name)."""
     prompt = await build_question_prompt(target_stage, chunks)
-    result = await model_router.chat_with_routing(
+    result, used_model = await model_router.chat_with_routing(
         "challenge_questioning",
         [{"role": "user", "content": prompt}],
         max_tokens=8000,
@@ -192,16 +193,17 @@ async def generate_questions(target_stage: str, chunks: list[dict]) -> list[dict
     found = _extract_json(result, target="array")
     if found:
         try:
-            return json.loads(found)
+            return json.loads(found), used_model
         except Exception:
             pass
     logger.warning("question_parse_failed", raw=result[:300])
-    return []
+    return [], used_model
 
 
-async def judge_answer(question: str, answer: str, source_chunks: list[dict]) -> dict:
+async def judge_answer(question: str, answer: str, source_chunks: list[dict]) -> tuple[dict, str]:
+    """Returns (judgment_dict, model_name)."""
     prompt = await build_judge_prompt(question, answer, source_chunks)
-    result = await model_router.chat_with_routing(
+    result, used_model = await model_router.chat_with_routing(
         "challenge_judging",
         [{"role": "user", "content": prompt}],
         max_tokens=8000,
@@ -212,29 +214,26 @@ async def judge_answer(question: str, answer: str, source_chunks: list[dict]) ->
     if found:
         try:
             parsed = json.loads(found)
-            # 标准化 decision 值
             decision = parsed.get("decision", "")
             if decision in ("auto_accept", "accept"):
                 parsed["decision"] = "pass"
             elif decision in ("reject",):
                 parsed["decision"] = "fail"
-            return parsed
+            return parsed, used_model
         except Exception:
             pass
 
-    # 兜底：从纯文本中尝试提取 overall_score 数字
     score_match = re.search(r"overall[_\s]*score[:\s]*([0-9.]+)", result, re.IGNORECASE)
     if score_match:
         score = float(score_match.group(1))
         decision = "pass" if score >= 0.8 else "fail"
-        # 尝试提取 reasoning
         reasoning_match = re.search(r"reasoning[:\s]*[\"']?(.+?)(?:[\"']?\s*[,}]|$)", result, re.IGNORECASE)
         reasoning_text = reasoning_match.group(1).strip() if reasoning_match else "从模型输出中提取"
         logger.info("judge_fallback_regex", score=score, decision=decision)
-        return {"overall_score": score, "decision": decision, "reasoning": reasoning_text}
+        return {"overall_score": score, "decision": decision, "reasoning": reasoning_text}, used_model
 
     logger.warning("judge_parse_failed", raw=result[:300])
-    return {"overall_score": 0.5, "decision": "fail", "reasoning": "评分结果解析失败"}
+    return {"overall_score": 0.5, "decision": "fail", "reasoning": "评分结果解析失败"}, used_model
 
 
 async def run_challenge_stream(
@@ -280,7 +279,7 @@ async def run_challenge_stream(
             yield {"type": "status", "message": f"【{stage}】暂无知识内容，跳过"}
             continue
 
-        questions = await generate_questions(stage, chunks)
+        questions, question_model = await generate_questions(stage, chunks)
         if not questions:
             yield {"type": "status", "message": f"【{stage}】题目生成失败，跳过"}
             continue
@@ -290,14 +289,14 @@ async def run_challenge_stream(
             if not question_text:
                 continue
 
-            # Emit the question immediately so frontend can show it
             yield {
                 "type": "question",
                 "q_index": q_index,
                 "question": question_text,
                 "ltc_stage": stage,
+                "question_model": question_model,
             }
-            pending.append({"stage": stage, "question": question_text, "raw_results": raw_results})
+            pending.append({"stage": stage, "question": question_text, "raw_results": raw_results, "question_model": question_model})
             q_index += 1
 
     # ── Phase 2: Answer & judge each question ─────────────────────────
@@ -310,27 +309,27 @@ async def run_challenge_stream(
 
         try:
             answer_result = await answer_question(question, ltc_stage=None)
-            answer    = answer_result["answer"]
+            answer = answer_result["answer"]
+            answer_model = answer_result.get("model")
             source_ids = [s["id"] for s in answer_result["sources"]]
             source_chunks = [
                 {"id": r["id"], "content": r["payload"].get("content_preview", "")}
                 for r in raw_results if r["id"] in source_ids
             ] or [{"id": r["id"], "content": r["payload"].get("content_preview", "")} for r in raw_results[:3]]
 
-            judgment = await judge_answer(question, answer, source_chunks)
+            judgment, judge_model = await judge_answer(question, answer, source_chunks)
         except Exception as e:
             logger.error("answer_or_judge_failed", idx=idx, error=str(e))
             yield {
                 "type": "result",
                 "q_index": idx,
-                "answer": f"（作答失败：{e}）",
+                "answer": f"(作答失败：{e})",
                 "score": 0,
                 "decision": "fail",
                 "reasoning": "",
             }
             continue
 
-        # 固化为知识库 chunk（含 review_queue 记录），失败不阻塞事件流
         chunk_id, review_status, review_id = await _persist_challenge_chunk(
             question=question,
             answer=answer,
@@ -352,6 +351,9 @@ async def run_challenge_stream(
             "chunk_id": chunk_id,
             "review_status": review_status,
             "review_id": review_id,
+            "question_model": item.get("question_model"),
+            "answer_model": answer_model,
+            "judge_model": judge_model,
         }
 
 

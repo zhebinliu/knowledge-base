@@ -41,6 +41,7 @@ async def list_chunks(
             "ltc_stage": c.ltc_stage, "industry": c.industry, "module": c.module,
             "tags": c.tags, "review_status": c.review_status,
             "chunk_index": c.chunk_index, "char_count": c.char_count,
+            "generated_by_model": c.generated_by_model,
         }
         for c in chunks
     ]
