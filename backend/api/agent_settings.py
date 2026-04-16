@@ -97,6 +97,62 @@ async def delete_routing(task: str):
     return {"ok": True}
 
 
+# ---- API Keys ----
+
+class ApiKeyBody(BaseModel):
+    value: str = Field(..., min_length=1)
+
+
+@router.get("/api-keys")
+async def list_api_keys():
+    """List all API keys with masked values."""
+    from config import settings as _settings
+    # Collect all unique api_key_env names from model registry
+    models = await config_service.get_all("model_registry")
+    key_envs: set[str] = set()
+    for m in models.values():
+        env = m.get("api_key_env", "")
+        if env:
+            key_envs.add(env)
+    # Also include embedding/rerank keys
+    key_envs.update(["embedding_api_key", "rerank_api_key"])
+
+    result = []
+    for env_name in sorted(key_envs):
+        # Check DB first
+        db_entry = await config_service.get("api_keys", env_name)
+        if db_entry and db_entry.get("value"):
+            raw = db_entry["value"]
+            source = "database"
+        else:
+            raw = getattr(_settings, env_name, "")
+            source = "env"
+        masked = _mask_key(raw) if raw else ""
+        result.append({"key": env_name, "masked_value": masked, "source": source, "is_set": bool(raw)})
+    return result
+
+
+@router.put("/api-keys/{key}")
+async def update_api_key(key: str, body: ApiKeyBody):
+    await config_service.upsert("api_keys", key, {"value": body.value})
+    logger.info("config_changed", action="update", type="api_key", key=key)
+    return {"ok": True}
+
+
+@router.delete("/api-keys/{key}")
+async def delete_api_key(key: str):
+    """Remove DB override, falling back to .env value."""
+    await config_service.delete("api_keys", key)
+    logger.info("config_changed", action="delete", type="api_key", key=key)
+    return {"ok": True}
+
+
+def _mask_key(val: str) -> str:
+    if len(val) <= 8:
+        return "*" * len(val)
+    return val[:3] + "*" * (len(val) - 7) + val[-4:]
+
+
 # ---- Task Params ----
 
 class TaskParamsBody(BaseModel):

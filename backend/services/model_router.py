@@ -128,8 +128,13 @@ class ModelRouter:
                 return cfg
         return {}
 
-    def _get_api_key(self, config: dict) -> str:
+    async def _get_api_key(self, config: dict) -> str:
         key_attr = config.get("api_key_env", "")
+        # DB api_keys take precedence over .env
+        if self._config_service and key_attr:
+            db_key = await self._config_service.get("api_keys", key_attr)
+            if db_key and db_key.get("value"):
+                return db_key["value"]
         return getattr(settings, key_attr, "")
 
     async def chat(
@@ -142,7 +147,7 @@ class ModelRouter:
         timeout: float = 180.0,
     ) -> str:
         config = await self._get_model_config(model_name)
-        api_key = self._get_api_key(config)
+        api_key = await self._get_api_key(config)
 
         payload: dict = {
             "model": config["model_id"],
@@ -201,7 +206,7 @@ class ModelRouter:
         """Async generator that yields raw text tokens from a streaming LLM call."""
         import json as _json
         config = await self._get_model_config(model_name)
-        api_key = self._get_api_key(config)
+        api_key = await self._get_api_key(config)
         payload: dict = {
             "model": config["model_id"],
             "messages": messages,

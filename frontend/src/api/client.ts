@@ -163,6 +163,7 @@ export interface ModelEntry {
 export interface RoutingRule { task: string; primary: string; fallback: string }
 export interface TaskParamsEntry { task: string; max_tokens: number; temperature: number; timeout: number }
 export interface PromptEntry { key: string; template: string; variables: string[]; preview?: string }
+export interface ApiKeyEntry { key: string; masked_value: string; source: string; is_set: boolean }
 
 export const getModels = () => api.get<ModelEntry[]>('/settings/models').then(r => r.data)
 export const createModel = (body: { key: string; provider: string; api_base: string; model_id: string; api_key_env: string; max_context: number; best_for: string[] }) =>
@@ -178,6 +179,9 @@ export const getPrompts = () => api.get<PromptEntry[]>('/settings/prompts').then
 export const getPromptDetail = (key: string) => api.get<PromptEntry>(`/settings/prompts/${key}`).then(r => r.data)
 export const updatePrompt = (key: string, body: { template: string }) => api.put(`/settings/prompts/${key}`, body)
 export const resetPrompt = (key: string) => api.post(`/settings/prompts/${key}/reset`)
+export const getApiKeys = () => api.get<ApiKeyEntry[]>('/settings/api-keys').then(r => r.data)
+export const updateApiKey = (key: string, value: string) => api.put(`/settings/api-keys/${key}`, { value })
+export const deleteApiKey = (key: string) => api.delete(`/settings/api-keys/${key}`)
 
 // ── Stats ────────────────────────────────────────────────────────────────────
 
