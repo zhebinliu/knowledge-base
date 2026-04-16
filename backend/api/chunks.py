@@ -38,8 +38,9 @@ async def list_chunks(
     return [
         {
             "id": c.id, "document_id": c.document_id, "content": c.content[:300],
-            "ltc_stage": c.ltc_stage, "industry": c.industry, "tags": c.tags,
-            "review_status": c.review_status, "chunk_index": c.chunk_index,
+            "ltc_stage": c.ltc_stage, "industry": c.industry, "module": c.module,
+            "tags": c.tags, "review_status": c.review_status,
+            "chunk_index": c.chunk_index, "char_count": c.char_count,
         }
         for c in chunks
     ]

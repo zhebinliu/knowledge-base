@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react'
-import { Brain, Play, ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader, Square, HelpCircle } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Brain, Play, ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader, Square, HelpCircle, ThumbsUp, ThumbsDown } from 'lucide-react'
 import MarkdownView from '../components/MarkdownView'
+import { approveReview, rejectReview } from '../api/client'
 
 const ALL_STAGES = ['线索', '商机', '报价', '合同', '回款', '售后']
 
@@ -14,6 +16,10 @@ interface QuestionCard {
   decision?: string
   reasoning?: string
   answering?: boolean   // true while waiting for Phase 2 result
+  // KB persistence (set after Phase 2):
+  chunk_id?: string | null
+  review_status?: 'auto_approved' | 'needs_review' | 'approved' | 'rejected' | null
+  review_id?: string | null
 }
 
 export default function Challenge() {
@@ -24,6 +30,24 @@ export default function Challenge() {
   const [phase, setPhase]       = useState<'idle' | 'generating' | 'answering' | 'done'>('idle')
   const [expanded, setExpanded] = useState<Record<number, boolean>>({})
   const abortRef                = useRef<AbortController | null>(null)
+  const qc = useQueryClient()
+
+  const approveMut = useMutation({
+    mutationFn: ({ reviewId }: { reviewId: string; qIndex: number }) => approveReview(reviewId),
+    onSuccess: (_data, vars) => {
+      setCards(prev => prev.map(c => c.q_index === vars.qIndex ? { ...c, review_status: 'approved' } : c))
+      qc.invalidateQueries({ queryKey: ['review-queue'] })
+      qc.invalidateQueries({ queryKey: ['chunks'] })
+    },
+  })
+  const rejectMut = useMutation({
+    mutationFn: ({ reviewId }: { reviewId: string; qIndex: number }) => rejectReview(reviewId),
+    onSuccess: (_data, vars) => {
+      setCards(prev => prev.map(c => c.q_index === vars.qIndex ? { ...c, review_status: 'rejected' } : c))
+      qc.invalidateQueries({ queryKey: ['review-queue'] })
+      qc.invalidateQueries({ queryKey: ['chunks'] })
+    },
+  })
 
   const toggle = (i: number) => setExpanded(e => ({ ...e, [i]: !e[i] }))
   const toggleStage = (s: string) =>
@@ -86,9 +110,22 @@ export default function Challenge() {
               // Phase 2: fill in answer for matching card
               setCards(prev => prev.map(c =>
                 c.q_index === ev.q_index
-                  ? { ...c, answer: ev.answer, score: ev.score, decision: ev.decision, reasoning: ev.reasoning, answering: false }
+                  ? {
+                      ...c,
+                      answer: ev.answer,
+                      score: ev.score,
+                      decision: ev.decision,
+                      reasoning: ev.reasoning,
+                      answering: false,
+                      chunk_id: ev.chunk_id ?? null,
+                      review_status: ev.review_status ?? null,
+                      review_id: ev.review_id ?? null,
+                    }
                   : c
               ))
+              // New chunks were added — refresh chunks list and review queue
+              qc.invalidateQueries({ queryKey: ['chunks'] })
+              qc.invalidateQueries({ queryKey: ['review-queue'] })
               // Mark next unanswered card as "answering"
               setCards(prev => {
                 const nextUnanswered = prev.find(c => c.answer === undefined && !c.answering)
@@ -246,7 +283,7 @@ export default function Challenge() {
                 )}
 
                 {/* Question text */}
-                <span className="flex-1 text-sm font-medium text-gray-800 truncate">
+                <span className="flex-1 text-sm font-medium text-gray-800 leading-relaxed break-words">
                   {card.question}
                 </span>
 
@@ -283,6 +320,53 @@ export default function Challenge() {
                     <div className="pt-3 border-t border-gray-100">
                       <p className="text-xs font-semibold text-gray-500 mb-1.5">评分理由</p>
                       <MarkdownView content={card.reasoning} size="sm" toolbar={false} />
+                    </div>
+                  )}
+
+                  {/* KB persistence status + review actions */}
+                  {card.chunk_id && (
+                    <div className="pt-3 border-t border-gray-100 flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-semibold text-gray-500">知识库</span>
+                      {card.review_status === 'auto_approved' && (
+                        <span className="text-xs px-2 py-0.5 bg-green-50 text-green-700 rounded-full border border-green-100">
+                          已入库
+                        </span>
+                      )}
+                      {card.review_status === 'approved' && (
+                        <span className="text-xs px-2 py-0.5 bg-green-50 text-green-700 rounded-full border border-green-100">
+                          审核通过
+                        </span>
+                      )}
+                      {card.review_status === 'rejected' && (
+                        <span className="text-xs px-2 py-0.5 bg-red-50 text-red-600 rounded-full border border-red-100">
+                          已拒绝
+                        </span>
+                      )}
+                      {card.review_status === 'needs_review' && (
+                        <>
+                          <span className="text-xs px-2 py-0.5 bg-orange-50 text-orange-700 rounded-full border border-orange-100">
+                            待审核
+                          </span>
+                          {card.review_id && (
+                            <div className="ml-auto flex gap-1.5">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); approveMut.mutate({ reviewId: card.review_id!, qIndex: card.q_index }) }}
+                                disabled={approveMut.isPending}
+                                className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
+                              >
+                                <ThumbsUp size={12}/> 通过
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); rejectMut.mutate({ reviewId: card.review_id!, qIndex: card.q_index }) }}
+                                disabled={rejectMut.isPending}
+                                className="flex items-center gap-1 px-3 py-1 bg-white border border-red-200 text-red-600 text-xs font-medium rounded-md hover:bg-red-50 disabled:opacity-50 transition-colors"
+                              >
+                                <ThumbsDown size={12}/> 拒绝
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

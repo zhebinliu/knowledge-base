@@ -53,7 +53,17 @@ async def upload_document(
 async def list_documents(session: AsyncSession = Depends(get_session)):
     result = await session.execute(select(Document).order_by(Document.created_at.desc()))
     docs = result.scalars().all()
-    return [{"id": d.id, "filename": d.filename, "status": d.conversion_status, "created_at": d.created_at} for d in docs]
+    return [
+        {
+            "id": d.id,
+            "filename": d.filename,
+            "original_format": d.original_format,
+            "conversion_status": d.conversion_status,
+            "created_at": d.created_at,
+            "updated_at": d.updated_at,
+        }
+        for d in docs
+    ]
 
 
 @router.get("/{doc_id}")

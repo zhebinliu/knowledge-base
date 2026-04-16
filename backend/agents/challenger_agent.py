@@ -2,6 +2,7 @@
 文档挑战 Agent — 两阶段流式输出
 Phase 1: 先出题（所有阶段的题目），前端立即展示问题列表
 Phase 2: 逐题回答+评判，实时更新对应题目的结果
+每个完成的问答会被固化为一条 chunk 写入知识库（tag=challenge）。
 """
 
 import json
@@ -14,6 +15,108 @@ from services.embedding_service import embedding_service
 from prompts.challenge import build_question_prompt, build_judge_prompt
 
 logger = structlog.get_logger()
+
+# 所有知识挑战产物都挂到这条虚拟文档下，便于 Documents 列表里单独浏览
+VIRTUAL_CHALLENGE_DOC_ID = "00000000-0000-0000-0000-000000000001"
+VIRTUAL_CHALLENGE_FILENAME = "知识挑战"
+
+
+async def _persist_challenge_chunk(
+    question: str,
+    answer: str,
+    reasoning: str,
+    ltc_stage: str,
+    decision: str,
+    score: float,
+) -> tuple[str | None, str | None, str | None]:
+    """
+    把一道 challenge 的 Q+A+评分理由固化为 chunk，写入 Postgres + Qdrant。
+    pass → auto_approved；其余 → needs_review 并入审核队列。
+    返回 (chunk_id, review_status, review_id)；失败时返回 (None, None, None)。
+    """
+    from models import async_session_maker
+    from models.document import Document
+    from models.chunk import Chunk
+    from models.review_queue import ReviewQueue
+    from sqlalchemy import select, func
+
+    passed = decision == "pass"
+    review_status = "auto_approved" if passed else "needs_review"
+    content_parts = [f"## 问题\n{question}", f"## 答案\n{answer}"]
+    if reasoning:
+        content_parts.append(f"## 评分理由\n{reasoning}")
+    content = "\n\n".join(content_parts)
+
+    try:
+        async with async_session_maker() as session:
+            # 幂等创建挑战虚拟文档
+            doc = await session.get(Document, VIRTUAL_CHALLENGE_DOC_ID)
+            if doc is None:
+                doc = Document(
+                    id=VIRTUAL_CHALLENGE_DOC_ID,
+                    filename=VIRTUAL_CHALLENGE_FILENAME,
+                    original_format="challenge",
+                    conversion_status="completed",
+                )
+                session.add(doc)
+                await session.flush()
+
+            # 用已有 challenge chunk 数量作为 chunk_index，保证单调
+            chunk_count = await session.scalar(
+                select(func.count())
+                .select_from(Chunk)
+                .where(Chunk.document_id == VIRTUAL_CHALLENGE_DOC_ID)
+            ) or 0
+
+            chunk = Chunk(
+                document_id=VIRTUAL_CHALLENGE_DOC_ID,
+                content=content,
+                chunk_index=chunk_count,
+                ltc_stage=ltc_stage,
+                ltc_stage_confidence=float(score) if score is not None else None,
+                industry=None,
+                module=None,
+                tags=["challenge", "q-pass" if passed else "q-fail"],
+                source_section="知识挑战",
+                char_count=len(content),
+                review_status=review_status,
+            )
+            session.add(chunk)
+            await session.flush()
+
+            # 向量化 + 入 Qdrant
+            try:
+                vector = await embedding_service.embed(content)
+                await vector_store.upsert(
+                    chunk.id,
+                    vector,
+                    {
+                        "chunk_id": chunk.id,
+                        "document_id": VIRTUAL_CHALLENGE_DOC_ID,
+                        "ltc_stage": ltc_stage,
+                        "industry": None,
+                        "content_preview": content[:200],
+                    },
+                )
+                chunk.vector_id = chunk.id
+            except Exception as ve:
+                logger.warning("challenge_embed_failed", error=str(ve)[:200])
+
+            review_id: str | None = None
+            if review_status == "needs_review":
+                review_item = ReviewQueue(
+                    chunk_id=chunk.id,
+                    reason=f"知识挑战 · 评分 {float(score):.2f}" if score is not None else "知识挑战",
+                )
+                session.add(review_item)
+                await session.flush()
+                review_id = review_item.id
+
+            await session.commit()
+            return chunk.id, review_status, review_id
+    except Exception as e:
+        logger.warning("persist_challenge_chunk_failed", error=str(e)[:200])
+        return None, None, None
 
 
 async def generate_questions(target_stage: str, chunks: list[dict]) -> list[dict]:
@@ -147,6 +250,16 @@ async def run_challenge_stream(
             }
             continue
 
+        # 固化为知识库 chunk（含 review_queue 记录），失败不阻塞事件流
+        chunk_id, review_status, review_id = await _persist_challenge_chunk(
+            question=question,
+            answer=answer,
+            reasoning=judgment.get("reasoning", ""),
+            ltc_stage=stage,
+            decision=judgment.get("decision", "pending_review"),
+            score=judgment.get("overall_score", 0),
+        )
+
         yield {
             "type": "result",
             "q_index": idx,
@@ -156,6 +269,9 @@ async def run_challenge_stream(
             "decision": judgment.get("decision", "pending_review"),
             "reasoning": judgment.get("reasoning", ""),
             "source_chunk_ids": source_ids,
+            "chunk_id": chunk_id,
+            "review_status": review_status,
+            "review_id": review_id,
         }
 
 
