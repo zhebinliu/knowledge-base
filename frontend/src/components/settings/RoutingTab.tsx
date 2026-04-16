@@ -1,12 +1,26 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  getRoutingRules, updateRoutingRule, deleteRoutingRule,
+  getRoutingRules, updateRoutingRule,
   getTaskParams, updateTaskParams as updateTaskParamsApi,
   getModels,
   type RoutingRule, type TaskParamsEntry,
 } from '../../api/client'
-import { Save, Trash2, Loader } from 'lucide-react'
+import { Save, Loader } from 'lucide-react'
+
+const TASK_LABELS: Record<string, string> = {
+  conversion:             '文档转写',
+  daily_qa:               '智能问答',
+  doc_generation:         '文档生成',
+  slicing_classification: '切片分类',
+  slicing_review:         '切片复审',
+  challenge_questioning:  '挑战出题',
+  challenge_judging:      '挑战评判',
+}
+
+function taskLabel(key: string) {
+  return TASK_LABELS[key] ?? key
+}
 
 export default function RoutingTab() {
   const qc = useQueryClient()
@@ -36,7 +50,7 @@ export default function RoutingTab() {
                   <th className="px-6 py-3 font-medium">任务</th>
                   <th className="px-4 py-3 font-medium">主模型</th>
                   <th className="px-4 py-3 font-medium">备选模型</th>
-                  <th className="px-4 py-3 font-medium w-20">操作</th>
+                  <th className="px-4 py-3 font-medium">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -68,9 +82,9 @@ export default function RoutingTab() {
               <thead>
                 <tr className="border-b border-gray-100 text-left text-xs text-gray-500 uppercase tracking-wider">
                   <th className="px-6 py-3 font-medium">任务</th>
-                  <th className="px-4 py-3 font-medium">Max Tokens</th>
-                  <th className="px-4 py-3 font-medium">Temperature</th>
-                  <th className="px-4 py-3 font-medium">Timeout (s)</th>
+                  <th className="px-4 py-3 font-medium">最大Token数</th>
+                  <th className="px-4 py-3 font-medium">温度</th>
+                  <th className="px-4 py-3 font-medium">超时(秒)</th>
                   <th className="px-4 py-3 font-medium w-20">操作</th>
                 </tr>
               </thead>
@@ -103,15 +117,12 @@ function RoutingRow({ rule, modelKeys, qc }: { rule: RoutingRule; modelKeys: str
     onError: (e: any) => alert(`保存失败: ${e?.response?.data?.detail ?? e.message}`),
   })
 
-  const delMut = useMutation({
-    mutationFn: () => deleteRoutingRule(rule.task),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['routing'] }),
-    onError: (e: any) => alert(`删除失败: ${e?.response?.data?.detail ?? e.message}`),
-  })
-
   return (
     <tr className="hover:bg-gray-50 transition-colors">
-      <td className="px-6 py-3 font-mono text-xs font-semibold text-gray-800">{rule.task}</td>
+      <td className="px-6 py-3">
+        <div className="font-semibold text-sm text-gray-800">{taskLabel(rule.task)}</div>
+        <div className="text-xs text-gray-400 font-mono">{rule.task}</div>
+      </td>
       <td className="px-4 py-3">
         <select
           value={primary}
@@ -131,24 +142,14 @@ function RoutingRow({ rule, modelKeys, qc }: { rule: RoutingRule; modelKeys: str
         </select>
       </td>
       <td className="px-4 py-3">
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => mut.mutate()}
-            disabled={!dirty || mut.isPending}
-            className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
-          >
-            <Save size={12} />
-            {mut.isPending ? '...' : '保存'}
-          </button>
-          <button
-            onClick={() => { if (window.confirm(`确认删除路由规则 "${rule.task}"?`)) delMut.mutate() }}
-            disabled={delMut.isPending}
-            className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-            title="删除"
-          >
-            <Trash2 size={12} />
-          </button>
-        </div>
+        <button
+          onClick={() => mut.mutate()}
+          disabled={!dirty || mut.isPending}
+          className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors whitespace-nowrap"
+        >
+          <Save size={12} />
+          {mut.isPending ? '...' : '保存'}
+        </button>
       </td>
     </tr>
   )
@@ -170,7 +171,10 @@ function TaskParamsRow({ entry, qc }: { entry: TaskParamsEntry; qc: ReturnType<t
 
   return (
     <tr className="hover:bg-gray-50 transition-colors">
-      <td className="px-6 py-3 font-mono text-xs font-semibold text-gray-800">{entry.task}</td>
+      <td className="px-6 py-3">
+        <div className="font-semibold text-sm text-gray-800">{taskLabel(entry.task)}</div>
+        <div className="text-xs text-gray-400 font-mono">{entry.task}</div>
+      </td>
       <td className="px-4 py-3">
         <input
           type="number"

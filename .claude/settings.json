@@ -1,14 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git *)",
-      "Bash(rsync * liu@34.45.112.217:*)",
-      "Bash(ssh -i * liu@34.45.112.217 *)",
-      "Bash(ssh * liu@34.45.112.217 *)",
-      "Bash(curl * 34.45.112.217*)",
-      "Bash(curl * http://34.45.112.217*)",
-      "Bash(npm *)",
-      "Bash(npx *)"
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "WebFetch(*)",
+      "WebSearch(*)"
     ]
   }
 }
