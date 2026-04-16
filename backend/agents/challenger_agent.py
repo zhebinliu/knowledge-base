@@ -185,8 +185,9 @@ async def generate_questions(target_stage: str, chunks: list[dict]) -> list[dict
     result = await model_router.chat_with_routing(
         "challenge_questioning",
         [{"role": "user", "content": prompt}],
-        max_tokens=1500,
+        max_tokens=2000,
         temperature=0.7,
+        timeout=180.0,
     )
     found = _extract_json(result, target="array")
     if found:
@@ -203,8 +204,9 @@ async def judge_answer(question: str, answer: str, source_chunks: list[dict]) ->
     result = await model_router.chat_with_routing(
         "challenge_judging",
         [{"role": "user", "content": prompt}],
-        max_tokens=800,
+        max_tokens=2000,
         temperature=0.1,
+        timeout=180.0,
     )
     found = _extract_json(result, target="object")
     if found:
@@ -219,6 +221,18 @@ async def judge_answer(question: str, answer: str, source_chunks: list[dict]) ->
             return parsed
         except Exception:
             pass
+
+    # 兜底：从纯文本中尝试提取 overall_score 数字
+    score_match = re.search(r"overall[_\s]*score[:\s]*([0-9.]+)", result, re.IGNORECASE)
+    if score_match:
+        score = float(score_match.group(1))
+        decision = "pass" if score >= 0.8 else "fail"
+        # 尝试提取 reasoning
+        reasoning_match = re.search(r"reasoning[:\s]*[\"']?(.+?)(?:[\"']?\s*[,}]|$)", result, re.IGNORECASE)
+        reasoning_text = reasoning_match.group(1).strip() if reasoning_match else "从模型输出中提取"
+        logger.info("judge_fallback_regex", score=score, decision=decision)
+        return {"overall_score": score, "decision": decision, "reasoning": reasoning_text}
+
     logger.warning("judge_parse_failed", raw=result[:300])
     return {"overall_score": 0.5, "decision": "fail", "reasoning": "评分结果解析失败"}
 
