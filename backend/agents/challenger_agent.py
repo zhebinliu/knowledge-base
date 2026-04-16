@@ -181,7 +181,7 @@ async def _persist_challenge_chunk(
 
 
 async def generate_questions(target_stage: str, chunks: list[dict]) -> list[dict]:
-    prompt = build_question_prompt(target_stage, chunks)
+    prompt = await build_question_prompt(target_stage, chunks)
     result = await model_router.chat_with_routing(
         "challenge_questioning",
         [{"role": "user", "content": prompt}],
@@ -200,7 +200,7 @@ async def generate_questions(target_stage: str, chunks: list[dict]) -> list[dict
 
 
 async def judge_answer(question: str, answer: str, source_chunks: list[dict]) -> dict:
-    prompt = build_judge_prompt(question, answer, source_chunks)
+    prompt = await build_judge_prompt(question, answer, source_chunks)
     result = await model_router.chat_with_routing(
         "challenge_judging",
         [{"role": "user", "content": prompt}],

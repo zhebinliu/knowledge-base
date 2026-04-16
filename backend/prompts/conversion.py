@@ -17,5 +17,8 @@ CONVERSION_PROMPT = """你是一个文档格式整理专家。我会给你一段
 请输出整理后的 Markdown："""
 
 
-def build_conversion_prompt(raw_text: str) -> str:
-    return CONVERSION_PROMPT.format(raw_text=raw_text)
+async def build_conversion_prompt(raw_text: str) -> str:
+    from services.config_service import config_service
+    cfg = await config_service.get("prompt_template", "CONVERSION_PROMPT")
+    template = cfg["template"] if cfg else CONVERSION_PROMPT
+    return template.format(raw_text=raw_text)

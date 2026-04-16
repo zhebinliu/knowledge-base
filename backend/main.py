@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import structlog
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export
+from api import documents, chunks, qa, challenge, review, export, agent_settings
 from services.vector_store import vector_store
 
 logger = structlog.get_logger()
@@ -29,6 +29,7 @@ app.include_router(qa.router, prefix="/api/qa", tags=["qa"])
 app.include_router(challenge.router, prefix="/api/challenge", tags=["challenge"])
 app.include_router(review.router, prefix="/api/review", tags=["review"])
 app.include_router(export.router, prefix="/api/transfer", tags=["transfer"])
+app.include_router(agent_settings.router, prefix="/api/settings", tags=["settings"])
 
 
 @app.on_event("startup")
@@ -41,6 +42,7 @@ async def startup():
     from models.challenge import Challenge  # noqa: F401
     from models.review_queue import ReviewQueue  # noqa: F401
     from models.challenge_schedule import ChallengeSchedule  # noqa: F401
+    from models.agent_config import AgentConfig  # noqa: F401
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -53,6 +55,12 @@ async def startup():
         ]:
             await conn.execute(text(stmt))
     logger.info("DB tables & indexes ready")
+    # Seed agent configs from hardcoded defaults (idempotent)
+    from services.config_service import config_service
+    await config_service.seed_defaults()
+    # Wire config service into model router
+    from services.model_router import model_router
+    model_router.set_config_service(config_service)
     await vector_store.ensure_collection()
     # 自动创建 MinIO bucket（幂等）
     from minio import Minio

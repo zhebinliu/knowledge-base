@@ -24,17 +24,23 @@ DOC_GENERATE_PROMPT = """你是纷享销客 CRM 项目的文档撰写专家。
 """
 
 
-def build_qa_prompt(question: str, retrieved_chunks: list[dict]) -> str:
+async def build_qa_prompt(question: str, retrieved_chunks: list[dict]) -> str:
+    from services.config_service import config_service
+    cfg = await config_service.get("prompt_template", "QA_PROMPT")
+    template = cfg["template"] if cfg else QA_PROMPT
     chunks_text = "\n\n".join(
         f"[切片 {i+1} | ID: {c['id']} | {c.get('ltc_stage', '')}]\n{c['content']}"
         for i, c in enumerate(retrieved_chunks)
     )
-    return QA_PROMPT.format(question=question, retrieved_chunks=chunks_text)
+    return template.format(question=question, retrieved_chunks=chunks_text)
 
 
-def build_doc_generate_prompt(template: str, retrieved_chunks: list[dict], project_name: str, industry: str) -> str:
+async def build_doc_generate_prompt(template: str, retrieved_chunks: list[dict], project_name: str, industry: str) -> str:
+    from services.config_service import config_service
+    cfg = await config_service.get("prompt_template", "DOC_GENERATE_PROMPT")
+    tmpl = cfg["template"] if cfg else DOC_GENERATE_PROMPT
     chunks_text = "\n\n".join(c["content"] for c in retrieved_chunks)
-    return DOC_GENERATE_PROMPT.format(
+    return tmpl.format(
         template=template,
         retrieved_chunks=chunks_text,
         project_name=project_name,

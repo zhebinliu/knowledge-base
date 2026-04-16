@@ -102,10 +102,34 @@ ROUTING_RULES = {
 class ModelRouter:
     def __init__(self):
         self._failure_counts: dict[str, int] = {}
+        self._config_service = None
 
-    def _get_api_key(self, model_name: str) -> str:
-        config = MODEL_REGISTRY[model_name]
-        key_attr = config["api_key_env"]
+    def set_config_service(self, svc):
+        self._config_service = svc
+
+    async def _get_model_config(self, model_name: str) -> dict:
+        if self._config_service:
+            cfg = await self._config_service.get("model_registry", model_name)
+            if cfg:
+                return cfg
+        return MODEL_REGISTRY[model_name]
+
+    async def _get_routing_rule(self, task: str) -> dict:
+        if self._config_service:
+            cfg = await self._config_service.get("routing_rules", task)
+            if cfg:
+                return cfg
+        return ROUTING_RULES.get(task, {"primary": "qwen3-next-80b-a3b", "fallback": "glm-5"})
+
+    async def _get_task_params(self, task: str) -> dict:
+        if self._config_service:
+            cfg = await self._config_service.get("task_params", task)
+            if cfg:
+                return cfg
+        return {}
+
+    def _get_api_key(self, config: dict) -> str:
+        key_attr = config.get("api_key_env", "")
         return getattr(settings, key_attr, "")
 
     async def chat(
@@ -117,8 +141,8 @@ class ModelRouter:
         response_format: dict | None = None,
         timeout: float = 180.0,
     ) -> str:
-        config = MODEL_REGISTRY[model_name]
-        api_key = self._get_api_key(model_name)
+        config = await self._get_model_config(model_name)
+        api_key = self._get_api_key(config)
 
         payload: dict = {
             "model": config["model_id"],
@@ -153,28 +177,31 @@ class ModelRouter:
         messages: list[dict],
         **kwargs,
     ) -> str:
-        rule = ROUTING_RULES.get(task, {"primary": "qwen3-next-80b-a3b", "fallback": "glm-5"})
+        rule = await self._get_routing_rule(task)
         primary = rule["primary"]
         fallback = rule["fallback"]
+        # Merge DB task params as defaults; explicit kwargs override
+        db_params = await self._get_task_params(task)
+        merged = {**db_params, **kwargs}
 
         try:
-            return await self.chat(primary, messages, **kwargs)
+            return await self.chat(primary, messages, **merged)
         except Exception as e:
             logger.warning("falling_back", task=task, primary=primary, fallback=fallback, reason=str(e)[:100])
-            return await self.chat(fallback, messages, **kwargs)
+            return await self.chat(fallback, messages, **merged)
 
     async def chat_stream(
         self,
         model_name: str,
         messages: list[dict],
-        max_tokens: int = 2000,
+        max_tokens: int = 8000,
         temperature: float = 0.3,
-        timeout: float = 120.0,
+        timeout: float = 180.0,
     ):
         """Async generator that yields raw text tokens from a streaming LLM call."""
         import json as _json
-        config = MODEL_REGISTRY[model_name]
-        api_key = self._get_api_key(model_name)
+        config = await self._get_model_config(model_name)
+        api_key = self._get_api_key(config)
         payload: dict = {
             "model": config["model_id"],
             "messages": messages,
@@ -219,9 +246,11 @@ class ModelRouter:
         **kwargs,
     ):
         """Async generator with automatic fallback routing for streaming."""
-        rule = ROUTING_RULES.get(task, {"primary": "qwen3-next-80b-a3b", "fallback": "glm-5"})
+        rule = await self._get_routing_rule(task)
         primary = rule["primary"]
         fallback = rule["fallback"]
+        db_params = await self._get_task_params(task)
+        kwargs = {**db_params, **kwargs}
 
         try:
             async for token in self.chat_stream(primary, messages, **kwargs):

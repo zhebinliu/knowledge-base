@@ -103,7 +103,7 @@ async def convert_to_markdown(filename: str, content: bytes) -> str:
 
     markdown_parts = []
     for i, segment in enumerate(segments):
-        prompt = build_conversion_prompt(segment)
+        prompt = await build_conversion_prompt(segment)
         result = await model_router.chat_with_routing(
             "conversion",
             [{"role": "user", "content": prompt}],

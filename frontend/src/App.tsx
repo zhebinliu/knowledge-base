@@ -6,6 +6,7 @@ import Chunks    from './pages/Chunks'
 import QA        from './pages/QA'
 import Review    from './pages/Review'
 import Challenge from './pages/Challenge'
+import Settings  from './pages/Settings'
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="qa"        element={<QA />} />
         <Route path="review"    element={<Review />} />
         <Route path="challenge" element={<Challenge />} />
+        <Route path="settings"  element={<Settings />} />
       </Route>
     </Routes>
   )

@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Brain, MessageSquare,
-  ClipboardCheck, BookOpen,
+  ClipboardCheck, BookOpen, Settings,
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -12,6 +12,7 @@ const nav = [
   { to: '/qa',        label: '智能问答',  icon: MessageSquare },
   { to: '/review',    label: '审核队列',  icon: ClipboardCheck },
   { to: '/challenge', label: '知识挑战',  icon: Brain },
+  { to: '/settings',  label: '系统设置',  icon: Settings },
 ]
 
 export default function Layout() {

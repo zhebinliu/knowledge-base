@@ -49,11 +49,17 @@ decision 规则：
 }}"""
 
 
-def build_question_prompt(target_stage: str, chunks: list[dict]) -> str:
+async def build_question_prompt(target_stage: str, chunks: list[dict]) -> str:
+    from services.config_service import config_service
+    cfg = await config_service.get("prompt_template", "CHALLENGE_QUESTION_PROMPT")
+    template = cfg["template"] if cfg else CHALLENGE_QUESTION_PROMPT
     chunks_text = "\n\n".join(f"[{c.get('ltc_stage', '')}] {c['content']}" for c in chunks)
-    return CHALLENGE_QUESTION_PROMPT.format(target_stage=target_stage, chunks_content=chunks_text)
+    return template.format(target_stage=target_stage, chunks_content=chunks_text)
 
 
-def build_judge_prompt(question: str, answer: str, source_chunks: list[dict]) -> str:
+async def build_judge_prompt(question: str, answer: str, source_chunks: list[dict]) -> str:
+    from services.config_service import config_service
+    cfg = await config_service.get("prompt_template", "CHALLENGE_JUDGE_PROMPT")
+    template = cfg["template"] if cfg else CHALLENGE_JUDGE_PROMPT
     sources = "\n".join(f"- {c['id']}: {c['content'][:200]}..." for c in source_chunks)
-    return CHALLENGE_JUDGE_PROMPT.format(question=question, answer=answer, source_chunks=sources)
+    return template.format(question=question, answer=answer, source_chunks=sources)

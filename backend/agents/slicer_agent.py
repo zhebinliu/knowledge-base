@@ -71,7 +71,7 @@ async def classify_chunk(
     section_path: str,
     model: str | None = None,
 ) -> dict:
-    prompt = build_slicing_prompt(doc_title, section_path, content)
+    prompt = await build_slicing_prompt(doc_title, section_path, content)
     if model is None:
         # 默认路径：走 routing（带跨上游 fallback）
         result = await model_router.chat_with_routing(

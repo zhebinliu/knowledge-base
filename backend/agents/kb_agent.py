@@ -53,7 +53,7 @@ async def answer_question(
     ]
 
     # 5. 生成回答
-    prompt = build_qa_prompt(question, chunks_for_prompt)
+    prompt = await build_qa_prompt(question, chunks_for_prompt)
     answer = await model_router.chat_with_routing(
         "daily_qa",
         [{"role": "user", "content": prompt}],
@@ -113,7 +113,7 @@ async def answer_question_stream(
     ]
 
     # 5. 流式生成回答，过滤 <think>...</think>
-    prompt = build_qa_prompt(question, chunks_for_prompt)
+    prompt = await build_qa_prompt(question, chunks_for_prompt)
 
     in_think = False
     buf = ""
@@ -173,7 +173,7 @@ async def generate_doc(
     raw_results = await vector_store.search(query_vector, top_k=RETRIEVAL_TOP_K)
 
     chunks = [{"id": r["id"], "content": r["payload"].get("content_preview", "")} for r in raw_results[:RERANK_TOP_K]]
-    prompt = build_doc_generate_prompt(template, chunks, project_name, industry)
+    prompt = await build_doc_generate_prompt(template, chunks, project_name, industry)
 
     return await model_router.chat_with_routing(
         "doc_generation",

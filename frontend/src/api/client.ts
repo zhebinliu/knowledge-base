@@ -154,6 +154,31 @@ export const approveReview = (id: string, note?: string) =>
 export const rejectReview = (id: string, note?: string) =>
   api.post(`/review/${id}/reject`, { reviewer: 'admin', note })
 
+// ── Agent Settings ──────────────────────────────────────────────────────────
+
+export interface ModelEntry {
+  key: string; provider: string; api_base: string; model_id: string
+  api_key_env: string; max_context: number; best_for: string[]
+}
+export interface RoutingRule { task: string; primary: string; fallback: string }
+export interface TaskParamsEntry { task: string; max_tokens: number; temperature: number; timeout: number }
+export interface PromptEntry { key: string; template: string; variables: string[]; preview?: string }
+
+export const getModels = () => api.get<ModelEntry[]>('/settings/models').then(r => r.data)
+export const createModel = (body: { key: string; provider: string; api_base: string; model_id: string; api_key_env: string; max_context: number; best_for: string[] }) =>
+  api.post('/settings/models', body)
+export const updateModel = (key: string, body: Partial<ModelEntry>) => api.put(`/settings/models/${key}`, body)
+export const deleteModel = (key: string) => api.delete(`/settings/models/${key}`)
+export const getRoutingRules = () => api.get<RoutingRule[]>('/settings/routing').then(r => r.data)
+export const updateRoutingRule = (task: string, body: { primary: string; fallback: string }) => api.put(`/settings/routing/${task}`, body)
+export const deleteRoutingRule = (task: string) => api.delete(`/settings/routing/${task}`)
+export const getTaskParams = () => api.get<TaskParamsEntry[]>('/settings/task-params').then(r => r.data)
+export const updateTaskParams = (task: string, body: { max_tokens: number; temperature: number; timeout: number }) => api.put(`/settings/task-params/${task}`, body)
+export const getPrompts = () => api.get<PromptEntry[]>('/settings/prompts').then(r => r.data)
+export const getPromptDetail = (key: string) => api.get<PromptEntry>(`/settings/prompts/${key}`).then(r => r.data)
+export const updatePrompt = (key: string, body: { template: string }) => api.put(`/settings/prompts/${key}`, body)
+export const resetPrompt = (key: string) => api.post(`/settings/prompts/${key}/reset`)
+
 // ── Stats ────────────────────────────────────────────────────────────────────
 
 export const getStats = () =>

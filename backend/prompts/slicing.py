@@ -27,8 +27,11 @@ CLASSIFICATION_PROMPT = """你是纷享销客 CRM 项目的知识库管理员。
 }}"""
 
 
-def build_slicing_prompt(doc_title: str, section_path: str, chunk_content: str) -> str:
-    return CLASSIFICATION_PROMPT.format(
+async def build_slicing_prompt(doc_title: str, section_path: str, chunk_content: str) -> str:
+    from services.config_service import config_service
+    cfg = await config_service.get("prompt_template", "CLASSIFICATION_PROMPT")
+    template = cfg["template"] if cfg else CLASSIFICATION_PROMPT
+    return template.format(
         ltc_taxonomy=get_ltc_taxonomy_text(),
         industry_list=get_industry_list_text(),
         doc_title=doc_title,
