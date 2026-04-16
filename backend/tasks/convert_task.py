@@ -12,6 +12,12 @@ logger = structlog.get_logger()
 celery_app = Celery("kb_tasks", broker=settings.redis_url, backend=settings.redis_url)
 celery_app.conf.task_serializer = "json"
 celery_app.conf.result_expires = 3600
+celery_app.conf.beat_schedule = {
+    "check-challenge-schedules": {
+        "task": "run_scheduled_challenges",
+        "schedule": 60.0,  # 每 60 秒检查一次是否该跑
+    },
+}
 
 
 def run_async(coro):
@@ -139,3 +145,45 @@ async def _process_document_async(doc_id: str):
             await session.commit()
             logger.error("task_execution_error", doc_id=doc_id, error=str(inner_exc))
             raise
+
+
+@celery_app.task(name="run_scheduled_challenges")
+def run_scheduled_challenges():
+    """每分钟检查 challenge_schedules 表，按 cron 判断是否该执行。"""
+    run_async(_check_and_run_schedules())
+
+
+async def _check_and_run_schedules():
+    from datetime import datetime, timedelta
+    from models import async_session_maker
+    from models.challenge_schedule import ChallengeSchedule
+    from sqlalchemy import select
+
+    try:
+        from croniter import croniter
+    except ImportError:
+        logger.debug("croniter not installed, skipping schedule check")
+        return
+
+    now = datetime.utcnow()
+
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(ChallengeSchedule).where(ChallengeSchedule.enabled == True)  # noqa: E712
+        )
+        schedules = result.scalars().all()
+
+        for sched in schedules:
+            try:
+                cron = croniter(sched.cron_expression, sched.last_run_at or (now - timedelta(days=1)))
+                next_run = cron.get_next(datetime)
+                if next_run <= now:
+                    logger.info("scheduled_challenge_start", schedule_id=sched.id, stages=sched.stages)
+                    from agents.challenger_agent import run_challenge_stream
+                    async for _event in run_challenge_stream(sched.stages, sched.questions_per_stage):
+                        pass  # 只消费事件，结果已在 agent 内持久化到 KB
+                    sched.last_run_at = now
+                    await session.commit()
+                    logger.info("scheduled_challenge_done", schedule_id=sched.id)
+            except Exception as e:
+                logger.error("scheduled_challenge_error", schedule_id=sched.id, error=str(e)[:200])

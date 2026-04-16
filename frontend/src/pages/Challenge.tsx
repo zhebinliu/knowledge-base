@@ -1,10 +1,14 @@
 import { useState, useRef } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Brain, Play, ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader, Square, HelpCircle, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Brain, Play, ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader, Square, HelpCircle, ThumbsUp, ThumbsDown, Plus, Clock, Trash2, Power } from 'lucide-react'
 import MarkdownView from '../components/MarkdownView'
-import { approveReview, rejectReview } from '../api/client'
+import {
+  approveReview, rejectReview,
+  listChallengeSchedules, createChallengeSchedule, deleteChallengeSchedule,
+  toggleChallengeSchedule, type ChallengeSchedule,
+} from '../api/client'
 
-const ALL_STAGES = ['线索', '商机', '报价', '合同', '回款', '售后']
+const PRESET_STAGES = ['线索', '客户', '商机', '报价', '订单', '合同', '交付', '回款', '售后', '通用']
 
 interface QuestionCard {
   q_index: number
@@ -23,7 +27,9 @@ interface QuestionCard {
 }
 
 export default function Challenge() {
-  const [stages, setStages]     = useState<string[]>(['线索', '商机'])
+  const [stages, setStages]     = useState<string[]>(['线索', '客户', '商机'])
+  const [customStages, setCustomStages] = useState<string[]>([])
+  const [customInput, setCustomInput]   = useState('')
   const [perStage, setPerStage] = useState(2)
   const [cards, setCards]       = useState<QuestionCard[]>([])
   const [status, setStatus]     = useState('')
@@ -173,14 +179,49 @@ export default function Challenge() {
       <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
         <h2 className="font-semibold text-gray-800 mb-4">配置挑战</h2>
         <div className="mb-4">
-          <p className="text-xs text-gray-500 mb-2">选择 LTC 阶段</p>
+          <p className="text-xs text-gray-500 mb-2">选择挑战阶段</p>
           <div className="flex flex-wrap gap-2">
-            {ALL_STAGES.map(s => (
+            {[...PRESET_STAGES, ...customStages].map(s => (
               <button key={s} onClick={() => toggleStage(s)} disabled={running}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors disabled:opacity-50 ${
                   stages.includes(s) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}>{s}</button>
+                }`}>{s}
+                {customStages.includes(s) && !running && (
+                  <span
+                    className="ml-1 text-xs opacity-60 hover:opacity-100"
+                    onClick={e => { e.stopPropagation(); setCustomStages(cs => cs.filter(c => c !== s)); setStages(st => st.filter(x => x !== s)) }}
+                  >&times;</span>
+                )}
+              </button>
             ))}
+            {/* Custom stage input */}
+            <form
+              className="inline-flex items-center"
+              onSubmit={e => {
+                e.preventDefault()
+                const v = customInput.trim()
+                if (v && !PRESET_STAGES.includes(v) && !customStages.includes(v)) {
+                  setCustomStages(cs => [...cs, v])
+                  setStages(st => [...st, v])
+                  setCustomInput('')
+                }
+              }}
+            >
+              <input
+                value={customInput}
+                onChange={e => setCustomInput(e.target.value)}
+                disabled={running}
+                placeholder="自定义..."
+                className="w-24 px-2 py-1 border border-gray-200 rounded-l-full text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+              />
+              <button
+                type="submit"
+                disabled={running || !customInput.trim()}
+                className="px-2 py-1 bg-gray-100 border border-l-0 border-gray-200 rounded-r-full text-gray-500 hover:bg-gray-200 disabled:opacity-50 transition-colors"
+              >
+                <Plus size={14}/>
+              </button>
+            </form>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -396,6 +437,167 @@ export default function Challenge() {
           </div>
         )}
       </div>
+
+      {/* ---- Schedule Panel ---- */}
+      <SchedulePanel />
+    </div>
+  )
+}
+
+
+/* ======== Schedule Panel (self-contained sub-component) ======== */
+
+const CRON_PRESETS: { label: string; value: string }[] = [
+  { label: '工作日 9:00',  value: '0 9 * * 1-5' },
+  { label: '每天 9:00',    value: '0 9 * * *' },
+  { label: '每天 18:00',   value: '0 18 * * *' },
+  { label: '每周一 9:00',  value: '0 9 * * 1' },
+  { label: '每小时',       value: '0 * * * *' },
+]
+
+function SchedulePanel() {
+  const qc = useQueryClient()
+  const { data: schedules } = useQuery({
+    queryKey: ['challenge-schedules'],
+    queryFn: listChallengeSchedules,
+  })
+
+  const [showForm, setShowForm] = useState(false)
+  const [formName, setFormName] = useState('默认计划')
+  const [formStages, setFormStages] = useState('线索, 客户, 商机')
+  const [formQps, setFormQps]       = useState(2)
+  const [formCron, setFormCron]     = useState('0 9 * * 1-5')
+
+  const createMut = useMutation({
+    mutationFn: () => createChallengeSchedule({
+      name: formName,
+      stages: formStages.split(/[,，]/).map(s => s.trim()).filter(Boolean),
+      questions_per_stage: formQps,
+      cron_expression: formCron,
+      enabled: true,
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['challenge-schedules'] }); setShowForm(false) },
+  })
+
+  const toggleMut = useMutation({
+    mutationFn: (id: string) => toggleChallengeSchedule(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['challenge-schedules'] }),
+  })
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteChallengeSchedule(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['challenge-schedules'] }),
+  })
+
+  return (
+    <div className="mt-8 bg-white border border-gray-200 rounded-xl p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-semibold text-gray-800 flex items-center gap-2">
+          <Clock size={16}/> 计划任务
+        </h2>
+        {!showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+          >
+            <Plus size={14}/> 新建计划
+          </button>
+        )}
+      </div>
+
+      {/* Existing schedules */}
+      {schedules && schedules.length > 0 && (
+        <div className="space-y-2 mb-4">
+          {schedules.map((s: ChallengeSchedule) => (
+            <div key={s.id} className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-lg border border-gray-100">
+              <button
+                onClick={() => toggleMut.mutate(s.id)}
+                className={`flex-shrink-0 p-1 rounded transition-colors ${s.enabled ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-200'}`}
+                title={s.enabled ? '点击暂停' : '点击启用'}
+              >
+                <Power size={16}/>
+              </button>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-800">{s.name}</p>
+                <p className="text-xs text-gray-500">
+                  {s.stages.join(' / ')} -- 每阶段 {s.questions_per_stage} 题 -- <code className="bg-gray-200 px-1 rounded">{s.cron_expression}</code>
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {s.last_run_at && (
+                  <span className="text-xs text-gray-400">
+                    上次: {new Date(s.last_run_at).toLocaleString('zh-CN')}
+                  </span>
+                )}
+                <span className={`text-xs px-2 py-0.5 rounded-full ${s.enabled ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                  {s.enabled ? '运行中' : '已暂停'}
+                </span>
+                <button
+                  onClick={() => { if (confirm('确认删除此计划?')) deleteMut.mutate(s.id) }}
+                  className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                >
+                  <Trash2 size={14}/>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {schedules?.length === 0 && !showForm && (
+        <p className="text-sm text-gray-400 mb-4">暂无计划任务，点击右上角「新建计划」</p>
+      )}
+
+      {/* Create form */}
+      {showForm && (
+        <div className="border border-blue-100 bg-blue-50/30 rounded-lg p-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">计划名称</span>
+              <input value={formName} onChange={e => setFormName(e.target.value)}
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">每阶段题数</span>
+              <select value={formQps} onChange={e => setFormQps(Number(e.target.value))}
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+                {[1, 2, 3, 5].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+          </div>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-gray-500">挑战阶段（逗号分隔，支持自定义）</span>
+            <input value={formStages} onChange={e => setFormStages(e.target.value)}
+              placeholder="线索, 客户, 商机, 订单"
+              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-gray-500">执行频率</span>
+            <div className="flex gap-2 flex-wrap">
+              {CRON_PRESETS.map(p => (
+                <button key={p.value} type="button" onClick={() => setFormCron(p.value)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${formCron === p.value ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  {p.label}
+                </button>
+              ))}
+              <input value={formCron} onChange={e => setFormCron(e.target.value)}
+                className="px-2 py-1 border border-gray-200 rounded-lg text-xs font-mono bg-white w-36 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="自定义 cron"/>
+            </div>
+          </label>
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={() => setShowForm(false)}
+              className="px-4 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+              取消
+            </button>
+            <button onClick={() => createMut.mutate()} disabled={createMut.isPending || !formName.trim()}
+              className="flex items-center gap-1 px-4 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              {createMut.isPending ? <Loader size={13} className="animate-spin"/> : <Plus size={13}/>}
+              创建并启用
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

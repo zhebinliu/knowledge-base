@@ -40,6 +40,7 @@ async def startup():
     from models.chunk import Chunk  # noqa: F401
     from models.challenge import Challenge  # noqa: F401
     from models.review_queue import ReviewQueue  # noqa: F401
+    from models.challenge_schedule import ChallengeSchedule  # noqa: F401
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

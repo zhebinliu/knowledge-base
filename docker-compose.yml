@@ -49,7 +49,7 @@ services:
     depends_on:
       - postgres
       - redis
-    command: celery -A tasks worker --loglevel=info --concurrency=1
+    command: celery -A tasks worker --beat --loglevel=info --concurrency=1
     restart: unless-stopped
     dns_opt:
       - ndots:5

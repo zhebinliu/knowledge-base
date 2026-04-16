@@ -4,7 +4,7 @@ import { listChunks, updateChunk, type Chunk } from '../api/client'
 import { ChevronDown, ChevronUp, Tag, Pencil, Check, X, Loader } from 'lucide-react'
 import MarkdownView from '../components/MarkdownView'
 
-const LTC_STAGES = ['', '线索', '商机', '报价', '合同', '回款', '售后']
+const LTC_STAGES = ['', '线索', '客户', '商机', '报价', '订单', '合同', '交付', '回款', '售后', '通用']
 const REVIEW_STATUS = ['', 'pending', 'approved', 'rejected', 'needs_review']
 const REVIEW_LABEL: Record<string, string> = {
   '': '全部状态',

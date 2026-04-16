@@ -108,6 +108,41 @@ export interface QAResponse {
 export const askQuestion = (body: QARequest) =>
   api.post<QAResponse>('/qa/ask', body).then(r => r.data)
 
+// ── Challenge Schedules ─────────────────────────────────────────────────────
+
+export interface ChallengeSchedule {
+  id: string
+  name: string
+  stages: string[]
+  questions_per_stage: number
+  cron_expression: string
+  enabled: boolean
+  last_run_at?: string | null
+}
+
+export interface ScheduleBody {
+  name?: string
+  stages?: string[]
+  questions_per_stage?: number
+  cron_expression?: string
+  enabled?: boolean
+}
+
+export const listChallengeSchedules = () =>
+  api.get<ChallengeSchedule[]>('/challenge/schedules').then(r => r.data)
+
+export const createChallengeSchedule = (body: ScheduleBody) =>
+  api.post<{ id: string }>('/challenge/schedules', body).then(r => r.data)
+
+export const updateChallengeSchedule = (id: string, body: ScheduleBody) =>
+  api.put(`/challenge/schedules/${id}`, body)
+
+export const deleteChallengeSchedule = (id: string) =>
+  api.delete(`/challenge/schedules/${id}`)
+
+export const toggleChallengeSchedule = (id: string) =>
+  api.post<{ id: string; enabled: boolean }>(`/challenge/schedules/${id}/toggle`).then(r => r.data)
+
 // ── Review ───────────────────────────────────────────────────────────────────
 
 export const listReviewQueue = () =>
