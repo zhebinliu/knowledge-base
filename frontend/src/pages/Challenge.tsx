@@ -289,8 +289,9 @@ export default function Challenge() {
 
                 {/* Score */}
                 {hasResult && card.score !== undefined && (
-                  <span className={`text-xs font-bold flex-shrink-0 ${card.score >= 0.7 ? 'text-green-600' : 'text-red-500'}`}>
-                    {Math.round(card.score * 100)}分
+                  <span className={`text-lg font-extrabold flex-shrink-0 tabular-nums ${card.score >= 0.7 ? 'text-green-600' : 'text-red-500'}`}>
+                    {Math.round(card.score * 100)}
+                    <span className="text-xs font-semibold ml-0.5">分</span>
                   </span>
                 )}
 
