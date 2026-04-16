@@ -54,9 +54,10 @@ def _extract_json(text: str, target: str = "object") -> str | None:
                     return s[start:i + 1]
         return None
 
-    # 尝试 1：从原始文本直接提取（覆盖 think 内含 JSON 的场景）
-    raw_stripped_code = re.sub(r"```(?:json)?|```", "", text).strip()
-    found = _find_balanced(raw_stripped_code)
+    # 尝试 1：剥掉 <think> 后提取（正常情况：JSON 在 think 外面）
+    no_think = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    no_think = re.sub(r"```(?:json)?|```", "", no_think).strip()
+    found = _find_balanced(no_think)
     if found:
         try:
             json.loads(found)
@@ -64,10 +65,9 @@ def _extract_json(text: str, target: str = "object") -> str | None:
         except json.JSONDecodeError:
             pass
 
-    # 尝试 2：剥掉 <think> 后再提取
-    no_think = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-    no_think = re.sub(r"```(?:json)?|```", "", no_think).strip()
-    found = _find_balanced(no_think)
+    # 尝试 2：从原始文本直接提取（覆盖 JSON 全在 think 内的场景，如 GLM-5）
+    raw_stripped_code = re.sub(r"```(?:json)?|```", "", text).strip()
+    found = _find_balanced(raw_stripped_code)
     if found:
         try:
             json.loads(found)
