@@ -91,7 +91,15 @@ export default function Challenge() {
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue
           const data = line.slice(6).trim()
-          if (data === '[DONE]') { setStatus(''); setPhase('done'); break }
+          if (data === '[DONE]') {
+            setCards(prev => {
+              if (prev.length === 0) setStatus('所选阶段未生成任何题目，请尝试选择其他阶段或确认知识库中有对应内容')
+              else setStatus('')
+              return prev
+            })
+            setPhase('done')
+            break
+          }
 
           try {
             const ev = JSON.parse(data)
@@ -438,8 +446,8 @@ export default function Challenge() {
         )}
       </div>
 
-      {/* ---- Schedule Panel ---- */}
-      <SchedulePanel />
+      {/* ---- Schedule Panel (isolated error boundary) ---- */}
+      <SchedulePanelSafe />
     </div>
   )
 }
@@ -599,5 +607,32 @@ function SchedulePanel() {
         </div>
       )}
     </div>
+  )
+}
+
+/* Safe wrapper: isolates schedule panel errors so they don't crash the challenge UI */
+import { Component, type ReactNode } from 'react'
+
+class ScheduleErrorBoundary extends Component<{ children: ReactNode }, { err: Error | null }> {
+  state = { err: null as Error | null }
+  static getDerivedStateFromError(err: Error) { return { err } }
+  render() {
+    if (this.state.err) {
+      return (
+        <div className="mt-8 px-6 py-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+          计划任务模块加载失败：{this.state.err.message}
+          <button onClick={() => this.setState({ err: null })} className="ml-3 underline">重试</button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+function SchedulePanelSafe() {
+  return (
+    <ScheduleErrorBoundary>
+      <SchedulePanel />
+    </ScheduleErrorBoundary>
   )
 }
