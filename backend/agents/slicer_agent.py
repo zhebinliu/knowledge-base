@@ -77,7 +77,7 @@ async def classify_chunk(
         result = await model_router.chat_with_routing(
             "slicing_classification",
             [{"role": "user", "content": prompt}],
-            max_tokens=2000,   # 推理模型需要更多 token 容纳 <think> 块
+            max_tokens=8000,   # 推理模型需要充分思考空间
             temperature=0.1,
             timeout=180.0,
         )
@@ -86,7 +86,7 @@ async def classify_chunk(
         result = await model_router.chat(
             model,
             [{"role": "user", "content": prompt}],
-            max_tokens=2000,
+            max_tokens=8000,
             temperature=0.1,
             timeout=180.0,
         )

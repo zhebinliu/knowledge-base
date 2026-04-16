@@ -185,7 +185,7 @@ async def generate_questions(target_stage: str, chunks: list[dict]) -> list[dict
     result = await model_router.chat_with_routing(
         "challenge_questioning",
         [{"role": "user", "content": prompt}],
-        max_tokens=2000,
+        max_tokens=8000,
         temperature=0.7,
         timeout=180.0,
     )
@@ -204,7 +204,7 @@ async def judge_answer(question: str, answer: str, source_chunks: list[dict]) ->
     result = await model_router.chat_with_routing(
         "challenge_judging",
         [{"role": "user", "content": prompt}],
-        max_tokens=2000,
+        max_tokens=8000,
         temperature=0.1,
         timeout=180.0,
     )

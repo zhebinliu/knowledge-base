@@ -112,10 +112,10 @@ class ModelRouter:
         self,
         model_name: str,
         messages: list[dict],
-        max_tokens: int = 2000,
+        max_tokens: int = 8000,
         temperature: float = 0.3,
         response_format: dict | None = None,
-        timeout: float = 60.0,
+        timeout: float = 180.0,
     ) -> str:
         config = MODEL_REGISTRY[model_name]
         api_key = self._get_api_key(model_name)

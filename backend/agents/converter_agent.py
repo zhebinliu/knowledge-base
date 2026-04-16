@@ -107,7 +107,7 @@ async def convert_to_markdown(filename: str, content: bytes) -> str:
         result = await model_router.chat_with_routing(
             "conversion",
             [{"role": "user", "content": prompt}],
-            max_tokens=4000,
+            max_tokens=8000,
             timeout=180.0,
         )
         markdown_parts.append(result)
