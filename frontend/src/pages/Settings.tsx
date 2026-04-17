@@ -52,6 +52,7 @@ export default function Settings() {
       {active === 'routing'  && <RoutingTab />}
       {active === 'prompts'  && <PromptsTab />}
       {active === 'api-keys' && <ApiKeysTab />}
+      {active === 'users'    && <UsersTab />}
     </div>
   )
 }
