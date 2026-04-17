@@ -73,11 +73,11 @@ INDUSTRY_TAGS = {
     "other": "其他",
 }
 
-# 预定义的模块标签
+# 预定义的模块标签（中文）
 MODULE_TAGS = [
-    "leads", "accounts", "contacts", "opportunities",
-    "quotes", "contracts", "data_migration", "integration",
-    "ui_customization", "business_flow", "security",
+    "线索管理", "客户管理", "联系人管理", "商机管理",
+    "报价管理", "合同管理", "数据迁移", "系统集成",
+    "界面定制", "业务流程", "权限安全",
 ]
 
 

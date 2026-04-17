@@ -119,7 +119,7 @@ export default function ProjectFormModal({ open, meta, initial, onClose, onSaved
         </form>
         <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-200 bg-gray-50">
           <button onClick={onClose} type="button" className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">取消</button>
-          <button onClick={onSubmit} disabled={submitting} type="submit"
+          <button disabled={submitting} type="submit"
             className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg">
             {submitting ? '保存中...' : '保存'}
           </button>
