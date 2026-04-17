@@ -57,11 +57,37 @@ def run_async(coro):
     try:
         return loop.run_until_complete(coro)
     finally:
-        # 关闭 loop 前先 dispose 引擎，确保 asyncpg 连接干净退出，
-        # 避免残留 Future 在下次调用时报 "attached to a different loop"
+        # 关闭 loop 前先 dispose 所有异步客户端，避免残留 Future 在下次调用时
+        # 报 "attached to a different loop"。包括 asyncpg 引擎、httpx、qdrant 客户端。
+        async def _cleanup():
+            try:
+                from models import engine
+                await engine.dispose()
+            except Exception:
+                pass
+            try:
+                from services.model_router import model_router
+                if model_router._client and not model_router._client.is_closed:
+                    await model_router._client.aclose()
+                model_router._client = None
+            except Exception:
+                pass
+            try:
+                from services.embedding_service import embedding_service
+                if embedding_service._client and not embedding_service._client.is_closed:
+                    await embedding_service._client.aclose()
+                embedding_service._client = None
+            except Exception:
+                pass
+            try:
+                from services.vector_store import vector_store
+                if vector_store._client:
+                    await vector_store._client.close()
+                vector_store._client = None
+            except Exception:
+                pass
         try:
-            from models import engine
-            loop.run_until_complete(engine.dispose())
+            loop.run_until_complete(_cleanup())
         except Exception:
             pass
         loop.close()

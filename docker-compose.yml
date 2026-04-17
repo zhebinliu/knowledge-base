@@ -45,7 +45,7 @@ services:
     image: ${BACKEND_IMAGE:-kb-backend:latest}
     build: ./backend
     env_file: .env
-    mem_limit: 512m
+    mem_limit: 1g
     environment:
       PYTHONPATH: /app
     depends_on:
