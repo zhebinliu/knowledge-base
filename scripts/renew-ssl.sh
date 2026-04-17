@@ -5,22 +5,20 @@
 set -euo pipefail
 
 # webroot 模式：certbot 把 challenge 文件写入 /var/www/certbot/.well-known/acme-challenge/
-# nginx 已配置从同路径 serve，外部 ACME 服务器可直接访问 http://kb.liii.in/.well-known/acme-challenge/<token>
-sudo docker run --rm \
-    -v /etc/letsencrypt:/etc/letsencrypt \
-    -v /var/lib/letsencrypt:/var/lib/letsencrypt \
-    -v /var/www/certbot:/var/www/certbot \
-    certbot/certbot:latest \
-    renew \
-        --webroot -w /var/www/certbot \
-        --quiet
+# nginx 已配置从同路径 serve，外部 ACME 服务器可直接访问
+sudo certbot renew --quiet
 
 # 续期成功时（证书文件被替换）reload nginx 加载新证书
-# certbot --deploy-hook 在容器内无法直接控制宿主 docker，所以放到容器外触发
-if [ -f /etc/letsencrypt/live/kb.liii.in/fullchain.pem ]; then
-    # 仅当证书在过去 1 天内被改写过时才 reload，避免每天无谓 reload
-    if [ -n "$(find /etc/letsencrypt/live/kb.liii.in/fullchain.pem -mtime -1 2>/dev/null)" ]; then
-        echo "$(date -Iseconds) cert renewed, reloading nginx"
-        sudo docker exec kb-system-frontend-1 nginx -s reload
+reload_needed=false
+for domain in kb.liii.in kb.tokenwave.cloud; do
+    cert_path="/etc/letsencrypt/live/${domain}/fullchain.pem"
+    if [ -f "$cert_path" ] && [ -n "$(find "$cert_path" -mtime -1 2>/dev/null)" ]; then
+        echo "$(date -Iseconds) cert renewed for ${domain}"
+        reload_needed=true
     fi
+done
+
+if [ "$reload_needed" = true ]; then
+    echo "$(date -Iseconds) reloading nginx"
+    sudo docker exec kb-system-frontend-1 nginx -s reload
 fi
