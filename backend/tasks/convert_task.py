@@ -162,7 +162,7 @@ async def _check_and_run_schedules():
         logger.debug("croniter not installed, skipping schedule check")
         return
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     async with async_session_maker() as session:
         result = await session.execute(

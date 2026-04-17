@@ -48,10 +48,10 @@ async def approve(review_id: str, action: ReviewAction, session: AsyncSession = 
     if chunk:
         chunk.review_status = "approved"
         chunk.reviewed_by = action.reviewer
-        chunk.reviewed_at = datetime.now(timezone.utc)
+        chunk.reviewed_at = datetime.now(timezone.utc).replace(tzinfo=None)
     item.status = "approved"
     item.reviewed_by = action.reviewer
-    item.reviewed_at = datetime.now(timezone.utc)
+    item.reviewed_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await session.commit()
     return {"ok": True}
 
@@ -65,9 +65,9 @@ async def reject(review_id: str, action: ReviewAction, session: AsyncSession = D
     if chunk:
         chunk.review_status = "rejected"
         chunk.reviewed_by = action.reviewer
-        chunk.reviewed_at = datetime.now(timezone.utc)
+        chunk.reviewed_at = datetime.now(timezone.utc).replace(tzinfo=None)
     item.status = "rejected"
     item.review_note = action.note
-    item.reviewed_at = datetime.now(timezone.utc)
+    item.reviewed_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await session.commit()
     return {"ok": True}
