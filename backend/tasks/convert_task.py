@@ -10,6 +10,19 @@ from config import settings
 logger = structlog.get_logger()
 
 celery_app = Celery("kb_tasks", broker=settings.redis_url, backend=settings.redis_url)
+
+
+# Fork 后旧 asyncpg 连接与新事件循环不兼容，必须 dispose 让引擎重建连接
+from celery.signals import worker_process_init
+
+@worker_process_init.connect
+def reset_db_pool(**kwargs):
+    from models import engine
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(engine.dispose())
+    finally:
+        loop.close()
 celery_app.conf.task_serializer = "json"
 celery_app.conf.result_expires = 3600
 celery_app.conf.beat_schedule = {
