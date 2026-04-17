@@ -90,3 +90,7 @@ def get_ltc_taxonomy_text() -> str:
 
 def get_industry_list_text() -> str:
     return ", ".join(INDUSTRIES)
+
+
+def get_module_list_text() -> str:
+    return ", ".join(MODULE_TAGS)

@@ -206,9 +206,9 @@ async def _persist_challenge_chunk(
         return None, None, None
 
 
-async def generate_questions(target_stage: str, chunks: list[dict]) -> tuple[list[dict], str]:
+async def generate_questions(target_stage: str, chunks: list[dict], num_questions: int = 5) -> tuple[list[dict], str]:
     """Returns (questions_list, model_name)."""
-    prompt = await build_question_prompt(target_stage, chunks)
+    prompt = await build_question_prompt(target_stage, chunks, num_questions)
     result, used_model = await model_router.chat_with_routing(
         "challenge_questioning",
         [{"role": "user", "content": prompt}],
@@ -305,7 +305,7 @@ async def run_challenge_stream(
             yield {"type": "status", "message": f"【{stage}】暂无知识内容，跳过"}
             continue
 
-        questions, question_model = await generate_questions(stage, chunks)
+        questions, question_model = await generate_questions(stage, chunks, questions_per_stage)
         if not questions:
             yield {"type": "status", "message": f"【{stage}】题目生成失败，跳过"}
             continue
