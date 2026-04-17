@@ -76,7 +76,7 @@ export default function ProjectFormModal({ open, meta, initial, onClose, onSaved
             <X size={16} />
           </button>
         </div>
-        <form onSubmit={onSubmit} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <form id="project-form" onSubmit={onSubmit} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">项目名称 *</label>
             <input value={name} onChange={(e) => setName(e.target.value)} autoFocus
@@ -119,7 +119,7 @@ export default function ProjectFormModal({ open, meta, initial, onClose, onSaved
         </form>
         <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-200 bg-gray-50">
           <button onClick={onClose} type="button" className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">取消</button>
-          <button disabled={submitting} type="submit"
+          <button disabled={submitting} type="submit" form="project-form"
             className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg">
             {submitting ? '保存中...' : '保存'}
           </button>
