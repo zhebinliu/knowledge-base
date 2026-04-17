@@ -69,7 +69,10 @@ def run_async(coro):
 
 @celery_app.task(name="process_document", bind=True, max_retries=2)
 def process_document(self, doc_id: str):
-    # 立即更新状态，解决 Pending 问题
+    # 先 import 所有有 FK 关系的模型，确保 SQLAlchemy mapper configure 时能解析 FK
+    from models.user import User  # noqa: F401
+    from models.project import Project  # noqa: F401
+    from models.challenge_run import ChallengeRun  # noqa: F401
     from models import async_session_maker
     from models.document import Document
     
@@ -100,7 +103,11 @@ async def _process_document_async(doc_id: str):
     from agents.slicer_agent import slice_and_classify
     from services.embedding_service import embedding_service
     from services.vector_store import vector_store
+    from services.config_service import config_service
+    from services.model_router import model_router
     from minio import Minio
+
+    model_router.set_config_service(config_service)
 
     async with async_session_maker() as session:
         doc = await session.get(Document, doc_id)
@@ -194,7 +201,11 @@ async def _check_and_run_schedules():
     from datetime import datetime, timedelta, timezone
     from models import async_session_maker
     from models.challenge_schedule import ChallengeSchedule
+    from services.config_service import config_service
+    from services.model_router import model_router
     from sqlalchemy import select
+
+    model_router.set_config_service(config_service)
 
     try:
         from croniter import croniter
