@@ -57,6 +57,13 @@ def run_async(coro):
     try:
         return loop.run_until_complete(coro)
     finally:
+        # 关闭 loop 前先 dispose 引擎，确保 asyncpg 连接干净退出，
+        # 避免残留 Future 在下次调用时报 "attached to a different loop"
+        try:
+            from models import engine
+            loop.run_until_complete(engine.dispose())
+        except Exception:
+            pass
         loop.close()
 
 
@@ -84,6 +91,8 @@ def process_document(self, doc_id: str):
 
 async def _process_document_async(doc_id: str):
     from models import async_session_maker
+    from models.user import User  # noqa: F401 — FK documents.uploader_id→users.id
+    from models.project import Project  # noqa: F401 — FK documents.project_id→projects.id
     from models.document import Document
     from models.chunk import Chunk
     from models.review_queue import ReviewQueue
