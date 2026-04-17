@@ -32,6 +32,48 @@ const REVIEW_BADGE: Record<string, string> = {
 
 type DrawerMode = 'markdown' | 'chunks'
 
+function ChunkCard({ chunk }: { chunk: Chunk }) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div className="border border-gray-200 rounded-xl p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs font-mono text-gray-400">#{chunk.chunk_index}</span>
+        {chunk.ltc_stage && (
+          <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full">{chunk.ltc_stage}</span>
+        )}
+        {chunk.review_status && (
+          <span className={`text-xs px-2 py-0.5 rounded-full ${REVIEW_BADGE[chunk.review_status] ?? 'bg-gray-100 text-gray-600'}`}>
+            {chunk.review_status === 'needs_review' ? '待审核' :
+             chunk.review_status === 'approved' ? '已通过' :
+             chunk.review_status === 'rejected' ? '已拒绝' : '待处理'}
+          </span>
+        )}
+        {chunk.char_count > 0 && (
+          <span className="text-xs text-gray-400 ml-auto">{chunk.char_count} 字</span>
+        )}
+        <button
+          onClick={() => setExpanded(e => !e)}
+          className="text-xs text-blue-600 hover:text-blue-800 ml-1"
+        >
+          {expanded ? '收起' : '展开'}
+        </button>
+      </div>
+      {expanded ? (
+        <MarkdownView content={chunk.content} size="sm" />
+      ) : (
+        <p className="text-sm text-gray-700 leading-relaxed line-clamp-4">{chunk.content}</p>
+      )}
+      {chunk.tags && chunk.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-2">
+          {chunk.tags.slice(0, 5).map(tag => (
+            <span key={tag} className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">{tag}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Documents() {
   const qc = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -350,32 +392,7 @@ export default function Documents() {
                   <p className="text-sm text-gray-400 py-8 text-center">暂无关联 Chunks</p>
                 )}
                 {chunksData?.map((chunk: Chunk) => (
-                  <div key={chunk.id} className="border border-gray-200 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-mono text-gray-400">#{chunk.chunk_index}</span>
-                      {chunk.ltc_stage && (
-                        <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full">{chunk.ltc_stage}</span>
-                      )}
-                      {chunk.review_status && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${REVIEW_BADGE[chunk.review_status] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {chunk.review_status === 'needs_review' ? '待审核' :
-                           chunk.review_status === 'approved' ? '已通过' :
-                           chunk.review_status === 'rejected' ? '已拒绝' : '待处理'}
-                        </span>
-                      )}
-                      {chunk.char_count > 0 && (
-                        <span className="text-xs text-gray-400 ml-auto">{chunk.char_count} 字</span>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-700 leading-relaxed line-clamp-4">{chunk.content}</p>
-                    {chunk.tags && chunk.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {chunk.tags.slice(0, 5).map(tag => (
-                          <span key={tag} className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">{tag}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <ChunkCard key={chunk.id} chunk={chunk} />
                 ))}
               </div>
             )}
