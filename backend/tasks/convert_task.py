@@ -177,7 +177,13 @@ async def _check_and_run_schedules():
                 if next_run <= now:
                     logger.info("scheduled_challenge_start", schedule_id=sched.id, stages=sched.stages)
                     from agents.challenger_agent import run_challenge_stream
-                    async for _event in run_challenge_stream(sched.stages, sched.questions_per_stage):
+                    async for _event in run_challenge_stream(
+                        sched.stages,
+                        sched.questions_per_stage,
+                        trigger_type="scheduled",
+                        triggered_by=sched.id,
+                        triggered_by_name=sched.name,
+                    ):
                         pass  # 只消费事件，结果已在 agent 内持久化到 KB
                     sched.last_run_at = now
                     await session.commit()

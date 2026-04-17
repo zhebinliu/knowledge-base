@@ -1,13 +1,15 @@
 """
 CRUD API for agent configuration: models, routing, task params, prompts.
+所有写操作要求管理员；读操作允许已登录用户。
 """
 
 import structlog
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from services.auth import require_admin
 from services.config_service import config_service, DEFAULT_TASK_PARAMS
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_admin)])
 logger = structlog.get_logger()
 
 

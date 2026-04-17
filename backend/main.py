@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import structlog
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export, agent_settings
+from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects
 from services.vector_store import vector_store
 
 logger = structlog.get_logger()
@@ -30,6 +30,8 @@ app.include_router(challenge.router, prefix="/api/challenge", tags=["challenge"]
 app.include_router(review.router, prefix="/api/review", tags=["review"])
 app.include_router(export.router, prefix="/api/transfer", tags=["transfer"])
 app.include_router(agent_settings.router, prefix="/api/settings", tags=["settings"])
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 
 
 @app.on_event("startup")
@@ -43,6 +45,9 @@ async def startup():
     from models.review_queue import ReviewQueue  # noqa: F401
     from models.challenge_schedule import ChallengeSchedule  # noqa: F401
     from models.agent_config import AgentConfig  # noqa: F401
+    from models.user import User  # noqa: F401
+    from models.project import Project  # noqa: F401
+    from models.challenge_run import ChallengeRun  # noqa: F401
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -54,7 +59,22 @@ async def startup():
             "CREATE INDEX IF NOT EXISTS idx_chunks_doc ON chunks(document_id)",
         ]:
             await conn.execute(text(stmt))
+        # 轻量迁移（幂等）：在不破坏老数据的前提下补字段
+        for migration in [
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS uploader_id VARCHAR(36) REFERENCES users(id)",
+            "CREATE INDEX IF NOT EXISTS idx_documents_uploader ON documents(uploader_id)",
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS project_id VARCHAR(36) REFERENCES projects(id)",
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS doc_type VARCHAR(40)",
+            "CREATE INDEX IF NOT EXISTS idx_documents_project ON documents(project_id)",
+            "CREATE INDEX IF NOT EXISTS idx_documents_doctype ON documents(doc_type)",
+            "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS batch_id VARCHAR(36)",
+            "CREATE INDEX IF NOT EXISTS idx_chunks_batch ON chunks(batch_id)",
+        ]:
+            await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")
+    # Seed initial admin (idempotent)
+    from services.auth import seed_admin_if_empty
+    await seed_admin_if_empty()
     # Seed agent configs from hardcoded defaults (idempotent)
     from services.config_service import config_service
     await config_service.seed_defaults()

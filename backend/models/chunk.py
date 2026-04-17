@@ -42,5 +42,8 @@ class Chunk(Base):
     # Qdrant point ID
     vector_id: Mapped[str | None] = mapped_column(String(100))
 
+    # 关联到 ChallengeRun.id（challenge 固化的 Q+A 才有值）
+    batch_id: Mapped[str | None] = mapped_column(String(36), index=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)

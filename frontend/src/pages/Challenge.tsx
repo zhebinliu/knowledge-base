@@ -6,6 +6,7 @@ import {
   approveReview, rejectReview,
   listChallengeSchedules, createChallengeSchedule, deleteChallengeSchedule,
   toggleChallengeSchedule, type ChallengeSchedule,
+  TOKEN_STORAGE_KEY,
 } from '../api/client'
 
 const PRESET_STAGES = ['线索', '客户', '商机', '报价', '订单', '合同', '交付', '回款', '售后', '通用']
@@ -73,9 +74,12 @@ export default function Challenge() {
     abortRef.current = ctrl
 
     try {
+      const token = localStorage.getItem(TOKEN_STORAGE_KEY)
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) headers.Authorization = `Bearer ${token}`
       const resp = await fetch('/api/challenge/run-stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ target_stages: stages, questions_per_stage: perStage }),
         signal: ctrl.signal,
       })

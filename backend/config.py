@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     challenge_auto_accept_threshold: float = 0.9
     challenge_review_threshold: float = 0.7
 
+    # 认证 / JWT
+    jwt_secret_key: str = "change-me-in-production-please-set-JWT_SECRET_KEY"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60 * 24 * 7  # 7 天
+    admin_initial_username: str = "admin"
+    admin_initial_password: str = "ChangeMe123!"
+
     @property
     def database_url(self) -> str:
         pw = quote_plus(self.postgres_password)

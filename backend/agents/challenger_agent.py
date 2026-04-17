@@ -5,6 +5,7 @@ Phase 2: 逐题回答+评判，实时更新对应题目的结果
 每个完成的问答会被固化为一条 chunk 写入知识库（tag=challenge）。
 """
 
+import asyncio
 import json
 import re
 import uuid
@@ -109,6 +110,7 @@ async def _persist_challenge_chunk(
     ltc_stage: str,
     decision: str,
     score: float,
+    batch_id: str | None = None,
 ) -> tuple[str | None, str | None, str | None]:
     """
     把一道 challenge 的 Q+A+评分理由固化为 chunk，写入 Postgres + Qdrant。
@@ -167,6 +169,7 @@ async def _persist_challenge_chunk(
                 source_section="知识挑战",
                 char_count=len(content),
                 review_status=review_status,
+                batch_id=batch_id,
             )
             session.add(chunk)
             await session.flush()
@@ -265,6 +268,9 @@ async def judge_answer(question: str, answer: str, source_chunks: list[dict]) ->
 async def run_challenge_stream(
     target_stages: list[str],
     questions_per_stage: int = 2,
+    trigger_type: str = "manual",
+    triggered_by: str | None = None,
+    triggered_by_name: str | None = None,
 ):
     """
     Two-phase async generator:
@@ -278,109 +284,184 @@ async def run_challenge_stream(
 
     Progress events:
       {"type": "status", "message": "..."}
+
+    一次完整流程会创建一条 ChallengeRun，结束时更新统计。
     """
     from agents.kb_agent import answer_question
+    from datetime import datetime, timezone
+    from models import async_session_maker
+    from models.challenge_run import ChallengeRun
 
-    batch_id = str(uuid.uuid4())[:8]
+    batch_id = str(uuid.uuid4())  # 全长 UUID，作为 ChallengeRun.id
 
-    # ── Phase 1: Generate all questions ──────────────────────────────
-    # Store (stage, question_text, raw_results) for Phase 2
-    pending: list[dict] = []   # {"stage", "question", "raw_results"}
-    q_index = 0
+    # ── Run 入库（status=running）──────────────────────────────────────
+    def _utcnow_naive():
+        return datetime.now(timezone.utc).replace(tzinfo=None)
 
-    for stage in target_stages:
-        yield {"type": "status", "message": f"正在为【{stage}】检索知识并出题…"}
+    try:
+        async with async_session_maker() as session:
+            run = ChallengeRun(
+                id=batch_id,
+                trigger_type=trigger_type,
+                triggered_by=triggered_by,
+                triggered_by_name=triggered_by_name,
+                target_stages=list(target_stages),
+                questions_per_stage=questions_per_stage,
+                started_at=_utcnow_naive(),
+                status="running",
+            )
+            session.add(run)
+            await session.commit()
+        yield {"type": "run_started", "batch_id": batch_id}
+    except Exception as e:
+        logger.warning("challenge_run_create_failed", error=str(e)[:200])
 
-        query_vector = await embedding_service.embed(f"{stage} 实施知识 CRM 业务流程")
-        raw_results = await vector_store.search(query_vector, top_k=10, ltc_stage=stage)
-        if not raw_results:
-            raw_results = await vector_store.search(query_vector, top_k=10)
+    total = 0
+    passed = 0
+    failed = 0
+    run_status = "completed"
+    run_error: str | None = None
 
-        chunks = [
-            {"id": r["id"], "content": r["payload"].get("content_preview", ""), "ltc_stage": stage}
-            for r in raw_results
-        ]
+    try:
+        # ── Phase 1: Generate all questions ──────────────────────────────
+        # Store (stage, question_text, raw_results) for Phase 2
+        pending: list[dict] = []   # {"stage", "question", "raw_results"}
+        q_index = 0
 
-        if not chunks:
-            yield {"type": "status", "message": f"【{stage}】暂无知识内容，跳过"}
-            continue
+        for stage in target_stages:
+            yield {"type": "status", "message": f"正在为【{stage}】检索知识并出题…"}
 
-        questions, question_model = await generate_questions(stage, chunks, questions_per_stage)
-        if not questions:
-            yield {"type": "status", "message": f"【{stage}】题目生成失败，跳过"}
-            continue
+            query_vector = await embedding_service.embed(f"{stage} 实施知识 CRM 业务流程")
+            raw_results = await vector_store.search(query_vector, top_k=10, ltc_stage=stage)
+            if not raw_results:
+                raw_results = await vector_store.search(query_vector, top_k=10)
 
-        for q_data in questions[:questions_per_stage]:
-            question_text = q_data.get("question", "")
-            if not question_text:
+            chunks = [
+                {"id": r["id"], "content": r["payload"].get("content_preview", ""), "ltc_stage": stage}
+                for r in raw_results
+            ]
+
+            if not chunks:
+                yield {"type": "status", "message": f"【{stage}】暂无知识内容，跳过"}
                 continue
 
-            yield {
-                "type": "question",
-                "q_index": q_index,
-                "question": question_text,
-                "ltc_stage": stage,
-                "question_model": question_model,
-            }
-            pending.append({"stage": stage, "question": question_text, "raw_results": raw_results, "question_model": question_model})
-            q_index += 1
+            questions, question_model = await generate_questions(stage, chunks, questions_per_stage)
+            if not questions:
+                yield {"type": "status", "message": f"【{stage}】题目生成失败，跳过"}
+                continue
 
-    # ── Phase 2: Answer & judge each question ─────────────────────────
-    for idx, item in enumerate(pending):
-        stage    = item["stage"]
-        question = item["question"]
-        raw_results = item["raw_results"]
+            for q_data in questions[:questions_per_stage]:
+                question_text = q_data.get("question", "")
+                if not question_text:
+                    continue
 
-        yield {"type": "status", "message": f"第 {idx + 1}/{len(pending)} 题：正在作答和评判…"}
+                yield {
+                    "type": "question",
+                    "q_index": q_index,
+                    "question": question_text,
+                    "ltc_stage": stage,
+                    "question_model": question_model,
+                }
+                pending.append({"stage": stage, "question": question_text, "raw_results": raw_results, "question_model": question_model})
+                q_index += 1
+                total += 1
 
-        try:
-            answer_result = await answer_question(question, ltc_stage=None)
-            answer = answer_result["answer"]
-            answer_model = answer_result.get("model")
-            source_ids = [s["id"] for s in answer_result["sources"]]
-            source_chunks = [
-                {"id": r["id"], "content": r["payload"].get("content_preview", "")}
-                for r in raw_results if r["id"] in source_ids
-            ] or [{"id": r["id"], "content": r["payload"].get("content_preview", "")} for r in raw_results[:3]]
+        # ── Phase 2: Answer & judge each question ─────────────────────────
+        for idx, item in enumerate(pending):
+            stage    = item["stage"]
+            question = item["question"]
+            raw_results = item["raw_results"]
 
-            judgment, judge_model = await judge_answer(question, answer, source_chunks)
-        except Exception as e:
-            logger.error("answer_or_judge_failed", idx=idx, error=str(e))
+            yield {"type": "status", "message": f"第 {idx + 1}/{len(pending)} 题：正在作答和评判…"}
+
+            try:
+                answer_result = await answer_question(question, ltc_stage=None)
+                answer = answer_result["answer"]
+                answer_model = answer_result.get("model")
+                source_ids = [s["id"] for s in answer_result["sources"]]
+                source_chunks = [
+                    {"id": r["id"], "content": r["payload"].get("content_preview", "")}
+                    for r in raw_results if r["id"] in source_ids
+                ] or [{"id": r["id"], "content": r["payload"].get("content_preview", "")} for r in raw_results[:3]]
+
+                judgment, judge_model = await judge_answer(question, answer, source_chunks)
+            except Exception as e:
+                logger.error("answer_or_judge_failed", idx=idx, error=str(e))
+                failed += 1
+                yield {
+                    "type": "result",
+                    "q_index": idx,
+                    "answer": f"(作答失败：{e})",
+                    "score": 0,
+                    "decision": "fail",
+                    "reasoning": "",
+                }
+                continue
+
+            decision = judgment.get("decision", "pending_review")
+            if decision == "pass":
+                passed += 1
+            else:
+                failed += 1
+
+            chunk_id, review_status, review_id = await _persist_challenge_chunk(
+                question=question,
+                answer=answer,
+                reasoning=judgment.get("reasoning", ""),
+                ltc_stage=stage,
+                decision=decision,
+                score=judgment.get("overall_score", 0),
+                batch_id=batch_id,
+            )
+
             yield {
                 "type": "result",
                 "q_index": idx,
-                "answer": f"(作答失败：{e})",
-                "score": 0,
-                "decision": "fail",
-                "reasoning": "",
+                "batch_id": batch_id,
+                "answer": answer,
+                "score": judgment.get("overall_score", 0),
+                "decision": decision,
+                "reasoning": judgment.get("reasoning", ""),
+                "source_chunk_ids": source_ids,
+                "chunk_id": chunk_id,
+                "review_status": review_status,
+                "review_id": review_id,
+                "question_model": item.get("question_model"),
+                "answer_model": answer_model,
+                "judge_model": judge_model,
             }
-            continue
+    except asyncio.CancelledError:
+        run_status = "cancelled"
+        run_error = "客户端取消（连接断开）"
+        logger.warning("challenge_run_cancelled", batch_id=batch_id)
+        raise
+    except Exception as e:
+        run_status = "failed"
+        run_error = str(e)[:500]
+        logger.error("challenge_run_failed", batch_id=batch_id, error=run_error)
+        raise
+    finally:
+        # ── 更新 ChallengeRun 统计 + 状态（用 shield 防止 cancel 时丢更新）──
+        async def _finalize():
+            try:
+                async with async_session_maker() as session:
+                    run = await session.get(ChallengeRun, batch_id)
+                    if run is not None:
+                        run.finished_at = _utcnow_naive()
+                        run.total = total
+                        run.passed = passed
+                        run.failed = failed
+                        run.status = run_status
+                        run.error_message = run_error
+                        await session.commit()
+            except Exception as e:
+                logger.warning("challenge_run_update_failed", batch_id=batch_id, error=str(e)[:200])
 
-        chunk_id, review_status, review_id = await _persist_challenge_chunk(
-            question=question,
-            answer=answer,
-            reasoning=judgment.get("reasoning", ""),
-            ltc_stage=stage,
-            decision=judgment.get("decision", "pending_review"),
-            score=judgment.get("overall_score", 0),
-        )
-
-        yield {
-            "type": "result",
-            "q_index": idx,
-            "batch_id": batch_id,
-            "answer": answer,
-            "score": judgment.get("overall_score", 0),
-            "decision": judgment.get("decision", "pending_review"),
-            "reasoning": judgment.get("reasoning", ""),
-            "source_chunk_ids": source_ids,
-            "chunk_id": chunk_id,
-            "review_status": review_status,
-            "review_id": review_id,
-            "question_model": item.get("question_model"),
-            "answer_model": answer_model,
-            "judge_model": judge_model,
-        }
+        try:
+            await asyncio.shield(_finalize())
+        except asyncio.CancelledError:
+            # shield 在被 cancel 时会重抛，但 _finalize 已开始独立完成
+            pass
 
 
 async def run_challenge_batch(

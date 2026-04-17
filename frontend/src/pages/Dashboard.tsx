@@ -20,7 +20,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default function Dashboard() {
   const { data: stats } = useQuery({ queryKey: ['stats'],     queryFn: getStats,         refetchInterval: 10_000 })
-  const { data: docs }  = useQuery({ queryKey: ['documents'], queryFn: listDocuments })
+  const { data: docs }  = useQuery({ queryKey: ['documents'], queryFn: () => listDocuments() })
   const { data: queue } = useQuery({ queryKey: ['review-queue'], queryFn: listReviewQueue, refetchInterval: 30_000 })
 
   const cards = [
