@@ -103,6 +103,13 @@ class ModelRouter:
     def __init__(self):
         self._failure_counts: dict[str, int] = {}
         self._config_service = None
+        self._client: httpx.AsyncClient | None = None
+
+    @property
+    def client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=180.0)
+        return self._client
 
     def set_config_service(self, svc):
         self._config_service = svc
@@ -160,19 +167,19 @@ class ModelRouter:
             payload["response_format"] = response_format
 
         try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.post(
-                    f"{config['api_base']}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json=payload,
-                )
-                resp.raise_for_status()
-                self._failure_counts[model_name] = 0
-                content = resp.json()["choices"][0]["message"]["content"]
-                return content, model_name
+            resp = await self.client.post(
+                f"{config['api_base']}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=timeout,
+            )
+            resp.raise_for_status()
+            self._failure_counts[model_name] = 0
+            content = resp.json()["choices"][0]["message"]["content"]
+            return content, model_name
         except Exception as e:
             self._failure_counts[model_name] = self._failure_counts.get(model_name, 0) + 1
             logger.error("model_call_failed", model=model_name, error=str(e)[:200])
@@ -218,31 +225,31 @@ class ModelRouter:
             "stream": True,
         }
         try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                async with client.stream(
-                    "POST",
-                    f"{config['api_base']}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json=payload,
-                ) as resp:
-                    resp.raise_for_status()
-                    async for line in resp.aiter_lines():
-                        if not line.startswith("data: "):
-                            continue
-                        data = line[6:].strip()
-                        if data == "[DONE]":
-                            yield None, model_name  # signal end with model name
-                            return
-                        try:
-                            chunk = _json.loads(data)
-                            delta = chunk["choices"][0]["delta"].get("content") or ""
-                            if delta:
-                                yield delta, None
-                        except Exception:
-                            pass
+            async with self.client.stream(
+                "POST",
+                f"{config['api_base']}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=timeout,
+            ) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    data = line[6:].strip()
+                    if data == "[DONE]":
+                        yield None, model_name
+                        return
+                    try:
+                        chunk = _json.loads(data)
+                        delta = chunk["choices"][0]["delta"].get("content") or ""
+                        if delta:
+                            yield delta, None
+                    except Exception:
+                        pass
         except Exception as e:
             self._failure_counts[model_name] = self._failure_counts.get(model_name, 0) + 1
             logger.error("stream_failed", model=model_name, error=str(e)[:200])

@@ -21,17 +21,12 @@ celery_app.conf.beat_schedule = {
 
 
 def run_async(coro):
-    """
-    通用同步运行异步函数包装器。
-    使用共享事件循环或新建（视环境而定）。
-    """
+    """同步运行异步函数。每次调用创建独立事件循环，避免 Celery 线程冲突。"""
+    loop = asyncio.new_event_loop()
     try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    
-    return loop.run_until_complete(coro)
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
 
 
 @celery_app.task(name="process_document", bind=True, max_retries=2)
@@ -116,7 +111,6 @@ async def _process_document_async(doc_id: str):
                 session.add(chunk)
                 await session.flush()
 
-                # 生成向量并入库
                 vector = await embedding_service.embed(slice_data["content"])
                 await vector_store.upsert(
                     chunk.id,
@@ -126,7 +120,8 @@ async def _process_document_async(doc_id: str):
                         "document_id": doc_id,
                         "ltc_stage": slice_data["ltc_stage"],
                         "industry": slice_data["industry"],
-                        "content_preview": slice_data["content"][:200],
+                        "section_path": slice_data.get("section_path", ""),
+                        "content_preview": slice_data["content"][:500],
                     },
                 )
                 chunk.vector_id = chunk.id
@@ -156,7 +151,7 @@ def run_scheduled_challenges():
 
 
 async def _check_and_run_schedules():
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     from models import async_session_maker
     from models.challenge_schedule import ChallengeSchedule
     from sqlalchemy import select
@@ -167,7 +162,7 @@ async def _check_and_run_schedules():
         logger.debug("croniter not installed, skipping schedule check")
         return
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     async with async_session_maker() as session:
         result = await session.execute(

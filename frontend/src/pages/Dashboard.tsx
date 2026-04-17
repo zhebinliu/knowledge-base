@@ -8,13 +8,14 @@ import {
 
 const STATUS_ICON: Record<string, JSX.Element> = {
   pending:    <Clock size={14} className="text-yellow-500"/>,
-  processing: <Loader size={14} className="text-blue-500 animate-spin"/>,
-  done:       <CheckCircle size={14} className="text-green-500"/>,
+  converting: <Loader size={14} className="text-blue-500 animate-spin"/>,
+  slicing:    <Loader size={14} className="text-purple-500 animate-spin"/>,
+  completed:  <CheckCircle size={14} className="text-green-500"/>,
   failed:     <AlertCircle size={14} className="text-red-500"/>,
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  pending: '等待处理', processing: '处理中', done: '完成', failed: '失败',
+  pending: '等待处理', converting: '转换中', slicing: '切片中', completed: '完成', failed: '失败',
 }
 
 export default function Dashboard() {

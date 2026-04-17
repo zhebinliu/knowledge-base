@@ -1,8 +1,12 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import String, Text, Float, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 from models import Base
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class Document(Base):
@@ -15,5 +19,5 @@ class Document(Base):
     file_path: Mapped[str | None] = mapped_column(String(1000))
     conversion_status: Mapped[str] = mapped_column(String(20), default="pending")
     conversion_quality_score: Mapped[float | None] = mapped_column(Float)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)

@@ -1,8 +1,12 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import String, Text, Float, Integer, DateTime, JSON, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from models import Base
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class Chunk(Base):
@@ -38,5 +42,5 @@ class Chunk(Base):
     # Qdrant point ID
     vector_id: Mapped[str | None] = mapped_column(String(100))
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)

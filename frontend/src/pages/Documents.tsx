@@ -12,8 +12,9 @@ import MarkdownView from '../components/MarkdownView'
 
 const STATUS_BADGE: Record<string, JSX.Element> = {
   pending:    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-yellow-50 text-yellow-700"><Clock size={11}/>等待处理</span>,
-  processing: <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700"><Loader size={11} className="animate-spin"/>处理中</span>,
-  done:       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700"><CheckCircle size={11}/>完成</span>,
+  converting: <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700"><Loader size={11} className="animate-spin"/>转换中</span>,
+  slicing:    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-50 text-purple-700"><Loader size={11} className="animate-spin"/>切片中</span>,
+  completed:  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700"><CheckCircle size={11}/>完成</span>,
   failed:     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-700"><AlertCircle size={11}/>失败</span>,
 }
 
@@ -243,7 +244,7 @@ export default function Documents() {
                 )}
                 {!mdLoading && !markdownData?.markdown_content && (
                   <p className="text-sm text-gray-400 py-8 text-center">
-                    {drawerDoc?.conversion_status === 'done' ? '暂无 Markdown 内容' : '文档尚未处理完成'}
+                    {drawerDoc?.conversion_status === 'completed' ? '暂无 Markdown 内容' : '文档尚未处理完成'}
                   </p>
                 )}
                 {markdownData?.markdown_content && (

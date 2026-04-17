@@ -136,19 +136,12 @@ async def stats():
     from services.vector_store import vector_store
     from models.document import Document
     from models.chunk import Chunk
-    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-    from sqlalchemy.orm import sessionmaker
-    from sqlalchemy import select, func
+    from models import async_session_maker
+    from sqlalchemy import select, func, text
 
-    engine = create_async_engine(settings.database_url)
-    async_session = sessionmaker(engine, class_=AsyncSession)
-
-    async with async_session() as session:
+    async with async_session_maker() as session:
         doc_count = await session.scalar(select(func.count()).select_from(Document))
         chunk_count = await session.scalar(select(func.count()).select_from(Chunk))
-        
-        # 统计各状态文档数量
-        from sqlalchemy import text
         status_res = await session.execute(text("SELECT conversion_status, count(*) FROM documents GROUP BY conversion_status"))
         status_map = {r[0]: r[1] for r in status_res}
 

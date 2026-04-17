@@ -1,8 +1,12 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import String, Text, Float, DateTime, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from models import Base
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class Challenge(Base):
@@ -26,4 +30,4 @@ class Challenge(Base):
     judge_decision: Mapped[str | None] = mapped_column(String(20))
 
     generated_chunk_id: Mapped[str | None] = mapped_column(String(36))
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)

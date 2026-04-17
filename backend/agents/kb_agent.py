@@ -1,6 +1,6 @@
 """
 通用知识库 Agent
-1. 问答模式（RAG）
+1. 问答模式（RAG）— 多路召回 + Rerank + 上下文组装
 2. 文档生成模式
 """
 
@@ -17,32 +17,60 @@ RETRIEVAL_TOP_K = 20
 RERANK_TOP_K = 5
 
 
+async def _multi_route_retrieve(
+    question: str,
+    ltc_stage: str | None = None,
+    industry: str | None = None,
+) -> list[dict]:
+    """
+    多路召回策略：
+    1. 精准检索（带 ltc_stage / industry 过滤）
+    2. 宽泛检索（不带过滤，兜底）
+    去重后合并，确保不遗漏跨阶段的关联知识。
+    """
+    query_vector = await embedding_service.embed(question)
+
+    filtered_results = []
+    if ltc_stage or industry:
+        filtered_results = await vector_store.search(
+            query_vector, top_k=RETRIEVAL_TOP_K, ltc_stage=ltc_stage, industry=industry
+        )
+
+    broad_results = await vector_store.search(query_vector, top_k=RETRIEVAL_TOP_K)
+
+    seen_ids = set()
+    merged = []
+    for r in filtered_results + broad_results:
+        if r["id"] not in seen_ids:
+            seen_ids.add(r["id"])
+            merged.append(r)
+
+    return merged
+
+
+async def _rerank_results(question: str, raw_results: list[dict]) -> list[dict]:
+    """Rerank 并返回 top 结果，失败时回退到向量分数排序。"""
+    documents = [r["payload"].get("content_preview", "") for r in raw_results]
+    try:
+        reranked_indices = await rerank_service.rerank(question, documents, top_n=RERANK_TOP_K)
+        return [raw_results[i] for i in reranked_indices]
+    except Exception as e:
+        logger.warning("rerank_failed", error=str(e), fallback="vector_score_top_k")
+        return sorted(raw_results, key=lambda x: x["score"], reverse=True)[:RERANK_TOP_K]
+
+
 async def answer_question(
     question: str,
     ltc_stage: str | None = None,
     industry: str | None = None,
 ) -> dict:
-    # 1. Embedding
-    query_vector = await embedding_service.embed(question)
-
-    # 2. 向量检索
-    raw_results = await vector_store.search(
-        query_vector, top_k=RETRIEVAL_TOP_K, ltc_stage=ltc_stage, industry=industry
-    )
+    raw_results = await _multi_route_retrieve(question, ltc_stage, industry)
 
     if not raw_results:
-        return {"answer": "知识库中暂无相关内容。", "sources": []}
+        return {"answer": "知识库中暂无相关内容。", "sources": [], "model": None}
 
-    # 3. Rerank
-    documents = [r["payload"].get("content_preview", "") for r in raw_results]
-    try:
-        reranked_indices = await rerank_service.rerank(question, documents, top_n=RERANK_TOP_K)
-        top_results = [raw_results[i] for i in reranked_indices]
-    except Exception as e:
-        logger.warning("rerank_failed", error=str(e), fallback="using_top_k")
-        top_results = raw_results[:RERANK_TOP_K]
+    top_results = await _rerank_results(question, raw_results)
 
-    # 4. 构建上下文
     chunks_for_prompt = [
         {
             "id": r["id"],
@@ -52,7 +80,6 @@ async def answer_question(
         for r in top_results
     ]
 
-    # 5. 生成回答
     prompt = await build_qa_prompt(question, chunks_for_prompt)
     answer, used_model = await model_router.chat_with_routing(
         "daily_qa",
@@ -79,31 +106,15 @@ async def answer_question_stream(
     """
     import json as _json
 
-    # 1. Embedding
-    query_vector = await embedding_service.embed(question)
-
-    # 2. 向量检索
-    raw_results = await vector_store.search(
-        query_vector, top_k=RETRIEVAL_TOP_K, ltc_stage=ltc_stage, industry=industry
-    )
-    if not raw_results and ltc_stage:
-        raw_results = await vector_store.search(query_vector, top_k=RETRIEVAL_TOP_K)
+    raw_results = await _multi_route_retrieve(question, ltc_stage, industry)
 
     if not raw_results:
         yield _json.dumps({"token": "知识库中暂无相关内容。"})
-        yield _json.dumps({"sources": []})
+        yield _json.dumps({"sources": [], "model": None})
         return
 
-    # 3. Rerank
-    documents = [r["payload"].get("content_preview", "") for r in raw_results]
-    try:
-        reranked_indices = await rerank_service.rerank(question, documents, top_n=RERANK_TOP_K)
-        top_results = [raw_results[i] for i in reranked_indices]
-    except Exception as e:
-        logger.warning("rerank_failed", error=str(e), fallback="using_top_k")
-        top_results = raw_results[:RERANK_TOP_K]
+    top_results = await _rerank_results(question, raw_results)
 
-    # 4. 构建上下文
     chunks_for_prompt = [
         {
             "id": r["id"],
@@ -113,7 +124,6 @@ async def answer_question_stream(
         for r in top_results
     ]
 
-    # 5. 流式生成回答，过滤 <think>...</think>
     prompt = await build_qa_prompt(question, chunks_for_prompt)
 
     in_think = False
@@ -125,7 +135,6 @@ async def answer_question_stream(
         [{"role": "user", "content": prompt}],
         max_tokens=2000,
     ):
-        # End-of-stream signal: (None, model_name)
         if raw_token is None:
             used_model = model_name
             continue
@@ -153,11 +162,9 @@ async def answer_question_stream(
                     yield _json.dumps({"token": buf[:safe_len]})
                     buf = buf[safe_len:]
 
-    # 6. 输出剩余缓冲区
     if buf and not in_think:
         yield _json.dumps({"token": buf})
 
-    # 7. 发送来源信息 + 模型名
     sources = [
         {"id": r["id"], "score": r["score"], "ltc_stage": r["payload"].get("ltc_stage")}
         for r in top_results
@@ -175,7 +182,9 @@ async def generate_doc(
     query_vector = await embedding_service.embed(search_query)
     raw_results = await vector_store.search(query_vector, top_k=RETRIEVAL_TOP_K)
 
-    chunks = [{"id": r["id"], "content": r["payload"].get("content_preview", "")} for r in raw_results[:RERANK_TOP_K]]
+    top_results = await _rerank_results(search_query, raw_results)
+
+    chunks = [{"id": r["id"], "content": r["payload"].get("content_preview", "")} for r in top_results]
     prompt = await build_doc_generate_prompt(template, chunks, project_name, industry)
 
     content, used_model = await model_router.chat_with_routing(

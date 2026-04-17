@@ -114,9 +114,33 @@ async def get_document_chunks(doc_id: str, session: AsyncSession = Depends(get_s
 
 @router.delete("/{doc_id}")
 async def delete_document(doc_id: str, session: AsyncSession = Depends(get_session)):
+    from models.chunk import Chunk
+    from services.vector_store import vector_store
+    from minio import Minio
+    from config import settings
+
     doc = await session.get(Document, doc_id)
     if not doc:
         raise HTTPException(404, "文档不存在")
+
+    chunks = (await session.execute(
+        select(Chunk).where(Chunk.document_id == doc_id)
+    )).scalars().all()
+    for chunk in chunks:
+        if chunk.vector_id:
+            try:
+                await vector_store.delete(chunk.vector_id)
+            except Exception as e:
+                logger.warning("vector_delete_failed", chunk_id=chunk.id, error=str(e)[:100])
+
+    if doc.file_path:
+        try:
+            mc = Minio(settings.minio_endpoint, access_key=settings.minio_user,
+                       secret_key=settings.minio_password, secure=False)
+            mc.remove_object(settings.minio_bucket, doc.file_path)
+        except Exception as e:
+            logger.warning("minio_delete_failed", path=doc.file_path, error=str(e)[:100])
+
     await session.delete(doc)
     await session.commit()
     return {"ok": True}

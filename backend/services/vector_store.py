@@ -46,6 +46,7 @@ class VectorStore:
         top_k: int = 20,
         ltc_stage: str | None = None,
         industry: str | None = None,
+        score_threshold: float | None = None,
     ) -> list[dict]:
         filters = []
         if ltc_stage:
@@ -60,6 +61,7 @@ class VectorStore:
             query_vector=query_vector,
             limit=top_k,
             query_filter=query_filter,
+            score_threshold=score_threshold,
         )
         return [{"id": str(r.id), "score": r.score, "payload": r.payload} for r in results]
 

@@ -85,12 +85,12 @@ def extract_raw_text(filename: str, content: bytes) -> str:
         raise ValueError(f"不支持的格式: {ext}")
 
 
-async def convert_to_markdown(filename: str, content: bytes) -> str:
+async def convert_to_markdown(filename: str, content: bytes) -> tuple[str, str | None]:
+    """Returns (markdown_text, model_name_or_None)."""
     ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
-    # .md/.txt 直接返回
     if ext in (".md", ".txt"):
-        return content.decode("utf-8", errors="replace")
+        return content.decode("utf-8", errors="replace"), None
 
     raw_text = extract_raw_text(filename, content)
     logger.info("text_extracted", filename=filename, chars=len(raw_text))

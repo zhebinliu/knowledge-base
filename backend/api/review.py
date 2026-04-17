@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -48,10 +48,10 @@ async def approve(review_id: str, action: ReviewAction, session: AsyncSession = 
     if chunk:
         chunk.review_status = "approved"
         chunk.reviewed_by = action.reviewer
-        chunk.reviewed_at = datetime.utcnow()
+        chunk.reviewed_at = datetime.now(timezone.utc)
     item.status = "approved"
     item.reviewed_by = action.reviewer
-    item.reviewed_at = datetime.utcnow()
+    item.reviewed_at = datetime.now(timezone.utc)
     await session.commit()
     return {"ok": True}
 
@@ -65,9 +65,9 @@ async def reject(review_id: str, action: ReviewAction, session: AsyncSession = D
     if chunk:
         chunk.review_status = "rejected"
         chunk.reviewed_by = action.reviewer
-        chunk.reviewed_at = datetime.utcnow()
+        chunk.reviewed_at = datetime.now(timezone.utc)
     item.status = "rejected"
     item.review_note = action.note
-    item.reviewed_at = datetime.utcnow()
+    item.reviewed_at = datetime.now(timezone.utc)
     await session.commit()
     return {"ok": True}

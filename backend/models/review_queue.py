@@ -1,8 +1,12 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import String, Text, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from models import Base
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class ReviewQueue(Base):
@@ -14,5 +18,5 @@ class ReviewQueue(Base):
     status: Mapped[str] = mapped_column(String(20), default="pending")
     reviewed_by: Mapped[str | None] = mapped_column(String(100))
     review_note: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)

@@ -52,7 +52,16 @@ async def get_chunk(chunk_id: str, session: AsyncSession = Depends(get_session))
     chunk = await session.get(Chunk, chunk_id)
     if not chunk:
         raise HTTPException(404, "切片不存在")
-    return chunk.__dict__
+    return {
+        "id": chunk.id, "document_id": chunk.document_id, "content": chunk.content,
+        "chunk_index": chunk.chunk_index, "ltc_stage": chunk.ltc_stage,
+        "ltc_stage_confidence": chunk.ltc_stage_confidence, "industry": chunk.industry,
+        "module": chunk.module, "tags": chunk.tags, "source_section": chunk.source_section,
+        "char_count": chunk.char_count, "review_status": chunk.review_status,
+        "reviewed_by": chunk.reviewed_by, "reviewed_at": chunk.reviewed_at,
+        "generated_by_model": chunk.generated_by_model, "vector_id": chunk.vector_id,
+        "created_at": chunk.created_at, "updated_at": chunk.updated_at,
+    }
 
 
 @router.put("/{chunk_id}")
@@ -67,7 +76,11 @@ async def update_chunk(chunk_id: str, req: ChunkUpdateRequest, session: AsyncSes
         from services.embedding_service import embedding_service
         from services.vector_store import vector_store
         vector = await embedding_service.embed(req.content)
-        await vector_store.upsert(chunk.id, vector, {"content_preview": req.content[:500], "ltc_stage": chunk.ltc_stage, "industry": chunk.industry})
+        await vector_store.upsert(chunk.id, vector, {
+            "chunk_id": chunk.id, "document_id": chunk.document_id,
+            "content_preview": req.content[:500],
+            "ltc_stage": chunk.ltc_stage, "industry": chunk.industry,
+        })
     if req.ltc_stage is not None:
         chunk.ltc_stage = req.ltc_stage
     if req.industry is not None:

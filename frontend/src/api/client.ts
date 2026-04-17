@@ -11,7 +11,7 @@ export interface Document {
   id: string
   filename: string
   original_format: string
-  conversion_status: 'pending' | 'processing' | 'done' | 'failed'
+  conversion_status: 'pending' | 'converting' | 'slicing' | 'completed' | 'failed'
   conversion_quality_score?: number
   created_at: string
   updated_at: string

@@ -1,8 +1,12 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import String, Text, DateTime, JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from models import Base
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class AgentConfig(Base):
@@ -13,7 +17,7 @@ class AgentConfig(Base):
     config_key: Mapped[str] = mapped_column(String(100), nullable=False)
     config_value: Mapped[dict] = mapped_column(JSON, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)
 
     __table_args__ = (
         UniqueConstraint("config_type", "config_key", name="uq_config_type_key"),

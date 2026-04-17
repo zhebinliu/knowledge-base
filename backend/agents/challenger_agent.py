@@ -82,6 +82,26 @@ VIRTUAL_CHALLENGE_DOC_ID = "00000000-0000-0000-0000-000000000001"
 VIRTUAL_CHALLENGE_FILENAME = "知识挑战"
 
 
+DEDUP_SIMILARITY_THRESHOLD = 0.92
+
+
+async def _check_duplicate(question: str) -> bool:
+    """检查知识库中是否已存在高度相似的问题，避免重复写入。"""
+    try:
+        vec = await embedding_service.embed(question)
+        results = await vector_store.search(vec, top_k=3)
+        for r in results:
+            if r["score"] >= DEDUP_SIMILARITY_THRESHOLD:
+                preview = r["payload"].get("content_preview", "")
+                if "## 问题" in preview:
+                    logger.info("challenge_dedup_hit", score=r["score"], existing_id=r["id"])
+                    return True
+        return False
+    except Exception as e:
+        logger.warning("dedup_check_failed", error=str(e)[:100])
+        return False
+
+
 async def _persist_challenge_chunk(
     question: str,
     answer: str,
@@ -93,6 +113,7 @@ async def _persist_challenge_chunk(
     """
     把一道 challenge 的 Q+A+评分理由固化为 chunk，写入 Postgres + Qdrant。
     pass → auto_approved；其余 → needs_review 并入审核队列。
+    仅 pass 且无重复时写入，保证知识库质量不被低质量内容稀释。
     返回 (chunk_id, review_status, review_id)；失败时返回 (None, None, None)。
     """
     from models import async_session_maker
@@ -103,6 +124,11 @@ async def _persist_challenge_chunk(
 
     passed = decision == "pass"
     review_status = "auto_approved" if passed else "needs_review"
+
+    if passed and await _check_duplicate(question):
+        logger.info("challenge_chunk_skipped_dedup", question=question[:60])
+        return None, "skipped_duplicate", None
+
     content_parts = [f"## 问题\n{question}", f"## 答案\n{answer}"]
     if reasoning:
         content_parts.append(f"## 评分理由\n{reasoning}")
