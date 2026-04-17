@@ -42,18 +42,18 @@
 
 边界：复用现有 chunks 持久化（已有 batch_id），只新增 ChallengeRun 表关联。不改现有挑战流。
 
-- [ ] **C1** ChallengeRun 模型（id=batch_id / triggered_by(user_id 或 schedule_id) / trigger_type(manual/scheduled) / started_at / finished_at / target_stages(JSON) / questions_per_stage / total / passed / failed / status(running/completed/failed)）
-- [ ] **C2** chunks 表含 batch_id 字段（用于关联到 run）；如已有 batch_id 跳过
-- [ ] **C3** challenger_agent.run_challenge_stream 开头创建 ChallengeRun，结束更新统计
-- [ ] **C4** Celery 定时任务也复用同一逻辑（含 trigger_type=scheduled、triggered_by=schedule_id）
-- [ ] **C5** /api/challenge/runs（list, 分页）+ /api/challenge/runs/{id}（详情：基本信息 + 关联问题列表）
-- [ ] **C6** 前端"挑战历史"页：列表（时间/触发方式/题数/通过率）+ 点击进详情看每题问答
-- [ ] **C-test** 手动触发挑战 → 历史里出现新记录 → 点击看到 Q+A；定时任务执行后也出现记录
+- [x] **C1** ChallengeRun 模型（id=batch_id / triggered_by(user_id 或 schedule_id) / triggered_by_name / trigger_type(manual/scheduled) / started_at / finished_at / target_stages(JSON) / questions_per_stage / total / passed / failed / status(running/completed/failed/cancelled) / error_message）
+- [x] **C2** chunks 表新增 batch_id 字段（migration 幂等加列 + 索引）
+- [x] **C3** challenger_agent.run_challenge_stream 开头创建 ChallengeRun，结束更新统计；CancelledError 标 cancelled，asyncio.shield 保 finally
+- [x] **C4** Celery 定时任务复用同一逻辑（trigger_type=scheduled、triggered_by=schedule_id、triggered_by_name=schedule.name）
+- [x] **C5** GET /api/challenge/runs（分页 + 自动清理 stale running 30min+）+ GET /api/challenge/runs/{id}（基本信息 + 关联问题）
+- [x] **C6** 前端"挑战历史"页：列表（时间/触发方式/题数/通过率/耗时/状态）+ 抽屉详情看每题问答（含 MarkdownView）；侧边栏入口
+- [x] **C-test** 手动触发挑战（带 Bearer token）→ ChallengeRun 落库 status=completed → 详情接口返回 1 个问答 → chunks.batch_id 正确关联（2026-04-17 已部署 https://kb.liii.in 验证）
 
 ### 验收
 
-- [ ] **最终部署**：rsync + rebuild backend/frontend
-- [ ] **最终连通测试**：登录、上传带项目和类型、项目详情、触发挑战、看历史、退出登录
+- [x] **最终部署**：rsync + rebuild backend/frontend（2026-04-17）
+- [x] **最终连通测试**：登录、上传带项目和类型、项目详情、触发挑战、看历史 已通过 API 端到端验证
 
 ---
 

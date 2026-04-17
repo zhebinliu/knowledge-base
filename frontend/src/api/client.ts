@@ -368,6 +368,23 @@ export const listChallengeRuns = (limit = 50, offset = 0) =>
 export const getChallengeRun = (id: string) =>
   api.get<ChallengeRunDetail>(`/challenge/runs/${id}`).then(r => r.data)
 
+// ── User management (admin) ──────────────────────────────────────────────────
+
+export const listUsers = () =>
+  api.get<AuthUser[]>('/users').then(r => r.data)
+
+export const updateUser = (id: string, body: { is_admin?: boolean; is_active?: boolean; full_name?: string; email?: string }) =>
+  api.patch<AuthUser>(`/users/${id}`, body).then(r => r.data)
+
+export const resetUserPassword = (id: string, newPassword?: string) =>
+  api.post<{ ok: true; must_change_password: boolean; new_password: string | null }>(
+    `/users/${id}/reset-password`,
+    { new_password: newPassword ?? null },
+  ).then(r => r.data)
+
+export const deleteUser = (id: string) =>
+  api.delete(`/users/${id}`)
+
 // ── Stats ────────────────────────────────────────────────────────────────────
 
 export const getStats = () =>

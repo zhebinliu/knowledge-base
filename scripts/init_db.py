@@ -10,10 +10,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../backend"))
 
 from sqlalchemy.ext.asyncio import create_async_engine
 from models import Base
-from models.document import Document
-from models.chunk import Chunk
-from models.challenge import Challenge
-from models.review_queue import ReviewQueue
+# 副作用 import：让 SQLAlchemy 注册所有模型，否则跨表外键 create_all 会失败
+from models.user import User  # noqa: F401
+from models.project import Project  # noqa: F401
+from models.document import Document  # noqa: F401
+from models.chunk import Chunk  # noqa: F401
+from models.challenge import Challenge  # noqa: F401
+from models.challenge_run import ChallengeRun  # noqa: F401
+from models.challenge_schedule import ChallengeSchedule  # noqa: F401
+from models.review_queue import ReviewQueue  # noqa: F401
+from models.agent_config import AgentConfig  # noqa: F401
 from config import settings
 
 

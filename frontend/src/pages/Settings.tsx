@@ -1,16 +1,18 @@
 import { useState } from 'react'
-import { Settings as SettingsIcon, Cpu, GitBranch, FileCode, KeyRound } from 'lucide-react'
+import { Settings as SettingsIcon, Cpu, GitBranch, FileCode, KeyRound, Users } from 'lucide-react'
 import clsx from 'clsx'
 import ModelsTab   from '../components/settings/ModelsTab'
 import RoutingTab  from '../components/settings/RoutingTab'
 import PromptsTab  from '../components/settings/PromptsTab'
 import ApiKeysTab  from '../components/settings/ApiKeysTab'
+import UsersTab    from '../components/settings/UsersTab'
 
 const tabs = [
   { key: 'models',   label: '模型管理',   icon: Cpu },
   { key: 'routing',  label: '路由与参数', icon: GitBranch },
   { key: 'prompts',  label: '提示词',     icon: FileCode },
   { key: 'api-keys', label: 'API 密钥',   icon: KeyRound },
+  { key: 'users',    label: '用户管理',   icon: Users },
 ] as const
 
 type TabKey = (typeof tabs)[number]['key']
