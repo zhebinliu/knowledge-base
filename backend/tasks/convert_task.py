@@ -12,17 +12,35 @@ logger = structlog.get_logger()
 celery_app = Celery("kb_tasks", broker=settings.redis_url, backend=settings.redis_url)
 
 
-# Fork 后旧 asyncpg 连接与新事件循环不兼容，必须 dispose 让引擎重建连接
+# Celery 每个任务都创建新事件循环，asyncpg 连接池会绑定旧循环导致冲突。
+# 用 NullPool 完全禁用连接池：每次 async with session 创建新连接，用完即关。
 from celery.signals import worker_process_init
+from sqlalchemy.pool import NullPool
 
 @worker_process_init.connect
-def reset_db_pool(**kwargs):
-    from models import engine
+def reset_db_pool_to_nullpool(**kwargs):
+    """Worker fork 后替换引擎为 NullPool，避免跨事件循环连接冲突。"""
+    import models as _models
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.orm import sessionmaker
+    from config import settings
+
     loop = asyncio.new_event_loop()
     try:
-        loop.run_until_complete(engine.dispose())
+        loop.run_until_complete(_models.engine.dispose())
     finally:
         loop.close()
+
+    new_engine = create_async_engine(
+        settings.database_url,
+        echo=False,
+        connect_args={"ssl": False},
+        poolclass=NullPool,
+    )
+    _models.engine = new_engine
+    _models.async_session_maker = sessionmaker(
+        new_engine, class_=AsyncSession, expire_on_commit=False
+    )
 celery_app.conf.task_serializer = "json"
 celery_app.conf.result_expires = 3600
 celery_app.conf.beat_schedule = {
