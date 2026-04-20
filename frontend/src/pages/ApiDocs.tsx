@@ -394,7 +394,7 @@ print(r.json()["answer"])`} />
           />
           <Endpoint
             method="POST" path="/api/qa/ask-stream"
-            desc="流式问答（SSE），token 逐步返回。事件格式：data: {\"token\":\"...\"} 或 data: {\"sources\":[...]}"
+            desc={'流式问答（SSE），token 逐步返回。事件格式：data: {"token":"..."} 或 data: {"sources":[...]}' }
             params={[
               { name: 'question',  type: 'string', req: true,  desc: '问题文本' },
               { name: 'ltc_stage', type: 'string', req: false, desc: 'LTC 阶段过滤' },
