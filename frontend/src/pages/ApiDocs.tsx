@@ -4,8 +4,7 @@
  * Design: follows /ds design-system tokens (light theme).
  */
 import { useState, useEffect } from 'react'
-import { Copy, Check, BookOpen, Key, Zap, Code2, Box, ChevronDown, ChevronRight, Terminal, Download } from 'lucide-react'
-import { TOKEN_STORAGE_KEY } from '../api/client'
+import { Copy, Check, BookOpen, Key, Zap, Code2, Box, ChevronDown, ChevronRight, Terminal } from 'lucide-react'
 
 const BASE = 'https://kb.tokenwave.cloud'
 
@@ -213,24 +212,6 @@ const NAV = [
 
 export default function ApiDocs() {
   const [active, setActive] = useState('quickstart')
-  const [myToken, setMyToken] = useState<string | null>(null)
-  const [tokenVisible, setTokenVisible] = useState(false)
-  const { copied, copy } = useCopy()
-
-  useEffect(() => {
-    setMyToken(localStorage.getItem(TOKEN_STORAGE_KEY))
-  }, [])
-
-  function downloadToken() {
-    if (!myToken) return
-    const blob = new Blob([myToken], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'kb_token.txt'
-    a.click()
-    URL.revokeObjectURL(url)
-  }
 
   useEffect(() => {
     document.title = 'API 文档 — KB System'
@@ -324,50 +305,6 @@ export default function ApiDocs() {
 
         {/* Quick Start */}
         <Section id="quickstart" title="快速开始" icon={BookOpen}>
-
-          {/* My Token */}
-          {myToken ? (
-            <div className="card p-4 mb-6 border-l-4" style={{ borderLeftColor: 'var(--accent)' }}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-semibold text-ink flex items-center gap-1.5">
-                  <Key size={13} style={{ color: 'var(--accent)' }} /> 你的 JWT Token
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setTokenVisible(v => !v)}
-                    className="text-xs text-ink-secondary hover:text-ink transition-colors"
-                  >
-                    {tokenVisible ? '隐藏' : '显示'}
-                  </button>
-                  <button
-                    onClick={() => copy(myToken, 'my-token')}
-                    className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded border border-line bg-canvas text-ink-secondary hover:text-brand hover:border-brand transition-colors"
-                  >
-                    {copied('my-token') ? <Check size={11} className="text-green-600" /> : <Copy size={11} />}
-                    {copied('my-token') ? '已复制' : '复制'}
-                  </button>
-                  <button
-                    onClick={downloadToken}
-                    className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded border border-line bg-canvas text-ink-secondary hover:text-brand hover:border-brand transition-colors"
-                  >
-                    <Download size={11} /> 下载
-                  </button>
-                </div>
-              </div>
-              <code className="block text-xs font-mono text-ink-secondary break-all bg-canvas rounded px-3 py-2 border border-line">
-                {tokenVisible ? myToken : `${myToken.slice(0, 20)}…${myToken.slice(-8)}`}
-              </code>
-              <p className="text-[11px] text-ink-muted mt-2">当前登录用户的 access token，可直接用于下方示例中的 <code className="font-mono">$TOKEN</code> 变量。</p>
-            </div>
-          ) : (
-            <div className="card p-4 mb-6 bg-amber-50 border border-amber-200">
-              <p className="text-xs text-amber-700">
-                未检测到登录 token。请先
-                <a href="/login" className="underline mx-1">登录系统</a>
-                后再访问此页面，token 将自动填充。
-              </p>
-            </div>
-          )}
 
           <div className="grid grid-cols-3 gap-3 mb-6">
             {[
