@@ -5,16 +5,30 @@
 """
 
 import structlog
+from sqlalchemy import select
 from services.model_router import model_router
 from services.embedding_service import embedding_service
 from services.rerank_service import rerank_service
 from services.vector_store import vector_store
 from prompts.qa import build_qa_prompt, build_doc_generate_prompt
+from models import async_session_maker
+from models.chunk import Chunk
 
 logger = structlog.get_logger()
 
 RETRIEVAL_TOP_K = 20
 RERANK_TOP_K = 5
+
+
+async def _fetch_full_contents(chunk_ids: list[str]) -> dict[str, str]:
+    """从 PostgreSQL 批量取 chunk 完整内容，返回 {id: content}。"""
+    if not chunk_ids:
+        return {}
+    async with async_session_maker() as session:
+        rows = await session.execute(
+            select(Chunk.id, Chunk.content).where(Chunk.id.in_(chunk_ids))
+        )
+        return {row.id: row.content for row in rows}
 
 
 async def _multi_route_retrieve(
@@ -71,10 +85,11 @@ async def answer_question(
 
     top_results = await _rerank_results(question, raw_results)
 
+    full_contents = await _fetch_full_contents([r["id"] for r in top_results])
     chunks_for_prompt = [
         {
             "id": r["id"],
-            "content": r["payload"].get("content_preview", ""),
+            "content": full_contents.get(r["id"]) or r["payload"].get("content_preview", ""),
             "ltc_stage": r["payload"].get("ltc_stage", ""),
         }
         for r in top_results
@@ -115,10 +130,11 @@ async def answer_question_stream(
 
     top_results = await _rerank_results(question, raw_results)
 
+    full_contents = await _fetch_full_contents([r["id"] for r in top_results])
     chunks_for_prompt = [
         {
             "id": r["id"],
-            "content": r["payload"].get("content_preview", ""),
+            "content": full_contents.get(r["id"]) or r["payload"].get("content_preview", ""),
             "ltc_stage": r["payload"].get("ltc_stage", ""),
         }
         for r in top_results
