@@ -14,6 +14,7 @@ Supported methods:
 
 import json
 
+import jwt
 import structlog
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
