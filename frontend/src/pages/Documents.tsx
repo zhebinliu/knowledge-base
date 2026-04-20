@@ -16,11 +16,11 @@ import UploadOptionsModal from '../components/UploadOptionsModal'
 import ProjectFormModal from '../components/ProjectFormModal'
 
 const STATUS_BADGE: Record<string, JSX.Element> = {
-  pending:    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-yellow-50 text-yellow-700"><Clock size={11}/>等待处理</span>,
-  converting: <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700"><Loader size={11} className="animate-spin"/>转换中</span>,
-  slicing:    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-50 text-purple-700"><Loader size={11} className="animate-spin"/>切片中</span>,
-  completed:  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700"><CheckCircle size={11}/>完成</span>,
-  failed:     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-700"><AlertCircle size={11}/>失败</span>,
+  pending:    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-yellow-50 text-yellow-700 whitespace-nowrap"><Clock size={11}/>等待处理</span>,
+  converting: <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-orange-50 text-orange-700 whitespace-nowrap"><Loader size={11} className="animate-spin"/>转换中</span>,
+  slicing:    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-50 text-purple-700 whitespace-nowrap"><Loader size={11} className="animate-spin"/>切片中</span>,
+  completed:  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700 whitespace-nowrap"><CheckCircle size={11}/>完成</span>,
+  failed:     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-700 whitespace-nowrap"><AlertCircle size={11}/>失败</span>,
 }
 
 const REVIEW_BADGE: Record<string, string> = {
@@ -36,10 +36,10 @@ function ChunkCard({ chunk }: { chunk: Chunk }) {
   const [expanded, setExpanded] = useState(false)
   return (
     <div className="border border-gray-200 rounded-xl p-4">
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="text-xs font-mono text-gray-400">#{chunk.chunk_index}</span>
         {chunk.ltc_stage && (
-          <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full">{chunk.ltc_stage}</span>
+          <span className="text-xs px-2 py-0.5 bg-orange-50 text-orange-700 rounded-full">{chunk.ltc_stage}</span>
         )}
         {chunk.review_status && (
           <span className={`text-xs px-2 py-0.5 rounded-full ${REVIEW_BADGE[chunk.review_status] ?? 'bg-gray-100 text-gray-600'}`}>
@@ -53,7 +53,8 @@ function ChunkCard({ chunk }: { chunk: Chunk }) {
         )}
         <button
           onClick={() => setExpanded(e => !e)}
-          className="text-xs text-blue-600 hover:text-blue-800 ml-1"
+          className="text-xs font-medium ml-1"
+          style={{ color: 'var(--accent-deep)' }}
         >
           {expanded ? '收起' : '展开'}
         </button>
@@ -82,12 +83,10 @@ export default function Documents() {
   const [drawerDocId, setDrawerDocId] = useState<string | null>(null)
   const [drawerMode, setDrawerMode] = useState<DrawerMode>('markdown')
 
-  // 上传缓冲区
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [showUploadOpts, setShowUploadOpts] = useState(false)
   const [showCreateProject, setShowCreateProject] = useState(false)
 
-  // 筛选
   const [filterProject, setFilterProject] = useState<string>(searchParams.get('project') ?? '')
   const [filterDocType, setFilterDocType] = useState<string>(searchParams.get('type') ?? '')
 
@@ -131,7 +130,6 @@ export default function Documents() {
     },
   })
 
-  // 支持 /documents?open=<id> 直链
   useEffect(() => {
     const open = searchParams.get('open')
     if (open && open !== drawerDocId) {
@@ -168,197 +166,211 @@ export default function Documents() {
   const drawerDoc = docs?.find(d => d.id === drawerDocId)
 
   return (
-    <div className="flex h-full">
-      {/* Main panel */}
-      <div className={`flex-1 p-8 transition-all ${drawerDocId ? 'max-w-3xl' : 'max-w-6xl'} mx-auto w-full`}>
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">文档管理</h1>
-          <button
+    <div className="flex h-full overflow-hidden">
+      {/* ── Main panel ─────────────────────────────────────────────────── */}
+      <div className="flex-1 min-w-0 overflow-y-auto">
+        <div className="p-6 max-w-6xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-bold text-gray-900">文档管理</h1>
+            <button
+              onClick={() => inputRef.current?.click()}
+              className="flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg transition-all"
+              style={{ background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' }}
+            >
+              <Upload size={16}/> 上传文档
+            </button>
+            <input
+              ref={inputRef} type="file" multiple
+              accept=".pdf,.docx,.doc,.txt,.md,.pptx,.xlsx,.csv"
+              className="hidden"
+              onChange={e => { handleFiles(e.target.files); e.target.value = '' }}
+            />
+          </div>
+
+          {/* Filter bar */}
+          <div className="flex flex-wrap items-center gap-2 mb-4 text-sm">
+            <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+              <Filter size={12} /> 筛选:
+            </span>
+            <select value={filterProject} onChange={(e) => setFilter(e.target.value, filterDocType)}
+              className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white">
+              <option value="">全部项目</option>
+              <option value="none">未归属项目</option>
+              {projects?.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
+            </select>
+            <select value={filterDocType} onChange={(e) => setFilter(filterProject, e.target.value)}
+              className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white">
+              <option value="">全部类型</option>
+              {meta?.doc_types.map((t) => (<option key={t.value} value={t.value}>{t.label}</option>))}
+            </select>
+            {(filterProject || filterDocType) && (
+              <button onClick={() => setFilter('', '')}
+                className="text-xs text-gray-500 hover:text-orange-500 transition-colors">清除</button>
+            )}
+          </div>
+
+          {/* Drop zone */}
+          <div
+            className={`border-2 border-dashed rounded-xl p-8 mb-6 text-center transition-colors cursor-pointer ${
+              dragging ? 'border-orange-400 bg-orange-50' : 'border-gray-300 bg-white hover:border-gray-400'
+            }`}
+            onDragOver={e => { e.preventDefault(); setDragging(true) }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={e => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files) }}
             onClick={() => inputRef.current?.click()}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
           >
-            <Upload size={16}/> 上传文档
-          </button>
-          <input
-            ref={inputRef} type="file" multiple
-            accept=".pdf,.docx,.doc,.txt,.md,.pptx,.xlsx,.csv"
-            className="hidden"
-            onChange={e => { handleFiles(e.target.files); e.target.value = '' }}
-          />
-        </div>
+            <FileText size={32} className="mx-auto text-gray-300 mb-2"/>
+            <p className="text-sm text-gray-500">拖拽文件到此处，或点击上传（可选择项目和文档类型）</p>
+            <p className="text-xs text-gray-400 mt-1">支持 PDF、Word、PowerPoint、Excel、TXT、Markdown</p>
+          </div>
 
-        {/* Filter bar */}
-        <div className="flex flex-wrap items-center gap-2 mb-4 text-sm">
-          <span className="inline-flex items-center gap-1 text-xs text-gray-500">
-            <Filter size={12} /> 筛选:
-          </span>
-          <select value={filterProject} onChange={(e) => setFilter(e.target.value, filterDocType)}
-            className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
-            <option value="">全部项目</option>
-            <option value="none">未归属项目</option>
-            {projects?.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
-          </select>
-          <select value={filterDocType} onChange={(e) => setFilter(filterProject, e.target.value)}
-            className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
-            <option value="">全部类型</option>
-            {meta?.doc_types.map((t) => (<option key={t.value} value={t.value}>{t.label}</option>))}
-          </select>
-          {(filterProject || filterDocType) && (
-            <button onClick={() => setFilter('', '')} className="text-xs text-gray-500 hover:text-blue-600">清除</button>
+          {upload.isPending && (
+            <div className="mb-4 px-4 py-3 bg-orange-50 border border-orange-100 rounded-lg text-sm text-orange-700 flex items-center gap-2">
+              <Loader size={14} className="animate-spin"/> 正在上传并触发处理…
+            </div>
           )}
-        </div>
+          {upload.isError && (
+            <div className="mb-4 px-4 py-3 bg-red-50 rounded-lg text-sm text-red-700">
+              上传失败：{String((upload.error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? upload.error)}
+            </div>
+          )}
 
-        {/* Drop zone */}
-        <div
-          className={`border-2 border-dashed rounded-xl p-8 mb-6 text-center transition-colors cursor-pointer ${
-            dragging ? 'border-blue-400 bg-blue-50' : 'border-gray-300 bg-white hover:border-gray-400'
-          }`}
-          onDragOver={e => { e.preventDefault(); setDragging(true) }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={e => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files) }}
-          onClick={() => inputRef.current?.click()}
-        >
-          <FileText size={32} className="mx-auto text-gray-300 mb-2"/>
-          <p className="text-sm text-gray-500">拖拽文件到此处，或点击上传（可选择项目和文档类型）</p>
-          <p className="text-xs text-gray-400 mt-1">支持 PDF、Word、PowerPoint、Excel、TXT、Markdown</p>
-        </div>
-
-        {upload.isPending && (
-          <div className="mb-4 px-4 py-3 bg-blue-50 rounded-lg text-sm text-blue-700 flex items-center gap-2">
-            <Loader size={14} className="animate-spin"/> 正在上传并触发处理…
+          {/* Document table — overflow-x-auto prevents column squeeze */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="text-left px-5 py-3 font-medium text-gray-600">文件名</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">项目</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">类型</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">状态</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">上传者</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">创建时间</th>
+                    <th className="px-4 py-3 text-right font-medium text-gray-600 whitespace-nowrap">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {isLoading && (
+                    <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400">加载中…</td></tr>
+                  )}
+                  {docs?.length === 0 && (
+                    <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400">暂无文档</td></tr>
+                  )}
+                  {docs?.map(doc => (
+                    <tr
+                      key={doc.id}
+                      className={`hover:bg-gray-50 transition-colors ${drawerDocId === doc.id ? 'bg-orange-50/30' : ''}`}
+                    >
+                      <td className="px-5 py-3 max-w-[200px]">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText size={14} className="text-gray-400 flex-shrink-0"/>
+                          <span className="truncate font-medium text-gray-800">{doc.filename}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">
+                        {doc.project_id && doc.project_name ? (
+                          <Link to={`/projects/${doc.project_id}`}
+                            className="inline-flex items-center gap-1 hover:underline font-medium"
+                            style={{ color: 'var(--accent-deep)' }}>
+                            <Folder size={11} /> {doc.project_name}
+                          </Link>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">
+                        {doc.doc_type_label ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-700 rounded whitespace-nowrap">
+                            <FileType size={10} /> {doc.doc_type_label}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {STATUS_BADGE[doc.conversion_status] ?? doc.conversion_status}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
+                        {doc.uploader_name ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="w-5 h-5 rounded-full text-white text-[10px] font-semibold flex items-center justify-center flex-shrink-0"
+                              style={{ background: 'linear-gradient(135deg, #FF8D1A, #D96400)' }}>
+                              {doc.uploader_name.slice(0, 1).toUpperCase()}
+                            </span>
+                            {doc.uploader_name}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
+                        {new Date(doc.created_at).toLocaleString('zh-CN')}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1 justify-end">
+                          <button
+                            onClick={() => openDrawer(doc.id, 'markdown')}
+                            title="查看转换后 Markdown"
+                            className="p-1.5 text-gray-400 hover:text-orange-500 rounded transition-colors"
+                          >
+                            <Eye size={15}/>
+                          </button>
+                          <button
+                            onClick={() => openDrawer(doc.id, 'chunks')}
+                            title="查看关联 Chunks"
+                            className="p-1.5 text-gray-400 hover:text-purple-600 rounded transition-colors"
+                          >
+                            <Layers size={15}/>
+                          </button>
+                          <button
+                            onClick={() => { if (confirm('确认删除？')) del.mutate(doc.id) }}
+                            className="p-1.5 text-gray-400 hover:text-red-500 rounded transition-colors"
+                          >
+                            <Trash2 size={15}/>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        )}
-        {upload.isError && (
-          <div className="mb-4 px-4 py-3 bg-red-50 rounded-lg text-sm text-red-700">
-            上传失败：{String((upload.error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? upload.error)}
-          </div>
-        )}
-
-        {/* Document table */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-5 py-3 font-medium text-gray-600">文件名</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">项目</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">类型</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">状态</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">上传者</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">创建时间</th>
-                <th className="px-4 py-3 text-right font-medium text-gray-600">操作</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {isLoading && (
-                <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400">加载中…</td></tr>
-              )}
-              {docs?.length === 0 && (
-                <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400">暂无文档</td></tr>
-              )}
-              {docs?.map(doc => (
-                <tr
-                  key={doc.id}
-                  className={`hover:bg-gray-50 transition-colors ${drawerDocId === doc.id ? 'bg-blue-50/40' : ''}`}
-                >
-                  <td className="px-5 py-3 max-w-[200px]">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <FileText size={14} className="text-gray-400 flex-shrink-0"/>
-                      <span className="truncate font-medium text-gray-800">{doc.filename}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-xs">
-                    {doc.project_id && doc.project_name ? (
-                      <Link to={`/projects/${doc.project_id}`}
-                        className="inline-flex items-center gap-1 text-blue-600 hover:underline">
-                        <Folder size={11} /> {doc.project_name}
-                      </Link>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-xs">
-                    {doc.doc_type_label ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-700 rounded">
-                        <FileType size={10} /> {doc.doc_type_label}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {STATUS_BADGE[doc.conversion_status] ?? doc.conversion_status}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-600">
-                    {doc.uploader_name ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-semibold flex items-center justify-center">
-                          {doc.uploader_name.slice(0, 1).toUpperCase()}
-                        </span>
-                        {doc.uploader_name}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">
-                    {new Date(doc.created_at).toLocaleString('zh-CN')}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1 justify-end">
-                      <button
-                        onClick={() => openDrawer(doc.id, 'markdown')}
-                        title="查看转换后 Markdown"
-                        className="p-1.5 text-gray-400 hover:text-blue-600 rounded transition-colors"
-                      >
-                        <Eye size={15}/>
-                      </button>
-                      <button
-                        onClick={() => openDrawer(doc.id, 'chunks')}
-                        title="查看关联 Chunks"
-                        className="p-1.5 text-gray-400 hover:text-purple-600 rounded transition-colors"
-                      >
-                        <Layers size={15}/>
-                      </button>
-                      <button
-                        onClick={() => { if (confirm('确认删除？')) del.mutate(doc.id) }}
-                        className="p-1.5 text-gray-400 hover:text-red-500 rounded transition-colors"
-                      >
-                        <Trash2 size={15}/>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </div>
 
-      {/* Right drawer */}
+      {/* ── Right drawer ───────────────────────────────────────────────── */}
       {drawerDocId && (
-        <div className="w-[480px] flex-shrink-0 border-l border-gray-200 bg-white flex flex-col h-full overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+        <div className="w-[460px] flex-shrink-0 border-l border-gray-200 bg-white flex flex-col h-full overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
             <div className="flex gap-1">
               <button
                 onClick={() => setDrawerMode('markdown')}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
-                  drawerMode === 'markdown' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-200'
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                  drawerMode === 'markdown' ? 'text-white' : 'text-gray-600 hover:bg-gray-200'
                 }`}
+                style={drawerMode === 'markdown' ? { background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' } : {}}
               ><Eye size={13}/> Markdown</button>
               <button
                 onClick={() => setDrawerMode('chunks')}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
                   drawerMode === 'chunks' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-200'
                 }`}
               ><Layers size={13}/> Chunks</button>
             </div>
-            <button onClick={() => { setDrawerDocId(null); const next = new URLSearchParams(searchParams); next.delete('open'); setSearchParams(next, { replace: true }) }}
+            <button onClick={() => {
+              setDrawerDocId(null)
+              const next = new URLSearchParams(searchParams)
+              next.delete('open')
+              setSearchParams(next, { replace: true })
+            }}
               className="p-1.5 text-gray-400 hover:text-gray-600 rounded transition-colors">
               <X size={16}/>
             </button>
           </div>
 
-          <div className="px-5 py-2.5 border-b border-gray-100 flex-shrink-0">
+          <div className="px-4 py-2.5 border-b border-gray-100 flex-shrink-0">
             <p className="text-xs text-gray-500 truncate">{drawerDoc?.filename}</p>
           </div>
 

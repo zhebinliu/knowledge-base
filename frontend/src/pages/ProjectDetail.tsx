@@ -20,11 +20,11 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  pending: 'bg-yellow-50 text-yellow-700',
-  converting: 'bg-blue-50 text-blue-700',
-  slicing: 'bg-purple-50 text-purple-700',
-  completed: 'bg-green-50 text-green-700',
-  failed: 'bg-red-50 text-red-700',
+  pending:    'bg-yellow-50 text-yellow-700',
+  converting: 'bg-orange-50 text-orange-700',
+  slicing:    'bg-purple-50 text-purple-700',
+  completed:  'bg-green-50 text-green-700',
+  failed:     'bg-red-50 text-red-700',
 }
 
 export default function ProjectDetail() {
@@ -46,7 +46,8 @@ export default function ProjectDetail() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      <Link to="/projects" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600 mb-4">
+      <Link to="/projects"
+        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-orange-600 mb-4 transition-colors">
         <ArrowLeft size={14} /> 返回项目库
       </Link>
 
@@ -73,7 +74,7 @@ export default function ProjectDetail() {
             {project.modules && project.modules.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-3">
                 {project.modules.map((m) => (
-                  <span key={m} className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded">{m}</span>
+                  <span key={m} className="text-xs px-2 py-0.5 bg-orange-50 text-orange-700 rounded">{m}</span>
                 ))}
               </div>
             )}
@@ -82,7 +83,7 @@ export default function ProjectDetail() {
             )}
           </div>
           <button onClick={() => setEditing(true)}
-            className="inline-flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+            className="inline-flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors flex-shrink-0">
             <Pencil size={13} /> 编辑
           </button>
         </div>
@@ -92,50 +93,57 @@ export default function ProjectDetail() {
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-900">项目文档</h2>
-          <Link to="/documents" className="text-xs text-blue-600 hover:underline">前往上传 →</Link>
+          <Link to="/documents"
+            className="text-xs font-medium hover:underline transition-colors"
+            style={{ color: 'var(--accent-deep)' }}>前往上传 →</Link>
         </div>
         {docsLoading && <p className="px-5 py-6 text-sm text-gray-400">加载中...</p>}
         {!docsLoading && docs?.length === 0 && (
           <p className="px-5 py-10 text-center text-sm text-gray-400">暂无文档</p>
         )}
         {docs && docs.length > 0 && (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-5 py-2.5 font-medium text-gray-600">文件名</th>
-                <th className="text-left px-4 py-2.5 font-medium text-gray-600">类型</th>
-                <th className="text-left px-4 py-2.5 font-medium text-gray-600">状态</th>
-                <th className="text-left px-4 py-2.5 font-medium text-gray-600">上传者</th>
-                <th className="text-left px-4 py-2.5 font-medium text-gray-600">上传时间</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {docs.map((d) => (
-                <tr key={d.id} className="hover:bg-gray-50">
-                  <td className="px-5 py-2.5 max-w-[280px]">
-                    <Link to={`/documents?open=${d.id}`} className="flex items-center gap-2 min-w-0 text-gray-800 hover:text-blue-600">
-                      <FileText size={13} className="text-gray-400 flex-shrink-0" />
-                      <span className="truncate">{d.filename}</span>
-                    </Link>
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {d.doc_type_label ? (
-                      <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-purple-50 text-purple-700 rounded">
-                        <FileType size={10} /> {d.doc_type_label}
-                      </span>
-                    ) : <span className="text-gray-400 text-xs">—</span>}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <span className={`text-xs px-2 py-0.5 rounded ${STATUS_COLOR[d.conversion_status] ?? 'bg-gray-100 text-gray-600'}`}>
-                      {STATUS_LABEL[d.conversion_status] ?? d.conversion_status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5 text-xs text-gray-600">{d.uploader_name ?? '—'}</td>
-                  <td className="px-4 py-2.5 text-xs text-gray-500">{new Date(d.created_at).toLocaleString('zh-CN')}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="text-left px-5 py-2.5 font-medium text-gray-600">文件名</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">类型</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">状态</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">上传者</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">上传时间</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {docs.map((d) => (
+                  <tr key={d.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-5 py-2.5 max-w-[280px]">
+                      <Link to={`/documents?open=${d.id}`}
+                        className="flex items-center gap-2 min-w-0 text-gray-800 hover:text-orange-600 transition-colors">
+                        <FileText size={13} className="text-gray-400 flex-shrink-0" />
+                        <span className="truncate">{d.filename}</span>
+                      </Link>
+                    </td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      {d.doc_type_label ? (
+                        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-purple-50 text-purple-700 rounded">
+                          <FileType size={10} /> {d.doc_type_label}
+                        </span>
+                      ) : <span className="text-gray-400 text-xs">—</span>}
+                    </td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      <span className={`text-xs px-2 py-0.5 rounded ${STATUS_COLOR[d.conversion_status] ?? 'bg-gray-100 text-gray-600'}`}>
+                        {STATUS_LABEL[d.conversion_status] ?? d.conversion_status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-600 whitespace-nowrap">{d.uploader_name ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">
+                      {new Date(d.created_at).toLocaleString('zh-CN')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

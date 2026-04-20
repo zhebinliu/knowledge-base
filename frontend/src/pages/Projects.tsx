@@ -46,10 +46,11 @@ export default function Projects() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">项目库</h1>
-          <p className="text-sm text-gray-500 mt-1">按项目组织实施过程中产出的所有文档</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>按项目组织实施过程中产出的所有文档</p>
         </div>
         <button onClick={() => setCreating(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+          className="flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg transition-all"
+          style={{ background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' }}>
           <Plus size={16} /> 新建项目
         </button>
       </div>
@@ -67,36 +68,33 @@ export default function Projects() {
           <div key={p.id} className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-sm transition-shadow group">
             <div className="flex items-start justify-between gap-2 mb-2">
               <Link to={`/projects/${p.id}`} className="flex items-start gap-2 min-w-0 flex-1">
-                <Folder size={18} className="text-blue-500 flex-shrink-0 mt-0.5" />
-                <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 truncate">{p.name}</h3>
+                <Folder size={18} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--accent)' }} />
+                <h3 className="font-semibold text-gray-900 group-hover:text-orange-600 truncate transition-colors">{p.name}</h3>
               </Link>
               <button onClick={() => onDelete(p)} title="删除项目"
-                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500">
+                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all">
                 <Trash2 size={14} />
               </button>
             </div>
             <div className="space-y-1.5 text-xs text-gray-600">
               {p.customer && (
                 <div className="flex items-center gap-1.5">
-                  <Building2 size={12} className="text-gray-400" />
-                  {p.customer}
+                  <Building2 size={12} className="text-gray-400" /> {p.customer}
                 </div>
               )}
               {p.kickoff_date && (
                 <div className="flex items-center gap-1.5">
-                  <Calendar size={12} className="text-gray-400" />
-                  立项 {p.kickoff_date}
+                  <Calendar size={12} className="text-gray-400" /> 立项 {p.kickoff_date}
                 </div>
               )}
               <div className="flex items-center gap-1.5">
-                <FileText size={12} className="text-gray-400" />
-                {p.document_count} 份文档
+                <FileText size={12} className="text-gray-400" /> {p.document_count} 份文档
               </div>
             </div>
             {p.modules && p.modules.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-3">
                 {p.modules.slice(0, 4).map((m) => (
-                  <span key={m} className="text-[11px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded">{m}</span>
+                  <span key={m} className="text-[11px] px-1.5 py-0.5 bg-orange-50 text-orange-700 rounded">{m}</span>
                 ))}
                 {p.modules.length > 4 && <span className="text-[11px] text-gray-400">+{p.modules.length - 4}</span>}
               </div>

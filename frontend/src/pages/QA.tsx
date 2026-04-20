@@ -58,7 +58,7 @@ function SourcePanel({ sources, hasMessages }: { sources: SourceItem[]; hasMessa
               >
                 <span className="text-xs text-gray-400 font-mono flex-shrink-0">#{i + 1}</span>
                 {s.ltc_stage && (
-                  <span className="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded-full flex-shrink-0">
+                  <span className="text-xs px-1.5 py-0.5 bg-orange-50 text-orange-700 rounded-full flex-shrink-0">
                     {s.ltc_stage}
                   </span>
                 )}
@@ -277,7 +277,8 @@ export default function QA() {
           <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">历史对话</span>
           <button
             onClick={newConv}
-            className="text-xs px-2 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="text-xs px-2 py-1 text-white rounded-lg transition-all"
+            style={{ background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' }}
           >
             + 新建
           </button>
@@ -291,11 +292,11 @@ export default function QA() {
               key={conv.id}
               onClick={() => setActiveId(conv.id)}
               className={`group flex items-center gap-2 px-3 py-2.5 cursor-pointer transition-colors ${
-                activeId === conv.id ? 'bg-blue-50' : 'hover:bg-gray-50'
+                activeId === conv.id ? 'bg-orange-50' : 'hover:bg-gray-50'
               }`}
             >
-              <MessageSquare size={13} className={activeId === conv.id ? 'text-blue-500' : 'text-gray-400'}/>
-              <span className={`flex-1 text-xs truncate ${activeId === conv.id ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
+              <MessageSquare size={13} className={activeId === conv.id ? 'text-orange-500' : 'text-gray-400'}/>
+              <span className={`flex-1 text-xs truncate ${activeId === conv.id ? 'text-orange-700 font-medium' : 'text-gray-700'}`}>
                 {conv.title}
               </span>
               <button
@@ -338,7 +339,7 @@ export default function QA() {
                   <button
                     key={q}
                     onClick={() => setInput(q)}
-                    className="text-left px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors"
+                    className="text-left px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 hover:border-orange-300 hover:text-orange-600 transition-colors"
                   >
                     <ChevronRight size={13} className="inline mr-1 opacity-50"/>{q}
                   </button>
@@ -350,19 +351,24 @@ export default function QA() {
           {messages.map((msg, i) => (
             <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
               <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                msg.role === 'user' ? 'bg-blue-600' : 'bg-gray-100 border border-gray-200'
-              }`}>
+                msg.role === 'user' ? 'text-white' : 'bg-gray-100 border border-gray-200'
+              }`}
+                style={msg.role === 'user' ? { background: 'linear-gradient(135deg, #FF8D1A, #D96400)' } : {}}
+              >
                 {msg.role === 'user'
                   ? <User size={14} className="text-white"/>
                   : <Bot size={14} className="text-gray-500"/>
                 }
               </div>
               <div className={`max-w-[80%] flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                  msg.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-tr-sm whitespace-pre-wrap'
-                    : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm prose prose-sm prose-gray max-w-none'
-                }`}>
+                <div
+                  className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                    msg.role === 'user'
+                      ? 'text-white rounded-tr-sm whitespace-pre-wrap'
+                      : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm prose prose-sm prose-gray max-w-none'
+                  }`}
+                  style={msg.role === 'user' ? { background: 'linear-gradient(135deg, #FF8D1A, #D96400)' } : {}}
+                >
                   {msg.role === 'user' ? msg.content : (
                     <>
                       <ReactMarkdown
@@ -427,7 +433,7 @@ export default function QA() {
                 <Bot size={14} className="text-gray-500"/>
               </div>
               <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-2 shadow-sm">
-                <Loader size={14} className="animate-spin text-blue-400"/>
+                <Loader size={14} className="animate-spin" style={{ color: 'var(--accent)' }}/>
                 <span className="text-sm text-gray-400">正在检索并生成答案…</span>
               </div>
             </div>
@@ -457,7 +463,8 @@ export default function QA() {
               <button
                 onClick={submit}
                 disabled={!input.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+                className="px-4 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
+                style={{ background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' }}
               >
                 <Send size={13}/>发送
               </button>
