@@ -442,7 +442,7 @@ export default function Documents() {
                       <td className="px-5 py-3 max-w-[200px]">
                         <div className="flex items-center gap-2 min-w-0">
                           <FileText size={14} className="text-gray-400 flex-shrink-0"/>
-                          <span className="truncate font-medium text-gray-800">{doc.filename}</span>
+                          <span className="truncate font-medium text-gray-800" title={doc.filename}>{doc.filename}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3 text-xs whitespace-nowrap">
