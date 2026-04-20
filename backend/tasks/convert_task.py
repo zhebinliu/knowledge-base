@@ -201,10 +201,34 @@ async def _process_document_async(doc_id: str):
 
                 # 低置信度的人工审核入队
                 if slice_data["review_status"] == "needs_review":
-                    review_item = ReviewQueue(chunk_id=chunk.id, reason="分类置信度低")
+                    conf = slice_data.get("ltc_stage_confidence", 0)
+                    reasoning = slice_data.get("reasoning", "")
+                    reason = f"置信度 {conf:.0%}"
+                    if reasoning:
+                        reason += f"：{reasoning}"
+                    review_item = ReviewQueue(chunk_id=chunk.id, reason=reason[:200])
                     session.add(review_item)
 
-            # 6. 标记成功
+            # 6. 自动更新项目模块标签（收集本次文档的模块，合并到项目 modules 字段）
+            if doc.project_id and slices:
+                new_modules = {
+                    s["module"] for s in slices
+                    if s.get("module") and s["module"].strip()
+                }
+                if new_modules:
+                    project = await session.get(Project, doc.project_id)
+                    if project:
+                        existing = set(project.modules or [])
+                        merged = sorted(existing | new_modules)
+                        if merged != sorted(existing):
+                            project.modules = merged
+                            logger.info(
+                                "project_modules_updated",
+                                project_id=doc.project_id,
+                                added=sorted(new_modules - existing),
+                            )
+
+            # 7. 标记成功
             doc.conversion_status = "completed"
             await session.commit()
             logger.info("task_completed", doc_id=doc_id, total_chunks=len(slices))

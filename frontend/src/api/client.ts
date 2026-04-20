@@ -154,7 +154,13 @@ export interface ReviewItem {
   created_at: string
   chunk_content?: string | null
   chunk_ltc_stage?: string | null
+  chunk_ltc_stage_confidence?: number | null
   chunk_index?: number | null
+  chunk_industry?: string | null
+  chunk_module?: string | null
+  chunk_tags?: string[] | null
+  chunk_source_section?: string | null
+  chunk_generated_by_model?: string | null
 }
 
 export interface Stats {

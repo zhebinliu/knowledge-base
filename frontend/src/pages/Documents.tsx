@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -10,8 +10,74 @@ import {
 import {
   Upload, Trash2, Clock, CheckCircle, AlertCircle, Loader,
   FileText, Eye, Layers, X, Folder, FileType, Filter,
-  ChevronLeft, ChevronRight, Pencil,
+  ChevronLeft, ChevronRight, Pencil, ChevronDown, ChevronUp,
 } from 'lucide-react'
+
+// ── Upload queue panel ──────────────────────────────────────────────────────
+type UploadJobStatus = 'queued' | 'uploading' | 'done' | 'failed'
+interface UploadJob { id: string; name: string; status: UploadJobStatus; error?: string }
+
+function UploadQueuePanel({ jobs, onDismiss }: { jobs: UploadJob[]; onDismiss: () => void }) {
+  const [collapsed, setCollapsed] = useState(false)
+  const done    = jobs.filter(j => j.status === 'done').length
+  const failed  = jobs.filter(j => j.status === 'failed').length
+  const active  = jobs.filter(j => j.status === 'uploading').length
+  const queued  = jobs.filter(j => j.status === 'queued').length
+  const allDone = done + failed === jobs.length
+
+  return (
+    <div className="fixed bottom-6 right-6 z-50 w-72 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+        <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+          {active > 0 && <Loader size={13} className="animate-spin text-orange-500"/>}
+          {allDone && failed === 0 && <CheckCircle size={13} className="text-green-500"/>}
+          {allDone && failed > 0 && <AlertCircle size={13} className="text-red-500"/>}
+          <span>
+            {allDone
+              ? `完成 ${done}/${jobs.length}${failed > 0 ? `，失败 ${failed}` : ''}`
+              : `上传中 ${done + failed}/${jobs.length}`}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button onClick={() => setCollapsed(c => !c)} className="p-1 text-gray-400 hover:text-gray-600 rounded">
+            {collapsed ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
+          </button>
+          {allDone && (
+            <button onClick={onDismiss} className="p-1 text-gray-400 hover:text-gray-600 rounded"><X size={13}/></button>
+          )}
+        </div>
+      </div>
+      {!collapsed && (
+        <div className="max-h-48 overflow-y-auto divide-y divide-gray-50">
+          {jobs.map(j => (
+            <div key={j.id} className="flex items-center gap-2 px-4 py-2">
+              {j.status === 'queued'    && <Clock size={12} className="text-gray-400 flex-shrink-0"/>}
+              {j.status === 'uploading' && <Loader size={12} className="animate-spin text-orange-500 flex-shrink-0"/>}
+              {j.status === 'done'      && <CheckCircle size={12} className="text-green-500 flex-shrink-0"/>}
+              {j.status === 'failed'    && <AlertCircle size={12} className="text-red-500 flex-shrink-0"/>}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-700 truncate">{j.name}</p>
+                {j.status === 'failed' && j.error && (
+                  <p className="text-[10px] text-red-500 truncate">{j.error}</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {!collapsed && (
+        <div className="px-4 py-1.5 bg-gray-50 border-t border-gray-100">
+          <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${failed > 0 && allDone ? 'bg-red-400' : 'bg-orange-400'}`}
+              style={{ width: `${Math.round((done + failed) / jobs.length * 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
 
@@ -162,6 +228,10 @@ export default function Documents() {
   const [showCreateProject, setShowCreateProject] = useState(false)
   const [editingDoc, setEditingDoc] = useState<{ id: string; filename: string; project_id?: string | null; doc_type?: string | null } | null>(null)
 
+  // Upload queue state
+  const [uploadJobs, setUploadJobs] = useState<UploadJob[]>([])
+  const [showQueue, setShowQueue] = useState(false)
+
   const [filterProject, setFilterProject] = useState<string>(searchParams.get('project') ?? '')
   const [filterDocType, setFilterDocType] = useState<string>(searchParams.get('type') ?? '')
   const [pageSize, setPageSize] = useState<number>(20)
@@ -198,12 +268,6 @@ export default function Documents() {
     enabled: !!drawerDocId && drawerMode === 'chunks',
   })
 
-  const upload = useMutation({
-    mutationFn: ({ file, opts }: { file: File; opts: { project_id: string | null; doc_type: string | null } }) =>
-      uploadDocument(file, opts),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['documents'] }),
-  })
-
   const del = useMutation({
     mutationFn: deleteDocument,
     onSuccess: () => {
@@ -227,11 +291,45 @@ export default function Documents() {
     setShowUploadOpts(true)
   }
 
-  const onConfirmUpload = (opts: { project_id: string | null; doc_type: string | null }) => {
-    pendingFiles.forEach((f) => upload.mutate({ file: f, opts }))
+  const onConfirmUpload = useCallback((opts: { project_id: string | null; doc_type: string | null }) => {
+    const jobs: UploadJob[] = pendingFiles.map((f, i) => ({
+      id: `${Date.now()}-${i}`,
+      name: f.name,
+      status: 'queued' as const,
+    }))
+    setUploadJobs(jobs)
+    setShowQueue(true)
     setPendingFiles([])
     setShowUploadOpts(false)
-  }
+
+    // Upload up to 3 at a time
+    const CONCURRENCY = 3
+    let idx = 0
+    const runNext = async (jobId: string, file: File) => {
+      setUploadJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'uploading' } : j))
+      try {
+        await uploadDocument(file, opts)
+        setUploadJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'done' } : j))
+      } catch (err: unknown) {
+        const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? String(err)
+        setUploadJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'failed', error: msg } : j))
+      } finally {
+        qc.invalidateQueries({ queryKey: ['documents'] })
+        // Pick next
+        if (idx < pendingFiles.length) {
+          const nextIdx = idx++
+          runNext(jobs[nextIdx].id, pendingFiles[nextIdx])
+        }
+      }
+    }
+
+    // Kick off initial batch
+    const batch = Math.min(CONCURRENCY, pendingFiles.length)
+    idx = batch
+    for (let b = 0; b < batch; b++) {
+      runNext(jobs[b].id, pendingFiles[b])
+    }
+  }, [pendingFiles, qc])
 
   const openDrawer = (docId: string, mode: DrawerMode) => {
     setDrawerDocId(docId)
@@ -313,16 +411,6 @@ export default function Documents() {
             <p className="text-xs text-gray-400 mt-1">支持 PDF、Word、PowerPoint、Excel、TXT、Markdown</p>
           </div>
 
-          {upload.isPending && (
-            <div className="mb-4 px-4 py-3 bg-orange-50 border border-orange-100 rounded-lg text-sm text-orange-700 flex items-center gap-2">
-              <Loader size={14} className="animate-spin"/> 正在上传并触发处理…
-            </div>
-          )}
-          {upload.isError && (
-            <div className="mb-4 px-4 py-3 bg-red-50 rounded-lg text-sm text-red-700">
-              上传失败：{String((upload.error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? upload.error)}
-            </div>
-          )}
 
           {/* Document table — overflow-x-auto prevents column squeeze */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -593,6 +681,13 @@ export default function Documents() {
           meta={meta}
           onClose={() => setEditingDoc(null)}
           onSaved={() => setEditingDoc(null)}
+        />
+      )}
+
+      {showQueue && uploadJobs.length > 0 && (
+        <UploadQueuePanel
+          jobs={uploadJobs}
+          onDismiss={() => { setShowQueue(false); setUploadJobs([]) }}
         />
       )}
     </div>

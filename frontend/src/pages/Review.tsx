@@ -1,8 +1,28 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listReviewQueue, approveReview, rejectReview } from '../api/client'
-import { CheckCircle, XCircle, ClipboardCheck, AlertTriangle } from 'lucide-react'
+import { CheckCircle, XCircle, ClipboardCheck, AlertTriangle, Cpu, MapPin, Tag } from 'lucide-react'
 import MarkdownView from '../components/MarkdownView'
 import { useAuth } from '../auth/AuthContext'
+
+const LTC_LABEL: Record<string, string> = {
+  pre_sales: '售前', implementation: '实施', post_sales: '售后',
+  training: '培训', product: '产品', general: '通用',
+}
+
+function ConfidenceBar({ value }: { value: number }) {
+  const pct = Math.round(value * 100)
+  const color = value >= 0.85 ? 'bg-green-400' : value >= 0.6 ? 'bg-amber-400' : 'bg-red-400'
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className={`text-xs font-mono font-semibold tabular-nums ${
+        value >= 0.85 ? 'text-green-600' : value >= 0.6 ? 'text-amber-600' : 'text-red-500'
+      }`}>{pct}%</span>
+    </div>
+  )
+}
 
 export default function Review() {
   const qc = useQueryClient()
@@ -48,18 +68,75 @@ export default function Review() {
       <div className="space-y-4">
         {items?.map(item => (
           <div key={item.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            {/* Reason banner */}
-            <div className="px-5 py-2.5 bg-orange-50 border-b border-orange-100 flex items-center gap-2">
-              <AlertTriangle size={13} className="text-orange-500 flex-shrink-0"/>
-              <p className="text-xs text-orange-700 font-medium">{item.reason}</p>
-              <div className="ml-auto flex items-center gap-3">
-                {item.chunk_ltc_stage && (
-                  <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full border border-blue-100">
-                    {item.chunk_ltc_stage}
-                  </span>
-                )}
-                <span className="text-xs text-gray-400">
-                  {new Date(item.created_at).toLocaleString('zh-CN')}
+            {/* Header banner */}
+            <div className="px-5 py-3 bg-orange-50 border-b border-orange-100">
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={13} className="text-orange-500 flex-shrink-0 mt-0.5"/>
+                <div className="flex-1 min-w-0">
+                  {/* Reason text */}
+                  <p className="text-xs text-orange-700 font-medium mb-2">{item.reason}</p>
+
+                  {/* Metadata row */}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                    {/* LTC stage + confidence */}
+                    {item.chunk_ltc_stage && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full border border-blue-100 font-medium">
+                          {LTC_LABEL[item.chunk_ltc_stage] ?? item.chunk_ltc_stage}
+                        </span>
+                        {item.chunk_ltc_stage_confidence != null && (
+                          <div className="w-24">
+                            <ConfidenceBar value={item.chunk_ltc_stage_confidence} />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Industry */}
+                    {item.chunk_industry && item.chunk_industry !== 'other' && (
+                      <span className="flex items-center gap-1 text-xs text-gray-500">
+                        <MapPin size={11} className="text-gray-400"/>
+                        {item.chunk_industry}
+                      </span>
+                    )}
+
+                    {/* Module */}
+                    {item.chunk_module && (
+                      <span className="text-xs px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full border border-purple-100">
+                        {item.chunk_module}
+                      </span>
+                    )}
+
+                    {/* Source section */}
+                    {item.chunk_source_section && (
+                      <span className="text-xs text-gray-400 truncate max-w-[200px]" title={item.chunk_source_section}>
+                        § {item.chunk_source_section}
+                      </span>
+                    )}
+
+                    {/* Model */}
+                    {item.chunk_generated_by_model && (
+                      <span className="flex items-center gap-1 text-xs text-gray-400 ml-auto flex-shrink-0">
+                        <Cpu size={10}/>
+                        {item.chunk_generated_by_model}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Tags */}
+                  {item.chunk_tags && item.chunk_tags.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                      <Tag size={10} className="text-gray-400"/>
+                      {item.chunk_tags.map(tag => (
+                        <span key={tag} className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <span className="text-xs text-gray-400 flex-shrink-0 mt-0.5">
+                  {new Date(item.created_at).toLocaleString('zh-CN', { hour12: false })}
                 </span>
               </div>
             </div>

@@ -33,7 +33,13 @@ async def get_review_queue(session: AsyncSession = Depends(get_session)):
             "created_at": item.created_at,
             "chunk_content": chunk.content if chunk else None,
             "chunk_ltc_stage": chunk.ltc_stage if chunk else None,
+            "chunk_ltc_stage_confidence": chunk.ltc_stage_confidence if chunk else None,
             "chunk_index": chunk.chunk_index if chunk else None,
+            "chunk_industry": chunk.industry if chunk else None,
+            "chunk_module": chunk.module if chunk else None,
+            "chunk_tags": chunk.tags if chunk else None,
+            "chunk_source_section": chunk.source_section if chunk else None,
+            "chunk_generated_by_model": chunk.generated_by_model if chunk else None,
         }
         for item, chunk in rows
     ]

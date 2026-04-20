@@ -251,56 +251,84 @@ async def classify_chunk(
         }, used_model
 
 
-async def slice_and_classify(markdown: str, doc_title: str, confidence_threshold: float = 0.85) -> list[dict]:
+async def _classify_one(
+    i: int,
+    chunk: dict,
+    doc_title: str,
+    confidence_threshold: float,
+) -> dict:
+    """Classify a single chunk (primary model + optional review pass)."""
+    classification, classify_model = await classify_chunk(
+        chunk["content"], doc_title, chunk["section_path"]
+    )
+
+    confidence = classification.get("ltc_stage_confidence", 0.5)
+    if confidence >= confidence_threshold:
+        review_status = "auto_approved"
+    elif confidence >= 0.6:
+        review_status = "needs_review"
+    else:
+        classification["ltc_stage"] = "general"
+        review_status = "needs_review"
+
+    if review_status == "needs_review":
+        logger.info("review_with_glm", chunk_index=i, confidence=confidence)
+        try:
+            review, review_model = await classify_chunk(
+                chunk["content"], doc_title, chunk["section_path"], model="glm-5"
+            )
+            if review.get("ltc_stage_confidence", 0) > confidence:
+                classification = review
+                classify_model = review_model
+                if review["ltc_stage_confidence"] >= confidence_threshold:
+                    review_status = "auto_approved"
+        except Exception as e:
+            logger.warning("glm_review_failed", error=str(e))
+
+    return {
+        "chunk_index": i,
+        "content": chunk["content"],
+        "section_path": chunk["section_path"],
+        "char_count": len(chunk["content"]),
+        "ltc_stage": classification.get("ltc_stage", "general"),
+        "ltc_stage_confidence": classification.get("ltc_stage_confidence", 0.5),
+        "industry": classification.get("industry", "other"),
+        "module": classification.get("module", ""),
+        "tags": classification.get("tags", []),
+        "reasoning": classification.get("reasoning", ""),
+        "review_status": review_status,
+        "classified_by_model": classify_model,
+    }
+
+
+async def slice_and_classify(
+    markdown: str,
+    doc_title: str,
+    confidence_threshold: float = 0.85,
+    max_concurrency: int = 4,
+) -> list[dict]:
     """
     返回切片列表，每个切片包含：
     content, section_path, ltc_stage, ltc_stage_confidence, industry, module, tags,
     review_status (auto_approved / needs_review)
+
+    chunk 分类并行执行（最多 max_concurrency 个同时运行），大幅缩短处理时间。
     """
+    import asyncio
+
     raw_chunks = coarse_slice(markdown, doc_title)
     logger.info("module_slicing_done", doc=doc_title, count=len(raw_chunks),
                 avg_chars=sum(len(c["content"]) for c in raw_chunks) // max(len(raw_chunks), 1))
 
-    results = []
-    for i, chunk in enumerate(raw_chunks):
-        classification, classify_model = await classify_chunk(chunk["content"], doc_title, chunk["section_path"])
+    semaphore = asyncio.Semaphore(max_concurrency)
 
-        confidence = classification.get("ltc_stage_confidence", 0.5)
-        if confidence >= confidence_threshold:
-            review_status = "auto_approved"
-        elif confidence >= 0.6:
-            review_status = "needs_review"
-        else:
-            classification["ltc_stage"] = "general"
-            review_status = "needs_review"
+    async def _bounded(i: int, chunk: dict) -> dict:
+        async with semaphore:
+            return await _classify_one(i, chunk, doc_title, confidence_threshold)
 
-        if review_status == "needs_review":
-            logger.info("review_with_glm", chunk_index=i, confidence=confidence)
-            try:
-                review, review_model = await classify_chunk(chunk["content"], doc_title, chunk["section_path"], model="glm-5")
-                if review.get("ltc_stage_confidence", 0) > confidence:
-                    classification = review
-                    classify_model = review_model
-                    if review["ltc_stage_confidence"] >= confidence_threshold:
-                        review_status = "auto_approved"
-            except Exception as e:
-                logger.warning("glm_review_failed", error=str(e))
-
-        results.append({
-            "chunk_index": i,
-            "content": chunk["content"],
-            "section_path": chunk["section_path"],
-            "char_count": len(chunk["content"]),
-            "ltc_stage": classification.get("ltc_stage", "general"),
-            "ltc_stage_confidence": classification.get("ltc_stage_confidence", 0.5),
-            "industry": classification.get("industry", "other"),
-            "module": classification.get("module", ""),
-            "tags": classification.get("tags", []),
-            "review_status": review_status,
-            "classified_by_model": classify_model,
-        })
-
-    return results
+    results = await asyncio.gather(*[_bounded(i, c) for i, c in enumerate(raw_chunks)])
+    # gather preserves order, so chunk_index already matches i
+    return list(results)
 
 
 async def classify_single_chunk(content: str, model: str = "minimax-m2.5") -> dict:
