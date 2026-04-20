@@ -12,13 +12,13 @@ Supported methods:
   ping         – health-check
 """
 
-import jwt
+import json
+
 import structlog
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
-from agents.kb_agent import answer_question
-from config import settings
+from agents.kb_agent import answer_question, answer_question_stream
 from services.embedding_service import embedding_service
 from services.vector_store import vector_store
 
@@ -86,6 +86,66 @@ TOOLS = [
 
 
 # ── Tool handlers ─────────────────────────────────────────────────────────────
+
+async def _stream_ask_kb(req_id, arguments: dict):
+    """SSE generator for ask_kb — yields MCP-compliant events."""
+    question  = arguments.get("question", "")
+    ltc_stage = arguments.get("ltc_stage") or None
+
+    accumulated = ""
+    sources_text = ""
+    model_name   = ""
+
+    try:
+        async for raw in answer_question_stream(question, ltc_stage=ltc_stage):
+            chunk = json.loads(raw)
+
+            if "token" in chunk:
+                accumulated += chunk["token"]
+                # Send partial text as progress notification so Claude Code
+                # can display it incrementally.
+                event = {
+                    "jsonrpc": "2.0",
+                    "method": "notifications/progress",
+                    "params": {
+                        "progressToken": str(req_id),
+                        "progress": len(accumulated),
+                        "total": 0,       # unknown total
+                        "_text": accumulated,   # non-standard hint, ignored by strict clients
+                    },
+                }
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+            elif "sources" in chunk:
+                sources = chunk.get("sources") or []
+                model_name = chunk.get("model") or ""
+                if sources:
+                    sources_text = f"\n\n---\n**参考来源**（{len(sources)} 条）："
+                    for i, s in enumerate(sources, 1):
+                        pct   = round(s["score"] * 100)
+                        stage = s.get("ltc_stage") or "通用"
+                        sources_text += f"\n- 来源 {i} · 阶段: {stage} · 相关度: {pct}%"
+                if model_name:
+                    sources_text += f"\n\n*由 {model_name} 生成*"
+
+        # Final complete result
+        final_text = accumulated + sources_text
+        result_event = {
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "result": {"content": [{"type": "text", "text": final_text}]},
+        }
+        yield f"data: {json.dumps(result_event, ensure_ascii=False)}\n\n"
+
+    except Exception as e:
+        logger.error("mcp_stream_error", error=str(e)[:200])
+        err_event = {
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "error": {"code": -32000, "message": str(e)},
+        }
+        yield f"data: {json.dumps(err_event, ensure_ascii=False)}\n\n"
+
 
 async def _handle_ask_kb(arguments: dict) -> str:
     question = arguments["question"]
@@ -206,6 +266,17 @@ async def mcp_endpoint(request: Request):
     if method == "tools/call":
         tool_name  = params.get("name", "")
         arguments  = params.get("arguments") or {}
+
+        # ask_kb: stream if client accepts SSE (MCP Streamable HTTP spec)
+        if tool_name == "ask_kb":
+            accept = request.headers.get("accept", "")
+            if "text/event-stream" in accept:
+                logger.info("mcp_ask_kb_stream", id=req_id)
+                return StreamingResponse(
+                    _stream_ask_kb(req_id, arguments),
+                    media_type="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+                )
 
         try:
             if tool_name == "ask_kb":
