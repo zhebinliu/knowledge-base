@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KB System — CRM 实施知识管理平台</title>
+<style>
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#0f172a;--surface:#1e293b;--card:#334155;
+    --primary:#3b82f6;--primary-light:#60a5fa;--accent:#8b5cf6;--accent2:#06b6d4;
+    --green:#22c55e;--orange:#f59e0b;--red:#ef4444;
+    --text:#f1f5f9;--text-dim:#94a3b8;--text-muted:#64748b;
+    --radius:12px;
+  }
+  html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text)}
+  #app{position:relative;width:100%;height:100%}
+  .slide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 80px;opacity:0;pointer-events:none;transition:opacity .5s ease}
+  .slide.active{opacity:1;pointer-events:auto}
+  .slide>*{opacity:0;transform:translateY(30px);transition:opacity .6s ease,transform .6s ease}
+  .slide.active>*{opacity:1;transform:translateY(0)}
+  .slide.active>*:nth-child(1){transition-delay:.1s}
+  .slide.active>*:nth-child(2){transition-delay:.25s}
+  .slide.active>*:nth-child(3){transition-delay:.4s}
+  .slide.active>*:nth-child(4){transition-delay:.55s}
+  .slide.active>*:nth-child(5){transition-delay:.7s}
+  .slide.active>*:nth-child(6){transition-delay:.85s}
+  h1{font-size:3rem;font-weight:800;letter-spacing:-1px;line-height:1.2}
+  h2{font-size:2rem;font-weight:700;margin-bottom:12px}
+  h3{font-size:1.25rem;font-weight:600;color:var(--primary-light)}
+  .subtitle{font-size:1.3rem;color:var(--text-dim);margin-top:12px}
+  .tag{display:inline-block;padding:4px 14px;border-radius:20px;font-size:.8rem;font-weight:600;margin:4px}
+  .tag-blue{background:rgba(59,130,246,.15);color:var(--primary-light);border:1px solid rgba(59,130,246,.3)}
+  .tag-purple{background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.3)}
+  .tag-green{background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.3)}
+  .tag-cyan{background:rgba(6,182,212,.15);color:#22d3ee;border:1px solid rgba(6,182,212,.3)}
+  .tag-orange{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
+  .card{background:var(--surface);border:1px solid rgba(255,255,255,.08);border-radius:var(--radius);padding:24px 28px;transition:transform .3s,border-color .3s,box-shadow .3s}
+  .card:hover{transform:translateY(-4px);border-color:rgba(59,130,246,.3);box-shadow:0 8px 30px rgba(0,0,0,.3)}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;width:100%;max-width:1100px}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;width:100%;max-width:1000px}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;width:100%;max-width:1100px}
+  .icon-circle{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;margin-bottom:12px}
+  .flow-container{display:flex;align-items:center;gap:0;width:100%;max-width:1200px;flex-wrap:nowrap;justify-content:center}
+  .flow-node{background:var(--surface);border:2px solid rgba(255,255,255,.1);border-radius:var(--radius);padding:16px 20px;text-align:center;min-width:120px;position:relative;transition:all .3s}
+  .flow-node:hover{border-color:var(--primary);transform:scale(1.05);box-shadow:0 0 20px rgba(59,130,246,.2)}
+  .flow-node .icon{font-size:1.8rem;margin-bottom:6px}
+  .flow-node .label{font-size:.85rem;font-weight:600}
+  .flow-node .desc{font-size:.7rem;color:var(--text-dim);margin-top:4px}
+  .flow-arrow{color:var(--primary-light);font-size:1.5rem;margin:0 4px;flex-shrink:0}
+  .stat{font-size:2.5rem;font-weight:800;background:linear-gradient(135deg,var(--primary-light),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  .stat-label{font-size:.85rem;color:var(--text-dim);margin-top:4px}
+  /* progress bar */
+  #progress{position:fixed;bottom:0;left:0;height:3px;background:linear-gradient(90deg,var(--primary),var(--accent));transition:width .4s ease;z-index:100}
+  /* nav */
+  #nav{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:16px;z-index:100;background:rgba(15,23,42,.8);backdrop-filter:blur(10px);padding:8px 20px;border-radius:30px;border:1px solid rgba(255,255,255,.1)}
+  #nav button{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.2rem;padding:4px 8px;border-radius:8px;transition:all .2s}
+  #nav button:hover{color:var(--text);background:rgba(255,255,255,.1)}
+  #page-num{font-size:.85rem;color:var(--text-muted);min-width:60px;text-align:center}
+  /* TOC overlay */
+  #toc{position:fixed;inset:0;background:rgba(15,23,42,.95);backdrop-filter:blur(20px);z-index:200;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+  #toc.show{display:flex}
+  #toc .toc-item{padding:10px 24px;border-radius:8px;cursor:pointer;font-size:1rem;color:var(--text-dim);transition:all .2s;width:500px;text-align:left}
+  #toc .toc-item:hover{background:var(--surface);color:var(--text);transform:translateX(8px)}
+  #toc .toc-item.active{color:var(--primary-light);font-weight:600}
+  #toc .toc-title{font-size:1.5rem;font-weight:700;margin-bottom:20px;color:var(--text)}
+  /* arch diagram */
+  .arch-layer{background:var(--surface);border:1px solid rgba(255,255,255,.08);border-radius:var(--radius);padding:16px 24px;margin-bottom:12px;display:flex;align-items:center;gap:16px;width:100%;max-width:1000px}
+  .arch-layer .layer-label{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;min-width:80px;padding:4px 12px;border-radius:6px;text-align:center}
+  .arch-layer .layer-items{display:flex;gap:10px;flex-wrap:wrap}
+  .arch-layer .layer-item{background:var(--card);padding:6px 14px;border-radius:8px;font-size:.8rem;color:var(--text-dim);border:1px solid rgba(255,255,255,.05)}
+  /* model route */
+  .route-row{display:flex;align-items:center;gap:12px;margin-bottom:10px;width:100%;max-width:900px}
+  .route-task{min-width:140px;font-size:.85rem;font-weight:600;text-align:right;color:var(--text-dim)}
+  .route-arrow{color:var(--text-muted);flex-shrink:0}
+  .route-model{background:var(--surface);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 16px;font-size:.85rem;flex:1;transition:all .3s}
+  .route-model:hover{border-color:var(--primary)}
+  .route-model.primary{border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.08)}
+  .route-model.fallback{border-color:rgba(255,255,255,.06);opacity:.7}
+  .route-badge{font-size:.65rem;padding:2px 8px;border-radius:10px;margin-left:8px}
+  .route-badge-p{background:rgba(59,130,246,.2);color:var(--primary-light)}
+  .route-badge-f{background:rgba(255,255,255,.08);color:var(--text-muted)}
+  /* cycle diagram */
+  .cycle{position:relative;width:400px;height:400px}
+  .cycle-node{position:absolute;width:130px;text-align:center}
+  .cycle-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:120px;height:120px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--accent));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;text-align:center;box-shadow:0 0 40px rgba(59,130,246,.3)}
+  .cycle-node .c-icon{font-size:2rem;margin-bottom:4px}
+  .cycle-node .c-label{font-size:.8rem;font-weight:600}
+  .cycle-node .c-desc{font-size:.65rem;color:var(--text-dim);margin-top:2px}
+  /* clickable hint */
+  .click-hint{position:fixed;top:20px;right:20px;font-size:.75rem;color:var(--text-muted);z-index:50;opacity:.6}
+  /* keyframes */
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+  .pulse{animation:pulse 2s infinite}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="progress"></div>
+<div id="nav">
+  <button onclick="prev()" title="上一页">◀</button>
+  <span id="page-num">1 / 12</span>
+  <button onclick="next()" title="下一页">▶</button>
+  <button onclick="toggleToc()" title="目录">☰</button>
+</div>
+<div id="toc">
+  <div class="toc-title">目录</div>
+</div>
+<div class="click-hint">← → 翻页 · ESC 目录</div>
+
+<script>
+const slides = [];
+
+function addSlide(html) { slides.push(html); }
+
+// ─── Slide 1: Cover ─────────────────────────────
+addSlide(`
+  <div style="text-align:center">
+    <div style="font-size:4rem;margin-bottom:20px"></div>
+    <h1 style="font-size:3.5rem;background:linear-gradient(135deg,#60a5fa,#a78bfa,#22d3ee);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">
+      KB System
+    </h1>
+    <p class="subtitle" style="font-size:1.5rem;margin-top:16px">
+      纷享销客 CRM 实施知识综合管理平台
+    </p>
+    <div style="margin-top:32px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+      <span class="tag tag-blue">文档智能转写</span>
+      <span class="tag tag-purple">知识切片分类</span>
+      <span class="tag tag-cyan">RAG 问答</span>
+      <span class="tag tag-green">知识挑战验证</span>
+      <span class="tag tag-orange">多模型路由</span>
+    </div>
+    <p style="margin-top:48px;color:var(--text-muted);font-size:.85rem">内部汇报 · 2026</p>
+  </div>
+`);
+
+// ─── Slide 2: Pain Points ───────────────────────
+addSlide(`
+  <h2>痛点：CRM 实施知识管理为什么难？</h2>
+  <div class="grid3" style="margin-top:24px">
+    <div class="card">
+      <div class="icon-circle" style="background:rgba(239,68,68,.15)">
+        <span style="font-size:1.6rem"></span>
+      </div>
+      <h3 style="color:#f87171">知识散落</h3>
+      <p style="font-size:.9rem;color:var(--text-dim);margin-top:8px;line-height:1.6">
+        方案文档、会议纪要、培训材料分散在各处，格式不统一（Word/PDF/PPT），查找效率极低
+      </p>
+    </div>
+    <div class="card">
+      <div class="icon-circle" style="background:rgba(245,158,11,.15)">
+        <span style="font-size:1.6rem"></span>
+      </div>
+      <h3 style="color:#fbbf24">质量难控</h3>
+      <p style="font-size:.9rem;color:var(--text-dim);margin-top:8px;line-height:1.6">
+        知识库内容缺乏系统性验证机制，过时、错误的信息混杂其中，新人不敢用、老人不想用
+      </p>
+    </div>
+    <div class="card">
+      <div class="icon-circle" style="background:rgba(139,92,246,.15)">
+        <span style="font-size:1.6rem"></span>
+      </div>
+      <h3 style="color:#a78bfa">复用困难</h3>
+      <p style="font-size:.9rem;color:var(--text-dim);margin-top:8px;line-height:1.6">
+        同类项目的实施经验无法快速检索和复用，每个新项目都在"重新发明轮子"
+      </p>
+    </div>
+  </div>
+`);
+
+// ─── Slide 3: System Overview ───────────────────
+addSlide(`
+  <h2>系统架构概览</h2>
+  <div style="width:100%;max-width:1000px;margin-top:16px">
+    <div class="arch-layer">
+      <div class="layer-label" style="background:rgba(59,130,246,.15);color:var(--primary-light)">前端</div>
+      <div class="layer-items">
+        <div class="layer-item">React 18</div>
+        <div class="layer-item">TypeScript</div>
+        <div class="layer-item">TailwindCSS</div>
+        <div class="layer-item">React Query</div>
+        <div class="layer-item">Nginx + SSL</div>
+      </div>
+    </div>
+    <div class="arch-layer">
+      <div class="layer-label" style="background:rgba(139,92,246,.15);color:#a78bfa">后端</div>
+      <div class="layer-items">
+        <div class="layer-item">FastAPI</div>
+        <div class="layer-item">Celery 异步任务</div>
+        <div class="layer-item">JWT 认证</div>
+        <div class="layer-item">结构化日志</div>
+      </div>
+    </div>
+    <div class="arch-layer">
+      <div class="layer-label" style="background:rgba(6,182,212,.15);color:#22d3ee">AI 引擎</div>
+      <div class="layer-items">
+        <div class="layer-item">文档转写 Agent</div>
+        <div class="layer-item">智能切片 Agent</div>
+        <div class="layer-item">RAG 问答 Agent</div>
+        <div class="layer-item">知识挑战 Agent</div>
+        <div class="layer-item">多模型路由</div>
+      </div>
+    </div>
+    <div class="arch-layer">
+      <div class="layer-label" style="background:rgba(34,197,94,.15);color:#4ade80">存储</div>
+      <div class="layer-items">
+        <div class="layer-item">PostgreSQL 16</div>
+        <div class="layer-item">Qdrant 向量库</div>
+        <div class="layer-item">Redis 缓存</div>
+        <div class="layer-item">MinIO 对象存储</div>
+      </div>
+    </div>
+  </div>
+`);
+
+// ─── Slide 4: Core Pipeline ─────────────────────
+addSlide(`
+  <h2>核心流程：从文档到知识库</h2>
+  <div class="flow-container" style="margin-top:30px">
+    <div class="flow-node">
+      <div class="icon"></div>
+      <div class="label">文档上传</div>
+      <div class="desc">PDF/Word/PPT/Excel</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">
+      <div class="icon"> </div>
+      <div class="label">LLM 转写</div>
+      <div class="desc">结构化 Markdown</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">
+      <div class="icon">✂️</div>
+      <div class="label">智能切片</div>
+      <div class="desc">300-3000 字 / 片</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">
+      <div class="icon"> </div>
+      <div class="label">LTC 分类</div>
+      <div class="desc">9 阶段 + 置信度</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">
+      <div class="icon"> </div>
+      <div class="label">向量嵌入</div>
+      <div class="desc">BGE-M3 · 1024 维</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">
+      <div class="icon"></div>
+      <div class="label">知识入库</div>
+      <div class="desc">Qdrant + PostgreSQL</div>
+    </div>
+  </div>
+  <div style="margin-top:36px;display:flex;gap:24px;justify-content:center">
+    <div style="text-align:center">
+      <div class="stat">50+</div>
+      <div class="stat-label">支持格式</div>
+    </div>
+    <div style="text-align:center">
+      <div class="stat">50K</div>
+      <div class="stat-label">字符分段转写</div>
+    </div>
+    <div style="text-align:center">
+      <div class="stat">0.85</div>
+      <div class="stat-label">自动审核阈值</div>
+    </div>
+    <div style="text-align:center">
+      <div class="stat">1024</div>
+      <div class="stat-label">向量维度</div>
+    </div>
+  </div>
+`);
+
+// ─── Slide 5: Smart Slicing ─────────────────────
+addSlide(`
+  <h2>智能切片：知识模块级精准分割</h2>
+  <p class="subtitle" style="margin-bottom:24px">不是暴力截断，而是按语义边界智能拆分</p>
+  <div class="grid2">
+    <div class="card">
+      <h3> 章节树构建</h3>
+      <p style="font-size:.85rem;color:var(--text-dim);line-height:1.6;margin-top:8px">
+        从 Markdown 标题自动构建章节树，合并过小的相邻章节，识别内容层次结构
+      </p>
+    </div>
+    <div class="card">
+      <h3>✂️ 语义边界切割</h3>
+      <p style="font-size:.85rem;color:var(--text-dim);line-height:1.6;margin-top:8px">
+        按段落语义切分，表格/代码块/列表作为原子单元不拆散，每个 chunk 300-3000 字
+      </p>
+    </div>
+    <div class="card">
+      <h3> 低置信度复审</h3>
+      <p style="font-size:.85rem;color:var(--text-dim);line-height:1.6;margin-top:8px">
+        置信度 < 0.85 的切片自动触发 GLM-5 二次审核，双模型交叉验证提升准确率
+      </p>
+    </div>
+    <div class="card">
+      <h3> 人工审核队列</h3>
+      <p style="font-size:.85rem;color:var(--text-dim);line-height:1.6;margin-top:8px">
+        自动标记低置信度切片进入审核队列，支持在线编辑标签、修改分类后重新入库
+      </p>
+    </div>
+  </div>
+`);
+
+// ─── Slide 6: LTC Classification ────────────────
+addSlide(`
+  <h2>LTC 分类体系：9 阶段全生命周期覆盖</h2>
+  <div style="display:flex;gap:8px;margin-top:24px;flex-wrap:wrap;justify-content:center;max-width:1100px">
+    <div style="background:linear-gradient(135deg,#3b82f6,#2563eb);padding:12px 20px;border-radius:10px;text-align:center;min-width:90px">
+      <div style="font-size:1.5rem"></div><div style="font-size:.8rem;font-weight:600;margin-top:4px">线索 Lead</div>
+    </div>
+    <div style="display:flex;align-items:center;color:var(--text-muted)">→</div>
+    <div style="background:linear-gradient(135deg,#6366f1,#4f46e5);padding:12px 20px;border-radius:10px;text-align:center;min-width:90px">
+      <div style="font-size:1.5rem"></div><div style="font-size:.8rem;font-weight:600;margin-top:4px">商机 Opp</div>
+    </div>
+    <div style="display:flex;align-items:center;color:var(--text-muted)">→</div>
+    <div style="background:linear-gradient(135deg,#8b5cf6,#7c3aed);padding:12px 20px;border-radius:10px;text-align:center;min-width:90px">
+      <div style="font-size:1.5rem"></div><div style="font-size:.8rem;font-weight:600;margin-top:4px">报价 Quote</div>
+    </div>
+    <div style="display:flex;align-items:center;color:var(--text-muted)">→</div>
+    <div style="background:linear-gradient(135deg,#a855f7,#9333ea);padding:12px 20px;border-radius:10px;text-align:center;min-width:90px">
+      <div style="font-size:1.5rem"></div><div style="font-size:.8rem;font-weight:600;margin-top:4px">合同</div>
+    </div>
+    <div style="display:flex;align-items:center;color:var(--text-muted)">→</div>
+    <div style="background:linear-gradient(135deg,#06b6d4,#0891b2);padding:12px 20px;border-radius:10px;text-align:center;min-width:90px">
+      <div style="font-size:1.5rem"></div><div style="font-size:.8rem;font-weight:600;margin-top:4px">客户</div>
+    </div>
+    <div style="display:flex;align-items:center;color:var(--text-muted)">→</div>
+    <div style="background:linear-gradient(135deg,#14b8a6,#0d9488);padding:12px 20px;border-radius:10px;text-align:center;min-width:90px">
+      <div style="font-size:1.5rem"></div><div style="font-size:.8rem;font-weight:600;margin-top:4px">订单</div>
+    </div>
+    <div style="display:flex;align-items:center;color:var(--text-muted)">→</div>
+    <div style="background:linear-gradient(135deg,#22c55e,#16a34a);padding:12px 20px;border-radius:10px;text-align:center;min-width:90px">
+      <div style="font-size:1.5rem"></div><div style="font-size:.8rem;font-weight:600;margin-top:4px">交付</div>
+    </div>
+    <div style="display:flex;align-items:center;color:var(--text-muted)">→</div>
+    <div style="background:linear-gradient(135deg,#f59e0b,#d97706);padding:12px 20px;border-radius:10px;text-align:center;min-width:90px">
+      <div style="font-size:1.5rem"></div><div style="font-size:.8rem;font-weight:600;margin-top:4px">回款</div>
+    </div>
+    <div style="display:flex;align-items:center;color:var(--text-muted)">→</div>
+    <div style="background:linear-gradient(135deg,#64748b,#475569);padding:12px 20px;border-radius:10px;text-align:center;min-width:90px">
+      <div style="font-size:1.5rem"></div><div style="font-size:.8rem;font-weight:600;margin-top:4px">通用</div>
+    </div>
+  </div>
+  <div class="grid3" style="margin-top:28px">
+    <div class="card" style="text-align:center">
+      <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:4px">分类依据</div>
+      <div style="font-size:1.1rem;font-weight:700">LLM 语义理解</div>
+      <div style="font-size:.8rem;color:var(--text-dim);margin-top:4px">不是关键词匹配，而是真正理解内容</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:4px">置信度评估</div>
+      <div style="font-size:1.1rem;font-weight:700">0.00 — 1.00</div>
+      <div style="font-size:.8rem;color:var(--text-dim);margin-top:4px">5 级锚点标准，量化分类可信度</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:4px">二次审核</div>
+      <div style="font-size:1.1rem;font-weight:700">GLM-5 复核</div>
+      <div style="font-size:.8rem;color:var(--text-dim);margin-top:4px">低置信度切片自动触发双模型验证</div>
+    </div>
+  </div>
+`);
+
+// ─── Slide 7: RAG QA ────────────────────────────
+addSlide(`
+  <h2>RAG 智能问答：精准检索 + 流式输出</h2>
+  <div class="flow-container" style="margin-top:30px">
+    <div class="flow-node" style="border-color:rgba(6,182,212,.4)">
+      <div class="icon"></div>
+      <div class="label">用户提问</div>
+      <div class="desc">自然语言</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">
+      <div class="icon"></div>
+      <div class="label">多路检索</div>
+      <div class="desc">LTC 筛选 + 全库检索</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">
+      <div class="icon">⚖️</div>
+      <div class="label">重排序</div>
+      <div class="desc">BGE-Reranker</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">
+      <div class="icon"></div>
+      <div class="label">上下文组装</div>
+      <div class="desc">Top-K 最相关切片</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node" style="border-color:rgba(34,197,94,.4)">
+      <div class="icon"> </div>
+      <div class="label">流式回答</div>
+      <div class="desc">SSE 实时输出</div>
+    </div>
+  </div>
+  <div class="grid2" style="margin-top:28px">
+    <div class="card">
+      <h3>  多路检索策略</h3>
+      <p style="font-size:.85rem;color:var(--text-dim);line-height:1.6;margin-top:8px">
+        先按 LTC 阶段过滤做精准检索，再扩展到全库做广度检索，两路结果合并去重，确保不遗漏
+      </p>
+    </div>
+    <div class="card">
+      <h3>  文档生成</h3>
+      <p style="font-size:.85rem;color:var(--text-dim);line-height:1.6;margin-top:8px">
+        支持基于知识库内容自动生成方案文档，可指定项目背景、客户行业、模块范围等约束条件
+      </p>
+    </div>
+  </div>
+`);
+
+// ─── Slide 8: Challenge ─────────────────────────
+addSlide(`
+  <h2>知识挑战：自动验证知识库质量</h2>
+  <div style="display:flex;gap:32px;margin-top:24px;align-items:flex-start">
+    <div class="cycle">
+      <div class="cycle-center">知识质量<br>闭环</div>
+      <div class="cycle-node" style="top:0;left:50%;transform:translateX(-50%)">
+        <div class="c-icon"></div>
+        <div class="c-label">生成问题</div>
+        <div class="c-desc">按 LTC 阶段自动出题</div>
+      </div>
+      <div class="cycle-node" style="top:25%;right:0">
+        <div class="c-icon"></div>
+        <div class="c-label">RAG 回答</div>
+        <div class="c-desc">用知识库内容作答</div>
+      </div>
+      <div class="cycle-node" style="bottom:12%;right:8%">
+        <div class="c-icon">⚖️</div>
+        <div class="c-label">AI 评判</div>
+        <div class="c-desc">独立模型打分</div>
+      </div>
+      <div class="cycle-node" style="bottom:12%;left:8%">
+        <div class="c-icon"></div>
+        <div class="c-label">通过入库</div>
+        <div class="c-desc">优质 Q&A 自动补充</div>
+      </div>
+      <div class="cycle-node" style="top:25%;left:0">
+        <div class="c-icon"></div>
+        <div class="c-label">定时执行</div>
+        <div class="c-desc">Cron 自动触发</div>
+      </div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:12px">
+      <div class="card">
+        <h3>闭环机制</h3>
+        <p style="font-size:.85rem;color:var(--text-dim);line-height:1.6;margin-top:6px">
+          挑战通过的 Q&A 自动转为新的知识切片入库，越用越聪明
+        </p>
+      </div>
+      <div class="card">
+        <h3>定时任务</h3>
+        <p style="font-size:.85rem;color:var(--text-dim);line-height:1.6;margin-top:6px">
+          支持 Cron 表达式配置自动挑战计划，Celery Beat 定时执行
+        </p>
+      </div>
+      <div class="card">
+        <h3>去重机制</h3>
+        <p style="font-size:.85rem;color:var(--text-dim);line-height:1.6;margin-top:6px">
+          向量相似度去重，避免重复知识进入库中
+        </p>
+      </div>
+    </div>
+  </div>
+`);
+
+// ─── Slide 9: Multi-Model Router ────────────────
+addSlide(`
+  <h2>多模型路由：8 模型 × 7 任务类型</h2>
+  <p class="subtitle" style="margin-bottom:20px">按任务特性智能选型，自动 fallback，成本与质量平衡</p>
+  <div style="width:100%;max-width:950px">
+    <div class="route-row">
+      <div class="route-task">文档转写</div>
+      <div class="route-arrow">→</div>
+      <div class="route-model primary">MiniMax-M2.5 <span class="route-badge route-badge-p">主</span></div>
+      <div class="route-model fallback" style="min-width:120px">GLM-5 <span class="route-badge route-badge-f">备</span></div>
+    </div>
+    <div class="route-row">
+      <div class="route-task">切片分类</div>
+      <div class="route-arrow">→</div>
+      <div class="route-model primary">MiniMax-M2.5 <span class="route-badge route-badge-p">主</span></div>
+      <div class="route-model fallback" style="min-width:120px">小米 MiMo <span class="route-badge route-badge-f">备</span></div>
+    </div>
+    <div class="route-row">
+      <div class="route-task">切片审核</div>
+      <div class="route-arrow">→</div>
+      <div class="route-model primary">GLM-5 <span class="route-badge route-badge-p">主</span></div>
+      <div class="route-model fallback" style="min-width:120px">MiniMax-M2.5 <span class="route-badge route-badge-f">备</span></div>
+    </div>
+    <div class="route-row">
+      <div class="route-task">日常问答</div>
+      <div class="route-arrow">→</div>
+      <div class="route-model primary">Qwen3-80B <span class="route-badge route-badge-p">主</span></div>
+      <div class="route-model fallback" style="min-width:120px">GLM-5 <span class="route-badge route-badge-f">备</span></div>
+    </div>
+    <div class="route-row">
+      <div class="route-task">挑战出题</div>
+      <div class="route-arrow">→</div>
+      <div class="route-model primary">小米 MiMo <span class="route-badge route-badge-p">主</span></div>
+      <div class="route-model fallback" style="min-width:120px">GLM-5 <span class="route-badge route-badge-f">备</span></div>
+    </div>
+    <div class="route-row">
+      <div class="route-task">挑战评判</div>
+      <div class="route-arrow">→</div>
+      <div class="route-model primary">GLM-5 <span class="route-badge route-badge-p">主</span></div>
+      <div class="route-model fallback" style="min-width:120px">Qwen3-80B <span class="route-badge route-badge-f">备</span></div>
+    </div>
+    <div class="route-row">
+      <div class="route-task">文档生成</div>
+      <div class="route-arrow">→</div>
+      <div class="route-model primary">MiniMax-M2.7 <span class="route-badge route-badge-p">主</span></div>
+      <div class="route-model fallback" style="min-width:120px">GLM-5 <span class="route-badge route-badge-f">备</span></div>
+    </div>
+  </div>
+  <div style="margin-top:16px;font-size:.8rem;color:var(--text-muted)">
+    支持在系统设置页面热切换模型和路由规则，无需重启服务
+  </div>
+`);
+
+// ─── Slide 10: Project Management ───────────────
+addSlide(`
+  <h2>项目管理：知识按项目沉淀</h2>
+  <div class="grid3" style="margin-top:24px">
+    <div class="card">
+      <div class="icon-circle" style="background:rgba(59,130,246,.15)">
+        <span style="font-size:1.6rem"></span>
+      </div>
+      <h3>项目库</h3>
+      <p style="font-size:.85rem;color:var(--text-dim);margin-top:8px;line-height:1.6">
+        每个客户实施项目独立管理，关联客户名、模块范围、启动日期，知识不再无处安放
+      </p>
+    </div>
+    <div class="card">
+      <div class="icon-circle" style="background:rgba(139,92,246,.15)">
+        <span style="font-size:1.6rem"></span>
+      </div>
+      <h3>文档类型</h3>
+      <p style="font-size:.85rem;color:var(--text-dim);margin-top:8px;line-height:1.6">
+        需求调研、会议纪要、方案设计、测试用例、用户手册 5 种类型，结构化归档
+      </p>
+    </div>
+    <div class="card">
+      <div class="icon-circle" style="background:rgba(6,182,212,.15)">
+        <span style="font-size:1.6rem"></span>
+      </div>
+      <h3>权限体系</h3>
+      <p style="font-size:.85rem;color:var(--text-dim);margin-top:8px;line-height:1.6">
+        管理员 / 普通用户两级角色，JWT 认证 + 首次强制改密，SSO 预留扩展
+      </p>
+    </div>
+  </div>
+  <div style="margin-top:28px;display:flex;gap:20px;justify-content:center;flex-wrap:wrap">
+    <div style="text-align:center">
+      <div class="stat">5</div>
+      <div class="stat-label">文档类型</div>
+    </div>
+    <div style="text-align:center">
+      <div class="stat">9</div>
+      <div class="stat-label">LTC 阶段</div>
+    </div>
+    <div style="text-align:center">
+      <div class="stat">12+</div>
+      <div class="stat-label">标签词表</div>
+    </div>
+    <div style="text-align:center">
+      <div class="stat">∞</div>
+      <div class="stat-label">项目数</div>
+    </div>
+  </div>
+`);
+
+// ─── Slide 11: Tech Stack ───────────────────────
+addSlide(`
+  <h2>技术栈总览</h2>
+  <div class="grid4" style="margin-top:24px">
+    <div class="card" style="text-align:center">
+      <div style="font-size:2rem;margin-bottom:8px"> </div>
+      <div style="font-weight:700;font-size:.9rem">FastAPI</div>
+      <div style="font-size:.75rem;color:var(--text-dim);margin-top:4px">高性能异步后端</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:2rem;margin-bottom:8px"> </div>
+      <div style="font-weight:700;font-size:.9rem">Celery</div>
+      <div style="font-size:.75rem;color:var(--text-dim);margin-top:4px">异步任务 + 定时调度</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:2rem;margin-bottom:8px"> </div>
+      <div style="font-weight:700;font-size:.9rem">PostgreSQL</div>
+      <div style="font-size:.75rem;color:var(--text-dim);margin-top:4px">关系型数据存储</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:2rem;margin-bottom:8px"> </div>
+      <div style="font-weight:700;font-size:.9rem">Qdrant</div>
+      <div style="font-size:.75rem;color:var(--text-dim);margin-top:4px">向量相似度检索</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:2rem;margin-bottom:8px"> </div>
+      <div style="font-weight:700;font-size:.9rem">Redis</div>
+      <div style="font-size:.75rem;color:var(--text-dim);margin-top:4px">消息队列 + 缓存</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:2rem;margin-bottom:8px"> </div>
+      <div style="font-weight:700;font-size:.9rem">MinIO</div>
+      <div style="font-size:.75rem;color:var(--text-dim);margin-top:4px">文档对象存储</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:2rem;margin-bottom:8px"> </div>
+      <div style="font-weight:700;font-size:.9rem">React</div>
+      <div style="font-size:.75rem;color:var(--text-dim);margin-top:4px">前端 SPA + TypeScript</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:2rem;margin-bottom:8px"> </div>
+      <div style="font-weight:700;font-size:.9rem">Docker</div>
+      <div style="font-size:.75rem;color:var(--text-dim);margin-top:4px">Compose 编排 · 7 服务</div>
+    </div>
+  </div>
+  <div style="margin-top:20px;display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
+    <span class="tag tag-blue">Python 3.11</span>
+    <span class="tag tag-purple">SQLAlchemy Async</span>
+    <span class="tag tag-cyan">Nginx + Let's Encrypt</span>
+    <span class="tag tag-green">BAAI/bge-m3 嵌入</span>
+    <span class="tag tag-orange">SSE 流式输出</span>
+  </div>
+`);
+
+// ─── Slide 12: Summary ──────────────────────────
+addSlide(`
+  <div style="text-align:center">
+    <h1 style="font-size:2.8rem;margin-bottom:24px">核心价值</h1>
+    <div class="grid3" style="margin-top:16px">
+      <div class="card" style="text-align:center;border-color:rgba(59,130,246,.2)">
+        <div style="font-size:2.5rem;margin-bottom:8px"></div>
+        <h3 style="color:var(--primary-light)">效率提升</h3>
+        <p style="font-size:.85rem;color:var(--text-dim);margin-top:8px">
+          文档自动转写切片<br>知识检索秒级响应<br>新人上手时间大幅缩短
+        </p>
+      </div>
+      <div class="card" style="text-align:center;border-color:rgba(139,92,246,.2)">
+        <div style="font-size:2.5rem;margin-bottom:8px"> </div>
+        <h3 style="color:#a78bfa">质量保障</h3>
+        <p style="font-size:.85rem;color:var(--text-dim);margin-top:8px">
+          AI 自动验证知识质量<br>定时挑战持续检验<br>低置信度人工复核
+        </p>
+      </div>
+      <div class="card" style="text-align:center;border-color:rgba(6,182,212,.2)">
+        <div style="font-size:2.5rem;margin-bottom:8px"></div>
+        <h3 style="color:#22d3ee">持续进化</h3>
+        <p style="font-size:.85rem;color:var(--text-dim);margin-top:8px">
+          8 模型路由智能选型<br>挑战通过自动补充知识<br>越用越聪明的知识飞轮
+        </p>
+      </div>
+    </div>
+    <p style="margin-top:48px;color:var(--text-muted);font-size:1rem">
+      让 CRM 实施经验不再流失 · 让每个人都能快速找到答案
+    </p>
+    <p style="margin-top:16px;color:var(--text-muted);font-size:.8rem">
+      https://kb.liii.in
+    </p>
+  </div>
+`);
+
+// ─── TOC titles ─────────────────────────────────
+const tocTitles = [
+  '封面', '痛点', '系统架构', '核心流程', '智能切片',
+  'LTC 分类', 'RAG 问答', '知识挑战', '多模型路由', '项目管理',
+  '技术栈', '总结'
+];
+
+// ─── Render ─────────────────────────────────────
+const app = document.getElementById('app');
+const progress = document.getElementById('progress');
+const pageNum = document.getElementById('page-num');
+const tocEl = document.getElementById('toc');
+let current = 0;
+let tocOpen = false;
+
+function render() {
+  app.innerHTML = '';
+  slides.forEach((html, i) => {
+    const div = document.createElement('div');
+    div.className = 'slide' + (i === current ? ' active' : '');
+    div.innerHTML = html;
+    app.appendChild(div);
+  });
+  progress.style.width = ((current + 1) / slides.length * 100) + '%';
+  pageNum.textContent = (current + 1) + ' / ' + slides.length;
+  // rebuild TOC
+  const tocTitle = tocEl.querySelector('.toc-title');
+  tocEl.innerHTML = '';
+  tocEl.appendChild(tocTitle);
+  tocTitles.forEach((t, i) => {
+    const item = document.createElement('div');
+    item.className = 'toc-item' + (i === current ? ' active' : '');
+    item.textContent = (i + 1) + '. ' + t;
+    item.onclick = () => { goTo(i); toggleToc(); };
+    tocEl.appendChild(item);
+  });
+}
+
+function goTo(i) {
+  if (i < 0 || i >= slides.length) return;
+  current = i;
+  render();
+}
+function next() { goTo(current + 1); }
+function prev() { goTo(current - 1); }
+function toggleToc() {
+  tocOpen = !tocOpen;
+  tocEl.classList.toggle('show', tocOpen);
+}
+
+// keyboard
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+  else if (e.key === 'Escape') { toggleToc(); }
+});
+
+// click left/right edge
+document.addEventListener('click', e => {
+  if (tocOpen) return;
+  const x = e.clientX / window.innerWidth;
+  if (x < 0.2) prev();
+  else if (x > 0.8) next();
+});
+
+// touch swipe
+let touchX = 0;
+document.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; });
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - touchX;
+  if (Math.abs(dx) > 60) { dx > 0 ? prev() : next(); }
+});
+
+render();
+</script>
+</body>
+</html>
