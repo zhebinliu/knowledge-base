@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { getStats, listDocuments, listReviewQueue } from '../api/client'
+import { getStats, listDocuments, listReviewQueue, listProjects, listChallengeRuns } from '../api/client'
 import { Link } from 'react-router-dom'
 import {
   FileText, Layers, Zap, Clock, CheckCircle, AlertCircle,
-  Loader, ClipboardCheck, ArrowRight,
+  Loader, ClipboardCheck, ArrowRight, Folder, Brain,
 } from 'lucide-react'
 
 const STATUS_ICON: Record<string, JSX.Element> = {
@@ -19,14 +19,17 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 export default function Dashboard() {
-  const { data: stats } = useQuery({ queryKey: ['stats'],     queryFn: getStats,         refetchInterval: 10_000 })
-  const { data: docs }  = useQuery({ queryKey: ['documents'], queryFn: () => listDocuments() })
-  const { data: queue } = useQuery({ queryKey: ['review-queue'], queryFn: listReviewQueue, refetchInterval: 30_000 })
+  const { data: stats }      = useQuery({ queryKey: ['stats'],     queryFn: getStats,                   refetchInterval: 10_000 })
+  const { data: docs }       = useQuery({ queryKey: ['documents'], queryFn: () => listDocuments() })
+  const { data: queue }      = useQuery({ queryKey: ['review-queue'], queryFn: listReviewQueue,         refetchInterval: 30_000 })
+  const { data: projects }   = useQuery({ queryKey: ['projects'],  queryFn: listProjects })
+  const { data: recentRuns } = useQuery({ queryKey: ['challenge-runs-recent'], queryFn: () => listChallengeRuns(3, 0), refetchInterval: 30_000 })
 
   const cards = [
-    { label: '文档总数', value: stats?.documents ?? '—', icon: FileText, color: 'text-blue-600 bg-blue-50',   to: '/documents' },
-    { label: 'Chunk 数', value: stats?.chunks    ?? '—', icon: Layers,   color: 'text-purple-600 bg-purple-50', to: '/chunks' },
-    { label: '向量数',   value: stats?.vectors   ?? '—', icon: Zap,       color: 'text-green-600 bg-green-50',  to: '/chunks' },
+    { label: '文档总数', value: stats?.documents    ?? '—', icon: FileText, color: 'text-blue-600 bg-blue-50',    to: '/documents' },
+    { label: 'Chunk 数', value: stats?.chunks       ?? '—', icon: Layers,   color: 'text-purple-600 bg-purple-50', to: '/chunks' },
+    { label: '向量数',   value: stats?.vectors      ?? '—', icon: Zap,      color: 'text-green-600 bg-green-50',   to: '/chunks' },
+    { label: '项目数',   value: projects?.length    ?? '—', icon: Folder,   color: 'text-amber-600 bg-amber-50',   to: '/projects' },
   ]
 
   return (
@@ -35,7 +38,7 @@ export default function Dashboard() {
       <p className="text-sm text-gray-500 mb-8">实施知识综合管理平台</p>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-3 gap-5 mb-6">
+      <div className="grid grid-cols-4 gap-5 mb-6">
         {cards.map(({ label, value, icon: Icon, color, to }) => (
           <Link key={label} to={to} className="bg-white rounded-xl border border-gray-200 p-6 flex items-center gap-4 hover:border-gray-300 hover:shadow-sm transition-all group">
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
@@ -65,6 +68,47 @@ export default function Dashboard() {
           </div>
           <ArrowRight size={15} className="text-orange-400"/>
         </Link>
+      )}
+
+      {/* Recent challenges */}
+      {recentRuns && recentRuns.items.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 mb-6">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="font-semibold text-gray-800 flex items-center gap-2">
+              <Brain size={16} className="text-indigo-500" /> 最近挑战
+            </h2>
+            <Link to="/challenge" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+              查看全部 <ArrowRight size={11}/>
+            </Link>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {recentRuns.items.map(run => (
+              <div key={run.id} className="px-6 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                <div className="flex items-center gap-2 text-sm text-gray-700 min-w-0">
+                  <Clock size={13} className="text-gray-400 flex-shrink-0" />
+                  <span className="flex-shrink-0">{new Date(run.started_at).toLocaleString('zh-CN', { hour12: false })}</span>
+                  <span className="text-xs text-gray-400 truncate">
+                    {run.target_stages?.slice(0, 3).join(' / ')}
+                    {(run.target_stages?.length ?? 0) > 3 ? '…' : ''}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className={`text-sm font-mono font-semibold ${
+                    run.pass_rate >= 0.8 ? 'text-green-600' : run.pass_rate >= 0.5 ? 'text-amber-600' : 'text-red-500'
+                  }`}>
+                    {run.total > 0 ? `${Math.round(run.pass_rate * 100)}%` : '—'}
+                  </span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${
+                    run.status === 'completed' ? 'bg-green-50 text-green-700' :
+                    run.status === 'failed' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'
+                  }`}>
+                    {run.status === 'completed' ? '完成' : run.status === 'failed' ? '失败' : '执行中'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Recent documents */}

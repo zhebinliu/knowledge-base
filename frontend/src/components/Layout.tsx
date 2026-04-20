@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { NavLink, Outlet, Link } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Brain, MessageSquare,
-  ClipboardCheck, BookOpen, Settings, ChevronDown, LogOut, KeyRound, Shield, Folder, History,
+  ClipboardCheck, BookOpen, Settings, ChevronDown, LogOut, KeyRound, Shield, Folder,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useAuth } from '../auth/AuthContext'
@@ -15,7 +15,6 @@ const nav = [
   { to: '/qa',        label: '智能问答',  icon: MessageSquare },
   { to: '/review',    label: '审核队列',  icon: ClipboardCheck },
   { to: '/challenge', label: '知识挑战',  icon: Brain },
-  { to: '/challenge/history', label: '挑战历史', icon: History },
   { to: '/settings',  label: '系统设置',  icon: Settings },
 ]
 

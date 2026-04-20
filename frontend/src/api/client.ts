@@ -385,6 +385,11 @@ export const resetUserPassword = (id: string, newPassword?: string) =>
 export const deleteUser = (id: string) =>
   api.delete(`/users/${id}`)
 
+// ── Export ───────────────────────────────────────────────────────────────────
+
+export const exportChunks = (params: { ltc_stage?: string; industry?: string } = {}) =>
+  api.post<{ chunks: object[]; count: number }>('/transfer/export', params).then(r => r.data)
+
 // ── Stats ────────────────────────────────────────────────────────────────────
 
 export const getStats = () =>

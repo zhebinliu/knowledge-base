@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Brain, Play, ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader, Square, HelpCircle, ThumbsUp, ThumbsDown, Plus, Clock, Trash2, Power, Cpu } from 'lucide-react'
+import { Brain, Play, ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader, Square, HelpCircle, ThumbsUp, ThumbsDown, Plus, Clock, Trash2, Power, Cpu, History } from 'lucide-react'
 import MarkdownView from '../components/MarkdownView'
+import ChallengeHistory from './ChallengeHistory'
 import {
   approveReview, rejectReview,
   listChallengeSchedules, createChallengeSchedule, deleteChallengeSchedule,
@@ -31,7 +32,33 @@ interface QuestionCard {
   judge_model?: string | null
 }
 
+function ChallengeTabBar({ activeTab, setActiveTab }: { activeTab: 'challenge' | 'history'; setActiveTab: (t: 'challenge' | 'history') => void }) {
+  return (
+    <div className="bg-white border-b border-gray-200 px-8">
+      <div className="flex gap-0 max-w-4xl mx-auto">
+        {([
+          { key: 'challenge', label: '开始挑战', Icon: Brain },
+          { key: 'history',   label: '挑战历史', Icon: History },
+        ] as const).map(({ key, label, Icon }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === key
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Icon size={14} />{label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Challenge() {
+  const [activeTab, setActiveTab] = useState<'challenge' | 'history'>('challenge')
   const [stages, setStages]     = useState<string[]>(['线索', '客户', '商机'])
   const [customStages, setCustomStages] = useState<string[]>([])
   const [customInput, setCustomInput]   = useState('')
@@ -191,7 +218,10 @@ export default function Challenge() {
   const running  = phase === 'generating' || phase === 'answering'
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div>
+      <ChallengeTabBar activeTab={activeTab} setActiveTab={setActiveTab} />
+      {activeTab === 'history' ? <ChallengeHistory /> : (
+      <div className="p-8 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">知识挑战</h1>
 
       {/* Config */}
@@ -481,6 +511,8 @@ export default function Challenge() {
 
       {/* ---- Schedule Panel (isolated error boundary) ---- */}
       <SchedulePanelSafe />
+    </div>
+      )}
     </div>
   )
 }

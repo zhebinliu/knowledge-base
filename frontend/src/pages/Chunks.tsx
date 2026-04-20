@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { listChunks, updateChunk, type Chunk } from '../api/client'
-import { ChevronDown, ChevronUp, Tag, Pencil, Check, X, Loader, Cpu } from 'lucide-react'
+import { listChunks, updateChunk, exportChunks, type Chunk } from '../api/client'
+import { ChevronDown, ChevronUp, Tag, Pencil, Check, X, Loader, Cpu, Download } from 'lucide-react'
 import MarkdownView from '../components/MarkdownView'
 
 const LTC_STAGES = ['', '线索', '客户', '商机', '报价', '订单', '合同', '交付', '回款', '售后', '通用']
@@ -193,6 +193,27 @@ function ChunkRow({ chunk }: { chunk: Chunk }) {
 export default function Chunks() {
   const [ltcStage, setLtcStage]         = useState('')
   const [reviewStatus, setReviewStatus] = useState('')
+  const [exporting, setExporting]       = useState(false)
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const data = await exportChunks({ ltc_stage: ltcStage || undefined })
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `knowledge_${new Date().toISOString().slice(0, 10)}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch {
+      alert('导出失败，请重试')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const { data: chunks, isLoading } = useQuery({
     queryKey: ['chunks', ltcStage, reviewStatus],
@@ -207,7 +228,17 @@ export default function Chunks() {
     <div className="p-8 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">知识库</h1>
-        <span className="text-sm text-gray-500">{chunks?.length ?? 0} 条</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-500">{chunks?.length ?? 0} 条</span>
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            {exporting ? <Loader size={13} className="animate-spin"/> : <Download size={13}/>}
+            导出 JSON
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
