@@ -34,6 +34,7 @@ def _user_dto(u: User) -> dict:
         "is_active": u.is_active,
         "must_change_password": u.must_change_password,
         "sso_provider": u.sso_provider,
+        "allowed_modules": u.allowed_modules,
         "created_at": u.created_at,
         "last_login_at": u.last_login_at,
     }

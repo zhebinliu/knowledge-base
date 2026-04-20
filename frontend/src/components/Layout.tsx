@@ -7,7 +7,19 @@ import {
 // BookOpen kept for chunks nav icon
 import { useAuth } from '../auth/AuthContext'
 
-const navGroups = [
+/** path → module key 映射 */
+const pathToModule: Record<string, string> = {
+  '/': 'dashboard',
+  '/projects': 'projects',
+  '/documents': 'documents',
+  '/chunks': 'chunks',
+  '/qa': 'qa',
+  '/review': 'review',
+  '/challenge': 'challenge',
+  '/settings': 'settings',
+}
+
+const allNavGroups = [
   {
     label: '工作区',
     items: [
@@ -43,6 +55,18 @@ export default function Layout() {
 
   const display = user?.full_name || user?.username || '未登录'
   const initial = (user?.full_name || user?.username || 'U').slice(0, 1).toUpperCase()
+
+  const canAccess = (to: string) => {
+    if (!user) return false
+    if (user.is_admin) return true
+    if (!user.allowed_modules) return true // null = 全部可见
+    const mod = pathToModule[to]
+    return mod ? user.allowed_modules.includes(mod) : false
+  }
+
+  const navGroups = allNavGroups
+    .map(g => ({ ...g, items: g.items.filter(i => canAccess(i.to)) }))
+    .filter(g => g.items.length > 0)
 
   return (
     <div className="shell">

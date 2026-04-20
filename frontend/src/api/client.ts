@@ -64,6 +64,7 @@ export interface AuthUser {
   is_active: boolean
   must_change_password: boolean
   sso_provider: string | null
+  allowed_modules: string[] | null  // null = 全部模块
   created_at: string
   last_login_at: string | null
 }
@@ -188,6 +189,16 @@ export interface QAResponse {
 
 export const askQuestion = (body: QARequest) =>
   api.post<QAResponse>('/qa/ask', body).then(r => r.data)
+
+export interface GenerateDocRequest {
+  template: string
+  project_name: string
+  industry: string
+  query?: string
+}
+
+export const generateDoc = (body: GenerateDocRequest) =>
+  api.post<{ content: string }>('/qa/generate-doc', body).then(r => r.data)
 
 // ── Challenge Schedules ─────────────────────────────────────────────────────
 
@@ -373,7 +384,15 @@ export const getChallengeRun = (id: string) =>
 export const listUsers = () =>
   api.get<AuthUser[]>('/users').then(r => r.data)
 
-export const updateUser = (id: string, body: { is_admin?: boolean; is_active?: boolean; full_name?: string; email?: string }) =>
+export const createUser = (body: {
+  username: string; password?: string; full_name?: string; email?: string;
+  is_admin?: boolean; allowed_modules?: string[] | null
+}) =>
+  api.post<AuthUser & { initial_password?: string }>('/users', body).then(r => r.data)
+
+export const updateUser = (id: string, body: {
+  is_admin?: boolean; is_active?: boolean; full_name?: string; email?: string; allowed_modules?: string[] | null
+}) =>
   api.patch<AuthUser>(`/users/${id}`, body).then(r => r.data)
 
 export const resetUserPassword = (id: string, newPassword?: string) =>

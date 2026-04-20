@@ -26,6 +26,7 @@ def _user_dto(u: User) -> dict:
         "is_active": u.is_active,
         "must_change_password": u.must_change_password,
         "sso_provider": u.sso_provider,
+        "allowed_modules": u.allowed_modules,
         "created_at": u.created_at,
         "last_login_at": u.last_login_at,
     }
@@ -51,11 +52,49 @@ async def list_users(session: AsyncSession = Depends(get_session)):
     return [_user_dto(u) for u in result.scalars().all()]
 
 
+@router.post("", status_code=201)
+async def create_user(
+    payload: UserCreate,
+    current: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    existing = await session.scalar(select(User).where(User.username == payload.username))
+    if existing:
+        raise HTTPException(400, "用户名已存在")
+    raw_password = payload.password or _generate_password()
+    user = User(
+        username=payload.username,
+        full_name=payload.full_name,
+        email=payload.email,
+        is_admin=payload.is_admin,
+        password_hash=hash_password(raw_password),
+        must_change_password=not bool(payload.password),  # 自动生成密码时强制改密
+        allowed_modules=payload.allowed_modules,
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    logger.info("user_created", admin=current.username, new_user=user.username)
+    return {**_user_dto(user), "initial_password": raw_password if not payload.password else None}
+
+
+class UserCreate(BaseModel):
+    username: str = Field(min_length=3, max_length=64)
+    password: str | None = Field(default=None, min_length=6, max_length=128)
+    full_name: str | None = None
+    email: str | None = None
+    is_admin: bool = False
+    allowed_modules: list[str] | None = None  # None = 全部
+
+
+_UNSET = object()
+
 class UserPatch(BaseModel):
     is_admin: bool | None = None
     is_active: bool | None = None
     full_name: str | None = None
     email: str | None = None
+    allowed_modules: list[str] | None = None  # None = 全部；通过 model_fields_set 判断是否修改
 
 
 @router.patch("/{user_id}")
@@ -93,6 +132,8 @@ async def update_user(
         user.full_name = payload.full_name
     if payload.email is not None:
         user.email = payload.email
+    if "allowed_modules" in payload.model_fields_set:
+        user.allowed_modules = payload.allowed_modules
 
     await session.commit()
     logger.info("user_updated", admin=current.username, target=user.username)
