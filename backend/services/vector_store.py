@@ -74,7 +74,9 @@ class VectorStore:
 
     async def collection_info(self) -> dict:
         info = await self.client.get_collection(settings.qdrant_collection)
-        return {"vectors_count": info.vectors_count, "points_count": info.points_count}
+        # vectors_count is deprecated in newer Qdrant versions; fall back to points_count
+        vc = info.vectors_count if info.vectors_count is not None else info.points_count
+        return {"vectors_count": vc, "points_count": info.points_count}
 
 
 vector_store = VectorStore()
