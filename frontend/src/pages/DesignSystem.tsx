@@ -3,7 +3,7 @@
  * Route: /ds  (no auth required)
  * Inspired by Salesforce Lightning Design System 2
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BookOpen, Palette, Type, Square, Layers, Box, AlertCircle, ToggleLeft, Layout } from 'lucide-react'
 
 // ── Data ─────────────────────────────────────────────────────────────────────
@@ -100,6 +100,11 @@ function LiveExample({ label, children, code }: { label: string; children: React
 
 export default function DesignSystem() {
   const [active, setActive] = useState('intro')
+
+  useEffect(() => {
+    document.title = '设计规范 — KB System'
+    return () => { document.title = '实施知识综合管理' }
+  }, [])
 
   const scrollTo = (id: string) => {
     setActive(id)

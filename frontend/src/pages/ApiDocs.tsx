@@ -1,11 +1,12 @@
 /**
  * API Documentation — /api
  * No auth required. Shows REST endpoints + MCP server setup.
+ * Design: follows /ds design-system tokens (light theme).
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Copy, Check, BookOpen, Key, Zap, Code2, Box, ChevronDown, ChevronRight, Terminal } from 'lucide-react'
 
-const BASE = 'https://kb.liii.in'
+const BASE = 'https://kb.tokenwave.cloud'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -24,9 +25,9 @@ function CopyBtn({ text, id, label = '' }: { text: string; id: string; label?: s
   return (
     <button
       onClick={() => copy(text, id)}
-      className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20 transition-colors text-gray-300 hover:text-white"
+      className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded border border-line bg-canvas text-ink-secondary hover:text-brand hover:border-brand transition-colors"
     >
-      {copied(id) ? <Check size={11} className="text-green-400" /> : <Copy size={11} />}
+      {copied(id) ? <Check size={11} className="text-green-600" /> : <Copy size={11} />}
       {label || (copied(id) ? '已复制' : '复制')}
     </button>
   )
@@ -34,12 +35,12 @@ function CopyBtn({ text, id, label = '' }: { text: string; id: string; label?: s
 
 function CodeBlock({ code, lang = 'bash', id }: { code: string; lang?: string; id: string }) {
   return (
-    <div className="relative mt-3 rounded-lg overflow-hidden border border-gray-700">
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
-        <span className="text-xs text-gray-400 font-mono">{lang}</span>
+    <div className="relative mt-3 rounded-lg overflow-hidden border border-line">
+      <div className="flex items-center justify-between px-4 py-2 bg-surface border-b border-line">
+        <span className="text-xs text-ink-muted font-mono">{lang}</span>
         <CopyBtn text={code} id={id} />
       </div>
-      <pre className="bg-gray-900 px-4 py-3 text-xs text-green-300 font-mono overflow-x-auto whitespace-pre leading-relaxed">
+      <pre className="bg-[#F5F7FA] px-4 py-3 text-xs text-[#1a3a5c] font-mono overflow-x-auto whitespace-pre leading-relaxed">
         {code}
       </pre>
     </div>
@@ -48,11 +49,11 @@ function CodeBlock({ code, lang = 'bash', id }: { code: string; lang?: string; i
 
 function Method({ m }: { m: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' }) {
   const colors: Record<string, string> = {
-    GET: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
-    POST: 'bg-green-500/15 text-green-400 border-green-500/30',
-    PUT: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
-    PATCH: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
-    DELETE: 'bg-red-500/15 text-red-400 border-red-500/30',
+    GET:    'bg-blue-50 text-blue-700 border-blue-200',
+    POST:   'bg-green-50 text-green-700 border-green-200',
+    PUT:    'bg-amber-50 text-amber-700 border-amber-200',
+    PATCH:  'bg-purple-50 text-purple-700 border-purple-200',
+    DELETE: 'bg-red-50 text-red-700 border-red-200',
   }
   return (
     <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold border font-mono ${colors[m]}`}>
@@ -74,27 +75,27 @@ function Endpoint({ method, path, desc, params, example, response }: {
   const [open, setOpen] = useState(false)
   const fullPath = `${BASE}${path}`
   return (
-    <div className="border border-gray-700 rounded-lg mb-3 overflow-hidden bg-gray-900/40">
+    <div className="border border-line rounded-lg mb-3 overflow-hidden bg-surface">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800/50 transition-colors text-left"
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-canvas transition-colors text-left"
       >
         <Method m={method} />
-        <code className="text-sm text-gray-200 font-mono flex-1">{path}</code>
-        <span className="text-xs text-gray-400 hidden sm:block">{desc}</span>
-        {open ? <ChevronDown size={14} className="text-gray-500 flex-shrink-0" />
-               : <ChevronRight size={14} className="text-gray-500 flex-shrink-0" />}
+        <code className="text-sm text-ink font-mono flex-1">{path}</code>
+        <span className="text-xs text-ink-secondary hidden sm:block">{desc}</span>
+        {open ? <ChevronDown size={14} className="text-ink-muted flex-shrink-0" />
+               : <ChevronRight size={14} className="text-ink-muted flex-shrink-0" />}
       </button>
       {open && (
-        <div className="px-4 pb-4 border-t border-gray-700/50 pt-3">
-          <p className="text-sm text-gray-300 mb-3">{desc}</p>
+        <div className="px-4 pb-4 border-t border-line pt-3">
+          <p className="text-sm text-ink-secondary mb-3">{desc}</p>
           {params && params.length > 0 && (
             <div className="mb-3">
-              <p className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">参数</p>
+              <p className="text-xs font-semibold text-ink-muted mb-2 uppercase tracking-wider">参数</p>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="text-gray-500">
+                    <tr className="text-ink-muted">
                       <th className="text-left pb-1 font-medium w-32">参数名</th>
                       <th className="text-left pb-1 font-medium w-24">类型</th>
                       <th className="text-left pb-1 font-medium w-16">必填</th>
@@ -103,11 +104,11 @@ function Endpoint({ method, path, desc, params, example, response }: {
                   </thead>
                   <tbody>
                     {params.map(p => (
-                      <tr key={p.name} className="border-t border-gray-800">
-                        <td className="py-1.5 pr-3 font-mono text-amber-300">{p.name}</td>
-                        <td className="py-1.5 pr-3 text-blue-300">{p.type}</td>
-                        <td className="py-1.5 pr-3">{p.req ? <span className="text-red-400">是</span> : <span className="text-gray-500">否</span>}</td>
-                        <td className="py-1.5 text-gray-400">{p.desc}</td>
+                      <tr key={p.name} className="border-t border-line">
+                        <td className="py-1.5 pr-3 font-mono text-[#D96400]">{p.name}</td>
+                        <td className="py-1.5 pr-3 text-blue-600">{p.type}</td>
+                        <td className="py-1.5 pr-3">{p.req ? <span className="text-red-600">是</span> : <span className="text-ink-muted">否</span>}</td>
+                        <td className="py-1.5 text-ink-secondary">{p.desc}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -119,9 +120,9 @@ function Endpoint({ method, path, desc, params, example, response }: {
           {response && (
             <CodeBlock code={response} lang="json (response)" id={`res-${path}`} />
           )}
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-xs text-gray-500">完整 URL：</span>
-            <code className="text-xs text-gray-300 font-mono">{fullPath}</code>
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-xs text-ink-muted">完整 URL：</span>
+            <code className="text-xs text-ink font-mono">{fullPath}</code>
             <CopyBtn text={fullPath} id={`url-${path}`} label="复制 URL" />
           </div>
         </div>
@@ -130,18 +131,18 @@ function Endpoint({ method, path, desc, params, example, response }: {
   )
 }
 
-// ── Sections ──────────────────────────────────────────────────────────────────
+// ── Section ───────────────────────────────────────────────────────────────────
 
 function Section({ id, title, icon: Icon, children }: {
   id: string; title: string; icon: any; children: React.ReactNode
 }) {
   return (
     <section id={id} className="mb-14 scroll-mt-8">
-      <div className="flex items-center gap-2.5 mb-5 pb-3 border-b border-gray-700">
-        <div className="w-8 h-8 rounded-lg bg-orange-500/15 flex items-center justify-center">
-          <Icon size={15} className="text-orange-400" />
+      <div className="flex items-center gap-2.5 mb-5 pb-3 border-b border-line">
+        <div className="w-8 h-8 rounded-lg bg-brand-light flex items-center justify-center">
+          <Icon size={15} style={{ color: 'var(--accent)' }} />
         </div>
-        <h2 className="text-lg font-bold text-white">{title}</h2>
+        <h2 className="text-lg font-bold text-ink">{title}</h2>
       </div>
       {children}
     </section>
@@ -156,20 +157,20 @@ function McpTool({ name, desc, params, example }: {
   example: object
 }) {
   return (
-    <div className="border border-gray-700 rounded-lg p-4 bg-gray-900/40 mb-4">
+    <div className="border border-line rounded-lg p-4 bg-surface mb-4">
       <div className="flex items-start gap-3 mb-3">
-        <div className="w-7 h-7 rounded bg-orange-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-          <Terminal size={12} className="text-orange-400" />
+        <div className="w-7 h-7 rounded bg-brand-light flex items-center justify-center flex-shrink-0 mt-0.5">
+          <Terminal size={12} style={{ color: 'var(--accent)' }} />
         </div>
         <div>
-          <code className="text-sm font-bold text-orange-300">{name}</code>
-          <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
+          <code className="text-sm font-bold text-[#D96400]">{name}</code>
+          <p className="text-xs text-ink-secondary mt-0.5">{desc}</p>
         </div>
       </div>
       <div className="overflow-x-auto mb-3">
         <table className="w-full text-xs">
           <thead>
-            <tr className="text-gray-500">
+            <tr className="text-ink-muted">
               <th className="text-left pb-1 font-medium w-28">参数</th>
               <th className="text-left pb-1 font-medium w-20">类型</th>
               <th className="text-left pb-1 font-medium w-16">必填</th>
@@ -178,11 +179,11 @@ function McpTool({ name, desc, params, example }: {
           </thead>
           <tbody>
             {params.map(p => (
-              <tr key={p.n} className="border-t border-gray-800">
-                <td className="py-1.5 pr-3 font-mono text-amber-300">{p.n}</td>
-                <td className="py-1.5 pr-3 text-blue-300">{p.t}</td>
-                <td className="py-1.5 pr-3">{p.req ? <span className="text-red-400">是</span> : <span className="text-gray-500">否</span>}</td>
-                <td className="py-1.5 text-gray-400">{p.d}</td>
+              <tr key={p.n} className="border-t border-line">
+                <td className="py-1.5 pr-3 font-mono text-[#D96400]">{p.n}</td>
+                <td className="py-1.5 pr-3 text-blue-600">{p.t}</td>
+                <td className="py-1.5 pr-3">{p.req ? <span className="text-red-600">是</span> : <span className="text-ink-muted">否</span>}</td>
+                <td className="py-1.5 text-ink-secondary">{p.d}</td>
               </tr>
             ))}
           </tbody>
@@ -212,6 +213,11 @@ const NAV = [
 export default function ApiDocs() {
   const [active, setActive] = useState('quickstart')
 
+  useEffect(() => {
+    document.title = 'API 文档 — KB System'
+    return () => { document.title = '实施知识综合管理' }
+  }, [])
+
   const scrollTo = (id: string) => {
     setActive(id)
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
@@ -237,54 +243,61 @@ export default function ApiDocs() {
   }, null, 2)
 
   return (
-    <div className="flex min-h-screen bg-gray-950 text-gray-100">
+    <div className="flex min-h-screen bg-canvas">
 
       {/* ── Left nav ─────────────────────────────────────────────────────── */}
-      <aside className="w-52 flex-shrink-0 border-r border-gray-800 bg-gray-900 flex flex-col sticky top-0 h-screen overflow-y-auto">
-        <div className="h-14 flex items-center gap-2.5 px-4 border-b border-gray-800 flex-shrink-0">
+      <aside className="w-56 flex-shrink-0 border-r border-line bg-surface flex flex-col sticky top-0 h-screen overflow-y-auto">
+        {/* Logo */}
+        <div className="h-14 flex items-center gap-2.5 px-5 border-b border-line flex-shrink-0">
           <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}>
             <Code2 size={13} className="text-white" />
           </div>
           <div>
-            <p className="text-xs font-bold leading-none text-white">API Reference</p>
-            <p className="text-[10px] text-gray-500 leading-none mt-0.5">KB System v1.0</p>
+            <p className="text-xs font-bold text-ink leading-none">API Reference</p>
+            <p className="text-[10px] text-ink-muted leading-none mt-0.5">KB System v1.0</p>
           </div>
         </div>
-        <div className="px-2 py-1 border-b border-gray-800">
-          <a href="/" className="block text-xs text-gray-500 hover:text-gray-300 px-3 py-2 transition-colors">← 返回系统</a>
+
+        {/* Back link */}
+        <div className="px-2 py-1 border-b border-line">
+          <a href="/" className="block text-xs text-ink-secondary hover:text-ink px-3 py-2 transition-colors">← 返回系统</a>
         </div>
+
+        {/* Nav items */}
         <nav className="flex-1 py-3 px-2">
-          <p className="px-3 py-1 text-[10px] font-semibold text-gray-600 uppercase tracking-widest">文档</p>
+          <p className="px-3 py-1 text-[10px] font-semibold text-ink-muted uppercase tracking-widest">文档</p>
           {NAV.map(({ id, label }) => (
             <button
               key={id}
               onClick={() => scrollTo(id)}
-              className={`w-full text-left px-3 py-2 rounded text-xs font-medium mb-0.5 transition-colors ${
+              className={`w-full text-left px-3 py-2 rounded text-sm font-medium mb-0.5 transition-colors ${
                 active === id
-                  ? 'bg-orange-500/15 text-orange-300'
-                  : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                  ? 'bg-brand-light text-brand-deep'
+                  : 'text-ink-secondary hover:bg-canvas hover:text-ink'
               }`}
             >
               {label}
             </button>
           ))}
         </nav>
-        <div className="px-4 py-3 border-t border-gray-800">
-          <p className="text-[10px] text-gray-600">Base URL</p>
-          <code className="text-[10px] text-orange-400">{BASE}</code>
+
+        {/* Base URL footer */}
+        <div className="px-4 py-3 border-t border-line">
+          <p className="text-[10px] text-ink-muted mb-0.5">Base URL</p>
+          <code className="text-[10px] font-mono" style={{ color: 'var(--accent)' }}>{BASE}</code>
         </div>
       </aside>
 
       {/* ── Content ──────────────────────────────────────────────────────── */}
-      <main className="flex-1 px-10 py-8 max-w-4xl overflow-y-auto">
+      <main className="flex-1 px-12 py-10 max-w-4xl overflow-y-auto">
 
         {/* Hero */}
         <div className="mb-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs mb-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-light border border-orange-200 text-[#D96400] text-xs mb-4">
             <Zap size={11} /> REST API + MCP 服务器
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">KB System API</h1>
-          <p className="text-gray-400 text-sm max-w-xl">
+          <h1 className="text-3xl font-bold text-ink mb-2">KB System API</h1>
+          <p className="text-ink-secondary text-sm max-w-xl">
             纷享销客 CRM 实施知识库开放接口。支持标准 REST API 和 MCP（Model Context Protocol）协议，
             可与 Claude、Cursor、VS Code Copilot 等 AI 工具直接集成。
           </p>
@@ -294,20 +307,20 @@ export default function ApiDocs() {
         <Section id="quickstart" title="快速开始" icon={BookOpen}>
           <div className="grid grid-cols-3 gap-3 mb-6">
             {[
-              { label: 'Base URL', val: BASE },
+              { label: 'Base URL',     val: BASE },
               { label: 'Content-Type', val: 'application/json' },
-              { label: 'Auth', val: 'Bearer JWT' },
+              { label: 'Auth',         val: 'Bearer JWT' },
             ].map(({ label, val }) => (
-              <div key={label} className="bg-gray-900 border border-gray-700 rounded-lg p-3">
-                <p className="text-xs text-gray-500 mb-1">{label}</p>
-                <code className="text-xs text-orange-300">{val}</code>
+              <div key={label} className="card p-3">
+                <p className="text-xs text-ink-muted mb-1">{label}</p>
+                <code className="text-xs font-mono text-[#D96400]">{val}</code>
               </div>
             ))}
           </div>
           <CodeBlock id="qs-1" lang="bash — 登录获取 token" code={
 `curl -s -X POST ${BASE}/api/auth/login \\
   -H "Content-Type: application/json" \\
-  -d '{"username":"admin","password":"<password"}' \\
+  -d '{"username":"admin","password":"<password>"}' \\
   | jq .access_token`} />
           <CodeBlock id="qs-2" lang="bash — 提问" code={
 `TOKEN="<your-jwt-token>"
@@ -337,12 +350,12 @@ print(r.json()["answer"])`} />
 
         {/* Auth */}
         <Section id="auth" title="认证" icon={Key}>
-          <p className="text-sm text-gray-400 mb-4">
+          <p className="text-sm text-ink-secondary mb-4">
             所有写操作（上传、删除、修改）需要在请求头中携带 JWT Token。
             QA 问答接口也需要认证。
           </p>
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 mb-4">
-            <code className="text-sm text-gray-200">Authorization: Bearer {'<token>'}</code>
+          <div className="card p-4 mb-4">
+            <code className="text-sm text-ink font-mono">Authorization: Bearer {'<token>'}</code>
           </div>
           <Endpoint
             method="POST" path="/api/auth/login"
@@ -394,7 +407,7 @@ print(r.json()["answer"])`} />
           />
           <Endpoint
             method="POST" path="/api/qa/ask-stream"
-            desc={'流式问答（SSE），token 逐步返回。事件格式：data: {"token":"..."} 或 data: {"sources":[...]}' }
+            desc={'流式问答（SSE），token 逐步返回。事件格式：data: {"token":"..."} 或 data: {"sources":[...]}'}
             params={[
               { name: 'question',  type: 'string', req: true,  desc: '问题文本' },
               { name: 'ltc_stage', type: 'string', req: false, desc: 'LTC 阶段过滤' },
@@ -501,25 +514,31 @@ print(r.json()["answer"])`} />
 
         {/* MCP */}
         <Section id="mcp" title="MCP 服务器" icon={Terminal}>
-          <div className="bg-orange-500/5 border border-orange-500/20 rounded-lg p-4 mb-6">
-            <p className="text-sm text-orange-200 font-medium mb-1">Model Context Protocol</p>
-            <p className="text-xs text-gray-400 leading-relaxed">
+          <div className="bg-brand-light border border-orange-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-[#D96400] font-medium mb-1">Model Context Protocol</p>
+            <p className="text-xs text-ink-secondary leading-relaxed">
               KB System 实现了 MCP Streamable HTTP 传输协议（2024-11-05 规范）。
               配置后，Claude、Cursor 等 AI 工具可以直接调用知识库的 RAG 问答和语义检索能力。
             </p>
           </div>
 
           {/* Endpoint */}
-          <div className="border border-gray-700 rounded-lg p-4 bg-gray-900/40 mb-6">
+          <div className="border border-line rounded-lg p-4 bg-surface mb-6">
             <div className="flex items-center gap-3 mb-2">
               <Method m="POST" />
-              <code className="text-sm text-gray-200 font-mono">/api/mcp</code>
+              <code className="text-sm text-ink font-mono">/api/mcp</code>
             </div>
-            <p className="text-xs text-gray-400">JSON-RPC 2.0。支持方法：<code className="text-orange-300">initialize</code>、<code className="text-orange-300">tools/list</code>、<code className="text-orange-300">tools/call</code>、<code className="text-orange-300">ping</code></p>
+            <p className="text-xs text-ink-secondary">
+              JSON-RPC 2.0。支持方法：
+              <code className="text-[#D96400] mx-1">initialize</code>、
+              <code className="text-[#D96400] mx-1">tools/list</code>、
+              <code className="text-[#D96400] mx-1">tools/call</code>、
+              <code className="text-[#D96400] mx-1">ping</code>
+            </p>
           </div>
 
           {/* Tools */}
-          <h3 className="text-sm font-semibold text-gray-300 mb-3">可用工具</h3>
+          <h3 className="text-sm font-semibold text-ink mb-3">可用工具</h3>
           <McpTool
             name="ask_kb"
             desc="向知识库提问，返回 RAG 答案 + 来源引用（推荐）"
@@ -533,20 +552,23 @@ print(r.json()["answer"])`} />
             name="search_kb"
             desc="语义检索，返回原始知识切片列表"
             params={[
-              { n: 'query',     t: 'string', req: true,  d: '检索查询语句' },
-              { n: 'top_k',     t: 'integer',req: false, d: '返回数量，默认 5，最大 20' },
-              { n: 'ltc_stage', t: 'string', req: false, d: 'LTC 阶段过滤' },
+              { n: 'query',     t: 'string',  req: true,  d: '检索查询语句' },
+              { n: 'top_k',     t: 'integer', req: false, d: '返回数量，默认 5，最大 20' },
+              { n: 'ltc_stage', t: 'string',  req: false, d: 'LTC 阶段过滤' },
             ]}
             example={{ query: '合同签署注意事项', top_k: 5 }}
           />
 
           {/* Claude Desktop */}
-          <h3 className="text-sm font-semibold text-gray-300 mt-8 mb-3">Claude Desktop 配置</h3>
-          <p className="text-xs text-gray-500 mb-2">编辑 <code className="text-gray-300">claude_desktop_config.json</code>（macOS: <code className="text-gray-300">~/Library/Application Support/Claude/</code>）：</p>
+          <h3 className="text-sm font-semibold text-ink mt-8 mb-3">Claude Desktop 配置</h3>
+          <p className="text-xs text-ink-secondary mb-2">
+            编辑 <code className="text-ink font-mono">claude_desktop_config.json</code>
+            （macOS: <code className="text-ink font-mono">~/Library/Application Support/Claude/</code>）：
+          </p>
           <CodeBlock id="claude-cfg" lang="json" code={claudeDesktopConfig} />
 
           {/* Generic HTTP */}
-          <h3 className="text-sm font-semibold text-gray-300 mt-8 mb-3">通用 MCP HTTP 客户端</h3>
+          <h3 className="text-sm font-semibold text-ink mt-8 mb-3">通用 MCP HTTP 客户端</h3>
           <CodeBlock id="mcp-raw" lang="bash — tools/list" code={
 `curl -X POST ${BASE}/api/mcp \\
   -H "Authorization: Bearer $TOKEN" \\
@@ -567,7 +589,7 @@ print(r.json()["answer"])`} />
   }'`} />
 
           {/* Python */}
-          <h3 className="text-sm font-semibold text-gray-300 mt-8 mb-3">Python 调用示例</h3>
+          <h3 className="text-sm font-semibold text-ink mt-8 mb-3">Python 调用示例</h3>
           <CodeBlock id="py-mcp" lang="python" code={
 `import httpx
 
@@ -600,7 +622,7 @@ r = httpx.post(f"{BASE}/api/mcp", headers=headers, json={
 print(r.json()["result"]["content"][0]["text"])`} />
 
           {/* JSON-RPC response format */}
-          <h3 className="text-sm font-semibold text-gray-300 mt-8 mb-3">响应格式</h3>
+          <h3 className="text-sm font-semibold text-ink mt-8 mb-3">响应格式</h3>
           <CodeBlock id="mcp-resp" lang="json (成功)" code={
 `{
   "jsonrpc": "2.0",
