@@ -1,19 +1,10 @@
 const { chromium } = require('playwright');
 const path = require('path');
+const fs = require('fs');
 
 const BASE = 'https://kb.liii.in';
 const OUT = path.join(__dirname, '..', 'screenshots');
-
-const pages = [
-  { name: 'login',       path: '/login',       auth: false },
-  { name: 'dashboard',   path: '/',             auth: true },
-  { name: 'projects',    path: '/projects',     auth: true },
-  { name: 'documents',   path: '/documents',    auth: true },
-  { name: 'chunks',      path: '/chunks',       auth: true },
-  { name: 'qa',          path: '/qa',           auth: true },
-  { name: 'challenge',   path: '/challenge',    auth: true },
-  { name: 'settings',    path: '/settings',     auth: true },
-];
+fs.mkdirSync(OUT, { recursive: true });
 
 (async () => {
   const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
@@ -23,71 +14,121 @@ const pages = [
   });
   const page = await context.newPage();
 
-  // Login
-  console.log('Logging in...');
-  await page.goto(BASE + '/login', { waitUntil: 'networkidle' });
-  await page.fill('input[type="text"], input[name="username"], input[placeholder*="用户"]', 'admin');
-  await page.fill('input[type="password"]', 'ChangeMe123!');
-  await page.screenshot({ path: path.join(OUT, 'login.png') });
-  console.log('  login.png');
+  // Debug login
+  console.log('Navigating to login...');
+  await page.goto(BASE + '/login', { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(1000);
 
-  await page.click('button[type="submit"], button:has-text("登录")');
-  await page.waitForURL(/\/(?!login)/, { timeout: 15000 }).catch(() => {});
-  await page.waitForTimeout(2000);
-
-  // If forced to change password, skip
-  if (page.url().includes('change-password')) {
-    console.log('  Skipping change-password page');
-    // Just screenshot it
-    await page.screenshot({ path: path.join(OUT, 'change-password.png') });
-    console.log('  change-password.png');
+  // List all interactive elements
+  const buttons = await page.locator('button').all();
+  for (const btn of buttons) {
+    const text = await btn.textContent();
+    const type = await btn.getAttribute('type');
+    console.log(`  button: text="${text?.trim()}" type=${type}`);
   }
 
-  // Screenshot each authenticated page
-  for (const p of pages) {
-    if (!p.auth) continue;
-    try {
-      console.log(`Navigating to ${p.path}...`);
-      await page.goto(BASE + p.path, { waitUntil: 'networkidle', timeout: 20000 });
-      await page.waitForTimeout(1500);
-      await page.screenshot({ path: path.join(OUT, p.name + '.png') });
-      console.log(`  ${p.name}.png`);
-    } catch (e) {
-      console.log(`  FAILED ${p.name}: ${e.message}`);
+  // Fill and submit
+  await page.locator('input').first().fill('admin');
+  await page.locator('input[type="password"]').first().fill('Welcome123');
+
+  // Listen for network responses
+  page.on('response', resp => {
+    if (resp.url().includes('/api/auth/login')) {
+      console.log(`  LOGIN RESPONSE: ${resp.status()}`);
+      resp.body().then(b => console.log(`  BODY: ${b.toString().substring(0, 200)}`)).catch(() => {});
     }
-  }
+  });
 
-  // Documents - click on a document to show chunks drawer
-  try {
-    console.log('Opening document drawer...');
-    await page.goto(BASE + '/documents', { waitUntil: 'networkidle', timeout: 20000 });
-    await page.waitForTimeout(1500);
-    // Click on first document row "查看" button
-    const viewBtn = page.locator('button:has-text("查看"), button:has-text("切片")').first();
-    if (await viewBtn.isVisible()) {
-      await viewBtn.click();
+  // Click the login button
+  const loginBtn = page.locator('button:has-text("登录"), button:has-text("Sign"), button:has-text("Login")').first();
+  console.log('  Login button found:', await loginBtn.count());
+  await loginBtn.click();
+  await page.waitForTimeout(5000);
+  console.log('  URL after login:', page.url());
+
+  // If still on login, try direct API call to check
+  if (page.url().includes('/login')) {
+    console.log('  Login via UI failed, trying API...');
+    const resp = await page.evaluate(async () => {
+      try {
+        const r = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'admin', password: 'Welcome123' }),
+        });
+        return { status: r.status, body: await r.text() };
+      } catch (e) {
+        return { error: e.message };
+      }
+    });
+    console.log('  API login:', JSON.stringify(resp));
+
+    if (resp.status === 200) {
+      // Parse token and set it
+      const data = JSON.parse(resp.body);
+      await page.evaluate((token) => {
+        localStorage.setItem('token', token);
+      }, data.access_token || data.token);
+      console.log('  Token set via API');
+
+      // Navigate to dashboard
+      await page.goto(BASE + '/', { waitUntil: 'networkidle', timeout: 20000 });
       await page.waitForTimeout(2000);
-      await page.screenshot({ path: path.join(OUT, 'documents-drawer.png') });
-      console.log('  documents-drawer.png');
+      console.log('  Dashboard URL:', page.url());
     }
-  } catch (e) {
-    console.log('  FAILED documents-drawer:', e.message);
   }
 
-  // Chunks page - expand a chunk
-  try {
-    console.log('Expanding a chunk...');
-    await page.goto(BASE + '/chunks', { waitUntil: 'networkidle', timeout: 20000 });
-    await page.waitForTimeout(2000);
-    const chunkCard = page.locator('.bg-white.border').first();
-    if (await chunkCard.isVisible()) {
-      await chunkCard.click();
-      await page.waitForTimeout(1000);
-      await page.screenshot({ path: path.join(OUT, 'chunks-expanded.png') });
-      console.log('  chunks-expanded.png');
+  // Save login screenshot
+  await page.goto(BASE + '/login', { waitUntil: 'networkidle', timeout: 20000 });
+  await page.waitForTimeout(1000);
+  await page.screenshot({ path: path.join(OUT, 'login.png') });
+  console.log('  Saved login.png');
+
+  // Go to dashboard
+  await page.goto(BASE + '/', { waitUntil: 'networkidle', timeout: 20000 });
+  await page.waitForTimeout(2000);
+  await page.screenshot({ path: path.join(OUT, 'dashboard.png') });
+  console.log('  Saved dashboard.png');
+
+  // Screenshot each page
+  const pages = [
+    { name: 'projects', path: '/projects' },
+    { name: 'documents', path: '/documents' },
+    { name: 'chunks', path: '/chunks' },
+    { name: 'qa', path: '/qa' },
+    { name: 'challenge', path: '/challenge' },
+    { name: 'settings', path: '/settings' },
+  ];
+
+  for (const p of pages) {
+    try {
+      console.log(`Screenshotting ${p.name}...`);
+      await page.goto(BASE + p.path, { waitUntil: 'networkidle', timeout: 20000 });
+      await page.waitForTimeout(2000);
+
+      if (page.url().includes('/login')) {
+        console.log(`  Redirected to login, re-injecting token...`);
+        // Re-inject token
+        const loginResp = await page.evaluate(async () => {
+          const r = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: 'admin', password: 'Welcome123' }),
+          });
+          const data = await r.json();
+          localStorage.setItem('token', data.access_token || data.token);
+          return r.status;
+        });
+        console.log(`  Re-login status: ${loginResp}`);
+        await page.goto(BASE + p.path, { waitUntil: 'networkidle', timeout: 20000 });
+        await page.waitForTimeout(2000);
+      }
+
+      await page.screenshot({ path: path.join(OUT, p.name + '.png') });
+      console.log(`  Saved ${p.name}.png`);
+    } catch (e) {
+      console.log(`  FAILED: ${e.message}`);
     }
-  } catch (e) {
-    console.log('  FAILED chunks-expanded:', e.message);
   }
 
   await browser.close();

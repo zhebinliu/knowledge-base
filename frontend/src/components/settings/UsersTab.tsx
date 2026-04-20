@@ -14,6 +14,8 @@ function formatTime(s: string | null): string {
   return d.toLocaleString('zh-CN', { hour12: false })
 }
 
+const gradientStyle = { background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' }
+
 export default function UsersTab() {
   const { user: me } = useAuth()
   const qc = useQueryClient()
@@ -47,9 +49,7 @@ export default function UsersTab() {
     onSettled: () => setPendingId(null),
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: ['users'] })
-      if (data.new_password) {
-        setResetResult({ username: vars.username, password: data.new_password })
-      }
+      if (data.new_password) setResetResult({ username: vars.username, password: data.new_password })
     },
     onError: handleErr,
   })
@@ -69,9 +69,7 @@ export default function UsersTab() {
           <h2 className="font-semibold text-gray-900">用户管理</h2>
           <p className="text-xs text-gray-500 mt-0.5">仅管理员可见。新用户可通过 /register 自助注册。</p>
         </div>
-        {users && (
-          <span className="text-sm text-gray-500">共 {users.length} 个用户</span>
-        )}
+        {users && <span className="text-sm text-gray-500">共 {users.length} 个用户</span>}
       </div>
 
       {error && (
@@ -105,7 +103,9 @@ export default function UsersTab() {
                 <tr key={u.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2.5 font-mono text-gray-800">
                     {u.username}
-                    {isMe && <span className="ml-1 text-[10px] bg-blue-100 text-blue-700 px-1 py-0.5 rounded">我</span>}
+                    {isMe && (
+                      <span className="ml-1 text-[10px] bg-orange-100 text-orange-700 px-1 py-0.5 rounded">我</span>
+                    )}
                   </td>
                   <td className="px-3 py-2.5 text-gray-700">{u.full_name || '—'}</td>
                   <td className="px-3 py-2.5 text-gray-500 text-xs">{u.email || '—'}</td>
@@ -131,10 +131,10 @@ export default function UsersTab() {
                   <td className="px-3 py-2.5 text-xs text-gray-500">{formatTime(u.last_login_at)}</td>
                   <td className="px-3 py-2.5 text-right">
                     <div className="inline-flex items-center gap-1">
-                      {isPending && <Loader size={13} className="animate-spin text-blue-500 mr-1" />}
+                      {isPending && <Loader size={13} className="animate-spin mr-1" style={{ color: 'var(--accent)' }} />}
                       <ActionButton
                         title={u.is_admin ? '取消管理员' : '设为管理员'}
-                        disabled={isMe && u.is_admin || isPending}
+                        disabled={(isMe && u.is_admin) || isPending}
                         onClick={() => patchMut.mutate({ id: u.id, body: { is_admin: !u.is_admin } })}
                       >
                         {u.is_admin ? <ShieldOff size={13} /> : <Shield size={13} />}
@@ -150,9 +150,8 @@ export default function UsersTab() {
                         title="重置密码（生成随机密码）"
                         disabled={isPending}
                         onClick={() => {
-                          if (confirm(`确认重置 ${u.username} 的密码？将生成一个随机密码并强制其下次登录改密。`)) {
+                          if (confirm(`确认重置 ${u.username} 的密码？将生成一个随机密码并强制其下次登录改密。`))
                             resetMut.mutate({ id: u.id, username: u.username })
-                          }
                         }}
                       >
                         <KeyRound size={13} />
@@ -162,9 +161,8 @@ export default function UsersTab() {
                         danger
                         disabled={isMe || isPending}
                         onClick={() => {
-                          if (confirm(`确认删除 ${u.username}？此操作不可撤销。`)) {
+                          if (confirm(`确认删除 ${u.username}？此操作不可撤销。`))
                             deleteMut.mutate({ id: u.id, username: u.username })
-                          }
                         }}
                       >
                         <Trash2 size={13} />
@@ -233,7 +231,8 @@ function ResetResultModal({ username, password, onClose }: { username: string; p
               setCopied(true)
               setTimeout(() => setCopied(false), 1500)
             }}
-            className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 inline-flex items-center gap-1"
+            className="px-3 py-2 text-sm text-white rounded inline-flex items-center gap-1 transition-all"
+            style={gradientStyle}
           >
             <Copy size={13} /> {copied ? '已复制' : '复制'}
           </button>

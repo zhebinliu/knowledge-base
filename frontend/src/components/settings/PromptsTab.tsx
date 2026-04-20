@@ -13,6 +13,7 @@ const PROMPT_LABELS: Record<string, string> = {
 }
 
 const labelOf = (key: string) => PROMPT_LABELS[key] ?? key
+const gradientStyle = { background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' }
 
 export default function PromptsTab() {
   const qc = useQueryClient()
@@ -23,7 +24,7 @@ export default function PromptsTab() {
 
   return (
     <div className="flex gap-5 min-h-[560px]">
-      {/* Left sidebar: prompt list */}
+      {/* Left sidebar */}
       <div className="w-60 flex-shrink-0 bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">提示词模板</h3>
@@ -40,7 +41,7 @@ export default function PromptsTab() {
                 onClick={() => setSelectedKey(p.key)}
                 className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-start gap-2 ${
                   activeKey === p.key
-                    ? 'bg-blue-50 text-blue-700 font-medium border-r-2 border-blue-600'
+                    ? 'bg-orange-50 text-orange-700 font-medium border-r-2 border-orange-500'
                     : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
@@ -55,7 +56,7 @@ export default function PromptsTab() {
         )}
       </div>
 
-      {/* Right side: editor */}
+      {/* Right: editor */}
       {activeKey ? (
         <PromptEditor key={activeKey} promptKey={activeKey} qc={qc} />
       ) : (
@@ -67,7 +68,7 @@ export default function PromptsTab() {
   )
 }
 
-/* ── Prompt editor panel ──────────────────────────────────────────────────── */
+/* ── Prompt editor ───────────────────────────────────────────────────────── */
 
 function PromptEditor({ promptKey, qc }: { promptKey: string; qc: ReturnType<typeof useQueryClient> }) {
   const { data: detail, isLoading } = useQuery({
@@ -109,15 +110,11 @@ function PromptEditor({ promptKey, qc }: { promptKey: string; qc: ReturnType<typ
     const regex = /\{(\w+)\}/g
     let match: RegExpExecArray | null
     while ((match = regex.exec(currentTemplate)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push({ text: currentTemplate.slice(lastIndex, match.index), isVar: false })
-      }
+      if (match.index > lastIndex) parts.push({ text: currentTemplate.slice(lastIndex, match.index), isVar: false })
       parts.push({ text: match[0], isVar: true })
       lastIndex = regex.lastIndex
     }
-    if (lastIndex < currentTemplate.length) {
-      parts.push({ text: currentTemplate.slice(lastIndex), isVar: false })
-    }
+    if (lastIndex < currentTemplate.length) parts.push({ text: currentTemplate.slice(lastIndex), isVar: false })
     return parts
   }, [currentTemplate])
 
@@ -149,47 +146,38 @@ function PromptEditor({ promptKey, qc }: { promptKey: string; qc: ReturnType<typ
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
-            onClick={() => {
-              if (window.confirm(`将 ${labelOf(promptKey)} 重置为默认值?`)) resetMut.mutate()
-            }}
+            onClick={() => { if (window.confirm(`将 ${labelOf(promptKey)} 重置为默认值?`)) resetMut.mutate() }}
             disabled={resetMut.isPending}
             className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
           >
-            <RotateCcw size={14} />
-            {resetMut.isPending ? '重置中...' : '恢复默认'}
+            <RotateCcw size={14} /> {resetMut.isPending ? '重置中...' : '恢复默认'}
           </button>
           <button
             onClick={() => saveMut.mutate()}
             disabled={!dirty || saveMut.isPending}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-white text-sm rounded-lg disabled:opacity-40 transition-all"
+            style={gradientStyle}
           >
-            <Save size={14} />
-            {saveMut.isPending ? '保存中...' : '保存'}
+            <Save size={14} /> {saveMut.isPending ? '保存中...' : '保存'}
           </button>
         </div>
       </div>
 
       {/* Tab switcher */}
       <div className="px-6 pt-3 border-b border-gray-100 flex items-center gap-1">
-        <TabButton active={view === 'raw'} onClick={() => setView('raw')}>
-          原文编辑
-        </TabButton>
-        <TabButton active={view === 'preview'} onClick={() => setView('preview')}>
-          预览（变量高亮）
-        </TabButton>
-        {dirty && (
-          <span className="ml-auto text-xs text-amber-600 pb-2">● 未保存修改</span>
-        )}
+        <TabButton active={view === 'raw'} onClick={() => setView('raw')}>原文编辑</TabButton>
+        <TabButton active={view === 'preview'} onClick={() => setView('preview')}>预览（变量高亮）</TabButton>
+        {dirty && <span className="ml-auto text-xs text-amber-600 pb-2">● 未保存修改</span>}
       </div>
 
-      {/* Body — single view, fills remaining space */}
+      {/* Body */}
       <div className="flex-1 p-4 overflow-hidden">
         {view === 'raw' ? (
           <textarea
             value={currentTemplate}
             onChange={e => setTemplate(e.target.value)}
             spellCheck={false}
-            className="w-full h-full min-h-[440px] border border-gray-200 rounded-lg p-4 text-sm font-mono leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+            className="w-full h-full min-h-[440px] border border-gray-200 rounded-lg p-4 text-sm font-mono leading-relaxed resize-none"
             placeholder="输入提示词模板..."
           />
         ) : (
@@ -198,11 +186,9 @@ function PromptEditor({ promptKey, qc }: { promptKey: string; qc: ReturnType<typ
               <span className="text-gray-400">（空模板）</span>
             ) : (
               highlightedParts.map((part, i) =>
-                part.isVar ? (
-                  <span key={i} className="bg-yellow-200 text-yellow-900 px-0.5 rounded">{part.text}</span>
-                ) : (
-                  <span key={i}>{part.text}</span>
-                )
+                part.isVar
+                  ? <span key={i} className="bg-yellow-200 text-yellow-900 px-0.5 rounded">{part.text}</span>
+                  : <span key={i}>{part.text}</span>
               )
             )}
           </div>
@@ -218,7 +204,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
       onClick={onClick}
       className={`px-3 py-2 text-sm transition-colors border-b-2 -mb-px ${
         active
-          ? 'border-blue-600 text-blue-700 font-medium'
+          ? 'border-orange-500 text-orange-600 font-medium'
           : 'border-transparent text-gray-500 hover:text-gray-700'
       }`}
     >

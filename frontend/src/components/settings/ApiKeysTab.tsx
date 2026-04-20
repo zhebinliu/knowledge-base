@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getApiKeys, updateApiKey, deleteApiKey, type ApiKeyEntry } from '../../api/client'
 import { Save, Trash2, Loader, Eye, EyeOff } from 'lucide-react'
 
+const gradientStyle = { background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' }
+
 export default function ApiKeysTab() {
   const qc = useQueryClient()
   const { data: keys, isLoading } = useQuery({ queryKey: ['api-keys'], queryFn: getApiKeys })
@@ -36,9 +38,7 @@ export default function ApiKeysTab() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {keys?.map(k => (
-              <ApiKeyRow key={k.key} entry={k} qc={qc} />
-            ))}
+            {keys?.map(k => <ApiKeyRow key={k.key} entry={k} qc={qc} />)}
           </tbody>
         </table>
       </div>
@@ -57,11 +57,7 @@ function ApiKeyRow({ entry, qc }: { entry: ApiKeyEntry; qc: ReturnType<typeof us
 
   const saveMut = useMutation({
     mutationFn: () => updateApiKey(entry.key, value),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['api-keys'] })
-      setEditing(false)
-      setValue('')
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['api-keys'] }); setEditing(false); setValue('') },
     onError: (e: any) => alert(`保存失败: ${e?.response?.data?.detail ?? e.message}`),
   })
 
@@ -73,7 +69,7 @@ function ApiKeyRow({ entry, qc }: { entry: ApiKeyEntry; qc: ReturnType<typeof us
 
   const sourceLabel = entry.source === 'database' ? '数据库' : '环境变量'
   const sourceBadgeClass = entry.source === 'database'
-    ? 'bg-blue-50 text-blue-700'
+    ? 'bg-orange-50 text-orange-700'
     : 'bg-gray-100 text-gray-600'
 
   return (
@@ -81,24 +77,22 @@ function ApiKeyRow({ entry, qc }: { entry: ApiKeyEntry; qc: ReturnType<typeof us
       <td className="px-6 py-3 font-mono text-xs font-semibold text-gray-800">{entry.key}</td>
       <td className="px-4 py-3">
         {editing ? (
-          <div className="flex items-center gap-1.5">
-            <div className="relative">
-              <input
-                type={showValue ? 'text' : 'password'}
-                value={value}
-                onChange={e => setValue(e.target.value)}
-                placeholder="输入新密钥"
-                className="w-56 border border-gray-200 rounded-lg px-3 py-1.5 pr-8 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
-                autoFocus
-              />
-              <button
-                type="button"
-                onClick={() => setShowValue(!showValue)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                {showValue ? <EyeOff size={14} /> : <Eye size={14} />}
-              </button>
-            </div>
+          <div className="relative inline-block">
+            <input
+              type={showValue ? 'text' : 'password'}
+              value={value}
+              onChange={e => setValue(e.target.value)}
+              placeholder="输入新密钥"
+              className="w-56 border border-gray-200 rounded-lg px-3 py-1.5 pr-8 text-sm font-mono"
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={() => setShowValue(!showValue)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              {showValue ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
           </div>
         ) : (
           <span className="font-mono text-xs text-gray-500">
@@ -114,13 +108,11 @@ function ApiKeyRow({ entry, qc }: { entry: ApiKeyEntry; qc: ReturnType<typeof us
       <td className="px-4 py-3">
         {entry.is_set ? (
           <span className="inline-flex items-center gap-1 text-xs text-green-600">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-            已配置
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> 已配置
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 text-xs text-red-500">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-            未配置
+            <span className="w-1.5 h-1.5 rounded-full bg-red-400" /> 未配置
           </span>
         )}
       </td>
@@ -131,10 +123,10 @@ function ApiKeyRow({ entry, qc }: { entry: ApiKeyEntry; qc: ReturnType<typeof us
               <button
                 onClick={() => { if (value.trim()) saveMut.mutate() }}
                 disabled={!value.trim() || saveMut.isPending}
-                className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1.5 text-white text-xs rounded-lg disabled:opacity-40 transition-all"
+                style={gradientStyle}
               >
-                <Save size={12} />
-                {saveMut.isPending ? '...' : '保存'}
+                <Save size={12} /> {saveMut.isPending ? '...' : '保存'}
               </button>
               <button
                 onClick={() => { setEditing(false); setValue(''); setShowValue(false) }}
@@ -147,7 +139,8 @@ function ApiKeyRow({ entry, qc }: { entry: ApiKeyEntry; qc: ReturnType<typeof us
             <>
               <button
                 onClick={() => setEditing(true)}
-                className="px-2.5 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-2.5 py-1.5 text-white text-xs rounded-lg transition-all"
+                style={gradientStyle}
               >
                 {entry.is_set ? '修改' : '设置'}
               </button>

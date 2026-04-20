@@ -22,6 +22,9 @@ function taskLabel(key: string) {
   return TASK_LABELS[key] ?? key
 }
 
+const gradientStyle = { background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' }
+const inputCls = 'border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white'
+
 export default function RoutingTab() {
   const qc = useQueryClient()
   const { data: rules, isLoading: loadingRules } = useQuery({ queryKey: ['routing'], queryFn: getRoutingRules })
@@ -104,7 +107,7 @@ export default function RoutingTab() {
   )
 }
 
-/* ── Routing row with inline edit ─────────────────────────────────────────── */
+/* ── Routing row ─────────────────────────────────────────────────────────── */
 
 function RoutingRow({ rule, modelKeys, qc }: { rule: RoutingRule; modelKeys: string[]; qc: ReturnType<typeof useQueryClient> }) {
   const [primary, setPrimary] = useState(rule.primary)
@@ -124,20 +127,12 @@ function RoutingRow({ rule, modelKeys, qc }: { rule: RoutingRule; modelKeys: str
         <div className="text-xs text-gray-400 font-mono">{rule.task}</div>
       </td>
       <td className="px-4 py-3">
-        <select
-          value={primary}
-          onChange={e => setPrimary(e.target.value)}
-          className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
-        >
+        <select value={primary} onChange={e => setPrimary(e.target.value)} className={inputCls}>
           {modelKeys.map(k => <option key={k} value={k}>{k}</option>)}
         </select>
       </td>
       <td className="px-4 py-3">
-        <select
-          value={fallback}
-          onChange={e => setFallback(e.target.value)}
-          className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
-        >
+        <select value={fallback} onChange={e => setFallback(e.target.value)} className={inputCls}>
           {modelKeys.map(k => <option key={k} value={k}>{k}</option>)}
         </select>
       </td>
@@ -145,17 +140,17 @@ function RoutingRow({ rule, modelKeys, qc }: { rule: RoutingRule; modelKeys: str
         <button
           onClick={() => mut.mutate()}
           disabled={!dirty || mut.isPending}
-          className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors whitespace-nowrap"
+          className="inline-flex items-center gap-1 px-3 py-1.5 text-white text-xs rounded-lg disabled:opacity-40 transition-all whitespace-nowrap"
+          style={gradientStyle}
         >
-          <Save size={12} />
-          {mut.isPending ? '...' : '保存'}
+          <Save size={12} /> {mut.isPending ? '...' : '保存'}
         </button>
       </td>
     </tr>
   )
 }
 
-/* ── Task Params row with inline edit ─────────────────────────────────────── */
+/* ── Task Params row ─────────────────────────────────────────────────────── */
 
 function TaskParamsRow({ entry, qc }: { entry: TaskParamsEntry; qc: ReturnType<typeof useQueryClient> }) {
   const [maxTokens, setMaxTokens] = useState(entry.max_tokens)
@@ -177,39 +172,36 @@ function TaskParamsRow({ entry, qc }: { entry: TaskParamsEntry; qc: ReturnType<t
       </td>
       <td className="px-4 py-3">
         <input
-          type="number"
-          min={1} max={200000}
+          type="number" min={1} max={200000}
           value={maxTokens}
           onChange={e => setMaxTokens(Number(e.target.value))}
-          className="w-24 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+          className={`w-24 ${inputCls}`}
         />
       </td>
       <td className="px-4 py-3">
         <input
-          type="number"
-          min={0} max={2} step={0.1}
+          type="number" min={0} max={2} step={0.1}
           value={temperature}
           onChange={e => setTemperature(Number(e.target.value))}
-          className="w-20 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+          className={`w-20 ${inputCls}`}
         />
       </td>
       <td className="px-4 py-3">
         <input
-          type="number"
-          min={1} max={600}
+          type="number" min={1} max={600}
           value={timeout}
           onChange={e => setTimeout_(Number(e.target.value))}
-          className="w-20 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+          className={`w-20 ${inputCls}`}
         />
       </td>
       <td className="px-4 py-3">
         <button
           onClick={() => mut.mutate()}
           disabled={!dirty || mut.isPending}
-          className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
+          className="flex items-center gap-1 px-2.5 py-1.5 text-white text-xs rounded-lg disabled:opacity-40 transition-all"
+          style={gradientStyle}
         >
-          <Save size={12} />
-          {mut.isPending ? '...' : '保存'}
+          <Save size={12} /> {mut.isPending ? '...' : '保存'}
         </button>
       </td>
     </tr>
