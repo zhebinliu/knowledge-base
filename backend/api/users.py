@@ -46,6 +46,23 @@ async def _count_active_admins(session: AsyncSession, exclude_id: str | None = N
     return await session.scalar(stmt) or 0
 
 
+class UserCreate(BaseModel):
+    username: str = Field(min_length=3, max_length=64)
+    password: str | None = Field(default=None, min_length=6, max_length=128)
+    full_name: str | None = None
+    email: str | None = None
+    is_admin: bool = False
+    allowed_modules: list[str] | None = None  # None = 全部
+
+
+class UserPatch(BaseModel):
+    is_admin: bool | None = None
+    is_active: bool | None = None
+    full_name: str | None = None
+    email: str | None = None
+    allowed_modules: list[str] | None = None  # None = 全部；通过 model_fields_set 判断是否修改
+
+
 @router.get("")
 async def list_users(session: AsyncSession = Depends(get_session)):
     result = await session.execute(select(User).order_by(User.created_at.asc()))
@@ -76,25 +93,6 @@ async def create_user(
     await session.refresh(user)
     logger.info("user_created", admin=current.username, new_user=user.username)
     return {**_user_dto(user), "initial_password": raw_password if not payload.password else None}
-
-
-class UserCreate(BaseModel):
-    username: str = Field(min_length=3, max_length=64)
-    password: str | None = Field(default=None, min_length=6, max_length=128)
-    full_name: str | None = None
-    email: str | None = None
-    is_admin: bool = False
-    allowed_modules: list[str] | None = None  # None = 全部
-
-
-_UNSET = object()
-
-class UserPatch(BaseModel):
-    is_admin: bool | None = None
-    is_active: bool | None = None
-    full_name: str | None = None
-    email: str | None = None
-    allowed_modules: list[str] | None = None  # None = 全部；通过 model_fields_set 判断是否修改
 
 
 @router.patch("/{user_id}")
