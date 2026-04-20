@@ -433,4 +433,109 @@
     justify-content: center;
     flex-shrink: 0;
   }
+
+  /* ── Data table ──────────────────────────────────────────────────────── */
+  .ds-table { width: 100%; border-collapse: collapse; }
+  .ds-table th {
+    text-align: left;
+    padding: 10px 16px;
+    font-size: 11.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-secondary);
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  .ds-table td {
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--line);
+  }
+  .ds-table tbody tr:last-child td { border-bottom: none; }
+  .ds-table tbody tr:hover td { background: var(--bg); transition: background 0.1s; }
+  .ds-table.striped tbody tr:nth-child(even) td { background: rgba(245,246,250,.7); }
+
+  /* ── Tabs ─────────────────────────────────────────────────────────────── */
+  .ds-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--line);
+    gap: 0;
+  }
+  .ds-tab {
+    padding: 9px 18px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+    background: transparent;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    white-space: nowrap;
+  }
+  .ds-tab:hover { color: var(--text-primary); }
+  .ds-tab.is-active { color: var(--accent-deep); border-bottom-color: var(--accent); }
+
+  /* ── Toggle switch ───────────────────────────────────────────────────── */
+  .ds-toggle { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+  .ds-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .ds-toggle-track {
+    position: absolute; inset: 0; cursor: pointer;
+    background: var(--line-strong); border-radius: 999px;
+    transition: background 0.2s;
+  }
+  .ds-toggle input:checked ~ .ds-toggle-track { background: var(--accent); }
+  .ds-toggle-track::after {
+    content: ''; position: absolute; width: 16px; height: 16px;
+    border-radius: 50%; background: white; top: 3px; left: 3px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform 0.2s;
+  }
+  .ds-toggle input:checked ~ .ds-toggle-track::after { transform: translateX(18px); }
+
+  /* ── Skeleton loading ────────────────────────────────────────────────── */
+  .skeleton {
+    background: linear-gradient(90deg, var(--line) 25%, #edf0f7 50%, var(--line) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-wave 1.5s ease-in-out infinite;
+    border-radius: var(--radius-sm);
+    display: block;
+  }
+  @keyframes skeleton-wave {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* ── DS Checkbox / Radio ─────────────────────────────────────────────── */
+  .ds-check {
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer; font-size: 13px; color: var(--text-primary);
+    user-select: none;
+  }
+  .ds-check input[type="checkbox"],
+  .ds-check input[type="radio"] {
+    width: 16px; height: 16px; cursor: pointer;
+    accent-color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  /* ── Empty state ─────────────────────────────────────────────────────── */
+  .ds-empty {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 48px 24px; text-align: center;
+    color: var(--text-muted);
+  }
+  .ds-empty-icon {
+    width: 56px; height: 56px; border-radius: 16px;
+    background: var(--bg); border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 16px; color: var(--text-muted);
+  }
+  .ds-empty h4 { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+  .ds-empty p  { font-size: 13px; color: var(--text-secondary); max-width: 280px; line-height: 1.6; }
 }
