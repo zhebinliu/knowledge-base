@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '../auth/AuthContext'
 import { Brain, Play, ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader, Square, HelpCircle, ThumbsUp, ThumbsDown, Plus, Clock, Trash2, Power, Cpu, History } from 'lucide-react'
 import MarkdownView from '../components/MarkdownView'
 import ChallengeHistory from './ChallengeHistory'
@@ -59,6 +60,8 @@ function ChallengeTabBar({ activeTab, setActiveTab }: { activeTab: 'challenge' |
 
 export default function Challenge() {
   const [activeTab, setActiveTab] = useState<'challenge' | 'history'>('challenge')
+  const { user } = useAuth()
+  const reviewer = user?.username || 'unknown'
   const [stages, setStages]     = useState<string[]>(['线索', '客户', '商机'])
   const [customStages, setCustomStages] = useState<string[]>([])
   const [customInput, setCustomInput]   = useState('')
@@ -71,7 +74,7 @@ export default function Challenge() {
   const qc = useQueryClient()
 
   const approveMut = useMutation({
-    mutationFn: ({ reviewId }: { reviewId: string; qIndex: number }) => approveReview(reviewId),
+    mutationFn: ({ reviewId }: { reviewId: string; qIndex: number }) => approveReview(reviewId, reviewer),
     onSuccess: (_data, vars) => {
       setCards(prev => prev.map(c => c.q_index === vars.qIndex ? { ...c, review_status: 'approved' } : c))
       qc.invalidateQueries({ queryKey: ['review-queue'] })
@@ -79,7 +82,7 @@ export default function Challenge() {
     },
   })
   const rejectMut = useMutation({
-    mutationFn: ({ reviewId }: { reviewId: string; qIndex: number }) => rejectReview(reviewId),
+    mutationFn: ({ reviewId }: { reviewId: string; qIndex: number }) => rejectReview(reviewId, reviewer),
     onSuccess: (_data, vars) => {
       setCards(prev => prev.map(c => c.q_index === vars.qIndex ? { ...c, review_status: 'rejected' } : c))
       qc.invalidateQueries({ queryKey: ['review-queue'] })

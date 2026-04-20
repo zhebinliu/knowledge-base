@@ -229,11 +229,11 @@ export const toggleChallengeSchedule = (id: string) =>
 export const listReviewQueue = () =>
   api.get<ReviewItem[]>('/review/queue').then(r => r.data)
 
-export const approveReview = (id: string, note?: string) =>
-  api.post(`/review/${id}/approve`, { reviewer: 'admin', note })
+export const approveReview = (id: string, reviewer?: string, note?: string) =>
+  api.post(`/review/${id}/approve`, { reviewer: reviewer || 'unknown', note })
 
-export const rejectReview = (id: string, note?: string) =>
-  api.post(`/review/${id}/reject`, { reviewer: 'admin', note })
+export const rejectReview = (id: string, reviewer?: string, note?: string) =>
+  api.post(`/review/${id}/reject`, { reviewer: reviewer || 'unknown', note })
 
 // ── Agent Settings ──────────────────────────────────────────────────────────
 

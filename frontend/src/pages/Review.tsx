@@ -2,9 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listReviewQueue, approveReview, rejectReview } from '../api/client'
 import { CheckCircle, XCircle, ClipboardCheck, AlertTriangle } from 'lucide-react'
 import MarkdownView from '../components/MarkdownView'
+import { useAuth } from '../auth/AuthContext'
 
 export default function Review() {
   const qc = useQueryClient()
+  const { user } = useAuth()
+  const reviewer = user?.username || 'unknown'
 
   const { data: items, isLoading } = useQuery({
     queryKey: ['review-queue'],
@@ -13,12 +16,12 @@ export default function Review() {
   })
 
   const approve = useMutation({
-    mutationFn: ({ id }: { id: string }) => approveReview(id),
+    mutationFn: ({ id }: { id: string }) => approveReview(id, reviewer),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['review-queue'] }),
   })
 
   const reject = useMutation({
-    mutationFn: ({ id }: { id: string }) => rejectReview(id),
+    mutationFn: ({ id }: { id: string }) => rejectReview(id, reviewer),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['review-queue'] }),
   })
 
