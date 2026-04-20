@@ -7,15 +7,25 @@ import {
 // BookOpen kept for chunks nav icon
 import { useAuth } from '../auth/AuthContext'
 
-const nav = [
-  { to: '/',          label: '总览',      icon: LayoutDashboard },
-  { to: '/projects',  label: '项目库',    icon: Folder },
-  { to: '/documents', label: '文档管理',  icon: FileText },
-  { to: '/chunks',    label: '知识库',    icon: BookOpen },
-  { to: '/qa',        label: '智能问答',  icon: MessageSquare },
-  { to: '/review',    label: '审核队列',  icon: ClipboardCheck },
-  { to: '/challenge', label: '知识挑战',  icon: Brain },
-  { to: '/settings',  label: '系统设置',  icon: Settings },
+const navGroups = [
+  {
+    label: '工作区',
+    items: [
+      { to: '/',          label: '总览',      icon: LayoutDashboard },
+      { to: '/projects',  label: '项目库',    icon: Folder },
+      { to: '/documents', label: '文档管理',  icon: FileText },
+      { to: '/chunks',    label: '知识库',    icon: BookOpen },
+      { to: '/qa',        label: '智能问答',  icon: MessageSquare },
+      { to: '/review',    label: '审核队列',  icon: ClipboardCheck },
+      { to: '/challenge', label: '知识挑战',  icon: Brain },
+    ],
+  },
+  {
+    label: '系统',
+    items: [
+      { to: '/settings', label: '系统设置', icon: Settings },
+    ],
+  },
 ]
 
 export default function Layout() {
@@ -47,14 +57,21 @@ export default function Layout() {
         </div>
 
         <nav className="sidebar-nav">
-          {nav.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to} to={to} end={to === '/'}
-              className={({ isActive }) => `nav-link${isActive ? ' is-active' : ''}`}
-            >
-              <Icon size={16} />
-              {label}
-            </NavLink>
+          {navGroups.map((group) => (
+            <div key={group.label} className="mb-1">
+              <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 select-none">
+                {group.label}
+              </p>
+              {group.items.map(({ to, label, icon: Icon }) => (
+                <NavLink
+                  key={to} to={to} end={to === '/'}
+                  className={({ isActive }) => `nav-link${isActive ? ' is-active' : ''}`}
+                >
+                  <Icon size={16} />
+                  {label}
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
 
