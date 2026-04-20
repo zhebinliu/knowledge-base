@@ -5,7 +5,7 @@ import { listChallengeRuns, getChallengeRun, type ChallengeRun } from '../api/cl
 import MarkdownView from '../components/MarkdownView'
 
 const STATUS_BADGE: Record<string, { color: string; label: string; Icon: typeof CheckCircle2 }> = {
-  running:   { color: 'bg-blue-50 text-blue-700 border-blue-200',     label: '执行中',  Icon: Loader },
+  running:   { color: 'bg-orange-50 text-orange-700 border-orange-200', label: '执行中',  Icon: Loader },
   completed: { color: 'bg-green-50 text-green-700 border-green-200',  label: '已完成',  Icon: CheckCircle2 },
   failed:    { color: 'bg-red-50 text-red-700 border-red-200',        label: '失败',    Icon: XCircle },
 }
@@ -37,7 +37,7 @@ export default function ChallengeHistory() {
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <div className="flex items-center gap-2 mb-6">
-        <History size={22} className="text-indigo-600" />
+        <History size={22} style={{ color: 'var(--accent)' }} />
         <h1 className="text-2xl font-bold text-gray-900">挑战历史</h1>
         {data && (
           <span className="text-sm text-gray-500">共 {data.total} 次</span>
@@ -82,7 +82,7 @@ export default function ChallengeHistory() {
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded ${
-                      isManual ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
+                      isManual ? 'bg-orange-50 text-orange-700' : 'bg-purple-50 text-purple-700'
                     }`}>
                       {isManual ? <UserIcon size={11} /> : <CalendarClock size={11} />}
                       {isManual ? '手动' : '定时'}

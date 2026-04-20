@@ -4,6 +4,7 @@ import {
   LayoutDashboard, FileText, Brain, MessageSquare,
   ClipboardCheck, BookOpen, Settings, ChevronDown, LogOut, KeyRound, Shield, Folder,
 } from 'lucide-react'
+// BookOpen kept for chunks nav icon
 import { useAuth } from '../auth/AuthContext'
 
 const nav = [
@@ -38,9 +39,7 @@ export default function Layout() {
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <div className="sidebar-logo-icon">
-            <BookOpen size={16} className="text-white" />
-          </div>
+          <img src="/logo.png" alt="logo" className="w-9 h-9 object-contain flex-shrink-0" />
           <div>
             <p className="text-sm font-bold text-gray-900 leading-tight">实施知识</p>
             <p className="text-xs leading-tight" style={{ color: 'var(--text-muted)' }}>综合管理</p>
