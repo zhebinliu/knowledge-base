@@ -90,7 +90,7 @@ async def answer_question(
     return {
         "answer": answer,
         "model": used_model,
-        "sources": [{"id": r["id"], "score": r["score"], "ltc_stage": r["payload"].get("ltc_stage")} for r in top_results],
+        "sources": [{"id": r["id"], "score": r["score"], "ltc_stage": r["payload"].get("ltc_stage"), "content": r["payload"].get("content_preview", "")} for r in top_results],
     }
 
 
@@ -166,7 +166,7 @@ async def answer_question_stream(
         yield _json.dumps({"token": buf})
 
     sources = [
-        {"id": r["id"], "score": r["score"], "ltc_stage": r["payload"].get("ltc_stage")}
+        {"id": r["id"], "score": r["score"], "ltc_stage": r["payload"].get("ltc_stage"), "content": r["payload"].get("content_preview", "")}
         for r in top_results
     ]
     yield _json.dumps({"sources": sources, "model": used_model})

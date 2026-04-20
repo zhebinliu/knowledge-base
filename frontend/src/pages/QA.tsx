@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Bot, User, Loader, MessageSquare, Trash2, ChevronRight, FileSearch, Cpu } from 'lucide-react'
+import { Send, Bot, User, Loader, MessageSquare, Trash2, ChevronRight, FileSearch, Cpu, ChevronDown, ChevronUp } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -22,6 +22,73 @@ interface Conversation {
   title: string
   messages: Message[]
   createdAt: string
+}
+
+function SourcePanel({ sources, hasMessages }: { sources: SourceItem[]; hasMessages: boolean }) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const toggle = (id: string) => setExpanded(e => ({ ...e, [id]: !e[id] }))
+
+  return (
+    <div className="w-72 flex-shrink-0 border-l border-gray-200 bg-white flex flex-col">
+      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <FileSearch size={14} className="text-gray-400"/>
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">参考来源</span>
+        </div>
+        {sources.length > 0 && (
+          <span className="text-xs text-gray-400">{sources.length} 条</span>
+        )}
+      </div>
+      <div className="flex-1 overflow-y-auto py-2">
+        {sources.length === 0 && (
+          <p className="text-xs text-gray-400 text-center py-8 px-4">
+            {!hasMessages ? '提问后显示参考来源' : '等待回答完成…'}
+          </p>
+        )}
+        {sources.map((s, i) => {
+          const isExpanded = expanded[s.id] ?? false
+          const preview = s.content?.slice(0, 120) ?? ''
+          const hasMore = (s.content?.length ?? 0) > 120
+          return (
+            <div key={s.id} className="mx-3 mb-2 border border-gray-100 rounded-xl overflow-hidden bg-gray-50">
+              {/* Header row */}
+              <div
+                className="flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors"
+                onClick={() => s.content && toggle(s.id)}
+              >
+                <span className="text-xs text-gray-400 font-mono flex-shrink-0">#{i + 1}</span>
+                {s.ltc_stage && (
+                  <span className="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded-full flex-shrink-0">
+                    {s.ltc_stage}
+                  </span>
+                )}
+                <span className="flex-1"/>
+                {s.score !== undefined && (
+                  <span className="text-xs text-gray-400 flex-shrink-0">
+                    {Math.round(s.score * 100)}%
+                  </span>
+                )}
+                {s.content && (
+                  isExpanded
+                    ? <ChevronUp size={12} className="text-gray-400 flex-shrink-0"/>
+                    : <ChevronDown size={12} className="text-gray-400 flex-shrink-0"/>
+                )}
+              </div>
+              {/* Content */}
+              <div className="px-3 pb-2.5">
+                <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap break-words">
+                  {isExpanded ? s.content : (preview + (hasMore && !isExpanded ? '…' : ''))}
+                </p>
+                {!s.content && (
+                  <p className="text-xs text-gray-400 font-mono">ID: {s.id.slice(0, 12)}…</p>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 const STORAGE_KEY = 'kb_qa_history'
@@ -400,41 +467,7 @@ export default function QA() {
       </div>
 
       {/* ── Right: Sources ─────────────────────────────────────────────── */}
-      <div className="w-64 flex-shrink-0 border-l border-gray-200 bg-white flex flex-col">
-        <div className="px-4 py-3 border-b border-gray-100">
-          <div className="flex items-center gap-1.5">
-            <FileSearch size={14} className="text-gray-400"/>
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">参考来源</span>
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto py-2">
-          {lastSources.length === 0 && (
-            <p className="text-xs text-gray-400 text-center py-8 px-4">
-              {messages.length === 0 ? '提问后显示参考来源' : '等待回答完成…'}
-            </p>
-          )}
-          {lastSources.map((s, i) => (
-            <div key={s.id} className="mx-3 mb-2 p-3 bg-gray-50 border border-gray-100 rounded-xl">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <span className="text-xs text-gray-400 font-mono">#{i + 1}</span>
-                {s.ltc_stage && (
-                  <span className="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded-full">
-                    {s.ltc_stage}
-                  </span>
-                )}
-                {s.score !== undefined && (
-                  <span className="text-xs text-gray-400 ml-auto">
-                    {Math.round(s.score * 100)}%
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-gray-600 leading-relaxed line-clamp-4">
-                {s.content ? s.content.slice(0, 150) + (s.content.length > 150 ? '…' : '') : `ID: ${s.id.slice(0, 8)}…`}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
+      <SourcePanel sources={lastSources} hasMessages={messages.length > 0} />
     </div>
   )
 }
