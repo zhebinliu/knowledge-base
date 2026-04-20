@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listChunks, updateChunk, exportChunks, type Chunk } from '../api/client'
-import { ChevronDown, ChevronUp, Tag, Pencil, Check, X, Loader, Cpu, Download } from 'lucide-react'
+import { ChevronDown, ChevronUp, Tag, Pencil, Check, X, Loader, Cpu, Download, ChevronLeft, ChevronRight } from 'lucide-react'
 import MarkdownView from '../components/MarkdownView'
-import { LTC_KEYS, LTC_LABEL, INDUSTRY_LABEL, TAG_LABEL, ltcLabel, industryLabel, tagLabel } from '../utils/labels'
+import { LTC_KEYS, LTC_LABEL, INDUSTRY_LABEL, ltcLabel, industryLabel, tagLabel } from '../utils/labels'
+
+const PAGE_SIZE_OPTIONS = [20, 50, 100]
 
 const REVIEW_STATUS = ['', 'pending', 'approved', 'rejected', 'needs_review']
 const REVIEW_LABEL: Record<string, string> = {
@@ -195,7 +197,31 @@ function ChunkRow({ chunk }: { chunk: Chunk }) {
 export default function Chunks() {
   const [ltcStage, setLtcStage]         = useState('')
   const [reviewStatus, setReviewStatus] = useState('')
+  const [pageSize, setPageSize]         = useState(20)
+  const [page, setPage]                 = useState(0)
   const [exporting, setExporting]       = useState(false)
+
+  // Reset to page 0 when filters change
+  const setFilter = (stage: string, status: string) => {
+    setLtcStage(stage); setReviewStatus(status); setPage(0)
+  }
+
+  const params = useMemo(() => ({
+    ltc_stage:     ltcStage     || undefined,
+    review_status: reviewStatus || undefined,
+    limit:  pageSize,
+    offset: page * pageSize,
+  }), [ltcStage, reviewStatus, pageSize, page])
+
+  const { data: chunksPage, isLoading } = useQuery({
+    queryKey: ['chunks', params],
+    queryFn: () => listChunks(params),
+    placeholderData: (prev) => prev,
+  })
+
+  const chunks     = chunksPage?.items ?? []
+  const total      = chunksPage?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   const handleExport = async () => {
     setExporting(true)
@@ -217,21 +243,12 @@ export default function Chunks() {
     }
   }
 
-  const { data: chunks, isLoading } = useQuery({
-    queryKey: ['chunks', ltcStage, reviewStatus],
-    queryFn: () => listChunks({
-      ltc_stage: ltcStage || undefined,
-      review_status: reviewStatus || undefined,
-      limit: 50,
-    }),
-  })
-
   return (
     <div className="p-8 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">知识库</h1>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-500">{chunks?.length ?? 0} 条</span>
+          <span className="text-sm text-gray-500">共 {total} 条</span>
           <button
             onClick={handleExport}
             disabled={exporting}
@@ -244,11 +261,11 @@ export default function Chunks() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 mb-6">
+      <div className="flex flex-wrap gap-3 mb-6">
         <select
           value={ltcStage}
-          onChange={e => setLtcStage(e.target.value)}
-          className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          onChange={e => setFilter(e.target.value, reviewStatus)}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none"
         >
           <option value="">全部阶段</option>
           {LTC_KEYS.map(k => (
@@ -258,8 +275,8 @@ export default function Chunks() {
 
         <select
           value={reviewStatus}
-          onChange={e => setReviewStatus(e.target.value)}
-          className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          onChange={e => setFilter(ltcStage, e.target.value)}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none"
         >
           {REVIEW_STATUS.map(s => (
             <option key={s} value={s}>{REVIEW_LABEL[s]}</option>
@@ -267,11 +284,68 @@ export default function Chunks() {
         </select>
       </div>
 
-      {isLoading && <p className="text-center text-gray-400 py-12">加载中…</p>}
-      {!isLoading && chunks?.length === 0 && (
+      {isLoading && !chunksPage && <p className="text-center text-gray-400 py-12">加载中…</p>}
+      {!isLoading && chunks.length === 0 && (
         <p className="text-center text-gray-400 py-12">暂无数据</p>
       )}
-      {chunks?.map(c => <ChunkRow key={c.id} chunk={c} />)}
+      {chunks.map(c => <ChunkRow key={c.id} chunk={c} />)}
+
+      {/* Pagination bar */}
+      {total > 0 && (
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
+          <div className="flex items-center gap-2">
+            <span>每页</span>
+            {PAGE_SIZE_OPTIONS.map(n => (
+              <button
+                key={n}
+                onClick={() => { setPageSize(n); setPage(0) }}
+                className={`px-2.5 py-1 rounded border transition-colors ${
+                  pageSize === n
+                    ? 'border-orange-400 bg-orange-50 text-orange-700 font-semibold'
+                    : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                }`}
+              >{n} 条</button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="p-1.5 rounded border border-gray-200 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={13}/>
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i)
+              .filter(i => i === 0 || i === totalPages - 1 || Math.abs(i - page) <= 1)
+              .reduce<(number | '…')[]>((acc, i, idx, arr) => {
+                if (idx > 0 && (i as number) - (arr[idx - 1] as number) > 1) acc.push('…')
+                acc.push(i)
+                return acc
+              }, [])
+              .map((item, idx) =>
+                item === '…'
+                  ? <span key={`e${idx}`} className="px-1 text-gray-400">…</span>
+                  : <button
+                      key={item}
+                      onClick={() => setPage(item as number)}
+                      className={`min-w-[28px] h-7 rounded border text-xs transition-colors ${
+                        page === item
+                          ? 'border-orange-400 bg-orange-50 text-orange-700 font-semibold'
+                          : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                      }`}
+                    >{(item as number) + 1}</button>
+              )}
+            <button
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              className="p-1.5 rounded border border-gray-200 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={13}/>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

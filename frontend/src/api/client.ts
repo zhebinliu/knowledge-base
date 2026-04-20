@@ -228,8 +228,13 @@ export interface ChunkFilter {
   offset?: number
 }
 
+export interface ChunkPage {
+  total: number
+  items: Chunk[]
+}
+
 export const listChunks = (params: ChunkFilter = {}) =>
-  api.get<Chunk[]>('/chunks', { params }).then(r => r.data)
+  api.get<ChunkPage>('/chunks', { params }).then(r => r.data)
 
 export const updateChunk = (id: string, body: Partial<Pick<Chunk, 'content' | 'ltc_stage' | 'industry' | 'module' | 'tags'>>) =>
   api.put(`/chunks/${id}`, body)

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from pydantic import BaseModel
 from models import get_session
 from models.chunk import Chunk
@@ -25,26 +25,38 @@ async def list_chunks(
     offset: int = Query(0),
     session: AsyncSession = Depends(get_session),
 ):
-    q = select(Chunk)
+    conditions = []
     if ltc_stage:
-        q = q.where(Chunk.ltc_stage == ltc_stage)
+        conditions.append(Chunk.ltc_stage == ltc_stage)
     if industry:
-        q = q.where(Chunk.industry == industry)
+        conditions.append(Chunk.industry == industry)
     if review_status:
-        q = q.where(Chunk.review_status == review_status)
+        conditions.append(Chunk.review_status == review_status)
+
+    count_q = select(func.count()).select_from(Chunk)
+    if conditions:
+        count_q = count_q.where(*conditions)
+    total = (await session.execute(count_q)).scalar_one()
+
+    q = select(Chunk)
+    if conditions:
+        q = q.where(*conditions)
     q = q.order_by(Chunk.created_at.desc()).offset(offset).limit(limit)
-    result = await session.execute(q)
-    chunks = result.scalars().all()
-    return [
-        {
-            "id": c.id, "document_id": c.document_id, "content": c.content[:300],
-            "ltc_stage": c.ltc_stage, "industry": c.industry, "module": c.module,
-            "tags": c.tags, "review_status": c.review_status,
-            "chunk_index": c.chunk_index, "char_count": c.char_count,
-            "generated_by_model": c.generated_by_model,
-        }
-        for c in chunks
-    ]
+    chunks = (await session.execute(q)).scalars().all()
+
+    return {
+        "total": total,
+        "items": [
+            {
+                "id": c.id, "document_id": c.document_id, "content": c.content[:300],
+                "ltc_stage": c.ltc_stage, "industry": c.industry, "module": c.module,
+                "tags": c.tags, "review_status": c.review_status,
+                "chunk_index": c.chunk_index, "char_count": c.char_count,
+                "generated_by_model": c.generated_by_model,
+            }
+            for c in chunks
+        ],
+    }
 
 
 @router.get("/{chunk_id}")
