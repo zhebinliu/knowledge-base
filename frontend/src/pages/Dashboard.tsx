@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getStats, listDocuments, listReviewQueue, listProjects, listChallengeRuns } from '../api/client'
 import { Link } from 'react-router-dom'
 import {
-  FileText, Layers, Zap, Clock, CheckCircle, AlertCircle,
+  FileText, Layers, Clock, CheckCircle, AlertCircle,
   Loader, ClipboardCheck, ArrowRight, Folder, Brain,
 } from 'lucide-react'
 
@@ -28,8 +28,7 @@ export default function Dashboard() {
 
   const cards = [
     { label: '文档总数', value: stats?.documents  ?? '—', icon: FileText, color: 'blue',   to: '/documents' },
-    { label: 'Chunk 数', value: stats?.chunks     ?? '—', icon: Layers,   color: 'purple', to: '/chunks' },
-    { label: '向量数',   value: stats?.vectors    ?? '—', icon: Zap,      color: 'green',  to: '/chunks' },
+    { label: '切片数',   value: stats?.chunks     ?? '—', icon: Layers,   color: 'purple', to: '/chunks' },
     { label: '项目数',   value: projects?.length  ?? '—', icon: Folder,   color: 'orange', to: '/projects' },
   ]
 

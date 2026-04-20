@@ -3,8 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listChunks, updateChunk, exportChunks, type Chunk } from '../api/client'
 import { ChevronDown, ChevronUp, Tag, Pencil, Check, X, Loader, Cpu, Download } from 'lucide-react'
 import MarkdownView from '../components/MarkdownView'
+import { LTC_KEYS, LTC_LABEL, INDUSTRY_LABEL, TAG_LABEL, ltcLabel, industryLabel, tagLabel } from '../utils/labels'
 
-const LTC_STAGES = ['', '线索', '客户', '商机', '报价', '订单', '合同', '交付', '回款', '售后', '通用']
 const REVIEW_STATUS = ['', 'pending', 'approved', 'rejected', 'needs_review']
 const REVIEW_LABEL: Record<string, string> = {
   '': '全部状态',
@@ -76,10 +76,10 @@ function ChunkRow({ chunk }: { chunk: Chunk }) {
           )}
           <div className="flex flex-wrap items-center gap-2 mt-2">
             {chunk.ltc_stage && (
-              <span className="px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700">{chunk.ltc_stage}</span>
+              <span className="px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700">{ltcLabel(chunk.ltc_stage)}</span>
             )}
-            {chunk.industry && (
-              <span className="px-2 py-0.5 rounded-full text-xs bg-purple-50 text-purple-700">{chunk.industry}</span>
+            {chunk.industry && chunk.industry !== 'other' && (
+              <span className="px-2 py-0.5 rounded-full text-xs bg-purple-50 text-purple-700">{industryLabel(chunk.industry)}</span>
             )}
             <span className={`px-2 py-0.5 rounded-full text-xs ${REVIEW_BADGE[chunk.review_status] ?? 'bg-gray-100 text-gray-600'}`}>
               {REVIEW_LABEL[chunk.review_status] ?? chunk.review_status}
@@ -91,7 +91,7 @@ function ChunkRow({ chunk }: { chunk: Chunk }) {
             )}
             {chunk.tags?.map(t => (
               <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
-                <Tag size={10} />{t}
+                <Tag size={10} />{tagLabel(t)}
               </span>
             ))}
           </div>
@@ -130,17 +130,19 @@ function ChunkRow({ chunk }: { chunk: Chunk }) {
                     className="px-2 py-1 border border-gray-200 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="">（无）</option>
-                    {LTC_STAGES.filter(Boolean).map(s => <option key={s} value={s}>{s}</option>)}
+                    {LTC_KEYS.map(k => <option key={k} value={k}>{LTC_LABEL[k]}</option>)}
                   </select>
                 </label>
                 <label className="flex flex-col gap-1">
                   <span className="text-xs text-gray-500">行业</span>
-                  <input
+                  <select
                     value={industry}
                     onChange={e => setIndustry(e.target.value)}
-                    placeholder="如 manufacturing"
                     className="px-2 py-1 border border-gray-200 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
+                  >
+                    <option value="">（无）</option>
+                    {Object.entries(INDUSTRY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
                 </label>
               </div>
               <label className="flex flex-col gap-1">
@@ -249,8 +251,8 @@ export default function Chunks() {
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">全部阶段</option>
-          {LTC_STAGES.filter(Boolean).map(s => (
-            <option key={s} value={s}>{s}</option>
+          {LTC_KEYS.map(k => (
+            <option key={k} value={k}>{LTC_LABEL[k]}</option>
           ))}
         </select>
 

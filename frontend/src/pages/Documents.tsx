@@ -12,6 +12,7 @@ import {
   FileText, Eye, Layers, X, Folder, FileType, Filter,
   ChevronLeft, ChevronRight, Pencil, ChevronDown, ChevronUp,
 } from 'lucide-react'
+import { ltcLabel, tagLabel } from '../utils/labels'
 
 // ── Upload queue panel ──────────────────────────────────────────────────────
 type UploadJobStatus = 'queued' | 'uploading' | 'done' | 'failed'
@@ -179,7 +180,7 @@ function ChunkCard({ chunk }: { chunk: Chunk }) {
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="text-xs font-mono text-gray-400">#{chunk.chunk_index}</span>
         {chunk.ltc_stage && (
-          <span className="text-xs px-2 py-0.5 bg-orange-50 text-orange-700 rounded-full">{chunk.ltc_stage}</span>
+          <span className="text-xs px-2 py-0.5 bg-orange-50 text-orange-700 rounded-full">{ltcLabel(chunk.ltc_stage)}</span>
         )}
         {chunk.review_status && (
           <span className={`text-xs px-2 py-0.5 rounded-full ${REVIEW_BADGE[chunk.review_status] ?? 'bg-gray-100 text-gray-600'}`}>
@@ -207,7 +208,7 @@ function ChunkCard({ chunk }: { chunk: Chunk }) {
       {chunk.tags && chunk.tags.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-2">
           {chunk.tags.slice(0, 5).map(tag => (
-            <span key={tag} className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">{tag}</span>
+            <span key={tag} className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">{tagLabel(tag)}</span>
           ))}
         </div>
       )}

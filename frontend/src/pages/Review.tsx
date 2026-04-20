@@ -3,11 +3,7 @@ import { listReviewQueue, approveReview, rejectReview } from '../api/client'
 import { CheckCircle, XCircle, ClipboardCheck, AlertTriangle, Cpu, MapPin, Tag } from 'lucide-react'
 import MarkdownView from '../components/MarkdownView'
 import { useAuth } from '../auth/AuthContext'
-
-const LTC_LABEL: Record<string, string> = {
-  pre_sales: '售前', implementation: '实施', post_sales: '售后',
-  training: '培训', product: '产品', general: '通用',
-}
+import { ltcLabel, industryLabel, tagLabel } from '../utils/labels'
 
 function ConfidenceBar({ value }: { value: number }) {
   const pct = Math.round(value * 100)
@@ -82,7 +78,7 @@ export default function Review() {
                     {item.chunk_ltc_stage && (
                       <div className="flex items-center gap-2">
                         <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full border border-blue-100 font-medium">
-                          {LTC_LABEL[item.chunk_ltc_stage] ?? item.chunk_ltc_stage}
+                          {ltcLabel(item.chunk_ltc_stage)}
                         </span>
                         {item.chunk_ltc_stage_confidence != null && (
                           <div className="w-24">
@@ -96,7 +92,7 @@ export default function Review() {
                     {item.chunk_industry && item.chunk_industry !== 'other' && (
                       <span className="flex items-center gap-1 text-xs text-gray-500">
                         <MapPin size={11} className="text-gray-400"/>
-                        {item.chunk_industry}
+                        {industryLabel(item.chunk_industry)}
                       </span>
                     )}
 
@@ -129,7 +125,7 @@ export default function Review() {
                       <Tag size={10} className="text-gray-400"/>
                       {item.chunk_tags.map(tag => (
                         <span key={tag} className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
-                          {tag}
+                          {tagLabel(tag)}
                         </span>
                       ))}
                     </div>
