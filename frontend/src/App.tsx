@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
-import Layout    from './components/Layout'
-import Dashboard from './pages/Dashboard'
+import Layout       from './components/Layout'
+import DesignSystem from './pages/DesignSystem'
+import Dashboard    from './pages/Dashboard'
 import Documents from './pages/Documents'
 import Chunks    from './pages/Chunks'
 import QA        from './pages/QA'
@@ -18,6 +19,7 @@ import RequireAuth from './auth/RequireAuth'
 export default function App() {
   return (
     <Routes>
+      <Route path="/ds"       element={<DesignSystem />} />
       <Route path="/login"    element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/change-password" element={<RequireAuth />}>
