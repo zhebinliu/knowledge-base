@@ -20,6 +20,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from agents.kb_agent import answer_question, answer_question_stream
+from config import settings
 from services.embedding_service import embedding_service
 from services.vector_store import vector_store
 
