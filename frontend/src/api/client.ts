@@ -17,23 +17,57 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// 响应拦截：401 清 token 跳登录（避免登录/注册自身循环）
+// 响应拦截：401 先尝试 refresh，成功则重试原请求；refresh 也失败才跳登录
+let _refreshing = false
+let _refreshQueue: Array<(token: string) => void> = []
+
 api.interceptors.response.use(
   (r) => r,
-  (err) => {
+  async (err) => {
     const status = err?.response?.status
     const url: string = err?.config?.url ?? ''
-    const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register')
+    const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/refresh')
     if (status === 401 && !isAuthEndpoint) {
-      localStorage.removeItem(TOKEN_STORAGE_KEY)
-      if (window.location.pathname !== '/login') {
-        const next = encodeURIComponent(window.location.pathname + window.location.search)
-        window.location.assign(`/login?next=${next}`)
+      const original = err.config
+      if (_refreshing) {
+        // 等待正在进行的 refresh 完成后重试
+        return new Promise((resolve) => {
+          _refreshQueue.push((token) => {
+            original.headers['Authorization'] = `Bearer ${token}`
+            resolve(api(original))
+          })
+        })
+      }
+      _refreshing = true
+      try {
+        const res = await api.post<{ access_token: string }>('/auth/refresh')
+        const newToken = res.data.access_token
+        localStorage.setItem(TOKEN_STORAGE_KEY, newToken)
+        _refreshQueue.forEach((cb) => cb(newToken))
+        _refreshQueue = []
+        original.headers['Authorization'] = `Bearer ${newToken}`
+        return api(original)
+      } catch {
+        _refreshQueue = []
+        localStorage.removeItem(TOKEN_STORAGE_KEY)
+        if (window.location.pathname !== '/login') {
+          const next = encodeURIComponent(window.location.pathname + window.location.search)
+          window.location.assign(`/login?next=${next}`)
+        }
+        return Promise.reject(err)
+      } finally {
+        _refreshing = false
       }
     }
     return Promise.reject(err)
   },
 )
+
+export const refreshToken = () =>
+  api.post<{ access_token: string; token_type: string }>('/auth/refresh').then(r => {
+    localStorage.setItem(TOKEN_STORAGE_KEY, r.data.access_token)
+    return r.data
+  })
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

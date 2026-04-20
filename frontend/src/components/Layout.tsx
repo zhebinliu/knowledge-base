@@ -3,9 +3,11 @@ import { NavLink, Outlet, Link } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Brain, MessageSquare,
   ClipboardCheck, BookOpen, Settings, ChevronDown, LogOut, KeyRound, Shield, Folder,
+  Copy, RefreshCw, Check,
 } from 'lucide-react'
 // BookOpen kept for chunks nav icon
 import { useAuth } from '../auth/AuthContext'
+import { TOKEN_STORAGE_KEY, refreshToken } from '../api/client'
 
 /** path → module key 映射 */
 const pathToModule: Record<string, string> = {
@@ -43,7 +45,26 @@ const allNavGroups = [
 export default function Layout() {
   const { user, logout } = useAuth()
   const [open, setOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+
+  function copyToken() {
+    const token = localStorage.getItem(TOKEN_STORAGE_KEY)
+    if (!token) return
+    navigator.clipboard.writeText(token)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    try {
+      await refreshToken()
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -132,6 +153,21 @@ export default function Layout() {
                 >
                   <KeyRound size={14} /> 修改密码
                 </Link>
+                <button
+                  type="button" onClick={copyToken}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  {copied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+                  {copied ? 'Token 已复制' : '复制 Token'}
+                </button>
+                <button
+                  type="button" onClick={handleRefresh} disabled={refreshing}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+                  {refreshing ? '刷新中…' : '刷新 Token'}
+                </button>
+                <div className="border-t border-gray-100 my-1" />
                 <button
                   type="button" onClick={() => { setOpen(false); logout() }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"

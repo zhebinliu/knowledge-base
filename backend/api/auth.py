@@ -120,6 +120,14 @@ async def change_password(
     return {"ok": True}
 
 
+@router.post("/refresh")
+async def refresh_token(user: User = Depends(get_current_user)):
+    """用当前有效 token 换一个新的 7 天 token（无需重新输密码）。"""
+    token = create_access_token(user.id)
+    logger.info("token_refreshed", user_id=user.id, username=user.username)
+    return {"access_token": token, "token_type": "bearer"}
+
+
 @router.post("/sso/{provider}/bind", status_code=501)
 async def sso_bind(provider: str):
     """SSO 绑定占位：仅声明契约，未实装。"""
