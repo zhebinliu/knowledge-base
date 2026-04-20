@@ -3,6 +3,20 @@ import { Send, Bot, User, Loader, MessageSquare, Trash2, ChevronRight, FileSearc
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
+/** Strip Markdown syntax for plain-text previews in source cards */
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/#{1,6}\s+/g, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/`{1,3}[^`]*`{1,3}/g, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    .replace(/\n+/g, ' ')
+    .trim()
+}
+
 interface SourceItem {
   id: string
   score?: number
@@ -47,8 +61,9 @@ function SourcePanel({ sources, hasMessages }: { sources: SourceItem[]; hasMessa
         )}
         {sources.map((s, i) => {
           const isExpanded = expanded[s.id] ?? false
-          const preview = s.content?.slice(0, 120) ?? ''
-          const hasMore = (s.content?.length ?? 0) > 120
+          const stripped = s.content ? stripMarkdown(s.content) : ''
+          const preview = stripped.slice(0, 120)
+          const hasMore = stripped.length > 120
           return (
             <div key={s.id} className="mx-3 mb-2 border border-gray-100 rounded-xl overflow-hidden bg-gray-50">
               {/* Header row */}
@@ -76,9 +91,21 @@ function SourcePanel({ sources, hasMessages }: { sources: SourceItem[]; hasMessa
               </div>
               {/* Content */}
               <div className="px-3 pb-2.5">
-                <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap break-words">
-                  {isExpanded ? s.content : (preview + (hasMore && !isExpanded ? '…' : ''))}
-                </p>
+                {isExpanded && s.content ? (
+                  <div className="prose prose-xs prose-gray max-w-none text-xs leading-relaxed
+                    [&_h1]:text-sm [&_h1]:font-bold [&_h1]:mt-2 [&_h1]:mb-1
+                    [&_h2]:text-xs [&_h2]:font-bold [&_h2]:mt-1.5 [&_h2]:mb-0.5
+                    [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:mt-1 [&_h3]:mb-0.5
+                    [&_h4]:text-xs [&_h4]:font-semibold [&_h4]:mt-1 [&_h4]:mb-0.5
+                    [&_p]:my-0.5 [&_ul]:pl-4 [&_ol]:pl-4 [&_li]:my-0
+                    [&_strong]:font-semibold [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:rounded">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{s.content}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-700 leading-relaxed">
+                    {preview + (hasMore && !isExpanded ? '…' : '')}
+                  </p>
+                )}
                 {!s.content && (
                   <p className="text-xs text-gray-400 font-mono">ID: {s.id.slice(0, 12)}…</p>
                 )}
