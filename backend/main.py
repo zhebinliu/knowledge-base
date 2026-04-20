@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import structlog
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users
+from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp
 from services.vector_store import vector_store
 
 logger = structlog.get_logger()
@@ -33,6 +33,7 @@ app.include_router(agent_settings.router, prefix="/api/settings", tags=["setting
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
+app.include_router(mcp.router,   prefix="/api/mcp",   tags=["mcp"])
 
 
 @app.on_event("startup")
