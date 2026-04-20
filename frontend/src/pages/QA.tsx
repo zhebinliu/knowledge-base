@@ -3,6 +3,20 @@ import { Send, Bot, User, Loader, MessageSquare, Trash2, ChevronRight, FileSearc
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
+/** Strip Markdown syntax for plain-text previews in source cards */
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/#{1,6}\s+/g, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/`{1,3}[^`]*`{1,3}/g, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    .replace(/\n+/g, ' ')
+    .trim()
+}
+
 interface SourceItem {
   id: string
   score?: number
@@ -429,7 +443,7 @@ export default function QA() {
                 )}
               </div>
               <p className="text-xs text-gray-600 leading-relaxed line-clamp-4">
-                {s.content ? s.content.slice(0, 150) + (s.content.length > 150 ? '…' : '') : `ID: ${s.id.slice(0, 8)}…`}
+                {s.content ? (() => { const t = stripMarkdown(s.content!); return t.slice(0, 160) + (t.length > 160 ? '…' : '') })() : `ID: ${s.id.slice(0, 8)}…`}
               </p>
             </div>
           ))}
