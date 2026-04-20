@@ -71,6 +71,7 @@ async def startup():
             "CREATE INDEX IF NOT EXISTS idx_documents_doctype ON documents(doc_type)",
             "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS batch_id VARCHAR(36)",
             "CREATE INDEX IF NOT EXISTS idx_chunks_batch ON chunks(batch_id)",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS mcp_api_key VARCHAR(64) UNIQUE",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")

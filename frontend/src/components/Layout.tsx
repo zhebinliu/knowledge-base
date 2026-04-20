@@ -3,11 +3,11 @@ import { NavLink, Outlet, Link } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Brain, MessageSquare,
   ClipboardCheck, BookOpen, Settings, ChevronDown, LogOut, KeyRound, Shield, Folder,
-  Copy, RefreshCw, Check,
+  Copy, RefreshCw, Check, Plug, Trash2, AlertCircle,
 } from 'lucide-react'
 // BookOpen kept for chunks nav icon
 import { useAuth } from '../auth/AuthContext'
-import { TOKEN_STORAGE_KEY, refreshToken } from '../api/client'
+import { TOKEN_STORAGE_KEY, refreshToken, getMcpKeyStatus, generateMcpKey, revokeMcpKey } from '../api/client'
 
 /** path → module key 映射 */
 const pathToModule: Record<string, string> = {
@@ -49,6 +49,14 @@ export default function Layout() {
   const [refreshing, setRefreshing] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
+  // MCP Key state
+  const [mcpPreview, setMcpPreview] = useState<string | null>(null)
+  const [mcpHasKey, setMcpHasKey] = useState(false)
+  const [mcpFullKey, setMcpFullKey] = useState<string | null>(null)   // 生成后短暂展示
+  const [mcpCopied, setMcpCopied] = useState(false)
+  const [mcpLoading, setMcpLoading] = useState(false)
+  const [showMcpPanel, setShowMcpPanel] = useState(false)
+
   function copyToken() {
     const token = localStorage.getItem(TOKEN_STORAGE_KEY)
     if (!token) return
@@ -66,9 +74,55 @@ export default function Layout() {
     }
   }
 
+  async function openMcpPanel() {
+    setShowMcpPanel(true)
+    setMcpFullKey(null)
+    try {
+      const s = await getMcpKeyStatus()
+      setMcpHasKey(s.has_key)
+      setMcpPreview(s.preview)
+    } catch { /* ignore */ }
+  }
+
+  async function handleGenerateMcpKey() {
+    setMcpLoading(true)
+    try {
+      const res = await generateMcpKey()
+      setMcpFullKey(res.mcp_api_key)
+      setMcpHasKey(true)
+      setMcpPreview(res.mcp_api_key.slice(0, 8) + '…' + res.mcp_api_key.slice(-4))
+    } catch { /* ignore */ } finally {
+      setMcpLoading(false)
+    }
+  }
+
+  async function handleRevokeMcpKey() {
+    if (!confirm('确认撤销 MCP Key？撤销后现有 Claude Code 配置将失效。')) return
+    setMcpLoading(true)
+    try {
+      await revokeMcpKey()
+      setMcpHasKey(false)
+      setMcpPreview(null)
+      setMcpFullKey(null)
+    } catch { /* ignore */ } finally {
+      setMcpLoading(false)
+    }
+  }
+
+  function copyMcpKey() {
+    if (!mcpFullKey) return
+    navigator.clipboard.writeText(mcpFullKey)
+    setMcpCopied(true)
+    setTimeout(() => setMcpCopied(false), 2000)
+  }
+
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+        setShowMcpPanel(false)
+        setMcpFullKey(null)
+      }
     }
     window.addEventListener('mousedown', onClick)
     return () => window.removeEventListener('mousedown', onClick)
@@ -141,8 +195,8 @@ export default function Layout() {
               )}
               <ChevronDown size={14} className="text-gray-400" />
             </button>
-            {open && (
-              <div className="absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-50">
+            {open && !showMcpPanel && (
+              <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-50">
                 <div className="px-3 py-2 border-b border-gray-100">
                   <p className="text-xs text-gray-400">已登录</p>
                   <p className="text-sm text-gray-900 truncate">{user?.username}</p>
@@ -158,14 +212,20 @@ export default function Layout() {
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   {copied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
-                  {copied ? 'Token 已复制' : '复制 Token'}
+                  {copied ? 'Token 已复制' : '复制 JWT Token'}
                 </button>
                 <button
                   type="button" onClick={handleRefresh} disabled={refreshing}
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
                   <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-                  {refreshing ? '刷新中…' : '刷新 Token'}
+                  {refreshing ? '刷新中…' : '刷新 JWT Token'}
+                </button>
+                <button
+                  type="button" onClick={openMcpPanel}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <Plug size={14} /> MCP API Key
                 </button>
                 <div className="border-t border-gray-100 my-1" />
                 <button
@@ -174,6 +234,70 @@ export default function Layout() {
                 >
                   <LogOut size={14} /> 退出登录
                 </button>
+              </div>
+            )}
+
+            {open && showMcpPanel && (
+              <div className="absolute right-0 mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-50">
+                <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-800 flex items-center gap-1.5">
+                    <Plug size={13} /> MCP API Key
+                  </p>
+                  <button type="button" onClick={() => setShowMcpPanel(false)} className="text-xs text-gray-400 hover:text-gray-600">← 返回</button>
+                </div>
+
+                {/* 已有 key 状态 */}
+                {mcpHasKey && (
+                  <div className="px-3 py-2">
+                    <p className="text-xs text-gray-500 mb-1">当前 Key</p>
+                    <p className="text-xs font-mono bg-gray-50 px-2 py-1 rounded text-gray-700">{mcpPreview}</p>
+                  </div>
+                )}
+
+                {/* 新生成的完整 Key，仅本次展示 */}
+                {mcpFullKey && (
+                  <div className="px-3 py-2 bg-green-50 border-y border-green-100">
+                    <p className="text-xs text-green-700 font-medium mb-1 flex items-center gap-1">
+                      <Check size={11} /> 已生成，请立即复制（仅显示一次）
+                    </p>
+                    <p className="text-xs font-mono break-all text-gray-800 mb-2">{mcpFullKey}</p>
+                    <button
+                      type="button" onClick={copyMcpKey}
+                      className="flex items-center gap-1.5 text-xs px-2 py-1 bg-white border border-green-200 rounded hover:bg-green-50 transition-colors"
+                    >
+                      {mcpCopied ? <Check size={11} className="text-green-600" /> : <Copy size={11} />}
+                      {mcpCopied ? '已复制' : '复制 Key'}
+                    </button>
+                    <p className="text-xs text-gray-400 mt-2">Claude Code 配置命令：</p>
+                    <p className="text-xs font-mono bg-gray-100 px-2 py-1 rounded text-gray-600 mt-1 break-all">
+                      {`claude mcp add --transport http kb-system https://kb.tokenwave.cloud/api/mcp --header "Authorization: Bearer ${mcpFullKey}" -s user`}
+                    </p>
+                  </div>
+                )}
+
+                {/* 无 Key 提示 */}
+                {!mcpHasKey && !mcpFullKey && (
+                  <div className="px-3 py-2 text-xs text-gray-500 flex items-center gap-1.5">
+                    <AlertCircle size={12} /> 尚未生成 MCP Key
+                  </div>
+                )}
+
+                <div className="px-3 py-2 flex gap-2">
+                  <button
+                    type="button" onClick={handleGenerateMcpKey} disabled={mcpLoading}
+                    className="flex-1 text-xs px-2 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    {mcpLoading ? '处理中…' : mcpHasKey ? '轮换 Key' : '生成 Key'}
+                  </button>
+                  {mcpHasKey && (
+                    <button
+                      type="button" onClick={handleRevokeMcpKey} disabled={mcpLoading}
+                      className="text-xs px-2 py-1.5 text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-50 transition-colors flex items-center gap-1"
+                    >
+                      <Trash2 size={11} /> 撤销
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>

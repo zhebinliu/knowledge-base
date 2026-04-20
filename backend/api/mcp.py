@@ -18,9 +18,12 @@ import jwt
 import structlog
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 
 from agents.kb_agent import answer_question
 from config import settings
+from models import async_session_maker
+from models.user import User
 from services.embedding_service import embedding_service
 from services.vector_store import vector_store
 
@@ -152,25 +155,37 @@ def _extract_token(request: Request) -> str | None:
 
 @router.post("")
 async def mcp_endpoint(request: Request):
-    # ── JWT 鉴权 ──────────────────────────────────────────────────────────
+    # ── 鉴权：支持 MCP API Key（mcp_xxx）和 JWT ───────────────────────
     token = _extract_token(request)
     if not token:
         return JSONResponse(
             status_code=401,
             content={"jsonrpc": "2.0", "id": None, "error": {"code": -32001, "message": "缺少认证 token"}},
         )
-    try:
-        jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
-    except jwt.ExpiredSignatureError:
-        return JSONResponse(
-            status_code=401,
-            content={"jsonrpc": "2.0", "id": None, "error": {"code": -32001, "message": "token 已过期"}},
-        )
-    except jwt.InvalidTokenError:
-        return JSONResponse(
-            status_code=401,
-            content={"jsonrpc": "2.0", "id": None, "error": {"code": -32001, "message": "无效的 token"}},
-        )
+
+    if token.startswith("mcp_"):
+        # API Key 模式：查库匹配
+        async with async_session_maker() as session:
+            user = await session.scalar(select(User).where(User.mcp_api_key == token))
+        if not user or not user.is_active:
+            return JSONResponse(
+                status_code=401,
+                content={"jsonrpc": "2.0", "id": None, "error": {"code": -32001, "message": "无效的 MCP API Key"}},
+            )
+    else:
+        # JWT 模式
+        try:
+            jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        except jwt.ExpiredSignatureError:
+            return JSONResponse(
+                status_code=401,
+                content={"jsonrpc": "2.0", "id": None, "error": {"code": -32001, "message": "token 已过期，请在知识库平台刷新 MCP Key"}},
+            )
+        except jwt.InvalidTokenError:
+            return JSONResponse(
+                status_code=401,
+                content={"jsonrpc": "2.0", "id": None, "error": {"code": -32001, "message": "无效的 token"}},
+            )
 
     try:
         body = await request.json()

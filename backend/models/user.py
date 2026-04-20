@@ -29,6 +29,9 @@ class User(Base):
     sso_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
     sso_subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
+    # MCP 永久 API Key（不过期，格式 mcp_<uuid_hex>）
+    mcp_api_key: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

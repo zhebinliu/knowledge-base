@@ -121,6 +121,15 @@ export const fetchMe = () =>
 export const changePassword = (body: { old_password?: string; new_password: string }) =>
   api.post<{ ok: boolean }>('/auth/change-password', body).then(r => r.data)
 
+export const getMcpKeyStatus = () =>
+  api.get<{ has_key: boolean; preview: string | null }>('/auth/mcp-key').then(r => r.data)
+
+export const generateMcpKey = () =>
+  api.post<{ mcp_api_key: string }>('/auth/mcp-key').then(r => r.data)
+
+export const revokeMcpKey = () =>
+  api.delete('/auth/mcp-key')
+
 export interface Chunk {
   id: string
   document_id: string

@@ -1,4 +1,5 @@
 """认证 API：register / login / me / change-password / SSO 占位。"""
+import secrets
 from datetime import datetime, timezone
 
 import structlog
@@ -126,6 +127,40 @@ async def refresh_token(user: User = Depends(get_current_user)):
     token = create_access_token(user.id)
     logger.info("token_refreshed", user_id=user.id, username=user.username)
     return {"access_token": token, "token_type": "bearer"}
+
+
+@router.post("/mcp-key")
+async def generate_mcp_key(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """生成（或轮换）当前用户的 MCP API Key。返回完整 key，仅本次可见。"""
+    key = "mcp_" + secrets.token_hex(24)   # 52 chars total
+    user.mcp_api_key = key
+    await session.commit()
+    logger.info("mcp_key_generated", user_id=user.id, username=user.username)
+    return {"mcp_api_key": key}
+
+
+@router.get("/mcp-key")
+async def get_mcp_key_status(user: User = Depends(get_current_user)):
+    """返回当前 MCP Key 是否已设置（脱敏）。"""
+    if not user.mcp_api_key:
+        return {"has_key": False, "preview": None}
+    k = user.mcp_api_key
+    preview = k[:8] + "…" + k[-4:]
+    return {"has_key": True, "preview": preview}
+
+
+@router.delete("/mcp-key", status_code=204)
+async def revoke_mcp_key(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """撤销当前用户的 MCP API Key。"""
+    user.mcp_api_key = None
+    await session.commit()
+    logger.info("mcp_key_revoked", user_id=user.id, username=user.username)
 
 
 @router.post("/sso/{provider}/bind", status_code=501)
