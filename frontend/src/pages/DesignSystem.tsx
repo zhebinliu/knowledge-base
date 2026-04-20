@@ -4,7 +4,7 @@
  * Inspired by Salesforce Lightning Design System 2
  */
 import { useState, useEffect } from 'react'
-import { BookOpen, Palette, Type, Square, Layers, Box, AlertCircle, ToggleLeft, Layout } from 'lucide-react'
+import { BookOpen, Palette, Type, Square, Layers, Box, AlertCircle, ToggleLeft, Layout, Download } from 'lucide-react'
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 
@@ -111,6 +111,87 @@ export default function DesignSystem() {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  function downloadCSSTokens() {
+    const css = `/* KB System Design Tokens — CSS Custom Properties */
+:root {
+  /* Brand — orange */
+  --accent:        #FF8D1A;
+  --accent-deep:   #D96400;
+  --accent-light:  #FFF4E6;
+  --accent-mid:    #FFB066;
+
+  /* Surfaces */
+  --surface:       #FFFFFF;
+  --bg:            #F5F6FA;
+
+  /* Borders */
+  --line:          #E8E9EE;
+  --line-strong:   #D0D3DE;
+
+  /* Text */
+  --text-primary:   #1A1D2E;
+  --text-secondary: #6B7280;
+  --text-muted:     #9CA3AF;
+
+  /* Border radius */
+  --radius-sm: 6px;
+  --radius:    10px;
+  --radius-lg: 14px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --shadow:    0 4px 12px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.05);
+  --shadow-lg: 0 10px 28px rgba(0,0,0,.10), 0 4px 8px rgba(0,0,0,.06);
+}
+`
+    const blob = new Blob([css], { type: 'text/css' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'kb-design-tokens.css'; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function downloadJSONTokens() {
+    const tokens = {
+      "$schema": "https://design-tokens.github.io/community-group/format/",
+      "brand": {
+        "DEFAULT":   { "$value": "#FF8D1A", "$type": "color", "$description": "Primary brand orange" },
+        "deep":      { "$value": "#D96400", "$type": "color", "$description": "Darker orange for text on light bg" },
+        "light":     { "$value": "#FFF4E6", "$type": "color", "$description": "Tinted bg, hover fill" },
+        "mid":       { "$value": "#FFB066", "$type": "color", "$description": "Mid-tone accent" },
+      },
+      "surface": {
+        "canvas":    { "$value": "#F5F6FA", "$type": "color", "$description": "Page background" },
+        "surface":   { "$value": "#FFFFFF", "$type": "color", "$description": "Card / panel background" },
+      },
+      "border": {
+        "line":      { "$value": "#E8E9EE", "$type": "color", "$description": "Subtle separator" },
+        "strong":    { "$value": "#D0D3DE", "$type": "color", "$description": "Emphasized separator" },
+      },
+      "text": {
+        "primary":   { "$value": "#1A1D2E", "$type": "color", "$description": "Headings, body" },
+        "secondary": { "$value": "#6B7280", "$type": "color", "$description": "Labels, captions" },
+        "muted":     { "$value": "#9CA3AF", "$type": "color", "$description": "Placeholders, hints" },
+      },
+      "radius": {
+        "sm":        { "$value": "6px",  "$type": "dimension" },
+        "DEFAULT":   { "$value": "10px", "$type": "dimension" },
+        "lg":        { "$value": "14px", "$type": "dimension" },
+      },
+      "semantic": {
+        "success":   { "$value": "#10B981", "$type": "color" },
+        "danger":    { "$value": "#EF4444", "$type": "color" },
+        "info":      { "$value": "#3B82F6", "$type": "color" },
+        "warn":      { "$value": "#F59E0B", "$type": "color" },
+      },
+    }
+    const blob = new Blob([JSON.stringify(tokens, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'kb-design-tokens.json'; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="flex min-h-screen bg-canvas">
 
@@ -162,6 +243,29 @@ export default function DesignSystem() {
                 <p className="text-xs text-ink-secondary leading-relaxed">{desc}</p>
               </div>
             ))}
+          </div>
+
+          {/* Download tokens */}
+          <div className="mt-6 flex items-center gap-3 p-4 rounded-lg bg-brand-light border border-orange-200">
+            <Download size={16} style={{ color: 'var(--accent)' }} className="flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-ink">下载 Design Token</p>
+              <p className="text-xs text-ink-secondary mt-0.5">提供 CSS 变量和 JSON 两种格式，可直接用于其他项目或设计工具</p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={downloadCSSTokens}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-line bg-surface text-ink hover:border-brand hover:text-brand transition-colors"
+              >
+                <Download size={11} /> CSS 变量
+              </button>
+              <button
+                onClick={downloadJSONTokens}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-line bg-surface text-ink hover:border-brand hover:text-brand transition-colors"
+              >
+                <Download size={11} /> JSON
+              </button>
+            </div>
           </div>
         </Section>
 
