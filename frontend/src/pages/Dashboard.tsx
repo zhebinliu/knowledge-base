@@ -57,7 +57,7 @@ export default function Dashboard() {
 
       {/* Review alert */}
       {queue && queue.length > 0 && (
-        <Link to="/review" className="info-bar orange mb-6 block">
+        <Link to="/review" className="info-bar orange mb-6">
           <ClipboardCheck size={16} className="flex-shrink-0" />
           <div className="flex-1">
             <span className="font-semibold">{queue.length} 条内容待审核</span>
