@@ -2,7 +2,7 @@ import uuid
 import structlog
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from models import get_session
 from models.document import Document
 from models.project import DOC_TYPES, DOC_TYPE_LABELS, Project
@@ -83,23 +83,39 @@ async def upload_document(
 async def list_documents(
     project_id: str | None = Query(default=None, description="按项目筛选；'none' 表示无项目"),
     doc_type: str | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
 ):
+    # Build base filter conditions
+    conditions = []
+    if project_id == "none":
+        conditions.append(Document.project_id.is_(None))
+    elif project_id:
+        conditions.append(Document.project_id == project_id)
+    if doc_type:
+        conditions.append(Document.doc_type == doc_type)
+
+    # Total count
+    count_stmt = select(func.count()).select_from(Document)
+    if conditions:
+        count_stmt = count_stmt.where(*conditions)
+    total = (await session.execute(count_stmt)).scalar_one()
+
+    # Paginated rows
     stmt = (
         select(Document, User.username, User.full_name, Project.name)
         .outerjoin(User, Document.uploader_id == User.id)
         .outerjoin(Project, Document.project_id == Project.id)
         .order_by(Document.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
-    if project_id == "none":
-        stmt = stmt.where(Document.project_id.is_(None))
-    elif project_id:
-        stmt = stmt.where(Document.project_id == project_id)
-    if doc_type:
-        stmt = stmt.where(Document.doc_type == doc_type)
+    if conditions:
+        stmt = stmt.where(*conditions)
 
     rows = (await session.execute(stmt)).all()
-    return [
+    items = [
         {
             "id": d.id,
             "filename": d.filename,
@@ -116,6 +132,7 @@ async def list_documents(
         }
         for d, username, full_name, project_name in rows
     ]
+    return {"total": total, "items": items}
 
 
 @router.get("/{doc_id}")
@@ -162,6 +179,52 @@ async def get_document_chunks(doc_id: str, session: AsyncSession = Depends(get_s
         }
         for c in chunks
     ]
+
+
+@router.patch("/{doc_id}")
+async def update_document(
+    doc_id: str,
+    body: dict,
+    session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_user),
+):
+    """更新文档的项目归属和/或文档类型。
+    body: { project_id?: string | null, doc_type?: string | null }
+    """
+    doc = await session.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(404, "文档不存在")
+
+    if "project_id" in body:
+        pid = body["project_id"] or None
+        if pid:
+            proj = await session.get(Project, pid)
+            if not proj:
+                raise HTTPException(400, "项目不存在")
+        doc.project_id = pid
+
+    if "doc_type" in body:
+        dt = body["doc_type"] or None
+        if dt and dt not in DOC_TYPE_LABELS:
+            raise HTTPException(400, f"未知文档类型: {dt}")
+        doc.doc_type = dt
+
+    await session.commit()
+    await session.refresh(doc)
+
+    # Return updated project name
+    project_name = None
+    if doc.project_id:
+        proj = await session.get(Project, doc.project_id)
+        project_name = proj.name if proj else None
+
+    return {
+        "id": doc.id,
+        "project_id": doc.project_id,
+        "project_name": project_name,
+        "doc_type": doc.doc_type,
+        "doc_type_label": DOC_TYPE_LABELS.get(doc.doc_type) if doc.doc_type else None,
+    }
 
 
 @router.delete("/{doc_id}")

@@ -20,7 +20,8 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default function Dashboard() {
   const { data: stats }      = useQuery({ queryKey: ['stats'],     queryFn: getStats,                   refetchInterval: 10_000 })
-  const { data: docs }       = useQuery({ queryKey: ['documents'], queryFn: () => listDocuments() })
+  const { data: docsPage }   = useQuery({ queryKey: ['documents'], queryFn: () => listDocuments({ limit: 8 }) })
+  const docs = docsPage?.items
   const { data: queue }      = useQuery({ queryKey: ['review-queue'], queryFn: listReviewQueue,         refetchInterval: 30_000 })
   const { data: projects }   = useQuery({ queryKey: ['projects'],  queryFn: listProjects })
   const { data: recentRuns } = useQuery({ queryKey: ['challenge-runs-recent'], queryFn: () => listChallengeRuns(3, 0), refetchInterval: 30_000 })
@@ -118,13 +119,13 @@ export default function Dashboard() {
           </Link>
         </div>
         <div className="divide-y divide-gray-100">
-          {!docs && (
+          {!docsPage && (
             <p className="px-5 py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>加载中…</p>
           )}
           {docs?.length === 0 && (
             <p className="px-5 py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>暂无文档，请先上传</p>
           )}
-          {docs?.slice(0, 8).map(doc => (
+          {docs?.map(doc => (
             <div key={doc.id} className="px-5 py-3.5 flex items-center justify-between hover:bg-gray-50 transition-colors">
               <div className="flex items-center gap-3 min-w-0">
                 <FileText size={15} style={{ color: 'var(--text-muted)' }} className="flex-shrink-0" />

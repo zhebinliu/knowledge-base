@@ -2,15 +2,89 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  listDocuments, uploadDocument, deleteDocument,
+  listDocuments, uploadDocument, deleteDocument, updateDocumentMeta,
   getDocumentMarkdown, getDocumentChunks,
   getProjectMeta, listProjects,
-  type Chunk,
+  type Chunk, type Project,
 } from '../api/client'
 import {
   Upload, Trash2, Clock, CheckCircle, AlertCircle, Loader,
   FileText, Eye, Layers, X, Folder, FileType, Filter,
+  ChevronLeft, ChevronRight, Pencil,
 } from 'lucide-react'
+
+const PAGE_SIZE_OPTIONS = [20, 50, 100]
+
+// ── Inline edit modal ─────────────────────────────────────────────────────────
+function EditMetaModal({
+  doc, projects, meta, onClose, onSaved,
+}: {
+  doc: { id: string; filename: string; project_id?: string | null; doc_type?: string | null }
+  projects: Project[]
+  meta?: { doc_types: { value: string; label: string }[] }
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const qc = useQueryClient()
+  const [projectId, setProjectId] = useState<string>(doc.project_id ?? '')
+  const [docType,   setDocType]   = useState<string>(doc.doc_type   ?? '')
+  const [saving, setSaving] = useState(false)
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await updateDocumentMeta(doc.id, {
+        project_id: projectId || null,
+        doc_type:   docType   || null,
+      })
+      qc.invalidateQueries({ queryKey: ['documents'] })
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      onSaved()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div className="relative bg-white rounded-xl shadow-xl w-[360px] p-6 z-10">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-gray-800 text-sm">修改归属</h3>
+          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X size={15}/></button>
+        </div>
+        <p className="text-xs text-gray-500 mb-4 truncate">{doc.filename}</p>
+
+        <label className="block text-xs font-medium text-gray-600 mb-1.5">项目</label>
+        <select
+          value={projectId}
+          onChange={e => setProjectId(e.target.value)}
+          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white mb-4 focus:outline-none"
+        >
+          <option value="">无项目</option>
+          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+
+        <label className="block text-xs font-medium text-gray-600 mb-1.5">文档类型</label>
+        <select
+          value={docType}
+          onChange={e => setDocType(e.target.value)}
+          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white mb-5 focus:outline-none"
+        >
+          <option value="">无类型</option>
+          {meta?.doc_types.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="ds-btn text-sm">取消</button>
+          <button onClick={save} disabled={saving} className="ds-btn ds-btn-primary text-sm">
+            {saving ? <><Loader size={13} className="animate-spin mr-1"/>保存中…</> : '保存'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 import MarkdownView from '../components/MarkdownView'
 import UploadOptionsModal from '../components/UploadOptionsModal'
 import ProjectFormModal from '../components/ProjectFormModal'
@@ -86,20 +160,29 @@ export default function Documents() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [showUploadOpts, setShowUploadOpts] = useState(false)
   const [showCreateProject, setShowCreateProject] = useState(false)
+  const [editingDoc, setEditingDoc] = useState<{ id: string; filename: string; project_id?: string | null; doc_type?: string | null } | null>(null)
 
   const [filterProject, setFilterProject] = useState<string>(searchParams.get('project') ?? '')
   const [filterDocType, setFilterDocType] = useState<string>(searchParams.get('type') ?? '')
+  const [pageSize, setPageSize] = useState<number>(20)
+  const [page, setPage] = useState<number>(0)   // 0-indexed
 
   const docsParams = useMemo(() => ({
     project_id: filterProject || undefined,
     doc_type: filterDocType || undefined,
-  }), [filterProject, filterDocType])
+    limit: pageSize,
+    offset: page * pageSize,
+  }), [filterProject, filterDocType, pageSize, page])
 
-  const { data: docs, isLoading } = useQuery({
+  const { data: docsPage, isLoading } = useQuery({
     queryKey: ['documents', docsParams],
     queryFn: () => listDocuments(docsParams),
     refetchInterval: 5_000,
+    placeholderData: (prev) => prev,
   })
+  const docs  = docsPage?.items ?? []
+  const total = docsPage?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const { data: meta } = useQuery({ queryKey: ['project-meta'], queryFn: getProjectMeta })
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: listProjects })
 
@@ -157,10 +240,16 @@ export default function Documents() {
 
   const setFilter = (project: string, type: string) => {
     setFilterProject(project); setFilterDocType(type)
+    setPage(0)
     const next = new URLSearchParams(searchParams)
     if (project) next.set('project', project); else next.delete('project')
     if (type) next.set('type', type); else next.delete('type')
     setSearchParams(next, { replace: true })
+  }
+
+  const handlePageSize = (size: number) => {
+    setPageSize(size)
+    setPage(0)
   }
 
   const drawerDoc = docs?.find(d => d.id === drawerDocId)
@@ -251,13 +340,13 @@ export default function Documents() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {isLoading && (
+                  {isLoading && !docsPage && (
                     <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400">加载中…</td></tr>
                   )}
-                  {docs?.length === 0 && (
+                  {!isLoading && docs.length === 0 && (
                     <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400">暂无文档</td></tr>
                   )}
-                  {docs?.map(doc => (
+                  {docs.map(doc => (
                     <tr
                       key={doc.id}
                       className={`hover:bg-gray-50 transition-colors ${drawerDocId === doc.id ? 'bg-orange-50/30' : ''}`}
@@ -324,6 +413,13 @@ export default function Documents() {
                             <Layers size={15}/>
                           </button>
                           <button
+                            onClick={() => setEditingDoc({ id: doc.id, filename: doc.filename, project_id: doc.project_id, doc_type: doc.doc_type })}
+                            title="修改项目/类型"
+                            className="p-1.5 text-gray-400 hover:text-blue-500 rounded transition-colors"
+                          >
+                            <Pencil size={15}/>
+                          </button>
+                          <button
                             onClick={() => { if (confirm('确认删除？')) del.mutate(doc.id) }}
                             className="p-1.5 text-gray-400 hover:text-red-500 rounded transition-colors"
                           >
@@ -335,6 +431,63 @@ export default function Documents() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* ── Pagination bar ─────────────────────────────────────── */}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-gray-200 bg-gray-50 text-xs text-gray-500">
+              <div className="flex items-center gap-2">
+                <span>每页显示</span>
+                {PAGE_SIZE_OPTIONS.map(n => (
+                  <button
+                    key={n}
+                    onClick={() => handlePageSize(n)}
+                    className={`px-2.5 py-1 rounded border transition-colors ${
+                      pageSize === n
+                        ? 'border-orange-400 bg-orange-50 text-orange-700 font-semibold'
+                        : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                    }`}
+                  >{n} 条</button>
+                ))}
+                <span className="ml-2 text-gray-400">共 {total} 条</span>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="p-1.5 rounded border border-gray-200 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft size={13} />
+                </button>
+                {/* Page number pills */}
+                {Array.from({ length: totalPages }, (_, i) => i)
+                  .filter(i => i === 0 || i === totalPages - 1 || Math.abs(i - page) <= 1)
+                  .reduce<(number | '…')[]>((acc, i, idx, arr) => {
+                    if (idx > 0 && (i as number) - (arr[idx - 1] as number) > 1) acc.push('…')
+                    acc.push(i)
+                    return acc
+                  }, [])
+                  .map((item, idx) =>
+                    item === '…'
+                      ? <span key={`ellipsis-${idx}`} className="px-1 text-gray-400">…</span>
+                      : <button
+                          key={item}
+                          onClick={() => setPage(item as number)}
+                          className={`min-w-[28px] h-7 rounded border text-xs transition-colors ${
+                            page === item
+                              ? 'border-orange-400 bg-orange-50 text-orange-700 font-semibold'
+                              : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                          }`}
+                        >{(item as number) + 1}</button>
+                  )}
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                  disabled={page >= totalPages - 1}
+                  className="p-1.5 rounded border border-gray-200 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronRight size={13} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -432,6 +585,16 @@ export default function Documents() {
           if (pendingFiles.length > 0) setShowUploadOpts(true)
         }}
       />
+
+      {editingDoc && (
+        <EditMetaModal
+          doc={editingDoc}
+          projects={projects ?? []}
+          meta={meta}
+          onClose={() => setEditingDoc(null)}
+          onSaved={() => setEditingDoc(null)}
+        />
+      )}
     </div>
   )
 }

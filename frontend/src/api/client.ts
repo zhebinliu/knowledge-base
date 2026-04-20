@@ -183,13 +183,25 @@ export const uploadDocument = (file: File, opts: UploadOptions = {}) => {
 export interface DocumentFilter {
   project_id?: string  // 'none' = 无项目
   doc_type?: string
+  limit?: number
+  offset?: number
+}
+
+export interface DocumentPage {
+  total: number
+  items: Document[]
 }
 
 export const listDocuments = (params: DocumentFilter = {}) =>
-  api.get<Document[]>('/documents', { params }).then(r => r.data)
+  api.get<DocumentPage>('/documents', { params }).then(r => r.data)
 
 export const deleteDocument = (id: string) =>
   api.delete(`/documents/${id}`)
+
+export const updateDocumentMeta = (id: string, body: { project_id?: string | null; doc_type?: string | null }) =>
+  api.patch<{ id: string; project_id: string | null; project_name: string | null; doc_type: string | null; doc_type_label: string | null }>(
+    `/documents/${id}`, body
+  ).then(r => r.data)
 
 export const getDocumentStatus = (id: string) =>
   api.get<{ id: string; conversion_status: string; chunk_count: number }>(`/documents/${id}/status`).then(r => r.data)
