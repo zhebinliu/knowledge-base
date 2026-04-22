@@ -118,6 +118,58 @@ def process_document(self, doc_id: str):
         raise self.retry(exc=exc, countdown=60)
 
 
+_DOC_TYPE_PROMPT = """你是一个文档分类专家。根据以下文档的文件名和正文摘要，判断文档属于哪种类型。
+
+文档类型枚举（只能返回以下之一）：
+- requirement_research：需求调研（包含客户访谈记录、需求分析、痛点梳理等）
+- meeting_notes：会议纪要（包含会议记录、讨论结果、决议事项等）
+- solution_design：方案设计（包含系统架构、实施方案、技术规格、功能说明等）
+- test_case：测试用例（包含测试脚本、验收标准、测试步骤等）
+- user_manual：用户手册（包含操作指南、用户培训、功能介绍等）
+
+文件名：{filename}
+
+正文摘要（前2000字）：
+{preview}
+
+请以 JSON 格式回复，只包含：
+{{
+  "doc_type": "<枚举值之一>",
+  "confidence": <0.0-1.0>,
+  "reason": "<一句话说明判断依据>"
+}}"""
+
+
+async def _infer_doc_type(filename: str, markdown: str, model_router) -> tuple[str | None, float]:
+    """推断文档类型，返回 (doc_type, confidence)；无法判断时返回 (None, 0)。"""
+    import json
+    from models.project import DOC_TYPES
+    preview = markdown[:2000]
+    prompt = _DOC_TYPE_PROMPT.format(filename=filename, preview=preview)
+    try:
+        content, _ = await model_router.chat_with_routing(
+            "slicing_classification",
+            [{"role": "user", "content": prompt}],
+            max_tokens=200,
+            temperature=0.0,
+            timeout=30.0,
+        )
+        # Extract JSON from response
+        raw = content.strip()
+        if "```" in raw:
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        data = json.loads(raw)
+        dt = data.get("doc_type", "").strip()
+        conf = float(data.get("confidence", 0))
+        if dt in DOC_TYPES:
+            return dt, conf
+    except Exception as e:
+        logger.warning("doc_type_inference_failed", filename=filename, error=str(e)[:100])
+    return None, 0.0
+
+
 async def _process_document_async(doc_id: str):
     from models import async_session_maker
     from models.user import User  # noqa: F401 — FK documents.uploader_id→users.id
@@ -159,8 +211,21 @@ async def _process_document_async(doc_id: str):
             markdown, convert_model = await convert_to_markdown(doc.filename, content)
             doc.markdown_content = markdown
             doc.conversion_status = "slicing"
-            await session.commit()
             logger.info("conversion_model_used", doc_id=doc_id, model=convert_model)
+
+            # 3b. 自动推断文档类型（仅在用户未手动设置时）
+            if not doc.doc_type:
+                inferred_type, confidence = await _infer_doc_type(doc.filename, markdown, model_router)
+                if inferred_type and confidence >= 0.7:
+                    doc.doc_type = inferred_type
+                    logger.info(
+                        "doc_type_inferred",
+                        doc_id=doc_id,
+                        doc_type=inferred_type,
+                        confidence=f"{confidence:.0%}",
+                    )
+
+            await session.commit()
 
             # 4. 高级切片与 LTC 分类
             slices = await slice_and_classify(markdown, doc.filename)
