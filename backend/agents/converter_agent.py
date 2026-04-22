@@ -57,9 +57,16 @@ def extract_text_from_pptx(content: bytes) -> str:
 
 def extract_text_from_xlsx(content: bytes) -> str:
     import openpyxl
-    wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+    # 部分 xlsx 文件含 DataValidation 的 'id' 属性，openpyxl 3.1.x 不识别会抛 TypeError。
+    # 回退到 read_only=True（流式解析，跳过 DataValidation 规则）。
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+        sheets = wb.worksheets
+    except TypeError:
+        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True, read_only=True)
+        sheets = wb.worksheets
     parts = []
-    for sheet in wb.worksheets:
+    for sheet in sheets:
         parts.append(f"[Sheet: {sheet.title}]")
         for row in sheet.iter_rows(values_only=True):
             row_text = " | ".join(str(v) if v is not None else "" for v in row)
