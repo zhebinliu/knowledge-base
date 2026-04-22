@@ -193,6 +193,7 @@ async def _process_document_async(doc_id: str):
                         "document_id": doc_id,
                         "ltc_stage": slice_data["ltc_stage"],
                         "industry": slice_data["industry"],
+                        "doc_industry": doc.industry or "",
                         "section_path": slice_data.get("section_path", ""),
                         "content_preview": slice_data["content"][:500],
                     },

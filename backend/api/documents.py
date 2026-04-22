@@ -32,9 +32,12 @@ async def upload_document(
     # 校验 project / doc_type（可选）
     project_id = (project_id or "").strip() or None
     doc_type = (doc_type or "").strip() or None
+    doc_industry = None
     if project_id:
-        if not await session.get(Project, project_id):
+        proj = await session.get(Project, project_id)
+        if not proj:
             raise HTTPException(400, f"项目不存在: {project_id}")
+        doc_industry = proj.industry  # 继承项目行业
     if doc_type and doc_type not in DOC_TYPES:
         raise HTTPException(400, f"未知文档类型 '{doc_type}'，合法值：{list(DOC_TYPES)}")
 
@@ -59,6 +62,7 @@ async def upload_document(
         uploader_id=current_user.id if current_user else None,
         project_id=project_id,
         doc_type=doc_type,
+        industry=doc_industry,
     )
     session.add(doc)
     await session.commit()
@@ -127,6 +131,7 @@ async def list_documents(
             "project_name": project_name,
             "doc_type": d.doc_type,
             "doc_type_label": DOC_TYPE_LABELS.get(d.doc_type) if d.doc_type else None,
+            "industry": d.industry,
             "created_at": d.created_at,
             "updated_at": d.updated_at,
         }
@@ -209,6 +214,13 @@ async def update_document(
             raise HTTPException(400, f"未知文档类型: {dt}")
         doc.doc_type = dt
 
+    if "industry" in body:
+        from prompts.ltc_taxonomy import INDUSTRIES
+        ind = body["industry"] or None
+        if ind and ind not in INDUSTRIES:
+            raise HTTPException(400, f"未知行业: {ind}")
+        doc.industry = ind
+
     await session.commit()
     await session.refresh(doc)
 
@@ -224,6 +236,7 @@ async def update_document(
         "project_name": project_name,
         "doc_type": doc.doc_type,
         "doc_type_label": DOC_TYPE_LABELS.get(doc.doc_type) if doc.doc_type else None,
+        "industry": doc.industry,
     }
 
 

@@ -19,6 +19,7 @@ export interface ProjectFormModalProps {
 export default function ProjectFormModal({ open, meta, initial, onClose, onSaved }: ProjectFormModalProps) {
   const [name, setName] = useState('')
   const [customer, setCustomer] = useState('')
+  const [industry, setIndustry] = useState('')
   const [modules, setModules] = useState<string[]>([])
   const [kickoff, setKickoff] = useState('')
   const [description, setDescription] = useState('')
@@ -29,6 +30,7 @@ export default function ProjectFormModal({ open, meta, initial, onClose, onSaved
     if (!open) return
     setName(initial?.name ?? '')
     setCustomer(initial?.customer ?? '')
+    setIndustry(initial?.industry ?? '')
     setModules(initial?.modules ?? [])
     setKickoff(initial?.kickoff_date ?? '')
     setDescription(initial?.description ?? '')
@@ -50,6 +52,7 @@ export default function ProjectFormModal({ open, meta, initial, onClose, onSaved
       const body: ProjectInput = {
         name: name.trim(),
         customer: customer.trim() || null,
+        industry: industry || null,
         modules,
         kickoff_date: kickoff || null,
         description: description.trim() || null,
@@ -86,6 +89,17 @@ export default function ProjectFormModal({ open, meta, initial, onClose, onSaved
             <label className="block text-xs font-medium text-gray-700 mb-1">客户</label>
             <input value={customer} onChange={(e) => setCustomer(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">所属行业</label>
+            <select value={industry} onChange={(e) => setIndustry(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="">— 不指定 —</option>
+              {(meta?.industries ?? []).map((ind) => (
+                <option key={ind.value} value={ind.value}>{ind.label}</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-gray-400 mt-1">行业标签会自动同步到该项目下的文档，用于向量检索过滤。</p>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">立项日期</label>

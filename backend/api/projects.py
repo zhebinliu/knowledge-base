@@ -11,7 +11,7 @@ from models import get_session
 from models.document import Document
 from models.project import DOC_TYPE_LABELS, DOC_TYPES, Project
 from models.user import User
-from prompts.ltc_taxonomy import MODULE_TAGS
+from prompts.ltc_taxonomy import MODULE_TAGS, INDUSTRIES
 from services.auth import get_current_user
 
 logger = structlog.get_logger()
@@ -23,6 +23,7 @@ router = APIRouter()
 class ProjectIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     customer: str | None = None
+    industry: str | None = None
     modules: list[str] | None = None
     kickoff_date: date | None = None
     description: str | None = None
@@ -31,6 +32,7 @@ class ProjectIn(BaseModel):
 class ProjectPatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     customer: str | None = None
+    industry: str | None = None
     modules: list[str] | None = None
     kickoff_date: date | None = None
     description: str | None = None
@@ -41,6 +43,7 @@ def _project_dto(p: Project, doc_count: int = 0) -> dict:
         "id": p.id,
         "name": p.name,
         "customer": p.customer,
+        "industry": p.industry,
         "modules": p.modules or [],
         "kickoff_date": p.kickoff_date.isoformat() if p.kickoff_date else None,
         "description": p.description,
@@ -65,14 +68,24 @@ def _validate_modules(modules: list[str] | None) -> list[str] | None:
     return out
 
 
+def _validate_industry(industry: str | None) -> str | None:
+    if industry is None or industry == "":
+        return None
+    if industry not in INDUSTRIES:
+        raise HTTPException(400, f"未知行业：{industry}")
+    return industry
+
+
 # ── Meta ─────────────────────────────────────────────────────────────────────
 
 @router.get("/meta")
 async def project_meta():
-    """前端下拉用：合法模块 + 文档类型枚举。"""
+    """前端下拉用：合法模块 + 文档类型枚举 + 行业枚举。"""
+    from prompts.ltc_taxonomy import INDUSTRY_TAGS
     return {
         "modules": list(MODULE_TAGS),
         "doc_types": [{"value": v, "label": DOC_TYPE_LABELS[v]} for v in DOC_TYPES],
+        "industries": [{"value": k, "label": v} for k, v in INDUSTRY_TAGS.items()],
     }
 
 
@@ -98,9 +111,11 @@ async def create_project(
     user: User = Depends(get_current_user),
 ):
     modules = _validate_modules(body.modules)
+    industry = _validate_industry(body.industry)
     p = Project(
         name=body.name.strip(),
         customer=(body.customer or "").strip() or None,
+        industry=industry,
         modules=modules,
         kickoff_date=body.kickoff_date,
         description=body.description,
@@ -138,6 +153,8 @@ async def update_project(
         p.name = body.name.strip()
     if body.customer is not None:
         p.customer = body.customer.strip() or None
+    if body.industry is not None:
+        p.industry = _validate_industry(body.industry)
     if body.modules is not None:
         p.modules = _validate_modules(body.modules)
     if body.kickoff_date is not None:

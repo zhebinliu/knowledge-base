@@ -29,5 +29,7 @@ class Document(Base):
     )
     # 文档类型：nullable，枚举见 models.project.DOC_TYPES
     doc_type: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    # 行业标签：继承自项目或手动设置，枚举见 ltc_taxonomy.INDUSTRIES
+    industry: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)

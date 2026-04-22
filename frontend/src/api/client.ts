@@ -83,6 +83,7 @@ export interface Document {
   project_name?: string | null
   doc_type?: string | null
   doc_type_label?: string | null
+  industry?: string | null
   created_at: string
   updated_at: string
 }
@@ -204,8 +205,8 @@ export const listDocuments = (params: DocumentFilter = {}) =>
 export const deleteDocument = (id: string) =>
   api.delete(`/documents/${id}`)
 
-export const updateDocumentMeta = (id: string, body: { project_id?: string | null; doc_type?: string | null }) =>
-  api.patch<{ id: string; project_id: string | null; project_name: string | null; doc_type: string | null; doc_type_label: string | null }>(
+export const updateDocumentMeta = (id: string, body: { project_id?: string | null; doc_type?: string | null; industry?: string | null }) =>
+  api.patch<{ id: string; project_id: string | null; project_name: string | null; doc_type: string | null; doc_type_label: string | null; industry: string | null }>(
     `/documents/${id}`, body
   ).then(r => r.data)
 
@@ -346,12 +347,14 @@ export const deleteApiKey = (key: string) => api.delete(`/settings/api-keys/${ke
 export interface ProjectMeta {
   modules: string[]
   doc_types: { value: string; label: string }[]
+  industries: { value: string; label: string }[]
 }
 
 export interface Project {
   id: string
   name: string
   customer: string | null
+  industry: string | null
   modules: string[]
   kickoff_date: string | null  // YYYY-MM-DD
   description: string | null
@@ -364,6 +367,7 @@ export interface Project {
 export interface ProjectInput {
   name: string
   customer?: string | null
+  industry?: string | null
   modules?: string[] | null
   kickoff_date?: string | null
   description?: string | null

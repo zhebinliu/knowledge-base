@@ -34,6 +34,8 @@ class Project(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
     customer: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # 行业标签，枚举见 ltc_taxonomy.INDUSTRIES
+    industry: Mapped[str | None] = mapped_column(String(50), nullable=True)
     # JSON 存涉及模块列表，元素来自 ltc_taxonomy.MODULE_TAGS
     modules: Mapped[list | None] = mapped_column(JSON, nullable=True)
     kickoff_date: Mapped[date | None] = mapped_column(Date, nullable=True)

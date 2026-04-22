@@ -4,6 +4,7 @@ import {
   Project,
   ProjectMeta,
 } from '../api/client'
+import { industryLabel } from '../utils/labels'
 
 export interface UploadOptionsModalProps {
   open: boolean
@@ -29,6 +30,7 @@ export default function UploadOptionsModal({
   }, [open])
 
   const docTypeOptions = useMemo(() => meta?.doc_types ?? [], [meta])
+  const selectedProject = useMemo(() => projects.find(p => p.id === projectId) ?? null, [projects, projectId])
 
   if (!open) return null
 
@@ -86,6 +88,11 @@ export default function UploadOptionsModal({
                 <Plus size={14} />
               </button>
             </div>
+            {selectedProject?.industry && (
+              <p className="text-[11px] text-gray-400 mt-1">
+                行业：<span className="text-gray-600 font-medium">{industryLabel(selectedProject.industry)}</span>（将自动同步到上传文档）
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">文档类型（可选）</label>

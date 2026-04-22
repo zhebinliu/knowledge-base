@@ -12,7 +12,7 @@ import {
   FileText, Eye, Layers, X, Folder, FileType, Filter,
   ChevronLeft, ChevronRight, Pencil, ChevronDown, ChevronUp,
 } from 'lucide-react'
-import { ltcLabel, tagLabel } from '../utils/labels'
+import { ltcLabel, tagLabel, industryLabel, INDUSTRY_LABEL } from '../utils/labels'
 
 // ── Upload queue panel ──────────────────────────────────────────────────────
 type UploadJobStatus = 'queued' | 'uploading' | 'done' | 'failed'
@@ -86,15 +86,16 @@ const PAGE_SIZE_OPTIONS = [20, 50, 100]
 function EditMetaModal({
   doc, projects, meta, onClose, onSaved,
 }: {
-  doc: { id: string; filename: string; project_id?: string | null; doc_type?: string | null }
+  doc: { id: string; filename: string; project_id?: string | null; doc_type?: string | null; industry?: string | null }
   projects: Project[]
-  meta?: { doc_types: { value: string; label: string }[] }
+  meta?: { doc_types: { value: string; label: string }[]; industries?: { value: string; label: string }[] }
   onClose: () => void
   onSaved: () => void
 }) {
   const qc = useQueryClient()
   const [projectId, setProjectId] = useState<string>(doc.project_id ?? '')
   const [docType,   setDocType]   = useState<string>(doc.doc_type   ?? '')
+  const [industry,  setIndustry]  = useState<string>(doc.industry   ?? '')
   const [saving, setSaving] = useState(false)
 
   const save = async () => {
@@ -103,6 +104,7 @@ function EditMetaModal({
       await updateDocumentMeta(doc.id, {
         project_id: projectId || null,
         doc_type:   docType   || null,
+        industry:   industry  || null,
       })
       qc.invalidateQueries({ queryKey: ['documents'] })
       qc.invalidateQueries({ queryKey: ['projects'] })
@@ -136,10 +138,22 @@ function EditMetaModal({
         <select
           value={docType}
           onChange={e => setDocType(e.target.value)}
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white mb-5 focus:outline-none"
+          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white mb-4 focus:outline-none"
         >
           <option value="">无类型</option>
           {meta?.doc_types.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+
+        <label className="block text-xs font-medium text-gray-600 mb-1.5">所属行业</label>
+        <select
+          value={industry}
+          onChange={e => setIndustry(e.target.value)}
+          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white mb-5 focus:outline-none"
+        >
+          <option value="">不指定</option>
+          {(meta?.industries ?? Object.entries(INDUSTRY_LABEL).map(([value, label]) => ({ value, label }))).map(
+            ind => <option key={ind.value} value={ind.value}>{ind.label}</option>
+          )}
         </select>
 
         <div className="flex justify-end gap-2">
@@ -227,7 +241,7 @@ export default function Documents() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [showUploadOpts, setShowUploadOpts] = useState(false)
   const [showCreateProject, setShowCreateProject] = useState(false)
-  const [editingDoc, setEditingDoc] = useState<{ id: string; filename: string; project_id?: string | null; doc_type?: string | null } | null>(null)
+  const [editingDoc, setEditingDoc] = useState<{ id: string; filename: string; project_id?: string | null; doc_type?: string | null; industry?: string | null } | null>(null)
 
   // Upload queue state
   const [uploadJobs, setUploadJobs] = useState<UploadJob[]>([])
@@ -422,6 +436,7 @@ export default function Documents() {
                     <th className="text-left px-5 py-3 font-medium text-gray-600">文件名</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">项目</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">类型</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">行业</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">状态</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">上传者</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">创建时间</th>
@@ -430,10 +445,10 @@ export default function Documents() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {isLoading && !docsPage && (
-                    <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400">加载中…</td></tr>
+                    <tr><td colSpan={8} className="px-5 py-8 text-center text-gray-400">加载中…</td></tr>
                   )}
                   {!isLoading && docs.length === 0 && (
-                    <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400">暂无文档</td></tr>
+                    <tr><td colSpan={8} className="px-5 py-8 text-center text-gray-400">暂无文档</td></tr>
                   )}
                   {docs.map(doc => (
                     <tr
@@ -461,6 +476,15 @@ export default function Documents() {
                         {doc.doc_type_label ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-700 rounded whitespace-nowrap">
                             <FileType size={10} /> {doc.doc_type_label}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">
+                        {doc.industry ? (
+                          <span className="inline-flex items-center px-2 py-0.5 bg-teal-50 text-teal-700 rounded whitespace-nowrap">
+                            {industryLabel(doc.industry)}
                           </span>
                         ) : (
                           <span className="text-gray-400">—</span>
@@ -502,7 +526,7 @@ export default function Documents() {
                             <Layers size={15}/>
                           </button>
                           <button
-                            onClick={() => setEditingDoc({ id: doc.id, filename: doc.filename, project_id: doc.project_id, doc_type: doc.doc_type })}
+                            onClick={() => setEditingDoc({ id: doc.id, filename: doc.filename, project_id: doc.project_id, doc_type: doc.doc_type, industry: doc.industry })}
                             title="修改项目/类型"
                             className="p-1.5 text-gray-400 hover:text-blue-500 rounded transition-colors"
                           >
