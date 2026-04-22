@@ -58,21 +58,24 @@ def extract_text_from_pptx(content: bytes) -> str:
 def extract_text_from_xlsx(content: bytes) -> str:
     import openpyxl
     # 部分 xlsx 文件含 DataValidation 的 'id' 属性，openpyxl 3.1.x 不识别会抛 TypeError。
-    # 回退到 read_only=True（流式解析，跳过 DataValidation 规则）。
+    # 注意：该错误可能在 load_workbook 时或在 iter_rows 遍历 sheet 内容时才触发。
+    # 因此将整个解析+遍历都包在 try/except 中，失败时回退到 read_only=True（流式解析）。
+    def _extract(read_only: bool) -> str:
+        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True, read_only=read_only)
+        parts = []
+        for sheet in wb.worksheets:
+            parts.append(f"[Sheet: {sheet.title}]")
+            for row in sheet.iter_rows(values_only=True):
+                row_text = " | ".join(str(v) if v is not None else "" for v in row)
+                if row_text.strip(" |"):
+                    parts.append(row_text)
+        return "\n".join(parts)
+
     try:
-        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
-        sheets = wb.worksheets
+        return _extract(read_only=False)
     except TypeError:
-        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True, read_only=True)
-        sheets = wb.worksheets
-    parts = []
-    for sheet in sheets:
-        parts.append(f"[Sheet: {sheet.title}]")
-        for row in sheet.iter_rows(values_only=True):
-            row_text = " | ".join(str(v) if v is not None else "" for v in row)
-            if row_text.strip(" |"):
-                parts.append(row_text)
-    return "\n".join(parts)
+        # DataValidation 或其他 openpyxl 兼容性错误，改用流式只读模式重试
+        return _extract(read_only=True)
 
 
 def extract_raw_text(filename: str, content: bytes) -> str:
