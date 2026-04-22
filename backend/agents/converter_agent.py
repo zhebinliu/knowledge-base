@@ -57,10 +57,8 @@ def extract_text_from_pptx(content: bytes) -> str:
 
 def extract_text_from_xlsx(content: bytes) -> str:
     import openpyxl
-    # 部分 xlsx 文件含 DataValidation 的 'id' 属性，openpyxl 3.1.x 不识别会抛 TypeError。
-    # 注意：该错误可能在 load_workbook 时或在 iter_rows 遍历 sheet 内容时才触发。
-    # 因此将整个解析+遍历都包在 try/except 中，失败时回退到 read_only=True（流式解析）。
-    def _extract(read_only: bool) -> str:
+
+    def _extract_openpyxl(read_only: bool) -> str:
         wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True, read_only=read_only)
         parts = []
         for sheet in wb.worksheets:
@@ -71,11 +69,38 @@ def extract_text_from_xlsx(content: bytes) -> str:
                     parts.append(row_text)
         return "\n".join(parts)
 
+    def _extract_zip_fallback() -> str:
+        """最后兜底：从 xlsx zip 中直接解析 sharedStrings.xml 提取所有文本。"""
+        import zipfile
+        import xml.etree.ElementTree as ET
+        parts = []
+        try:
+            with zipfile.ZipFile(io.BytesIO(content)) as z:
+                if "xl/sharedStrings.xml" in z.namelist():
+                    with z.open("xl/sharedStrings.xml") as f:
+                        tree = ET.parse(f)
+                        ns = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+                        for si in tree.findall(".//x:si", ns):
+                            texts = [t.text for t in si.findall(".//x:t", ns) if t.text]
+                            val = "".join(texts).strip()
+                            if val:
+                                parts.append(val)
+        except Exception:
+            pass
+        return "\n".join(parts) if parts else "[无法解析此xlsx文件]"
+
+    # 1. 普通模式
     try:
-        return _extract(read_only=False)
-    except TypeError:
-        # DataValidation 或其他 openpyxl 兼容性错误，改用流式只读模式重试
-        return _extract(read_only=True)
+        return _extract_openpyxl(read_only=False)
+    except Exception:
+        pass
+    # 2. 流式只读模式（跳过 DataValidation / 样式解析）
+    try:
+        return _extract_openpyxl(read_only=True)
+    except Exception:
+        pass
+    # 3. 直接从 zip 解析 sharedStrings（兜底，无格式但不丢文本）
+    return _extract_zip_fallback()
 
 
 def extract_raw_text(filename: str, content: bytes) -> str:
