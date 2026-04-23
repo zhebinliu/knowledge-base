@@ -168,6 +168,7 @@ export interface Stats {
   documents: number
   chunks: number
   vectors: number
+  status_distribution?: Record<string, number>
 }
 
 // ── Documents ────────────────────────────────────────────────────────────────

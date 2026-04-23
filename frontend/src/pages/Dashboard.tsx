@@ -10,12 +10,25 @@ const STATUS_ICON: Record<string, JSX.Element> = {
   pending:    <Clock size={14} className="text-yellow-500"/>,
   converting: <Loader size={14} className="text-blue-500 animate-spin"/>,
   slicing:    <Loader size={14} className="text-purple-500 animate-spin"/>,
+  retrying:   <Loader size={14} className="text-orange-500 animate-spin"/>,
   completed:  <CheckCircle size={14} className="text-green-500"/>,
   failed:     <AlertCircle size={14} className="text-red-500"/>,
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  pending: '等待处理', converting: '转换中', slicing: '切片中', completed: '完成', failed: '失败',
+  pending: '等待处理', converting: '转换中', slicing: '切片中', retrying: '重试中', completed: '完成', failed: '失败',
+}
+
+// 处理进度卡片按此顺序展示，对齐文档生命周期
+const STATUS_ORDER = ['completed', 'converting', 'slicing', 'pending', 'retrying', 'failed'] as const
+
+const STATUS_BAR_COLOR: Record<string, string> = {
+  completed:  'bg-green-500',
+  converting: 'bg-blue-500',
+  slicing:    'bg-purple-500',
+  pending:    'bg-yellow-400',
+  retrying:   'bg-orange-500',
+  failed:     'bg-red-500',
 }
 
 export default function Dashboard() {
@@ -31,6 +44,16 @@ export default function Dashboard() {
     { label: '切片数',   value: stats?.chunks     ?? '—', icon: Layers,   color: 'purple', to: '/chunks' },
     { label: '项目数',   value: projects?.length  ?? '—', icon: Folder,   color: 'orange', to: '/projects' },
   ]
+
+  // 处理进度分布：按状态聚合 + 进度条
+  const statusMap = stats?.status_distribution ?? {}
+  const statusTotal = Object.values(statusMap).reduce((a, b) => a + b, 0)
+  const completedCount = statusMap.completed ?? 0
+  const inFlightCount = statusTotal - completedCount
+  const completedPct = statusTotal > 0 ? Math.round((completedCount / statusTotal) * 100) : 0
+  const statusEntries = STATUS_ORDER
+    .map(s => ({ status: s, count: statusMap[s] ?? 0 }))
+    .filter(e => e.count > 0)
 
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto">
@@ -54,6 +77,44 @@ export default function Dashboard() {
           </Link>
         ))}
       </div>
+
+      {/* Processing progress */}
+      {statusTotal > 0 && (
+        <div className="card mb-6">
+          <div className="card-head">
+            <h3 className="flex items-center gap-2">
+              <Loader size={15} style={{ color: 'var(--accent)' }} className={inFlightCount > 0 ? 'animate-spin' : ''} />
+              文档处理进度
+            </h3>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {completedCount} / {statusTotal} 完成（{completedPct}%）
+            </span>
+          </div>
+          <div className="px-5 py-4">
+            {/* 堆叠进度条 */}
+            <div className="flex h-2 w-full overflow-hidden rounded bg-gray-100 mb-3">
+              {statusEntries.map(({ status, count }) => (
+                <div
+                  key={status}
+                  className={`h-full ${STATUS_BAR_COLOR[status] ?? 'bg-gray-300'}`}
+                  style={{ width: `${(count / statusTotal) * 100}%` }}
+                  title={`${STATUS_LABEL[status] ?? status}: ${count}`}
+                />
+              ))}
+            </div>
+            {/* 分状态计数 */}
+            <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs">
+              {statusEntries.map(({ status, count }) => (
+                <div key={status} className="flex items-center gap-1.5">
+                  {STATUS_ICON[status]}
+                  <span style={{ color: 'var(--text-secondary)' }}>{STATUS_LABEL[status] ?? status}</span>
+                  <span className="font-mono font-semibold text-gray-800">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Review alert */}
       {queue && queue.length > 0 && (
