@@ -10,9 +10,26 @@
 """
 
 import asyncio
+import re
 import structlog
 import httpx
 from config import settings
+
+# 匹配推理模型输出的 <think>...</think> 思考块（跨行）
+_THINK_RE = re.compile(r"<think>[\s\S]*?</think>", re.IGNORECASE)
+
+
+def _strip_think(text: str) -> str:
+    """去除推理模型输出的 <think>...</think> 思考块。完整闭合的块直接删。
+    若仅有 <think> 无 </think>（极少见被截断），也删掉 <think> 之后的所有内容。
+    """
+    if not text:
+        return text
+    cleaned = _THINK_RE.sub("", text)
+    idx = cleaned.lower().find("<think>")
+    if idx != -1:
+        cleaned = cleaned[:idx]
+    return cleaned.strip()
 
 logger = structlog.get_logger()
 
@@ -189,6 +206,8 @@ class ModelRouter:
                 resp.raise_for_status()
                 self._failure_counts[model_name] = 0
                 content = resp.json()["choices"][0]["message"]["content"]
+                # 统一剥离 <think>...</think> 思考块，避免污染下游解析/展示
+                content = _strip_think(content)
                 return content, model_name
             except httpx.HTTPStatusError as e:
                 # 429 已在上面处理；到这里说明退避用完仍 429，或其他 4xx/5xx
