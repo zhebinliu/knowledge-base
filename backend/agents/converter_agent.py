@@ -5,6 +5,7 @@
 """
 
 import io
+import re
 import structlog
 from services.model_router import model_router
 from prompts.conversion import build_conversion_prompt
@@ -146,6 +147,8 @@ async def convert_to_markdown(filename: str, content: bytes) -> tuple[str, str |
             max_tokens=8000,
             timeout=180.0,
         )
+        # 去除推理模型输出的 <think>...</think> 思考块，只保留实际 Markdown 内容
+        result = re.sub(r"<think>[\s\S]*?</think>", "", result, flags=re.IGNORECASE).strip()
         markdown_parts.append(result)
         logger.info("segment_converted", filename=filename, segment=i + 1, total=len(segments), model=used_model)
 
