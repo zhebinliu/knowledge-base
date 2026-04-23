@@ -45,5 +45,9 @@ class Chunk(Base):
     # 关联到 ChallengeRun.id（challenge 固化的 Q+A 才有值）
     batch_id: Mapped[str | None] = mapped_column(String(36), index=True)
 
+    # 检索热度：QA / 文档生成命中时异步自增
+    citation_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_cited_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)

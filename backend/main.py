@@ -57,6 +57,7 @@ async def startup():
     from models.user import User  # noqa: F401
     from models.project import Project  # noqa: F401
     from models.challenge_run import ChallengeRun  # noqa: F401
+    from models.qa_log import Conversation, QuestionLog, AnswerFeedback  # noqa: F401
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -83,6 +84,9 @@ async def startup():
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS industry VARCHAR(50)",
             "CREATE INDEX IF NOT EXISTS idx_documents_industry ON documents(industry)",
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS conversion_error TEXT",
+            "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS citation_count INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS last_cited_at TIMESTAMP NULL",
+            "CREATE INDEX IF NOT EXISTS idx_chunks_citation ON chunks(citation_count DESC, last_cited_at DESC)",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")

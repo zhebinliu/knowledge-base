@@ -21,6 +21,7 @@ async def list_chunks(
     ltc_stage: str | None = Query(None),
     industry: str | None = Query(None),
     review_status: str | None = Query(None),
+    usage: str | None = Query(None, description="hot | unused；hot 按 citation_count 倒排，unused 仅列 citation_count=0"),
     limit: int = Query(50, le=200),
     offset: int = Query(0),
     session: AsyncSession = Depends(get_session),
@@ -32,6 +33,8 @@ async def list_chunks(
         conditions.append(Chunk.industry == industry)
     if review_status:
         conditions.append(Chunk.review_status == review_status)
+    if usage == "unused":
+        conditions.append(Chunk.citation_count == 0)
 
     count_q = select(func.count()).select_from(Chunk)
     if conditions:
@@ -41,7 +44,11 @@ async def list_chunks(
     q = select(Chunk)
     if conditions:
         q = q.where(*conditions)
-    q = q.order_by(Chunk.created_at.desc()).offset(offset).limit(limit)
+    if usage == "hot":
+        q = q.order_by(Chunk.citation_count.desc(), Chunk.last_cited_at.desc().nullslast())
+    else:
+        q = q.order_by(Chunk.created_at.desc())
+    q = q.offset(offset).limit(limit)
     chunks = (await session.execute(q)).scalars().all()
 
     return {
@@ -53,6 +60,7 @@ async def list_chunks(
                 "tags": c.tags, "review_status": c.review_status,
                 "chunk_index": c.chunk_index, "char_count": c.char_count,
                 "generated_by_model": c.generated_by_model,
+                "citation_count": c.citation_count, "last_cited_at": c.last_cited_at,
             }
             for c in chunks
         ],
@@ -72,6 +80,7 @@ async def get_chunk(chunk_id: str, session: AsyncSession = Depends(get_session))
         "char_count": chunk.char_count, "review_status": chunk.review_status,
         "reviewed_by": chunk.reviewed_by, "reviewed_at": chunk.reviewed_at,
         "generated_by_model": chunk.generated_by_model, "vector_id": chunk.vector_id,
+        "citation_count": chunk.citation_count, "last_cited_at": chunk.last_cited_at,
         "created_at": chunk.created_at, "updated_at": chunk.updated_at,
     }
 

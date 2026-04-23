@@ -2,7 +2,7 @@ import structlog
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import (
     Distance, VectorParams, PointStruct,
-    Filter, FieldCondition, MatchValue,
+    Filter, FieldCondition, MatchValue, MatchAny,
 )
 from config import settings
 
@@ -47,12 +47,18 @@ class VectorStore:
         ltc_stage: str | None = None,
         industry: str | None = None,
         score_threshold: float | None = None,
+        document_ids: list[str] | None = None,
     ) -> list[dict]:
         filters = []
         if ltc_stage:
             filters.append(FieldCondition(key="ltc_stage", match=MatchValue(value=ltc_stage)))
         if industry:
             filters.append(FieldCondition(key="industry", match=MatchValue(value=industry)))
+        if document_ids is not None:
+            # 项目维度过滤：限定在给定 document_id 集合内检索
+            if not document_ids:
+                return []  # 项目下无文档，直接返回空
+            filters.append(FieldCondition(key="document_id", match=MatchAny(any=document_ids)))
 
         query_filter = Filter(must=filters) if filters else None
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listChunks, updateChunk, exportChunks, type Chunk } from '../api/client'
-import { ChevronDown, ChevronUp, Tag, Pencil, Check, X, Loader, Cpu, Download, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronUp, Tag, Pencil, Check, X, Loader, Cpu, Download, ChevronLeft, ChevronRight, Flame, Ghost } from 'lucide-react'
 import MarkdownView from '../components/MarkdownView'
 import { LTC_KEYS, LTC_LABEL, INDUSTRY_LABEL, ltcLabel, industryLabel, tagLabel } from '../utils/labels'
 
@@ -29,8 +29,11 @@ function ChunkRow({ chunk }: { chunk: Chunk }) {
   const [industry, setIndustry] = useState(chunk.industry ?? '')
   const [module, setModule]     = useState(chunk.module ?? '')
   const [tagsStr, setTagsStr]   = useState((chunk.tags ?? []).join(', '))
+  const [content, setContent]   = useState(chunk.content ?? '')
+  const [editContent, setEditContent] = useState(false)
 
   const qc = useQueryClient()
+  const citations = chunk.citation_count ?? 0
 
   // Re-sync local form state if the chunk data updates from the server
   useEffect(() => {
@@ -39,6 +42,8 @@ function ChunkRow({ chunk }: { chunk: Chunk }) {
       setIndustry(chunk.industry ?? '')
       setModule(chunk.module ?? '')
       setTagsStr((chunk.tags ?? []).join(', '))
+      setContent(chunk.content ?? '')
+      setEditContent(false)
     }
   }, [chunk, editing])
 
@@ -49,9 +54,12 @@ function ChunkRow({ chunk }: { chunk: Chunk }) {
         industry: industry || undefined,
         module: module || undefined,
         tags: tagsStr.split(',').map(t => t.trim()).filter(Boolean),
+        // 只在明确切换到"改内容"模式时才提交 content，避免误触发重嵌
+        ...(editContent && content !== chunk.content ? { content } : {}),
       }),
     onSuccess: () => {
       setEditing(false)
+      setEditContent(false)
       qc.invalidateQueries({ queryKey: ['chunks'] })
     },
   })
@@ -61,7 +69,9 @@ function ChunkRow({ chunk }: { chunk: Chunk }) {
     setIndustry(chunk.industry ?? '')
     setModule(chunk.module ?? '')
     setTagsStr((chunk.tags ?? []).join(', '))
+    setContent(chunk.content ?? '')
     setEditing(false)
+    setEditContent(false)
   }
 
   return (
@@ -96,6 +106,19 @@ function ChunkRow({ chunk }: { chunk: Chunk }) {
                 <Tag size={10} />{tagLabel(t)}
               </span>
             ))}
+            {citations >= 5 ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700" title={`被引用 ${citations} 次`}>
+                <Flame size={10}/> {citations}
+              </span>
+            ) : citations === 0 ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-400" title="从未被检索命中">
+                <Ghost size={10}/> 未引用
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-50 text-gray-500" title={`被引用 ${citations} 次`}>
+                {citations} 次
+              </span>
+            )}
           </div>
         </div>
         <button className="ml-3 flex-shrink-0 text-gray-400">
@@ -166,6 +189,32 @@ function ChunkRow({ chunk }: { chunk: Chunk }) {
                 />
               </label>
 
+              <div className="pt-1 border-t border-gray-200">
+                {!editContent ? (
+                  <button
+                    onClick={() => setEditContent(true)}
+                    className="text-xs text-orange-600 hover:underline flex items-center gap-1"
+                  >
+                    <Pencil size={10}/> 修改切片内容（保存后自动重新嵌入）
+                  </button>
+                ) : (
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs text-orange-700 flex items-center gap-1">
+                      <Pencil size={10}/> 切片内容（保存时会触发 embedding 重算）
+                    </span>
+                    <textarea
+                      value={content}
+                      onChange={e => setContent(e.target.value)}
+                      rows={Math.min(20, Math.max(6, content.split('\n').length + 1))}
+                      className="px-2 py-1.5 border border-orange-300 rounded text-xs font-mono bg-white focus:outline-none focus:ring-1 focus:ring-orange-500 resize-y"
+                    />
+                    <span className="text-[11px] text-gray-400">
+                      当前 {content.length} 字（原 {chunk.content?.length ?? 0} 字）
+                    </span>
+                  </label>
+                )}
+              </div>
+
               <div className="flex items-center justify-end gap-2 pt-1">
                 {save.isError && (
                   <span className="text-xs text-red-600 mr-auto">保存失败</span>
@@ -197,21 +246,18 @@ function ChunkRow({ chunk }: { chunk: Chunk }) {
 export default function Chunks() {
   const [ltcStage, setLtcStage]         = useState('')
   const [reviewStatus, setReviewStatus] = useState('')
+  const [usage, setUsage]               = useState<'' | 'hot' | 'unused'>('')
   const [pageSize, setPageSize]         = useState(20)
   const [page, setPage]                 = useState(0)
   const [exporting, setExporting]       = useState(false)
 
-  // Reset to page 0 when filters change
-  const setFilter = (stage: string, status: string) => {
-    setLtcStage(stage); setReviewStatus(status); setPage(0)
-  }
-
   const params = useMemo(() => ({
     ltc_stage:     ltcStage     || undefined,
     review_status: reviewStatus || undefined,
+    usage:         (usage || undefined) as 'hot' | 'unused' | undefined,
     limit:  pageSize,
     offset: page * pageSize,
-  }), [ltcStage, reviewStatus, pageSize, page])
+  }), [ltcStage, reviewStatus, usage, pageSize, page])
 
   const { data: chunksPage, isLoading } = useQuery({
     queryKey: ['chunks', params],
@@ -261,10 +307,10 @@ export default function Chunks() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-6">
+      <div className="flex flex-wrap gap-3 mb-6 items-center">
         <select
           value={ltcStage}
-          onChange={e => setFilter(e.target.value, reviewStatus)}
+          onChange={e => { setLtcStage(e.target.value); setPage(0) }}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none"
         >
           <option value="">全部阶段</option>
@@ -275,13 +321,31 @@ export default function Chunks() {
 
         <select
           value={reviewStatus}
-          onChange={e => setFilter(ltcStage, e.target.value)}
+          onChange={e => { setReviewStatus(e.target.value); setPage(0) }}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none"
         >
           {REVIEW_STATUS.map(s => (
             <option key={s} value={s}>{REVIEW_LABEL[s]}</option>
           ))}
         </select>
+
+        <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+          {[
+            { v: '' as const, label: '全部', icon: null },
+            { v: 'hot' as const, label: '热门', icon: <Flame size={11} className="text-amber-500"/> },
+            { v: 'unused' as const, label: '未引用', icon: <Ghost size={11} className="text-gray-400"/> },
+          ].map(opt => (
+            <button
+              key={opt.v || 'all'}
+              onClick={() => { setUsage(opt.v); setPage(0) }}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                usage === opt.v ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'
+              }`}
+            >
+              {opt.icon}{opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {isLoading && !chunksPage && <p className="text-center text-gray-400 py-12">加载中…</p>}

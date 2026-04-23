@@ -107,7 +107,7 @@ class ConfigService:
         from services.model_router import MODEL_REGISTRY, ROUTING_RULES
         from prompts.conversion import CONVERSION_PROMPT
         from prompts.slicing import CLASSIFICATION_PROMPT
-        from prompts.qa import QA_PROMPT, DOC_GENERATE_PROMPT
+        from prompts.qa import QA_PROMPT, PM_QA_PROMPT, DOC_GENERATE_PROMPT
         from prompts.challenge import CHALLENGE_QUESTION_PROMPT, CHALLENGE_JUDGE_PROMPT
 
         from models.agent_config import AgentConfig
@@ -136,6 +136,7 @@ class ConfigService:
                 "CONVERSION_PROMPT": {"template": CONVERSION_PROMPT, "variables": ["raw_text"]},
                 "CLASSIFICATION_PROMPT": {"template": CLASSIFICATION_PROMPT, "variables": ["ltc_taxonomy", "industry_list", "module_list", "doc_title", "section_path", "chunk_content"]},
                 "QA_PROMPT": {"template": QA_PROMPT, "variables": ["retrieved_chunks", "question"]},
+                "PM_QA_PROMPT": {"template": PM_QA_PROMPT, "variables": ["retrieved_chunks", "question", "project_name"]},
                 "DOC_GENERATE_PROMPT": {"template": DOC_GENERATE_PROMPT, "variables": ["template", "retrieved_chunks", "project_name", "industry"]},
                 "CHALLENGE_QUESTION_PROMPT": {"template": CHALLENGE_QUESTION_PROMPT, "variables": ["target_stage", "chunks_content", "num_questions"]},
                 "CHALLENGE_JUDGE_PROMPT": {"template": CHALLENGE_JUDGE_PROMPT, "variables": ["question", "answer", "source_chunks"]},
@@ -144,6 +145,26 @@ class ConfigService:
                 _add("prompt_template", key, val, f"Prompt: {key}")
 
             await session.commit()
+
+            # 强制升级 QA_PROMPT：旧版本的"完全没有与问题相关的业务领域信息 → 拒答"规则
+            # 让模型过度保守、sources 很多但答案却是"知识库中暂无相关内容"。
+            # 检测到旧规则关键句时自动替换为新版。
+            from models.agent_config import AgentConfig
+            row = (await session.execute(
+                select(AgentConfig).where(
+                    AgentConfig.config_type == "prompt_template",
+                    AgentConfig.config_key == "QA_PROMPT",
+                )
+            )).scalar_one_or_none()
+            if row and isinstance(row.config_value, dict):
+                tpl = row.config_value.get("template", "")
+                OLD_MARKER = "切片中完全没有与问题相关的业务领域信息"
+                NEW_MARKER = "切片内容和问题属于完全不同的业务领域"
+                if OLD_MARKER in tpl and NEW_MARKER not in tpl:
+                    row.config_value = {"template": QA_PROMPT, "variables": ["retrieved_chunks", "question"]}
+                    await session.commit()
+                    logger.info("qa_prompt_upgraded_to_less_refusal_version")
+
         self.invalidate()
         logger.info("config_seed_complete")
 

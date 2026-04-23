@@ -147,6 +147,10 @@ export interface Chunk {
   reviewed_by?: string
   reviewed_at?: string
   created_at: string
+  citation_count?: number
+  last_cited_at?: string | null
+  source_section?: string | null
+  generated_by_model?: string | null
 }
 
 export interface ReviewItem {
@@ -227,6 +231,7 @@ export interface ChunkFilter {
   ltc_stage?: string
   industry?: string
   review_status?: string
+  usage?: 'hot' | 'unused'
   limit?: number
   offset?: number
 }
@@ -244,16 +249,37 @@ export const updateChunk = (id: string, body: Partial<Pick<Chunk, 'content' | 'l
 
 // ── QA ───────────────────────────────────────────────────────────────────────
 
+export type QAPersona = 'general' | 'pm'
+
+export interface QAHistoryItem {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export interface QARequest {
   question: string
   ltc_stage?: string
   industry?: string
+  history?: QAHistoryItem[]
+  persona?: QAPersona
+  project_id?: string | null
+  conversation_id?: string | null
+}
+
+export interface QASource {
+  id: string
+  score?: number
+  ltc_stage?: string | null
+  content?: string
+  document_id?: string
+  source_section?: string
 }
 
 export interface QAResponse {
   answer: string
-  sources?: Chunk[]
-  [key: string]: unknown
+  model?: string | null
+  sources?: QASource[]
+  question_log_id?: string
 }
 
 export const askQuestion = (body: QARequest) =>
@@ -268,6 +294,67 @@ export interface GenerateDocRequest {
 
 export const generateDoc = (body: GenerateDocRequest) =>
   api.post<{ content: string }>('/qa/generate-doc', body).then(r => r.data)
+
+// Conversations
+export interface QAConversation {
+  id: string
+  title: string
+  persona: QAPersona
+  project_id: string | null
+  ltc_stage: string | null
+  industry: string | null
+  messages: Array<{
+    role: 'user' | 'assistant'
+    content: string
+    sources?: QASource[]
+    model?: string | null
+    question_log_id?: string
+    ts?: string
+  }>
+  created_at: string
+  updated_at: string
+}
+
+export const listConversations = (limit = 30, offset = 0) =>
+  api.get<{ items: QAConversation[] }>('/qa/conversations', { params: { limit, offset } }).then(r => r.data.items)
+
+export const createConversation = (body: {
+  title?: string
+  persona?: QAPersona
+  project_id?: string | null
+  ltc_stage?: string | null
+  industry?: string | null
+}) => api.post<QAConversation>('/qa/conversations', body).then(r => r.data)
+
+export const getConversation = (id: string) =>
+  api.get<QAConversation>(`/qa/conversations/${id}`).then(r => r.data)
+
+export const patchConversation = (id: string, body: { messages: QAConversation['messages']; title?: string }) =>
+  api.patch<QAConversation>(`/qa/conversations/${id}`, body).then(r => r.data)
+
+export const deleteConversation = (id: string) =>
+  api.delete(`/qa/conversations/${id}`)
+
+// Feedback
+export const submitAnswerFeedback = (body: { question_log_id: string; rating: 'up' | 'down' | 'star'; comment?: string }) =>
+  api.post<{ ok: boolean; rating: string }>('/qa/feedback', body).then(r => r.data)
+
+// Unanswered queue
+export interface UnansweredItem {
+  id: string
+  question: string
+  answer_preview: string | null
+  persona: QAPersona
+  project_id: string | null
+  user_id: string | null
+  created_at: string
+}
+
+export const listUnanswered = (limit = 20, offset = 0) =>
+  api.get<{ total: number; items: UnansweredItem[] }>('/qa/unanswered', { params: { limit, offset } }).then(r => r.data)
+
+export const resolveUnanswered = (id: string) =>
+  api.post(`/qa/unanswered/${id}/resolve`)
 
 // ── Challenge Schedules ─────────────────────────────────────────────────────
 

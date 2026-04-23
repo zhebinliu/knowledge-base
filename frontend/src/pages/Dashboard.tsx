@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { getStats, listDocuments, listReviewQueue, listProjects, listChallengeRuns } from '../api/client'
+import { getStats, listDocuments, listReviewQueue, listProjects, listChallengeRuns, listUnanswered, resolveUnanswered } from '../api/client'
 import { Link } from 'react-router-dom'
 import {
   FileText, Layers, Clock, CheckCircle, AlertCircle,
-  Loader, ClipboardCheck, ArrowRight, Folder, Brain,
+  Loader, ClipboardCheck, ArrowRight, Folder, Brain, HelpCircle, Check,
 } from 'lucide-react'
 
 const STATUS_ICON: Record<string, JSX.Element> = {
@@ -38,6 +38,12 @@ export default function Dashboard() {
   const { data: queue }      = useQuery({ queryKey: ['review-queue'], queryFn: listReviewQueue,         refetchInterval: 30_000 })
   const { data: projects }   = useQuery({ queryKey: ['projects'],  queryFn: listProjects })
   const { data: recentRuns } = useQuery({ queryKey: ['challenge-runs-recent'], queryFn: () => listChallengeRuns(3, 0), refetchInterval: 30_000 })
+  const { data: unanswered, refetch: refetchUnanswered } = useQuery({
+    queryKey: ['unanswered'],
+    queryFn: () => listUnanswered(5, 0),
+    refetchInterval: 30_000,
+    retry: false,  // 未登录时 401 不重试
+  })
 
   const cards = [
     { label: '文档总数', value: stats?.documents  ?? '—', icon: FileText, color: 'blue',   to: '/documents' },
@@ -112,6 +118,45 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unanswered queue */}
+      {unanswered && unanswered.total > 0 && (
+        <div className="card mb-6">
+          <div className="card-head">
+            <h3 className="flex items-center gap-2">
+              <HelpCircle size={15} className="text-red-500"/> 未解决的问题
+            </h3>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {unanswered.total} 条等待补充知识
+            </span>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {unanswered.items.map(q => (
+              <div key={q.id} className="px-5 py-3 flex items-start justify-between gap-3 hover:bg-gray-50 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-800 line-clamp-2">{q.question}</p>
+                  {q.answer_preview && (
+                    <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{q.answer_preview}</p>
+                  )}
+                  <span className="text-[11px] text-gray-400">
+                    {new Date(q.created_at).toLocaleString('zh-CN', { hour12: false })}
+                    {q.persona === 'pm' ? ' · PM 模式' : ''}
+                  </span>
+                </div>
+                <button
+                  onClick={async () => {
+                    try { await resolveUnanswered(q.id); refetchUnanswered() } catch {}
+                  }}
+                  className="text-xs px-2 py-1 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded transition-colors flex-shrink-0"
+                  title="标记为已解决"
+                >
+                  <Check size={12} className="inline"/>
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}

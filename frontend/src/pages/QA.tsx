@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useMutation } from '@tanstack/react-query'
-import { Send, Bot, User, Loader, MessageSquare, Trash2, ChevronRight, FileSearch, Cpu, ChevronDown, ChevronUp, FileText, Copy, Check, Sparkles } from 'lucide-react'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
+import { Send, Bot, User, Loader, MessageSquare, Trash2, ChevronRight, FileSearch, Cpu, ChevronDown, ChevronUp, FileText, Copy, Check, Sparkles, ThumbsUp, ThumbsDown, Star, Briefcase, ExternalLink } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { generateDoc } from '../api/client'
+import { generateDoc, listProjects, submitAnswerFeedback, type QAPersona, type QASource } from '../api/client'
 import { ltcLabel } from '../utils/labels'
 
 /** Strip Markdown syntax for plain-text previews in source cards */
@@ -20,18 +21,15 @@ function stripMarkdown(text: string): string {
     .trim()
 }
 
-interface SourceItem {
-  id: string
-  score?: number
-  ltc_stage?: string
-  content?: string
-}
+type SourceItem = QASource
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
   sources?: SourceItem[]
   model?: string | null
+  question_log_id?: string
+  feedback?: 'up' | 'down' | 'star' | null
 }
 
 interface Conversation {
@@ -39,6 +37,8 @@ interface Conversation {
   title: string
   messages: Message[]
   createdAt: string
+  persona?: QAPersona
+  projectId?: string | null
 }
 
 function SourcePanel({ sources, hasMessages }: { sources: SourceItem[]; hasMessages: boolean }) {
@@ -91,7 +91,21 @@ function SourcePanel({ sources, hasMessages }: { sources: SourceItem[]; hasMessa
                     : <ChevronDown size={12} className="text-gray-400 flex-shrink-0"/>
                 )}
               </div>
+              {s.source_section && (
+                <div className="px-3 pt-0.5 pb-1 text-[11px] text-gray-400 truncate" title={s.source_section}>
+                  {s.source_section}
+                </div>
+              )}
               <div className="px-3 pb-2.5">
+                {s.document_id && (
+                  <Link
+                    to={`/documents?doc=${s.document_id}#chunk-${s.id}`}
+                    className="inline-flex items-center gap-1 text-[11px] text-orange-600 hover:underline mb-1"
+                    title="在文档中查看原文"
+                  >
+                    <ExternalLink size={10}/> 看原文
+                  </Link>
+                )}
                 {isExpanded && s.content ? (
                   <div className="prose prose-xs prose-gray max-w-none text-xs leading-relaxed
                     [&_h1]:text-sm [&_h1]:font-bold [&_h1]:mt-2 [&_h1]:mb-1
@@ -186,6 +200,43 @@ const markdownComponents = {
     <blockquote className="border-l-4 border-gray-300 pl-3 text-gray-600 italic my-2">{children}</blockquote>,
   hr: () => <hr className="my-2 border-gray-200"/>,
 }
+
+// ── Feedback bar: thumbs up/down/star on each assistant message ─────────────
+function FeedbackBar({
+  questionLogId, current, onChange,
+}: {
+  questionLogId: string
+  current: 'up' | 'down' | 'star' | null
+  onChange: (r: 'up' | 'down' | 'star') => void
+}) {
+  const [pending, setPending] = useState<string | null>(null)
+  const click = async (rating: 'up' | 'down' | 'star') => {
+    setPending(rating)
+    try {
+      await submitAnswerFeedback({ question_log_id: questionLogId, rating })
+      onChange(rating)
+    } catch { /* 未登录时会 401，静默 */ }
+    finally { setPending(null) }
+  }
+  const btnClass = (r: 'up' | 'down' | 'star', active: string) =>
+    `p-1 rounded transition-colors ${
+      current === r ? active : 'text-gray-300 hover:text-gray-500'
+    } ${pending === r ? 'opacity-50' : ''}`
+  return (
+    <div className="flex items-center gap-1 mt-1 px-1">
+      <button onClick={() => click('up')} className={btnClass('up', 'text-green-600')} title="有用">
+        <ThumbsUp size={12}/>
+      </button>
+      <button onClick={() => click('down')} className={btnClass('down', 'text-red-500')} title="没帮上忙（进未解决队列）">
+        <ThumbsDown size={12}/>
+      </button>
+      <button onClick={() => click('star')} className={btnClass('star', 'text-amber-500')} title="收藏为金句">
+        <Star size={12}/>
+      </button>
+    </div>
+  )
+}
+
 
 // ── Document Generation Component ──────────────────────────────────────────
 function DocGen() {
@@ -323,13 +374,26 @@ export default function QA() {
   const [activeId, setActiveId]   = useState<string | null>(null)
   const [input, setInput]         = useState('')
   const [ltcStage, setLtcStage]   = useState('')
+  const [persona, setPersona]     = useState<QAPersona>('general')
+  const [projectId, setProjectId] = useState<string | null>(null)
   const [streaming, setStreaming] = useState(false)
   const [activeTab, setActiveTab] = useState<'qa' | 'docgen'>('qa')
   const abortRef                  = useRef<AbortController | null>(null)
   const bottomRef                 = useRef<HTMLDivElement>(null)
 
+  // 项目列表（PM persona 下拉）
+  const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: listProjects })
+
   const activeConv = convs.find(c => c.id === activeId) ?? null
   const messages   = activeConv?.messages ?? []
+
+  // 切换到已有对话时恢复其 persona / project
+  useEffect(() => {
+    if (activeConv) {
+      setPersona(activeConv.persona ?? 'general')
+      setProjectId(activeConv.projectId ?? null)
+    }
+  }, [activeId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -346,7 +410,10 @@ export default function QA() {
 
   const newConv = () => {
     const id = Date.now().toString()
-    updateConvs(prev => [{ id, title: '新对话', messages: [], createdAt: new Date().toISOString() }, ...prev])
+    updateConvs(prev => [{
+      id, title: '新对话', messages: [], createdAt: new Date().toISOString(),
+      persona, projectId,
+    }, ...prev])
     setActiveId(id)
     setInput('')
   }
@@ -360,7 +427,17 @@ export default function QA() {
   const submit = async () => {
     const q = input.trim()
     if (!q || streaming) return
+    if (persona === 'pm' && !projectId) {
+      alert('项目经理模式需要先选择一个项目')
+      return
+    }
     setInput('')
+
+    // 构建 history：当前会话里已完成的 user+assistant 配对
+    const prevMessages = activeConv?.messages ?? []
+    const history = prevMessages
+      .filter(m => m.content.trim())
+      .map(m => ({ role: m.role, content: m.content }))
 
     // Ensure we have an active conversation
     let convId = activeId
@@ -371,6 +448,7 @@ export default function QA() {
         title: q.slice(0, 24),
         messages: [],
         createdAt: new Date().toISOString(),
+        persona, projectId,
       }, ...prev])
       setActiveId(convId)
     }
@@ -379,6 +457,8 @@ export default function QA() {
     updateConvs(prev => prev.map(c => c.id === convId ? {
       ...c,
       title: c.messages.length === 0 ? q.slice(0, 24) : c.title,
+      persona: c.persona ?? persona,
+      projectId: c.projectId ?? projectId,
       messages: [
         ...c.messages,
         { role: 'user' as const, content: q },
@@ -393,8 +473,19 @@ export default function QA() {
     try {
       const resp = await fetch('/api/qa/ask-stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: q, ltc_stage: ltcStage || undefined }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('kb_access_token')
+            ? { Authorization: `Bearer ${localStorage.getItem('kb_access_token')}` }
+            : {}),
+        },
+        body: JSON.stringify({
+          question: q,
+          ltc_stage: ltcStage || undefined,
+          history,
+          persona,
+          project_id: persona === 'pm' ? projectId : undefined,
+        }),
         signal: ctrl.signal,
       })
 
@@ -441,6 +532,16 @@ export default function QA() {
                 const last = msgs[msgs.length - 1]
                 if (last?.role === 'assistant') {
                   msgs[msgs.length - 1] = { ...last, sources: parsed.sources, model: parsed.model ?? null }
+                }
+                return { ...c, messages: msgs }
+              }))
+            } else if (parsed.question_log_id) {
+              updateConvs(prev => prev.map(c => {
+                if (c.id !== convId) return c
+                const msgs = [...c.messages]
+                const last = msgs[msgs.length - 1]
+                if (last?.role === 'assistant') {
+                  msgs[msgs.length - 1] = { ...last, question_log_id: parsed.question_log_id }
                 }
                 return { ...c, messages: msgs }
               }))
@@ -541,7 +642,7 @@ export default function QA() {
       ) : (
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header with tabs */}
-          <div className="flex items-center justify-between px-5 py-2.5 border-b border-gray-200 bg-white flex-shrink-0">
+          <div className="flex items-center justify-between px-5 py-2.5 border-b border-gray-200 bg-white flex-shrink-0 flex-wrap gap-2">
             <div className="flex gap-1">
               <button onClick={() => setActiveTab('qa')} className={tabClass('qa')}>
                 <Bot size={14}/> 智能问答
@@ -550,16 +651,58 @@ export default function QA() {
                 <Sparkles size={14}/> 文档生成
               </button>
             </div>
-            <select
-              value={ltcStage}
-              onChange={e => setLtcStage(e.target.value)}
-              className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">不限阶段</option>
-              {LTC_STAGES.filter(Boolean).map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Persona */}
+              <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                <button
+                  onClick={() => { setPersona('general'); setProjectId(null) }}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                    persona === 'general' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'
+                  }`}
+                  disabled={streaming}
+                  title="通用问答：不限项目"
+                >
+                  <Bot size={11}/> 通用
+                </button>
+                <button
+                  onClick={() => setPersona('pm')}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                    persona === 'pm' ? 'bg-white text-orange-700 shadow-sm' : 'text-gray-500'
+                  }`}
+                  disabled={streaming}
+                  title="虚拟项目经理：限定在选中项目的知识库"
+                >
+                  <Briefcase size={11}/> 项目经理
+                </button>
+              </div>
+              {/* Project selector (only when PM) */}
+              {persona === 'pm' && (
+                <select
+                  value={projectId ?? ''}
+                  onChange={e => setProjectId(e.target.value || null)}
+                  className="px-3 py-1.5 border border-orange-200 bg-orange-50 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  disabled={streaming}
+                >
+                  <option value="">选择项目…</option>
+                  {(projects ?? []).map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}{p.customer ? ` · ${p.customer}` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {/* LTC stage */}
+              <select
+                value={ltcStage}
+                onChange={e => setLtcStage(e.target.value)}
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">不限阶段</option>
+                {LTC_STAGES.filter(Boolean).map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Messages */}
@@ -625,6 +768,20 @@ export default function QA() {
                   )}
                   {msg.sources && msg.sources.length > 0 && (
                     <p className="text-xs text-gray-400 px-1">参考了 {msg.sources.length} 个来源 →</p>
+                  )}
+                  {msg.role === 'assistant' && msg.question_log_id && !streaming && (
+                    <FeedbackBar
+                      questionLogId={msg.question_log_id}
+                      current={msg.feedback ?? null}
+                      onChange={(r) => {
+                        updateConvs(prev => prev.map(c => c.id !== activeId ? c : {
+                          ...c,
+                          messages: c.messages.map((m, idx) =>
+                            idx === i ? { ...m, feedback: r } : m
+                          ),
+                        }))
+                      }}
+                    />
                   )}
                 </div>
               </div>

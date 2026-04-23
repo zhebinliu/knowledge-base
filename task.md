@@ -1,6 +1,60 @@
 # 任务跟踪
 
-## 当前迭代：系统质量提升（2026-04-23 起）
+## 当前迭代：功能提升 + QA bug 修复（2026-04-23 第二批）
+
+背景：Block 1 基建修完后继续做用户感知最强的功能改进。用户要求 Block A + B 一起做，再排查 QA 老返回"无内容"的 bug，部署走 commit + merge 到 main。
+
+### QA Bug · 拒答规则过严（关键）
+
+- [x] **Root cause**：[backend/prompts/qa.py:14](backend/prompts/qa.py:14) 的边界规则让模型只要判断"切片和问题业务域不完全对齐"就拒答，向量检索会返回 top-K 但模型被 prompt 强制拒答
+- [x] 重写 prompt 边界规则：默认尽量作答，只有完全跨领域才拒答
+- [x] 加启动时自动升级逻辑（`seed_defaults` 检测旧版标记字符串 → 强制替换 DB 中的 QA_PROMPT）
+
+### Block A · 感知增强（快速收益）
+
+- [x] **A1** 答案 thumbs up / down / 收藏 ⭐
+  - 新表 `question_logs` + `answer_feedbacks`；QA 每次调用自动落日志
+  - 拒答 / 点踩 → `unresolved=True` 进未解决队列
+  - 点赞 / 收藏 → resolve
+  - 前端 QA 每条 assistant 消息下方三按钮
+- [x] **A2** Chunk 热度（citation_count + last_cited_at）
+  - chunks 加两列 + 索引；QA/文档生成命中时异步自增
+  - 前端 Chunks 页：🔥 徽章（≥5 次）/ 👻 未引用徽章
+  - 筛选器："全部 / 热门 / 未引用"切换
+- [x] **A3** 未解决问题队列
+  - `question_logs.unresolved` 字段；拒答 / 点踩自动归队
+  - `/api/qa/unanswered` + `/api/qa/unanswered/{id}/resolve`
+  - Dashboard 卡片展示 Top 5
+- [x] **A4** QA 引用跳原文
+  - 响应 source 增加 `document_id` / `source_section`
+  - SourcePanel 显示 section path + "看原文"链接 `/documents?doc=X#chunk-Y`
+
+### Block B · 体验质变
+
+- [x] **B1** QA 多轮对话
+  - `/api/qa/ask`、`/ask-stream` 新增 `history` 参数；kb_agent 拼 prompt 带前 6 轮
+  - 前端 submit 时构造 history payload（当前会话已完成的 user+assistant 对）
+  - 对话持久化（Conversation 表 CRUD）已就绪；前端当前仍用 localStorage，同步 API 的工作为后续可选迭代
+- [x] **B2** Chunk 内联编辑
+  - `/api/chunks/{id}` PUT 已支持 content 字段（会触发 re-embed + Qdrant upsert）
+  - 前端 Chunks 编辑面板加"修改切片内容"开关，避免误触发重嵌
+  - 同批次可同时改标签 + 内容，一次性保存
+
+### 新增 · 虚拟项目经理 persona
+
+- [x] 新 prompt `PM_QA_PROMPT`（项目 PM 视角 + 状态/决策/风险四类回答结构）
+- [x] Qdrant search 支持 `document_ids` 过滤（`MatchAny` on payload.document_id）
+- [x] kb_agent 增加 `persona` / `project_id` 参数；PM 模式下先拉项目文档 ID 集合再检索
+- [x] 前端 QA header 增加 persona 切换 + project 下拉；PM 模式必须选项目
+- [x] 消息 / 对话记录 persona + projectId，切换对话自动恢复
+
+### 部署
+
+- [x] **git merge 到 main**（按用户要求本次只提交 + 合并，不 rsync）
+
+---
+
+## 历史迭代：系统质量基建（2026-04-23 第一批）
 
 来源：Review 发现的安全/可靠性/成本改进点。CORS 按用户决定暂不动。
 部署节奏：Block 1 全部完成后部署一次 + smoke test；Block 2 单独 deploy backend。
