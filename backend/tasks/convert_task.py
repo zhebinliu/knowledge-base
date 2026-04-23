@@ -480,6 +480,9 @@ async def _process_document_async(doc_id: str):
             # 8. 异步生成摘要 + FAQ（失败不影响主流程）
             await _generate_summary_faq(doc_id, doc.filename, markdown)
 
+            # 8. 异步生成摘要 + FAQ（失败不影响主流程）
+            await _generate_summary_faq(doc_id, doc.filename, markdown)
+
         except Exception as inner_exc:
             await session.rollback()
             # 不在此处标记 failed —— 让外层 Celery task 决定是 retrying 还是 failed
