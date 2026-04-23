@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { History, Loader, CheckCircle2, XCircle, Clock, User as UserIcon, CalendarClock, ChevronRight, X } from 'lucide-react'
 import { listChallengeRuns, getChallengeRun, type ChallengeRun } from '../api/client'
 import MarkdownView from '../components/MarkdownView'
+import { ltcLabel } from '../utils/labels'
 
 const STATUS_BADGE: Record<string, { color: string; label: string; Icon: typeof CheckCircle2 }> = {
   running:   { color: 'bg-orange-50 text-orange-700 border-orange-200', label: '执行中',  Icon: Loader },
@@ -35,10 +36,10 @@ export default function ChallengeHistory() {
   })
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
-      <div className="flex items-center gap-2 mb-6">
+    <div className="p-4 md:p-8 max-w-6xl mx-auto">
+      <div className="flex items-center gap-2 mb-6 flex-wrap">
         <History size={22} style={{ color: 'var(--accent)' }} />
-        <h1 className="text-2xl font-bold text-gray-900">挑战历史</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">挑战历史</h1>
         {data && (
           <span className="text-sm text-gray-500">共 {data.total} 次</span>
         )}
@@ -177,7 +178,7 @@ function RunDetailDrawer({ runId, onClose }: { runId: string; onClose: () => voi
               <Field label="开始时间" value={formatTime(data.started_at)} />
               <Field label="结束时间" value={formatTime(data.finished_at)} />
               <Field label="耗时" value={formatDuration(data.duration_seconds)} />
-              <Field label="状态" value={data.status} />
+              <Field label="状态" value={STATUS_BADGE[data.status]?.label ?? data.status} />
               <Field label="题数" value={`${data.total}（通过 ${data.passed} / 失败 ${data.failed}）`} />
               <Field label="通过率" value={data.total > 0 ? `${Math.round(data.pass_rate * 100)}%` : '—'} />
               <Field label="阶段" value={(data.target_stages ?? []).join('、') || '—'} />
@@ -205,7 +206,7 @@ function RunDetailDrawer({ runId, onClose }: { runId: string; onClose: () => voi
                           <span className="text-gray-500">#{idx + 1}</span>
                           {q.ltc_stage && (
                             <span className="bg-white border border-gray-200 px-1.5 py-0.5 rounded">
-                              {q.ltc_stage}
+                              {ltcLabel(q.ltc_stage)}
                             </span>
                           )}
                           <span className={`px-1.5 py-0.5 rounded ${

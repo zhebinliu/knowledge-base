@@ -174,6 +174,7 @@ const STATUS_BADGE: Record<string, JSX.Element> = {
   pending:    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-yellow-50 text-yellow-700 whitespace-nowrap"><Clock size={11}/>等待处理</span>,
   converting: <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-orange-50 text-orange-700 whitespace-nowrap"><Loader size={11} className="animate-spin"/>转换中</span>,
   slicing:    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-50 text-purple-700 whitespace-nowrap"><Loader size={11} className="animate-spin"/>切片中</span>,
+  retrying:   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700 whitespace-nowrap"><Loader size={11} className="animate-spin"/>重试中</span>,
   completed:  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700 whitespace-nowrap"><CheckCircle size={11}/>完成</span>,
   failed:     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-700 whitespace-nowrap"><AlertCircle size={11}/>失败</span>,
 }
@@ -371,9 +372,9 @@ export default function Documents() {
     <div className="flex h-full overflow-hidden">
       {/* ── Main panel ─────────────────────────────────────────────────── */}
       <div className="flex-1 min-w-0 overflow-y-auto">
-        <div className="p-6 max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">文档管理</h1>
+        <div className="p-4 md:p-6 max-w-6xl mx-auto">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">文档管理</h1>
             <button
               onClick={() => inputRef.current?.click()}
               className="flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg transition-all"
@@ -606,9 +607,9 @@ export default function Documents() {
         </div>
       </div>
 
-      {/* ── Right drawer ───────────────────────────────────────────────── */}
+      {/* ── Right drawer (full-screen overlay on mobile) ──────────────── */}
       {drawerDocId && (
-        <div className="w-[460px] flex-shrink-0 border-l border-gray-200 bg-white flex flex-col h-full overflow-hidden">
+        <div className="fixed inset-0 z-40 bg-white flex flex-col md:static md:z-auto md:inset-auto md:w-[460px] md:flex-shrink-0 md:border-l md:border-gray-200 md:h-full overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
             <div className="flex gap-1">
               <button

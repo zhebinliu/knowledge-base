@@ -93,7 +93,7 @@ def run_async(coro):
         loop.close()
 
 
-@celery_app.task(name="process_document", bind=True, max_retries=2)
+@celery_app.task(name="process_document", bind=True, max_retries=5)
 def process_document(self, doc_id: str):
     # 先 import 所有有 FK 关系的模型，确保 SQLAlchemy mapper configure 时能解析 FK
     from models.user import User  # noqa: F401
@@ -101,48 +101,52 @@ def process_document(self, doc_id: str):
     from models.challenge_run import ChallengeRun  # noqa: F401
     from models import async_session_maker
     from models.document import Document
-    
-    async def _update_status():
+
+    async def _update_status(status: str):
         async with async_session_maker() as session:
             doc = await session.get(Document, doc_id)
             if doc:
-                doc.conversion_status = "converting"
+                doc.conversion_status = status
                 await session.commit()
-    
+
     try:
-        run_async(_update_status())
-        logger.info("task_received", doc_id=doc_id, task_id=self.request.id)
+        run_async(_update_status("converting"))
+        logger.info("task_received", doc_id=doc_id, task_id=self.request.id, attempt=self.request.retries + 1)
         run_async(_process_document_async(doc_id))
     except Exception as exc:
-        logger.error("process_document_failed", doc_id=doc_id, error=str(exc))
-        raise self.retry(exc=exc, countdown=60)
+        logger.error("process_document_failed", doc_id=doc_id, error=str(exc)[:200] or type(exc).__name__)
+        # 指数退避: 60s, 120s, 240s, 480s, 900s — 给 edgefn rate limit 恢复时间
+        countdowns = [60, 120, 240, 480, 900]
+        retries_done = self.request.retries
+        if retries_done < self.max_retries:
+            # 还会重试 → 标记 retrying 而不是 failed，避免 UI 误报
+            run_async(_update_status("retrying"))
+            wait = countdowns[min(retries_done, len(countdowns) - 1)]
+            raise self.retry(exc=exc, countdown=wait)
+        # 重试用尽 → 永久失败
+        run_async(_update_status("failed"))
+        raise
 
 
-_DOC_TYPE_PROMPT = """你是一个文档分类专家。根据以下文档的文件名和正文摘要，判断文档属于哪种类型。
+_DOC_TYPE_PROMPT = """你是文档分类助手。根据文件名和正文摘要，从以下枚举中选择最匹配的文档类型。
 
-文档类型枚举（只能返回以下之一）：
-- requirement_research：需求调研（包含客户访谈记录、需求分析、痛点梳理等）
-- meeting_notes：会议纪要（包含会议记录、讨论结果、决议事项等）
-- solution_design：方案设计（包含系统架构、实施方案、技术规格、功能说明等）
-- test_case：测试用例（包含测试脚本、验收标准、测试步骤等）
-- user_manual：用户手册（包含操作指南、用户培训、功能介绍等）
+可选类型：
+- requirement_research：需求调研（客户访谈、需求分析、痛点梳理）
+- meeting_notes：会议纪要（会议记录、讨论结果、决议事项）
+- solution_design：方案设计（系统架构、实施方案、技术规格、功能说明）
+- test_case：测试用例（测试脚本、验收标准、测试步骤）
+- user_manual：用户手册（操作指南、用户培训、功能介绍）
 
 文件名：{filename}
+正文摘要：{preview}
 
-正文摘要（前2000字）：
-{preview}
-
-请以 JSON 格式回复，只包含：
-{{
-  "doc_type": "<枚举值之一>",
-  "confidence": <0.0-1.0>,
-  "reason": "<一句话说明判断依据>"
-}}"""
+只输出如下 JSON，不加任何其他文字：
+{{"doc_type":"<枚举值>","confidence":<0.0-1.0>,"reason":"<一句话>"}}"""
 
 
 async def _infer_doc_type(filename: str, markdown: str, model_router) -> tuple[str | None, float]:
     """推断文档类型，返回 (doc_type, confidence)；无法判断时返回 (None, 0)。"""
-    import json
+    import json, re
     from models.project import DOC_TYPES
     preview = markdown[:2000]
     prompt = _DOC_TYPE_PROMPT.format(filename=filename, preview=preview)
@@ -154,12 +158,20 @@ async def _infer_doc_type(filename: str, markdown: str, model_router) -> tuple[s
             temperature=0.0,
             timeout=30.0,
         )
-        # Extract JSON from response
+        if not content or not content.strip():
+            raise ValueError("empty model response")
         raw = content.strip()
-        if "```" in raw:
+        # 优先用 regex 从任意位置提取 JSON 对象（处理模型返回多余文字/拒答的情况）
+        m = re.search(r'\{[^{}]*"doc_type"[^{}]*\}', raw, re.DOTALL)
+        if m:
+            raw = m.group()
+        elif "```" in raw:
             raw = raw.split("```")[1]
             if raw.startswith("json"):
                 raw = raw[4:]
+            raw = raw.strip()
+        else:
+            raise ValueError(f"no JSON in response: {raw[:60]!r}")
         data = json.loads(raw)
         dt = data.get("doc_type", "").strip()
         conf = float(data.get("confidence", 0))
@@ -168,6 +180,48 @@ async def _infer_doc_type(filename: str, markdown: str, model_router) -> tuple[s
     except Exception as e:
         logger.warning("doc_type_inference_failed", filename=filename, error=str(e)[:100])
     return None, 0.0
+
+
+async def _infer_doc_types_batch_async():
+    """对所有 completed 但 doc_type 为空的文档批量补推断类型。"""
+    from models import async_session_maker
+    from models.document import Document
+    from services.config_service import config_service
+    from services.model_router import model_router
+    from sqlalchemy import select, or_
+
+    model_router.set_config_service(config_service)
+
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(Document).where(
+                Document.conversion_status == "completed",
+                or_(Document.doc_type == None, Document.doc_type == ""),  # noqa: E711
+                Document.markdown_content != None,  # noqa: E711
+            )
+        )
+        docs = result.scalars().all()
+        logger.info("batch_infer_doc_type_start", total=len(docs))
+        updated = 0
+        for doc in docs:
+            if not doc.markdown_content:
+                continue
+            inferred_type, confidence = await _infer_doc_type(
+                doc.filename, doc.markdown_content, model_router
+            )
+            if inferred_type and confidence >= 0.5:
+                doc.doc_type = inferred_type
+                updated += 1
+                logger.info(
+                    "doc_type_batch_inferred",
+                    doc_id=doc.id,
+                    filename=doc.filename,
+                    doc_type=inferred_type,
+                    confidence=f"{confidence:.0%}",
+                )
+            await asyncio.sleep(0.5)   # 避免过快打 429
+        await session.commit()
+        logger.info("batch_infer_doc_type_done", updated=updated, total=len(docs))
 
 
 async def _process_document_async(doc_id: str):
@@ -216,7 +270,7 @@ async def _process_document_async(doc_id: str):
             # 3b. 自动推断文档类型（仅在用户未手动设置时）
             if not doc.doc_type:
                 inferred_type, confidence = await _infer_doc_type(doc.filename, markdown, model_router)
-                if inferred_type and confidence >= 0.7:
+                if inferred_type and confidence >= 0.5:
                     doc.doc_type = inferred_type
                     logger.info(
                         "doc_type_inferred",
@@ -301,10 +355,15 @@ async def _process_document_async(doc_id: str):
 
         except Exception as inner_exc:
             await session.rollback()
-            doc.conversion_status = "failed"
-            await session.commit()
+            # 不在此处标记 failed —— 让外层 Celery task 决定是 retrying 还是 failed
             logger.error("task_execution_error", doc_id=doc_id, error=str(inner_exc))
             raise
+
+
+@celery_app.task(name="infer_doc_types_batch")
+def infer_doc_types_batch():
+    """批量补推断文档类型（对 completed 且 doc_type 为空的文档）。"""
+    run_async(_infer_doc_types_batch_async())
 
 
 @celery_app.task(name="run_scheduled_challenges")

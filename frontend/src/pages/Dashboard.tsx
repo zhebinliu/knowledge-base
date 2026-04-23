@@ -33,7 +33,7 @@ export default function Dashboard() {
   ]
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-4 md:p-8 max-w-5xl mx-auto">
       <div className="page-head">
         <h2>总览</h2>
         <p>实施知识综合管理平台</p>

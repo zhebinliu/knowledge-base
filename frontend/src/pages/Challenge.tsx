@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 import { Brain, Play, ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader, Square, HelpCircle, ThumbsUp, ThumbsDown, Plus, Clock, Trash2, Power, Cpu, History } from 'lucide-react'
 import MarkdownView from '../components/MarkdownView'
 import ChallengeHistory from './ChallengeHistory'
+import { ltcLabel } from '../utils/labels'
 import {
   approveReview, rejectReview,
   listChallengeSchedules, createChallengeSchedule, deleteChallengeSchedule,
@@ -189,8 +190,8 @@ export default function Challenge() {
     <div>
       <ChallengeTabBar activeTab={activeTab} setActiveTab={setActiveTab} />
       {activeTab === 'history' ? <ChallengeHistory /> : (
-        <div className="p-8 max-w-4xl mx-auto">
-          <h1 className="text-2xl font-bold text-gray-900 mb-6">知识挑战</h1>
+        <div className="p-4 md:p-8 max-w-4xl mx-auto">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-6">知识挑战</h1>
 
           {/* Config */}
           <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
@@ -326,7 +327,7 @@ export default function Challenge() {
 
                     {card.ltc_stage && (
                       <span className="text-xs px-2 py-0.5 bg-orange-50 text-orange-700 rounded-full border border-orange-100 flex-shrink-0">
-                        {card.ltc_stage}
+                        {ltcLabel(card.ltc_stage)}
                       </span>
                     )}
 

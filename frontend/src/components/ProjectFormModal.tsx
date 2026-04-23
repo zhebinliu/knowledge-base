@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
 import {
   ProjectInput,
   Project,
@@ -7,6 +6,7 @@ import {
   createProject,
   updateProject,
 } from '../api/client'
+import Modal from './Modal'
 
 export interface ProjectFormModalProps {
   open: boolean
@@ -36,8 +36,6 @@ export default function ProjectFormModal({ open, meta, initial, onClose, onSaved
     setDescription(initial?.description ?? '')
     setError(null)
   }, [open, initial])
-
-  if (!open) return null
 
   const toggleModule = (m: string) => {
     setModules((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]))
@@ -71,74 +69,73 @@ export default function ProjectFormModal({ open, meta, initial, onClose, onSaved
   }
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
-          <h2 className="text-base font-semibold text-gray-900">{initial ? '编辑项目' : '新建项目'}</h2>
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 rounded">
-            <X size={16} />
-          </button>
-        </div>
-        <form id="project-form" onSubmit={onSubmit} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">项目名称 *</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} autoFocus
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">客户</label>
-            <input value={customer} onChange={(e) => setCustomer(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">所属行业</label>
-            <select value={industry} onChange={(e) => setIndustry(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-              <option value="">— 不指定 —</option>
-              {(meta?.industries ?? []).map((ind) => (
-                <option key={ind.value} value={ind.value}>{ind.label}</option>
-              ))}
-            </select>
-            <p className="text-[11px] text-gray-400 mt-1">行业标签会自动同步到该项目下的文档，用于向量检索过滤。</p>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">立项日期</label>
-            <input type="date" value={kickoff} onChange={(e) => setKickoff(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-2">涉及模块</label>
-            <div className="flex flex-wrap gap-1.5">
-              {(meta?.modules ?? []).map((m) => {
-                const on = modules.includes(m)
-                return (
-                  <button
-                    type="button" key={m} onClick={() => toggleModule(m)}
-                    className={`text-xs px-2 py-1 rounded-full border ${on
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
-                  >
-                    {m}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">说明</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-        </form>
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-200 bg-gray-50">
+    <Modal
+      open={open}
+      title={initial ? '编辑项目' : '新建项目'}
+      onClose={onClose}
+      width="lg"
+      footer={
+        <>
           <button onClick={onClose} type="button" className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">取消</button>
           <button disabled={submitting} type="submit" form="project-form"
             className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg">
             {submitting ? '保存中...' : '保存'}
           </button>
+        </>
+      }
+    >
+      <form id="project-form" onSubmit={onSubmit} className="space-y-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">项目名称 *</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} autoFocus
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
-      </div>
-    </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">客户</label>
+          <input value={customer} onChange={(e) => setCustomer(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">所属行业</label>
+          <select value={industry} onChange={(e) => setIndustry(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            <option value="">— 不指定 —</option>
+            {(meta?.industries ?? []).map((ind) => (
+              <option key={ind.value} value={ind.value}>{ind.label}</option>
+            ))}
+          </select>
+          <p className="text-[11px] text-gray-400 mt-1">行业标签会自动同步到该项目下的文档，用于向量检索过滤。</p>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">立项日期</label>
+          <input type="date" value={kickoff} onChange={(e) => setKickoff(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-2">涉及模块</label>
+          <div className="flex flex-wrap gap-1.5">
+            {(meta?.modules ?? []).map((m) => {
+              const on = modules.includes(m)
+              return (
+                <button
+                  type="button" key={m} onClick={() => toggleModule(m)}
+                  className={`text-xs px-2 py-1 rounded-full border ${on
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
+                >
+                  {m}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">说明</label>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+      </form>
+    </Modal>
   )
 }

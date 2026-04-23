@@ -153,7 +153,7 @@ class ModelRouter:
         response_format: dict | None = None,
         timeout: float = 180.0,
     ) -> tuple[str, str]:
-        """Returns (content, model_name) tuple."""
+        """Returns (content, model_name) tuple. Retries on 429 with exponential backoff."""
         config = await self._get_model_config(model_name)
         api_key = await self._get_api_key(config)
 
@@ -166,24 +166,39 @@ class ModelRouter:
         if response_format:
             payload["response_format"] = response_format
 
-        try:
-            resp = await self.client.post(
-                f"{config['api_base']}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-                timeout=timeout,
-            )
-            resp.raise_for_status()
-            self._failure_counts[model_name] = 0
-            content = resp.json()["choices"][0]["message"]["content"]
-            return content, model_name
-        except Exception as e:
-            self._failure_counts[model_name] = self._failure_counts.get(model_name, 0) + 1
-            logger.error("model_call_failed", model=model_name, error=str(e)[:200])
-            raise
+        # 429 退避: 5s, 10s, 20s；其他错误不重试
+        backoffs = [5, 10, 20]
+        attempt = 0
+        while True:
+            try:
+                resp = await self.client.post(
+                    f"{config['api_base']}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                    timeout=timeout,
+                )
+                if resp.status_code == 429 and attempt < len(backoffs):
+                    wait = backoffs[attempt]
+                    attempt += 1
+                    logger.warning("rate_limited_retrying", model=model_name, attempt=attempt, wait_s=wait)
+                    await asyncio.sleep(wait)
+                    continue
+                resp.raise_for_status()
+                self._failure_counts[model_name] = 0
+                content = resp.json()["choices"][0]["message"]["content"]
+                return content, model_name
+            except httpx.HTTPStatusError as e:
+                # 429 已在上面处理；到这里说明退避用完仍 429，或其他 4xx/5xx
+                self._failure_counts[model_name] = self._failure_counts.get(model_name, 0) + 1
+                logger.error("model_call_failed", model=model_name, status=e.response.status_code, error=str(e)[:200])
+                raise
+            except Exception as e:
+                self._failure_counts[model_name] = self._failure_counts.get(model_name, 0) + 1
+                logger.error("model_call_failed", model=model_name, error=str(e)[:200] or type(e).__name__)
+                raise
 
     async def chat_with_routing(
         self,

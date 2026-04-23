@@ -276,3 +276,11 @@ async def delete_document(
     await session.delete(doc)
     await session.commit()
     return {"ok": True}
+
+
+@router.post("/batch-infer-type")
+async def batch_infer_doc_type(_user: User = Depends(get_current_user)):
+    """对 completed 且 doc_type 为空的文档批量补推断文档类型（异步 Celery 任务）。"""
+    from tasks.convert_task import infer_doc_types_batch
+    task = infer_doc_types_batch.delay()
+    return {"ok": True, "task_id": task.id, "message": "批量推断任务已提交，后台执行中"}

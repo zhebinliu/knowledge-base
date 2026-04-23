@@ -11,7 +11,10 @@ import {
   Plus, Trash2, Edit, Check, X, RefreshCw, Upload, Eye, Lock,
   Bell, Star, Home, User, LogOut, Copy, Filter, ArrowRight,
   BarChart2, MessageSquare, Brain, ClipboardCheck, Zap, Calendar,
+  Rows3, PanelRightOpen, Code as CodeIcon,
 } from 'lucide-react'
+import DataTable, { type ColumnDef } from '../components/DataTable'
+import Modal, { Drawer, ConfirmModal } from '../components/Modal'
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 
@@ -27,6 +30,8 @@ const NAV = [
   { id: 'alerts',     label: '提示条',      icon: AlertCircle },
   { id: 'inputs',     label: '表单',        icon: FormInput },
   { id: 'tables',     label: '表格',        icon: Table2 },
+  { id: 'datatable',  label: '数据表组件',  icon: Rows3 },
+  { id: 'modals',     label: '模态框',      icon: PanelRightOpen },
   { id: 'tabs',       label: '标签页',      icon: NotebookTabs },
   { id: 'loading',    label: '加载状态',    icon: Loader },
   { id: 'empty',      label: '空状态',      icon: Ghost },
@@ -315,6 +320,17 @@ export default function DesignSystem() {
             </button>
           ))}
         </nav>
+
+        <div className="border-t border-line px-4 py-3 flex-shrink-0">
+          <a href="/ds.md" target="_blank" rel="noreferrer"
+            className="flex items-center gap-2 text-xs text-ink-secondary hover:text-brand-deep">
+            <CodeIcon size={12} /> Markdown 版（AI 可读）
+          </a>
+          <a href="/llms.txt" target="_blank" rel="noreferrer"
+            className="flex items-center gap-2 text-xs text-ink-secondary hover:text-brand-deep mt-1">
+            <FileText size={12} /> llms.txt
+          </a>
+        </div>
       </aside>
 
       {/* ── Content ──────────────────────────────────────────────────────── */}
@@ -896,6 +912,12 @@ export default function DesignSystem() {
           </SubSection>
         </Section>
 
+        {/* ── DataTable (advanced) ───────────────────────────────────────── */}
+        <DataTableSection />
+
+        {/* ── Modals ─────────────────────────────────────────────────────── */}
+        <ModalSection />
+
         {/* ── Tabs ───────────────────────────────────────────────────────── */}
         <Section id="tabs" title="标签页" subtitle="使用 .ds-tabs + .ds-tab 类，is-active 状态由 JS 控制">
           <SubSection title="交互演示 · Interactive Demo">
@@ -1198,5 +1220,318 @@ const tabs = ['概览', '文档', '成员', '设置']
 
       </main>
     </div>
+  )
+}
+
+// ── DataTable (advanced) demo section ────────────────────────────────────────
+
+type DemoRow = {
+  id: string
+  filename: string
+  ltc: string
+  industry: string
+  chunks: number
+  confidence: number
+  status: 'completed' | 'retrying' | 'failed'
+  updated: string
+}
+
+const DEMO_ROWS: DemoRow[] = [
+  { id: '1', filename: '纷享销客实施手册 v3.2.pdf',     ltc: '线索', industry: 'technology',    chunks: 312, confidence: 0.94, status: 'completed', updated: '2024-04-18' },
+  { id: '2', filename: '商机管理最佳实践.docx',          ltc: '商机', industry: 'technology',    chunks: 189, confidence: 0.91, status: 'completed', updated: '2024-04-18' },
+  { id: '3', filename: '回款认领流程图.xlsx',            ltc: '回款', industry: 'manufacturing', chunks: 56,  confidence: 0.88, status: 'retrying',  updated: '2024-04-17' },
+  { id: '4', filename: '合同审批 SOP.pptx',              ltc: '合同', industry: 'healthcare',    chunks: 78,  confidence: 0.92, status: 'completed', updated: '2024-04-17' },
+  { id: '5', filename: '客户访谈记录 Q2.docx',           ltc: '线索', industry: 'energy',        chunks: 42,  confidence: 0.85, status: 'failed',    updated: '2024-04-16' },
+  { id: '6', filename: '售后工单月报.xlsx',              ltc: '售后', industry: 'technology',    chunks: 23,  confidence: 0.79, status: 'completed', updated: '2024-04-16' },
+  { id: '7', filename: '商机转化率分析 2024.pdf',        ltc: '商机', industry: 'technology',    chunks: 167, confidence: 0.93, status: 'completed', updated: '2024-04-15' },
+]
+
+function DataTableSection() {
+  const [rows, setRows] = useState<DemoRow[]>(DEMO_ROWS)
+  const [filters, setFilters] = useState<Record<string, string>>({ ltc: '', status: '', search: '' })
+  const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>({ key: 'updated', dir: 'desc' })
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(5)
+
+  const filtered = rows
+    .filter((r) => (filters.ltc ? r.ltc === filters.ltc : true))
+    .filter((r) => (filters.status ? r.status === filters.status : true))
+    .filter((r) => (filters.search ? r.filename.includes(filters.search) : true))
+
+  const sorted = sort
+    ? [...filtered].sort((a, b) => {
+        const va = (a as unknown as Record<string, unknown>)[sort.key] as string | number | undefined
+        const vb = (b as unknown as Record<string, unknown>)[sort.key] as string | number | undefined
+        const cmp = String(va ?? '').localeCompare(String(vb ?? ''), undefined, { numeric: true })
+        return sort.dir === 'asc' ? cmp : -cmp
+      })
+    : filtered
+
+  const paged = sorted.slice(page * pageSize, (page + 1) * pageSize)
+
+  const columns: ColumnDef<DemoRow>[] = [
+    { key: 'filename', header: '文件名', sortable: true,
+      render: (r) => <span className="font-medium">{r.filename}</span>,
+      editor: (r, commit, cancel) => (
+        <input autoFocus defaultValue={r.filename}
+          onBlur={(e) => { setRows((rs) => rs.map((x) => x.id === r.id ? { ...x, filename: e.target.value } : x)); commit(e.target.value) }}
+          onKeyDown={(e) => { if (e.key === 'Escape') cancel(); if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+          className="border border-blue-400 rounded px-1 py-0.5 text-sm w-full" />
+      ),
+    },
+    { key: 'ltc', header: 'LTC', sortable: true,
+      render: (r) => <span className="badge orange">{r.ltc}</span> },
+    { key: 'industry', header: '行业', sortable: true, defaultVisible: false },
+    { key: 'chunks', header: '切片数', sortable: true, className: 'font-mono',
+      render: (r) => <span className="font-mono">{r.chunks}</span> },
+    { key: 'confidence', header: '置信度', sortable: true,
+      render: (r) => <span className="font-mono">{(r.confidence * 100).toFixed(0)}%</span> },
+    { key: 'status', header: '状态',
+      render: (r) => (
+        <span className={`badge ${r.status === 'completed' ? 'green' : r.status === 'retrying' ? 'orange' : 'red'}`}>
+          {r.status === 'completed' ? '完成' : r.status === 'retrying' ? '重试中' : '失败'}
+        </span>
+      ) },
+    { key: 'updated', header: '更新', sortable: true, defaultVisible: false },
+  ]
+
+  return (
+    <Section id="datatable" title="数据表组件 · DataTable"
+      subtitle="统一封装的高级数据表：多维筛选 · 排序 · 分页 · 列切换 · 批量操作 · 在线编辑">
+      <SubSection title="完整演示 · Full Demo">
+        <p className="text-xs text-ink-muted mb-3">
+          <strong>试试：</strong>顶栏筛选 LTC / 状态；点击 <strong>列</strong> 切换显示；点击表头<strong>排序</strong>；勾选左侧复选框看<strong>批量操作栏</strong>；<strong>双击文件名</strong>进入在线编辑；底部切换分页。
+        </p>
+        <DataTable
+          rows={paged}
+          columns={columns}
+          rowKey={(r) => r.id}
+          filters={[
+            { key: 'ltc',    label: 'LTC',    options: ['线索','商机','报价','合同','回款','售后'].map((v) => ({ value: v, label: v })) },
+            { key: 'status', label: '状态',   options: [
+              { value: 'completed', label: '完成' },
+              { value: 'retrying',  label: '重试中' },
+              { value: 'failed',    label: '失败' },
+            ] },
+            { key: 'search', label: '搜索文件名' },
+          ]}
+          filterValues={filters}
+          onFilterChange={(v) => { setFilters(v); setPage(0) }}
+          sort={sort}
+          onSortChange={setSort}
+          pagination={{
+            page,
+            pageSize,
+            total: filtered.length,
+            pageSizeOptions: [3, 5, 10],
+            onPageChange: setPage,
+            onPageSizeChange: (s) => { setPageSize(s); setPage(0) },
+          }}
+          bulkActions={[
+            { label: '标记已审', onRun: (rs) => alert(`批量已审 ${rs.length} 条：\n` + rs.map((r) => r.filename).join('\n')) },
+            { label: '批量删除', danger: true, onRun: (rs) => { if (confirm(`删除 ${rs.length} 条？`)) setRows((all) => all.filter((r) => !rs.find((x) => x.id === r.id))) } },
+          ]}
+        />
+      </SubSection>
+
+      <SubSection title="核心用法 · Quick Start">
+        <Code>{`import DataTable, { type ColumnDef } from '@/components/DataTable'
+
+const columns: ColumnDef<Row>[] = [
+  { key: 'name', header: '名称', sortable: true },
+  { key: 'status', header: '状态',
+    render: (r) => <span className={\`badge \${tone(r.status)}\`}>{r.status}</span> },
+  { key: 'notes', header: '备注', defaultVisible: false,
+    editor: (r, commit, cancel) => (
+      <input defaultValue={r.notes} onBlur={(e) => commit(e.target.value)} /* ... */ />
+    ) },
+]
+
+<DataTable
+  rows={paged}
+  columns={columns}
+  rowKey={(r) => r.id}
+  filters={[{ key: 'status', label: '状态', options: [...] }]}
+  filterValues={filters}
+  onFilterChange={setFilters}
+  sort={sort}
+  onSortChange={setSort}
+  pagination={{ page, pageSize, total, onPageChange, onPageSizeChange }}
+  bulkActions={[{ label: '删除', danger: true, onRun: (rs) => ... }]}
+/>`}</Code>
+      </SubSection>
+
+      <SubSection title="Props 速查 · Props Reference">
+        <div className="bg-surface border border-line rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-canvas">
+              <tr>{['Prop', '类型', '说明'].map((h) => (
+                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-ink-secondary uppercase tracking-wider border-b border-line">{h}</th>
+              ))}</tr>
+            </thead>
+            <tbody>
+              {[
+                ['rows',           'T[]',                         '当前页数据'],
+                ['columns',        'ColumnDef<T>[]',              '列定义；每列含 render/editor/sortable/defaultVisible'],
+                ['rowKey',         '(row) => string',             '行 id 取值'],
+                ['filters',        'FilterDef[]',                 '筛选配置；options 存在即为下拉，否则为文本'],
+                ['filterValues',   'Record<string, string>',      '受控筛选值'],
+                ['onFilterChange', '(v) => void',                 '筛选变更'],
+                ['sort',           '{key, dir} | null',           '当前排序状态'],
+                ['onSortChange',   '(s) => void',                 '点击表头回调，三态循环 asc→desc→null'],
+                ['pagination',     '{page,pageSize,total,...}',   '服务端分页；不传则不显示分页栏'],
+                ['bulkActions',    'BulkAction<T>[]',             '传入即显示首列复选框 + 选中蓝色工具条'],
+                ['onRowClick',     '(row) => void',               '点击行回调（会跳过 input/button 等）'],
+                ['toolbarRight',   'ReactNode',                   '工具栏右侧追加自定义按钮'],
+              ].map(([p, t, d]) => (
+                <tr key={p} className="border-b border-line last:border-0">
+                  <td className="px-4 py-2 font-mono text-xs text-brand-deep">{p}</td>
+                  <td className="px-4 py-2 font-mono text-xs text-ink">{t}</td>
+                  <td className="px-4 py-2 text-xs text-ink-secondary">{d}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </SubSection>
+
+      <SubSection title="在线编辑 · Inline Edit">
+        <p className="text-xs text-ink-muted mb-3">
+          给某列传 <code className="font-mono text-brand-deep">editor</code>，单元格变为可双击编辑。编辑态由 DataTable 内部管理，你只需在 <code className="font-mono text-brand-deep">onBlur / Enter</code> 时调用 <code className="font-mono text-brand-deep">commit(value)</code>。
+        </p>
+        <Code>{`editor: (row, commit, cancel) => (
+  <input autoFocus defaultValue={row.name}
+    onBlur={async (e) => {
+      await updateRow(row.id, { name: e.target.value })
+      commit(e.target.value)
+    }}
+    onKeyDown={(e) => {
+      if (e.key === 'Escape') cancel()
+      if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+    }}
+  />
+)`}</Code>
+      </SubSection>
+
+      <SubSection title="动态字段 · Column Toggle">
+        <p className="text-xs text-ink-muted mb-3">
+          每列可设 <code className="font-mono text-brand-deep">defaultVisible: false</code> 默认隐藏。用户在工具栏"列"菜单里勾选显示，选择会<strong>自动持久化到 localStorage</strong>（按列 key 组合作为存储键）。设 <code className="font-mono text-brand-deep">hideable: false</code> 可锁定（如操作列）。
+        </p>
+      </SubSection>
+    </Section>
+  )
+}
+
+// ── Modals demo section ──────────────────────────────────────────────────────
+
+function ModalSection() {
+  const [modalOpen, setModalOpen] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
+  return (
+    <Section id="modals" title="模态框 · Modal / Drawer / Confirm"
+      subtitle="统一的遮罩容器组件，自动处理 Esc 关闭、遮罩点击、body 锁定滚动">
+      <SubSection title="三种变体 · Variants">
+        <LiveExample label="Modal / Drawer / ConfirmModal">
+          <button className="ds-btn ds-btn-primary" onClick={() => setModalOpen(true)}>打开 Modal</button>
+          <button className="ds-btn ds-btn-primary" onClick={() => setDrawerOpen(true)}>打开 Drawer</button>
+          <button className="ds-btn" onClick={() => setConfirmOpen(true)}>打开 ConfirmModal</button>
+        </LiveExample>
+      </SubSection>
+
+      <SubSection title="Modal · 基础用法">
+        <Code>{`import Modal from '@/components/Modal'
+
+<Modal
+  open={open}
+  title="编辑项目"
+  onClose={() => setOpen(false)}
+  width="lg"                  // sm / md / lg / xl / 2xl / 3xl
+  footer={
+    <>
+      <button onClick={close}>取消</button>
+      <button onClick={save}>保存</button>
+    </>
+  }
+>
+  <form>...</form>
+</Modal>`}</Code>
+      </SubSection>
+
+      <SubSection title="Drawer · 右侧抽屉">
+        <Code>{`import { Drawer } from '@/components/Modal'
+
+<Drawer open={open} title="详情" onClose={close} width="2xl">
+  <div>...详情内容...</div>
+</Drawer>`}</Code>
+      </SubSection>
+
+      <SubSection title="ConfirmModal · 快捷确认">
+        <Code>{`import { ConfirmModal } from '@/components/Modal'
+
+<ConfirmModal
+  open={!!target}
+  title="删除项目"
+  message={\`确认删除 "\${target.name}"？此操作不可撤销。\`}
+  danger
+  confirmText="删除"
+  onConfirm={() => doDelete(target)}
+  onClose={() => setTarget(null)}
+/>`}</Code>
+      </SubSection>
+
+      <SubSection title="行为规范 · Behavior">
+        <div className="bg-surface border border-line rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-canvas">
+              <tr>{['行为', '默认', '说明'].map((h) => (
+                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-ink-secondary uppercase tracking-wider border-b border-line">{h}</th>
+              ))}</tr>
+            </thead>
+            <tbody>
+              {[
+                ['Esc 关闭',          '启用',  '按下 Escape 键触发 onClose'],
+                ['遮罩点击',          '启用',  '点击半透明背景触发 onClose；closeOnBackdrop=false 可禁用'],
+                ['锁定滚动',          '启用',  '打开时 body overflow=hidden，关闭恢复'],
+                ['最大高度',          '90vh',  '内容超过自动出滚动条'],
+                ['z-index',           '50',    '覆盖普通页面元素'],
+                ['Drawer 宽度',       'w-[720px]', '响应式 max-w-full；可通过 width prop 覆盖'],
+                ['嵌套',              '支持',  '多个 Modal 可叠加（靠 z-index 顺序）'],
+              ].map(([k, v, d]) => (
+                <tr key={k} className="border-b border-line last:border-0">
+                  <td className="px-4 py-2 text-xs text-ink">{k}</td>
+                  <td className="px-4 py-2 font-mono text-xs text-brand-deep">{v}</td>
+                  <td className="px-4 py-2 text-xs text-ink-secondary">{d}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </SubSection>
+
+      {/* live demos */}
+      <Modal open={modalOpen} title="示例 Modal" onClose={() => setModalOpen(false)}
+        footer={<>
+          <button className="ds-btn" onClick={() => setModalOpen(false)}>取消</button>
+          <button className="ds-btn ds-btn-primary" onClick={() => setModalOpen(false)}>保存</button>
+        </>}>
+        <p className="text-sm text-ink">这是一个基础 Modal。按 <kbd className="px-1.5 py-0.5 bg-canvas border border-line rounded text-xs">Esc</kbd> 或点击遮罩关闭。</p>
+        <input className="mt-4 w-full border border-line rounded-lg px-3 py-2 text-sm" placeholder="表单字段示例" />
+      </Modal>
+
+      <Drawer open={drawerOpen} title="示例 Drawer" onClose={() => setDrawerOpen(false)}>
+        <div className="space-y-3 text-sm text-ink">
+          <p>右侧抽屉适合展示详情、日志、活动流等长内容。</p>
+          <p className="text-ink-muted">宽度默认 720px，可通过 <code className="font-mono text-brand-deep">width</code> prop 切换。</p>
+          <div className="h-64 bg-canvas border border-line rounded-lg flex items-center justify-center text-ink-muted">详情内容区域</div>
+        </div>
+      </Drawer>
+
+      <ConfirmModal open={confirmOpen} onClose={() => setConfirmOpen(false)} danger
+        title="删除确认" confirmText="确认删除"
+        message={'你确定要执行这个操作吗？这里是演示用，点击"确认删除"仅关闭对话框。'}
+        onConfirm={() => { /* demo */ }} />
+    </Section>
   )
 }

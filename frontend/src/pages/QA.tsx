@@ -4,6 +4,7 @@ import { Send, Bot, User, Loader, MessageSquare, Trash2, ChevronRight, FileSearc
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { generateDoc } from '../api/client'
+import { ltcLabel } from '../utils/labels'
 
 /** Strip Markdown syntax for plain-text previews in source cards */
 function stripMarkdown(text: string): string {
@@ -75,7 +76,7 @@ function SourcePanel({ sources, hasMessages }: { sources: SourceItem[]; hasMessa
                 <span className="text-xs text-gray-400 font-mono flex-shrink-0">#{i + 1}</span>
                 {s.ltc_stage && (
                   <span className="text-xs px-1.5 py-0.5 bg-orange-50 text-orange-700 rounded-full flex-shrink-0">
-                    {s.ltc_stage}
+                    {ltcLabel(s.ltc_stage)}
                   </span>
                 )}
                 <span className="flex-1"/>
@@ -488,9 +489,9 @@ export default function QA() {
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* ── Left: History (only for QA tab) ──────────────────────────────── */}
+      {/* ── Left: History (only for QA tab, hidden on mobile) ────────────── */}
       {activeTab === 'qa' ? (
-        <div className="w-52 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col">
+        <div className="w-52 flex-shrink-0 border-r border-gray-200 bg-white hidden md:flex flex-col">
           <div className="flex items-center justify-between px-3 py-3 border-b border-gray-100">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">历史对话</span>
             <button
@@ -528,7 +529,7 @@ export default function QA() {
           </div>
         </div>
       ) : (
-        <div className="w-52 flex-shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col items-center justify-center px-4">
+        <div className="w-52 flex-shrink-0 border-r border-gray-200 bg-gray-50 hidden md:flex flex-col items-center justify-center px-4">
           <Sparkles size={24} className="text-orange-300 mb-2"/>
           <p className="text-xs text-gray-400 text-center">输入模板和项目信息，AI 自动从知识库生成文档</p>
         </div>

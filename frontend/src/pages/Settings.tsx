@@ -21,15 +21,15 @@ export default function Settings() {
   const [active, setActive] = useState<TabKey>('models')
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-4 md:p-8 max-w-5xl mx-auto">
       <div className="flex items-center gap-3 mb-1">
         <SettingsIcon size={22} className="text-gray-400" />
-        <h1 className="text-2xl font-bold text-gray-900">系统设置</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">系统设置</h1>
       </div>
-      <p className="text-sm text-gray-500 mb-8">管理模型、路由规则、提示词模板与 API 密钥</p>
+      <p className="text-xs md:text-sm text-gray-500 mb-6 md:mb-8">管理模型、路由规则、提示词模板与 API 密钥</p>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit">
+      <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit max-w-full overflow-x-auto">
         {tabs.map(({ key, label, icon: Icon }) => (
           <button
             key={key}

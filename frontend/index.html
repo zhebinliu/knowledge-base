@@ -4,10 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>实施知识综合管理</title>
+    <meta name="description" content="纷享销客 CRM 实施知识库管理系统。AI 可读文档：/ds.md（设计系统）、/llms.txt（站点索引）。" />
     <link rel="icon" type="image/png" href="/logo.png" />
+    <!-- AI / non-JS clients: fetch /ds.md instead of rendering -->
+    <link rel="alternate" type="text/markdown" href="/ds.md" title="Design System (Markdown)" />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="AI Index" />
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <h1>KB System</h1>
+      <p>本站为 React SPA，需 JavaScript 启用。</p>
+      <p>AI / 无脚本访问请使用：</p>
+      <ul>
+        <li><a href="/ds.md">/ds.md</a> — 设计系统文档（Markdown）</li>
+        <li><a href="/llms.txt">/llms.txt</a> — 站点 AI 索引</li>
+      </ul>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -244,10 +244,10 @@ export default function Chunks() {
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">知识库</h1>
-        <div className="flex items-center gap-3">
+    <div className="p-4 md:p-8 max-w-4xl mx-auto">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">知识库</h1>
+        <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm text-gray-500">共 {total} 条</span>
           <button
             onClick={handleExport}

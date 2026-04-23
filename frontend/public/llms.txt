@@ -1,0 +1,26 @@
+# KB System (纷享销客知识库)
+
+> 内部 CRM 实施知识库。前端是 React SPA，所以爬取 HTML 拿不到内容。
+> 下面这些 URL 返回纯文本/Markdown，AI 助手可以直接 fetch。
+
+## AI 可读文档（无需登录）
+
+- https://kb.liii.in/ds.md — 前端设计系统（组件、Token、代码规范）
+- https://kb.liii.in/llms.txt — 本文件
+
+## 带 token 的 API（需 Bearer）
+
+- `GET /api/projects` — 项目列表
+- `GET /api/documents` — 文档列表（query: project_id, doc_type, limit, offset）
+- `GET /api/documents/{id}/markdown` — 单文档转换后的 Markdown
+- `GET /api/chunks` — 知识切片（query: ltc_stage, industry, review_status）
+- `POST /api/qa/stream` — 流式问答 SSE
+
+登录: `POST /api/auth/login` 拿 access_token。
+
+## 技术栈
+
+- 后端：FastAPI + Celery + PostgreSQL + Qdrant + Redis + MinIO
+- 前端：React 18 + Vite + TailwindCSS + react-query
+- 模型：GLM-5 (conversion/QA) + MiniMax-M2.5 (slicing) + BGE-M3 (embedding)
+- 路由：通过 `services/model_router.py` 统一调度，primary/fallback + 429 指数退避

@@ -538,4 +538,88 @@
   }
   .ds-empty h4 { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
   .ds-empty p  { font-size: 13px; color: var(--text-secondary); max-width: 280px; line-height: 1.6; }
+
+  /* ── Mobile hamburger & backdrop (hidden on desktop) ─────────────────── */
+  .sidebar-hamburger {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--text-primary);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .sidebar-hamburger:hover { background: var(--bg); }
+  .sidebar-backdrop { display: none; }
+
+  /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     RESPONSIVE — must live inside @layer components so cascade is correct.
+     Media queries OUTSIDE a named layer would win over everything above;
+     keeping them inside the same layer ensures Tailwind utilities still win.
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+  /* Tablet ≤ 1023px: 2-col stats */
+  @media (max-width: 1023px) {
+    .stats {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+  }
+
+  /* Mobile ≤ 767px: off-canvas sidebar, 1-col stats, compact paddings */
+  @media (max-width: 767px) {
+    .shell { grid-template-columns: 1fr; }
+
+    .sidebar {
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      width: 260px;
+      z-index: 50;
+      transform: translateX(-100%);
+      transition: transform 0.25s ease;
+      box-shadow: 0 10px 28px rgba(0,0,0,.15);
+    }
+    .sidebar.is-open { transform: translateX(0); }
+
+    .sidebar-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      background: rgba(17,24,39,.45);
+      z-index: 40;
+      animation: backdrop-fade 0.2s ease;
+    }
+    @keyframes backdrop-fade { from { opacity: 0; } to { opacity: 1; } }
+
+    .sidebar-hamburger { display: inline-flex; }
+
+    .topbar {
+      justify-content: space-between;
+      padding: 0 12px;
+      gap: 8px;
+    }
+
+    .stats {
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .stat { padding: 16px; gap: 12px; }
+    .stat-icon { width: 40px; height: 40px; }
+    .stat-body .stat-value { font-size: 22px; }
+
+    .page-head { margin-bottom: 18px; }
+    .page-head h2 { font-size: 18px; }
+    .page-head p  { font-size: 12px; }
+
+    .card-head { padding: 12px 14px; }
+    .ds-table th, .ds-table td { padding: 8px 10px; font-size: 12px; }
+
+    .auth-card { padding: 28px 22px; border-radius: 14px; }
+  }
 }

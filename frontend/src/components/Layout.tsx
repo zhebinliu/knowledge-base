@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { NavLink, Outlet, Link } from 'react-router-dom'
+import { NavLink, Outlet, Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Brain, MessageSquare,
   ClipboardCheck, BookOpen, Settings, ChevronDown, LogOut, KeyRound, Shield, Folder,
-  Copy, RefreshCw, Check, Plug, Trash2, AlertCircle,
+  Copy, RefreshCw, Check, Plug, Trash2, AlertCircle, Menu,
 } from 'lucide-react'
 // BookOpen kept for chunks nav icon
 import { useAuth } from '../auth/AuthContext'
@@ -47,7 +47,12 @@ export default function Layout() {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const location = useLocation()
+
+  // Close mobile drawer when route changes
+  useEffect(() => { setSidebarOpen(false) }, [location.pathname])
 
   // MCP Key state
   const [mcpPreview, setMcpPreview] = useState<string | null>(null)
@@ -145,8 +150,13 @@ export default function Layout() {
 
   return (
     <div className="shell">
+      {/* Mobile backdrop */}
+      {sidebarOpen && (
+        <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* Sidebar */}
-      <aside className="sidebar">
+      <aside className={`sidebar${sidebarOpen ? ' is-open' : ''}`}>
         <div className="sidebar-logo">
           <img src="/logo.png" alt="logo" className="w-9 h-9 object-contain flex-shrink-0" />
           <div>
@@ -181,6 +191,14 @@ export default function Layout() {
       <div className="main-wrap">
         {/* Topbar */}
         <header className="topbar">
+          <button
+            type="button"
+            className="sidebar-hamburger"
+            aria-label="打开菜单"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <Menu size={18} />
+          </button>
           <div className="relative" ref={ref}>
             <button
               type="button" onClick={() => setOpen((o) => !o)}

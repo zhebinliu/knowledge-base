@@ -41,11 +41,11 @@ export default function ProjectDetail() {
   })
 
   if (isLoading || !project) {
-    return <div className="p-8 text-sm text-gray-400">加载中...</div>
+    return <div className="p-4 md:p-8 text-sm text-gray-400">加载中...</div>
   }
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-4 md:p-8 max-w-6xl mx-auto">
       <Link to="/projects"
         className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-orange-600 mb-4 transition-colors">
         <ArrowLeft size={14} /> 返回项目库
