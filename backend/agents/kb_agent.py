@@ -12,7 +12,7 @@ from services.model_router import model_router
 from services.embedding_service import embedding_service
 from services.rerank_service import rerank_service
 from services.vector_store import vector_store
-from prompts.qa import build_qa_prompt, build_pm_qa_prompt, build_doc_generate_prompt
+from prompts.qa import build_qa_prompt, build_pm_qa_prompt, build_doc_generate_prompt, build_history_messages
 from models import async_session_maker
 from models.chunk import Chunk
 from models.document import Document
@@ -191,13 +191,17 @@ async def answer_question(
     ]
 
     if persona == "pm":
-        prompt = await build_pm_qa_prompt(question, chunks_for_prompt, project_name, history=history)
+        prompt = await build_pm_qa_prompt(question, chunks_for_prompt, project_name)
     else:
-        prompt = await build_qa_prompt(question, chunks_for_prompt, history=history)
+        prompt = await build_qa_prompt(question, chunks_for_prompt)
+
+    # 多轮上下文：前 N 轮作为真正的 user/assistant messages 放在当前 user 消息前
+    messages = build_history_messages(history)
+    messages.append({"role": "user", "content": prompt})
 
     answer, used_model = await model_router.chat_with_routing(
         "daily_qa",
-        [{"role": "user", "content": prompt}],
+        messages,
         max_tokens=2000,
     )
 
@@ -258,9 +262,12 @@ async def answer_question_stream(
     ]
 
     if persona == "pm":
-        prompt = await build_pm_qa_prompt(question, chunks_for_prompt, project_name, history=history)
+        prompt = await build_pm_qa_prompt(question, chunks_for_prompt, project_name)
     else:
-        prompt = await build_qa_prompt(question, chunks_for_prompt, history=history)
+        prompt = await build_qa_prompt(question, chunks_for_prompt)
+
+    messages = build_history_messages(history)
+    messages.append({"role": "user", "content": prompt})
 
     in_think = False
     buf = ""
@@ -268,7 +275,7 @@ async def answer_question_stream(
 
     async for raw_token, model_name in model_router.chat_stream_with_routing(
         "daily_qa",
-        [{"role": "user", "content": prompt}],
+        messages,
         max_tokens=2000,
     ):
         if raw_token is None:

@@ -146,24 +146,34 @@ class ConfigService:
 
             await session.commit()
 
-            # 强制升级 QA_PROMPT：旧版本的"完全没有与问题相关的业务领域信息 → 拒答"规则
-            # 让模型过度保守、sources 很多但答案却是"知识库中暂无相关内容"。
-            # 检测到旧规则关键句时自动替换为新版。
+            # 版本哨兵升级：prompts 源码里内嵌 <!-- KEY_VERSION:N --> 注释
+            # DB 里的模板只要不包含源码中的哨兵，就强制覆盖为最新版。
+            # 这样老版本的拒答过严 prompt / 没 PM persona 的 prompt 都会被自动替换。
+            # admin 通过 Settings UI 做的本地修改如果保留了哨兵会被识别为"已最新"而跳过。
+            import re
             from models.agent_config import AgentConfig
-            row = (await session.execute(
-                select(AgentConfig).where(
-                    AgentConfig.config_type == "prompt_template",
-                    AgentConfig.config_key == "QA_PROMPT",
-                )
-            )).scalar_one_or_none()
-            if row and isinstance(row.config_value, dict):
-                tpl = row.config_value.get("template", "")
-                OLD_MARKER = "切片中完全没有与问题相关的业务领域信息"
-                NEW_MARKER = "切片内容和问题属于完全不同的业务领域"
-                if OLD_MARKER in tpl and NEW_MARKER not in tpl:
-                    row.config_value = {"template": QA_PROMPT, "variables": ["retrieved_chunks", "question"]}
-                    await session.commit()
-                    logger.info("qa_prompt_upgraded_to_less_refusal_version")
+            VERSION_PATTERNS = {
+                "QA_PROMPT": (QA_PROMPT, re.compile(r"<!--\s*QA_PROMPT_VERSION:\s*2\s*-->")),
+                "PM_QA_PROMPT": (PM_QA_PROMPT, re.compile(r"<!--\s*PM_QA_PROMPT_VERSION:\s*1\s*-->")),
+            }
+            for key, (hardcoded, pattern) in VERSION_PATTERNS.items():
+                row = (await session.execute(
+                    select(AgentConfig).where(
+                        AgentConfig.config_type == "prompt_template",
+                        AgentConfig.config_key == key,
+                    )
+                )).scalar_one_or_none()
+                if row and isinstance(row.config_value, dict):
+                    tpl = row.config_value.get("template", "")
+                    if not pattern.search(tpl):
+                        variables = row.config_value.get("variables") or (
+                            ["retrieved_chunks", "question", "project_name"]
+                            if key == "PM_QA_PROMPT" else
+                            ["retrieved_chunks", "question"]
+                        )
+                        row.config_value = {"template": hardcoded, "variables": variables}
+                        await session.commit()
+                        logger.info("prompt_upgraded_to_latest_version", key=key)
 
         self.invalidate()
         logger.info("config_seed_complete")
