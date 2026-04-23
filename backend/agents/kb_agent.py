@@ -199,10 +199,10 @@ async def answer_question(
     messages = build_history_messages(history)
     messages.append({"role": "user", "content": prompt})
 
+    # max_tokens 走 config_service 里 daily_qa 的默认值（8000），PM 结构化回答容易超 2000
     answer, used_model = await model_router.chat_with_routing(
         "daily_qa",
         messages,
-        max_tokens=2000,
     )
 
     # 命中时异步自增热度
@@ -276,7 +276,6 @@ async def answer_question_stream(
     async for raw_token, model_name in model_router.chat_stream_with_routing(
         "daily_qa",
         messages,
-        max_tokens=2000,
     ):
         if raw_token is None:
             used_model = model_name

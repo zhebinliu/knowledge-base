@@ -726,7 +726,15 @@ export default function QA() {
               </div>
             )}
 
-            {messages.map((msg, i) => (
+            {messages.map((msg, i) => {
+              // 流式等待中：最后一条 assistant 消息还没收到 token，交给下方 thinking 指示器渲染，不重复绘空气泡
+              const isEmptyStreamingPlaceholder =
+                streaming &&
+                i === messages.length - 1 &&
+                msg.role === 'assistant' &&
+                !msg.content
+              if (isEmptyStreamingPlaceholder) return null
+              return (
               <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
                   msg.role === 'user' ? 'text-white' : 'bg-gray-100 border border-gray-200'
@@ -785,7 +793,8 @@ export default function QA() {
                   )}
                 </div>
               </div>
-            ))}
+              )
+            })}
 
             {/* "Thinking" indicator */}
             {streaming && messages[messages.length - 1]?.role === 'assistant' && messages[messages.length - 1]?.content === '' && (
