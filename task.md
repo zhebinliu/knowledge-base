@@ -52,6 +52,43 @@
 
 - [x] **git merge 到 main**（按用户要求本次只提交 + 合并，不 rsync）
 
+### 后续修补（部署后发现）
+
+- [x] **QA 多轮 prompt 污染**：history 硬塞 prompt 文本让模型看到元信息。改用真正的 user/assistant messages 数组
+- [x] **QA_PROMPT 强升级**：加版本哨兵 `<!-- QA_PROMPT_VERSION:2 -->`；启动时缺哨兵就覆盖
+- [x] **回答截断**：移除 kb_agent 里 `max_tokens=2000` 硬编码，走 config 默认 8000
+- [x] **双等待框**：空 assistant placeholder 不渲染外壳，让 thinking indicator 独占
+- [x] **路由与参数页保存按钮换行**：th `w-20` → `w-1 whitespace-nowrap`，按钮 `flex` → `inline-flex`
+
+---
+
+## 对外 API / MCP 扩展（2026-04-23）
+
+- [x] MCP `ask_kb` 增加 `persona` + `project`（支持 ID 或名称）
+- [x] MCP 新增 `list_projects` 工具，支持按 query 模糊过滤
+- [x] MCP `search_kb` 增加可选 `project` 过滤
+- [x] MCP `_resolve_project`：ID 精确 → 名称精确（大小写不敏感）→ 名称/客户模糊唯一命中
+- [x] `initialize` instructions 加典型调用流程提示
+- [x] REST 鉴权 `get_current_user` / `_optional` 同时接受 JWT 和 MCP API Key（`mcp_xxx`），外部脚本可直接用一把 MCP Key 走 REST `/api/qa/ask`
+- [x] commit + merge main
+
+---
+
+## 待启动（用户确认当前批次测试通过后再做）
+
+### #8 Chunk → 原文档定位跳转
+- QA 引用面板的 `看原文` 链接已经带 `/documents?doc=X#chunk-Y`，但 Documents 页面目前不解析 hash
+- 需要：Documents 详情抽屉解析 `#chunk-X`，自动滚动到对应 chunk 位置 / 高亮
+- 已有数据：chunks.source_section 存 section path；后端 QA sources 已透出
+- 工作量：S
+
+### #9 文档摘要 + 自动生成 FAQ
+- 文档转化完成后触发 LLM 调用：3 句话摘要 + Top 5 FAQ
+- DB：`documents` 加 `summary TEXT`、`faq JSON`
+- 流程：`_process_document_async` 入库完成后 append 一个摘要任务（同步或 Celery 子任务）
+- 前端：文档详情页默认展示摘要 + FAQ 卡片
+- 工作量：M（加一次模型调用 + UI）
+
 ---
 
 ## 历史迭代：系统质量基建（2026-04-23 第一批）

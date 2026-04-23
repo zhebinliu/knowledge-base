@@ -23,6 +23,8 @@ from sqlalchemy import select
 from agents.kb_agent import answer_question
 from config import settings
 from models import async_session_maker
+from models.project import Project
+from models.document import Document
 from models.user import User
 from services.embedding_service import embedding_service
 from services.vector_store import vector_store
@@ -40,7 +42,11 @@ TOOLS = [
         "name": "ask_kb",
         "description": (
             "向纷享销客 CRM 实施知识库提问，返回基于文档的 RAG 答案与来源引用。\n"
-            "适用场景：实施方法论、操作规范、流程最佳实践、常见问题解答。"
+            "两种模式：\n"
+            "• 通用模式（默认）：检索全库，回答事实/方法论类问题\n"
+            "• 项目经理模式（persona=pm + project）：以指定项目的 PM 视角回答，"
+            "回答带状态/下一步/风险等项目管理结构化分析，仅检索该项目的文档\n"
+            "使用前若不知道有哪些项目，先调 list_projects。"
         ),
         "inputSchema": {
             "type": "object",
@@ -48,6 +54,19 @@ TOOLS = [
                 "question": {
                     "type": "string",
                     "description": "要询问的问题，支持中文自然语言",
+                },
+                "persona": {
+                    "type": "string",
+                    "description": "回答视角。general=通用实施顾问；pm=虚拟项目经理（需配合 project 使用）",
+                    "enum": ["general", "pm"],
+                    "default": "general",
+                },
+                "project": {
+                    "type": "string",
+                    "description": (
+                        "项目标识（ID 或名称）。persona=pm 时必填，"
+                        "优先按 ID 精确匹配，匹配不到按名称模糊匹配（大小写不敏感）。"
+                    ),
                 },
                 "ltc_stage": {
                     "type": "string",
@@ -83,11 +102,70 @@ TOOLS = [
                     "description": "可选：按 LTC 阶段过滤",
                     "enum": ["线索", "商机", "报价", "合同", "回款", "售后"],
                 },
+                "project": {
+                    "type": "string",
+                    "description": "可选：限定到特定项目的文档（ID 或名称）",
+                },
             },
             "required": ["query"],
         },
     },
+    {
+        "name": "list_projects",
+        "description": (
+            "列出所有项目（ID、名称、客户、行业、文档数）。\n"
+            "通常在使用 persona=pm 之前调用以获取有效的 project 参数。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "可选：按名称/客户模糊过滤（大小写不敏感）",
+                },
+            },
+        },
+    },
 ]
+
+
+# ── Project resolution (id or case-insensitive name match) ───────────────────
+
+async def _resolve_project(ref: str) -> Project | None:
+    """接收 project ID 或名称，返回匹配的 Project 或 None。"""
+    if not ref:
+        return None
+    ref = ref.strip()
+    async with async_session_maker() as session:
+        # 1) 精确 ID
+        proj = await session.get(Project, ref)
+        if proj:
+            return proj
+        # 2) 名称精确匹配（大小写不敏感）
+        from sqlalchemy import func as sa_func
+        proj = (await session.execute(
+            select(Project).where(sa_func.lower(Project.name) == ref.lower())
+        )).scalar_one_or_none()
+        if proj:
+            return proj
+        # 3) 名称 / 客户模糊匹配，只返回唯一命中
+        rows = (await session.execute(
+            select(Project).where(
+                sa_func.lower(Project.name).contains(ref.lower())
+                | sa_func.lower(sa_func.coalesce(Project.customer, "")).contains(ref.lower())
+            ).limit(5)
+        )).scalars().all()
+        if len(rows) == 1:
+            return rows[0]
+        return None
+
+
+async def _document_ids_for_project(project_id: str) -> list[str]:
+    async with async_session_maker() as session:
+        rows = await session.execute(
+            select(Document.id).where(Document.project_id == project_id)
+        )
+        return [r[0] for r in rows.all()]
 
 
 # ── Tool handlers ─────────────────────────────────────────────────────────────
@@ -95,29 +173,63 @@ TOOLS = [
 async def _handle_ask_kb(arguments: dict) -> str:
     question = arguments["question"]
     ltc_stage = arguments.get("ltc_stage") or None
+    persona = (arguments.get("persona") or "general").lower()
+    project_ref = arguments.get("project") or None
 
-    result = await answer_question(question, ltc_stage=ltc_stage)
+    project_id: str | None = None
+    project_name: str = ""
+    if persona == "pm":
+        if not project_ref:
+            return "❌ persona=pm 时必须传 project 参数（项目 ID 或名称）。可先调 list_projects 查可用项目。"
+        proj = await _resolve_project(project_ref)
+        if not proj:
+            return f"❌ 未找到项目「{project_ref}」。可先调 list_projects 查可用项目。"
+        project_id = proj.id
+        project_name = proj.name
+
+    result = await answer_question(
+        question,
+        ltc_stage=ltc_stage,
+        persona=persona,
+        project_id=project_id,
+    )
     text = result["answer"]
+
+    header = ""
+    if persona == "pm" and project_name:
+        header = f"**[PM 视角 · {project_name}]**\n\n"
 
     if result.get("sources"):
         text += f"\n\n---\n**参考来源**（{len(result['sources'])} 条）："
         for i, s in enumerate(result["sources"], 1):
-            pct   = round(s["score"] * 100)
+            pct   = round((s.get("score") or 0) * 100)
             stage = s.get("ltc_stage") or "通用"
             text += f"\n- 来源 {i} · 阶段: {stage} · 相关度: {pct}%"
     if result.get("model"):
         text += f"\n\n*由 {result['model']} 生成*"
 
-    return text
+    return header + text
 
 
 async def _handle_search_kb(arguments: dict) -> str:
     query     = arguments["query"]
     top_k     = min(int(arguments.get("top_k", 5)), 20)
     ltc_stage = arguments.get("ltc_stage") or None
+    project_ref = arguments.get("project") or None
 
-    vector   = await embedding_service.embed(query)
-    results  = await vector_store.search(vector, top_k=top_k, ltc_stage=ltc_stage)
+    document_ids: list[str] | None = None
+    if project_ref:
+        proj = await _resolve_project(project_ref)
+        if not proj:
+            return f"❌ 未找到项目「{project_ref}」。可先调 list_projects 查可用项目。"
+        document_ids = await _document_ids_for_project(proj.id)
+        if not document_ids:
+            return f"项目「{proj.name}」下暂无已入库文档。"
+
+    vector   = await embedding_service.embed(query, use_cache=True)
+    results  = await vector_store.search(
+        vector, top_k=top_k, ltc_stage=ltc_stage, document_ids=document_ids
+    )
 
     if not results:
         return "未找到相关知识切片。"
@@ -131,6 +243,35 @@ async def _handle_search_kb(arguments: dict) -> str:
         lines.append(
             f"### 切片 {i}  |  阶段: {stage}  |  相关度: {pct}%  |  ID: `{chunk_id}`\n"
             f"{content}\n"
+        )
+    return "\n".join(lines)
+
+
+async def _handle_list_projects(arguments: dict) -> str:
+    q = (arguments.get("query") or "").strip().lower()
+    from sqlalchemy import func as sa_func
+    async with async_session_maker() as session:
+        stmt = select(
+            Project.id, Project.name, Project.customer, Project.industry,
+            sa_func.count(Document.id).label("doc_count"),
+        ).outerjoin(Document, Document.project_id == Project.id)
+        if q:
+            stmt = stmt.where(
+                sa_func.lower(Project.name).contains(q)
+                | sa_func.lower(sa_func.coalesce(Project.customer, "")).contains(q)
+            )
+        stmt = stmt.group_by(Project.id).order_by(Project.name)
+        rows = (await session.execute(stmt)).all()
+
+    if not rows:
+        return "暂无项目。" if not q else f"未找到匹配「{q}」的项目。"
+
+    lines = [f"找到 **{len(rows)}** 个项目：\n"]
+    for r in rows:
+        customer = r.customer or "—"
+        industry = r.industry or "—"
+        lines.append(
+            f"- **{r.name}** · 客户: {customer} · 行业: {industry} · 文档数: {r.doc_count} · `id={r.id}`"
         )
     return "\n".join(lines)
 
@@ -206,8 +347,11 @@ async def mcp_endpoint(request: Request):
             "serverInfo":      SERVER_INFO,
             "instructions": (
                 "纷享销客 CRM 实施知识库 MCP 服务器。\n"
-                "• ask_kb   — 提问获取 RAG 答案（推荐）\n"
-                "• search_kb — 检索原始知识切片"
+                "• ask_kb       — 提问获取 RAG 答案（默认通用模式）\n"
+                "• ask_kb (pm)  — persona=pm + project=<ID或名称>，以项目 PM 视角回答（状态/下一步/风险）\n"
+                "• search_kb    — 检索原始知识切片（可 project 过滤）\n"
+                "• list_projects — 列出所有项目，提供给 pm 模式使用\n"
+                "典型流程：先 list_projects → 再 ask_kb(persona=pm, project=XX)"
             ),
         })
 
@@ -229,6 +373,8 @@ async def mcp_endpoint(request: Request):
                 text = await _handle_ask_kb(arguments)
             elif tool_name == "search_kb":
                 text = await _handle_search_kb(arguments)
+            elif tool_name == "list_projects":
+                text = await _handle_list_projects(arguments)
             else:
                 return _err(req_id, -32602, f"未知工具: {tool_name}")
 

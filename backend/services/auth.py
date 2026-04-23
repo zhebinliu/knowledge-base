@@ -58,6 +58,14 @@ def _extract_bearer_token(request: Request) -> Optional[str]:
     return auth.split(" ", 1)[1].strip() or None
 
 
+async def _user_from_mcp_key(session: AsyncSession, token: str) -> Optional[User]:
+    """MCP API Key 形如 mcp_xxx，查 users.mcp_api_key 映射到用户。"""
+    if not token.startswith("mcp_"):
+        return None
+    user = await session.scalar(select(User).where(User.mcp_api_key == token))
+    return user if user and user.is_active else None
+
+
 async def get_current_user(
     request: Request,
     session: AsyncSession = Depends(get_session),
@@ -65,6 +73,12 @@ async def get_current_user(
     token = _extract_bearer_token(request)
     if not token:
         raise HTTPException(401, "未登录")
+
+    # 支持 MCP API Key 走 REST
+    mcp_user = await _user_from_mcp_key(session, token)
+    if mcp_user:
+        return mcp_user
+
     try:
         payload = decode_access_token(token)
     except jwt.ExpiredSignatureError:
@@ -86,10 +100,17 @@ async def get_current_user_optional(
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> Optional[User]:
-    """用于上传等接口：登录时记录 uploader，未登录时不阻断（保留向后兼容）。"""
+    """用于上传等接口：登录时记录 uploader，未登录时不阻断（保留向后兼容）。
+    同时接受 JWT 和 MCP API Key（mcp_xxx），方便外部脚本/集成。
+    """
     token = _extract_bearer_token(request)
     if not token:
         return None
+
+    mcp_user = await _user_from_mcp_key(session, token)
+    if mcp_user:
+        return mcp_user
+
     try:
         payload = decode_access_token(token)
     except jwt.PyJWTError:
