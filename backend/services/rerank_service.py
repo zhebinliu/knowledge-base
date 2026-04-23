@@ -12,7 +12,8 @@ class RerankService:
     @property
     def client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=30.0)
+            # 8s 上限：rerank 慢时 kb_agent 会捕获异常 fallback 到向量分数
+            self._client = httpx.AsyncClient(timeout=8.0)
         return self._client
 
     async def rerank(self, query: str, documents: list[str], top_n: int = 5) -> list[int]:

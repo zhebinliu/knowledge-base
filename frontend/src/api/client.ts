@@ -75,7 +75,8 @@ export interface Document {
   id: string
   filename: string
   original_format: string
-  conversion_status: 'pending' | 'converting' | 'slicing' | 'completed' | 'failed'
+  conversion_status: 'pending' | 'converting' | 'slicing' | 'retrying' | 'completed' | 'failed'
+  conversion_error?: string | null
   conversion_quality_score?: number
   uploader_id?: string | null
   uploader_name?: string | null

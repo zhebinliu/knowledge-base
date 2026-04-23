@@ -1,6 +1,6 @@
 import uuid
 import structlog
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Query
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from models import get_session
@@ -8,6 +8,7 @@ from models.document import Document
 from models.project import DOC_TYPES, DOC_TYPE_LABELS, Project
 from models.user import User
 from services.auth import get_current_user, get_current_user_optional
+from services.rate_limit import limiter
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -17,7 +18,9 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
 
 @router.post("/upload")
+@limiter.limit("30/minute")
 async def upload_document(
+    request: Request,
     file: UploadFile = File(...),
     project_id: str | None = Form(default=None),
     doc_type: str | None = Form(default=None),
@@ -125,6 +128,7 @@ async def list_documents(
             "filename": d.filename,
             "original_format": d.original_format,
             "conversion_status": d.conversion_status,
+            "conversion_error": d.conversion_error,
             "uploader_id": d.uploader_id,
             "uploader_name": full_name or username,
             "project_id": d.project_id,
@@ -156,7 +160,12 @@ async def get_document_status(doc_id: str, session: AsyncSession = Depends(get_s
     if not doc:
         raise HTTPException(404, "文档不存在")
     chunk_count = await session.scalar(select(func.count()).select_from(Chunk).where(Chunk.document_id == doc_id))
-    return {"id": doc.id, "conversion_status": doc.conversion_status, "chunk_count": chunk_count}
+    return {
+        "id": doc.id,
+        "conversion_status": doc.conversion_status,
+        "conversion_error": doc.conversion_error,
+        "chunk_count": chunk_count,
+    }
 
 
 @router.get("/{doc_id}/chunks")

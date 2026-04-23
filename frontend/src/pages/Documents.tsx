@@ -492,7 +492,16 @@ export default function Documents() {
                         )}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        {STATUS_BADGE[doc.conversion_status] ?? doc.conversion_status}
+                        <span
+                          title={doc.conversion_status === 'failed' && doc.conversion_error ? doc.conversion_error : undefined}
+                        >
+                          {STATUS_BADGE[doc.conversion_status] ?? doc.conversion_status}
+                        </span>
+                        {doc.conversion_status === 'failed' && doc.conversion_error && (
+                          <div className="text-[11px] text-red-600 mt-0.5 max-w-xs truncate" title={doc.conversion_error}>
+                            {doc.conversion_error}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
                         {doc.uploader_name ? (

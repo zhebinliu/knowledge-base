@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime, timezone
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +16,7 @@ from services.auth import (
     hash_password,
     verify_password,
 )
+from services.rate_limit import limiter
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -63,7 +64,8 @@ class ChangePasswordIn(BaseModel):
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.post("/register")
-async def register(payload: RegisterIn, session: AsyncSession = Depends(get_session)):
+@limiter.limit("5/minute")
+async def register(request: Request, payload: RegisterIn, session: AsyncSession = Depends(get_session)):
     existing = await session.scalar(select(User).where(User.username == payload.username))
     if existing:
         raise HTTPException(409, "用户名已存在")
@@ -85,7 +87,8 @@ async def register(payload: RegisterIn, session: AsyncSession = Depends(get_sess
 
 
 @router.post("/login")
-async def login(payload: LoginIn, session: AsyncSession = Depends(get_session)):
+@limiter.limit("5/minute")
+async def login(request: Request, payload: LoginIn, session: AsyncSession = Depends(get_session)):
     user = await session.scalar(select(User).where(User.username == payload.username))
     if not user or not verify_password(payload.password, user.password_hash or ""):
         raise HTTPException(401, "用户名或密码错误")

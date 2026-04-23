@@ -1,14 +1,19 @@
 import asyncio
+import hashlib
+import json
 import httpx
 import structlog
 from config import settings
 
 logger = structlog.get_logger()
 
+_CACHE_TTL_S = 60 * 60 * 24  # 24h
+
 
 class EmbeddingService:
     def __init__(self):
         self._client: httpx.AsyncClient | None = None
+        self._redis = None  # 懒加载，避免 import-time 连 Redis
 
     @property
     def client(self) -> httpx.AsyncClient:
@@ -16,8 +21,36 @@ class EmbeddingService:
             self._client = httpx.AsyncClient(timeout=30.0)
         return self._client
 
-    async def embed(self, text: str) -> list[float]:
-        return (await self.embed_batch([text]))[0]
+    async def _get_redis(self):
+        if self._redis is None:
+            import redis.asyncio as aioredis
+            self._redis = aioredis.from_url(settings.redis_url, decode_responses=False)
+        return self._redis
+
+    def _cache_key(self, text: str) -> str:
+        h = hashlib.sha1(text.encode("utf-8")).hexdigest()
+        return f"emb:{settings.embedding_model}:{h}"
+
+    async def embed(self, text: str, use_cache: bool = False) -> list[float]:
+        if use_cache:
+            try:
+                r = await self._get_redis()
+                raw = await r.get(self._cache_key(text))
+                if raw:
+                    return json.loads(raw)
+            except Exception as e:
+                logger.warning("embedding_cache_read_failed", error=str(e)[:100])
+
+        vec = (await self.embed_batch([text]))[0]
+
+        if use_cache:
+            try:
+                r = await self._get_redis()
+                await r.set(self._cache_key(text), json.dumps(vec), ex=_CACHE_TTL_S)
+            except Exception as e:
+                logger.warning("embedding_cache_write_failed", error=str(e)[:100])
+
+        return vec
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         # 429 退避: 5s / 10s / 20s

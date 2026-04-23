@@ -77,6 +77,13 @@ def run_async(coro):
                 if embedding_service._client and not embedding_service._client.is_closed:
                     await embedding_service._client.aclose()
                 embedding_service._client = None
+                # Redis 客户端也绑定事件循环，必须同步清理
+                if embedding_service._redis is not None:
+                    try:
+                        await embedding_service._redis.aclose()
+                    except Exception:
+                        pass
+                    embedding_service._redis = None
             except Exception:
                 pass
             try:
@@ -102,11 +109,16 @@ def process_document(self, doc_id: str):
     from models import async_session_maker
     from models.document import Document
 
-    async def _update_status(status: str):
+    async def _update_status(status: str, error: str | None = None):
         async with async_session_maker() as session:
             doc = await session.get(Document, doc_id)
             if doc:
                 doc.conversion_status = status
+                if error is not None:
+                    doc.conversion_error = error
+                elif status in ("converting", "slicing", "completed"):
+                    # 进入正常态时清掉历史错误
+                    doc.conversion_error = None
                 await session.commit()
 
     try:
@@ -114,7 +126,8 @@ def process_document(self, doc_id: str):
         logger.info("task_received", doc_id=doc_id, task_id=self.request.id, attempt=self.request.retries + 1)
         run_async(_process_document_async(doc_id))
     except Exception as exc:
-        logger.error("process_document_failed", doc_id=doc_id, error=str(exc)[:200] or type(exc).__name__)
+        err_msg = (str(exc)[:500] or type(exc).__name__)
+        logger.error("process_document_failed", doc_id=doc_id, error=err_msg[:200])
         # 指数退避: 60s, 120s, 240s, 480s, 900s — 给 edgefn rate limit 恢复时间
         countdowns = [60, 120, 240, 480, 900]
         retries_done = self.request.retries
@@ -123,8 +136,8 @@ def process_document(self, doc_id: str):
             run_async(_update_status("retrying"))
             wait = countdowns[min(retries_done, len(countdowns) - 1)]
             raise self.retry(exc=exc, countdown=wait)
-        # 重试用尽 → 永久失败
-        run_async(_update_status("failed"))
+        # 重试用尽 → 永久失败，写入错误原因供前端展示
+        run_async(_update_status("failed", error=err_msg))
         raise
 
 

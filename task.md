@@ -1,6 +1,54 @@
 # 任务跟踪
 
-## 当前迭代：用户认证 + 项目库 + 挑战历史（2026-04-17 起）
+## 当前迭代：系统质量提升（2026-04-23 起）
+
+来源：Review 发现的安全/可靠性/成本改进点。CORS 按用户决定暂不动。
+部署节奏：Block 1 全部完成后部署一次 + smoke test；Block 2 单独 deploy backend。
+
+### Block 1 · 安全 + 可靠性 + 省钱
+
+- [ ] **T1** 接口限流（slowapi）
+  - 依赖：`slowapi` 加入 requirements.txt
+  - 文件：`backend/main.py`（注册 limiter）、`backend/api/auth.py`、`documents.py`、`qa.py`（装饰器）
+  - 规则：login 5/min，upload 30/min，QA 60/min，按 IP 粒度
+  - 验收：curl 循环打 /api/auth/login 第 6 次返回 429
+
+- [ ] **T2** Rerank 超时 30s→8s
+  - 文件：`backend/services/rerank_service.py:15`
+  - fallback 已在 `kb_agent.py:71` 实现（捕获异常降级到向量分数）
+  - 验收：import 通过
+
+- [ ] **T3** Embedding 缓存（Redis）
+  - 方案：QA 路径加 use_cache=True，key = emb:{model}:{sha1(text)}，TTL 24h
+  - 切片入库保持实时（不缓存）
+  - 文件：`backend/services/embedding_service.py`（加缓存层）、`backend/agents/kb_agent.py`（调用点传 use_cache）
+  - 验收：同一 question 二次调用能在 Redis 看到 key
+
+- [ ] **T4** Celery 失败可视化
+  - DB：Document 加 `conversion_error TEXT NULL`（main.py startup 自动补列）
+  - 后端：`convert_task.py:127` 写错误原因
+  - API：`/api/documents` 透出 conversion_error 字段
+  - 前端：`ProcessingCard.tsx` 显示失败计数 + 点击看列表
+  - 验收：人为失败一个文档，Dashboard 能看到错误原因
+
+### Block 2 · 可观测性
+
+- [ ] **T5** QA 链路耗时打点
+  - 文件：`backend/agents/kb_agent.py`
+  - 日志字段：embed_ms / search_ms / rerank_ms / llm_ms
+  - 验收：`sudo docker compose logs backend | grep qa_timing` 能看到
+
+### 延后（单独任务，本次不做）
+
+- CORS 白名单（用户决定暂不动）
+- MinIO TLS（内网流量，风险低；需先给 MinIO 装证书）
+- 混合检索 BM25（需改 qdrant 索引结构，风险大）
+- 前端 citation 点击展开（需新 API + 组件）
+- 备份策略（运维动作，需服务器侧 cron + 冷备盘）
+
+---
+
+## 历史迭代：用户认证 + 项目库 + 挑战历史（2026-04-17）
 
 来源：用户需求三件套——账号登录系统、项目库（含文档类型）、知识挑战历史记录。
 

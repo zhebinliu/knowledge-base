@@ -42,7 +42,7 @@ async def _multi_route_retrieve(
     2. 宽泛检索（不带过滤，兜底）
     去重后合并，确保不遗漏跨阶段的关联知识。
     """
-    query_vector = await embedding_service.embed(question)
+    query_vector = await embedding_service.embed(question, use_cache=True)
 
     filtered_results = []
     if ltc_stage or industry:
@@ -195,7 +195,7 @@ async def generate_doc(
     query: str | None = None,
 ) -> str:
     search_query = query or f"{project_name} {industry} 实施方案"
-    query_vector = await embedding_service.embed(search_query)
+    query_vector = await embedding_service.embed(search_query, use_cache=True)
     raw_results = await vector_store.search(query_vector, top_k=RETRIEVAL_TOP_K)
 
     top_results = await _rerank_results(search_query, raw_results)

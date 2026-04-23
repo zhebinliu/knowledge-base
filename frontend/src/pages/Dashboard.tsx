@@ -196,7 +196,11 @@ export default function Dashboard() {
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-1.5 text-xs flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>
+              <div
+                className="flex items-center gap-1.5 text-xs flex-shrink-0"
+                style={{ color: doc.conversion_status === 'failed' ? '#dc2626' : 'var(--text-secondary)' }}
+                title={doc.conversion_status === 'failed' && doc.conversion_error ? doc.conversion_error : undefined}
+              >
                 {STATUS_ICON[doc.conversion_status]}
                 {STATUS_LABEL[doc.conversion_status]}
               </div>

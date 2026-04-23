@@ -19,6 +19,8 @@ class Document(Base):
     file_path: Mapped[str | None] = mapped_column(String(1000))
     conversion_status: Mapped[str] = mapped_column(String(20), default="pending")
     conversion_quality_score: Mapped[float | None] = mapped_column(Float)
+    # 永久失败时记录最终错误，pending/converting/completed 时为空
+    conversion_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     # nullable：兼容老数据 + 未登录上传场景
     uploader_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("users.id"), nullable=True, index=True

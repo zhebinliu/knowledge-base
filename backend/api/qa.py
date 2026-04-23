@@ -1,8 +1,9 @@
 import json
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from agents.kb_agent import answer_question, answer_question_stream, generate_doc
+from services.rate_limit import limiter
 
 router = APIRouter()
 
@@ -21,12 +22,14 @@ class GenerateDocRequest(BaseModel):
 
 
 @router.post("/ask")
-async def ask_question(req: AskRequest):
+@limiter.limit("60/minute")
+async def ask_question(request: Request, req: AskRequest):
     return await answer_question(req.question, ltc_stage=req.ltc_stage, industry=req.industry)
 
 
 @router.post("/ask-stream")
-async def ask_question_stream_endpoint(req: AskRequest):
+@limiter.limit("60/minute")
+async def ask_question_stream_endpoint(request: Request, req: AskRequest):
     """SSE streaming endpoint. Events: data: {...}\n\n  Terminated with: data: [DONE]\n\n"""
     async def event_generator():
         try:
@@ -51,6 +54,7 @@ async def ask_question_stream_endpoint(req: AskRequest):
 
 
 @router.post("/generate-doc")
-async def generate_document(req: GenerateDocRequest):
+@limiter.limit("30/minute")
+async def generate_document(request: Request, req: GenerateDocRequest):
     content = await generate_doc(req.template, req.project_name, req.industry, req.query)
     return {"content": content}

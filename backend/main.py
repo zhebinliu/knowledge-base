@@ -1,9 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import structlog
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from config import settings
 from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp
+from services.rate_limit import limiter
 from services.vector_store import vector_store
 
 logger = structlog.get_logger()
@@ -13,6 +16,10 @@ app = FastAPI(
     description="纷享销客 CRM 知识库管理系统",
     version="1.0.0",
 )
+
+# 限流：SlowAPI 需绑定到 app.state + 注册 429 处理器
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -75,6 +82,7 @@ async def startup():
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS industry VARCHAR(50)",
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS industry VARCHAR(50)",
             "CREATE INDEX IF NOT EXISTS idx_documents_industry ON documents(industry)",
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS conversion_error TEXT",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")
