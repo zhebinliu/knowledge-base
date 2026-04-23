@@ -88,7 +88,7 @@ export default function RoutingTab() {
                   <th className="px-4 py-3 font-medium">最大Token数</th>
                   <th className="px-4 py-3 font-medium">温度</th>
                   <th className="px-4 py-3 font-medium">超时(秒)</th>
-                  <th className="px-4 py-3 font-medium w-20">操作</th>
+                  <th className="px-4 py-3 font-medium whitespace-nowrap w-1">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -194,11 +194,11 @@ function TaskParamsRow({ entry, qc }: { entry: TaskParamsEntry; qc: ReturnType<t
           className={`w-20 ${inputCls}`}
         />
       </td>
-      <td className="px-4 py-3">
+      <td className="px-4 py-3 whitespace-nowrap">
         <button
           onClick={() => mut.mutate()}
           disabled={!dirty || mut.isPending}
-          className="flex items-center gap-1 px-2.5 py-1.5 text-white text-xs rounded-lg disabled:opacity-40 transition-all"
+          className="inline-flex items-center gap-1 px-3 py-1.5 text-white text-xs rounded-lg disabled:opacity-40 transition-all whitespace-nowrap"
           style={gradientStyle}
         >
           <Save size={12} /> {mut.isPending ? '...' : '保存'}
