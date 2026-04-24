@@ -57,7 +57,12 @@ export default function Dashboard() {
   const statusMap = stats?.status_distribution ?? {}
   const statusTotal = Object.values(statusMap).reduce((a, b) => a + b, 0)
   const completedCount = statusMap.completed ?? 0
-  const inFlightCount = statusTotal - completedCount
+  // inFlight = 真正还在跑的（不含 failed/completed），用于判断是否显示进度卡
+  const inFlightCount =
+    (statusMap.pending ?? 0) +
+    (statusMap.converting ?? 0) +
+    (statusMap.slicing ?? 0) +
+    (statusMap.retrying ?? 0)
   const completedPct = statusTotal > 0 ? Math.round((completedCount / statusTotal) * 100) : 0
   const statusEntries = STATUS_ORDER
     .map(s => ({ status: s, count: statusMap[s] ?? 0 }))
@@ -86,8 +91,8 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Processing progress */}
-      {statusTotal > 0 && (
+      {/* Processing progress — 仅在有未完成任务时显示 */}
+      {inFlightCount > 0 && (
         <div className="card mb-6">
           <div className="card-head">
             <h3 className="flex items-center gap-2">
