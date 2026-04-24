@@ -9,6 +9,7 @@ import {
   AlertCircle, Lightbulb, Search, Brain, Star, ThumbsUp, ThumbsDown,
   Edit, RefreshCw, Filter, BarChart2, Key, Terminal, Users,
   ClipboardCheck, Award, Clock, Trash2, Eye, ArrowRight,
+  Sparkles, Wand2, ExternalLink, ClipboardList,
 } from 'lucide-react'
 
 // ── NAV ───────────────────────────────────────────────────────────────────────
@@ -20,6 +21,7 @@ const NAV = [
   { id: 'qa',         label: '智能问答',   icon: MessageSquare },
   { id: 'chunks',     label: '知识切片',   icon: Layers },
   { id: 'projects',   label: '项目管理',   icon: Folder },
+  { id: 'outputs',    label: '输出中心',   icon: Sparkles },
   { id: 'challenge',  label: '知识挑战',   icon: Award },
   { id: 'dashboard',  label: '总览面板',   icon: BarChart2 },
   { id: 'settings',   label: '系统设置',   icon: Settings },
@@ -480,6 +482,88 @@ export default function Help() {
               在项目卡片上点击项目名称进入详情页，可以查看项目基本信息、
               文档列表和系统自动识别的 CRM 模块覆盖情况。
             </p>
+          </SubSection>
+        </Section>
+
+        {/* Outputs */}
+        <Section id="outputs" title="输出中心 · 对话式生成" icon={Sparkles}>
+          <p className="text-sm text-ink-secondary mb-5 leading-relaxed">
+            输出中心通过<strong className="text-ink">多轮对话</strong>收集项目信息，实时调用知识库检索，最终一键生成启动会
+            PPT、实施调研问卷、项目洞察报告三种交付物。不再依赖固定问题模板——智能体会根据每个项目的实际情况动态追问。
+          </p>
+
+          <SubSection title="三个输出智能体">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              {[
+                { icon: FileText, title: '启动会 PPT', desc: 'Claude 风格 11 页 HTML 幻灯片，含品牌色板 / chevron / 2×2 矩阵 / 甘特 / RACI 等视觉元件，浏览器打开即可播放', color: '#D96400' },
+                { icon: ClipboardList, title: '实施调研问卷', desc: '按业务流程 / 角色权限 / 数据集成 / 风险约束 / 进度资源五大类生成，导出 Markdown + Word', color: '#2563EB' },
+                { icon: Lightbulb, title: '项目洞察报告', desc: '面向高管的项目概览 / 关键决策 / 风险矩阵 / 下一步建议四段式报告', color: '#7C3AED' },
+              ].map(({ icon: Icon, title, desc, color }) => (
+                <div key={title} className="card p-4">
+                  <Icon size={18} style={{ color }} className="mb-2" />
+                  <p className="text-sm font-semibold text-ink mb-1">{title}</p>
+                  <p className="text-[11px] text-ink-secondary leading-relaxed">{desc}</p>
+                </div>
+              ))}
+            </div>
+          </SubSection>
+
+          <SubSection title="使用流程">
+            <Steps items={[
+              { title: '进入输出中心', desc: '点击左侧导航「输出中心」' },
+              { title: '右侧配置面板', desc: '选择智能体（启动会 PPT / 问卷 / 洞察），选择作用域：具体项目（已创建）或行业（无项目）' },
+              { title: '开始对话', desc: '点击「开始对话」，智能体会做开场问候并抛出第一个问题。有选项时显示为可点击的橙色 chip，多选题显示「提交选择」按钮' },
+              { title: '按需检索知识库', desc: '智能体会在合适节点自动调用 search_kb 工具查询历史项目资产，检索痕迹（查询词）以小标签显示在消息上方' },
+              { title: '阶段性小结', desc: '每 3~4 轮对话智能体会复述收集到的要点，你可以校正或补充' },
+              { title: '生成文档', desc: '右侧「生成文档」按钮随页面滚动常驻。点击后触发 Celery 异步任务，下方「我的输出」列表显示生成进度' },
+              { title: '在线播放 / 下载', desc: '启动会 PPT 支持新窗口「在线播放」（按 PgDn 翻页，Cmd+P 可打印 PDF）；所有类型都可下载原始文件' },
+            ]} />
+            <Tip>
+              每个项目的对话内容都独立保存，可以多次开不同智能体的对话去收集不同类型的信息，最后分别生成对应的交付物。
+            </Tip>
+          </SubSection>
+
+          <SubSection title="技能库">
+            <p className="text-sm text-ink-secondary mb-3 leading-relaxed">
+              技能库是一组可复用的<strong className="text-ink">提示词片段</strong>，可以挂在任意输出智能体上，作为生成时的方法论注入。例如给
+              「启动会 PPT」智能体挂上「PPT 生成方法论（pptgen）」技能，就会按 11 页骨架 + 色板 + 文案规范来产出 HTML。
+            </p>
+            <Steps items={[
+              { title: '进入系统设置', desc: '左侧「系统设置」→「技能库」Tab（仅管理员）' },
+              { title: '新增技能', desc: '填写技能名称、描述，在「提示词片段」中粘贴 Markdown（支持预览 / 编辑切换）' },
+              { title: '挂载到智能体', desc: '在「输出智能体」Tab 中勾选要启用的技能，保存后立即生效' },
+            ]} />
+            <Note>系统已预置 pptgen、项目启动会准备、项目洞察访谈三个内置技能，按需复用或修改。</Note>
+          </SubSection>
+
+          <SubSection title="在线播放启动会 PPT">
+            <p className="text-sm text-ink-secondary mb-3 leading-relaxed">
+              启动会 PPT 生成完后，「我的输出」列表会出现橙色的
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 mx-1 text-xs border border-orange-200 bg-orange-50 text-orange-600 rounded">
+                <ExternalLink size={10} /> 在线播放
+              </span>
+              按钮。点击后在新窗口直接打开 HTML 幻灯片，自带 1280×720 分页样式，浏览器
+              <Kbd>⌘P</Kbd> 「打印 → 另存为 PDF」即可导出咨询交付级 PDF。
+            </p>
+            <Warn>
+              HTML 幻灯片只有当前账号可访问（带 JWT 鉴权），分享给外部请先「下载」原始 .html 文件。
+            </Warn>
+          </SubSection>
+
+          <SubSection title="多选一 / 多选多 交互">
+            <p className="text-sm text-ink-secondary mb-3 leading-relaxed">
+              智能体在系统提示词里被教会尽量用选项减少你的打字负担。常见的选项类型：
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="card p-3">
+                <p className="text-xs font-semibold text-ink mb-1">单选 Chip</p>
+                <p className="text-[11px] text-ink-secondary">直接点击即发送，如「制造业 / SaaS / 快消 / 医疗」</p>
+              </div>
+              <div className="card p-3">
+                <p className="text-xs font-semibold text-ink mb-1">多选 Chip</p>
+                <p className="text-[11px] text-ink-secondary">勾选后点「提交选择」，如「销售管理 + 服务工单 + 合同」</p>
+              </div>
+            </div>
           </SubSection>
         </Section>
 

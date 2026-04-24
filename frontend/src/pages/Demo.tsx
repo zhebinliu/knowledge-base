@@ -9,6 +9,7 @@ import {
   BarChart2, Search, RefreshCw, FileText, Star, ThumbsUp, ThumbsDown,
   Shield, Clock, Database, Code2, Sparkles, Play,
   BookOpen, KeyRound, Target, Filter, Flame, Repeat,
+  ClipboardList, Lightbulb, Wand2, ExternalLink, Send,
 } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -452,6 +453,107 @@ export default function Demo() {
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] text-ink-muted">{label}</p>
                   <p className="text-sm font-semibold text-ink font-mono truncate">{value}</p>
+                  <p className="text-[11px] text-ink-muted">{desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Output Center highlight (最近上线) ───────────────────── */}
+        <div className="mb-20">
+          <div className="text-center mb-8">
+            <Tag>最近上线 · 对话式输出中心</Tag>
+            <h2 className="text-2xl font-bold text-ink mt-3 mb-2">从"生成文档"到"聊出一份可交付物"</h2>
+            <p className="text-ink-secondary text-sm max-w-xl mx-auto">
+              三个输出智能体 + 动态知识库检索 + Claude 风格 HTML 幻灯片在线播放
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-5 mb-6">
+            {/* Left: agents */}
+            <div className="rounded-2xl border border-line overflow-hidden bg-surface shadow-sm">
+              <div className="px-5 py-3 bg-gradient-to-r from-orange-50 to-rose-50 border-b border-line flex items-center gap-2">
+                <Wand2 size={14} className="text-[#D96400]" />
+                <p className="text-sm font-semibold text-ink">三个输出智能体 · 可选具体项目或行业作用域</p>
+              </div>
+              <div className="p-5 space-y-3 text-xs">
+                {[
+                  { icon: FileText, title: '启动会 PPT', color: '#D96400', bg: 'bg-orange-50', border: 'border-orange-100', desc: '11 页 Claude 风格 HTML（封面/议程/现状/目标/范围/LTC 阶段/甘特/RACI/风险/资源/下一步）' },
+                  { icon: ClipboardList, title: '实施调研问卷', color: '#2563EB', bg: 'bg-blue-50', border: 'border-blue-100', desc: '业务流程 / 角色权限 / 数据集成 / 风险约束 / 进度资源 五大维度题库' },
+                  { icon: Lightbulb, title: '项目洞察报告', color: '#7C3AED', bg: 'bg-purple-50', border: 'border-purple-100', desc: '项目概览 + 关键决策 + 风险矩阵 + 下一步建议 四段式报告' },
+                ].map(({ icon: Icon, title, color, bg, border, desc }) => (
+                  <div key={title} className={`flex items-start gap-2.5 px-3 py-2.5 ${bg} rounded-lg border ${border}`}>
+                    <div className="w-7 h-7 rounded bg-white flex items-center justify-center flex-shrink-0">
+                      <Icon size={13} style={{ color }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-ink">{title}</p>
+                      <p className="text-[11px] text-ink-secondary leading-relaxed mt-0.5">{desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: chat simulation */}
+            <div className="rounded-2xl border border-line overflow-hidden bg-surface shadow-sm">
+              <div className="px-5 py-3 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-line flex items-center gap-2">
+                <MessageSquare size={14} className="text-emerald-600" />
+                <p className="text-sm font-semibold text-ink">对话式收集信息 · 按需检索知识库</p>
+              </div>
+              <div className="p-5 space-y-3 text-xs">
+                {/* 顾问问候 */}
+                <div className="flex justify-start">
+                  <div className="bg-white border border-line rounded-2xl px-3 py-2 max-w-[90%]">
+                    <p className="text-ink leading-relaxed">你好！我会分几轮了解项目情况。先问第一个——行业是？</p>
+                  </div>
+                </div>
+                {/* 选项 chips */}
+                <div className="flex flex-wrap gap-1.5 justify-start ml-1">
+                  {['制造业', 'SaaS', '快消', '医疗'].map(c => (
+                    <span key={c} className={`px-2.5 py-0.5 text-[11px] rounded-full border ${c === '制造业' ? 'bg-orange-100 border-orange-300 text-orange-800 font-semibold' : 'border-orange-200 text-orange-700 bg-white'}`}>{c}</span>
+                  ))}
+                </div>
+                {/* 用户选择 */}
+                <div className="flex justify-end">
+                  <div className="bg-orange-50 border border-orange-100 rounded-2xl px-3 py-1.5">
+                    <p className="text-ink">制造业</p>
+                  </div>
+                </div>
+                {/* 工具调用标签 */}
+                <div className="flex gap-1 ml-1">
+                  <span className="flex items-center gap-1 text-[10px] text-ink-muted bg-gray-50 border border-line rounded-full px-2 py-0.5">
+                    <Search size={9} /> 制造业 CRM 销售流程
+                  </span>
+                </div>
+                {/* 顾问追问 */}
+                <div className="flex justify-start">
+                  <div className="bg-white border border-line rounded-2xl px-3 py-2 max-w-[90%]">
+                    <p className="text-ink leading-relaxed">结合历史项目，制造业客户通常最关心三个场景。优先哪几个？(多选)</p>
+                  </div>
+                </div>
+                <p className="text-[11px] text-ink-muted text-center">
+                  … 几轮对话后点击右侧「生成文档」
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Feature strip */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[
+              { icon: Wand2, label: '技能库可复用', value: 'pptgen 等方法论', desc: '挂上即套用 11 页骨架' },
+              { icon: Search, label: '对话中检索', value: 'search_kb 工具', desc: '按行业/模块查历史项目' },
+              { icon: ExternalLink, label: '在线播放', value: 'HTML 幻灯片', desc: '浏览器打开即演示，⌘P 导出 PDF' },
+            ].map(({ icon: Icon, label, value, desc }) => (
+              <div key={label} className="rounded-xl border border-line bg-surface px-4 py-3 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-canvas flex items-center justify-center flex-shrink-0">
+                  <Icon size={15} className="text-ink-secondary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] text-ink-muted">{label}</p>
+                  <p className="text-sm font-semibold text-ink truncate">{value}</p>
                   <p className="text-[11px] text-ink-muted">{desc}</p>
                 </div>
               </div>
