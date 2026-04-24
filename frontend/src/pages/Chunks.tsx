@@ -184,7 +184,7 @@ function ChunkRow({ chunk }: { chunk: Chunk }) {
                 <input
                   value={tagsStr}
                   onChange={e => setTagsStr(e.target.value)}
-                  placeholder="challenge, q-pass"
+                  placeholder="如 挑战, 最佳实践"
                   className="px-2 py-1 border border-gray-200 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </label>

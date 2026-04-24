@@ -224,7 +224,7 @@ export default function Challenge() {
                     }
                   }}>
                   <input value={customInput} onChange={e => setCustomInput(e.target.value)} disabled={running}
-                    placeholder="自定义..."
+                    placeholder="自定义阶段"
                     className="w-24 px-2 py-1 border border-gray-200 rounded-l-full text-sm bg-white disabled:opacity-50" />
                   <button type="submit" disabled={running || !customInput.trim()}
                     className="px-2 py-1 bg-gray-100 border border-l-0 border-gray-200 rounded-r-full text-gray-500 hover:bg-gray-200 disabled:opacity-50 transition-colors">
@@ -599,7 +599,7 @@ function SchedulePanel() {
               ))}
               <input value={formCron} onChange={e => setFormCron(e.target.value)}
                 className="px-2 py-1 border border-gray-200 rounded-lg text-xs font-mono bg-white w-36"
-                placeholder="自定义 cron"/>
+                placeholder="自定义 cron，如 0 9 * * *"/>
             </div>
           </label>
           <div className="flex justify-end gap-2 pt-1">

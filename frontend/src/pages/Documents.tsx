@@ -697,7 +697,7 @@ export default function Documents() {
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
                   drawerMode === 'chunks' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-200'
                 }`}
-              ><Layers size={13}/> Chunks</button>
+              ><Layers size={13}/> 切片</button>
             </div>
             <button onClick={() => {
               setDrawerDocId(null)

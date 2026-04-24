@@ -79,11 +79,11 @@ export default function ModelsTab() {
           <h3 className="text-sm font-medium text-gray-700 mb-3">新增模型</h3>
           <div className="grid grid-cols-3 gap-3 mb-3">
             {[
-              { label: 'Key *', field: 'key', placeholder: 'e.g. gpt-4o' },
-              { label: 'Provider *', field: 'provider', placeholder: 'e.g. openai' },
-              { label: 'Model ID *', field: 'model_id', placeholder: 'e.g. gpt-4o-2024-08-06' },
-              { label: 'API Base', field: 'api_base', placeholder: 'https://api.openai.com/v1' },
-              { label: 'API Key Env', field: 'api_key_env', placeholder: 'e.g. OPENAI_API_KEY' },
+              { label: '模型标识 *', field: 'key', placeholder: '例如：gpt-4o' },
+              { label: '服务商 *', field: 'provider', placeholder: '例如：openai' },
+              { label: '模型 ID *', field: 'model_id', placeholder: '例如：gpt-4o-2024-08-06' },
+              { label: 'API 地址', field: 'api_base', placeholder: '例如：https://api.openai.com/v1' },
+              { label: 'API Key 环境变量', field: 'api_key_env', placeholder: '例如：OPENAI_API_KEY' },
             ].map(({ label, field, placeholder }) => (
               <label key={field} className="block">
                 <span className="text-xs text-gray-500 mb-1 block">{label}</span>
@@ -96,7 +96,7 @@ export default function ModelsTab() {
               </label>
             ))}
             <label className="block">
-              <span className="text-xs text-gray-500 mb-1 block">Max Context</span>
+              <span className="text-xs text-gray-500 mb-1 block">最大上下文</span>
               <input
                 type="number" min={1}
                 value={addForm.max_context}
@@ -108,8 +108,8 @@ export default function ModelsTab() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
-                if (!addForm.key || !addForm.provider || !addForm.model_id) { alert('Key、Provider、Model ID 为必填项'); return }
-                if (!/^[a-zA-Z0-9._-]+$/.test(addForm.key)) { alert('Key 只能包含字母、数字、点、下划线和连字符'); return }
+                if (!addForm.key || !addForm.provider || !addForm.model_id) { alert('模型标识、服务商、模型 ID 为必填项'); return }
+                if (!/^[a-zA-Z0-9._-]+$/.test(addForm.key)) { alert('模型标识只能包含字母、数字、点、下划线和连字符'); return }
                 addMut.mutate()
               }}
               disabled={addMut.isPending}
@@ -129,11 +129,11 @@ export default function ModelsTab() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 text-left text-xs text-gray-500 uppercase tracking-wider">
-              <th className="px-6 py-3 font-medium">Key</th>
-              <th className="px-4 py-3 font-medium">Provider</th>
-              <th className="px-4 py-3 font-medium">Model ID</th>
-              <th className="px-4 py-3 font-medium">API Base</th>
-              <th className="px-4 py-3 font-medium">Max Context</th>
+              <th className="px-6 py-3 font-medium">模型标识</th>
+              <th className="px-4 py-3 font-medium">服务商</th>
+              <th className="px-4 py-3 font-medium">模型 ID</th>
+              <th className="px-4 py-3 font-medium">API 地址</th>
+              <th className="px-4 py-3 font-medium">最大上下文</th>
               <th className="px-4 py-3 font-medium w-24">操作</th>
             </tr>
           </thead>
@@ -173,10 +173,10 @@ export default function ModelsTab() {
                     <td colSpan={6} className="px-6 py-4 bg-orange-50/30 border-l-2 border-orange-300">
                       <div className="grid grid-cols-3 gap-3 mb-3">
                         {[
-                          { label: 'Provider', key: 'provider' },
-                          { label: 'Model ID', key: 'model_id' },
-                          { label: 'API Base', key: 'api_base' },
-                          { label: 'API Key Env', key: 'api_key_env' },
+                          { label: '服务商', key: 'provider' },
+                          { label: '模型 ID', key: 'model_id' },
+                          { label: 'API 地址', key: 'api_base' },
+                          { label: 'API Key 环境变量', key: 'api_key_env' },
                         ].map(({ label, key }) => (
                           <label key={key} className="block">
                             <span className="text-xs text-gray-500 mb-1 block">{label}</span>
@@ -188,7 +188,7 @@ export default function ModelsTab() {
                           </label>
                         ))}
                         <label className="block">
-                          <span className="text-xs text-gray-500 mb-1 block">Max Context</span>
+                          <span className="text-xs text-gray-500 mb-1 block">最大上下文</span>
                           <input
                             type="number" min={1}
                             value={form.max_context ?? 0}
@@ -197,7 +197,7 @@ export default function ModelsTab() {
                           />
                         </label>
                         <label className="block">
-                          <span className="text-xs text-gray-500 mb-1 block">Best For (逗号分隔)</span>
+                          <span className="text-xs text-gray-500 mb-1 block">擅长领域（逗号分隔）</span>
                           <input
                             value={(form.best_for ?? []).join(', ')}
                             onChange={e => setForm(f => ({ ...f, best_for: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}

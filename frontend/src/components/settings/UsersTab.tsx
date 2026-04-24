@@ -327,7 +327,7 @@ function CreateUserModal({
         <div className="space-y-3">
           <Field label="用户名 *">
             <input value={username} onChange={e => setUsername(e.target.value)}
-              placeholder="login_name"
+              placeholder="登录名"
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-orange-400" />
           </Field>
           <Field label="初始密码（留空自动生成）">
