@@ -1,6 +1,70 @@
 # 任务跟踪
 
-## 当前迭代：知识库质量治理两周路线图（2026-04-24）
+## 当前迭代：对外工作台 /console（2026-04-24 启动）
+
+**背景**：KB 现在做"知识仓库"（输入 + 管理），需要在同域 `/console` 路径下再起一个对外工作台（输出），给实施顾问用。两套 Layout、同构 build、共享后端。输出中心要一次性做出三种可交付物（不走占位）：启动会 PPT / 调研问卷 / 项目洞察报告；会议纪要后续接入。
+
+**数据安全承诺**：Admin UI（根路径 `/`）不改。新增 `users.role` 字段（admin / console_user），老用户不变。所有生成任务走异步 Celery，不影响现有 QA/Challenge 链路。
+
+### Block C1 · 路由与外壳（D1）
+
+- [ ] **C1.1** `App.tsx` 拆分：`AdminLayout`（现有 `/` 下所有页面）+ `ConsoleLayout`（新 `/console/*`）
+- [ ] **C1.2** `layouts/ConsoleLayout.tsx`：独立顶栏（问答 / PM 视角 / 输出中心 / 账户），精简橙色主视觉
+- [ ] **C1.3** `pages/console/ConsoleHome.tsx`：landing 页，四张任务卡（问答 / PM / 输出 / 会议纪要(灰)）
+- [ ] **C1.4** nginx 不改；React Router `/console/*` 内部分发
+
+### Block C2 · 用户角色 + 分流登录（D1）
+
+- [ ] **C2.1** `backend/models/user.py` 加 `role VARCHAR(20) DEFAULT 'admin'`（幂等 ALTER TABLE）
+- [ ] **C2.2** `/api/auth/register` 支持 role 入参，默认 `console_user`
+- [ ] **C2.3** 登录后前端按 role 分流：console_user → `/console`，admin → `/`
+- [ ] **C2.4** `/console/*` 路由白名单：任何已登录用户可进；`/` 路由 `requireAdmin`（只是把默认落地页分流，不硬 block）
+- [ ] **C2.5** Admin Layout 顶栏加"进入工作台"链接（管理员想体验对外视角）
+
+### Block C3 · 问答 + PM persona 搬家（D2）
+
+- [ ] **C3.1** `pages/console/ConsoleQA.tsx`：复用 `askQuestion` / `streamQA`，去掉管理员元素，保留答案 + 来源卡 + 👍👎 + 收藏
+- [ ] **C3.2** `pages/console/ConsolePM.tsx`：开场 `listProjects` 选项目，四段式输出（状态/决策/风险/下一步），引用可展开
+- [ ] **C3.3** 两页都用 `ConsoleLayout`，不共享 admin Layout 的侧边栏
+
+### Block C4 · 输出中心（D3–D7）
+
+三种交付物各自独立生成，共用同一 `curated_bundle` 表和任务进度机制。
+
+- [ ] **C4.0** 新增 `curated_bundle` 表（id/kind/scope_json/title/content_md/file_path/status/progress/created_by/created_at）
+- [ ] **C4.1 启动会 PPT**：python-pptx 生成
+  - 模板：封面 / 项目概况 / LTC 9 阶段时间线 / 关键里程碑 / 风险 / Q&A
+  - 输入：项目 ID + kickoff_date + 主讲人
+  - 后端：`services/output_pptx.py`（基于项目文档 summary + 手动字段拼装）
+  - 导出：`/api/outputs/{id}/download` 返回 .pptx
+- [ ] **C4.2 调研问卷**：按 LTC 9 阶段从 chunks 抽取高质量问题（citation + approved 双过滤），输出 Markdown + Word（docx）
+  - 每阶段 5–10 题，按"业务流程 / 角色职责 / 数据字段 / 接口集成 / 风险点"五类分组
+  - 用户可勾选/取消后再导出
+- [ ] **C4.3 项目洞察报告**：基于 PM persona 的结构化报告
+  - 四维：项目概览 / 关键决策点 / 风险矩阵 / 下一步建议
+  - 复用 `ask_kb(persona=pm, project=X)` 多次调用不同子问题 → LLM 汇总
+  - 导出 Markdown + PDF（复用现有 [backend/api/export.py](backend/api/export.py) 转换器）
+- [ ] **C4.4** `pages/console/ConsoleOutputs.tsx`：三张生成卡 + 我的输出列表 + 进度条 + 下载
+- [ ] **C4.5** Celery 任务：`output_pptx_task` / `output_survey_task` / `output_insight_task`
+
+### Block C5 · 会议纪要占位 + 预接口（D7）
+
+- [ ] **C5.1** `pages/console/ConsoleMeeting.tsx`：说明页 + 未来接入"xx AI 会议系统"占位
+- [ ] **C5.2** 预留 webhook 接口 `/api/meeting/ingest`（先返回 501），描述输入协议：audio_url / transcript / project_id
+
+### 端到端验收
+
+- [ ] **V1** console_user 注册后登录默认落 `/console`
+- [ ] **V2** 一个项目能生成 PPT / 问卷 / 洞察报告三类文件并下载
+- [ ] **V3** admin 进 `/` 看不到 console 影响；进 `/console` 功能可用
+
+### 部署节奏
+
+每个 Block 完成后部署 + 端到端测试，不等全部做完。顺序：C1+C2 → C3 → C4（分 C4.1/C4.2/C4.3 三次部署）→ C5。
+
+---
+
+## 上一迭代：知识库质量治理两周路线图（2026-04-24）
 
 背景：KB 已 226 文档 / 2332 切片 / 34 项目，用户要求系统稳定产出**面向内部 PM / 实施顾问**的高质量问答与手册。问题不在缺功能而在**信号不闭环**——五道质量闸（切片自评、Review Queue、Challenge、引用热度、答案反馈）都在，但数据各自停留，没过滤检索、没反哺切片、没汇总成交付物。整体计划在 [misty-stargazing-cerf.md](/Users/zhebin/.claude/plans/misty-stargazing-cerf.md)。
 

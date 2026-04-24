@@ -3,7 +3,7 @@ import { NavLink, Outlet, Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Brain, MessageSquare,
   ClipboardCheck, BookOpen, Settings, ChevronDown, LogOut, KeyRound, Shield, Folder,
-  Copy, RefreshCw, Check, Plug, Trash2, AlertCircle, Menu,
+  Copy, RefreshCw, Check, Plug, Trash2, AlertCircle, Menu, Sparkles,
 } from 'lucide-react'
 // BookOpen kept for chunks nav icon
 import { useAuth } from '../auth/AuthContext'
@@ -219,6 +219,12 @@ export default function Layout() {
                   <p className="text-xs text-gray-400">已登录</p>
                   <p className="text-sm text-gray-900 truncate">{user?.username}</p>
                 </div>
+                <Link
+                  to="/console" onClick={() => setOpen(false)}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <Sparkles size={14} className="text-orange-500" /> 进入工作台
+                </Link>
                 <Link
                   to="/change-password" onClick={() => setOpen(false)}
                   className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"

@@ -101,6 +101,9 @@ async def startup():
             # Block 2 · 反馈飞轮
             "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS down_votes INTEGER NOT NULL DEFAULT 0",
             "CREATE INDEX IF NOT EXISTS idx_chunks_down_votes ON chunks(down_votes DESC)",
+            # Block C · 对外工作台 /console（角色分流）
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(32) NOT NULL DEFAULT 'console_user'",
+            "UPDATE users SET role = 'admin' WHERE is_admin = TRUE AND role = 'console_user'",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")

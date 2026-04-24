@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import Layout       from './components/Layout'
+import ConsoleLayout from './layouts/ConsoleLayout'
 import DesignSystem from './pages/DesignSystem'
 import ApiDocs      from './pages/ApiDocs'
 import Help         from './pages/Help'
@@ -18,6 +19,12 @@ import Login     from './pages/Login'
 import Register  from './pages/Register'
 import ChangePassword from './pages/ChangePassword'
 import RequireAuth from './auth/RequireAuth'
+// Console 工作台（对外输出视图）
+import ConsoleHome from './pages/console/ConsoleHome'
+import ConsoleQA from './pages/console/ConsoleQA'
+import ConsolePM from './pages/console/ConsolePM'
+import ConsoleOutputs from './pages/console/ConsoleOutputs'
+import ConsoleMeeting from './pages/console/ConsoleMeeting'
 
 export default function App() {
   return (
@@ -31,6 +38,19 @@ export default function App() {
       <Route path="/change-password" element={<RequireAuth />}>
         <Route index element={<ChangePassword />} />
       </Route>
+
+      {/* Console 工作台：/console/* —— 对外输出视图 */}
+      <Route element={<RequireAuth />}>
+        <Route path="console" element={<ConsoleLayout />}>
+          <Route index          element={<ConsoleHome />} />
+          <Route path="qa"      element={<ConsoleQA />} />
+          <Route path="pm"      element={<ConsolePM />} />
+          <Route path="outputs" element={<ConsoleOutputs />} />
+          <Route path="meeting" element={<ConsoleMeeting />} />
+        </Route>
+      </Route>
+
+      {/* 知识库后台：/ —— 内部管理视图 */}
       <Route element={<RequireAuth />}>
         <Route element={<Layout />}>
           <Route index           element={<Dashboard />} />

@@ -7,7 +7,8 @@ export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
-  const next = params.get('next') || '/'
+  // next 由 RequireAuth 带来。若没 next，按角色分流：console_user → /console，admin → /
+  const next = params.get('next')
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -20,7 +21,14 @@ export default function Login() {
     setSubmitting(true)
     try {
       const u = await login(username.trim(), password)
-      navigate(u.must_change_password ? '/change-password' : next, { replace: true })
+      if (u.must_change_password) {
+        navigate('/change-password', { replace: true })
+      } else if (next) {
+        navigate(next, { replace: true })
+      } else {
+        const defaultRoute = (u.role === 'admin' || u.is_admin) ? '/' : '/console'
+        navigate(defaultRoute, { replace: true })
+      }
     } catch (err: unknown) {
       const e = err as { response?: { data?: { detail?: string } } }
       setError(e?.response?.data?.detail ?? '登录失败')

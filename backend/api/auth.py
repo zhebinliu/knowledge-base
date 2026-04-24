@@ -33,10 +33,12 @@ def _user_dto(u: User) -> dict:
         "email": u.email,
         "full_name": u.full_name,
         "is_admin": u.is_admin,
+        "role": u.role or ("admin" if u.is_admin else "console_user"),
         "is_active": u.is_active,
         "must_change_password": u.must_change_password,
         "sso_provider": u.sso_provider,
         "allowed_modules": u.allowed_modules,
+        "api_enabled": u.api_enabled,
         "created_at": u.created_at,
         "last_login_at": u.last_login_at,
     }
@@ -49,6 +51,8 @@ class RegisterIn(BaseModel):
     password: str = Field(min_length=6, max_length=128)
     email: str | None = None
     full_name: str | None = None
+    # 可选角色；默认 console_user（对外工作台）。admin 角色只能由管理员后台手动创建
+    role: str | None = None
 
 
 class LoginIn(BaseModel):
@@ -69,12 +73,16 @@ async def register(request: Request, payload: RegisterIn, session: AsyncSession 
     existing = await session.scalar(select(User).where(User.username == payload.username))
     if existing:
         raise HTTPException(409, "用户名已存在")
+    # 默认注册角色为 console_user；忽略客户端传入的 "admin" 以防越权（admin 只能后台手动建）
+    requested_role = (payload.role or "console_user").strip().lower()
+    role = requested_role if requested_role in ("console_user",) else "console_user"
     user = User(
         username=payload.username,
         email=payload.email,
         full_name=payload.full_name,
         password_hash=hash_password(payload.password),
         is_admin=False,
+        role=role,
         is_active=True,
         must_change_password=False,
     )

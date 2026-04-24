@@ -18,6 +18,8 @@ class User(Base):
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     full_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # 角色（/console 工作台分流）：admin = 后台知识管理；console_user = 对外工作台（实施顾问）
+    role: Mapped[str] = mapped_column(String(32), default="console_user", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 

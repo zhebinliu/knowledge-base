@@ -100,6 +100,7 @@ export interface AuthUser {
   email: string | null
   full_name: string | null
   is_admin: boolean
+  role: 'admin' | 'console_user' | string  // 对外工作台分流
   is_active: boolean
   must_change_password: boolean
   sso_provider: string | null

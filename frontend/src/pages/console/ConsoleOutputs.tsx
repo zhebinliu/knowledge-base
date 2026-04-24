@@ -1,0 +1,188 @@
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { FileText, ClipboardList, Lightbulb, Clock, Sparkles, ArrowRight, Info } from 'lucide-react'
+import { listProjects, type Project } from '../../api/client'
+
+const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
+
+interface OutputKind {
+  id: 'kickoff_ppt' | 'survey' | 'insight'
+  icon: typeof FileText
+  title: string
+  desc: string
+  badge: string
+  color: string
+  iconColor: string
+  preview: string[]
+}
+
+const KINDS: OutputKind[] = [
+  {
+    id: 'kickoff_ppt',
+    icon: FileText,
+    title: '启动会 PPT',
+    desc: '基于项目基本信息和 LTC 9 阶段时间线，生成可直接开会用的启动会 PPT（.pptx）。',
+    badge: '.pptx',
+    color: 'from-orange-50 to-amber-50',
+    iconColor: '#D96400',
+    preview: ['封面 + 项目概况', 'LTC 9 阶段时间线', '关键里程碑与交付物', '项目风险与应对', '问答 & 下一步'],
+  },
+  {
+    id: 'survey',
+    icon: ClipboardList,
+    title: '调研问卷',
+    desc: '按 LTC 9 阶段从已批准切片中抽取高质量问题，按"业务流程 / 角色 / 数据 / 集成 / 风险"五类分组。',
+    badge: '.md · .docx',
+    color: 'from-sky-50 to-blue-50',
+    iconColor: '#2563EB',
+    preview: ['每阶段 5–10 题', '按 5 类主题分组', '可勾选/取消', '导出 Markdown + Word'],
+  },
+  {
+    id: 'insight',
+    icon: Lightbulb,
+    title: '项目洞察报告',
+    desc: '基于 PM 视角对项目多维度提问，LLM 汇总为结构化报告。',
+    badge: '.md · .pdf',
+    color: 'from-purple-50 to-pink-50',
+    iconColor: '#7C3AED',
+    preview: ['项目概览', '关键决策点', '风险矩阵', '下一步建议'],
+  },
+]
+
+export default function ConsoleOutputs() {
+  const [selectedKind, setSelectedKind] = useState<OutputKind | null>(null)
+  const [selectedProject, setSelectedProject] = useState<string>('')
+
+  const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
+
+  return (
+    <div className="max-w-5xl mx-auto">
+      <div className="mb-8">
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs font-medium mb-3">
+          <Sparkles size={11} /> 输出中心
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-ink leading-tight mb-2">
+          一键生成交付物
+        </h1>
+        <p className="text-sm text-ink-secondary max-w-xl">
+          选择项目和交付物类型，系统会调用知识库里已审核的内容拼装成文档。生成是异步的——提交后可关闭页面，结果会出现在"我的输出"列表。
+        </p>
+      </div>
+
+      {/* Kind cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        {KINDS.map(k => {
+          const active = selectedKind?.id === k.id
+          return (
+            <button
+              key={k.id}
+              type="button"
+              onClick={() => setSelectedKind(k)}
+              className={[
+                'text-left rounded-2xl border p-5 transition-all bg-gradient-to-br',
+                k.color,
+                active ? 'border-[#FF8D1A] shadow-md ring-2 ring-[#FF8D1A]/30' : 'border-line hover:border-[#FF8D1A]/60 hover:shadow-sm',
+              ].join(' ')}
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                  <k.icon size={18} style={{ color: k.iconColor }} />
+                </div>
+                <span className="text-[10px] font-mono text-ink-muted bg-white px-1.5 py-0.5 rounded border border-line">
+                  {k.badge}
+                </span>
+              </div>
+              <p className="font-semibold text-ink mb-1">{k.title}</p>
+              <p className="text-xs text-ink-secondary leading-relaxed">{k.desc}</p>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Generation panel */}
+      {selectedKind ? (
+        <div className="rounded-2xl border border-line bg-white p-6 mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <selectedKind.icon size={18} style={{ color: selectedKind.iconColor }} />
+            <h2 className="text-lg font-semibold text-ink">{selectedKind.title}</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide mb-2">包含内容</p>
+              <ul className="space-y-1.5 text-sm text-ink-secondary">
+                {selectedKind.preview.map(p => (
+                  <li key={p} className="flex items-start gap-2">
+                    <span className="w-1 h-1 rounded-full mt-2 flex-shrink-0" style={{ background: selectedKind.iconColor }} />
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-2">选择项目</label>
+              <select
+                value={selectedProject}
+                onChange={e => setSelectedProject(e.target.value)}
+                className="w-full border border-line rounded-lg px-3 py-2 text-sm bg-white"
+              >
+                <option value="">-- 请选择 --</option>
+                {(projects ?? []).map((p: Project) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}{p.customer ? ` · ${p.customer}` : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-ink-muted mt-2 flex items-start gap-1">
+                <Info size={11} className="mt-0.5 flex-shrink-0" />
+                生成的内容范围限定在该项目的文档与关联知识切片
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 pt-5 border-t border-line flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-1.5 text-xs text-ink-muted">
+              <Clock size={12} /> 生成用时预计 1–3 分钟
+            </div>
+            <button
+              type="button"
+              disabled={!selectedProject}
+              className="flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold text-white transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: BRAND_GRAD }}
+              title={!selectedProject ? '请先选择项目' : '生成'}
+            >
+              生成 {selectedKind.title}
+              <ArrowRight size={13} />
+            </button>
+          </div>
+
+          <div className="mt-4 px-4 py-3 bg-amber-50 border border-amber-100 rounded-lg text-xs text-amber-800 flex items-start gap-2">
+            <Info size={13} className="mt-0.5 flex-shrink-0 text-amber-600" />
+            <div>
+              <p className="font-medium mb-0.5">生成能力正在逐步上线</p>
+              <p className="text-amber-700 leading-relaxed">
+                启动会 PPT / 问卷 / 洞察报告将在接下来几天分别发布，先支持 Markdown 预览，随后补齐 PPT 与 PDF 导出。点击"生成"按钮可以先看任务打点（实际生成逻辑在后续 deploy 中接入）。
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-line p-10 text-center text-ink-muted text-sm mb-8">
+          请先从上方选择一种交付物类型
+        </div>
+      )}
+
+      {/* My outputs list — placeholder for C4 */}
+      <div className="rounded-2xl border border-line bg-white p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-ink">我的输出</h2>
+          <span className="text-xs text-ink-muted">功能建设中</span>
+        </div>
+        <p className="text-xs text-ink-muted text-center py-8">
+          输出列表 & 下载功能将在 C4 上线后启用，敬请期待。
+        </p>
+      </div>
+    </div>
+  )
+}
