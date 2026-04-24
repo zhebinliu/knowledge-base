@@ -85,6 +85,9 @@ export interface Document {
   doc_type?: string | null
   doc_type_label?: string | null
   industry?: string | null
+  convert_duration_s?: number | null
+  slice_duration_s?: number | null
+  embed_duration_s?: number | null
   created_at: string
   updated_at: string
 }
@@ -226,6 +229,7 @@ export const getDocumentMarkdown = (id: string) =>
   api.get<{
     id: string; filename: string; status: string; markdown_content: string | null
     summary?: string | null; faq?: DocumentFaqItem[] | null
+    convert_duration_s?: number | null; slice_duration_s?: number | null; embed_duration_s?: number | null
   }>(`/documents/${id}`).then(r => r.data)
 
 export const getDocumentChunks = (id: string) =>

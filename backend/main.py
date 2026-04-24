@@ -91,6 +91,9 @@ async def startup():
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS faq JSON",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS api_enabled BOOLEAN NOT NULL DEFAULT FALSE",
             "UPDATE users SET api_enabled = TRUE WHERE is_admin = TRUE",
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS convert_duration_s DOUBLE PRECISION",
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS slice_duration_s DOUBLE PRECISION",
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS embed_duration_s DOUBLE PRECISION",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")

@@ -136,6 +136,9 @@ async def list_documents(
             "doc_type": d.doc_type,
             "doc_type_label": DOC_TYPE_LABELS.get(d.doc_type) if d.doc_type else None,
             "industry": d.industry,
+            "convert_duration_s": d.convert_duration_s,
+            "slice_duration_s": d.slice_duration_s,
+            "embed_duration_s": d.embed_duration_s,
             "created_at": d.created_at,
             "updated_at": d.updated_at,
         }
@@ -156,6 +159,9 @@ async def get_document(doc_id: str, session: AsyncSession = Depends(get_session)
         "markdown_content": doc.markdown_content,
         "summary": doc.summary,
         "faq": doc.faq,
+        "convert_duration_s": doc.convert_duration_s,
+        "slice_duration_s": doc.slice_duration_s,
+        "embed_duration_s": doc.embed_duration_s,
     }
 
 

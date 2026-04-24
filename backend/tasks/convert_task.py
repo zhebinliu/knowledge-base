@@ -3,6 +3,7 @@ Celery 异步任务：文档转化 + 切片 + 向量入库
 """
 
 import asyncio
+import time
 import structlog
 from celery import Celery
 from config import settings
@@ -346,10 +347,19 @@ async def _process_document_async(doc_id: str):
             content = response.read()
 
             # 3. 文档解析与 Markdown 转化
+            _t_convert_start = time.time()
             markdown, convert_model = await convert_to_markdown(doc.filename, content)
+            _convert_elapsed = time.time() - _t_convert_start
             doc.markdown_content = markdown
             doc.conversion_status = "slicing"
-            logger.info("conversion_model_used", doc_id=doc_id, model=convert_model)
+            doc.convert_duration_s = round(_convert_elapsed, 2)
+            logger.info(
+                "conversion_done",
+                doc_id=doc_id,
+                model=convert_model,
+                chars=len(markdown or ""),
+                duration_s=round(_convert_elapsed, 2),
+            )
 
             # 3b. 自动推断文档类型（仅在用户未手动设置时）
             if not doc.doc_type:
@@ -366,9 +376,19 @@ async def _process_document_async(doc_id: str):
             await session.commit()
 
             # 4. 高级切片与 LTC 分类
+            _t_slice_start = time.time()
             slices = await slice_and_classify(markdown, doc.filename)
+            _slice_elapsed = time.time() - _t_slice_start
+            doc.slice_duration_s = round(_slice_elapsed, 2)
+            logger.info(
+                "slicing_done",
+                doc_id=doc_id,
+                chunks=len(slices),
+                duration_s=round(_slice_elapsed, 2),
+            )
 
             # 5. 结构化入库
+            _t_embed_start = time.time()
             for slice_data in slices:
                 chunk = Chunk(
                     document_id=doc_id,
@@ -432,10 +452,28 @@ async def _process_document_async(doc_id: str):
                                 added=sorted(new_modules - existing),
                             )
 
+            # 嵌入循环总耗时
+            _embed_elapsed = time.time() - _t_embed_start
+            doc.embed_duration_s = round(_embed_elapsed, 2)
+            logger.info(
+                "embedding_done",
+                doc_id=doc_id,
+                chunks=len(slices),
+                duration_s=round(_embed_elapsed, 2),
+            )
+
             # 7. 标记成功
             doc.conversion_status = "completed"
             await session.commit()
-            logger.info("task_completed", doc_id=doc_id, total_chunks=len(slices))
+            logger.info(
+                "task_completed",
+                doc_id=doc_id,
+                total_chunks=len(slices),
+                convert_s=doc.convert_duration_s,
+                slice_s=doc.slice_duration_s,
+                embed_s=doc.embed_duration_s,
+                total_s=round((doc.convert_duration_s or 0) + (doc.slice_duration_s or 0) + (doc.embed_duration_s or 0), 2),
+            )
 
             # 8. 异步生成摘要 + FAQ（失败不影响主流程）
             await _generate_summary_faq(doc_id, doc.filename, markdown)

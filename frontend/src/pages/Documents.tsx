@@ -712,6 +712,25 @@ export default function Documents() {
 
           <div className="px-4 py-2.5 border-b border-gray-100 flex-shrink-0">
             <p className="text-xs text-gray-500 truncate">{drawerDoc?.filename}</p>
+            {(markdownData?.convert_duration_s != null ||
+              markdownData?.slice_duration_s != null ||
+              markdownData?.embed_duration_s != null) && (
+              <div className="mt-1.5 flex items-center gap-3 text-[11px] text-gray-500">
+                {markdownData?.convert_duration_s != null && (
+                  <span>转写 <b className="text-gray-700">{markdownData.convert_duration_s.toFixed(1)}s</b></span>
+                )}
+                {markdownData?.slice_duration_s != null && (
+                  <span>切片 <b className="text-gray-700">{markdownData.slice_duration_s.toFixed(1)}s</b></span>
+                )}
+                {markdownData?.embed_duration_s != null && (
+                  <span>向量化 <b className="text-gray-700">{markdownData.embed_duration_s.toFixed(1)}s</b></span>
+                )}
+                <span className="text-gray-400">|</span>
+                <span>合计 <b className="text-gray-700">
+                  {((markdownData?.convert_duration_s || 0) + (markdownData?.slice_duration_s || 0) + (markdownData?.embed_duration_s || 0)).toFixed(1)}s
+                </b></span>
+              </div>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto">

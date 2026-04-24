@@ -36,5 +36,9 @@ class Document(Base):
     # LLM-generated after processing
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     faq: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # 各阶段耗时（秒），None 表示未记录或阶段未到
+    convert_duration_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    slice_duration_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    embed_duration_s: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)
