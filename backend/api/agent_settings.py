@@ -261,3 +261,82 @@ async def force_seed():
 async def invalidate_cache():
     config_service.invalidate()
     return {"ok": True}
+
+
+# ---- Skills Library ----
+
+from models import get_session
+from models.skill import Skill
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select as _select
+
+
+class SkillBody(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str | None = None
+    prompt_snippet: str = Field(..., min_length=1)
+
+
+@router.get("/skills")
+async def list_skills(session: AsyncSession = Depends(get_session)):
+    rows = (await session.execute(_select(Skill).order_by(Skill.created_at.asc()))).scalars().all()
+    return [{"id": s.id, "name": s.name, "description": s.description, "prompt_snippet": s.prompt_snippet, "created_at": s.created_at} for s in rows]
+
+
+@router.post("/skills", status_code=201)
+async def create_skill(body: SkillBody, session: AsyncSession = Depends(get_session)):
+    skill = Skill(name=body.name, description=body.description, prompt_snippet=body.prompt_snippet)
+    session.add(skill)
+    await session.commit()
+    await session.refresh(skill)
+    return {"id": skill.id, "name": skill.name, "description": skill.description, "prompt_snippet": skill.prompt_snippet, "created_at": skill.created_at}
+
+
+@router.put("/skills/{skill_id}")
+async def update_skill(skill_id: str, body: SkillBody, session: AsyncSession = Depends(get_session)):
+    skill = await session.get(Skill, skill_id)
+    if not skill:
+        raise HTTPException(404, "Skill not found")
+    skill.name = body.name
+    skill.description = body.description
+    skill.prompt_snippet = body.prompt_snippet
+    await session.commit()
+    return {"id": skill.id, "name": skill.name, "description": skill.description, "prompt_snippet": skill.prompt_snippet}
+
+
+@router.delete("/skills/{skill_id}", status_code=204)
+async def delete_skill(skill_id: str, session: AsyncSession = Depends(get_session)):
+    skill = await session.get(Skill, skill_id)
+    if not skill:
+        raise HTTPException(404, "Skill not found")
+    await session.delete(skill)
+    await session.commit()
+
+
+# ---- Output Agent Configs ----
+
+OUTPUT_AGENT_KEYS = ("kickoff_pptx", "survey", "insight")
+
+
+class OutputAgentBody(BaseModel):
+    prompt: str = Field(..., min_length=1)
+    skill_ids: list[str] = []
+
+
+@router.get("/output-agents")
+async def list_output_agents():
+    data = await config_service.get_all("output_agent")
+    result = []
+    for key in OUTPUT_AGENT_KEYS:
+        cfg = data.get(key, {})
+        result.append({"key": key, "prompt": cfg.get("prompt", ""), "skill_ids": cfg.get("skill_ids", [])})
+    return result
+
+
+@router.put("/output-agents/{key}")
+async def update_output_agent(key: str, body: OutputAgentBody):
+    if key not in OUTPUT_AGENT_KEYS:
+        raise HTTPException(400, f"Invalid output agent key. Must be one of: {OUTPUT_AGENT_KEYS}")
+    await config_service.upsert("output_agent", key, {"prompt": body.prompt, "skill_ids": body.skill_ids})
+    logger.info("config_changed", action="update", type="output_agent", key=key)
+    return {"ok": True}

@@ -1,18 +1,24 @@
 import { useState } from 'react'
-import { Settings as SettingsIcon, Cpu, GitBranch, FileCode, KeyRound, Users } from 'lucide-react'
+import { Settings as SettingsIcon, Cpu, GitBranch, FileCode, KeyRound, Users, Wand2, Bot, ScrollText } from 'lucide-react'
 import clsx from 'clsx'
-import ModelsTab   from '../components/settings/ModelsTab'
-import RoutingTab  from '../components/settings/RoutingTab'
-import PromptsTab  from '../components/settings/PromptsTab'
-import ApiKeysTab  from '../components/settings/ApiKeysTab'
-import UsersTab    from '../components/settings/UsersTab'
+import ModelsTab       from '../components/settings/ModelsTab'
+import RoutingTab      from '../components/settings/RoutingTab'
+import PromptsTab      from '../components/settings/PromptsTab'
+import ApiKeysTab      from '../components/settings/ApiKeysTab'
+import UsersTab        from '../components/settings/UsersTab'
+import SkillsTab       from '../components/settings/SkillsTab'
+import OutputAgentsTab from '../components/settings/OutputAgentsTab'
+import CallLogsTab     from '../components/settings/CallLogsTab'
 
 const tabs = [
-  { key: 'models',   label: '模型管理',   icon: Cpu },
-  { key: 'routing',  label: '路由与参数', icon: GitBranch },
-  { key: 'prompts',  label: '提示词',     icon: FileCode },
-  { key: 'api-keys', label: 'API 密钥',   icon: KeyRound },
-  { key: 'users',    label: '用户管理',   icon: Users },
+  { key: 'models',        label: '模型管理',     icon: Cpu },
+  { key: 'routing',       label: '路由与参数',   icon: GitBranch },
+  { key: 'prompts',       label: '提示词',       icon: FileCode },
+  { key: 'api-keys',      label: 'API 密钥',     icon: KeyRound },
+  { key: 'users',         label: '用户管理',     icon: Users },
+  { key: 'skills',        label: '技能库',       icon: Wand2 },
+  { key: 'output-agents', label: '输出智能体',   icon: Bot },
+  { key: 'call-logs',     label: '调用日志',     icon: ScrollText },
 ] as const
 
 type TabKey = (typeof tabs)[number]['key']
@@ -35,7 +41,7 @@ export default function Settings() {
             key={key}
             onClick={() => setActive(key)}
             className={clsx(
-              'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all',
+              'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap',
               active === key
                 ? 'bg-white text-gray-900 shadow-sm'
                 : 'text-gray-500 hover:text-gray-700',
@@ -48,11 +54,14 @@ export default function Settings() {
       </div>
 
       {/* Tab content */}
-      {active === 'models'   && <ModelsTab />}
-      {active === 'routing'  && <RoutingTab />}
-      {active === 'prompts'  && <PromptsTab />}
-      {active === 'api-keys' && <ApiKeysTab />}
-      {active === 'users'    && <UsersTab />}
+      {active === 'models'        && <ModelsTab />}
+      {active === 'routing'       && <RoutingTab />}
+      {active === 'prompts'       && <PromptsTab />}
+      {active === 'api-keys'      && <ApiKeysTab />}
+      {active === 'users'         && <UsersTab />}
+      {active === 'skills'        && <SkillsTab />}
+      {active === 'output-agents' && <OutputAgentsTab />}
+      {active === 'call-logs'     && <CallLogsTab />}
     </div>
   )
 }

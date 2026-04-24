@@ -5,7 +5,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage
+from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting
 from services.rate_limit import limiter
 from services.vector_store import vector_store
 
@@ -42,6 +42,9 @@ app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(mcp.router,   prefix="/api/mcp",   tags=["mcp"])
 app.include_router(coverage.router, prefix="/api/coverage", tags=["coverage"])
+app.include_router(call_logs.router, prefix="/api/call-logs", tags=["call-logs"])
+app.include_router(outputs.router, prefix="/api/outputs", tags=["outputs"])
+app.include_router(meeting.router, prefix="/api/meeting", tags=["meeting"])
 
 
 @app.on_event("startup")
@@ -60,6 +63,9 @@ async def startup():
     from models.challenge_run import ChallengeRun  # noqa: F401
     from models.qa_log import Conversation, QuestionLog, AnswerFeedback  # noqa: F401
     from models.coverage_gap import CoverageGap  # noqa: F401
+    from models.skill import Skill  # noqa: F401
+    from models.api_call_log import ApiCallLog  # noqa: F401
+    from models.curated_bundle import CuratedBundle  # noqa: F401
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -104,6 +110,14 @@ async def startup():
             # Block C · 对外工作台 /console（角色分流）
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(32) NOT NULL DEFAULT 'console_user'",
             "UPDATE users SET role = 'admin' WHERE is_admin = TRUE AND role = 'console_user'",
+            # B1 · 检索闸门
+            "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS ltc_stage_confidence DOUBLE PRECISION NULL",
+            # N1 · 技能库
+            # (skills table created via create_all)
+            # N2 · API/MCP 调用日志
+            # (api_call_logs table created via create_all)
+            # C4 · curated_bundle
+            # (curated_bundles table created via create_all)
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")

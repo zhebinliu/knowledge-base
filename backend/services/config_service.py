@@ -144,6 +144,15 @@ class ConfigService:
             for key, val in prompts.items():
                 _add("prompt_template", key, val, f"Prompt: {key}")
 
+            # Output agents
+            output_agent_defaults = {
+                "kickoff_pptx": {"prompt": "你是一位专业的实施顾问，请根据提供的知识库内容和项目信息，生成一份专业的启动会 PPT 大纲和内容要点。", "skill_ids": []},
+                "survey": {"prompt": "你是一位专业的实施顾问，请根据提供的知识库内容和项目背景，生成一份详细的项目调研问卷，涵盖业务流程、系统需求、痛点分析等维度。", "skill_ids": []},
+                "insight": {"prompt": "你是一位专业的数据分析师和实施顾问，请根据提供的知识库内容，生成一份项目洞察报告，包含关键发现、风险点和建议。", "skill_ids": []},
+            }
+            for key, val in output_agent_defaults.items():
+                _add("output_agent", key, val, f"Output agent: {key}")
+
             await session.commit()
 
             # 版本哨兵升级：prompts 源码里内嵌 <!-- KEY_VERSION:N --> 注释

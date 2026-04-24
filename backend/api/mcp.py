@@ -28,6 +28,7 @@ from models.document import Document
 from models.user import User
 from services.embedding_service import embedding_service
 from services.vector_store import vector_store
+from services.call_log_service import log_call
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -304,6 +305,10 @@ async def mcp_endpoint(request: Request):
             content={"jsonrpc": "2.0", "id": None, "error": {"code": -32001, "message": "缺少认证 token"}},
         )
 
+    _log_uid: str | None = None
+    _log_uname: str | None = None
+    _log_ttype: str = "mcp_key"
+
     if token.startswith("mcp_"):
         # API Key 模式：查库匹配
         async with async_session_maker() as session:
@@ -318,6 +323,9 @@ async def mcp_endpoint(request: Request):
                 status_code=403,
                 content={"jsonrpc": "2.0", "id": None, "error": {"code": -32003, "message": "未获得 API/MCP 调用授权，请联系管理员开启"}},
             )
+        _log_uid = user.id
+        _log_uname = user.username
+        _log_ttype = "mcp_key"
     else:
         # JWT 模式
         try:
@@ -345,6 +353,9 @@ async def mcp_endpoint(request: Request):
                 status_code=403,
                 content={"jsonrpc": "2.0", "id": None, "error": {"code": -32003, "message": "未获得 API/MCP 调用授权，请联系管理员开启"}},
             )
+        _log_uid = jwt_user.id
+        _log_uname = jwt_user.username
+        _log_ttype = "jwt"
 
     try:
         body = await request.json()
@@ -385,6 +396,8 @@ async def mcp_endpoint(request: Request):
     if method == "tools/call":
         tool_name  = params.get("name", "")
         arguments  = params.get("arguments") or {}
+
+        log_call(_log_uid, _log_uname, _log_ttype, "mcp", f"tools/call:{tool_name}")
 
         try:
             if tool_name == "ask_kb":

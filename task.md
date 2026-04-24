@@ -8,55 +8,54 @@
 
 ### Block C1 · 路由与外壳（D1）
 
-- [ ] **C1.1** `App.tsx` 拆分：`AdminLayout`（现有 `/` 下所有页面）+ `ConsoleLayout`（新 `/console/*`）
-- [ ] **C1.2** `layouts/ConsoleLayout.tsx`：独立顶栏（问答 / PM 视角 / 输出中心 / 账户），精简橙色主视觉
-- [ ] **C1.3** `pages/console/ConsoleHome.tsx`：landing 页，四张任务卡（问答 / PM / 输出 / 会议纪要(灰)）
-- [ ] **C1.4** nginx 不改；React Router `/console/*` 内部分发
+- [x] **C1.1** `App.tsx` 拆分：`AdminLayout`（现有 `/` 下所有页面）+ `ConsoleLayout`（新 `/console/*`）
+- [x] **C1.2** `layouts/ConsoleLayout.tsx`：独立顶栏（问答 / PM 视角 / 输出中心 / 账户），精简橙色主视觉
+- [x] **C1.3** `pages/console/ConsoleHome.tsx`：landing 页，四张任务卡（问答 / PM / 输出 / 会议纪要(灰)）
+- [x] **C1.4** nginx 不改；React Router `/console/*` 内部分发
 
 ### Block C2 · 用户角色 + 分流登录（D1）
 
-- [ ] **C2.1** `backend/models/user.py` 加 `role VARCHAR(20) DEFAULT 'admin'`（幂等 ALTER TABLE）
-- [ ] **C2.2** `/api/auth/register` 支持 role 入参，默认 `console_user`
-- [ ] **C2.3** 登录后前端按 role 分流：console_user → `/console`，admin → `/`
-- [ ] **C2.4** `/console/*` 路由白名单：任何已登录用户可进；`/` 路由 `requireAdmin`（只是把默认落地页分流，不硬 block）
-- [ ] **C2.5** Admin Layout 顶栏加"进入工作台"链接（管理员想体验对外视角）
+- [x] **C2.1** `backend/models/user.py` 加 `role VARCHAR(32) DEFAULT 'console_user'`（幂等 ALTER TABLE + UPDATE）
+- [x] **C2.2** `/api/auth/register` 支持 role 入参，默认 `console_user`
+- [x] **C2.3** 登录后前端按 role 分流：console_user → `/console`，admin → `/`
+- [x] **C2.4** `/console/*` 路由白名单：任何已登录用户可进；`/` 路由 `RequireAuth` 落地分流
+- [x] **C2.5** Admin Layout 顶栏加"进入工作台"链接（Sparkles 图标）
 
 ### Block C3 · 问答 + PM persona 搬家（D2）
 
-- [ ] **C3.1** `pages/console/ConsoleQA.tsx`：复用 `askQuestion` / `streamQA`，去掉管理员元素，保留答案 + 来源卡 + 👍👎 + 收藏
-- [ ] **C3.2** `pages/console/ConsolePM.tsx`：开场 `listProjects` 选项目，四段式输出（状态/决策/风险/下一步），引用可展开
-- [ ] **C3.3** 两页都用 `ConsoleLayout`，不共享 admin Layout 的侧边栏
+- [x] **C3.1** `pages/console/ConsoleQA.tsx`：复用 QA 页面，高度锁定，去掉管理员入口
+- [x] **C3.2** `pages/console/ConsolePM.tsx`：开场 `listProjects` 选项目，进入后锁 PM persona — 已有项目选择 UI，进入后显示提示引导用右上角切 PM；待完善为自动锁定四段式专用 UI
+- [x] **C3.3** 两页都使用 `ConsoleLayout`，不共享 admin 侧边栏
 
 ### Block C4 · 输出中心（D3–D7）
 
 三种交付物各自独立生成，共用同一 `curated_bundle` 表和任务进度机制。
 
-- [ ] **C4.0** 新增 `curated_bundle` 表（id/kind/scope_json/title/content_md/file_path/status/progress/created_by/created_at）
-- [ ] **C4.1 启动会 PPT**：python-pptx 生成
-  - 模板：封面 / 项目概况 / LTC 9 阶段时间线 / 关键里程碑 / 风险 / Q&A
-  - 输入：项目 ID + kickoff_date + 主讲人
-  - 后端：`services/output_pptx.py`（基于项目文档 summary + 手动字段拼装）
-  - 导出：`/api/outputs/{id}/download` 返回 .pptx
-- [ ] **C4.2 调研问卷**：按 LTC 9 阶段从 chunks 抽取高质量问题（citation + approved 双过滤），输出 Markdown + Word（docx）
-  - 每阶段 5–10 题，按"业务流程 / 角色职责 / 数据字段 / 接口集成 / 风险点"五类分组
-  - 用户可勾选/取消后再导出
-- [ ] **C4.3 项目洞察报告**：基于 PM persona 的结构化报告
-  - 四维：项目概览 / 关键决策点 / 风险矩阵 / 下一步建议
-  - 复用 `ask_kb(persona=pm, project=X)` 多次调用不同子问题 → LLM 汇总
-  - 导出 Markdown + PDF（复用现有 [backend/api/export.py](backend/api/export.py) 转换器）
-- [ ] **C4.4** `pages/console/ConsoleOutputs.tsx`：三张生成卡 + 我的输出列表 + 进度条 + 下载
+- [ ] **C4.0** 新增 `curated_bundle` 表（id/kind/project_id/title/content_md/file_path/status/error/extra/created_by/created_at）
+- [ ] **C4.1 启动会 PPT**：python-pptx 生成（封面/项目概况/LTC时间线/里程碑/风险/Q&A），导出 .pptx
+- [ ] **C4.2 调研问卷**：LTC 9 阶段从 approved chunks 抽题，五类分组，输出 Markdown + .docx
+- [ ] **C4.3 项目洞察报告**：PM persona 多轮问答 → LLM 汇总四维报告，导出 Markdown
+- [ ] **C4.4** `ConsoleOutputs.tsx`：三张生成卡 + 我的输出列表 + 进度条 + 下载（接真实后端）
 - [ ] **C4.5** Celery 任务：`output_pptx_task` / `output_survey_task` / `output_insight_task`
 
 ### Block C5 · 会议纪要占位 + 预接口（D7）
 
-- [ ] **C5.1** `pages/console/ConsoleMeeting.tsx`：说明页 + 未来接入"xx AI 会议系统"占位
-- [ ] **C5.2** 预留 webhook 接口 `/api/meeting/ingest`（先返回 501），描述输入协议：audio_url / transcript / project_id
+- [x] **C5.1** `pages/console/ConsoleMeeting.tsx`：说明页 + 未来接入"xx AI 会议系统"占位
+- [ ] **C5.2** 预留 webhook 接口 `/api/meeting/ingest`（先返回 501）
+
+### 新增需求
+
+- [ ] **N1.1** 技能库：新建 `skills` 表（id/name/description/prompt_snippet/created_at），CRUD API
+- [ ] **N1.2** 输出助手配置：KICKOFF_PPTX/SURVEY/INSIGHT 三个 output_agent config，含 prompt + skill_ids
+- [ ] **N1.3** 前端 Settings：技能库 Tab + 输出助手 Tab（提示词编辑器 + 技能选择器）
+- [ ] **N2.1** API/MCP 调用日志：`api_call_logs` 表，记录 user/token_type/endpoint/tool/created_at
+- [ ] **N2.2** 前端 Settings：调用日志 Tab（分页表格）
 
 ### 端到端验收
 
-- [ ] **V1** console_user 注册后登录默认落 `/console`
+- [x] **V1** console_user 注册后登录默认落 `/console`
 - [ ] **V2** 一个项目能生成 PPT / 问卷 / 洞察报告三类文件并下载
-- [ ] **V3** admin 进 `/` 看不到 console 影响；进 `/console` 功能可用
+- [x] **V3** admin 进 `/` 看不到 console 影响；进 `/console` 功能可用
 
 ### 部署节奏
 

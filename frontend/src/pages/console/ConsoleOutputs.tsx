@@ -1,12 +1,13 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { FileText, ClipboardList, Lightbulb, Clock, Sparkles, ArrowRight, Info } from 'lucide-react'
-import { listProjects, type Project } from '../../api/client'
+import { useState, useEffect, useCallback } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { FileText, ClipboardList, Lightbulb, Clock, Sparkles, ArrowRight, Info, Download, RefreshCw, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { listProjects, generateOutput, listOutputs, type Project, type CuratedBundle } from '../../api/client'
+import { TOKEN_STORAGE_KEY } from '../../api/client'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
 interface OutputKind {
-  id: 'kickoff_ppt' | 'survey' | 'insight'
+  id: 'kickoff_pptx' | 'survey' | 'insight'
   icon: typeof FileText
   title: string
   desc: string
@@ -18,7 +19,7 @@ interface OutputKind {
 
 const KINDS: OutputKind[] = [
   {
-    id: 'kickoff_ppt',
+    id: 'kickoff_pptx',
     icon: FileText,
     title: '启动会 PPT',
     desc: '基于项目基本信息和 LTC 9 阶段时间线，生成可直接开会用的启动会 PPT（.pptx）。',
@@ -42,18 +43,75 @@ const KINDS: OutputKind[] = [
     icon: Lightbulb,
     title: '项目洞察报告',
     desc: '基于 PM 视角对项目多维度提问，LLM 汇总为结构化报告。',
-    badge: '.md · .pdf',
+    badge: '.md',
     color: 'from-purple-50 to-pink-50',
     iconColor: '#7C3AED',
     preview: ['项目概览', '关键决策点', '风险矩阵', '下一步建议'],
   },
 ]
 
+const KIND_MAP = Object.fromEntries(KINDS.map(k => [k.id, k]))
+
+function StatusBadge({ status }: { status: string }) {
+  if (status === 'done') return <span className="flex items-center gap-1 text-green-600 text-xs"><CheckCircle size={12} />已完成</span>
+  if (status === 'failed') return <span className="flex items-center gap-1 text-red-500 text-xs"><XCircle size={12} />失败</span>
+  if (status === 'generating') return <span className="flex items-center gap-1 text-blue-500 text-xs"><Loader2 size={12} className="animate-spin" />生成中</span>
+  return <span className="flex items-center gap-1 text-gray-400 text-xs"><Clock size={12} />排队中</span>
+}
+
+function fmt(dt: string) {
+  return new Date(dt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
 export default function ConsoleOutputs() {
   const [selectedKind, setSelectedKind] = useState<OutputKind | null>(null)
   const [selectedProject, setSelectedProject] = useState<string>('')
+  const qc = useQueryClient()
 
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
+  const { data: outputs, refetch: refetchOutputs } = useQuery({
+    queryKey: ['outputs'],
+    queryFn: () => listOutputs({ page: 1 }),
+    refetchInterval: (query) => {
+      const items = query.state.data?.items ?? []
+      const hasActive = items.some((b: CuratedBundle) => b.status === 'pending' || b.status === 'generating')
+      return hasActive ? 5000 : false
+    },
+  })
+
+  const generateMutation = useMutation({
+    mutationFn: (body: { kind: string; project_id: string }) => generateOutput(body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['outputs'] })
+    },
+  })
+
+  const handleGenerate = () => {
+    if (!selectedKind || !selectedProject) return
+    generateMutation.mutate({ kind: selectedKind.id, project_id: selectedProject })
+  }
+
+  const downloadBundle = (b: CuratedBundle) => {
+    const token = localStorage.getItem(TOKEN_STORAGE_KEY)
+    const a = document.createElement('a')
+    a.href = `/api/outputs/${b.id}/download`
+    // Pass token via URL isn't ideal; use fetch instead
+    fetch(`/api/outputs/${b.id}/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(async res => {
+      if (!res.ok) { alert('下载失败'); return }
+      const disposition = res.headers.get('content-disposition') || ''
+      const match = disposition.match(/filename="([^"]+)"/)
+      const filename = match ? match[1] : b.title
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a2 = document.createElement('a')
+      a2.href = url
+      a2.download = filename
+      a2.click()
+      URL.revokeObjectURL(url)
+    })
+  }
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -141,30 +199,32 @@ export default function ConsoleOutputs() {
             </div>
           </div>
 
+          {generateMutation.isSuccess && (
+            <div className="mt-4 px-4 py-3 bg-green-50 border border-green-100 rounded-lg text-xs text-green-800 flex items-center gap-2">
+              <CheckCircle size={13} className="text-green-600 shrink-0" />
+              已提交生成任务，请在下方"我的输出"列表查看进度
+            </div>
+          )}
+          {generateMutation.isError && (
+            <div className="mt-4 px-4 py-3 bg-red-50 border border-red-100 rounded-lg text-xs text-red-700">
+              提交失败，请稍后重试
+            </div>
+          )}
+
           <div className="mt-5 pt-5 border-t border-line flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-1.5 text-xs text-ink-muted">
               <Clock size={12} /> 生成用时预计 1–3 分钟
             </div>
             <button
               type="button"
-              disabled={!selectedProject}
+              disabled={!selectedProject || generateMutation.isPending}
+              onClick={handleGenerate}
               className="flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold text-white transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: BRAND_GRAD }}
-              title={!selectedProject ? '请先选择项目' : '生成'}
             >
-              生成 {selectedKind.title}
-              <ArrowRight size={13} />
+              {generateMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={13} />}
+              {generateMutation.isPending ? '提交中…' : `生成 ${selectedKind.title}`}
             </button>
-          </div>
-
-          <div className="mt-4 px-4 py-3 bg-amber-50 border border-amber-100 rounded-lg text-xs text-amber-800 flex items-start gap-2">
-            <Info size={13} className="mt-0.5 flex-shrink-0 text-amber-600" />
-            <div>
-              <p className="font-medium mb-0.5">生成能力正在逐步上线</p>
-              <p className="text-amber-700 leading-relaxed">
-                启动会 PPT / 问卷 / 洞察报告将在接下来几天分别发布，先支持 Markdown 预览，随后补齐 PPT 与 PDF 导出。点击"生成"按钮可以先看任务打点（实际生成逻辑在后续 deploy 中接入）。
-              </p>
-            </div>
           </div>
         </div>
       ) : (
@@ -173,15 +233,50 @@ export default function ConsoleOutputs() {
         </div>
       )}
 
-      {/* My outputs list — placeholder for C4 */}
+      {/* My outputs list */}
       <div className="rounded-2xl border border-line bg-white p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-ink">我的输出</h2>
-          <span className="text-xs text-ink-muted">功能建设中</span>
+          <button onClick={() => refetchOutputs()} className="p-1 text-gray-400 hover:text-gray-600 rounded">
+            <RefreshCw size={13} />
+          </button>
         </div>
-        <p className="text-xs text-ink-muted text-center py-8">
-          输出列表 & 下载功能将在 C4 上线后启用，敬请期待。
-        </p>
+
+        {!outputs || outputs.items.length === 0 ? (
+          <p className="text-xs text-ink-muted text-center py-8">还没有生成记录，选择上方的交付物类型开始生成</p>
+        ) : (
+          <div className="space-y-2">
+            {outputs.items.map((b: CuratedBundle) => {
+              const kindInfo = KIND_MAP[b.kind as keyof typeof KIND_MAP]
+              return (
+                <div key={b.id} className="flex items-center gap-3 p-3 rounded-xl border border-line hover:bg-gray-50 transition-colors">
+                  {kindInfo && (
+                    <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
+                      <kindInfo.icon size={15} style={{ color: kindInfo.iconColor }} />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-ink truncate">{b.title}</p>
+                    <p className="text-xs text-ink-muted">{fmt(b.created_at)}</p>
+                  </div>
+                  <StatusBadge status={b.status} />
+                  {b.status === 'done' && (b.has_file || b.has_content) && (
+                    <button
+                      onClick={() => downloadBundle(b)}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 shrink-0"
+                    >
+                      <Download size={12} />
+                      下载
+                    </button>
+                  )}
+                  {b.status === 'failed' && b.error && (
+                    <span className="text-[10px] text-red-500 max-w-32 truncate" title={b.error}>{b.error}</span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )

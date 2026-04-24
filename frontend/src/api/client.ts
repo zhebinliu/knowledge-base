@@ -625,3 +625,93 @@ export const exportChunks = (params: { ltc_stage?: string; industry?: string } =
 
 export const getStats = () =>
   api.get<Stats>('/stats').then(r => r.data)
+
+// ── Skills ───────────────────────────────────────────────────────────────────
+
+export interface Skill {
+  id: string
+  name: string
+  description: string | null
+  prompt_snippet: string
+  created_at: string
+}
+
+export interface SkillBody {
+  name: string
+  description?: string
+  prompt_snippet: string
+}
+
+export const listSkills = () => api.get<Skill[]>('/settings/skills').then(r => r.data)
+export const createSkill = (body: SkillBody) => api.post<Skill>('/settings/skills', body).then(r => r.data)
+export const updateSkill = (id: string, body: SkillBody) => api.put<Skill>(`/settings/skills/${id}`, body).then(r => r.data)
+export const deleteSkill = (id: string) => api.delete(`/settings/skills/${id}`)
+
+// ── Output Agents ─────────────────────────────────────────────────────────────
+
+export interface OutputAgentConfig {
+  key: string
+  prompt: string
+  skill_ids: string[]
+}
+
+export const listOutputAgents = () => api.get<OutputAgentConfig[]>('/settings/output-agents').then(r => r.data)
+export const updateOutputAgent = (key: string, body: { prompt: string; skill_ids: string[] }) =>
+  api.put(`/settings/output-agents/${key}`, body)
+
+// ── Call Logs ─────────────────────────────────────────────────────────────────
+
+export interface CallLogItem {
+  id: string
+  user_id: string | null
+  username: string | null
+  token_type: string
+  call_type: string
+  endpoint: string
+  status_code: number | null
+  created_at: string
+}
+
+export interface CallLogPage {
+  total: number
+  page: number
+  page_size: number
+  items: CallLogItem[]
+}
+
+export const listCallLogs = (page = 1, page_size = 50, call_type?: string) =>
+  api.get<CallLogPage>('/call-logs', { params: { page, page_size, call_type } }).then(r => r.data)
+
+// ── Outputs ───────────────────────────────────────────────────────────────────
+
+export interface CuratedBundle {
+  id: string
+  kind: string
+  project_id: string | null
+  title: string
+  status: 'pending' | 'generating' | 'done' | 'failed'
+  error: string | null
+  has_content: boolean
+  has_file: boolean
+  created_at: string
+  updated_at: string
+  content_md?: string
+}
+
+export interface OutputPage {
+  total: number
+  page: number
+  page_size: number
+  items: CuratedBundle[]
+}
+
+export const generateOutput = (body: { kind: string; project_id: string }) =>
+  api.post<CuratedBundle>('/outputs/generate', body).then(r => r.data)
+
+export const listOutputs = (params: { project_id?: string; kind?: string; page?: number } = {}) =>
+  api.get<OutputPage>('/outputs', { params }).then(r => r.data)
+
+export const getOutput = (id: string) =>
+  api.get<CuratedBundle>(`/outputs/${id}`).then(r => r.data)
+
+export const downloadOutputUrl = (id: string) => `/api/outputs/${id}/download`
