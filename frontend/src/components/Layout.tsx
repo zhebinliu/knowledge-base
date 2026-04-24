@@ -37,7 +37,7 @@ const allNavGroups = [
   {
     label: '系统',
     items: [
-      { to: '/settings', label: '系统设置', icon: Settings },
+      { to: '/settings', label: '系统设置', icon: Settings, adminOnly: true },
     ],
   },
 ]
@@ -145,7 +145,10 @@ export default function Layout() {
   }
 
   const navGroups = allNavGroups
-    .map(g => ({ ...g, items: g.items.filter(i => canAccess(i.to)) }))
+    .map(g => ({ ...g, items: g.items.filter(i => {
+      if ((i as { adminOnly?: boolean }).adminOnly && !user?.is_admin) return false
+      return canAccess(i.to)
+    }) }))
     .filter(g => g.items.length > 0)
 
   return (
