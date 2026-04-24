@@ -101,6 +101,8 @@ async def update_chunk(chunk_id: str, req: ChunkUpdateRequest, session: AsyncSes
             "chunk_id": chunk.id, "document_id": chunk.document_id,
             "content_preview": req.content[:500],
             "ltc_stage": chunk.ltc_stage, "industry": chunk.industry,
+            "review_status": chunk.review_status,
+            "ltc_stage_confidence": chunk.ltc_stage_confidence or 0.0,
         })
     if req.ltc_stage is not None:
         chunk.ltc_stage = req.ltc_stage

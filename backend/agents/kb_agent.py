@@ -114,15 +114,49 @@ async def _multi_route_retrieve(
     return merged
 
 
+async def _fetch_citation_stats(chunk_ids: list[str]) -> dict[str, tuple[int, datetime | None]]:
+    """批量取 (citation_count, last_cited_at)；用于 rerank 阶段的热度加权。"""
+    if not chunk_ids:
+        return {}
+    async with async_session_maker() as session:
+        rows = await session.execute(
+            select(Chunk.id, Chunk.citation_count, Chunk.last_cited_at).where(Chunk.id.in_(chunk_ids))
+        )
+        return {r.id: (r.citation_count or 0, r.last_cited_at) for r in rows}
+
+
 async def _rerank_results(question: str, raw_results: list[dict]) -> list[dict]:
-    """Rerank 并返回 top 结果，失败时回退到向量分数排序。"""
+    """Rerank 并叠加 citation 热度加权；rerank 失败时回退到向量分数 + 热度。
+
+    composite = rerank_score (0~1) + log(1 + citation_count) * 0.05 + 30 天内再 +0.03
+    热度加权限幅避免压过语义相关度。
+    """
+    import math
     documents = [r["payload"].get("content_preview", "") for r in raw_results]
+    chunk_ids = [r["id"] for r in raw_results]
+    citation_map = await _fetch_citation_stats(chunk_ids)
+    now = _utcnow()
+
+    def _hot_bonus(cid: str) -> float:
+        cnt, last = citation_map.get(cid, (0, None))
+        bonus = math.log1p(cnt) * 0.05
+        if last and (now - last).days <= 30:
+            bonus += 0.03
+        return bonus
+
     try:
-        reranked_indices = await rerank_service.rerank(question, documents, top_n=RERANK_TOP_K)
-        return [raw_results[i] for i in reranked_indices]
+        reranked = await rerank_service.rerank(question, documents, top_n=RERANK_TOP_K * 2)
+        scored = [
+            (idx, score + _hot_bonus(raw_results[idx]["id"]))
+            for idx, score in reranked
+        ]
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return [raw_results[idx] for idx, _ in scored[:RERANK_TOP_K]]
     except Exception as e:
         logger.warning("rerank_failed", error=str(e), fallback="vector_score_top_k")
-        return sorted(raw_results, key=lambda x: x["score"], reverse=True)[:RERANK_TOP_K]
+        scored = [(r, r["score"] + _hot_bonus(r["id"])) for r in raw_results]
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return [r for r, _ in scored[:RERANK_TOP_K]]
 
 
 def _sources_payload(top_results: list[dict], section_map: dict[str, tuple[str, str]]) -> list[dict]:

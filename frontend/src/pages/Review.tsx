@@ -1,14 +1,21 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { listReviewQueue, approveReview, rejectReview } from '../api/client'
+import { listReviewQueue, approveReview, rejectReview, batchApproveReview } from '../api/client'
 import {
-  CheckCircle, XCircle, ClipboardCheck, AlertTriangle,
+  CheckCircle, XCircle, ClipboardCheck, AlertTriangle, CheckCheck,
   Cpu, MapPin, Tag, ChevronLeft, ChevronRight, SkipForward,
 } from 'lucide-react'
 import MarkdownView from '../components/MarkdownView'
 import { useAuth } from '../auth/AuthContext'
 import { ltcLabel, industryLabel, tagLabel } from '../utils/labels'
 import { formatTime } from '../utils/datetime'
+
+// 按入队时间计算龄期（天）。>7 天算"积压"，页面上置红标注 SLA 超时。
+function ageDays(iso: string): number {
+  const parsed = new Date(/[Zz]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z')
+  if (Number.isNaN(parsed.getTime())) return 0
+  return Math.floor((Date.now() - parsed.getTime()) / 86400000)
+}
 
 function ConfidenceBar({ value }: { value: number }) {
   const pct = Math.round(value * 100)
@@ -61,16 +68,39 @@ export default function Review() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['review-queue'] }),
   })
 
-  const acting = approve.isPending || reject.isPending
+  const batchApprove = useMutation({
+    mutationFn: () => batchApproveReview(reviewer),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['review-queue'] }),
+  })
+
+  const acting = approve.isPending || reject.isPending || batchApprove.isPending
+  const overdueCount = (items ?? []).filter(it => ageDays(it.created_at) > 7).length
+  const itemAge = item ? ageDays(item.created_at) : 0
 
   return (
     <div className="p-4 md:p-8 max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 mb-6">
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900">审核队列</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">审核队列</h1>
+          {overdueCount > 0 && (
+            <span className="text-xs px-2 py-0.5 bg-red-50 text-red-600 rounded-full border border-red-200 font-medium">
+              {overdueCount} 条积压 &gt;7 天
+            </span>
+          )}
+        </div>
         {total > 0 && (
           <div className="flex items-center gap-2">
-            {/* Prev / counter / Next */}
+            <button
+              onClick={() => {
+                if (confirm(`将当前 ${total} 条待审核全部通过？`)) batchApprove.mutate()
+              }}
+              disabled={acting}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-medium hover:bg-green-100 disabled:opacity-50 transition-colors"
+              title="批量通过当前队列"
+            >
+              <CheckCheck size={13} /> 全部通过
+            </button>
             <button
               onClick={() => go(-1)}
               disabled={safeIdx === 0}
@@ -176,9 +206,16 @@ export default function Review() {
                   </div>
                 )}
               </div>
-              <span className="text-xs text-gray-400 flex-shrink-0 mt-0.5">
-                {formatTime(item.created_at)}
-              </span>
+              <div className="flex flex-col items-end gap-0.5 flex-shrink-0 mt-0.5">
+                <span className="text-xs text-gray-400">
+                  {formatTime(item.created_at)}
+                </span>
+                {itemAge > 7 && (
+                  <span className="text-[10px] font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded">
+                    积压 {itemAge} 天
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 

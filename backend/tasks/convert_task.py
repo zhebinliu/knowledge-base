@@ -419,6 +419,8 @@ async def _process_document_async(doc_id: str):
                         "doc_industry": doc.industry or "",
                         "section_path": slice_data.get("section_path", ""),
                         "content_preview": slice_data["content"][:500],
+                        "review_status": slice_data["review_status"],
+                        "ltc_stage_confidence": slice_data.get("ltc_stage_confidence", 0.0),
                     },
                 )
                 chunk.vector_id = chunk.id

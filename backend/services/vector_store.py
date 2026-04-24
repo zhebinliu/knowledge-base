@@ -48,6 +48,7 @@ class VectorStore:
         industry: str | None = None,
         score_threshold: float | None = None,
         document_ids: list[str] | None = None,
+        include_unreviewed: bool = False,
     ) -> list[dict]:
         filters = []
         if ltc_stage:
@@ -59,6 +60,12 @@ class VectorStore:
             if not document_ids:
                 return []  # 项目下无文档，直接返回空
             filters.append(FieldCondition(key="document_id", match=MatchAny(any=document_ids)))
+        # 默认只检索 auto_approved / approved；include_unreviewed=True 放开全部（调试 / Review 页面）
+        if not include_unreviewed:
+            filters.append(FieldCondition(
+                key="review_status",
+                match=MatchAny(any=["auto_approved", "approved"]),
+            ))
 
         query_filter = Filter(must=filters) if filters else None
 

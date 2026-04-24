@@ -429,6 +429,12 @@ export const approveReview = (id: string, reviewer?: string, note?: string) =>
 export const rejectReview = (id: string, reviewer?: string, note?: string) =>
   api.post(`/review/${id}/reject`, { reviewer: reviewer || 'unknown', note })
 
+export const batchApproveReview = (reviewer: string, reviewIds?: string[]) =>
+  api.post<{ ok: boolean; approved: number }>('/review/batch-approve', {
+    reviewer,
+    review_ids: reviewIds,
+  }).then(r => r.data)
+
 // ── Agent Settings ──────────────────────────────────────────────────────────
 
 export interface ModelEntry {

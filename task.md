@@ -1,6 +1,72 @@
 # 任务跟踪
 
-## 当前迭代：功能提升 + QA bug 修复（2026-04-23 第二批）
+## 当前迭代：知识库质量治理两周路线图（2026-04-24）
+
+背景：KB 已 226 文档 / 2332 切片 / 34 项目，用户要求系统稳定产出**面向内部 PM / 实施顾问**的高质量问答与手册。问题不在缺功能而在**信号不闭环**——五道质量闸（切片自评、Review Queue、Challenge、引用热度、答案反馈）都在，但数据各自停留，没过滤检索、没反哺切片、没汇总成交付物。整体计划在 [misty-stargazing-cerf.md](/Users/zhebin/.claude/plans/misty-stargazing-cerf.md)。
+
+**数据安全承诺**：所有改动均为"加列 + 新表 + 读取层过滤"，不删切片、不动向量本体、不改 content。Qdrant 用 `set_payload` 追加字段；PG 用 `ADD COLUMN IF NOT EXISTS`；检索过滤可通过参数开关。
+
+### 上线前安全扫描
+
+- [ ] **S1** SQL 审计：查现有 2332 个 chunks 的 `review_status` 分布；若有 NULL 或空值，回填为 `auto_approved`（避免 Block 1 检索过滤误伤老数据）
+- [ ] **S2** 抽查 Qdrant payload：确认现存点都有 `chunk_id / document_id / ltc_stage / industry`，没有结构异常需要 Block 1 迁移脚本提前兼容
+
+### Block 1 · 检索闸门收紧（D1–D2）
+
+**意图**：让 review_status / citation_count 进入 Qdrant payload 和检索打分链路。
+
+- [ ] **B1.1** [backend/tasks/convert_task.py](backend/tasks/convert_task.py) Qdrant upsert payload 扩 4 字段（review_status / ltc_stage_confidence / citation_count / last_cited_ts）
+- [ ] **B1.2** [backend/services/vector_store.py](backend/services/vector_store.py) `search()` 默认加 `review_status IN (auto_approved, approved)` filter；暴露 `include_unreviewed: bool = False`
+- [ ] **B1.3** [backend/services/rerank_service.py](backend/services/rerank_service.py) rerank 分叠加 `log(1+citation_count)*0.05` + 30 天内引用 +0.03
+- [ ] **B1.4** 一次性迁移脚本：遍历 chunks 表 → `qdrant.set_payload` 回写上面 4 字段（只加 payload，不重算向量）
+- [ ] **B1.5** [frontend/src/pages/Review.tsx](frontend/src/pages/Review.tsx) 入队时间倒序 + >7 天置红 + 批量批准按钮
+- [ ] **B1.6** 验证：MCP `ask_kb` 对比过滤前后 citations；`search_kb` 确认热切片在前
+- [ ] **B1.7** 部署 + 回归
+
+### Block 2 · 反馈飞轮（D3–D5）
+
+**意图**：用户 👎、Challenge fail、未解决提问沉淀回切片层与覆盖图，告诉 PM 该补什么。
+
+- [ ] **B2.1** [backend/models/chunk.py](backend/models/chunk.py) 加 `down_votes INTEGER DEFAULT 0` + main.py 启动迁移
+- [ ] **B2.2** [backend/api/qa.py](backend/api/qa.py) rating=down 时回溯 AnswerLog 引用的 chunk_ids，每个 `down_votes += 1`；累计 ≥2 且非 rejected → 插 review_queue
+- [ ] **B2.3** 新增 [backend/models/coverage_gap.py](backend/models/coverage_gap.py)（id / ltc_stage / industry / keywords_json / fail_count / last_seen_at）
+- [ ] **B2.4** [backend/agents/challenger_agent.py](backend/agents/challenger_agent.py) 评分 <0.8 时 upsert coverage_gap
+- [ ] **B2.5** 新增 `GET /api/coverage/gaps`（Top 20 按 fail_count 降序）
+- [ ] **B2.6** [frontend/src/pages/Dashboard.tsx](frontend/src/pages/Dashboard.tsx) "覆盖缺口 Top N"卡
+- [ ] **B2.7** [frontend/src/pages/ChallengeHistory.tsx](frontend/src/pages/ChallengeHistory.tsx) "这类题重跑一次"入口
+- [ ] **B2.8** 验证：点一次 👎 查对应 chunk.down_votes；跑一轮 challenge 确认 gap 入库 + Dashboard 显示
+- [ ] **B2.9** 部署 + 回归
+
+### Block 3 · 内部交付物导出（D6–D10）
+
+**意图**：面向 PM / 实施顾问产出精选 FAQ / 实施手册 / 阶段清单三类结构化交付物。
+
+- [ ] **B3.1** 新增 [backend/services/curate_service.py](backend/services/curate_service.py)：`curate_faq()` + `curate_manual()`
+- [ ] **B3.2** 新增 `curated_bundle` 表（id / kind / scope_json / content_md / created_at / created_by / source_chunk_ids_json）
+- [ ] **B3.3** 新增 [backend/api/curate.py](backend/api/curate.py)：POST /faq · POST /manual · GET /bundles · GET /bundles/{id}/export?format=md|pdf
+- [ ] **B3.4** Curate prompt 严格要求：≥3 条引用 + 五段式（适用场景/操作步骤/检查点/常见坑/参考文档）+ 可勾选 checkbox + 脱敏
+- [ ] **B3.5** 精选 Q&A 二次自评：challenger 打分 ≥0.85 才入选
+- [ ] **B3.6** 新增 [frontend/src/pages/Curate.tsx](frontend/src/pages/Curate.tsx)：3 张生成卡 + 任务进度 + 列表 + 预览/下载
+- [ ] **B3.7** [frontend/src/App.tsx](frontend/src/App.tsx) 左侧导航加"知识输出"
+- [ ] **B3.8** 验证：零售业/delivery FAQ 抽查 5 条引用对齐；一个项目生成手册下载 PDF；手册覆盖主题自动关 gap
+- [ ] **B3.9** 部署 + 内部试用
+
+### 端到端验收
+
+- [ ] **V1** Block 1 后：`ask_kb` 不再引用 `needs_review` 切片
+- [ ] **V2** Block 2 后：7 天自动产出 ≥10 条 coverage_gap；👎 10 分钟内落到 chunk.down_votes
+- [ ] **V3** Block 3 后：前端一键生成"XX 项目实施手册 v1"，PDF 可直接交付实施团队
+
+### 风险 & 取舍
+
+- Block 1 上线后 Review Queue 可能暴涨（之前"不影响检索所以没动力批"）→ 批量批准按钮缓冲
+- down_votes 阈值 2 偏宽松，观察 2 周按 FP/FN 调整
+- Block 3 必须在 Block 1+2 稳后再做，否则未复审切片会洗进交付物
+- minimax-m2.7 复审模型当前不动；若 Block 1 filter 后暴露质量问题再按 LTC 阶段切回 glm-5
+
+---
+
+## 历史迭代：功能提升 + QA bug 修复（2026-04-23 第二批）
 
 背景：Block 1 基建修完后继续做用户感知最强的功能改进。用户要求 Block A + B 一起做，再排查 QA 老返回"无内容"的 bug，部署走 commit + merge 到 main。
 

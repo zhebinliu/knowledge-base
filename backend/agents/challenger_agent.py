@@ -202,6 +202,8 @@ async def _persist_challenge_chunk(
                         "ltc_stage": ltc_stage,
                         "industry": None,
                         "content_preview": content[:200],
+                        "review_status": review_status,
+                        "ltc_stage_confidence": 1.0,
                     },
                 )
                 chunk.vector_id = chunk.id
