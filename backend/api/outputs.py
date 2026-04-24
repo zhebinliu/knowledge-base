@@ -1,6 +1,14 @@
 """API for output center: generate and retrieve CuratedBundles."""
 import io
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Query
+
+
+def _content_disposition(filename: str) -> str:
+    ascii_fallback = filename.encode("ascii", "replace").decode("ascii").replace("?", "_")
+    return f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quote(filename)}"
+
+
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select, func
@@ -168,7 +176,7 @@ async def download_output(
         return StreamingResponse(
             io.BytesIO(data),
             media_type=media_type,
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            headers={"Content-Disposition": _content_disposition(filename)},
         )
 
     elif b.content_md:
@@ -176,7 +184,7 @@ async def download_output(
         return StreamingResponse(
             io.BytesIO(b.content_md.encode("utf-8")),
             media_type="text/markdown",
-            headers={"Content-Disposition": f'attachment; filename="{b.title}.md"'},
+            headers={"Content-Disposition": _content_disposition(f"{b.title}.md")},
         )
     else:
         raise HTTPException(400, "No downloadable content available")
