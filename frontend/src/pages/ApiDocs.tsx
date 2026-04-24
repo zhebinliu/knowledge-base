@@ -4,7 +4,7 @@
  * Design: follows /ds design-system tokens (light theme).
  */
 import { useState, useEffect } from 'react'
-import { Copy, Check, BookOpen, Key, Zap, Code2, Box, ChevronDown, ChevronRight, Terminal } from 'lucide-react'
+import { Copy, Check, BookOpen, Key, Zap, Code2, Box, ChevronDown, ChevronRight, Terminal, FileText } from 'lucide-react'
 
 const BASE = 'https://kb.tokenwave.cloud'
 
@@ -280,6 +280,19 @@ export default function ApiDocs() {
             </button>
           ))}
         </nav>
+
+        {/* AI 可读文档 */}
+        <div className="border-t border-line px-4 py-3 flex-shrink-0">
+          <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-widest mb-2">给 AI 看</p>
+          <a href="/llms.txt" target="_blank" rel="noreferrer"
+            className="flex items-center gap-2 text-xs text-ink-secondary hover:text-brand-deep">
+            <FileText size={12} /> llms.txt
+          </a>
+          <a href="/ds.md" target="_blank" rel="noreferrer"
+            className="flex items-center gap-2 text-xs text-ink-secondary hover:text-brand-deep mt-1">
+            <Code2 size={12} /> ds.md（设计系统）
+          </a>
+        </div>
 
         {/* Base URL footer */}
         <div className="px-4 py-3 border-t border-line">
