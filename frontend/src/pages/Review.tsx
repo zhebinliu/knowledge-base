@@ -8,6 +8,7 @@ import {
 import MarkdownView from '../components/MarkdownView'
 import { useAuth } from '../auth/AuthContext'
 import { ltcLabel, industryLabel, tagLabel } from '../utils/labels'
+import { formatTime } from '../utils/datetime'
 
 function ConfidenceBar({ value }: { value: number }) {
   const pct = Math.round(value * 100)
@@ -176,7 +177,7 @@ export default function Review() {
                 )}
               </div>
               <span className="text-xs text-gray-400 flex-shrink-0 mt-0.5">
-                {new Date(item.created_at).toLocaleString('zh-CN', { hour12: false })}
+                {formatTime(item.created_at)}
               </span>
             </div>
           </div>

@@ -5,6 +5,7 @@ import {
   FileText, Layers, Clock, CheckCircle, AlertCircle,
   Loader, ClipboardCheck, ArrowRight, Folder, Brain, HelpCircle, Check,
 } from 'lucide-react'
+import { formatTime } from '../utils/datetime'
 
 const STATUS_ICON: Record<string, JSX.Element> = {
   pending:    <Clock size={14} className="text-yellow-500"/>,
@@ -142,7 +143,7 @@ export default function Dashboard() {
                     <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{q.answer_preview}</p>
                   )}
                   <span className="text-[11px] text-gray-400">
-                    {new Date(q.created_at).toLocaleString('zh-CN', { hour12: false })}
+                    {formatTime(q.created_at)}
                     {q.persona === 'pm' ? ' · PM 模式' : ''}
                   </span>
                 </div>
@@ -190,7 +191,7 @@ export default function Dashboard() {
               <div key={run.id} className="px-5 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
                 <div className="flex items-center gap-2 text-sm text-gray-700 min-w-0">
                   <Clock size={13} className="text-gray-400 flex-shrink-0" />
-                  <span className="flex-shrink-0">{new Date(run.started_at).toLocaleString('zh-CN', { hour12: false })}</span>
+                  <span className="flex-shrink-0">{formatTime(run.started_at)}</span>
                   <span className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
                     {run.target_stages?.slice(0, 3).join(' / ')}
                     {(run.target_stages?.length ?? 0) > 3 ? '…' : ''}

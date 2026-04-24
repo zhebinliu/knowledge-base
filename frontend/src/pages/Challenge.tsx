@@ -5,6 +5,7 @@ import { Brain, Play, ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader, Squ
 import MarkdownView from '../components/MarkdownView'
 import ChallengeHistory from './ChallengeHistory'
 import { ltcLabel } from '../utils/labels'
+import { formatTime } from '../utils/datetime'
 import {
   approveReview, rejectReview,
   listChallengeSchedules, createChallengeSchedule, deleteChallengeSchedule,
@@ -590,7 +591,7 @@ function SchedulePanel() {
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 {s.last_run_at && (
-                  <span className="text-xs text-gray-400">上次: {new Date(s.last_run_at).toLocaleString('zh-CN')}</span>
+                  <span className="text-xs text-gray-400">上次: {formatTime(s.last_run_at)}</span>
                 )}
                 <span className={`text-xs px-2 py-0.5 rounded-full ${s.enabled ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                   {s.enabled ? '运行中' : '已暂停'}

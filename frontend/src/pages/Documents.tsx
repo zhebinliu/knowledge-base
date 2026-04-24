@@ -13,6 +13,7 @@ import {
   ChevronLeft, ChevronRight, Pencil, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { ltcLabel, tagLabel, industryLabel, INDUSTRY_LABEL } from '../utils/labels'
+import { formatTime } from '../utils/datetime'
 
 // ── Upload queue panel ──────────────────────────────────────────────────────
 type UploadJobStatus = 'queued' | 'uploading' | 'done' | 'failed'
@@ -581,7 +582,7 @@ export default function Documents() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
-                        {new Date(doc.created_at).toLocaleString('zh-CN')}
+                        {formatTime(doc.created_at)}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">

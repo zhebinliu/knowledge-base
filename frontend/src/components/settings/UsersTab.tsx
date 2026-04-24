@@ -6,13 +6,7 @@ import {
   type AuthUser,
 } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
-
-function formatTime(s: string | null): string {
-  if (!s) return '—'
-  const d = new Date(s)
-  if (Number.isNaN(d.getTime())) return s
-  return d.toLocaleString('zh-CN', { hour12: false })
-}
+import { formatTime } from '../../utils/datetime'
 
 const gradientStyle = { background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' }
 

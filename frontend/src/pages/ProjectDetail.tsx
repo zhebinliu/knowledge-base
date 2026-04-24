@@ -10,6 +10,7 @@ import {
   listProjectDocuments,
 } from '../api/client'
 import ProjectFormModal from '../components/ProjectFormModal'
+import { formatTime } from '../utils/datetime'
 
 const STATUS_LABEL: Record<string, string> = {
   pending: '等待处理',
@@ -137,7 +138,7 @@ export default function ProjectDetail() {
                     </td>
                     <td className="px-4 py-2.5 text-xs text-gray-600 whitespace-nowrap">{d.uploader_name ?? '—'}</td>
                     <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">
-                      {new Date(d.created_at).toLocaleString('zh-CN')}
+                      {formatTime(d.created_at)}
                     </td>
                   </tr>
                 ))}

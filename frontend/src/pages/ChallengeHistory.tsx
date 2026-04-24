@@ -4,6 +4,7 @@ import { History, Loader, CheckCircle2, XCircle, Clock, User as UserIcon, Calend
 import { listChallengeRuns, getChallengeRun, type ChallengeRun } from '../api/client'
 import MarkdownView from '../components/MarkdownView'
 import { ltcLabel } from '../utils/labels'
+import { formatTime } from '../utils/datetime'
 
 const STATUS_BADGE: Record<string, { color: string; label: string; Icon: typeof CheckCircle2 }> = {
   running:   { color: 'bg-orange-50 text-orange-700 border-orange-200', label: '执行中',  Icon: Loader },
@@ -17,13 +18,6 @@ function formatDuration(sec: number | null): string {
   const m = Math.floor(sec / 60)
   const s = sec % 60
   return `${m}m${s ? ` ${s}s` : ''}`
-}
-
-function formatTime(s: string | null): string {
-  if (!s) return '—'
-  const d = new Date(s)
-  if (Number.isNaN(d.getTime())) return s
-  return d.toLocaleString('zh-CN', { hour12: false })
 }
 
 export default function ChallengeHistory() {
