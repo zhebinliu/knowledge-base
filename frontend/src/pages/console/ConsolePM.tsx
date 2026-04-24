@@ -39,11 +39,11 @@ export default function ConsolePM() {
             当前项目：<b className="text-purple-700">{entered.name}</b>
           </span>
           <span className="ml-auto text-ink-muted hidden sm:inline">
-            右上角 persona 切到 <b>PM 视角</b> 后即可结构化提问
+            已锁定为 PM 视角，仅检索该项目文档
           </span>
         </div>
         <div className="flex-1 min-h-0">
-          <QA />
+          <QA lockedProjectId={entered.id} />
         </div>
       </div>
     )

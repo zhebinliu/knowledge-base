@@ -369,13 +369,18 @@ function DocGen() {
 }
 
 // ── Main QA Component ──────────────────────────────────────────────────────
-export default function QA() {
+interface QAProps {
+  /** 如提供则锁定为 PM 视角并固定该项目，隐藏顶部的 persona/项目切换 */
+  lockedProjectId?: string | null
+}
+
+export default function QA({ lockedProjectId }: QAProps = {}) {
   const [convs, setConvs]         = useState<Conversation[]>(loadHistory)
   const [activeId, setActiveId]   = useState<string | null>(null)
   const [input, setInput]         = useState('')
   const [ltcStage, setLtcStage]   = useState('')
-  const [persona, setPersona]     = useState<QAPersona>('general')
-  const [projectId, setProjectId] = useState<string | null>(null)
+  const [persona, setPersona]     = useState<QAPersona>(lockedProjectId ? 'pm' : 'general')
+  const [projectId, setProjectId] = useState<string | null>(lockedProjectId ?? null)
   const [streaming, setStreaming] = useState(false)
   const [activeTab, setActiveTab] = useState<'qa' | 'docgen'>('qa')
   const abortRef                  = useRef<AbortController | null>(null)
@@ -387,13 +392,26 @@ export default function QA() {
   const activeConv = convs.find(c => c.id === activeId) ?? null
   const messages   = activeConv?.messages ?? []
 
-  // 切换到已有对话时恢复其 persona / project
+  // 切换到已有对话时恢复其 persona / project（锁定模式下保持锁定值）
   useEffect(() => {
     if (activeConv) {
-      setPersona(activeConv.persona ?? 'general')
-      setProjectId(activeConv.projectId ?? null)
+      if (lockedProjectId) {
+        setPersona('pm')
+        setProjectId(lockedProjectId)
+      } else {
+        setPersona(activeConv.persona ?? 'general')
+        setProjectId(activeConv.projectId ?? null)
+      }
     }
-  }, [activeId])
+  }, [activeId, lockedProjectId])
+
+  // lockedProjectId 变更时强制同步
+  useEffect(() => {
+    if (lockedProjectId) {
+      setPersona('pm')
+      setProjectId(lockedProjectId)
+    }
+  }, [lockedProjectId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -652,44 +670,53 @@ export default function QA() {
               </button>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Persona */}
-              <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-                <button
-                  onClick={() => { setPersona('general'); setProjectId(null) }}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                    persona === 'general' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'
-                  }`}
-                  disabled={streaming}
-                  title="通用问答：不限项目"
-                >
-                  <Bot size={11}/> 通用
-                </button>
-                <button
-                  onClick={() => setPersona('pm')}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                    persona === 'pm' ? 'bg-white text-orange-700 shadow-sm' : 'text-gray-500'
-                  }`}
-                  disabled={streaming}
-                  title="虚拟项目经理：限定在选中项目的知识库"
-                >
-                  <Briefcase size={11}/> 项目经理
-                </button>
-              </div>
-              {/* Project selector (only when PM) */}
-              {persona === 'pm' && (
-                <select
-                  value={projectId ?? ''}
-                  onChange={e => setProjectId(e.target.value || null)}
-                  className="px-3 py-1.5 border border-orange-200 bg-orange-50 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  disabled={streaming}
-                >
-                  <option value="">选择项目…</option>
-                  {(projects ?? []).map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}{p.customer ? ` · ${p.customer}` : ''}
-                    </option>
-                  ))}
-                </select>
+              {!lockedProjectId && (
+                <>
+                  {/* Persona */}
+                  <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                    <button
+                      onClick={() => { setPersona('general'); setProjectId(null) }}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                        persona === 'general' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'
+                      }`}
+                      disabled={streaming}
+                      title="通用问答：不限项目"
+                    >
+                      <Bot size={11}/> 通用
+                    </button>
+                    <button
+                      onClick={() => setPersona('pm')}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                        persona === 'pm' ? 'bg-white text-orange-700 shadow-sm' : 'text-gray-500'
+                      }`}
+                      disabled={streaming}
+                      title="虚拟项目经理：限定在选中项目的知识库"
+                    >
+                      <Briefcase size={11}/> 项目经理
+                    </button>
+                  </div>
+                  {/* Project selector (only when PM) */}
+                  {persona === 'pm' && (
+                    <select
+                      value={projectId ?? ''}
+                      onChange={e => setProjectId(e.target.value || null)}
+                      className="px-3 py-1.5 border border-orange-200 bg-orange-50 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      disabled={streaming}
+                    >
+                      <option value="">选择项目…</option>
+                      {(projects ?? []).map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}{p.customer ? ` · ${p.customer}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </>
+              )}
+              {lockedProjectId && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">
+                  <Briefcase size={11}/> 项目经理模式
+                </span>
               )}
               {/* LTC stage */}
               <select
