@@ -219,6 +219,75 @@ class ModelRouter:
                 logger.error("model_call_failed", model=model_name, error=str(e)[:200] or type(e).__name__)
                 raise
 
+    async def chat_with_tools(
+        self,
+        model_name: str,
+        messages: list[dict],
+        tools: list[dict],
+        tool_choice: str | dict = "auto",
+        max_tokens: int = 4000,
+        temperature: float = 0.3,
+        timeout: float = 180.0,
+    ) -> dict:
+        """OpenAI 兼容的工具调用。返回 {"content": str|None, "tool_calls": [...], "model": str, "finish_reason": str}。"""
+        config = await self._get_model_config(model_name)
+        api_key = await self._get_api_key(config)
+
+        payload: dict = {
+            "model": config["model_id"],
+            "messages": messages,
+            "tools": tools,
+            "tool_choice": tool_choice,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+
+        backoffs = [5, 10, 20]
+        attempt = 0
+        while True:
+            try:
+                resp = await self.client.post(
+                    f"{config['api_base']}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                    timeout=timeout,
+                )
+                if resp.status_code == 429 and attempt < len(backoffs):
+                    wait = backoffs[attempt]
+                    attempt += 1
+                    logger.warning("rate_limited_retrying", model=model_name, attempt=attempt, wait_s=wait)
+                    await asyncio.sleep(wait)
+                    continue
+                resp.raise_for_status()
+                self._failure_counts[model_name] = 0
+                data = resp.json()["choices"][0]
+                msg = data.get("message") or {}
+                content = msg.get("content")
+                if isinstance(content, str):
+                    content = _strip_think(content)
+                return {
+                    "content": content,
+                    "tool_calls": msg.get("tool_calls") or [],
+                    "model": model_name,
+                    "finish_reason": data.get("finish_reason") or "",
+                }
+            except httpx.HTTPStatusError as e:
+                self._failure_counts[model_name] = self._failure_counts.get(model_name, 0) + 1
+                body = ""
+                try:
+                    body = e.response.text[:400]
+                except Exception:
+                    pass
+                logger.error("tools_call_failed", model=model_name, status=e.response.status_code, body=body)
+                raise
+            except Exception as e:
+                self._failure_counts[model_name] = self._failure_counts.get(model_name, 0) + 1
+                logger.error("tools_call_failed", model=model_name, error=str(e)[:200] or type(e).__name__)
+                raise
+
     async def chat_with_routing(
         self,
         task: str,

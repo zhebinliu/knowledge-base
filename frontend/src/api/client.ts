@@ -628,19 +628,11 @@ export const getStats = () =>
 
 // ── Skills ───────────────────────────────────────────────────────────────────
 
-export interface SkillQuestion {
-  key: string
-  stage?: string
-  question: string
-  hint?: string
-}
-
 export interface Skill {
   id: string
   name: string
   description: string | null
   prompt_snippet: string
-  questions: SkillQuestion[]
   created_at: string
 }
 
@@ -648,7 +640,6 @@ export interface SkillBody {
   name: string
   description?: string
   prompt_snippet: string
-  questions: SkillQuestion[]
 }
 
 export const listSkills = () => api.get<Skill[]>('/settings/skills').then(r => r.data)
@@ -669,35 +660,45 @@ export const listOutputAgents = () => api.get<OutputAgentConfig[]>('/settings/ou
 export const updateOutputAgent = (key: string, body: { prompt: string; skill_ids: string[]; model: string | null }) =>
   api.put(`/settings/output-agents/${key}`, body)
 
-// ── Interviews (kickoff_pptx / insight) ──────────────────────────────────────
+// ── Output Chats (对话式产出) ───────────────────────────────────────────────
 
-export interface InterviewQuestion {
-  key: string
-  stage: string
-  question: string
-  hint: string
-  skill_id: string
-  skill_name: string
+export type OutputKind = 'kickoff_pptx' | 'survey' | 'insight'
+
+export interface OutputChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+  tool_uses?: { name: string; arguments: string }[]
 }
 
-export interface InterviewState {
-  project: { id: string; name: string; customer: string | null }
-  kind: 'kickoff_pptx' | 'insight'
-  questions: InterviewQuestion[]
-  answers: Record<string, string>
-  next_key: string | null
-  complete: boolean
-  total: number
-  answered: number
+export interface OutputChat {
+  id: string
+  kind: OutputKind
+  project_id: string | null
+  industry: string | null
+  skill_ids: string[]
+  model: string | null
+  messages: OutputChatMessage[]
+  refs_count: number
+  status: 'active' | 'generating' | 'done' | 'failed'
+  bundle_id: string | null
+  created_at: string
+  updated_at: string
 }
 
-export const getInterview = (kind: 'kickoff_pptx' | 'insight', projectId: string) =>
-  api.get<InterviewState>(`/interviews/${kind}`, { params: { project_id: projectId } }).then(r => r.data)
+export const createOutputChat = (body: { kind: OutputKind; project_id?: string | null; industry?: string | null }) =>
+  api.post<OutputChat>('/output-chats', body).then(r => r.data)
 
-export const saveInterviewAnswer = (
-  kind: 'kickoff_pptx' | 'insight',
-  body: { project_id: string; question_key: string; question_text: string; answer: string },
-) => api.put(`/interviews/${kind}/answer`, body)
+export const sendOutputChatMessage = (id: string, content: string) =>
+  api.post<{ reply: string; tool_uses: { name: string; arguments: string }[]; refs_added: number; total_refs: number }>(
+    `/output-chats/${id}/message`,
+    { content },
+  ).then(r => r.data)
+
+export const getOutputChat = (id: string) =>
+  api.get<OutputChat>(`/output-chats/${id}`).then(r => r.data)
+
+export const finalizeOutputChat = (id: string) =>
+  api.post<{ bundle_id: string; status: string }>(`/output-chats/${id}/generate`).then(r => r.data)
 
 // ── Call Logs ─────────────────────────────────────────────────────────────────
 

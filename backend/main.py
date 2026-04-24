@@ -5,7 +5,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, interviews
+from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats
 from services.rate_limit import limiter
 from services.vector_store import vector_store
 
@@ -45,7 +45,7 @@ app.include_router(coverage.router, prefix="/api/coverage", tags=["coverage"])
 app.include_router(call_logs.router, prefix="/api/call-logs", tags=["call-logs"])
 app.include_router(outputs.router, prefix="/api/outputs", tags=["outputs"])
 app.include_router(meeting.router, prefix="/api/meeting", tags=["meeting"])
-app.include_router(interviews.router, prefix="/api/interviews", tags=["interviews"])
+app.include_router(output_chats.router, prefix="/api/output-chats", tags=["output-chats"])
 
 
 @app.on_event("startup")
@@ -67,7 +67,7 @@ async def startup():
     from models.skill import Skill  # noqa: F401
     from models.api_call_log import ApiCallLog  # noqa: F401
     from models.curated_bundle import CuratedBundle  # noqa: F401
-    from models.project_interview import ProjectInterviewAnswer  # noqa: F401
+    from models.output_conversation import OutputConversation  # noqa: F401
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -120,8 +120,9 @@ async def startup():
             # (api_call_logs table created via create_all)
             # C4 · curated_bundle
             # (curated_bundles table created via create_all)
-            # Feature X · 访谈式产出：给技能加题库字段
-            "ALTER TABLE skills ADD COLUMN IF NOT EXISTS questions JSON NOT NULL DEFAULT '[]'::json",
+            # Feature X · 废弃静态题库 → 对话式输出智能体
+            "DROP TABLE IF EXISTS project_interview_answers",
+            "ALTER TABLE skills DROP COLUMN IF EXISTS questions",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")

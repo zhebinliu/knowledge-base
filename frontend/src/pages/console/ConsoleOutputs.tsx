@@ -1,57 +1,46 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileText, ClipboardList, Lightbulb, Clock, Sparkles, ArrowRight, Info, Download, RefreshCw, CheckCircle, XCircle, Loader2 } from 'lucide-react'
-import { listProjects, generateOutput, listOutputs, type Project, type CuratedBundle } from '../../api/client'
-import { TOKEN_STORAGE_KEY } from '../../api/client'
-import InterviewModal from '../../components/InterviewModal'
+import {
+  FileText, ClipboardList, Lightbulb, Sparkles, Send, Download, RefreshCw,
+  CheckCircle, XCircle, Loader2, Clock, Wand2, Search, Play,
+} from 'lucide-react'
+import {
+  listProjects, listOutputs, getProjectMeta, TOKEN_STORAGE_KEY,
+  createOutputChat, sendOutputChatMessage, finalizeOutputChat,
+  type Project, type CuratedBundle, type OutputKind, type OutputChat, type OutputChatMessage,
+} from '../../api/client'
+import MarkdownView from '../../components/MarkdownView'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
-interface OutputKind {
-  id: 'kickoff_pptx' | 'survey' | 'insight'
+interface KindMeta {
+  id: OutputKind
   icon: typeof FileText
   title: string
   desc: string
-  badge: string
   color: string
-  iconColor: string
-  preview: string[]
 }
 
-const KINDS: OutputKind[] = [
-  {
-    id: 'kickoff_pptx',
-    icon: FileText,
-    title: '启动会 PPT',
-    desc: '基于项目基本信息和 LTC 9 阶段时间线，生成可直接开会用的启动会 PPT（.pptx）。',
-    badge: '.pptx',
-    color: 'from-orange-50 to-amber-50',
-    iconColor: '#D96400',
-    preview: ['封面 + 项目概况', 'LTC 9 阶段时间线', '关键里程碑与交付物', '项目风险与应对', '问答 & 下一步'],
-  },
-  {
-    id: 'survey',
-    icon: ClipboardList,
-    title: '调研问卷',
-    desc: '按 LTC 9 阶段从已批准切片中抽取高质量问题，按"业务流程 / 角色 / 数据 / 集成 / 风险"五类分组。',
-    badge: '.md · .docx',
-    color: 'from-sky-50 to-blue-50',
-    iconColor: '#2563EB',
-    preview: ['每阶段 5–10 题', '按 5 类主题分组', '可勾选/取消', '导出 Markdown + Word'],
-  },
-  {
-    id: 'insight',
-    icon: Lightbulb,
-    title: '项目洞察报告',
-    desc: '基于 PM 视角对项目多维度提问，LLM 汇总为结构化报告。',
-    badge: '.md',
-    color: 'from-purple-50 to-pink-50',
-    iconColor: '#7C3AED',
-    preview: ['项目概览', '关键决策点', '风险矩阵', '下一步建议'],
-  },
+const KINDS: KindMeta[] = [
+  { id: 'kickoff_pptx', icon: FileText, title: '启动会 PPT', desc: '客户启动会用的 PPT 大纲 + 导出 .pptx', color: '#D96400' },
+  { id: 'survey', icon: ClipboardList, title: '实施调研问卷', desc: '按五大维度展开的调研题库，导出 Markdown / Word', color: '#2563EB' },
+  { id: 'insight', icon: Lightbulb, title: '项目洞察报告', desc: '面向高管的项目状态 + 风险 + 建议报告', color: '#7C3AED' },
 ]
+const KIND_MAP = Object.fromEntries(KINDS.map(k => [k.id, k])) as Record<OutputKind, KindMeta>
 
-const KIND_MAP = Object.fromEntries(KINDS.map(k => [k.id, k]))
+const CHOICES_RE = /<choices(\s+multi="true")?>\s*(\[[\s\S]*?\])\s*<\/choices>/i
+
+function extractChoices(text: string): { cleaned: string; choices: string[]; multi: boolean } {
+  const m = text.match(CHOICES_RE)
+  if (!m) return { cleaned: text, choices: [], multi: false }
+  try {
+    const arr = JSON.parse(m[2])
+    if (Array.isArray(arr) && arr.every(x => typeof x === 'string')) {
+      return { cleaned: text.replace(CHOICES_RE, '').trim(), choices: arr, multi: !!m[1] }
+    }
+  } catch { /* fall through */ }
+  return { cleaned: text, choices: [], multi: false }
+}
 
 function StatusBadge({ status }: { status: string }) {
   if (status === 'done') return <span className="flex items-center gap-1 text-green-600 text-xs"><CheckCircle size={12} />已完成</span>
@@ -64,212 +53,399 @@ function fmt(dt: string) {
   return new Date(dt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
-const NEEDS_INTERVIEW = new Set(['kickoff_pptx', 'insight'])
-
 export default function ConsoleOutputs() {
-  const [selectedKind, setSelectedKind] = useState<OutputKind | null>(null)
-  const [selectedProject, setSelectedProject] = useState<string>('')
-  const [interviewOpen, setInterviewOpen] = useState(false)
   const qc = useQueryClient()
+  const [kind, setKind] = useState<OutputKind>('kickoff_pptx')
+  const [scope, setScope] = useState<'project' | 'industry'>('project')
+  const [projectId, setProjectId] = useState<string>('')
+  const [industry, setIndustry] = useState<string>('')
+  const [chat, setChat] = useState<OutputChat | null>(null)
+  const [messages, setMessages] = useState<OutputChatMessage[]>([])
+  const [draft, setDraft] = useState('')
+  const [pickedMulti, setPickedMulti] = useState<string[]>([])
+  const [starting, setStarting] = useState(false)
+  const [error, setError] = useState('')
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
+  const { data: meta } = useQuery({ queryKey: ['project-meta'], queryFn: getProjectMeta })
   const { data: outputs, refetch: refetchOutputs } = useQuery({
     queryKey: ['outputs'],
     queryFn: () => listOutputs({ page: 1 }),
-    refetchInterval: (query) => {
-      const items = query.state.data?.items ?? []
-      const hasActive = items.some((b: CuratedBundle) => b.status === 'pending' || b.status === 'generating')
-      return hasActive ? 5000 : false
+    refetchInterval: (q) => {
+      const items = q.state.data?.items ?? []
+      return items.some((b: CuratedBundle) => b.status === 'pending' || b.status === 'generating') ? 5000 : false
     },
   })
 
-  const generateMutation = useMutation({
-    mutationFn: (body: { kind: string; project_id: string }) => generateOutput(body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['outputs'] })
-    },
-  })
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+  }, [messages])
 
-  const triggerGenerate = () => {
-    if (!selectedKind || !selectedProject) return
-    generateMutation.mutate({ kind: selectedKind.id, project_id: selectedProject })
-  }
+  const ready = scope === 'project' ? !!projectId : !!industry
 
-  const handleGenerate = () => {
-    if (!selectedKind || !selectedProject) return
-    if (NEEDS_INTERVIEW.has(selectedKind.id)) {
-      setInterviewOpen(true)
-    } else {
-      triggerGenerate()
+  const startChat = async () => {
+    if (!ready) return
+    setError(''); setStarting(true)
+    try {
+      const c = await createOutputChat({
+        kind,
+        project_id: scope === 'project' ? projectId : null,
+        industry: scope === 'industry' ? industry : null,
+      })
+      setChat(c)
+      setMessages(c.messages)
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || '开启对话失败')
+    } finally {
+      setStarting(false)
     }
   }
 
-  const downloadBundle = (b: CuratedBundle) => {
-    const token = localStorage.getItem(TOKEN_STORAGE_KEY)
-    const a = document.createElement('a')
-    a.href = `/api/outputs/${b.id}/download`
-    // Pass token via URL isn't ideal; use fetch instead
-    fetch(`/api/outputs/${b.id}/download`, {
-      headers: { Authorization: `Bearer ${token}` },
-    }).then(async res => {
-      if (!res.ok) { alert('下载失败'); return }
-      const disposition = res.headers.get('content-disposition') || ''
-      const match = disposition.match(/filename="([^"]+)"/)
-      const filename = match ? match[1] : b.title
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a2 = document.createElement('a')
-      a2.href = url
-      a2.download = filename
-      a2.click()
-      URL.revokeObjectURL(url)
-    })
+  const resetChat = () => {
+    setChat(null); setMessages([]); setDraft(''); setPickedMulti([]); setError('')
   }
 
+  const sendMut = useMutation({
+    mutationFn: async (content: string) => {
+      if (!chat) throw new Error('no chat')
+      return await sendOutputChatMessage(chat.id, content)
+    },
+    onSuccess: (res, content) => {
+      setMessages(ms => [...ms, { role: 'user', content }, { role: 'assistant', content: res.reply, tool_uses: res.tool_uses }])
+      setDraft(''); setPickedMulti([])
+    },
+    onError: () => setError('发送失败，请重试'),
+  })
+
+  const generateMut = useMutation({
+    mutationFn: async () => {
+      if (!chat) throw new Error('no chat')
+      return await finalizeOutputChat(chat.id)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['outputs'] })
+      refetchOutputs()
+      // 标记对话已触发生成
+      if (chat) setChat({ ...chat, status: 'generating' })
+    },
+    onError: () => setError('生成失败，请稍后重试'),
+  })
+
+  const submit = () => {
+    const text = draft.trim()
+    if (!text || sendMut.isPending) return
+    sendMut.mutate(text)
+  }
+
+  const submitChoice = (choice: string) => {
+    if (sendMut.isPending) return
+    sendMut.mutate(choice)
+  }
+
+  const submitMulti = () => {
+    if (pickedMulti.length === 0 || sendMut.isPending) return
+    sendMut.mutate(pickedMulti.join('、'))
+  }
+
+  // 只对最后一条 assistant 消息解析 choices，避免历史消息误渲染
+  const lastAssistantIdx = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === 'assistant') return i
+    return -1
+  }, [messages])
+
+  const downloadBundle = (b: CuratedBundle) => {
+    const token = localStorage.getItem(TOKEN_STORAGE_KEY)
+    fetch(`/api/outputs/${b.id}/download`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async res => {
+        if (!res.ok) { alert('下载失败'); return }
+        const disposition = res.headers.get('content-disposition') || ''
+        const match = disposition.match(/filename="([^"]+)"/)
+        const filename = match ? match[1] : b.title
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+        URL.revokeObjectURL(url)
+      })
+  }
+
+  const currentKind = KIND_MAP[kind]
+
   return (
-    <div className="max-w-5xl mx-auto">
-      <div className="mb-8">
+    <div className="max-w-6xl mx-auto">
+      <div className="mb-6">
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs font-medium mb-3">
           <Sparkles size={11} /> 输出中心
         </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-ink leading-tight mb-2">
-          一键生成交付物
-        </h1>
-        <p className="text-sm text-ink-secondary max-w-xl">
-          选择项目和交付物类型，系统会调用知识库里已审核的内容拼装成文档。生成是异步的——提交后可关闭页面，结果会出现在"我的输出"列表。
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-ink leading-tight mb-2">对话式生成交付物</h1>
+        <p className="text-sm text-ink-secondary max-w-2xl">
+          选择智能体和作用域（项目或行业）后开始对话。智能体会基于配置的提示词和技能来提问、检索知识库，并最终生成交付文档。
         </p>
       </div>
 
-      {/* Kind cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        {KINDS.map(k => {
-          const active = selectedKind?.id === k.id
-          return (
-            <button
-              key={k.id}
-              type="button"
-              onClick={() => setSelectedKind(k)}
-              className={[
-                'text-left rounded-2xl border p-5 transition-all bg-gradient-to-br',
-                k.color,
-                active ? 'border-[#FF8D1A] shadow-md ring-2 ring-[#FF8D1A]/30' : 'border-line hover:border-[#FF8D1A]/60 hover:shadow-sm',
-              ].join(' ')}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm">
-                  <k.icon size={18} style={{ color: k.iconColor }} />
-                </div>
-                <span className="text-[10px] font-mono text-ink-muted bg-white px-1.5 py-0.5 rounded border border-line">
-                  {k.badge}
-                </span>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5">
+        {/* 左：对话区 */}
+        <div className="rounded-2xl border border-line bg-white flex flex-col" style={{ minHeight: 560 }}>
+          {!chat ? (
+            <div className="flex-1 flex items-center justify-center text-center px-6 py-10 text-sm text-ink-muted">
+              <div>
+                <Wand2 size={28} className="mx-auto mb-3 text-[#FF8D1A]" />
+                <p className="mb-1 text-ink">右侧完成设置后，点击「开始对话」</p>
+                <p className="text-xs">智能体会先问候并抛出第一个问题</p>
               </div>
-              <p className="font-semibold text-ink mb-1">{k.title}</p>
-              <p className="text-xs text-ink-secondary leading-relaxed">{k.desc}</p>
-            </button>
-          )
-        })}
-      </div>
+            </div>
+          ) : (
+            <>
+              <div className="px-5 py-3 border-b border-line flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <currentKind.icon size={16} style={{ color: currentKind.color }} />
+                  <span className="text-sm font-semibold text-ink truncate">{currentKind.title}</span>
+                  <span className="text-xs text-ink-muted truncate">
+                    · {scope === 'project'
+                        ? (projects?.find(p => p.id === chat.project_id)?.name ?? '项目')
+                        : `行业：${chat.industry}`}
+                  </span>
+                  {chat.refs_count > 0 && (
+                    <span className="flex items-center gap-1 text-[11px] text-orange-600 bg-orange-50 border border-orange-100 rounded-full px-2 py-0.5 shrink-0">
+                      <Search size={10} /> 已检索 {chat.refs_count}
+                    </span>
+                  )}
+                </div>
+                <button onClick={resetChat} className="text-xs text-ink-muted hover:text-ink px-2 py-1 rounded hover:bg-gray-50">
+                  重新开始
+                </button>
+              </div>
 
-      {/* Generation panel */}
-      {selectedKind ? (
-        <div className="rounded-2xl border border-line bg-white p-6 mb-8">
-          <div className="flex items-center gap-2 mb-4">
-            <selectedKind.icon size={18} style={{ color: selectedKind.iconColor }} />
-            <h2 className="text-lg font-semibold text-ink">{selectedKind.title}</h2>
+              <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+                {messages.map((m, idx) => {
+                  const isLastAssistant = idx === lastAssistantIdx
+                  const { cleaned, choices, multi } = m.role === 'assistant' && isLastAssistant
+                    ? extractChoices(m.content)
+                    : { cleaned: m.content, choices: [] as string[], multi: false }
+                  return (
+                    <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`${m.role === 'user' ? 'bg-orange-50 border-orange-100' : 'bg-white border-line'} border rounded-2xl px-4 py-3 max-w-[85%]`}>
+                        {m.role === 'assistant' && m.tool_uses && m.tool_uses.length > 0 && (
+                          <div className="mb-2 flex flex-wrap gap-1">
+                            {m.tool_uses.map((t, i) => {
+                              let q = ''
+                              try { q = JSON.parse(t.arguments)?.query || '' } catch { /* */ }
+                              return (
+                                <span key={i} className="flex items-center gap-1 text-[10px] text-ink-muted bg-gray-50 border border-line rounded-full px-2 py-0.5">
+                                  <Search size={9} /> {q || t.name}
+                                </span>
+                              )
+                            })}
+                          </div>
+                        )}
+                        <MarkdownView content={cleaned || '…'} size="sm" toolbar={false} />
+                        {isLastAssistant && choices.length > 0 && !multi && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {choices.map(c => (
+                              <button
+                                key={c}
+                                onClick={() => submitChoice(c)}
+                                disabled={sendMut.isPending}
+                                className="px-3 py-1 text-xs rounded-full border border-orange-200 text-orange-700 bg-white hover:bg-orange-50 disabled:opacity-50"
+                              >{c}</button>
+                            ))}
+                          </div>
+                        )}
+                        {isLastAssistant && choices.length > 0 && multi && (
+                          <div className="mt-3">
+                            <div className="flex flex-wrap gap-2 mb-2">
+                              {choices.map(c => {
+                                const on = pickedMulti.includes(c)
+                                return (
+                                  <button
+                                    key={c}
+                                    onClick={() => setPickedMulti(arr => on ? arr.filter(x => x !== c) : [...arr, c])}
+                                    className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                                      on
+                                        ? 'bg-orange-100 text-orange-800 border-orange-300'
+                                        : 'bg-white text-orange-700 border-orange-200 hover:bg-orange-50'
+                                    }`}
+                                  >{c}</button>
+                                )
+                              })}
+                            </div>
+                            <button
+                              onClick={submitMulti}
+                              disabled={pickedMulti.length === 0 || sendMut.isPending}
+                              className="px-3 py-1 text-xs rounded-lg text-white disabled:opacity-50"
+                              style={{ background: BRAND_GRAD }}
+                            >提交选择 ({pickedMulti.length})</button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+                {sendMut.isPending && (
+                  <div className="flex items-center gap-2 text-xs text-ink-muted"><Loader2 size={13} className="animate-spin" /> 智能体思考中…</div>
+                )}
+                {error && <div className="text-xs text-red-500">{error}</div>}
+              </div>
+
+              <div className="px-5 py-3 border-t border-line shrink-0">
+                <div className="flex items-end gap-2">
+                  <textarea
+                    value={draft}
+                    onChange={e => setDraft(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() }
+                    }}
+                    placeholder="输入回答，Enter 发送，Shift+Enter 换行"
+                    className="flex-1 border border-line rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-orange-300"
+                    style={{ minHeight: 48, maxHeight: 140 }}
+                    disabled={sendMut.isPending || chat.status !== 'active'}
+                  />
+                  <button
+                    onClick={submit}
+                    disabled={!draft.trim() || sendMut.isPending || chat.status !== 'active'}
+                    className="px-3 py-2 rounded-lg text-white disabled:opacity-50"
+                    style={{ background: BRAND_GRAD }}
+                    title="发送"
+                  >
+                    {sendMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                  </button>
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <p className="text-[11px] text-ink-muted">
+                    {chat.status === 'active'
+                      ? '聊够了就点右边「生成文档」，智能体会基于整段对话产出交付物'
+                      : chat.status === 'generating'
+                        ? '已提交生成任务，请在下方列表查看进度'
+                        : '对话已结束'}
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* 右：配置面板 */}
+        <div className="rounded-2xl border border-line bg-white p-4 flex flex-col gap-4 h-fit">
+          <div>
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide mb-2">智能体</p>
+            <div className="space-y-1.5">
+              {KINDS.map(k => {
+                const active = kind === k.id
+                return (
+                  <button
+                    key={k.id}
+                    onClick={() => !chat && setKind(k.id)}
+                    disabled={!!chat}
+                    className={`w-full text-left flex items-start gap-2 rounded-lg border px-3 py-2 transition-all ${
+                      active ? 'border-[#FF8D1A] bg-orange-50/60' : 'border-line hover:bg-gray-50'
+                    } disabled:opacity-60 disabled:cursor-not-allowed`}
+                  >
+                    <k.icon size={14} style={{ color: k.color }} className="mt-0.5 shrink-0" />
+                    <div className="min-w-0">
+                      <p className={`text-sm truncate ${active ? 'font-semibold text-ink' : 'text-ink'}`}>{k.title}</p>
+                      <p className="text-[11px] text-ink-muted line-clamp-2">{k.desc}</p>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide mb-2">包含内容</p>
-              <ul className="space-y-1.5 text-sm text-ink-secondary">
-                {selectedKind.preview.map(p => (
-                  <li key={p} className="flex items-start gap-2">
-                    <span className="w-1 h-1 rounded-full mt-2 flex-shrink-0" style={{ background: selectedKind.iconColor }} />
-                    {p}
-                  </li>
-                ))}
-              </ul>
+          <div>
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide mb-2">作用域</p>
+            <div className="flex gap-2 mb-2">
+              <button
+                onClick={() => !chat && setScope('project')}
+                disabled={!!chat}
+                className={`flex-1 px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                  scope === 'project' ? 'border-[#FF8D1A] bg-orange-50 text-orange-700' : 'border-line text-ink-secondary hover:bg-gray-50'
+                } disabled:opacity-60`}
+              >具体项目</button>
+              <button
+                onClick={() => !chat && setScope('industry')}
+                disabled={!!chat}
+                className={`flex-1 px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                  scope === 'industry' ? 'border-[#FF8D1A] bg-orange-50 text-orange-700' : 'border-line text-ink-secondary hover:bg-gray-50'
+                } disabled:opacity-60`}
+              >行业（无项目）</button>
             </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-2">选择项目</label>
+            {scope === 'project' ? (
               <select
-                value={selectedProject}
-                onChange={e => setSelectedProject(e.target.value)}
-                className="w-full border border-line rounded-lg px-3 py-2 text-sm bg-white"
+                value={projectId}
+                onChange={e => setProjectId(e.target.value)}
+                disabled={!!chat}
+                className="w-full border border-line rounded-lg px-2 py-1.5 text-sm bg-white disabled:opacity-60"
               >
-                <option value="">-- 请选择 --</option>
+                <option value="">-- 选择项目 --</option>
                 {(projects ?? []).map((p: Project) => (
                   <option key={p.id} value={p.id}>
                     {p.name}{p.customer ? ` · ${p.customer}` : ''}
                   </option>
                 ))}
               </select>
-              <p className="text-[11px] text-ink-muted mt-2 flex items-start gap-1">
-                <Info size={11} className="mt-0.5 flex-shrink-0" />
-                生成的内容范围限定在该项目的文档与关联知识切片
-              </p>
-            </div>
+            ) : (
+              <select
+                value={industry}
+                onChange={e => setIndustry(e.target.value)}
+                disabled={!!chat}
+                className="w-full border border-line rounded-lg px-2 py-1.5 text-sm bg-white disabled:opacity-60"
+              >
+                <option value="">-- 选择行业 --</option>
+                {(meta?.industries ?? []).map(i => (
+                  <option key={i.value} value={i.value}>{i.label}</option>
+                ))}
+              </select>
+            )}
           </div>
 
-          {generateMutation.isSuccess && (
-            <div className="mt-4 px-4 py-3 bg-green-50 border border-green-100 rounded-lg text-xs text-green-800 flex items-center gap-2">
-              <CheckCircle size={13} className="text-green-600 shrink-0" />
-              已提交生成任务，请在下方"我的输出"列表查看进度
-            </div>
-          )}
-          {generateMutation.isError && (
-            <div className="mt-4 px-4 py-3 bg-red-50 border border-red-100 rounded-lg text-xs text-red-700">
-              提交失败，请稍后重试
-            </div>
-          )}
-
-          <div className="mt-5 pt-5 border-t border-line flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-1.5 text-xs text-ink-muted">
-              <Clock size={12} /> 生成用时预计 1–3 分钟
-            </div>
+          {!chat ? (
             <button
-              type="button"
-              disabled={!selectedProject || generateMutation.isPending}
-              onClick={handleGenerate}
-              className="flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold text-white transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={startChat}
+              disabled={!ready || starting}
+              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
               style={{ background: BRAND_GRAD }}
             >
-              {generateMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={13} />}
-              {generateMutation.isPending
-                ? '提交中…'
-                : NEEDS_INTERVIEW.has(selectedKind.id)
-                  ? `开始访谈 · ${selectedKind.title}`
-                  : `生成 ${selectedKind.title}`}
+              {starting ? <Loader2 size={14} className="animate-spin" /> : <Play size={13} />}
+              {starting ? '开启中…' : '开始对话'}
             </button>
-          </div>
+          ) : (
+            <>
+              <button
+                onClick={() => generateMut.mutate()}
+                disabled={generateMut.isPending || chat.status !== 'active' || messages.length < 2}
+                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+                style={{ background: BRAND_GRAD }}
+                title={chat.status !== 'active' ? '已经提交过生成' : messages.length < 2 ? '至少要有一轮对话' : '基于整段对话生成交付文档'}
+              >
+                {generateMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={13} />}
+                {chat.status === 'generating' ? '已提交生成' : '生成文档'}
+              </button>
+              <p className="text-[11px] text-ink-muted -mt-2">
+                {messages.filter(m => m.role === 'user').length} 轮问答 · 已引用知识库 {chat.refs_count} 条
+              </p>
+            </>
+          )}
         </div>
-      ) : (
-        <div className="rounded-2xl border border-dashed border-line p-10 text-center text-ink-muted text-sm mb-8">
-          请先从上方选择一种交付物类型
-        </div>
-      )}
+      </div>
 
-      {/* My outputs list */}
-      <div className="rounded-2xl border border-line bg-white p-6">
+      {/* 我的输出 */}
+      <div className="rounded-2xl border border-line bg-white p-6 mt-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-ink">我的输出</h2>
-          <button onClick={() => refetchOutputs()} className="p-1 text-gray-400 hover:text-gray-600 rounded">
-            <RefreshCw size={13} />
-          </button>
+          <button onClick={() => refetchOutputs()} className="p-1 text-gray-400 hover:text-gray-600 rounded"><RefreshCw size={13} /></button>
         </div>
 
         {!outputs || outputs.items.length === 0 ? (
-          <p className="text-xs text-ink-muted text-center py-8">还没有生成记录，选择上方的交付物类型开始生成</p>
+          <p className="text-xs text-ink-muted text-center py-8">还没有生成记录</p>
         ) : (
           <div className="space-y-2">
             {outputs.items.map((b: CuratedBundle) => {
-              const kindInfo = KIND_MAP[b.kind as keyof typeof KIND_MAP]
+              const k = KIND_MAP[b.kind as OutputKind]
               return (
-                <div key={b.id} className="flex items-center gap-3 p-3 rounded-xl border border-line hover:bg-gray-50 transition-colors">
-                  {kindInfo && (
+                <div key={b.id} className="flex items-center gap-3 p-3 rounded-xl border border-line hover:bg-gray-50">
+                  {k && (
                     <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
-                      <kindInfo.icon size={15} style={{ color: kindInfo.iconColor }} />
+                      <k.icon size={15} style={{ color: k.color }} />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
@@ -282,8 +458,7 @@ export default function ConsoleOutputs() {
                       onClick={() => downloadBundle(b)}
                       className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 shrink-0"
                     >
-                      <Download size={12} />
-                      下载
+                      <Download size={12} /> 下载
                     </button>
                   )}
                   {b.status === 'failed' && b.error && (
@@ -295,19 +470,6 @@ export default function ConsoleOutputs() {
           </div>
         )}
       </div>
-
-      {interviewOpen && selectedKind && selectedProject && NEEDS_INTERVIEW.has(selectedKind.id) && (
-        <InterviewModal
-          kind={selectedKind.id as 'kickoff_pptx' | 'insight'}
-          projectId={selectedProject}
-          kindTitle={selectedKind.title}
-          onClose={() => setInterviewOpen(false)}
-          onReadyToGenerate={() => {
-            setInterviewOpen(false)
-            triggerGenerate()
-          }}
-        />
-      )}
     </div>
   )
 }
