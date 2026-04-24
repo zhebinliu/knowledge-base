@@ -31,30 +31,30 @@
 
 三种交付物各自独立生成，共用同一 `curated_bundle` 表和任务进度机制。
 
-- [ ] **C4.0** 新增 `curated_bundle` 表（id/kind/project_id/title/content_md/file_path/status/error/extra/created_by/created_at）
-- [ ] **C4.1 启动会 PPT**：python-pptx 生成（封面/项目概况/LTC时间线/里程碑/风险/Q&A），导出 .pptx
-- [ ] **C4.2 调研问卷**：LTC 9 阶段从 approved chunks 抽题，五类分组，输出 Markdown + .docx
-- [ ] **C4.3 项目洞察报告**：PM persona 多轮问答 → LLM 汇总四维报告，导出 Markdown
-- [ ] **C4.4** `ConsoleOutputs.tsx`：三张生成卡 + 我的输出列表 + 进度条 + 下载（接真实后端）
-- [ ] **C4.5** Celery 任务：`output_pptx_task` / `output_survey_task` / `output_insight_task`
+- [x] **C4.0** 新增 `curated_bundle` 表（id/kind/project_id/title/content_md/file_path/status/error/extra/created_by/created_at）
+- [x] **C4.1 启动会 PPT**：python-pptx 生成（封面/项目概况/LTC时间线/里程碑/风险/Q&A），导出 .pptx
+- [x] **C4.2 调研问卷**：LTC 9 阶段从 approved chunks 抽题，五类分组，输出 Markdown + .docx
+- [x] **C4.3 项目洞察报告**：PM persona 多轮问答 → LLM 汇总四维报告，导出 Markdown
+- [x] **C4.4** `ConsoleOutputs.tsx`：三张生成卡 + 我的输出列表 + 进度条 + 下载（接真实后端）
+- [x] **C4.5** Celery 任务：`generate_kickoff_pptx` / `generate_survey` / `generate_insight`
 
 ### Block C5 · 会议纪要占位 + 预接口（D7）
 
 - [x] **C5.1** `pages/console/ConsoleMeeting.tsx`：说明页 + 未来接入"xx AI 会议系统"占位
-- [ ] **C5.2** 预留 webhook 接口 `/api/meeting/ingest`（先返回 501）
+- [x] **C5.2** 预留 webhook 接口 `/api/meeting/ingest`（先返回 501）
 
 ### 新增需求
 
-- [ ] **N1.1** 技能库：新建 `skills` 表（id/name/description/prompt_snippet/created_at），CRUD API
-- [ ] **N1.2** 输出助手配置：KICKOFF_PPTX/SURVEY/INSIGHT 三个 output_agent config，含 prompt + skill_ids
-- [ ] **N1.3** 前端 Settings：技能库 Tab + 输出助手 Tab（提示词编辑器 + 技能选择器）
-- [ ] **N2.1** API/MCP 调用日志：`api_call_logs` 表，记录 user/token_type/endpoint/tool/created_at
-- [ ] **N2.2** 前端 Settings：调用日志 Tab（分页表格）
+- [x] **N1.1** 技能库：新建 `skills` 表（id/name/description/prompt_snippet/created_at），CRUD API
+- [x] **N1.2** 输出助手配置：KICKOFF_PPTX/SURVEY/INSIGHT 三个 output_agent config，含 prompt + skill_ids
+- [x] **N1.3** 前端 Settings：技能库 Tab + 输出助手 Tab（提示词编辑器 + 技能选择器）
+- [x] **N2.1** API/MCP 调用日志：`api_call_logs` 表，记录 user/token_type/endpoint/tool/created_at
+- [x] **N2.2** 前端 Settings：调用日志 Tab（分页表格）
 
 ### 端到端验收
 
 - [x] **V1** console_user 注册后登录默认落 `/console`
-- [ ] **V2** 一个项目能生成 PPT / 问卷 / 洞察报告三类文件并下载
+- [x] **V2** 一个项目能生成 PPT / 问卷 / 洞察报告三类文件并下载
 - [x] **V3** admin 进 `/` 看不到 console 影响；进 `/console` 功能可用
 
 ### 部署节奏
@@ -79,10 +79,10 @@
 **意图**：让 review_status / citation_count 进入 Qdrant payload 和检索打分链路。
 
 - [ ] **B1.1** [backend/tasks/convert_task.py](backend/tasks/convert_task.py) Qdrant upsert payload 扩 4 字段（review_status / ltc_stage_confidence / citation_count / last_cited_ts）
-- [ ] **B1.2** [backend/services/vector_store.py](backend/services/vector_store.py) `search()` 默认加 `review_status IN (auto_approved, approved)` filter；暴露 `include_unreviewed: bool = False`
-- [ ] **B1.3** [backend/services/rerank_service.py](backend/services/rerank_service.py) rerank 分叠加 `log(1+citation_count)*0.05` + 30 天内引用 +0.03
+- [x] **B1.2** [backend/services/vector_store.py](backend/services/vector_store.py) `search()` 默认加 `review_status IN (auto_approved, approved)` filter；暴露 `include_unreviewed: bool = False`
+- [x] **B1.3** [backend/services/rerank_service.py](backend/services/rerank_service.py) rerank 分叠加 `log(1+citation_count)*0.05` + 30 天内引用 +0.03
 - [ ] **B1.4** 一次性迁移脚本：遍历 chunks 表 → `qdrant.set_payload` 回写上面 4 字段（只加 payload，不重算向量）
-- [ ] **B1.5** [frontend/src/pages/Review.tsx](frontend/src/pages/Review.tsx) 入队时间倒序 + >7 天置红 + 批量批准按钮
+- [x] **B1.5** [frontend/src/pages/Review.tsx](frontend/src/pages/Review.tsx) 入队时间倒序 + >7 天置红 + 批量批准按钮
 - [ ] **B1.6** 验证：MCP `ask_kb` 对比过滤前后 citations；`search_kb` 确认热切片在前
 - [ ] **B1.7** 部署 + 回归
 
