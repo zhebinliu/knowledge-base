@@ -68,8 +68,11 @@ INDUSTRY_TAGS = {
     "finance": "金融业",
     "healthcare": "医疗健康",
     "education": "教育",
+    "real_estate": "地产/建筑",
     "technology": "高科技/互联网",
     "logistics": "物流速运",
+    "energy": "能源/化工",
+    "government": "政府/公共",
     "other": "其他",
 }
 
