@@ -77,6 +77,21 @@ def _extract_json(text: str, target: str = "object") -> str | None:
         except json.JSONDecodeError:
             pass
 
+    # 尝试 3：LLM 偶尔漏开头 `{` 但末尾带 `}`（见 classification_parse_failed 日志）
+    # 只对 object 目标生效；检测是否"看起来像 key-value 对"
+    if target == "object":
+        for candidate in (no_think, raw_stripped_code):
+            if candidate and candidate.rstrip().endswith("}") and '"' in candidate and ':' in candidate:
+                patched = "{" + candidate
+                found = _find_balanced(patched)
+                if found:
+                    try:
+                        json.loads(found)
+                        logger.info("json_extract_prepended_brace")
+                        return found
+                    except json.JSONDecodeError:
+                        pass
+
     return None
 
 # 所有知识挑战产物都挂到这条虚拟文档下，便于 Documents 列表里单独浏览

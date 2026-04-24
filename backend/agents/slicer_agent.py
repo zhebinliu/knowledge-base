@@ -304,7 +304,7 @@ async def _classify_one(
 async def slice_and_classify(
     markdown: str,
     doc_title: str,
-    confidence_threshold: float = 0.85,
+    confidence_threshold: float = 0.7,
     max_concurrency: int = 8,
 ) -> list[dict]:
     """
