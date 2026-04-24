@@ -223,13 +223,16 @@ async def finalize_and_generate(
         if existing:
             return {"bundle_id": existing.id, "status": existing.status}
 
-    # 组装标题
+    # 组装标题：启动会 PPT 用 "客户名/行业 启动会 PPT"，其他 kind 用 "kind · 客户/项目/行业"
+    proj = None
     if conv.project_id:
         proj = await session.get(Project, conv.project_id)
-        scope = proj.name if proj else "项目"
+    if conv.kind == "kickoff_pptx":
+        scope = (proj.customer or proj.name) if proj else (conv.industry or "行业")
+        title = f"{scope} 启动会 PPT"
     else:
-        scope = conv.industry or "行业"
-    title = f"{KIND_TITLES.get(conv.kind, conv.kind)} · {scope}"
+        scope = (proj.customer or proj.name) if proj else (conv.industry or "行业")
+        title = f"{KIND_TITLES.get(conv.kind, conv.kind)} · {scope}"
 
     bundle = CuratedBundle(
         kind=conv.kind,

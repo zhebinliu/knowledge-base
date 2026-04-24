@@ -219,7 +219,8 @@ export default function ConsoleOutputs() {
               <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
                 {messages.map((m, idx) => {
                   const isLastAssistant = idx === lastAssistantIdx
-                  const { cleaned, choices, multi } = m.role === 'assistant' && isLastAssistant
+                  // 历史 assistant 也要剥掉 <choices> 标签，避免渲染成代码
+                  const { cleaned, choices, multi } = m.role === 'assistant'
                     ? extractChoices(m.content)
                     : { cleaned: m.content, choices: [] as string[], multi: false }
                   return (
@@ -324,8 +325,8 @@ export default function ConsoleOutputs() {
           )}
         </div>
 
-        {/* 右：配置面板 */}
-        <div className="rounded-2xl border border-line bg-white p-4 flex flex-col gap-4 h-fit">
+        {/* 右：配置面板（sticky，随页面滚动保持可见，生成按钮常驻） */}
+        <div className="rounded-2xl border border-line bg-white p-4 flex flex-col gap-4 h-fit lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
           <div>
             <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide mb-2">智能体</p>
             <div className="space-y-1.5">

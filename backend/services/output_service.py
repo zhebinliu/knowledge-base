@@ -364,57 +364,142 @@ def _parse_slide_content(raw: str) -> list[dict]:
 
 
 def _build_pptx(project_name: str, customer: str | None, kickoff_date: str, slides: list[dict]) -> bytes:
+    """16:9 版式：
+    - 封面：左侧品牌色竖条 + 大标题 + 客户/日期副标 + 右下角角标
+    - 内页：顶部 4pt 橙色细条 + 页头标题 + 左橙色块装饰 + 两栏要点（>4 条时）+ 右下页码 + 底部细线
+    """
     from pptx import Presentation
-    from pptx.util import Inches, Pt
+    from pptx.util import Inches, Pt, Emu
     from pptx.dml.color import RGBColor
+    from pptx.enum.shapes import MSO_SHAPE
+    from pptx.enum.text import PP_ALIGN
 
     prs = Presentation()
     prs.slide_width = Inches(13.33)
     prs.slide_height = Inches(7.5)
+    SW, SH = prs.slide_width, prs.slide_height
 
-    BRAND_ORANGE = RGBColor(0xFF, 0x8D, 0x1A)
-    DARK = RGBColor(0x1F, 0x29, 0x37)
+    BRAND = RGBColor(0xD9, 0x64, 0x00)       # 主橙
+    BRAND_LIGHT = RGBColor(0xFF, 0x8D, 0x1A) # 亮橙
+    INK = RGBColor(0x1F, 0x29, 0x37)         # 主文字
+    INK_2 = RGBColor(0x4B, 0x55, 0x63)       # 次文字
+    MUTED = RGBColor(0x9C, 0xA3, 0xAF)
+    BG_TINT = RGBColor(0xFA, 0xFA, 0xFA)
+    LINE = RGBColor(0xE5, 0xE7, 0xEB)
     WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 
     blank_layout = prs.slide_layouts[6]
+    total = len(slides)
+
+    def _no_line(shp):
+        try:
+            shp.line.fill.background()
+        except Exception:
+            pass
+
+    def _fill(shp, color):
+        shp.fill.solid(); shp.fill.fore_color.rgb = color
+        _no_line(shp)
+
+    def _add_rect(slide, x, y, w, h, color):
+        s = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, x, y, w, h)
+        _fill(s, color)
+        return s
+
+    def _add_text(slide, x, y, w, h, text, size, color, bold=False, align=None, font_name="微软雅黑"):
+        tb = slide.shapes.add_textbox(x, y, w, h)
+        tf = tb.text_frame
+        tf.word_wrap = True
+        tf.margin_left = tf.margin_right = Inches(0.05)
+        tf.margin_top = tf.margin_bottom = Inches(0.02)
+        p = tf.paragraphs[0]
+        if align is not None: p.alignment = align
+        r = p.add_run(); r.text = text
+        r.font.size = Pt(size); r.font.bold = bold
+        r.font.color.rgb = color
+        r.font.name = font_name
+        return tf
 
     for i, slide_data in enumerate(slides):
         slide = prs.slides.add_slide(blank_layout)
-        bg = slide.background.fill
+
         if i == 0:
-            bg.solid(); bg.fore_color.rgb = BRAND_ORANGE
+            # 封面：白底 + 左侧宽品牌色竖条
+            _add_rect(slide, 0, 0, Inches(4.2), SH, BRAND)
+            # 装饰小方块
+            _add_rect(slide, Inches(3.9), Inches(0.9), Inches(0.3), Inches(0.3), BRAND_LIGHT)
+            _add_rect(slide, Inches(3.9), Inches(6.3), Inches(0.3), Inches(0.3), BRAND_LIGHT)
+
+            # 左上品牌标
+            _add_text(slide, Inches(0.7), Inches(0.6), Inches(3.3), Inches(0.4),
+                      "KICKOFF DECK", 12, WHITE, bold=True)
+
+            # 大标题（右侧白底区）
+            _add_text(slide, Inches(4.7), Inches(2.3), Inches(8.2), Inches(1.6),
+                      slide_data["title"], 40, INK, bold=True)
+            # 橙色短横线
+            _add_rect(slide, Inches(4.7), Inches(3.95), Inches(0.8), Emu(50800), BRAND)
+            # 副标
+            sub = f"{customer or project_name}"
+            _add_text(slide, Inches(4.7), Inches(4.2), Inches(8.2), Inches(0.5),
+                      sub, 20, INK_2)
+            _add_text(slide, Inches(4.7), Inches(4.8), Inches(8.2), Inches(0.4),
+                      f"启动会 · {kickoff_date}", 14, MUTED)
+
+            # 左下脚标
+            _add_text(slide, Inches(0.7), Inches(6.7), Inches(3.3), Inches(0.3),
+                      "Fenxiao CRM · LTC 实施方法论", 10, WHITE)
+            continue
+
+        # 内页
+        # 顶部细条
+        _add_rect(slide, 0, 0, SW, Inches(0.08), BRAND)
+        # 页头标题
+        _add_text(slide, Inches(0.7), Inches(0.35), Inches(11.9), Inches(0.7),
+                  slide_data["title"], 26, INK, bold=True)
+        # 标题下橙色短粗线
+        _add_rect(slide, Inches(0.7), Inches(1.05), Inches(0.6), Emu(50800), BRAND)
+        # 页脚细线
+        _add_rect(slide, Inches(0.7), Inches(7.1), Inches(11.9), Emu(9525), LINE)
+        # 页码
+        _add_text(slide, Inches(12.2), Inches(7.15), Inches(1.0), Inches(0.3),
+                  f"{i} / {total - 1}", 10, MUTED, align=PP_ALIGN.RIGHT)
+        # 页脚左侧项目信息
+        _add_text(slide, Inches(0.7), Inches(7.15), Inches(10), Inches(0.3),
+                  f"{customer or project_name} · 启动会", 10, MUTED)
+
+        points = slide_data.get("points") or []
+        if not points:
+            continue
+
+        # 两栏分布（>4 条时）
+        top = Inches(1.55)
+        body_h = Inches(5.3)
+        if len(points) > 4:
+            half = (len(points) + 1) // 2
+            cols = [points[:half], points[half:]]
+            col_w = Inches(5.7)
+            col_x = [Inches(0.7), Inches(7.0)]
         else:
-            bg.solid(); bg.fore_color.rgb = WHITE
+            cols = [points]
+            col_w = Inches(11.9)
+            col_x = [Inches(0.7)]
 
-        if i > 0:
-            bar = slide.shapes.add_shape(1, Inches(0), Inches(0), prs.slide_width, Inches(0.9))
-            bar.fill.solid(); bar.fill.fore_color.rgb = BRAND_ORANGE
-            bar.line.fill.background()
-
-        title_tf = slide.shapes.add_textbox(
-            Inches(0.7), Inches(2.5) if i == 0 else Inches(0.15),
-            Inches(11.9), Inches(1.2) if i == 0 else Inches(0.65),
-        ).text_frame
-        title_tf.word_wrap = True
-        p = title_tf.paragraphs[0]
-        run = p.add_run(); run.text = slide_data["title"]
-        run.font.size = Pt(32) if i == 0 else Pt(24); run.font.bold = True
-        run.font.color.rgb = WHITE
-
-        if i == 0:
-            sub_tf = slide.shapes.add_textbox(Inches(0.7), Inches(3.8), Inches(11), Inches(0.8)).text_frame
-            p2 = sub_tf.paragraphs[0]; run2 = p2.add_run()
-            run2.text = f"{customer or ''}  ·  启动会  ·  {kickoff_date}"
-            run2.font.size = Pt(18); run2.font.color.rgb = WHITE
-
-        if slide_data.get("points") and i > 0:
-            content_tf = slide.shapes.add_textbox(Inches(0.7), Inches(1.2), Inches(11.9), Inches(5.8)).text_frame
-            content_tf.word_wrap = True
-            for j, pt in enumerate(slide_data["points"]):
-                para = content_tf.paragraphs[0] if j == 0 else content_tf.add_paragraph()
-                run = para.add_run(); run.text = f"• {pt}"
-                run.font.size = Pt(18); run.font.color.rgb = DARK
-                para.space_after = Pt(8)
+        for ci, col_points in enumerate(cols):
+            box = slide.shapes.add_textbox(col_x[ci], top, col_w, body_h)
+            tf = box.text_frame; tf.word_wrap = True
+            tf.margin_left = Inches(0.1); tf.margin_top = Inches(0.05)
+            for j, pt in enumerate(col_points):
+                para = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
+                # 橙色圆点 + 文本
+                r1 = para.add_run(); r1.text = "●  "
+                r1.font.size = Pt(12); r1.font.color.rgb = BRAND
+                r1.font.name = "微软雅黑"
+                r2 = para.add_run(); r2.text = pt
+                r2.font.size = Pt(16); r2.font.color.rgb = INK
+                r2.font.name = "微软雅黑"
+                para.space_after = Pt(10)
+                para.line_spacing = 1.35
 
     buf = io.BytesIO(); prs.save(buf)
     return buf.getvalue()
