@@ -207,6 +207,8 @@ async def stats():
     from models.document import Document
     from models.chunk import Chunk
     from models import async_session_maker
+    from models.project import DOC_TYPE_LABELS
+    from prompts.ltc_taxonomy import INDUSTRY_TAGS
     from sqlalchemy import select, func, text
 
     async with async_session_maker() as session:
@@ -215,13 +217,49 @@ async def stats():
         status_res = await session.execute(text("SELECT conversion_status, count(*) FROM documents GROUP BY conversion_status"))
         status_map = {r[0]: r[1] for r in status_res}
 
+        # 行业维度：文档数 + 切片数（切片 industry 通过 Document.industry join 统计）
+        industry_docs_res = await session.execute(text(
+            "SELECT COALESCE(industry, 'unknown') AS k, COUNT(*) FROM documents GROUP BY k"
+        ))
+        industry_docs = {r[0]: r[1] for r in industry_docs_res}
+        industry_chunks_res = await session.execute(text(
+            "SELECT COALESCE(d.industry, 'unknown') AS k, COUNT(c.id) "
+            "FROM chunks c LEFT JOIN documents d ON c.document_id = d.id GROUP BY k"
+        ))
+        industry_chunks = {r[0]: r[1] for r in industry_chunks_res}
+        industry_keys = sorted(set(industry_docs) | set(industry_chunks))
+        industry_distribution = [
+            {
+                "key": k,
+                "label": INDUSTRY_TAGS.get(k, "未指定" if k == "unknown" else k),
+                "documents": industry_docs.get(k, 0),
+                "chunks": industry_chunks.get(k, 0),
+            }
+            for k in industry_keys
+        ]
+
+        # 文档类型分布
+        doctype_res = await session.execute(text(
+            "SELECT COALESCE(doc_type, 'unknown') AS k, COUNT(*) FROM documents GROUP BY k"
+        ))
+        doctype_distribution = [
+            {
+                "key": r[0],
+                "label": DOC_TYPE_LABELS.get(r[0], "未指定" if r[0] == "unknown" else r[0]),
+                "documents": r[1],
+            }
+            for r in doctype_res
+        ]
+
     qdrant_info = await vector_store.collection_info()
 
     return {
         "documents": doc_count,
         "chunks": chunk_count,
         "vectors": qdrant_info.get("vectors_count", 0),
-        "status_distribution": status_map
+        "status_distribution": status_map,
+        "industry_distribution": industry_distribution,
+        "doctype_distribution": doctype_distribution,
     }
 
 

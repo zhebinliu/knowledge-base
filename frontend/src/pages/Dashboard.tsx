@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import {
   FileText, Layers, Clock, CheckCircle, AlertCircle,
   Loader, ClipboardCheck, ArrowRight, Folder, Brain, HelpCircle, Check,
+  Building2, FileType,
 } from 'lucide-react'
 import { formatTime } from '../utils/datetime'
 
@@ -120,6 +121,91 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Industry + DocType distribution */}
+      {((stats?.industry_distribution?.length ?? 0) > 0 ||
+        (stats?.doctype_distribution?.length ?? 0) > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {stats?.industry_distribution && stats.industry_distribution.length > 0 && (
+            <div className="card">
+              <div className="card-head">
+                <h3 className="flex items-center gap-2">
+                  <Building2 size={15} style={{ color: 'var(--accent)' }} /> 行业分布
+                </h3>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {stats.industry_distribution.length} 类
+                </span>
+              </div>
+              <div className="px-5 py-3 space-y-2.5">
+                {(() => {
+                  const maxDocs = Math.max(...stats.industry_distribution!.map(i => i.documents), 1)
+                  return [...stats.industry_distribution!]
+                    .sort((a, b) => b.documents - a.documents)
+                    .map(item => (
+                      <div key={item.key}>
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="text-gray-700 font-medium">{item.label}</span>
+                          <span className="font-mono" style={{ color: 'var(--text-muted)' }}>
+                            <b className="text-gray-800">{item.documents}</b> 文档 · {item.chunks} 切片
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${(item.documents / maxDocs) * 100}%`,
+                              background: 'linear-gradient(90deg, #FF8D1A, #FF7A00)',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))
+                })()}
+              </div>
+            </div>
+          )}
+
+          {stats?.doctype_distribution && stats.doctype_distribution.length > 0 && (
+            <div className="card">
+              <div className="card-head">
+                <h3 className="flex items-center gap-2">
+                  <FileType size={15} className="text-purple-500" /> 文档类型分布
+                </h3>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {stats.doctype_distribution.length} 类
+                </span>
+              </div>
+              <div className="px-5 py-3 space-y-2.5">
+                {(() => {
+                  const maxDocs = Math.max(...stats.doctype_distribution!.map(i => i.documents), 1)
+                  return [...stats.doctype_distribution!]
+                    .sort((a, b) => b.documents - a.documents)
+                    .map(item => (
+                      <Link
+                        key={item.key}
+                        to={`/documents?type=${encodeURIComponent(item.key)}`}
+                        className="block hover:bg-gray-50 -mx-2 px-2 py-1 rounded transition-colors"
+                      >
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="text-gray-700 font-medium">{item.label}</span>
+                          <span className="font-mono" style={{ color: 'var(--text-muted)' }}>
+                            <b className="text-gray-800">{item.documents}</b> 文档
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-purple-400"
+                            style={{ width: `${(item.documents / maxDocs) * 100}%` }}
+                          />
+                        </div>
+                      </Link>
+                    ))
+                })()}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

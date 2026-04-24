@@ -173,11 +173,26 @@ export interface ReviewItem {
   chunk_generated_by_model?: string | null
 }
 
+export interface IndustryStat {
+  key: string
+  label: string
+  documents: number
+  chunks: number
+}
+
+export interface DocTypeStat {
+  key: string
+  label: string
+  documents: number
+}
+
 export interface Stats {
   documents: number
   chunks: number
   vectors: number
   status_distribution?: Record<string, number>
+  industry_distribution?: IndustryStat[]
+  doctype_distribution?: DocTypeStat[]
 }
 
 // ── Documents ────────────────────────────────────────────────────────────────
