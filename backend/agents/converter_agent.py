@@ -137,19 +137,26 @@ async def convert_to_markdown(filename: str, content: bytes) -> tuple[str, str |
     else:
         segments = [raw_text[i:i + MAX_CHUNK_CHARS] for i in range(0, len(raw_text), MAX_CHUNK_CHARS)]
 
-    markdown_parts = []
-    used_model = None
-    for i, segment in enumerate(segments):
-        prompt = await build_conversion_prompt(segment)
-        result, used_model = await model_router.chat_with_routing(
-            "conversion",
-            [{"role": "user", "content": prompt}],
-            max_tokens=8000,
-            timeout=180.0,
-        )
-        # 去除推理模型输出的 <think>...</think> 思考块，只保留实际 Markdown 内容
-        result = re.sub(r"<think>[\s\S]*?</think>", "", result, flags=re.IGNORECASE).strip()
-        markdown_parts.append(result)
-        logger.info("segment_converted", filename=filename, segment=i + 1, total=len(segments), model=used_model)
+    # 分段并发调 LLM —— Semaphore=3 限流，避免 provider 限速
+    import asyncio
+    sem = asyncio.Semaphore(3)
+
+    async def _convert_one(idx: int, segment: str) -> tuple[int, str, str | None]:
+        async with sem:
+            prompt = await build_conversion_prompt(segment)
+            result, model = await model_router.chat_with_routing(
+                "conversion",
+                [{"role": "user", "content": prompt}],
+                max_tokens=8000,
+                timeout=180.0,
+            )
+            result = re.sub(r"<think>[\s\S]*?</think>", "", result, flags=re.IGNORECASE).strip()
+            logger.info("segment_converted", filename=filename, segment=idx + 1, total=len(segments), model=model)
+            return idx, result, model
+
+    outputs = await asyncio.gather(*[_convert_one(i, s) for i, s in enumerate(segments)])
+    outputs.sort(key=lambda x: x[0])
+    markdown_parts = [o[1] for o in outputs]
+    used_model = next((o[2] for o in outputs if o[2]), None)
 
     return "\n\n".join(markdown_parts), used_model
