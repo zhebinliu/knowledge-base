@@ -191,3 +191,34 @@ async def download_output(
         )
     else:
         raise HTTPException(400, "No downloadable content available")
+
+
+@router.get("/{bundle_id}/view")
+async def view_output(
+    bundle_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Inline view (no Content-Disposition: attachment). 用于 HTML 幻灯片在线播放。"""
+    b = await session.get(CuratedBundle, bundle_id)
+    if not b:
+        raise HTTPException(404, "Bundle not found")
+    if not current_user.is_admin and b.created_by != current_user.id:
+        raise HTTPException(403, "Access denied")
+    if b.status != "done" or not b.file_key or not b.file_key.endswith(".html"):
+        raise HTTPException(400, "Only HTML outputs support inline viewing")
+
+    from config import settings
+    from minio import Minio
+    mc = Minio(settings.minio_endpoint, access_key=settings.minio_user, secret_key=settings.minio_password, secure=False)
+    try:
+        response = mc.get_object(settings.minio_bucket, b.file_key)
+        data = response.read()
+    except Exception as e:
+        raise HTTPException(500, f"Failed to fetch file: {e}")
+
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="text/html; charset=utf-8",
+        headers={"Cache-Control": "private, max-age=60"},
+    )

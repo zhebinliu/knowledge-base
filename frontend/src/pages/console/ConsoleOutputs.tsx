@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   FileText, ClipboardList, Lightbulb, Sparkles, Send, Download, RefreshCw,
-  CheckCircle, XCircle, Loader2, Clock, Wand2, Search, Play,
+  CheckCircle, XCircle, Loader2, Clock, Wand2, Search, Play, ExternalLink,
 } from 'lucide-react'
 import {
   listProjects, listOutputs, getProjectMeta, TOKEN_STORAGE_KEY,
@@ -28,7 +28,9 @@ const KINDS: KindMeta[] = [
 ]
 const KIND_MAP = Object.fromEntries(KINDS.map(k => [k.id, k])) as Record<OutputKind, KindMeta>
 
-const CHOICES_RE = /<choices(\s+multi="true")?>\s*(\[[\s\S]*?\])\s*<\/choices>/i
+const CHOICES_RE = /<choices(\s+multi=(?:"true"|'true'|true))?\s*>\s*(\[[\s\S]*?\])\s*<\/choices>/i
+// 防御：把 `<choices>...</choices>`、```xml\n<choices>...</choices>\n``` 这类被代码化的写法里的围栏一并剥掉
+const FENCED_CHOICES_RE = /(```[a-zA-Z]*\s*)?`?\s*<choices(?:\s+multi=(?:"true"|'true'|true))?\s*>\s*(\[[\s\S]*?\])\s*<\/choices>\s*`?(\s*```)?/i
 
 function extractChoices(text: string): { cleaned: string; choices: string[]; multi: boolean } {
   const m = text.match(CHOICES_RE)
@@ -36,7 +38,8 @@ function extractChoices(text: string): { cleaned: string; choices: string[]; mul
   try {
     const arr = JSON.parse(m[2])
     if (Array.isArray(arr) && arr.every(x => typeof x === 'string')) {
-      return { cleaned: text.replace(CHOICES_RE, '').trim(), choices: arr, multi: !!m[1] }
+      const cleaned = text.replace(FENCED_CHOICES_RE, '').replace(/\n{3,}/g, '\n\n').trim()
+      return { cleaned, choices: arr, multi: !!m[1] }
     }
   } catch { /* fall through */ }
   return { cleaned: text, choices: [], multi: false }
@@ -169,6 +172,21 @@ export default function ConsoleOutputs() {
       })
   }
 
+  const playBundle = (b: CuratedBundle) => {
+    const token = localStorage.getItem(TOKEN_STORAGE_KEY)
+    fetch(`/api/outputs/${b.id}/view`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async res => {
+        if (!res.ok) { alert('在线播放失败'); return }
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        window.open(url, '_blank', 'noopener,noreferrer')
+        // 10 分钟后释放
+        setTimeout(() => URL.revokeObjectURL(url), 10 * 60 * 1000)
+      })
+  }
+
+  const isHtmlBundle = (b: CuratedBundle) => b.kind === 'kickoff_pptx' && b.has_file
+
   const currentKind = KIND_MAP[kind]
 
   return (
@@ -183,7 +201,7 @@ export default function ConsoleOutputs() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5 items-start">
         {/* 左：对话区 */}
         <div className="rounded-2xl border border-line bg-white flex flex-col" style={{ minHeight: 560 }}>
           {!chat ? (
@@ -454,6 +472,14 @@ export default function ConsoleOutputs() {
                     <p className="text-xs text-ink-muted">{fmt(b.created_at)}</p>
                   </div>
                   <StatusBadge status={b.status} />
+                  {b.status === 'done' && isHtmlBundle(b) && (
+                    <button
+                      onClick={() => playBundle(b)}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-50 shrink-0"
+                    >
+                      <ExternalLink size={12} /> 在线播放
+                    </button>
+                  )}
                   {b.status === 'done' && (b.has_file || b.has_content) && (
                     <button
                       onClick={() => downloadBundle(b)}
