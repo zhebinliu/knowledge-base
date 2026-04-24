@@ -215,6 +215,7 @@ async def classify_chunk(
     doc_title: str,
     section_path: str,
     model: str | None = None,
+    temperature: float = 0.1,
 ) -> tuple[dict, str]:
     """Returns (classification_dict, model_name)."""
     prompt = await build_slicing_prompt(doc_title, section_path, content)
@@ -223,7 +224,7 @@ async def classify_chunk(
             "slicing_classification",
             [{"role": "user", "content": prompt}],
             max_tokens=8000,
-            temperature=0.1,
+            temperature=temperature,
             timeout=180.0,
         )
     else:
@@ -231,7 +232,7 @@ async def classify_chunk(
             model,
             [{"role": "user", "content": prompt}],
             max_tokens=8000,
-            temperature=0.1,
+            temperature=temperature,
             timeout=180.0,
         )
     try:
@@ -272,10 +273,13 @@ async def _classify_one(
         review_status = "needs_review"
 
     if review_status == "needs_review":
-        logger.info("review_with_glm", chunk_index=i, confidence=confidence)
+        logger.info("review_second_pass", chunk_index=i, confidence=confidence)
         try:
+            # 原先用 glm-5，实测单次推理 ~150s；换成 minimax-m2.7（与主力 m2.5 走同一代理但 temp=0.5）
+            # 以换取速度，review 质量会降低——低置信 chunk 最终仍可在审核队列人工校正
             review, review_model = await classify_chunk(
-                chunk["content"], doc_title, chunk["section_path"], model="glm-5"
+                chunk["content"], doc_title, chunk["section_path"],
+                model="minimax-m2.7", temperature=0.5,
             )
             if review.get("ltc_stage_confidence", 0) > confidence:
                 classification = review
