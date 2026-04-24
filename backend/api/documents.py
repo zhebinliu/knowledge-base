@@ -149,7 +149,14 @@ async def get_document(doc_id: str, session: AsyncSession = Depends(get_session)
     doc = await session.get(Document, doc_id)
     if not doc:
         raise HTTPException(404, "文档不存在")
-    return {"id": doc.id, "filename": doc.filename, "status": doc.conversion_status, "markdown_content": doc.markdown_content}
+    return {
+        "id": doc.id,
+        "filename": doc.filename,
+        "status": doc.conversion_status,
+        "markdown_content": doc.markdown_content,
+        "summary": doc.summary,
+        "faq": doc.faq,
+    }
 
 
 @router.get("/{doc_id}/status")

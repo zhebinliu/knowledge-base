@@ -137,7 +137,9 @@ async def generate_mcp_key(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    """生成（或轮换）当前用户的 MCP API Key。返回完整 key，仅本次可见。"""
+    """生成（或轮换）当前用户的 MCP API Key。返回完整 key，仅本次可见。需管理员授权 api_enabled。"""
+    if not user.api_enabled:
+        raise HTTPException(403, "未获得 API/MCP 调用授权，请联系管理员开启")
     key = "mcp_" + secrets.token_hex(24)   # 52 chars total
     user.mcp_api_key = key
     await session.commit()

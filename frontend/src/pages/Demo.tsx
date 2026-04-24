@@ -1,0 +1,530 @@
+/**
+ * Demo — 产品演示页面
+ * Route: /demo  (no auth required)
+ */
+import { useState, useEffect, useRef } from 'react'
+import {
+  Upload, MessageSquare, Layers, Folder, Award, Terminal,
+  ChevronRight, CheckCircle, Zap, Brain, ArrowRight,
+  BarChart2, Search, RefreshCw, FileText, Star, ThumbsUp,
+  Shield, Clock, Database, Code2, Sparkles, Play,
+  BookOpen, KeyRound,
+} from 'lucide-react'
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
+
+function Tag({ children }: { children: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-brand-light border border-orange-200 text-[#D96400]">
+      {children}
+    </span>
+  )
+}
+
+function StatBadge({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="text-center">
+      <p className="text-3xl font-extrabold text-ink tracking-tight">{value}</p>
+      <p className="text-xs text-ink-muted mt-0.5">{label}</p>
+    </div>
+  )
+}
+
+// ── Animated QA demo ──────────────────────────────────────────────────────────
+
+const QA_DEMO_FLOWS: { q: string; a: string; sources: string[] }[] = [
+  {
+    q: '合同阶段的审批流程是什么？',
+    a: '合同审批遵循「起草 → 法务审核 → 商务确认 → 高管签署」四步流程。法务审核需在 3 个工作日内完成，超时需上报项目经理。所有合同须在 OA 系统留存电子版……',
+    sources: ['合同管理手册.pdf · 第 3 章', '实施规范 v2.1.docx · §5.2'],
+  },
+  {
+    q: '回款认领需要哪些材料？',
+    a: '回款认领需提交：① 银行到账回执（截图或 PDF）；② 合同编号和对应金额；③ 客户开票信息（如有开票需求）。在 CRM「回款管理」模块操作，选择对应合同后上传材料……',
+    sources: ['回款操作指南.pdf · 回款认领流程', '财务对接规范.md · 第 4 节'],
+  },
+  {
+    q: '商机阶段如何做竞品分析？',
+    a: '商机阶段竞品分析重点关注三个维度：功能覆盖度、TCO（总拥有成本）和实施周期。建议使用标准化比较矩阵，重点突出纷享销客在移动端和销售过程管控方面的差异化优势……',
+    sources: ['竞品分析框架.pptx · 商机阶段', 'BD 话术手册.docx · 竞争应对'],
+  },
+]
+
+function QaDemo() {
+  const [flowIdx, setFlowIdx] = useState(0)
+  const [phase, setPhase]     = useState<'idle' | 'typing' | 'answering' | 'done'>('idle')
+  const [displayQ, setDisplayQ] = useState('')
+  const [displayA, setDisplayA] = useState('')
+  const [showSrc, setShowSrc]   = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const flow = QA_DEMO_FLOWS[flowIdx]
+
+  const runFlow = (idx: number) => {
+    const f = QA_DEMO_FLOWS[idx]
+    setDisplayQ(''); setDisplayA(''); setShowSrc(false); setPhase('typing')
+    let qi = 0
+    const typeQ = () => {
+      if (qi <= f.q.length) {
+        setDisplayQ(f.q.slice(0, qi))
+        qi++
+        timerRef.current = setTimeout(typeQ, 40)
+      } else {
+        setPhase('answering')
+        let ai = 0
+        const typeA = () => {
+          if (ai <= f.a.length) {
+            setDisplayA(f.a.slice(0, ai))
+            ai += 3
+            timerRef.current = setTimeout(typeA, 18)
+          } else {
+            setShowSrc(true)
+            setPhase('done')
+          }
+        }
+        timerRef.current = setTimeout(typeA, 600)
+      }
+    }
+    typeQ()
+  }
+
+  useEffect(() => {
+    timerRef.current = setTimeout(() => runFlow(0), 600)
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
+  }, [])
+
+  const switchFlow = (idx: number) => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    setFlowIdx(idx)
+    runFlow(idx)
+  }
+
+  return (
+    <div className="rounded-2xl border border-line overflow-hidden shadow-lg bg-surface">
+      {/* window chrome */}
+      <div className="flex items-center gap-1.5 px-4 py-2.5 bg-gray-100 border-b border-line">
+        <span className="w-3 h-3 rounded-full bg-red-400" />
+        <span className="w-3 h-3 rounded-full bg-yellow-400" />
+        <span className="w-3 h-3 rounded-full bg-green-400" />
+        <span className="ml-3 text-xs text-ink-muted font-mono">KB System — 智能问答</span>
+      </div>
+
+      {/* flow tabs */}
+      <div className="flex gap-1 px-4 py-2 bg-canvas border-b border-line overflow-x-auto">
+        {QA_DEMO_FLOWS.map((f, i) => (
+          <button
+            key={i}
+            onClick={() => switchFlow(i)}
+            className={`flex-shrink-0 text-[11px] px-3 py-1 rounded-full font-medium transition-all ${
+              flowIdx === i ? 'text-white' : 'text-ink-secondary hover:bg-surface'
+            }`}
+            style={flowIdx === i ? { background: BRAND_GRAD } : {}}
+          >
+            示例 {i + 1}
+          </button>
+        ))}
+      </div>
+
+      {/* chat area */}
+      <div className="p-5 min-h-[260px] flex flex-col gap-4">
+        {/* user bubble */}
+        {displayQ && (
+          <div className="flex justify-end">
+            <div className="max-w-[75%] px-4 py-2.5 rounded-2xl rounded-tr-sm text-sm text-white" style={{ background: BRAND_GRAD }}>
+              {displayQ}{phase === 'typing' && <span className="inline-block w-0.5 h-4 bg-white ml-0.5 animate-pulse align-middle" />}
+            </div>
+          </div>
+        )}
+
+        {/* assistant bubble */}
+        {(displayA || phase === 'answering') && (
+          <div className="flex justify-start gap-3">
+            <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: BRAND_GRAD }}>
+              <Brain size={13} className="text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="card px-4 py-3 text-sm text-ink leading-relaxed">
+                {displayA || <span className="inline-flex gap-1">{[0,1,2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-ink-muted animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />)}</span>}
+                {phase === 'answering' && displayA && <span className="inline-block w-0.5 h-4 bg-ink ml-0.5 animate-pulse align-middle" />}
+              </div>
+
+              {/* sources */}
+              {showSrc && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-[10px] text-ink-muted px-1 font-medium uppercase tracking-wider">参考来源</p>
+                  {flow.sources.map((s, i) => (
+                    <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-canvas border border-line text-[11px] text-ink-secondary">
+                      <FileText size={11} className="flex-shrink-0 text-ink-muted" />
+                      {s}
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-2 px-1 pt-1">
+                    <button className="flex items-center gap-1 text-[11px] text-green-600 hover:text-green-700">
+                      <ThumbsUp size={11} /> 有帮助
+                    </button>
+                    <button className="flex items-center gap-1 text-[11px] text-ink-muted hover:text-ink ml-2">
+                      <Star size={11} /> 收藏
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* idle state */}
+        {phase === 'idle' && !displayQ && (
+          <div className="flex-1 flex items-center justify-center text-ink-muted text-sm">
+            <RefreshCw size={14} className="animate-spin mr-2" /> 加载演示…
+          </div>
+        )}
+      </div>
+
+      {/* input bar */}
+      <div className="px-4 pb-4">
+        <div className="flex items-center gap-2 border border-line rounded-xl px-4 py-2.5 bg-canvas">
+          <span className="flex-1 text-sm text-ink-muted">向知识库提问…</span>
+          <button className="w-7 h-7 rounded-lg flex items-center justify-center text-white" style={{ background: BRAND_GRAD }}>
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Feature card ──────────────────────────────────────────────────────────────
+
+function FeatureCard({
+  icon: Icon, title, desc, color = 'orange',
+  items,
+}: {
+  icon: any; title: string; desc: string; color?: 'orange' | 'purple' | 'blue' | 'green' | 'teal' | 'rose'
+  items?: string[]
+}) {
+  const colors: Record<string, string> = {
+    orange: 'bg-orange-50 border-orange-100',
+    purple: 'bg-purple-50 border-purple-100',
+    blue:   'bg-blue-50 border-blue-100',
+    green:  'bg-green-50 border-green-100',
+    teal:   'bg-teal-50 border-teal-100',
+    rose:   'bg-rose-50 border-rose-100',
+  }
+  const iconColors: Record<string, string> = {
+    orange: '#D96400', purple: '#7C3AED', blue: '#2563EB',
+    green: '#059669', teal: '#0D9488', rose: '#E11D48',
+  }
+  const iconBg: Record<string, string> = {
+    orange: 'bg-orange-100', purple: 'bg-purple-100', blue: 'bg-blue-100',
+    green: 'bg-green-100', teal: 'bg-teal-100', rose: 'bg-rose-100',
+  }
+  return (
+    <div className={`rounded-xl border p-5 ${colors[color]}`}>
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${iconBg[color]}`}>
+        <Icon size={17} style={{ color: iconColors[color] }} />
+      </div>
+      <p className="font-semibold text-ink mb-1.5">{title}</p>
+      <p className="text-xs text-ink-secondary leading-relaxed mb-3">{desc}</p>
+      {items && (
+        <ul className="space-y-1">
+          {items.map(item => (
+            <li key={item} className="flex items-center gap-1.5 text-xs text-ink-secondary">
+              <CheckCircle size={11} style={{ color: iconColors[color], flexShrink: 0 }} />
+              {item}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+// ── Use case step flow ────────────────────────────────────────────────────────
+
+function UseCaseFlow({ steps }: { steps: { icon: any; title: string; desc: string }[] }) {
+  return (
+    <div className="flex flex-col sm:flex-row gap-0">
+      {steps.map((step, i) => (
+        <div key={i} className="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-2 flex-1">
+          <div className="flex sm:flex-col items-center gap-3 sm:gap-2 flex-1 w-full">
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-brand-light flex-shrink-0">
+              <step.icon size={18} style={{ color: 'var(--accent)' }} />
+            </div>
+            {i < steps.length - 1 && (
+              <ArrowRight size={14} className="text-ink-muted sm:hidden flex-shrink-0" />
+            )}
+            <div className="sm:text-center">
+              <p className="text-sm font-semibold text-ink">{step.title}</p>
+              <p className="text-xs text-ink-secondary mt-0.5">{step.desc}</p>
+            </div>
+          </div>
+          {i < steps.length - 1 && (
+            <ArrowRight size={14} className="text-ink-muted hidden sm:block self-start mt-3 sm:mt-0 sm:self-auto flex-shrink-0" style={{ transform: 'none' }} />
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+export default function Demo() {
+  useEffect(() => {
+    document.title = '产品演示 — KB System'
+    return () => { document.title = '实施知识综合管理' }
+  }, [])
+
+  return (
+    <div className="min-h-screen bg-canvas">
+
+      {/* ── Top nav bar ──────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-10 bg-surface/90 backdrop-blur border-b border-line">
+        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: BRAND_GRAD }}>
+              <BookOpen size={13} className="text-white" />
+            </div>
+            <span className="text-sm font-bold text-ink">KB System</span>
+            <span className="hidden sm:block text-xs text-ink-muted ml-1">纷享销客 CRM 实施知识库</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <a href="/help" className="text-xs text-ink-secondary hover:text-ink px-3 py-1.5 rounded-lg hover:bg-canvas transition-colors">
+              使用手册
+            </a>
+            <a href="/api" className="text-xs text-ink-secondary hover:text-ink px-3 py-1.5 rounded-lg hover:bg-canvas transition-colors">
+              API 文档
+            </a>
+            <a href="/" className="flex items-center gap-1.5 text-xs font-medium text-white px-3 py-1.5 rounded-lg transition-all hover:opacity-90" style={{ background: BRAND_GRAD }}>
+              <Play size={11} /> 进入系统
+            </a>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-6xl mx-auto px-6 py-14">
+
+        {/* ── Hero ─────────────────────────────────────────────────── */}
+        <div className="text-center mb-16">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-light border border-orange-200 text-[#D96400] text-xs font-medium mb-5">
+            <Sparkles size={11} /> CRM 实施团队专属知识管理平台
+          </div>
+          <h1 className="text-4xl sm:text-5xl font-extrabold text-ink leading-tight mb-4">
+            让实施知识
+            <br />
+            <span style={{ background: BRAND_GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              触手可及
+            </span>
+          </h1>
+          <p className="text-ink-secondary text-base max-w-lg mx-auto leading-relaxed mb-8">
+            上传实施文档，AI 自动切片入库，随时用自然语言提问。
+            支持 PM 视角分析、MCP 集成和知识覆盖率挑战。
+          </p>
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <a href="/" className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl transition-all hover:opacity-90 shadow-sm" style={{ background: BRAND_GRAD }}>
+              <Play size={14} /> 立即体验
+            </a>
+            <a href="/help" className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-ink rounded-xl border border-line bg-surface hover:bg-canvas transition-colors">
+              <BookOpen size={14} /> 查看手册
+            </a>
+          </div>
+        </div>
+
+        {/* ── Stats strip ──────────────────────────────────────────── */}
+        <div className="card p-6 mb-16 grid grid-cols-2 sm:grid-cols-4 gap-6 divide-x divide-line">
+          <StatBadge value="50MB" label="单文件上传上限" />
+          <StatBadge value="6 类" label="文档格式支持" />
+          <StatBadge value="9 段" label="LTC 阶段标注" />
+          <StatBadge value="MCP" label="Model Context Protocol" />
+        </div>
+
+        {/* ── Live QA demo ──────────────────────────────────────────── */}
+        <div className="mb-20">
+          <div className="text-center mb-8">
+            <Tag>实时演示</Tag>
+            <h2 className="text-2xl font-bold text-ink mt-3 mb-2">AI 驱动的知识问答</h2>
+            <p className="text-ink-secondary text-sm max-w-md mx-auto">
+              输入自然语言问题，系统自动检索最相关的知识切片，
+              结合 RAG 生成有来源引用的结构化答案。
+            </p>
+          </div>
+          <div className="max-w-2xl mx-auto">
+            <QaDemo />
+          </div>
+        </div>
+
+        {/* ── Feature grid ─────────────────────────────────────────── */}
+        <div className="mb-20">
+          <div className="text-center mb-8">
+            <Tag>核心功能</Tag>
+            <h2 className="text-2xl font-bold text-ink mt-3 mb-2">完整的知识管理闭环</h2>
+            <p className="text-ink-secondary text-sm">从文档上传到知识问答，覆盖实施团队全场景需求</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <FeatureCard
+              icon={Upload} color="orange" title="智能文档处理"
+              desc="支持 PDF/Word/PPT/Excel/MD 等主流格式，AI 自动识别结构、切片并分类 LTC 阶段"
+              items={['自动推断文档类型', 'LTC 阶段置信度打分', '自动生成摘要 + FAQ']}
+            />
+            <FeatureCard
+              icon={MessageSquare} color="blue" title="多轮 RAG 问答"
+              desc="基于向量检索的语义问答，支持多轮对话上下文、来源引用跳转和答案反馈"
+              items={['最多 6 轮对话上下文', '来源切片可跳转原文', '👍👎⭐ 三级反馈']}
+            />
+            <FeatureCard
+              icon={Brain} color="purple" title="虚拟项目经理"
+              desc="以特定客户项目 PM 的视角回答，输出状态 / 决策 / 下一步 / 风险四维分析"
+              items={['限定项目文档范围', '结构化项目分析报告', '支持 MCP 调用']}
+            />
+            <FeatureCard
+              icon={Layers} color="teal" title="切片精细管理"
+              desc="查看每个知识切片的热度、审核状态，支持内联编辑并自动重新向量化"
+              items={['🔥 热度追踪', '审核工作流', '内容编辑即时更新']}
+            />
+            <FeatureCard
+              icon={Folder} color="green" title="项目维度组织"
+              desc="按客户项目维度组织文档，支持行业标签继承，PM 模式自动过滤项目范围"
+              items={['行业标签自动继承', '模块覆盖率统计', '文档类型分类']}
+            />
+            <FeatureCard
+              icon={Terminal} color="rose" title="MCP / REST 集成"
+              desc="完整实现 MCP 2024-11-05 协议，Claude Desktop / Cursor 等 AI 工具开箱即用"
+              items={['ask_kb / search_kb / list_projects', 'MCP API Key 鉴权', '同时支持 JWT']}
+            />
+          </div>
+        </div>
+
+        {/* ── Use cases ────────────────────────────────────────────── */}
+        <div className="mb-20">
+          <div className="text-center mb-8">
+            <Tag>典型场景</Tag>
+            <h2 className="text-2xl font-bold text-ink mt-3 mb-2">三种核心使用场景</h2>
+          </div>
+
+          <div className="space-y-5">
+            {[
+              {
+                title: '场景 1：新顾问快速上手',
+                desc: '新加入的实施顾问通过 QA 提问快速获取各阶段规范，无需翻阅大量文档。',
+                steps: [
+                  { icon: Upload,        title: '上传项目文档', desc: '将历史文档批量上传' },
+                  { icon: Zap,           title: '自动入库',     desc: '切片 + 分类 + 向量化' },
+                  { icon: MessageSquare, title: '自然语言提问', desc: '用口语化问题检索知识' },
+                  { icon: CheckCircle,   title: '获得答案',     desc: '附来源引用，可追溯' },
+                ],
+              },
+              {
+                title: '场景 2：AI 辅助项目复盘',
+                desc: '项目经理通过 PM 模式快速梳理项目现状，生成结构化的状态报告。',
+                steps: [
+                  { icon: Folder,        title: '创建项目',     desc: '绑定客户文档到项目' },
+                  { icon: Brain,         title: '切换 PM 视角', desc: '开启虚拟 PM 模式' },
+                  { icon: MessageSquare, title: '提问项目现状', desc: '如「当前风险有哪些」' },
+                  { icon: BarChart2,     title: '获得结构分析', desc: '状态/决策/风险四维' },
+                ],
+              },
+              {
+                title: '场景 3：Claude 直接调用知识库',
+                desc: '开发者或顾问在 Claude 中配置 MCP，让 AI 实时访问知识库回答问题。',
+                steps: [
+                  { icon: KeyRound,  title: '生成 MCP Key', desc: '在系统设置中生成' },
+                  { icon: Code2,    title: '配置 Claude',  desc: '添加 MCP 服务器配置' },
+                  { icon: Search,   title: '自动调用工具', desc: 'Claude 识别并调用 ask_kb' },
+                  { icon: Database, title: '实时检索答复', desc: '答案来自最新知识库内容' },
+                ],
+              },
+            ].map(({ title, desc, steps }) => (
+              <div key={title} className="card p-6">
+                <p className="font-semibold text-ink mb-1">{title}</p>
+                <p className="text-xs text-ink-secondary mb-5">{desc}</p>
+                <UseCaseFlow steps={steps} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Knowledge quality loop ───────────────────────────────── */}
+        <div className="mb-20">
+          <div className="text-center mb-8">
+            <Tag>知识飞轮</Tag>
+            <h2 className="text-2xl font-bold text-ink mt-3 mb-2">持续自我优化的知识体系</h2>
+            <p className="text-ink-secondary text-sm max-w-md mx-auto">
+              用户反馈、热度数据和挑战结果共同驱动知识库持续改进
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { icon: MessageSquare, color: '#FF8D1A', bg: 'bg-orange-50', title: '用户提问', desc: '真实问题反映知识需求' },
+              { icon: ThumbsUp,     color: '#10B981', bg: 'bg-green-50',  title: '答案反馈', desc: '👎 自动进入待补充队列' },
+              { icon: Award,        color: '#7C3AED', bg: 'bg-purple-50', title: '定期挑战', desc: '识别覆盖薄弱的 LTC 阶段' },
+              { icon: Upload,       color: '#2563EB', bg: 'bg-blue-50',   title: '补充文档', desc: '针对性上传，闭合知识缺口' },
+            ].map(({ icon: Icon, color, bg, title, desc }, i, arr) => (
+              <div key={title} className="relative">
+                <div className={`rounded-xl p-4 text-center ${bg} border border-line`}>
+                  <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center mx-auto mb-3 shadow-sm">
+                    <Icon size={18} style={{ color }} />
+                  </div>
+                  <p className="text-sm font-semibold text-ink">{title}</p>
+                  <p className="text-[11px] text-ink-secondary mt-1">{desc}</p>
+                </div>
+                {i < arr.length - 1 && (
+                  <div className="hidden sm:flex absolute top-1/2 -right-3 -translate-y-1/2 z-10">
+                    <ChevronRight size={16} className="text-ink-muted" />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Security & reliability strip ─────────────────────────── */}
+        <div className="card p-6 mb-16">
+          <p className="text-center text-xs font-semibold text-ink-muted uppercase tracking-widest mb-5">安全与可靠性</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+            {[
+              { icon: Shield, label: 'JWT 认证', desc: 'HS256，可配置过期时间' },
+              { icon: Clock,  label: '接口限流', desc: 'slowapi 防 DDoS' },
+              { icon: Database, label: '向量持久化', desc: 'Qdrant 独立向量库' },
+              { icon: RefreshCw, label: '自动重试', desc: '最多 5 次，指数退避' },
+            ].map(({ icon: Icon, label, desc }) => (
+              <div key={label}>
+                <div className="w-9 h-9 rounded-xl bg-canvas border border-line flex items-center justify-center mx-auto mb-2">
+                  <Icon size={15} className="text-ink-secondary" />
+                </div>
+                <p className="text-xs font-semibold text-ink">{label}</p>
+                <p className="text-[11px] text-ink-muted mt-0.5">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── CTA ──────────────────────────────────────────────────── */}
+        <div className="rounded-2xl p-8 sm:p-12 text-center mb-8" style={{ background: 'linear-gradient(135deg,#FFF4E6,#FFE8CC)' }}>
+          <h2 className="text-2xl font-extrabold text-ink mb-2">开始构建你的知识库</h2>
+          <p className="text-ink-secondary text-sm mb-6">上传第一份文档，5 分钟内即可开始问答</p>
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <a href="/" className="flex items-center gap-2 px-6 py-3 text-sm font-semibold text-white rounded-xl transition-all hover:opacity-90 shadow" style={{ background: BRAND_GRAD }}>
+              <Play size={14} /> 立即进入系统
+            </a>
+            <a href="/help" className="flex items-center gap-2 px-6 py-3 text-sm font-medium text-[#D96400] rounded-xl border border-orange-300 bg-white hover:bg-orange-50 transition-colors">
+              <BookOpen size={14} /> 阅读使用手册
+            </a>
+            <a href="/api" className="flex items-center gap-2 px-6 py-3 text-sm font-medium text-ink-secondary rounded-xl border border-line bg-white hover:bg-canvas transition-colors">
+              <Code2 size={14} /> API 文档
+            </a>
+          </div>
+        </div>
+
+        <p className="text-center text-xs text-ink-muted">
+          KB System · 纷享销客 CRM 实施知识库 ·{' '}
+          <a href="https://kb.tokenwave.cloud" className="hover:text-ink transition-colors">kb.tokenwave.cloud</a>
+        </p>
+
+      </div>
+    </div>
+  )
+}

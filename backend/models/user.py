@@ -32,6 +32,9 @@ class User(Base):
     # MCP 永久 API Key（不过期，格式 mcp_<uuid_hex>）
     mcp_api_key: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
 
+    # 管理员授权才可调用外部 API / MCP；默认关闭，管理员账号自动开启
+    api_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

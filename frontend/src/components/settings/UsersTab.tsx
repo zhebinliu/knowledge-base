@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Shield, ShieldOff, KeyRound, Trash2, Loader, Power, PowerOff, Copy, X, Plus, Pencil } from 'lucide-react'
+import { Shield, ShieldOff, KeyRound, Trash2, Loader, Power, PowerOff, Copy, X, Plus, Pencil, Plug, PlugZap } from 'lucide-react'
 import {
   listUsers, createUser, updateUser, resetUserPassword, deleteUser,
   type AuthUser,
@@ -110,6 +110,7 @@ export default function UsersTab() {
               <th className="px-3 py-2 text-left whitespace-nowrap">角色</th>
               <th className="px-3 py-2 text-left whitespace-nowrap">状态</th>
               <th className="px-3 py-2 text-left whitespace-nowrap">可访问模块</th>
+              <th className="px-3 py-2 text-left whitespace-nowrap">API权限</th>
               <th className="px-3 py-2 text-left whitespace-nowrap">最近登录</th>
               <th className="px-3 py-2 text-right whitespace-nowrap">操作</th>
             </tr>
@@ -174,6 +175,17 @@ export default function UsersTab() {
                       </button>
                     </div>
                   </td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    {u.api_enabled ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                        <PlugZap size={11} /> 已开启
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded">
+                        <Plug size={11} /> 未授权
+                      </span>
+                    )}
+                  </td>
                   <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">{formatTime(u.last_login_at)}</td>
                   <td className="px-3 py-2.5 text-right">
                     <div className="inline-flex items-center gap-1">
@@ -191,6 +203,13 @@ export default function UsersTab() {
                         onClick={() => patchMut.mutate({ id: u.id, body: { is_active: !u.is_active } })}
                       >
                         {u.is_active ? <PowerOff size={13} /> : <Power size={13} />}
+                      </ActionButton>
+                      <ActionButton
+                        title={u.api_enabled ? '撤销 API/MCP 权限' : '授予 API/MCP 权限'}
+                        disabled={isPending}
+                        onClick={() => patchMut.mutate({ id: u.id, body: { api_enabled: !u.api_enabled } })}
+                      >
+                        {u.api_enabled ? <PlugZap size={13} /> : <Plug size={13} />}
                       </ActionButton>
                       <ActionButton
                         title="重置密码（生成随机密码）"

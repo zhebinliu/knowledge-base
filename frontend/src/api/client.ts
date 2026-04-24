@@ -101,6 +101,7 @@ export interface AuthUser {
   must_change_password: boolean
   sso_provider: string | null
   allowed_modules: string[] | null  // null = 全部模块
+  api_enabled: boolean
   created_at: string
   last_login_at: string | null
 }
@@ -219,8 +220,13 @@ export const updateDocumentMeta = (id: string, body: { project_id?: string | nul
 export const getDocumentStatus = (id: string) =>
   api.get<{ id: string; conversion_status: string; chunk_count: number }>(`/documents/${id}/status`).then(r => r.data)
 
+export interface DocumentFaqItem { q: string; a: string }
+
 export const getDocumentMarkdown = (id: string) =>
-  api.get<{ id: string; filename: string; status: string; markdown_content: string | null }>(`/documents/${id}`).then(r => r.data)
+  api.get<{
+    id: string; filename: string; status: string; markdown_content: string | null
+    summary?: string | null; faq?: DocumentFaqItem[] | null
+  }>(`/documents/${id}`).then(r => r.data)
 
 export const getDocumentChunks = (id: string) =>
   api.get<Chunk[]>(`/documents/${id}/chunks`).then(r => r.data)
@@ -550,7 +556,7 @@ export const createUser = (body: {
   api.post<AuthUser & { initial_password?: string }>('/users', body).then(r => r.data)
 
 export const updateUser = (id: string, body: {
-  is_admin?: boolean; is_active?: boolean; full_name?: string; email?: string; allowed_modules?: string[] | null
+  is_admin?: boolean; is_active?: boolean; full_name?: string; email?: string; allowed_modules?: string[] | null; api_enabled?: boolean
 }) =>
   api.patch<AuthUser>(`/users/${id}`, body).then(r => r.data)
 

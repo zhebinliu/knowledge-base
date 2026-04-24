@@ -313,10 +313,15 @@ async def mcp_endpoint(request: Request):
                 status_code=401,
                 content={"jsonrpc": "2.0", "id": None, "error": {"code": -32001, "message": "无效的 MCP API Key"}},
             )
+        if not user.api_enabled:
+            return JSONResponse(
+                status_code=403,
+                content={"jsonrpc": "2.0", "id": None, "error": {"code": -32003, "message": "未获得 API/MCP 调用授权，请联系管理员开启"}},
+            )
     else:
         # JWT 模式
         try:
-            jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+            payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
         except jwt.ExpiredSignatureError:
             return JSONResponse(
                 status_code=401,
@@ -326,6 +331,19 @@ async def mcp_endpoint(request: Request):
             return JSONResponse(
                 status_code=401,
                 content={"jsonrpc": "2.0", "id": None, "error": {"code": -32001, "message": "无效的 token"}},
+            )
+        user_id = payload.get("sub")
+        async with async_session_maker() as session:
+            jwt_user = await session.get(User, user_id) if user_id else None
+        if not jwt_user or not jwt_user.is_active:
+            return JSONResponse(
+                status_code=401,
+                content={"jsonrpc": "2.0", "id": None, "error": {"code": -32001, "message": "用户不存在或已禁用"}},
+            )
+        if not jwt_user.api_enabled:
+            return JSONResponse(
+                status_code=403,
+                content={"jsonrpc": "2.0", "id": None, "error": {"code": -32003, "message": "未获得 API/MCP 调用授权，请联系管理员开启"}},
             )
 
     try:

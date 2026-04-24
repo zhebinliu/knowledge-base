@@ -74,20 +74,19 @@
 
 ---
 
-## 待启动（用户确认当前批次测试通过后再做）
+## 已完成（2026-04-23 第三批）
 
 ### #8 Chunk → 原文档定位跳转
-- QA 引用面板的 `看原文` 链接已经带 `/documents?doc=X#chunk-Y`，但 Documents 页面目前不解析 hash
-- 需要：Documents 详情抽屉解析 `#chunk-X`，自动滚动到对应 chunk 位置 / 高亮
-- 已有数据：chunks.source_section 存 section path；后端 QA sources 已透出
-- 工作量：S
+- [x] Documents 页处理 `?doc=X` URL 参数 → 以 chunks 模式打开抽屉
+- [x] 解析 `#chunk-{id}` hash → 加载完成后自动滚动到目标 chunk 并高亮
+- [x] ChunkCard 增加 `id="chunk-{id}"` + `highlighted` 样式（橙色边框/背景）
 
 ### #9 文档摘要 + 自动生成 FAQ
-- 文档转化完成后触发 LLM 调用：3 句话摘要 + Top 5 FAQ
-- DB：`documents` 加 `summary TEXT`、`faq JSON`
-- 流程：`_process_document_async` 入库完成后 append 一个摘要任务（同步或 Celery 子任务）
-- 前端：文档详情页默认展示摘要 + FAQ 卡片
-- 工作量：M（加一次模型调用 + UI）
+- [x] `documents` 表新增 `summary TEXT`、`faq JSON`（startup migration 幂等）
+- [x] `_generate_summary_faq()` 异步函数：文档处理完后调用，3 句话摘要 + 5 条 FAQ
+- [x] `GET /api/documents/{id}` 透出 summary + faq 字段
+- [x] 文档抽屉 Markdown 视图顶部展示摘要卡 + 可展开 FAQ 列表
+- [x] 部署验证：DB 列存在，后端启动干净
 
 ---
 

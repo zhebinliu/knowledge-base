@@ -78,6 +78,18 @@ class VectorStore:
             points_selector=PointIdsList(points=[chunk_id]),
         )
 
+    async def delete_by_document(self, document_id: str):
+        """按 document_id 批量删除 Qdrant 向量点。"""
+        from qdrant_client.models import FilterSelector
+        await self.client.delete(
+            collection_name=settings.qdrant_collection,
+            points_selector=FilterSelector(
+                filter=Filter(must=[
+                    FieldCondition(key="document_id", match=MatchValue(value=document_id))
+                ])
+            ),
+        )
+
     async def collection_info(self) -> dict:
         info = await self.client.get_collection(settings.qdrant_collection)
         # vectors_count is deprecated in newer Qdrant versions; fall back to points_count

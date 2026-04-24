@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Text, Float, DateTime, ForeignKey
+from sqlalchemy import String, Text, Float, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from models import Base
 
@@ -33,5 +33,8 @@ class Document(Base):
     doc_type: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
     # 行业标签：继承自项目或手动设置，枚举见 ltc_taxonomy.INDUSTRIES
     industry: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    # LLM-generated after processing
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    faq: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)

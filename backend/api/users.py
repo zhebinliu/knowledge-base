@@ -27,6 +27,7 @@ def _user_dto(u: User) -> dict:
         "must_change_password": u.must_change_password,
         "sso_provider": u.sso_provider,
         "allowed_modules": u.allowed_modules,
+        "api_enabled": u.api_enabled,
         "created_at": u.created_at,
         "last_login_at": u.last_login_at,
     }
@@ -61,6 +62,7 @@ class UserPatch(BaseModel):
     full_name: str | None = None
     email: str | None = None
     allowed_modules: list[str] | None = None  # None = 全部；通过 model_fields_set 判断是否修改
+    api_enabled: bool | None = None
 
 
 @router.get("")
@@ -132,6 +134,8 @@ async def update_user(
         user.email = payload.email
     if "allowed_modules" in payload.model_fields_set:
         user.allowed_modules = payload.allowed_modules
+    if payload.api_enabled is not None:
+        user.api_enabled = payload.api_enabled
 
     await session.commit()
     logger.info("user_updated", admin=current.username, target=user.username)

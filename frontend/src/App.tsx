@@ -2,6 +2,8 @@ import { Routes, Route } from 'react-router-dom'
 import Layout       from './components/Layout'
 import DesignSystem from './pages/DesignSystem'
 import ApiDocs      from './pages/ApiDocs'
+import Help         from './pages/Help'
+import Demo         from './pages/Demo'
 import Dashboard    from './pages/Dashboard'
 import Documents from './pages/Documents'
 import Chunks    from './pages/Chunks'
@@ -22,6 +24,8 @@ export default function App() {
     <Routes>
       <Route path="/ds"       element={<DesignSystem />} />
       <Route path="/api"      element={<ApiDocs />} />
+      <Route path="/help"     element={<Help />} />
+      <Route path="/demo"     element={<Demo />} />
       <Route path="/login"    element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/change-password" element={<RequireAuth />}>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { useSearchParams, Link } from 'react-router-dom'
+import { useSearchParams, useLocation, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   listDocuments, uploadDocument, deleteDocument, updateDocumentMeta,
@@ -169,6 +169,43 @@ function EditMetaModal({
 import MarkdownView from '../components/MarkdownView'
 import UploadOptionsModal from '../components/UploadOptionsModal'
 import ProjectFormModal from '../components/ProjectFormModal'
+import { type DocumentFaqItem } from '../api/client'
+
+function SummaryCard({ summary, faq }: { summary?: string | null; faq?: DocumentFaqItem[] | null }) {
+  const [faqOpen, setFaqOpen] = useState(false)
+  if (!summary && (!faq || faq.length === 0)) return null
+  return (
+    <div className="mb-5 rounded-xl border border-orange-100 bg-orange-50/40 overflow-hidden">
+      {summary && (
+        <div className="px-4 py-3 border-b border-orange-100">
+          <p className="text-xs font-semibold text-orange-700 mb-1.5">文档摘要</p>
+          <p className="text-sm text-gray-700 leading-relaxed">{summary}</p>
+        </div>
+      )}
+      {faq && faq.length > 0 && (
+        <div className="px-4 py-2.5">
+          <button
+            onClick={() => setFaqOpen(o => !o)}
+            className="flex items-center gap-1.5 text-xs font-semibold text-orange-700 w-full text-left"
+          >
+            {faqOpen ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
+            常见问题（{faq.length} 条）
+          </button>
+          {faqOpen && (
+            <div className="mt-2 space-y-2.5">
+              {faq.map((item, i) => (
+                <div key={i}>
+                  <p className="text-xs font-medium text-gray-800">Q{i + 1}. {item.q}</p>
+                  <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">{item.a}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const STATUS_BADGE: Record<string, JSX.Element> = {
   pending:    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-yellow-50 text-yellow-700 whitespace-nowrap"><Clock size={11}/>等待处理</span>,
@@ -188,10 +225,13 @@ const REVIEW_BADGE: Record<string, string> = {
 
 type DrawerMode = 'markdown' | 'chunks'
 
-function ChunkCard({ chunk }: { chunk: Chunk }) {
+function ChunkCard({ chunk, highlighted }: { chunk: Chunk; highlighted?: boolean }) {
   const [expanded, setExpanded] = useState(false)
   return (
-    <div className="border border-gray-200 rounded-xl p-4">
+    <div
+      id={`chunk-${chunk.id}`}
+      className={`border rounded-xl p-4 transition-all duration-500 ${highlighted ? 'border-orange-400 bg-orange-50/60 ring-2 ring-orange-300' : 'border-gray-200'}`}
+    >
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="text-xs font-mono text-gray-400">#{chunk.chunk_index}</span>
         {chunk.ltc_stage && (
@@ -234,10 +274,12 @@ function ChunkCard({ chunk }: { chunk: Chunk }) {
 export default function Documents() {
   const qc = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [drawerDocId, setDrawerDocId] = useState<string | null>(null)
   const [drawerMode, setDrawerMode] = useState<DrawerMode>('markdown')
+  const [targetChunkId, setTargetChunkId] = useState<string | null>(null)
 
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [showUploadOpts, setShowUploadOpts] = useState(false)
@@ -295,11 +337,33 @@ export default function Documents() {
 
   useEffect(() => {
     const open = searchParams.get('open')
-    if (open && open !== drawerDocId) {
+    const doc  = searchParams.get('doc')
+    if (doc && doc !== drawerDocId) {
+      // ?doc=X opens in chunks mode (from QA "看原文" links)
+      setDrawerDocId(doc)
+      setDrawerMode('chunks')
+    } else if (open && open !== drawerDocId) {
       setDrawerDocId(open)
       setDrawerMode('markdown')
     }
-  }, [searchParams, drawerDocId])
+    // Parse #chunk-{id} hash
+    const hash = location.hash
+    if (hash.startsWith('#chunk-')) {
+      setTargetChunkId(hash.slice('#chunk-'.length))
+    }
+  }, [searchParams, location.hash])
+
+  // Scroll to target chunk after chunks load
+  useEffect(() => {
+    if (!chunksLoading && targetChunkId && chunksData) {
+      setTimeout(() => {
+        const el = document.getElementById(`chunk-${targetChunkId}`)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 150)
+    }
+  }, [chunksLoading, targetChunkId, chunksData])
 
   const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return
@@ -663,6 +727,7 @@ export default function Documents() {
                     {drawerDoc?.conversion_status === 'completed' ? '暂无 Markdown 内容' : '文档尚未处理完成'}
                   </p>
                 )}
+                <SummaryCard summary={markdownData?.summary} faq={markdownData?.faq} />
                 {markdownData?.markdown_content && (
                   <MarkdownView content={markdownData.markdown_content} />
                 )}
@@ -680,7 +745,7 @@ export default function Documents() {
                   <p className="text-sm text-gray-400 py-8 text-center">暂无关联 Chunks</p>
                 )}
                 {chunksData?.map((chunk: Chunk) => (
-                  <ChunkCard key={chunk.id} chunk={chunk} />
+                  <ChunkCard key={chunk.id} chunk={chunk} highlighted={chunk.id === targetChunkId} />
                 ))}
               </div>
             )}

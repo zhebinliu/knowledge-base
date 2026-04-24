@@ -87,6 +87,10 @@ async def startup():
             "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS citation_count INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS last_cited_at TIMESTAMP NULL",
             "CREATE INDEX IF NOT EXISTS idx_chunks_citation ON chunks(citation_count DESC, last_cited_at DESC)",
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS summary TEXT",
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS faq JSON",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS api_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+            "UPDATE users SET api_enabled = TRUE WHERE is_admin = TRUE",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")
@@ -113,6 +117,29 @@ async def startup():
         logger.info("MinIO bucket created", bucket=settings.minio_bucket)
     else:
         logger.info("MinIO bucket ready", bucket=settings.minio_bucket)
+    # 恢复卡死的文档任务（converting/slicing 超过 15 分钟视为任务丢失）
+    from datetime import datetime, timedelta, timezone
+    from models.document import Document
+    from sqlalchemy import select as _select
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=15)
+    async with db_engine.connect() as _conn:
+        pass  # ensure engine is warm before using session
+    from models import async_session_maker as _asm
+    async with _asm() as _s:
+        _stuck = (await _s.execute(
+            _select(Document).where(
+                Document.conversion_status.in_(["converting", "slicing"]),
+                Document.updated_at < cutoff,
+            )
+        )).scalars().all()
+        for _doc in _stuck:
+            _doc.conversion_status = "pending"
+        if _stuck:
+            await _s.commit()
+            from tasks.convert_task import process_document as _pd
+            for _doc in _stuck:
+                _pd.delay(_doc.id)
+            logger.warning("stuck_documents_requeued", count=len(_stuck))
     logger.info("Startup complete")
 
 

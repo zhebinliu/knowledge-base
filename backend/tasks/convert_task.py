@@ -141,6 +141,61 @@ def process_document(self, doc_id: str):
         raise
 
 
+_SUMMARY_FAQ_PROMPT = """你是企业知识库文档分析助手。根据以下文档内容，生成简洁的文档摘要和常见问题。
+
+文件名：{filename}
+文档内容（部分）：
+{content}
+
+要求：
+1. 用 3 句话概括文档核心内容，聚焦最重要的业务价值和关键信息
+2. 提炼 5 个读者最可能提问的问题及简洁答案
+
+只输出如下 JSON，不加任何其他文字：
+{{"summary":"<3句话摘要，用句号分隔>","faq":[{{"q":"<问题>","a":"<答案>"}}，...（共5条）]}}"""
+
+
+async def _generate_summary_faq(doc_id: str, filename: str, markdown: str):
+    """生成文档摘要和 FAQ，写回 DB；失败不阻断主流程。"""
+    import json, re
+    from models import async_session_maker
+    from models.document import Document
+    from services.model_router import model_router
+    from services.config_service import config_service
+
+    model_router.set_config_service(config_service)
+    content = markdown[:8000]
+    prompt = _SUMMARY_FAQ_PROMPT.format(filename=filename, content=content)
+    try:
+        resp, _ = await model_router.chat_with_routing(
+            "doc_generation",
+            [{"role": "user", "content": prompt}],
+            max_tokens=1500,
+            temperature=0.3,
+            timeout=60.0,
+        )
+        if not resp or not resp.strip():
+            raise ValueError("empty response")
+        raw = resp.strip()
+        m = re.search(r'\{.*\}', raw, re.DOTALL)
+        if m:
+            raw = m.group()
+        data = json.loads(raw)
+        summary = (data.get("summary") or "").strip()
+        faq = data.get("faq") or []
+        if not summary:
+            raise ValueError("no summary in response")
+        async with async_session_maker() as session:
+            doc = await session.get(Document, doc_id)
+            if doc:
+                doc.summary = summary
+                doc.faq = faq if isinstance(faq, list) else []
+                await session.commit()
+        logger.info("doc_summary_generated", doc_id=doc_id, faq_count=len(faq))
+    except Exception as e:
+        logger.warning("doc_summary_failed", doc_id=doc_id, error=str(e)[:120])
+
+
 _DOC_TYPE_PROMPT = """你是文档分类助手。根据文件名和正文摘要，从以下枚举中选择最匹配的文档类型。
 
 可选类型：
@@ -251,6 +306,7 @@ async def _process_document_async(doc_id: str):
     from services.config_service import config_service
     from services.model_router import model_router
     from minio import Minio
+    from sqlalchemy import select, delete as sa_delete
 
     model_router.set_config_service(config_service)
 
@@ -264,6 +320,21 @@ async def _process_document_async(doc_id: str):
         logger.info("task_processing_start", doc_id=doc_id, filename=doc.filename)
 
         try:
+            # 1b. 清理旧切片，防止重处理时产生重复数据
+            existing_ids = (await session.execute(
+                select(Chunk.id).where(Chunk.document_id == doc_id)
+            )).scalars().all()
+            if existing_ids:
+                await session.execute(
+                    sa_delete(Chunk).where(Chunk.document_id == doc_id)
+                )
+                await session.commit()
+                try:
+                    await vector_store.delete_by_document(doc_id)
+                except Exception as ve:
+                    logger.warning("qdrant_cleanup_failed", doc_id=doc_id, error=str(ve)[:80])
+                logger.info("existing_chunks_cleared", doc_id=doc_id, count=len(existing_ids))
+
             # 2. 从 MinIO 获取原始文件
             minio_client = Minio(
                 settings.minio_endpoint,
@@ -365,6 +436,9 @@ async def _process_document_async(doc_id: str):
             doc.conversion_status = "completed"
             await session.commit()
             logger.info("task_completed", doc_id=doc_id, total_chunks=len(slices))
+
+            # 8. 异步生成摘要 + FAQ（失败不影响主流程）
+            await _generate_summary_faq(doc_id, doc.filename, markdown)
 
         except Exception as inner_exc:
             await session.rollback()

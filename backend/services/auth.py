@@ -63,7 +63,7 @@ async def _user_from_mcp_key(session: AsyncSession, token: str) -> Optional[User
     if not token.startswith("mcp_"):
         return None
     user = await session.scalar(select(User).where(User.mcp_api_key == token))
-    return user if user and user.is_active else None
+    return user if user and user.is_active and user.api_enabled else None
 
 
 async def get_current_user(
@@ -143,6 +143,7 @@ async def seed_admin_if_empty() -> None:
             is_admin=True,
             is_active=True,
             must_change_password=True,
+            api_enabled=True,
         )
         session.add(admin)
         await session.commit()
