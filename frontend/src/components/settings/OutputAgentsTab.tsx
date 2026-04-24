@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Save, Loader, Bot, Check, Eye, Code } from 'lucide-react'
-import { listOutputAgents, updateOutputAgent, listSkills, type OutputAgentConfig, type Skill } from '../../api/client'
+import { listOutputAgents, updateOutputAgent, listSkills, getModels, type OutputAgentConfig, type Skill, type ModelEntry } from '../../api/client'
 import MarkdownView from '../MarkdownView'
 
 const gradientStyle = { background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' }
@@ -19,11 +19,12 @@ const AGENT_DESCS: Record<string, string> = {
   insight: '生成项目洞察与分析报告',
 }
 
-interface AgentFormState { prompt: string; skill_ids: string[] }
+interface AgentFormState { prompt: string; skill_ids: string[]; model: string | null }
 
 export default function OutputAgentsTab() {
   const [configs, setConfigs] = useState<OutputAgentConfig[]>([])
   const [skills, setSkills] = useState<Skill[]>([])
+  const [models, setModels] = useState<ModelEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [forms, setForms] = useState<Record<string, AgentFormState>>({})
   const [saving, setSaving] = useState(false)
@@ -32,18 +33,19 @@ export default function OutputAgentsTab() {
   const [preview, setPreview] = useState(false)
 
   useEffect(() => {
-    Promise.all([listOutputAgents(), listSkills()]).then(([cfgs, skls]) => {
+    Promise.all([listOutputAgents(), listSkills(), getModels().catch(() => [] as ModelEntry[])]).then(([cfgs, skls, mdls]) => {
       setConfigs(cfgs)
       setSkills(skls)
+      setModels(mdls)
       const init: Record<string, AgentFormState> = {}
-      cfgs.forEach(c => { init[c.key] = { prompt: c.prompt, skill_ids: c.skill_ids } })
+      cfgs.forEach(c => { init[c.key] = { prompt: c.prompt, skill_ids: c.skill_ids, model: c.model } })
       setForms(init)
       if (cfgs.length > 0) setSelectedKey(cfgs[0].key)
     }).finally(() => setLoading(false))
   }, [])
 
   const selected = useMemo(() => configs.find(c => c.key === selectedKey) ?? null, [configs, selectedKey])
-  const form = selectedKey ? forms[selectedKey] ?? { prompt: '', skill_ids: [] } : { prompt: '', skill_ids: [] }
+  const form = selectedKey ? forms[selectedKey] ?? { prompt: '', skill_ids: [], model: null } : { prompt: '', skill_ids: [], model: null }
 
   const toggleSkill = (skillId: string) => {
     if (!selectedKey) return
@@ -144,6 +146,26 @@ export default function OutputAgentsTab() {
 
               {/* Content */}
               <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">模型</label>
+                  <select
+                    value={form.model ?? ''}
+                    onChange={e => {
+                      if (!selectedKey) return
+                      const v = e.target.value || null
+                      setForms(f => ({ ...f, [selectedKey]: { ...f[selectedKey], model: v } }))
+                    }}
+                    className={inputCls}
+                  >
+                    <option value="">默认（按 doc_generation 路由）</option>
+                    {models.map(m => (
+                      <option key={m.key} value={m.key}>
+                        {m.key} · {m.provider}（{m.max_context >= 1000 ? `${Math.round(m.max_context / 1000)}k` : m.max_context} ctx）
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">系统提示词</label>

@@ -321,6 +321,7 @@ OUTPUT_AGENT_KEYS = ("kickoff_pptx", "survey", "insight")
 class OutputAgentBody(BaseModel):
     prompt: str = Field(..., min_length=1)
     skill_ids: list[str] = []
+    model: str | None = None
 
 
 @router.get("/output-agents")
@@ -329,7 +330,12 @@ async def list_output_agents():
     result = []
     for key in OUTPUT_AGENT_KEYS:
         cfg = data.get(key, {})
-        result.append({"key": key, "prompt": cfg.get("prompt", ""), "skill_ids": cfg.get("skill_ids", [])})
+        result.append({
+            "key": key,
+            "prompt": cfg.get("prompt", ""),
+            "skill_ids": cfg.get("skill_ids", []),
+            "model": cfg.get("model"),
+        })
     return result
 
 
@@ -337,6 +343,10 @@ async def list_output_agents():
 async def update_output_agent(key: str, body: OutputAgentBody):
     if key not in OUTPUT_AGENT_KEYS:
         raise HTTPException(400, f"Invalid output agent key. Must be one of: {OUTPUT_AGENT_KEYS}")
-    await config_service.upsert("output_agent", key, {"prompt": body.prompt, "skill_ids": body.skill_ids})
+    await config_service.upsert("output_agent", key, {
+        "prompt": body.prompt,
+        "skill_ids": body.skill_ids,
+        "model": body.model,
+    })
     logger.info("config_changed", action="update", type="output_agent", key=key)
     return {"ok": True}

@@ -36,7 +36,8 @@ async def _get_project_chunks(project_id: str, top_n: int = 80) -> list[dict]:
     return [{"id": r.id, "content": r.content, "ltc_stage": r.ltc_stage or "通用", "citation_count": r.citation_count or 0} for r in rows]
 
 
-async def _get_output_agent_prompt(key: str) -> str:
+async def _get_output_agent_config(key: str) -> dict:
+    """Returns {"prompt": str, "skill_ids": [...], "model": str|None}."""
     async with async_session_maker() as s:
         row = (await s.execute(
             select(AgentConfig).where(
@@ -45,17 +46,33 @@ async def _get_output_agent_prompt(key: str) -> str:
             )
         )).scalar_one_or_none()
     if row and isinstance(row.config_value, dict):
-        return row.config_value.get("prompt", "")
-    return ""
+        return {
+            "prompt": row.config_value.get("prompt", ""),
+            "skill_ids": row.config_value.get("skill_ids", []),
+            "model": row.config_value.get("model"),
+        }
+    return {"prompt": "", "skill_ids": [], "model": None}
 
 
-async def _llm_call(prompt: str, system: str = "") -> str:
+async def _get_skill_snippets(skill_ids: list[str]) -> str:
+    if not skill_ids:
+        return ""
+    from models.skill import Skill
+    async with async_session_maker() as s:
+        rows = (await s.execute(select(Skill).where(Skill.id.in_(skill_ids)))).scalars().all()
+    return "\n\n".join(f"### 技能：{r.name}\n{r.prompt_snippet}" for r in rows)
+
+
+async def _llm_call(prompt: str, system: str = "", model: str | None = None) -> str:
     from services.model_router import model_router
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
-    content, _ = await model_router.chat(messages, task="qa")
+    if model:
+        content, _ = await model_router.chat(model, messages, max_tokens=8000)
+    else:
+        content, _ = await model_router.chat_with_routing("doc_generation", messages, max_tokens=8000)
     return content
 
 
@@ -89,7 +106,10 @@ async def generate_survey(bundle_id: str, project_id: str):
             return
 
         chunks = await _get_project_chunks(project_id, top_n=60)
-        agent_prompt = await _get_output_agent_prompt("survey")
+        agent_cfg = await _get_output_agent_config("survey")
+        agent_prompt = agent_cfg["prompt"]
+        agent_model = agent_cfg["model"]
+        skill_text = await _get_skill_snippets(agent_cfg["skill_ids"])
 
         if not chunks:
             chunks_text = "（暂无已审核的知识切片，请上传并处理文档后再试）"
@@ -114,9 +134,11 @@ async def generate_survey(bundle_id: str, project_id: str):
 
 {f"额外要求：{agent_prompt}" if agent_prompt else ""}
 
+{f"启用的技能参考：{chr(10)}{skill_text}" if skill_text else ""}
+
 请生成详细的实施调研问卷，按五大类组织，返回 Markdown 格式。"""
 
-        md = await _llm_call(prompt, system=SURVEY_SYSTEM)
+        md = await _llm_call(prompt, system=SURVEY_SYSTEM, model=agent_model)
 
         # Build docx
         docx_key: str | None = None
@@ -153,7 +175,10 @@ async def generate_insight(bundle_id: str, project_id: str):
             return
 
         chunks = await _get_project_chunks(project_id, top_n=80)
-        agent_prompt = await _get_output_agent_prompt("insight")
+        agent_cfg = await _get_output_agent_config("insight")
+        agent_prompt = agent_cfg["prompt"]
+        agent_model = agent_cfg["model"]
+        skill_text = await _get_skill_snippets(agent_cfg["skill_ids"])
 
         chunks_text = "\n\n".join(
             f"[{c['ltc_stage']}] {c['content'][:500]}" for c in chunks[:50]
@@ -169,8 +194,10 @@ async def generate_insight(bundle_id: str, project_id: str):
 问题：{question}
 {f"要求：{agent_prompt}" if agent_prompt else ""}
 
+{f"启用的技能参考：{chr(10)}{skill_text}" if skill_text else ""}
+
 请给出详细、结构化的回答（200–500字），使用 Markdown 格式（可用小标题、列表）。"""
-            answer = await _llm_call(prompt)
+            answer = await _llm_call(prompt, model=agent_model)
             sections.append(f"## {title}\n\n{answer}")
 
         report_date = date.today().strftime("%Y年%m月%d日")
@@ -206,7 +233,10 @@ async def generate_kickoff_pptx(bundle_id: str, project_id: str):
             return
 
         chunks = await _get_project_chunks(project_id, top_n=40)
-        agent_prompt = await _get_output_agent_prompt("kickoff_pptx")
+        agent_cfg = await _get_output_agent_config("kickoff_pptx")
+        agent_prompt = agent_cfg["prompt"]
+        agent_model = agent_cfg["model"]
+        skill_text = await _get_skill_snippets(agent_cfg["skill_ids"])
 
         chunks_text = "\n\n".join(f"[{c['ltc_stage']}] {c['content'][:400]}" for c in chunks[:25]) if chunks else "（暂无已审核知识切片）"
 
@@ -223,9 +253,11 @@ async def generate_kickoff_pptx(bundle_id: str, project_id: str):
 
 {f"额外要求：{agent_prompt}" if agent_prompt else ""}
 
+{f"启用的技能参考：{chr(10)}{skill_text}" if skill_text else ""}
+
 请按格式生成 6 张幻灯片的内容。"""
 
-        raw = await _llm_call(prompt, system=PPTX_SYSTEM)
+        raw = await _llm_call(prompt, system=PPTX_SYSTEM, model=agent_model)
         slides = _parse_slide_content(raw)
 
         pptx_bytes = _build_pptx(proj.name, proj.customer, kickoff_date_str, slides)

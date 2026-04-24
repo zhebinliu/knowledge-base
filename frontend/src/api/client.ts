@@ -653,10 +653,11 @@ export interface OutputAgentConfig {
   key: string
   prompt: string
   skill_ids: string[]
+  model: string | null
 }
 
 export const listOutputAgents = () => api.get<OutputAgentConfig[]>('/settings/output-agents').then(r => r.data)
-export const updateOutputAgent = (key: string, body: { prompt: string; skill_ids: string[] }) =>
+export const updateOutputAgent = (key: string, body: { prompt: string; skill_ids: string[]; model: string | null }) =>
   api.put(`/settings/output-agents/${key}`, body)
 
 // ── Call Logs ─────────────────────────────────────────────────────────────────
