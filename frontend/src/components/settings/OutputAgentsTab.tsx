@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Save, Loader, Bot, Check } from 'lucide-react'
+import { Save, Loader, Bot, Check, Eye, Code } from 'lucide-react'
 import { listOutputAgents, updateOutputAgent, listSkills, type OutputAgentConfig, type Skill } from '../../api/client'
+import MarkdownView from '../MarkdownView'
 
 const gradientStyle = { background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' }
 const btnPrimary = 'flex items-center gap-1.5 px-3 py-1.5 text-white text-sm rounded-lg disabled:opacity-50 transition-all'
@@ -28,6 +29,7 @@ export default function OutputAgentsTab() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [preview, setPreview] = useState(false)
 
   useEffect(() => {
     Promise.all([listOutputAgents(), listSkills()]).then(([cfgs, skls]) => {
@@ -94,7 +96,7 @@ export default function OutputAgentsTab() {
               return (
                 <button
                   key={c.key}
-                  onClick={() => setSelectedKey(c.key)}
+                  onClick={() => { setSelectedKey(c.key); setPreview(false) }}
                   className={`w-full text-left px-4 py-2.5 border-l-2 transition-colors ${
                     active
                       ? 'bg-orange-50/60 border-l-orange-400'
@@ -143,14 +145,32 @@ export default function OutputAgentsTab() {
               {/* Content */}
               <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">系统提示词</label>
-                  <textarea
-                    value={form.prompt}
-                    onChange={e => updatePrompt(e.target.value)}
-                    className={`${inputCls} font-mono resize-none`}
-                    style={{ minHeight: 360 }}
-                    placeholder="输入此智能体的系统提示词…"
-                  />
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">系统提示词</label>
+                    <button
+                      type="button"
+                      onClick={() => setPreview(p => !p)}
+                      className="flex items-center gap-1 px-2 py-0.5 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors"
+                    >
+                      {preview ? <><Code size={12} /> 编辑</> : <><Eye size={12} /> 预览</>}
+                    </button>
+                  </div>
+                  {preview ? (
+                    <div
+                      className="overflow-y-auto bg-white border border-gray-200 rounded-lg px-4 py-3"
+                      style={{ minHeight: 360 }}
+                    >
+                      <MarkdownView content={form.prompt || '_（空）_'} size="sm" toolbar={false} />
+                    </div>
+                  ) : (
+                    <textarea
+                      value={form.prompt}
+                      onChange={e => updatePrompt(e.target.value)}
+                      className={`${inputCls} font-mono resize-none`}
+                      style={{ minHeight: 360 }}
+                      placeholder="输入此智能体的系统提示词…"
+                    />
+                  )}
                   <p className="text-[11px] text-gray-400 mt-1">当前 {form.prompt.length} 字符</p>
                 </div>
 

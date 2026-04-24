@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, Save, X, Loader, Wand2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Save, X, Loader, Wand2, Eye, Code } from 'lucide-react'
 import { listSkills, createSkill, updateSkill, deleteSkill, type Skill } from '../../api/client'
+import MarkdownView from '../MarkdownView'
 
 const gradientStyle = { background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' }
 const btnPrimary = 'flex items-center gap-1.5 px-3 py-1.5 text-white text-sm rounded-lg disabled:opacity-50 transition-all'
@@ -17,6 +18,7 @@ export default function SkillsTab() {
   const [mode, setMode] = useState<'view' | 'edit' | 'new'>('view')
   const [form, setForm] = useState<FormState>(EMPTY)
   const [error, setError] = useState('')
+  const [editPreview, setEditPreview] = useState(false)
 
   const { data: skills, isLoading } = useQuery({ queryKey: ['skills'], queryFn: listSkills })
 
@@ -53,6 +55,7 @@ export default function SkillsTab() {
     setMode('new')
     setForm(EMPTY)
     setError('')
+    setEditPreview(false)
   }
 
   const startEdit = () => {
@@ -60,6 +63,7 @@ export default function SkillsTab() {
     setForm({ name: selected.name, description: selected.description ?? '', prompt_snippet: selected.prompt_snippet })
     setMode('edit')
     setError('')
+    setEditPreview(false)
   }
 
   const cancel = () => {
@@ -171,14 +175,32 @@ export default function SkillsTab() {
                 </div>
               </div>
               <div className="flex-1 flex flex-col mb-3 min-h-0">
-                <label className="block text-xs text-gray-500 mb-1">提示词片段 *</label>
-                <textarea
-                  value={form.prompt_snippet}
-                  onChange={e => setForm(f => ({ ...f, prompt_snippet: e.target.value }))}
-                  className={`${inputCls} font-mono flex-1 resize-none`}
-                  style={{ minHeight: 400 }}
-                  placeholder="输入此技能注入到输出智能体的提示词片段…"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs text-gray-500">提示词片段 *</label>
+                  <button
+                    type="button"
+                    onClick={() => setEditPreview(p => !p)}
+                    className="flex items-center gap-1 px-2 py-0.5 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors"
+                  >
+                    {editPreview ? <><Code size={12} /> 编辑</> : <><Eye size={12} /> 预览</>}
+                  </button>
+                </div>
+                {editPreview ? (
+                  <div
+                    className="flex-1 overflow-y-auto bg-white border border-gray-200 rounded-lg px-4 py-3"
+                    style={{ minHeight: 400 }}
+                  >
+                    <MarkdownView content={form.prompt_snippet || '_（空）_'} size="sm" toolbar={false} />
+                  </div>
+                ) : (
+                  <textarea
+                    value={form.prompt_snippet}
+                    onChange={e => setForm(f => ({ ...f, prompt_snippet: e.target.value }))}
+                    className={`${inputCls} font-mono flex-1 resize-none`}
+                    style={{ minHeight: 400 }}
+                    placeholder="输入此技能注入到输出智能体的提示词片段…"
+                  />
+                )}
                 <p className="text-[11px] text-gray-400 mt-1">
                   当前 {form.prompt_snippet.length} 字符
                 </p>
@@ -224,12 +246,9 @@ export default function SkillsTab() {
 
               {/* Prompt content */}
               <div className="flex-1 overflow-y-auto px-6 py-4">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">提示词片段</label>
+                <div className="bg-gray-50 rounded-lg px-4 py-3 border border-gray-100">
+                  <MarkdownView content={selected.prompt_snippet} size="sm" />
                 </div>
-                <pre className="text-xs text-gray-700 bg-gray-50 rounded-lg px-4 py-3 font-mono whitespace-pre-wrap leading-relaxed border border-gray-100">
-                  {selected.prompt_snippet}
-                </pre>
               </div>
             </div>
           ) : (
