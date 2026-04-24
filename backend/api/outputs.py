@@ -169,6 +169,9 @@ async def download_output(
         elif b.file_key.endswith(".docx"):
             media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             filename = f"{b.title}.docx"
+        elif b.file_key.endswith(".html"):
+            media_type = "text/html; charset=utf-8"
+            filename = f"{b.title}.html"
         else:
             media_type = "application/octet-stream"
             filename = b.title

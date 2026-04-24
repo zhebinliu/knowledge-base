@@ -92,16 +92,16 @@ def _format_refs(conv: OutputConversation | None) -> str:
     return "\n\n".join(lines[:20])
 
 
-async def _llm_call(prompt: str, system: str = "", model: str | None = None) -> str:
+async def _llm_call(prompt: str, system: str = "", model: str | None = None, max_tokens: int = 8000) -> str:
     from services.model_router import model_router
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
     if model:
-        content, _ = await model_router.chat(model, messages, max_tokens=8000)
+        content, _ = await model_router.chat(model, messages, max_tokens=max_tokens)
     else:
-        content, _ = await model_router.chat_with_routing("doc_generation", messages, max_tokens=8000)
+        content, _ = await model_router.chat_with_routing("doc_generation", messages, max_tokens=max_tokens)
     return content
 
 
@@ -264,19 +264,48 @@ async def generate_insight(bundle_id: str, project_id: str):
         await _mark_conversation(bundle_id, "failed")
 
 
-# ── Kickoff PPTX ──────────────────────────────────────────────────────────────
+# ── Kickoff PPTX（HTML 交付物，Claude 风格） ─────────────────────────────────
 
-PPTX_SYSTEM = """你是一位专业的 CRM 实施顾问，基于访谈记录为启动会生成 PPT 内容大纲。
-每张幻灯片按如下格式输出（严格遵守）：
-===SLIDE===
-标题：<幻灯片标题>
-要点：
-- <要点1>
-- <要点2>
-- <要点3>
-===END===
-生成 6 张幻灯片：封面、项目概况、LTC 阶段时间线、关键里程碑与交付物、风险与应对、下一步行动。
-访谈未覆盖的标题请用"待补充：<提示>"，不要编造内容。"""
+HTML_PPTX_SYSTEM = """你是一位 MBB 风格咨询顾问，负责为 CRM 实施项目的启动会生成【可直接交付给甲方高层】的幻灯片。
+输出形态：一个完整自包含的 HTML 文件字符串，绝对不要 ```html 代码块围栏，直接从 <!DOCTYPE html> 开始。
+
+【硬性规范】
+- 16:9，每页固定 1280×720 像素，使用 <section class="slide"> 容器。
+- 所有样式写在顶部 <style>，不引用外部 CSS/JS/图片，不使用 emoji。
+- 字体栈："PingFang SC","Microsoft YaHei",-apple-system,"Helvetica Neue",sans-serif
+- 色板（严格只用这几个）：主橙 #D96400，亮橙 #FB923C，墨黑 #1F2937，次灰 #4B5563，弱灰 #9CA3AF，分隔线 #E5E7EB，背景米白 #FAFAFA，纯白 #FFFFFF
+- 12 栅格，边距 64px，默认行高 1.5。
+- 多页之间用 CSS page-break 分页，便于浏览器打印 PDF：每个 .slide 设置 page-break-after: always。
+- body 背景 #FAFAFA，slide 背景 #FFFFFF，阴影 0 4px 24px rgba(0,0,0,.06)。
+- slide 设 overflow:hidden，宽 1280px 高 720px，居中 margin:24px auto。
+
+【字号层级】封面主标 52px / 副标 22px；页面标题 32px；小节标题 20px；正文 16px；图注/页脚 12px。
+
+【必须包含的页（按顺序，缺失信息用"[待确认]"而不是编造）】
+1. 封面：客户名 + "启动会" + 日期；左侧品牌色竖条；右下角"Fenxiao CRM · LTC 实施方法论"脚标
+2. 议程：6 条编号目录，右侧橙色数字
+3. 现状与挑战：左 2×2 矩阵（业务痛点×系统约束）+ 右摘要文案
+4. 项目目标：3 条 SMART 目标卡片，每条含指标
+5. 范围边界：In-scope / Out-of-scope 双列对照表
+6. 方法论：LTC 阶段 chevron 流（机会→合同→交付→回款），当前阶段深橙，其他浅灰
+7. 实施路径：甘特条（至少 4 阶段，双周粒度），行高 28px，橙条 + 里程碑菱形
+8. 团队与治理：RACI 表（甲方 / 乙方 / 联合），单元格用 ● / ○ / 空
+9. 风险与应对：表格（风险 | 影响 | 可能性 | 应对策略），影响/可能性用 高/中/低 彩色标签
+10. 资源与投入：人天分布柱状条 + 关键角色卡
+11. 下一步 Next Step：本周 / 下周 Action Items，每条含 Owner + deadline + 橙色圆点
+
+【视觉元件实现提示】
+- chevron 用 clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 50%, calc(100% - 20px) 100%, 0 100%, 20px 50%);
+- 2×2 矩阵用 grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+- 甘特条用 position:relative + absolute 定位的彩色 div
+- RACI 表用纯 table + border-collapse
+
+【文案规范】
+- 每页标题必须是结论句（"基于现状诊断，优先打通三大主数据"），不是描述句（"现状分析"）
+- 不要咨询黑话（赋能/抓手/闭环/生态/链路）
+- 每个主张至少 1 个数字（若访谈没有数据，标 [待确认]）
+
+【输出】直接输出完整 HTML 字符串，不要任何解释、不要 markdown 围栏、不要前后语。从 <!DOCTYPE html> 起到 </html> 止。"""
 
 
 async def generate_kickoff_pptx(bundle_id: str, project_id: str):
@@ -312,197 +341,61 @@ async def generate_kickoff_pptx(bundle_id: str, project_id: str):
 
 {f"【启用技能（PPT 骨架 / 版式 / 文案规范）】{chr(10)}{ctx['skill_text']}" if ctx['skill_text'] else ""}
 
-请按格式生成 6 张幻灯片的内容。"""
+请生成完整的启动会 HTML 幻灯片（11 页）。直接输出 HTML 字符串。"""
 
-        raw = await _llm_call(prompt, system=PPTX_SYSTEM, model=ctx["agent_model"])
-        slides = _parse_slide_content(raw)
+        html_raw = await _llm_call(prompt, system=HTML_PPTX_SYSTEM, model=ctx["agent_model"], max_tokens=16000)
+        html = _strip_html_fences(html_raw)
+        if not html.lstrip().lower().startswith("<!doctype") and "<html" not in html.lower():
+            html = _fallback_html(title_name, customer, kickoff_date_str, html_raw)
 
-        pptx_bytes = _build_pptx(title_name, customer, kickoff_date_str, slides)
-        pptx_key = f"outputs/{bundle_id}/kickoff.pptx"
-        _minio_put(pptx_key, pptx_bytes, "application/vnd.openxmlformats-officedocument.presentationml.presentation")
+        html_key = f"outputs/{bundle_id}/kickoff.html"
+        _minio_put(html_key, html.encode("utf-8"), "text/html; charset=utf-8")
 
-        md_lines = [f"# 启动会 PPT · {title_name}\n"]
-        for s in slides:
-            md_lines.append(f"## {s['title']}\n")
-            for pt in s.get("points", []):
-                md_lines.append(f"- {pt}")
-            md_lines.append("")
-        md = "\n".join(md_lines)
+        # 同时保留 markdown 便于预览
+        md = f"# {customer or title_name} · 启动会 PPT\n\n" \
+             f"**生成日期**：{date.today().strftime('%Y-%m-%d')}  \n" \
+             f"**客户**：{customer or '—'}  \n" \
+             f"**行业**：{ctx['industry'] or '—'}\n\n" \
+             f"> HTML 幻灯片已生成，点击下载后浏览器打开，使用「打印 → 另存为 PDF」可导出 PDF。"
 
-        await _mark_bundle(bundle_id, "done", content_md=md, file_key=pptx_key)
+        await _mark_bundle(bundle_id, "done", content_md=md, file_key=html_key)
         await _mark_conversation(bundle_id, "done")
-        logger.info("pptx_generated", bundle_id=bundle_id, project_id=project_id)
+        logger.info("pptx_generated", bundle_id=bundle_id, project_id=project_id, format="html",
+                    size=len(html))
     except Exception as e:
         logger.error("pptx_failed", bundle_id=bundle_id, error=str(e)[:200])
         await _mark_bundle(bundle_id, "failed", error=str(e)[:500])
         await _mark_conversation(bundle_id, "failed")
 
 
+def _strip_html_fences(raw: str) -> str:
+    """剥掉模型可能输出的 ```html / ``` 围栏。"""
+    s = raw.strip()
+    if s.startswith("```"):
+        # 去掉首行围栏
+        first_nl = s.find("\n")
+        if first_nl >= 0:
+            s = s[first_nl + 1:]
+        if s.endswith("```"):
+            s = s[:-3]
+    return s.strip()
+
+
+def _fallback_html(title: str, customer: str, kickoff_date: str, raw: str) -> str:
+    """模型没吐正确 HTML 时的兜底：把原文塞进一个简单壳里，至少可下载。"""
+    import html as _h
+    body = _h.escape(raw)
+    return f"""<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><title>{_h.escape(customer or title)} 启动会</title>
+<style>body{{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:#FAFAFA;color:#1F2937;padding:48px;line-height:1.7}}
+h1{{color:#D96400}} pre{{white-space:pre-wrap;background:#fff;padding:24px;border-radius:8px;border:1px solid #E5E7EB}}</style>
+</head><body><h1>{_h.escape(customer or title)} 启动会</h1><p>日期：{_h.escape(kickoff_date)}</p>
+<p style="color:#9CA3AF;font-size:12px">（HTML 解析失败，以下为模型原始输出）</p>
+<pre>{body}</pre></body></html>"""
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _parse_slide_content(raw: str) -> list[dict]:
-    slides = []
-    for block in raw.split("===SLIDE==="):
-        block = block.strip()
-        if "===END===" in block:
-            block = block.split("===END===")[0].strip()
-        if not block:
-            continue
-        title = ""
-        points = []
-        for line in block.splitlines():
-            line = line.strip()
-            if line.startswith("标题："):
-                title = line[3:].strip()
-            elif line.startswith("- "):
-                points.append(line[2:].strip())
-        if title:
-            slides.append({"title": title, "points": points})
-    if not slides:
-        slides = [{"title": "启动会", "points": ["内容解析异常，请重新生成"]}]
-    return slides[:8]
-
-
-def _build_pptx(project_name: str, customer: str | None, kickoff_date: str, slides: list[dict]) -> bytes:
-    """16:9 版式：
-    - 封面：左侧品牌色竖条 + 大标题 + 客户/日期副标 + 右下角角标
-    - 内页：顶部 4pt 橙色细条 + 页头标题 + 左橙色块装饰 + 两栏要点（>4 条时）+ 右下页码 + 底部细线
-    """
-    from pptx import Presentation
-    from pptx.util import Inches, Pt, Emu
-    from pptx.dml.color import RGBColor
-    from pptx.enum.shapes import MSO_SHAPE
-    from pptx.enum.text import PP_ALIGN
-
-    prs = Presentation()
-    prs.slide_width = Inches(13.33)
-    prs.slide_height = Inches(7.5)
-    SW, SH = prs.slide_width, prs.slide_height
-
-    BRAND = RGBColor(0xD9, 0x64, 0x00)       # 主橙
-    BRAND_LIGHT = RGBColor(0xFF, 0x8D, 0x1A) # 亮橙
-    INK = RGBColor(0x1F, 0x29, 0x37)         # 主文字
-    INK_2 = RGBColor(0x4B, 0x55, 0x63)       # 次文字
-    MUTED = RGBColor(0x9C, 0xA3, 0xAF)
-    BG_TINT = RGBColor(0xFA, 0xFA, 0xFA)
-    LINE = RGBColor(0xE5, 0xE7, 0xEB)
-    WHITE = RGBColor(0xFF, 0xFF, 0xFF)
-
-    blank_layout = prs.slide_layouts[6]
-    total = len(slides)
-
-    def _no_line(shp):
-        try:
-            shp.line.fill.background()
-        except Exception:
-            pass
-
-    def _fill(shp, color):
-        shp.fill.solid(); shp.fill.fore_color.rgb = color
-        _no_line(shp)
-
-    def _add_rect(slide, x, y, w, h, color):
-        s = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, x, y, w, h)
-        _fill(s, color)
-        return s
-
-    def _add_text(slide, x, y, w, h, text, size, color, bold=False, align=None, font_name="微软雅黑"):
-        tb = slide.shapes.add_textbox(x, y, w, h)
-        tf = tb.text_frame
-        tf.word_wrap = True
-        tf.margin_left = tf.margin_right = Inches(0.05)
-        tf.margin_top = tf.margin_bottom = Inches(0.02)
-        p = tf.paragraphs[0]
-        if align is not None: p.alignment = align
-        r = p.add_run(); r.text = text
-        r.font.size = Pt(size); r.font.bold = bold
-        r.font.color.rgb = color
-        r.font.name = font_name
-        return tf
-
-    for i, slide_data in enumerate(slides):
-        slide = prs.slides.add_slide(blank_layout)
-
-        if i == 0:
-            # 封面：白底 + 左侧宽品牌色竖条
-            _add_rect(slide, 0, 0, Inches(4.2), SH, BRAND)
-            # 装饰小方块
-            _add_rect(slide, Inches(3.9), Inches(0.9), Inches(0.3), Inches(0.3), BRAND_LIGHT)
-            _add_rect(slide, Inches(3.9), Inches(6.3), Inches(0.3), Inches(0.3), BRAND_LIGHT)
-
-            # 左上品牌标
-            _add_text(slide, Inches(0.7), Inches(0.6), Inches(3.3), Inches(0.4),
-                      "KICKOFF DECK", 12, WHITE, bold=True)
-
-            # 大标题（右侧白底区）
-            _add_text(slide, Inches(4.7), Inches(2.3), Inches(8.2), Inches(1.6),
-                      slide_data["title"], 40, INK, bold=True)
-            # 橙色短横线
-            _add_rect(slide, Inches(4.7), Inches(3.95), Inches(0.8), Emu(50800), BRAND)
-            # 副标
-            sub = f"{customer or project_name}"
-            _add_text(slide, Inches(4.7), Inches(4.2), Inches(8.2), Inches(0.5),
-                      sub, 20, INK_2)
-            _add_text(slide, Inches(4.7), Inches(4.8), Inches(8.2), Inches(0.4),
-                      f"启动会 · {kickoff_date}", 14, MUTED)
-
-            # 左下脚标
-            _add_text(slide, Inches(0.7), Inches(6.7), Inches(3.3), Inches(0.3),
-                      "Fenxiao CRM · LTC 实施方法论", 10, WHITE)
-            continue
-
-        # 内页
-        # 顶部细条
-        _add_rect(slide, 0, 0, SW, Inches(0.08), BRAND)
-        # 页头标题
-        _add_text(slide, Inches(0.7), Inches(0.35), Inches(11.9), Inches(0.7),
-                  slide_data["title"], 26, INK, bold=True)
-        # 标题下橙色短粗线
-        _add_rect(slide, Inches(0.7), Inches(1.05), Inches(0.6), Emu(50800), BRAND)
-        # 页脚细线
-        _add_rect(slide, Inches(0.7), Inches(7.1), Inches(11.9), Emu(9525), LINE)
-        # 页码
-        _add_text(slide, Inches(12.2), Inches(7.15), Inches(1.0), Inches(0.3),
-                  f"{i} / {total - 1}", 10, MUTED, align=PP_ALIGN.RIGHT)
-        # 页脚左侧项目信息
-        _add_text(slide, Inches(0.7), Inches(7.15), Inches(10), Inches(0.3),
-                  f"{customer or project_name} · 启动会", 10, MUTED)
-
-        points = slide_data.get("points") or []
-        if not points:
-            continue
-
-        # 两栏分布（>4 条时）
-        top = Inches(1.55)
-        body_h = Inches(5.3)
-        if len(points) > 4:
-            half = (len(points) + 1) // 2
-            cols = [points[:half], points[half:]]
-            col_w = Inches(5.7)
-            col_x = [Inches(0.7), Inches(7.0)]
-        else:
-            cols = [points]
-            col_w = Inches(11.9)
-            col_x = [Inches(0.7)]
-
-        for ci, col_points in enumerate(cols):
-            box = slide.shapes.add_textbox(col_x[ci], top, col_w, body_h)
-            tf = box.text_frame; tf.word_wrap = True
-            tf.margin_left = Inches(0.1); tf.margin_top = Inches(0.05)
-            for j, pt in enumerate(col_points):
-                para = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
-                # 橙色圆点 + 文本
-                r1 = para.add_run(); r1.text = "●  "
-                r1.font.size = Pt(12); r1.font.color.rgb = BRAND
-                r1.font.name = "微软雅黑"
-                r2 = para.add_run(); r2.text = pt
-                r2.font.size = Pt(16); r2.font.color.rgb = INK
-                r2.font.name = "微软雅黑"
-                para.space_after = Pt(10)
-                para.line_spacing = 1.35
-
-    buf = io.BytesIO(); prs.save(buf)
-    return buf.getvalue()
 
 
 def _build_docx(title: str, md: str) -> bytes:
