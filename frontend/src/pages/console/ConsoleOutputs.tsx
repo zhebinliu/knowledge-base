@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { FileText, ClipboardList, Lightbulb, Clock, Sparkles, ArrowRight, Info, Download, RefreshCw, CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import { listProjects, generateOutput, listOutputs, type Project, type CuratedBundle } from '../../api/client'
 import { TOKEN_STORAGE_KEY } from '../../api/client'
+import InterviewModal from '../../components/InterviewModal'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -63,9 +64,12 @@ function fmt(dt: string) {
   return new Date(dt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
+const NEEDS_INTERVIEW = new Set(['kickoff_pptx', 'insight'])
+
 export default function ConsoleOutputs() {
   const [selectedKind, setSelectedKind] = useState<OutputKind | null>(null)
   const [selectedProject, setSelectedProject] = useState<string>('')
+  const [interviewOpen, setInterviewOpen] = useState(false)
   const qc = useQueryClient()
 
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
@@ -86,9 +90,18 @@ export default function ConsoleOutputs() {
     },
   })
 
-  const handleGenerate = () => {
+  const triggerGenerate = () => {
     if (!selectedKind || !selectedProject) return
     generateMutation.mutate({ kind: selectedKind.id, project_id: selectedProject })
+  }
+
+  const handleGenerate = () => {
+    if (!selectedKind || !selectedProject) return
+    if (NEEDS_INTERVIEW.has(selectedKind.id)) {
+      setInterviewOpen(true)
+    } else {
+      triggerGenerate()
+    }
   }
 
   const downloadBundle = (b: CuratedBundle) => {
@@ -223,7 +236,11 @@ export default function ConsoleOutputs() {
               style={{ background: BRAND_GRAD }}
             >
               {generateMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={13} />}
-              {generateMutation.isPending ? '提交中…' : `生成 ${selectedKind.title}`}
+              {generateMutation.isPending
+                ? '提交中…'
+                : NEEDS_INTERVIEW.has(selectedKind.id)
+                  ? `开始访谈 · ${selectedKind.title}`
+                  : `生成 ${selectedKind.title}`}
             </button>
           </div>
         </div>
@@ -278,6 +295,19 @@ export default function ConsoleOutputs() {
           </div>
         )}
       </div>
+
+      {interviewOpen && selectedKind && selectedProject && NEEDS_INTERVIEW.has(selectedKind.id) && (
+        <InterviewModal
+          kind={selectedKind.id as 'kickoff_pptx' | 'insight'}
+          projectId={selectedProject}
+          kindTitle={selectedKind.title}
+          onClose={() => setInterviewOpen(false)}
+          onReadyToGenerate={() => {
+            setInterviewOpen(false)
+            triggerGenerate()
+          }}
+        />
+      )}
     </div>
   )
 }

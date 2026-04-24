@@ -63,6 +63,28 @@ async def _get_skill_snippets(skill_ids: list[str]) -> str:
     return "\n\n".join(f"### 技能：{r.name}\n{r.prompt_snippet}" for r in rows)
 
 
+async def _get_interview_answers(project_id: str, kind: str) -> list[dict]:
+    """返回 [{question_text, answer, stage}]；按 question_key 插入顺序排。"""
+    from models.project_interview import ProjectInterviewAnswer
+    async with async_session_maker() as s:
+        rows = (await s.execute(
+            select(ProjectInterviewAnswer).where(
+                ProjectInterviewAnswer.project_id == project_id,
+                ProjectInterviewAnswer.output_kind == kind,
+            ).order_by(ProjectInterviewAnswer.updated_at.asc())
+        )).scalars().all()
+    return [{"question_text": r.question_text, "answer": r.answer, "question_key": r.question_key} for r in rows if (r.answer or "").strip()]
+
+
+def _format_answers(answers: list[dict]) -> str:
+    if not answers:
+        return ""
+    lines = []
+    for a in answers:
+        lines.append(f"**Q：{a['question_text']}**\nA：{a['answer']}")
+    return "\n\n".join(lines)
+
+
 async def _llm_call(prompt: str, system: str = "", model: str | None = None) -> str:
     from services.model_router import model_router
     messages = []
@@ -174,29 +196,34 @@ async def generate_insight(bundle_id: str, project_id: str):
             await _mark_bundle(bundle_id, "failed", error="项目不存在")
             return
 
-        chunks = await _get_project_chunks(project_id, top_n=80)
+        chunks = await _get_project_chunks(project_id, top_n=10)  # 佐证少量即可；主料是访谈
         agent_cfg = await _get_output_agent_config("insight")
         agent_prompt = agent_cfg["prompt"]
         agent_model = agent_cfg["model"]
         skill_text = await _get_skill_snippets(agent_cfg["skill_ids"])
+        answers = await _get_interview_answers(project_id, "insight")
+        answers_text = _format_answers(answers)
 
         chunks_text = "\n\n".join(
-            f"[{c['ltc_stage']}] {c['content'][:500]}" for c in chunks[:50]
-        ) if chunks else "（暂无已审核知识切片）"
+            f"[{c['ltc_stage']}] {c['content'][:300]}" for c in chunks[:10]
+        ) if chunks else ""
 
         sections = []
         for title, question in INSIGHT_QUESTIONS:
             prompt = f"""项目名称：{proj.name}，客户：{proj.customer or "未知"}，行业：{proj.industry or "未知"}
 
-知识库参考内容：
-{chunks_text}
+【访谈记录（主要依据）】
+{answers_text or "（未进行访谈）"}
+
+{f"【知识库佐证（辅助参考）】{chr(10)}{chunks_text}" if chunks_text else ""}
+
+{f"【方法论/风格要求】{chr(10)}{agent_prompt}" if agent_prompt else ""}
+
+{f"【启用技能】{chr(10)}{skill_text}" if skill_text else ""}
 
 问题：{question}
-{f"要求：{agent_prompt}" if agent_prompt else ""}
 
-{f"启用的技能参考：{chr(10)}{skill_text}" if skill_text else ""}
-
-请给出详细、结构化的回答（200–500字），使用 Markdown 格式（可用小标题、列表）。"""
+请基于访谈记录给出详细、结构化的回答（200–500字），使用 Markdown 格式。若访谈未涵盖该维度，请注明"访谈未覆盖"而不要编造。"""
             answer = await _llm_call(prompt, model=agent_model)
             sections.append(f"## {title}\n\n{answer}")
 
@@ -232,13 +259,15 @@ async def generate_kickoff_pptx(bundle_id: str, project_id: str):
             await _mark_bundle(bundle_id, "failed", error="项目不存在")
             return
 
-        chunks = await _get_project_chunks(project_id, top_n=40)
+        chunks = await _get_project_chunks(project_id, top_n=10)
         agent_cfg = await _get_output_agent_config("kickoff_pptx")
         agent_prompt = agent_cfg["prompt"]
         agent_model = agent_cfg["model"]
         skill_text = await _get_skill_snippets(agent_cfg["skill_ids"])
+        answers = await _get_interview_answers(project_id, "kickoff_pptx")
+        answers_text = _format_answers(answers)
 
-        chunks_text = "\n\n".join(f"[{c['ltc_stage']}] {c['content'][:400]}" for c in chunks[:25]) if chunks else "（暂无已审核知识切片）"
+        chunks_text = "\n\n".join(f"[{c['ltc_stage']}] {c['content'][:300]}" for c in chunks[:10]) if chunks else ""
 
         kickoff_date_str = proj.kickoff_date.strftime("%Y年%m月%d日") if proj.kickoff_date else "待定"
         prompt = f"""项目名称：{proj.name}
@@ -248,14 +277,16 @@ async def generate_kickoff_pptx(bundle_id: str, project_id: str):
 实施模块：{", ".join(proj.modules or []) or "未填写"}
 项目描述：{proj.description or "无"}
 
-知识库参考内容：
-{chunks_text}
+【访谈记录（主要依据）】
+{answers_text or "（未进行访谈）"}
 
-{f"额外要求：{agent_prompt}" if agent_prompt else ""}
+{f"【知识库佐证（辅助）】{chr(10)}{chunks_text}" if chunks_text else ""}
 
-{f"启用的技能参考：{chr(10)}{skill_text}" if skill_text else ""}
+{f"【方法论/风格要求】{chr(10)}{agent_prompt}" if agent_prompt else ""}
 
-请按格式生成 6 张幻灯片的内容。"""
+{f"【启用技能】{chr(10)}{skill_text}" if skill_text else ""}
+
+请基于访谈记录按格式生成 6 张幻灯片的内容。访谈未覆盖的部分标注"待补充"，不要编造。"""
 
         raw = await _llm_call(prompt, system=PPTX_SYSTEM, model=agent_model)
         slides = _parse_slide_content(raw)

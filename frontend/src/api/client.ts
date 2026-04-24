@@ -628,11 +628,19 @@ export const getStats = () =>
 
 // ── Skills ───────────────────────────────────────────────────────────────────
 
+export interface SkillQuestion {
+  key: string
+  stage?: string
+  question: string
+  hint?: string
+}
+
 export interface Skill {
   id: string
   name: string
   description: string | null
   prompt_snippet: string
+  questions: SkillQuestion[]
   created_at: string
 }
 
@@ -640,6 +648,7 @@ export interface SkillBody {
   name: string
   description?: string
   prompt_snippet: string
+  questions: SkillQuestion[]
 }
 
 export const listSkills = () => api.get<Skill[]>('/settings/skills').then(r => r.data)
@@ -659,6 +668,36 @@ export interface OutputAgentConfig {
 export const listOutputAgents = () => api.get<OutputAgentConfig[]>('/settings/output-agents').then(r => r.data)
 export const updateOutputAgent = (key: string, body: { prompt: string; skill_ids: string[]; model: string | null }) =>
   api.put(`/settings/output-agents/${key}`, body)
+
+// ── Interviews (kickoff_pptx / insight) ──────────────────────────────────────
+
+export interface InterviewQuestion {
+  key: string
+  stage: string
+  question: string
+  hint: string
+  skill_id: string
+  skill_name: string
+}
+
+export interface InterviewState {
+  project: { id: string; name: string; customer: string | null }
+  kind: 'kickoff_pptx' | 'insight'
+  questions: InterviewQuestion[]
+  answers: Record<string, string>
+  next_key: string | null
+  complete: boolean
+  total: number
+  answered: number
+}
+
+export const getInterview = (kind: 'kickoff_pptx' | 'insight', projectId: string) =>
+  api.get<InterviewState>(`/interviews/${kind}`, { params: { project_id: projectId } }).then(r => r.data)
+
+export const saveInterviewAnswer = (
+  kind: 'kickoff_pptx' | 'insight',
+  body: { project_id: string; question_key: string; question_text: string; answer: string },
+) => api.put(`/interviews/${kind}/answer`, body)
 
 // ── Call Logs ─────────────────────────────────────────────────────────────────
 

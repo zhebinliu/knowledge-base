@@ -271,25 +271,49 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select as _select
 
 
+class SkillQuestion(BaseModel):
+    key: str = Field(..., min_length=1, max_length=100)
+    stage: str | None = None
+    question: str = Field(..., min_length=1)
+    hint: str | None = None
+
+
 class SkillBody(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: str | None = None
     prompt_snippet: str = Field(..., min_length=1)
+    questions: list[SkillQuestion] = []
+
+
+def _skill_out(s: Skill) -> dict:
+    return {
+        "id": s.id,
+        "name": s.name,
+        "description": s.description,
+        "prompt_snippet": s.prompt_snippet,
+        "questions": s.questions or [],
+        "created_at": s.created_at,
+    }
 
 
 @router.get("/skills")
 async def list_skills(session: AsyncSession = Depends(get_session)):
     rows = (await session.execute(_select(Skill).order_by(Skill.created_at.asc()))).scalars().all()
-    return [{"id": s.id, "name": s.name, "description": s.description, "prompt_snippet": s.prompt_snippet, "created_at": s.created_at} for s in rows]
+    return [_skill_out(s) for s in rows]
 
 
 @router.post("/skills", status_code=201)
 async def create_skill(body: SkillBody, session: AsyncSession = Depends(get_session)):
-    skill = Skill(name=body.name, description=body.description, prompt_snippet=body.prompt_snippet)
+    skill = Skill(
+        name=body.name,
+        description=body.description,
+        prompt_snippet=body.prompt_snippet,
+        questions=[q.model_dump() for q in body.questions],
+    )
     session.add(skill)
     await session.commit()
     await session.refresh(skill)
-    return {"id": skill.id, "name": skill.name, "description": skill.description, "prompt_snippet": skill.prompt_snippet, "created_at": skill.created_at}
+    return _skill_out(skill)
 
 
 @router.put("/skills/{skill_id}")
@@ -300,8 +324,9 @@ async def update_skill(skill_id: str, body: SkillBody, session: AsyncSession = D
     skill.name = body.name
     skill.description = body.description
     skill.prompt_snippet = body.prompt_snippet
+    skill.questions = [q.model_dump() for q in body.questions]
     await session.commit()
-    return {"id": skill.id, "name": skill.name, "description": skill.description, "prompt_snippet": skill.prompt_snippet}
+    return _skill_out(skill)
 
 
 @router.delete("/skills/{skill_id}", status_code=204)

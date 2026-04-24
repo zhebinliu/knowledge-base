@@ -9,8 +9,8 @@ const btnPrimary = 'flex items-center gap-1.5 px-3 py-1.5 text-white text-sm rou
 const btnSecondary = 'flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 transition-colors'
 const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-orange-300'
 
-interface FormState { name: string; description: string; prompt_snippet: string }
-const EMPTY: FormState = { name: '', description: '', prompt_snippet: '' }
+interface FormState { name: string; description: string; prompt_snippet: string; questions_json: string }
+const EMPTY: FormState = { name: '', description: '', prompt_snippet: '', questions_json: '[]' }
 
 export default function SkillsTab() {
   const qc = useQueryClient()
@@ -31,8 +31,22 @@ export default function SkillsTab() {
 
   const saveMut = useMutation({
     mutationFn: () => {
-      if (mode === 'new') return createSkill({ name: form.name, description: form.description || undefined, prompt_snippet: form.prompt_snippet })
-      return updateSkill(selectedId!, { name: form.name, description: form.description || undefined, prompt_snippet: form.prompt_snippet })
+      let questions: Skill['questions'] = []
+      try {
+        const parsed = JSON.parse(form.questions_json || '[]')
+        if (!Array.isArray(parsed)) throw new Error('not array')
+        questions = parsed
+      } catch {
+        throw new Error('题库 JSON 格式错误')
+      }
+      const body = {
+        name: form.name,
+        description: form.description || undefined,
+        prompt_snippet: form.prompt_snippet,
+        questions,
+      }
+      if (mode === 'new') return createSkill(body)
+      return updateSkill(selectedId!, body)
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['skills'] })
@@ -40,7 +54,7 @@ export default function SkillsTab() {
       setError('')
       if (data && mode === 'new') setSelectedId(data.id)
     },
-    onError: () => setError('保存失败，请重试'),
+    onError: (e: Error) => setError(e.message || '保存失败，请重试'),
   })
 
   const deleteMut = useMutation({
@@ -60,7 +74,12 @@ export default function SkillsTab() {
 
   const startEdit = () => {
     if (!selected) return
-    setForm({ name: selected.name, description: selected.description ?? '', prompt_snippet: selected.prompt_snippet })
+    setForm({
+      name: selected.name,
+      description: selected.description ?? '',
+      prompt_snippet: selected.prompt_snippet,
+      questions_json: JSON.stringify(selected.questions ?? [], null, 2),
+    })
     setMode('edit')
     setError('')
     setEditPreview(false)
@@ -205,6 +224,21 @@ export default function SkillsTab() {
                   当前 {form.prompt_snippet.length} 字符
                 </p>
               </div>
+              <div className="mb-3">
+                <label className="block text-xs text-gray-500 mb-1">
+                  题库（JSON 数组，可选）
+                  <span className="text-gray-400 ml-2">
+                    结构：[{'{'} key, stage?, question, hint? {'}'}]；非空则输出智能体会走访谈式生成
+                  </span>
+                </label>
+                <textarea
+                  value={form.questions_json}
+                  onChange={e => setForm(f => ({ ...f, questions_json: e.target.value }))}
+                  className={`${inputCls} font-mono resize-y`}
+                  style={{ minHeight: 160 }}
+                  placeholder='[{"key":"goal","stage":"目标","question":"项目目标是什么？"}]'
+                />
+              </div>
               <div className="flex gap-2 justify-end">
                 <button onClick={cancel} className={btnSecondary}><X size={13} /> 取消</button>
                 <button onClick={handleSave} disabled={saveMut.isPending} className={btnPrimary} style={gradientStyle}>
@@ -220,7 +254,7 @@ export default function SkillsTab() {
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-semibold text-gray-800 truncate">{selected.name}</h3>
                     <span className="text-xs text-gray-400 shrink-0">
-                      · {selected.prompt_snippet.length} 字符
+                      · {selected.prompt_snippet.length} 字符 · {selected.questions?.length ?? 0} 题
                     </span>
                   </div>
                   {selected.description && (
