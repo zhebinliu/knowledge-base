@@ -27,13 +27,14 @@
 
 **意图**：用户 👎、Challenge fail、未解决提问沉淀回切片层与覆盖图，告诉 PM 该补什么。
 
-- [ ] **B2.1** [backend/models/chunk.py](backend/models/chunk.py) 加 `down_votes INTEGER DEFAULT 0` + main.py 启动迁移
-- [ ] **B2.2** [backend/api/qa.py](backend/api/qa.py) rating=down 时回溯 AnswerLog 引用的 chunk_ids，每个 `down_votes += 1`；累计 ≥2 且非 rejected → 插 review_queue
-- [ ] **B2.3** 新增 [backend/models/coverage_gap.py](backend/models/coverage_gap.py)（id / ltc_stage / industry / keywords_json / fail_count / last_seen_at）
-- [ ] **B2.4** [backend/agents/challenger_agent.py](backend/agents/challenger_agent.py) 评分 <0.8 时 upsert coverage_gap
-- [ ] **B2.5** 新增 `GET /api/coverage/gaps`（Top 20 按 fail_count 降序）
-- [ ] **B2.6** [frontend/src/pages/Dashboard.tsx](frontend/src/pages/Dashboard.tsx) "覆盖缺口 Top N"卡
-- [ ] **B2.7** [frontend/src/pages/ChallengeHistory.tsx](frontend/src/pages/ChallengeHistory.tsx) "这类题重跑一次"入口
+- [x] **B2.1** [backend/models/chunk.py](backend/models/chunk.py) 加 `down_votes INTEGER DEFAULT 0` + main.py 启动迁移
+- [x] **B2.2** [backend/api/qa.py](backend/api/qa.py) rating=down 回溯 source_chunk_ids，每个 `down_votes += 1`；≥2 且非 rejected → 插 review_queue（已 pending 则刷新 reason）
+- [x] **B2.3** 新增 [backend/models/coverage_gap.py](backend/models/coverage_gap.py)（id/ltc_stage/industry/keywords/sample_questions/fail_count/last_seen_at + UniqueConstraint）
+- [x] **B2.4** [backend/agents/challenger_agent.py](backend/agents/challenger_agent.py) decision != pass → services/coverage_service.upsert_gap
+- [x] **B2.5** 新增 [backend/api/coverage.py](backend/api/coverage.py)：GET /api/coverage/gaps（Top N + 中文标签）
+- [x] **B2.6** [frontend/src/pages/Dashboard.tsx](frontend/src/pages/Dashboard.tsx) "知识覆盖缺口"卡：🔥 fail×N、阶段/行业 chip、样题预览，点击跳挑战
+- [x] **B2.7** [frontend/src/pages/ChallengeHistory.tsx](frontend/src/pages/ChallengeHistory.tsx) 详情抽屉"重跑此批" + Challenge 支持 ?stage= 预选
+- [x] **B2 额外** Demo 页 "知识质量治理" 区：检索闸门 + 反馈飞轮双列展示 + 三项关键指标
 - [ ] **B2.8** 验证：点一次 👎 查对应 chunk.down_votes；跑一轮 challenge 确认 gap 入库 + Dashboard 显示
 - [ ] **B2.9** 部署 + 回归
 

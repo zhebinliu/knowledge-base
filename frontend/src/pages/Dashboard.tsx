@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { getStats, listDocuments, listReviewQueue, listProjects, listChallengeRuns, listUnanswered, resolveUnanswered } from '../api/client'
+import { getStats, listDocuments, listReviewQueue, listProjects, listChallengeRuns, listUnanswered, resolveUnanswered, listCoverageGaps } from '../api/client'
 import { Link } from 'react-router-dom'
 import {
   FileText, Layers, Clock, CheckCircle, AlertCircle,
   Loader, ClipboardCheck, ArrowRight, Folder, Brain, HelpCircle, Check,
-  Building2, FileType,
+  Building2, FileType, Target, Flame,
 } from 'lucide-react'
 import { formatTime } from '../utils/datetime'
 
@@ -45,6 +45,12 @@ export default function Dashboard() {
     queryFn: () => listUnanswered(5, 0),
     refetchInterval: 30_000,
     retry: false,  // 未登录时 401 不重试
+  })
+  const { data: gaps } = useQuery({
+    queryKey: ['coverage-gaps'],
+    queryFn: () => listCoverageGaps(6),
+    refetchInterval: 60_000,
+    retry: false,
   })
 
   const cards = [
@@ -249,6 +255,69 @@ export default function Dashboard() {
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Coverage gaps — Block 2 反馈飞轮：Challenge 失败题按 (阶段, 行业) 聚合 */}
+      {gaps && gaps.total > 0 && (
+        <div className="card mb-6">
+          <div className="card-head">
+            <h3 className="flex items-center gap-2">
+              <Target size={15} className="text-rose-500" /> 知识覆盖缺口
+            </h3>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {gaps.total} 条待补，挑战失败题自动聚合
+            </span>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {gaps.items.map(g => {
+              const stageParam = g.ltc_stage ? `?stage=${encodeURIComponent(g.ltc_stage)}` : ''
+              return (
+                <Link
+                  key={g.id}
+                  to={`/challenge${stageParam}`}
+                  className="px-5 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors"
+                  title="跳到挑战页按此阶段重跑"
+                >
+                  <div className="flex items-center gap-1 flex-shrink-0 text-xs font-mono tabular-nums text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-full">
+                    <Flame size={11} />{g.fail_count}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs mb-0.5">
+                      {g.ltc_stage_label && (
+                        <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-100">
+                          {g.ltc_stage_label}
+                        </span>
+                      )}
+                      {g.industry_label && (
+                        <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
+                          {g.industry_label}
+                        </span>
+                      )}
+                      <span className="text-[11px] text-gray-400 ml-auto">
+                        {formatTime(g.last_seen_at)}
+                      </span>
+                    </div>
+                    {g.keywords.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {g.keywords.slice(0, 6).map(k => (
+                          <span key={k} className="text-[11px] text-gray-600 bg-gray-50 border border-gray-100 px-1.5 py-0.5 rounded">
+                            {k}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {g.sample_questions[0] && (
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-1">
+                        例：{g.sample_questions[0]}
+                      </p>
+                    )}
+                  </div>
+                  <ArrowRight size={13} className="text-gray-300 flex-shrink-0 mt-0.5" />
+                </Link>
+              )
+            })}
           </div>
         </div>
       )}

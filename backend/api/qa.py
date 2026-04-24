@@ -1,6 +1,7 @@
 """QA API: ask / ask-stream / doc generation / conversations / feedback / unanswered."""
 import json
 import time
+import structlog
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
@@ -8,9 +9,16 @@ from pydantic import BaseModel
 from sqlalchemy import select, desc, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+logger = structlog.get_logger()
+
+# 负反馈阈值：同一切片累计 👎 达到 N 次即自动入 review_queue
+DOWN_VOTE_REVIEW_THRESHOLD = 2
+
 from agents.kb_agent import answer_question, answer_question_stream, generate_doc
 from models import get_session, async_session_maker
+from models.chunk import Chunk
 from models.qa_log import Conversation, QuestionLog, AnswerFeedback
+from models.review_queue import ReviewQueue
 from models.user import User
 from services.auth import get_current_user, get_current_user_optional
 from services.rate_limit import limiter
@@ -337,7 +345,47 @@ async def submit_feedback(
         qlog.resolved_at = _utcnow_naive()
 
     await session.commit()
+
+    # 点踩 → 回溯到引用的切片，累加 down_votes；阈值达成入 review_queue
+    if body.rating == "down":
+        await _apply_down_vote_to_chunks(qlog.source_chunk_ids or [])
+
     return {"ok": True, "rating": body.rating}
+
+
+async def _apply_down_vote_to_chunks(chunk_ids: list[str]) -> None:
+    """每个被引用切片 down_votes +=1；若累计达阈值且尚未被驳回，入队复审（去重）。"""
+    if not chunk_ids:
+        return
+    try:
+        async with async_session_maker() as session:
+            chunks = (await session.execute(
+                select(Chunk).where(Chunk.id.in_(chunk_ids))
+            )).scalars().all()
+            triggered: list[Chunk] = []
+            for c in chunks:
+                c.down_votes = (c.down_votes or 0) + 1
+                if (
+                    c.down_votes >= DOWN_VOTE_REVIEW_THRESHOLD
+                    and c.review_status != "rejected"
+                ):
+                    triggered.append(c)
+            for c in triggered:
+                # 已有 pending 的同切片负反馈条目 → 刷新 reason，避免重复入队
+                existing = (await session.execute(
+                    select(ReviewQueue).where(
+                        ReviewQueue.chunk_id == c.id,
+                        ReviewQueue.status == "pending",
+                    )
+                )).scalars().first()
+                reason = f"用户反馈负面 ×{c.down_votes}"
+                if existing:
+                    existing.reason = reason
+                else:
+                    session.add(ReviewQueue(chunk_id=c.id, reason=reason))
+            await session.commit()
+    except Exception as e:
+        logger.warning("down_vote_apply_failed", error=str(e)[:200])
 
 
 # ── Unanswered queue ─────────────────────────────────────────────────────────

@@ -49,5 +49,8 @@ class Chunk(Base):
     citation_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_cited_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # 负反馈累计：QA 答案被点 👎 时，引用到的切片各 +1；达到阈值入 review_queue
+    down_votes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)

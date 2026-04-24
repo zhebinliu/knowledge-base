@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../auth/AuthContext'
 import { Brain, Play, ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader, Square, HelpCircle, ThumbsUp, ThumbsDown, Plus, Clock, Trash2, Power, Cpu, History } from 'lucide-react'
@@ -77,6 +78,17 @@ export default function Challenge() {
   const [expanded, setExpanded] = useState<Record<number, boolean>>({})
   const abortRef                = useRef<AbortController | null>(null)
   const qc = useQueryClient()
+
+  // 支持从 Dashboard 覆盖缺口跳转：?stage=<阶段名> 预选到 stages + 跳到挑战 tab
+  const [searchParams] = useSearchParams()
+  useEffect(() => {
+    const stageParam = searchParams.get('stage')
+    if (stageParam) {
+      setStages(prev => (prev.includes(stageParam) ? prev : [stageParam, ...prev]))
+      setActiveTab('challenge')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const approveMut = useMutation({
     mutationFn: ({ reviewId }: { reviewId: string; qIndex: number }) => approveReview(reviewId, reviewer),

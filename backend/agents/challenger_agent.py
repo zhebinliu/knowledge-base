@@ -479,6 +479,14 @@ async def run_challenge_stream(
                     score=judgment.get("overall_score", 0),
                     batch_id=batch_id,
                 )
+                # Block 2 · 覆盖缺口聚合：fail 或 <0.8 分的题按 (stage, industry) 累加
+                if decision != "pass":
+                    try:
+                        from services.coverage_service import upsert_gap
+                        # challenger 当前没有 industry 维度，先用 None；后续可以从 item 里读
+                        await upsert_gap(ltc_stage=stage, industry=None, question=question)
+                    except Exception as _e:
+                        logger.warning("coverage_gap_in_challenge_failed", error=str(_e)[:120])
                 await result_queue.put({
                     "idx": idx,
                     "stage": stage,

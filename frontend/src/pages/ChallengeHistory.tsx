@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { History, Loader, CheckCircle2, XCircle, Clock, User as UserIcon, CalendarClock, ChevronRight, X } from 'lucide-react'
-import { listChallengeRuns, getChallengeRun, type ChallengeRun } from '../api/client'
+import { useNavigate } from 'react-router-dom'
+import { History, Loader, CheckCircle2, XCircle, Clock, User as UserIcon, CalendarClock, ChevronRight, X, Repeat } from 'lucide-react'
+import { listChallengeRuns, getChallengeRun } from '../api/client'
 import MarkdownView from '../components/MarkdownView'
 import { ltcLabel } from '../utils/labels'
 import { formatTime } from '../utils/datetime'
@@ -141,10 +142,19 @@ export default function ChallengeHistory() {
 }
 
 function RunDetailDrawer({ runId, onClose }: { runId: string; onClose: () => void }) {
+  const navigate = useNavigate()
   const { data, isLoading } = useQuery({
     queryKey: ['challenge-run', runId],
     queryFn: () => getChallengeRun(runId),
   })
+
+  const rerun = () => {
+    if (!data?.target_stages?.length) return
+    // 仅带第一个阶段跳到挑战 tab；多阶段可在目标页调整
+    const stage = data.target_stages[0]
+    navigate(`/challenge?stage=${encodeURIComponent(stage)}`)
+    onClose()
+  }
 
   return (
     <div className="fixed inset-0 z-40 bg-black/30 flex justify-end" onClick={onClose}>
@@ -157,9 +167,20 @@ function RunDetailDrawer({ runId, onClose }: { runId: string; onClose: () => voi
             <h2 className="font-semibold text-gray-900">挑战详情</h2>
             <p className="text-xs text-gray-500 font-mono">{runId}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded">
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-2">
+            {data?.target_stages?.length ? (
+              <button
+                onClick={rerun}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
+                title="以相同阶段跳回挑战页重跑（可验证 gap 是否关闭）"
+              >
+                <Repeat size={12} /> 重跑此批
+              </button>
+            ) : null}
+            <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded">
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         {isLoading && <p className="px-6 py-8 text-center text-gray-400 text-sm">加载中…</p>}

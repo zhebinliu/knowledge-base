@@ -435,6 +435,24 @@ export const batchApproveReview = (reviewer: string, reviewIds?: string[]) =>
     review_ids: reviewIds,
   }).then(r => r.data)
 
+// ── Coverage gaps ────────────────────────────────────────────────────────────
+
+export interface CoverageGap {
+  id: string
+  ltc_stage: string | null
+  ltc_stage_label: string | null
+  industry: string | null
+  industry_label: string | null
+  fail_count: number
+  keywords: string[]
+  sample_questions: string[]
+  last_seen_at: string
+  created_at: string
+}
+
+export const listCoverageGaps = (limit = 10) =>
+  api.get<{ total: number; items: CoverageGap[] }>('/coverage/gaps', { params: { limit } }).then(r => r.data)
+
 // ── Agent Settings ──────────────────────────────────────────────────────────
 
 export interface ModelEntry {

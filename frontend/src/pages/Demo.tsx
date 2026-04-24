@@ -6,9 +6,9 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Upload, MessageSquare, Layers, Folder, Award, Terminal,
   ChevronRight, CheckCircle, Zap, Brain, ArrowRight,
-  BarChart2, Search, RefreshCw, FileText, Star, ThumbsUp,
+  BarChart2, Search, RefreshCw, FileText, Star, ThumbsUp, ThumbsDown,
   Shield, Clock, Database, Code2, Sparkles, Play,
-  BookOpen, KeyRound,
+  BookOpen, KeyRound, Target, Filter, Flame, Repeat,
 } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -452,7 +452,7 @@ export default function Demo() {
             <Tag>知识飞轮</Tag>
             <h2 className="text-2xl font-bold text-ink mt-3 mb-2">持续自我优化的知识体系</h2>
             <p className="text-ink-secondary text-sm max-w-md mx-auto">
-              用户反馈、热度数据和挑战结果共同驱动知识库持续改进
+              用户反馈、引用热度、挑战结果 → 自动回馈到检索闸门与内容补充队列
             </p>
           </div>
 
@@ -476,6 +476,125 @@ export default function Demo() {
                     <ChevronRight size={16} className="text-ink-muted" />
                   </div>
                 )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Quality governance highlight (Block 1 + Block 2) ───── */}
+        <div className="mb-20">
+          <div className="text-center mb-8">
+            <Tag>最近上线 · 知识质量治理</Tag>
+            <h2 className="text-2xl font-bold text-ink mt-3 mb-2">从"能答"到"答得可信"</h2>
+            <p className="text-ink-secondary text-sm max-w-xl mx-auto">
+              检索闸门 + 引用热度 + 负反馈回溯 + 挑战失败聚合——让每一次 👎 都能指向该补什么内容。
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Left: retrieval gate demo */}
+            <div className="rounded-2xl border border-line overflow-hidden bg-surface shadow-sm">
+              <div className="px-5 py-3 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-line flex items-center gap-2">
+                <Filter size={14} className="text-emerald-600" />
+                <p className="text-sm font-semibold text-ink">检索闸门 · 未复审切片不回召</p>
+              </div>
+              <div className="p-5 space-y-2.5 text-xs">
+                <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 rounded-lg border border-emerald-100">
+                  <CheckCircle size={13} className="text-emerald-600 flex-shrink-0" />
+                  <span className="text-ink-secondary flex-1">已批准 · 合同审批流程</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 bg-white text-emerald-700 rounded border border-emerald-200">score 0.91</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 rounded-lg border border-emerald-100">
+                  <CheckCircle size={13} className="text-emerald-600 flex-shrink-0" />
+                  <span className="text-ink-secondary flex-1 flex items-center gap-1.5">
+                    已批准 · 法务会签规则
+                    <span className="inline-flex items-center gap-0.5 text-[10px] text-orange-600 bg-orange-50 px-1 rounded">
+                      <Flame size={9} /> 12
+                    </span>
+                  </span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 bg-white text-emerald-700 rounded border border-emerald-200">+0.08 加权</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg border border-dashed border-gray-300 opacity-60">
+                  <Shield size={13} className="text-gray-400 flex-shrink-0" />
+                  <span className="text-gray-500 flex-1 line-through">待复审 · XX 客户特殊条款</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 bg-white text-gray-500 rounded border">已过滤</span>
+                </div>
+                <p className="text-[11px] text-ink-muted pt-1 leading-relaxed">
+                  Qdrant payload 写入 review_status + 引用次数，检索默认过滤待审切片；热门切片在 rerank 中加权上浮。
+                </p>
+              </div>
+            </div>
+
+            {/* Right: feedback flywheel */}
+            <div className="rounded-2xl border border-line overflow-hidden bg-surface shadow-sm">
+              <div className="px-5 py-3 bg-gradient-to-r from-rose-50 to-orange-50 border-b border-line flex items-center gap-2">
+                <Target size={14} className="text-rose-600" />
+                <p className="text-sm font-semibold text-ink">反馈飞轮 · 👎 与挑战失败自动汇总</p>
+              </div>
+              <div className="p-5 space-y-3 text-xs">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-6 h-6 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <ThumbsDown size={11} className="text-rose-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-ink">用户 👎 一次答案</p>
+                    <p className="text-[11px] text-ink-muted mt-0.5">引用的每个切片 down_votes += 1</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Repeat size={11} className="text-orange-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-ink">累计 ≥2 次 → 自动入审核队列</p>
+                    <p className="text-[11px] text-ink-muted mt-0.5">reason: 用户反馈负面 ×N</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Award size={11} className="text-purple-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-ink">Challenge 失败题按 (阶段, 行业) 聚合</p>
+                    <p className="text-[11px] text-ink-muted mt-0.5">生成 coverage_gap，提示 PM 该补哪里</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 px-3 py-2.5 bg-gradient-to-r from-rose-50 to-transparent rounded-lg border border-rose-100">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] text-ink-muted uppercase tracking-wider font-medium">Dashboard 示例</span>
+                    <span className="text-[10px] font-mono text-rose-600 flex items-center gap-0.5">
+                      <Flame size={9} /> fail × 4
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mb-1">
+                    <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-100">合同</span>
+                    <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">制造业</span>
+                  </div>
+                  <p className="text-[11px] text-ink-secondary line-clamp-1">
+                    例：多方签约 SLA 条款如何处理？
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Three-number strip: measurable impact */}
+          <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[
+              { icon: Filter, label: '检索默认过滤', value: 'review_status', desc: '未批准切片不污染答案' },
+              { icon: Flame,  label: '热度参与排序', value: '+log(1+N)×0.05', desc: '被引用越多越靠前' },
+              { icon: Target, label: '缺口自动聚合', value: '(阶段, 行业)', desc: '告诉 PM 该补什么' },
+            ].map(({ icon: Icon, label, value, desc }) => (
+              <div key={label} className="rounded-xl border border-line bg-surface px-4 py-3 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-canvas flex items-center justify-center flex-shrink-0">
+                  <Icon size={15} className="text-ink-secondary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] text-ink-muted">{label}</p>
+                  <p className="text-sm font-semibold text-ink font-mono truncate">{value}</p>
+                  <p className="text-[11px] text-ink-muted">{desc}</p>
+                </div>
               </div>
             ))}
           </div>

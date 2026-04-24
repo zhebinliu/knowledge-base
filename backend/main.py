@@ -5,7 +5,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp
+from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage
 from services.rate_limit import limiter
 from services.vector_store import vector_store
 
@@ -41,6 +41,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(mcp.router,   prefix="/api/mcp",   tags=["mcp"])
+app.include_router(coverage.router, prefix="/api/coverage", tags=["coverage"])
 
 
 @app.on_event("startup")
@@ -58,6 +59,7 @@ async def startup():
     from models.project import Project  # noqa: F401
     from models.challenge_run import ChallengeRun  # noqa: F401
     from models.qa_log import Conversation, QuestionLog, AnswerFeedback  # noqa: F401
+    from models.coverage_gap import CoverageGap  # noqa: F401
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -96,6 +98,9 @@ async def startup():
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS embed_duration_s DOUBLE PRECISION",
             "ALTER TABLE challenge_runs ADD COLUMN IF NOT EXISTS question_mode VARCHAR(20) NOT NULL DEFAULT 'kb_based'",
             "ALTER TABLE challenge_schedules ADD COLUMN IF NOT EXISTS question_mode VARCHAR(20) NOT NULL DEFAULT 'kb_based'",
+            # Block 2 · 反馈飞轮
+            "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS down_votes INTEGER NOT NULL DEFAULT 0",
+            "CREATE INDEX IF NOT EXISTS idx_chunks_down_votes ON chunks(down_votes DESC)",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")
