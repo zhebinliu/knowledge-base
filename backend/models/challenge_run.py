@@ -19,6 +19,8 @@ class ChallengeRun(Base):
 
     target_stages: Mapped[list] = mapped_column(JSON, default=list)
     questions_per_stage: Mapped[int] = mapped_column(Integer, default=2)
+    # kb_based = 基于知识库切片出题；free_form = LLM 自由出题，不依赖切片
+    question_mode: Mapped[str] = mapped_column(String(20), default="kb_based")
 
     started_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)

@@ -373,6 +373,7 @@ export interface ChallengeSchedule {
   name: string
   stages: string[]
   questions_per_stage: number
+  question_mode?: 'kb_based' | 'free_form'
   cron_expression: string
   enabled: boolean
   last_run_at?: string | null
@@ -382,6 +383,7 @@ export interface ScheduleBody {
   name?: string
   stages?: string[]
   questions_per_stage?: number
+  question_mode?: 'kb_based' | 'free_form'
   cron_expression?: string
   enabled?: boolean
 }
@@ -515,6 +517,7 @@ export interface ChallengeRun {
   triggered_by_name: string | null
   target_stages: string[]
   questions_per_stage: number
+  question_mode?: 'kb_based' | 'free_form'
   started_at: string
   finished_at: string | null
   duration_seconds: number | null

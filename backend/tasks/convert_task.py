@@ -534,6 +534,7 @@ async def _check_and_run_schedules():
                         trigger_type="scheduled",
                         triggered_by=sched.id,
                         triggered_by_name=sched.name,
+                        question_mode=getattr(sched, "question_mode", "kb_based"),
                     ):
                         pass  # 只消费事件，结果已在 agent 内持久化到 KB
                     sched.last_run_at = now

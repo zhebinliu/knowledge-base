@@ -16,6 +16,8 @@ class ChallengeSchedule(Base):
     name: Mapped[str] = mapped_column(String(200), default="默认计划")
     stages: Mapped[list] = mapped_column(JSON, default=lambda: ["线索", "商机"])
     questions_per_stage: Mapped[int] = mapped_column(Integer, default=2)
+    # kb_based / free_form
+    question_mode: Mapped[str] = mapped_column(String(20), default="kb_based")
     cron_expression: Mapped[str] = mapped_column(String(100), default="0 9 * * 1-5")
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime)

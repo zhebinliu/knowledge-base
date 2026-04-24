@@ -31,6 +31,9 @@ interface QuestionCard {
   question_model?: string | null
   answer_model?: string | null
   judge_model?: string | null
+  question_gen_ms?: number | null
+  answer_ms?: number | null
+  judge_ms?: number | null
 }
 
 function ChallengeTabBar({ activeTab, setActiveTab }: { activeTab: 'challenge' | 'history'; setActiveTab: (t: 'challenge' | 'history') => void }) {
@@ -66,6 +69,7 @@ export default function Challenge() {
   const [customStages, setCustomStages] = useState<string[]>([])
   const [customInput, setCustomInput]   = useState('')
   const [perStage, setPerStage] = useState(2)
+  const [questionMode, setQuestionMode] = useState<'kb_based' | 'free_form'>('kb_based')
   const [cards, setCards]       = useState<QuestionCard[]>([])
   const [status, setStatus]     = useState('')
   const [phase, setPhase]       = useState<'idle' | 'generating' | 'answering' | 'done'>('idle')
@@ -106,7 +110,7 @@ export default function Challenge() {
       if (token) headers.Authorization = `Bearer ${token}`
       const resp = await fetch('/api/challenge/run-stream', {
         method: 'POST', headers,
-        body: JSON.stringify({ target_stages: stages, questions_per_stage: perStage }),
+        body: JSON.stringify({ target_stages: stages, questions_per_stage: perStage, question_mode: questionMode }),
         signal: ctrl.signal,
       })
       if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`)
@@ -138,12 +142,16 @@ export default function Challenge() {
             const ev = JSON.parse(data)
             if (ev.type === 'status') {
               setStatus(ev.message)
-              if (ev.message.includes('作答和评判')) setPhase('answering')
+              if (ev.message.includes('已完成') || ev.message.includes('作答和评判')) {
+                setPhase('answering')
+                setCards(prev => prev.map(c => c.answer === undefined ? { ...c, answering: true } : c))
+              }
             }
             if (ev.type === 'question') {
               setCards(prev => [...prev, {
                 q_index: ev.q_index, question: ev.question, ltc_stage: ev.ltc_stage,
                 answering: false, question_model: ev.question_model ?? null,
+                question_gen_ms: ev.question_gen_ms ?? null,
               }])
             }
             if (ev.type === 'result') {
@@ -155,15 +163,11 @@ export default function Challenge() {
                   review_id: ev.review_id ?? null,
                   question_model: ev.question_model ?? c.question_model ?? null,
                   answer_model: ev.answer_model ?? null, judge_model: ev.judge_model ?? null,
+                  answer_ms: ev.answer_ms ?? null, judge_ms: ev.judge_ms ?? null,
                 } : c
               ))
               qc.invalidateQueries({ queryKey: ['chunks'] })
               qc.invalidateQueries({ queryKey: ['review-queue'] })
-              setCards(prev => {
-                const next = prev.find(c => c.answer === undefined && !c.answering)
-                if (!next) return prev
-                return prev.map(c => c.q_index === next.q_index ? { ...c, answering: true } : c)
-              })
             }
             if (ev.error) setStatus(`错误：${ev.error}`)
           } catch { /* ignore */ }
@@ -232,6 +236,34 @@ export default function Challenge() {
                   </button>
                 </form>
               </div>
+            </div>
+            <div className="mb-4">
+              <p className="text-xs text-gray-500 mb-2">出题模式</p>
+              <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+                <button
+                  type="button"
+                  disabled={running}
+                  onClick={() => setQuestionMode('kb_based')}
+                  className={`px-3 py-1.5 transition-colors disabled:opacity-50 ${
+                    questionMode === 'kb_based' ? 'text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                  style={questionMode === 'kb_based' ? gradientStyle : {}}
+                >基于知识库</button>
+                <button
+                  type="button"
+                  disabled={running}
+                  onClick={() => setQuestionMode('free_form')}
+                  className={`px-3 py-1.5 transition-colors disabled:opacity-50 border-l border-gray-200 ${
+                    questionMode === 'free_form' ? 'text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                  style={questionMode === 'free_form' ? gradientStyle : {}}
+                >自由提问</button>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1.5">
+                {questionMode === 'kb_based'
+                  ? '根据知识库切片出题，验证知识覆盖与问答正确性'
+                  : '跳出知识库限制，让模型自由构造真实业务场景题，检验知识盲区'}
+              </p>
             </div>
             <div className="flex items-center gap-4">
               <label className="text-sm text-gray-600">每阶段题数：</label>
@@ -391,6 +423,16 @@ export default function Challenge() {
                         </div>
                       )}
 
+                      {/* Timings */}
+                      {(card.question_gen_ms != null || card.answer_ms != null || card.judge_ms != null) && (
+                        <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-500">
+                          <span className="font-semibold">耗时</span>
+                          {card.question_gen_ms != null && <span>出题 <b>{(card.question_gen_ms / 1000).toFixed(1)}s</b></span>}
+                          {card.answer_ms != null && <span>回答 <b>{(card.answer_ms / 1000).toFixed(1)}s</b></span>}
+                          {card.judge_ms != null && <span>评判 <b>{(card.judge_ms / 1000).toFixed(1)}s</b></span>}
+                        </div>
+                      )}
+
                       {/* KB status + review actions */}
                       {card.chunk_id && (
                         <div className="pt-3 border-t border-gray-100 flex items-center gap-2 flex-wrap">
@@ -483,6 +525,7 @@ function SchedulePanel() {
   const [formName, setFormName] = useState('默认计划')
   const [formStages, setFormStages] = useState('线索, 客户, 商机')
   const [formQps, setFormQps]       = useState(2)
+  const [formMode, setFormMode]     = useState<'kb_based' | 'free_form'>('kb_based')
   const [formCron, setFormCron]     = useState('0 9 * * 1-5')
 
   const createMut = useMutation({
@@ -490,6 +533,7 @@ function SchedulePanel() {
       name: formName,
       stages: formStages.split(/[,，]/).map(s => s.trim()).filter(Boolean),
       questions_per_stage: formQps,
+      question_mode: formMode,
       cron_expression: formCron,
       enabled: true,
     }),
@@ -541,7 +585,7 @@ function SchedulePanel() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-800">{s.name}</p>
                 <p className="text-xs text-gray-500">
-                  {s.stages.join(' / ')} -- 每阶段 {s.questions_per_stage} 题 -- <code className="bg-gray-200 px-1 rounded">{s.cron_expression}</code>
+                  {s.stages.join(' / ')} -- 每阶段 {s.questions_per_stage} 题 -- {s.question_mode === 'free_form' ? '自由提问' : '基于知识库'} -- <code className="bg-gray-200 px-1 rounded">{s.cron_expression}</code>
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
@@ -584,6 +628,13 @@ function SchedulePanel() {
             <span className="text-xs text-gray-500">挑战阶段（逗号分隔，支持自定义）</span>
             <input value={formStages} onChange={e => setFormStages(e.target.value)}
               placeholder="线索, 客户, 商机, 订单" className={inputCls}/>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-gray-500">出题模式</span>
+            <select value={formMode} onChange={e => setFormMode(e.target.value as 'kb_based' | 'free_form')} className={inputCls}>
+              <option value="kb_based">基于知识库</option>
+              <option value="free_form">自由提问</option>
+            </select>
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs text-gray-500">执行频率</span>

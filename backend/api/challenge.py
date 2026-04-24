@@ -18,6 +18,7 @@ router = APIRouter()
 class ChallengeRunRequest(BaseModel):
     target_stages: list[str] = ["线索", "商机"]
     questions_per_stage: int = 2
+    question_mode: str = "kb_based"  # kb_based / free_form
 
 
 @router.post("/run-stream")
@@ -43,6 +44,7 @@ async def run_challenge_sse(
                 trigger_type="manual",
                 triggered_by=triggered_by,
                 triggered_by_name=triggered_by_name,
+                question_mode=req.question_mode,
             ):
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         except Exception as e:
@@ -75,6 +77,7 @@ def _run_dto(r: ChallengeRun) -> dict:
         "triggered_by_name": r.triggered_by_name,
         "target_stages": r.target_stages,
         "questions_per_stage": r.questions_per_stage,
+        "question_mode": getattr(r, "question_mode", "kb_based"),
         "started_at": r.started_at,
         "finished_at": r.finished_at,
         "duration_seconds": duration,
@@ -158,6 +161,7 @@ class ScheduleRequest(BaseModel):
     name: str = "默认计划"
     stages: list[str] = ["线索", "商机"]
     questions_per_stage: int = 2
+    question_mode: str = "kb_based"
     cron_expression: str = "0 9 * * 1-5"
     enabled: bool = False
 
@@ -172,6 +176,7 @@ async def list_schedules(session: AsyncSession = Depends(get_session)):
         {
             "id": s.id, "name": s.name, "stages": s.stages,
             "questions_per_stage": s.questions_per_stage,
+            "question_mode": getattr(s, "question_mode", "kb_based"),
             "cron_expression": s.cron_expression,
             "enabled": s.enabled, "last_run_at": s.last_run_at,
         }
@@ -184,6 +189,7 @@ async def create_schedule(req: ScheduleRequest, session: AsyncSession = Depends(
     schedule = ChallengeSchedule(
         name=req.name, stages=req.stages,
         questions_per_stage=req.questions_per_stage,
+        question_mode=req.question_mode,
         cron_expression=req.cron_expression,
         enabled=req.enabled,
     )
@@ -202,6 +208,7 @@ async def update_schedule(schedule_id: str, req: ScheduleRequest, session: Async
     schedule.name = req.name
     schedule.stages = req.stages
     schedule.questions_per_stage = req.questions_per_stage
+    schedule.question_mode = req.question_mode
     schedule.cron_expression = req.cron_expression
     schedule.enabled = req.enabled
     await session.commit()

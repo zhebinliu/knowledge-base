@@ -94,6 +94,8 @@ async def startup():
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS convert_duration_s DOUBLE PRECISION",
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS slice_duration_s DOUBLE PRECISION",
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS embed_duration_s DOUBLE PRECISION",
+            "ALTER TABLE challenge_runs ADD COLUMN IF NOT EXISTS question_mode VARCHAR(20) NOT NULL DEFAULT 'kb_based'",
+            "ALTER TABLE challenge_schedules ADD COLUMN IF NOT EXISTS question_mode VARCHAR(20) NOT NULL DEFAULT 'kb_based'",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")
