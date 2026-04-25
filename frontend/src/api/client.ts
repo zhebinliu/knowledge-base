@@ -499,6 +499,7 @@ export interface Project {
   modules: string[]
   kickoff_date: string | null  // YYYY-MM-DD
   description: string | null
+  customer_profile: string | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -512,6 +513,7 @@ export interface ProjectInput {
   modules?: string[] | null
   kickoff_date?: string | null
   description?: string | null
+  customer_profile?: string | null
 }
 
 export interface ProjectDocument {
@@ -544,6 +546,9 @@ export const updateProject = (id: string, body: Partial<ProjectInput>) =>
 
 export const deleteProject = (id: string, cascade = false) =>
   api.delete(`/projects/${id}`, { params: { cascade } })
+
+export const generateCustomerProfile = (id: string) =>
+  api.post<{ profile: string }>(`/projects/${id}/generate_profile`).then(r => r.data)
 
 export const listProjectDocuments = (id: string) =>
   api.get<ProjectDocument[]>(`/projects/${id}/documents`).then(r => r.data)
@@ -760,3 +765,4 @@ export const getOutput = (id: string) =>
   api.get<CuratedBundle>(`/outputs/${id}`).then(r => r.data)
 
 export const downloadOutputUrl = (id: string) => `/api/outputs/${id}/download`
+export const viewOutputUrl = (id: string) => `/api/outputs/${id}/view`

@@ -1,18 +1,17 @@
 import { useState, useRef, useEffect } from 'react'
 import { NavLink, Outlet, Link, useLocation } from 'react-router-dom'
 import {
-  MessageSquare, Brain, Sparkles, Mic, BookOpen, ChevronDown, LogOut, KeyRound, Shield, Home,
+  MessageSquare, FolderKanban, Mic, BookOpen, ChevronDown, LogOut, KeyRound, Shield, Home,
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
 const NAV = [
-  { to: '/console',         label: '工作台首页', icon: Home,          end: true },
-  { to: '/console/qa',      label: '知识问答',   icon: MessageSquare },
-  { to: '/console/pm',      label: 'PM 视角',    icon: Brain },
-  { to: '/console/outputs', label: '输出中心',   icon: Sparkles },
-  { to: '/console/meeting', label: '会议纪要',   icon: Mic,            disabled: true },
+  { to: '/console',          label: '工作台首页', icon: Home,          end: true },
+  { to: '/console/qa',       label: '知识问答',   icon: MessageSquare },
+  { to: '/console/projects', label: '项目管理',   icon: FolderKanban },
+  { to: '/console/meeting',  label: '会议纪要',   icon: Mic,            disabled: true },
 ]
 
 export default function ConsoleLayout() {

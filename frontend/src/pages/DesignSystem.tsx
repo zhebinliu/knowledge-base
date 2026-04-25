@@ -12,6 +12,7 @@ import {
   Bell, Star, Home, User, LogOut, Copy, Filter, ArrowRight,
   BarChart2, MessageSquare, Brain, ClipboardCheck, Zap, Calendar,
   Rows3, PanelRightOpen, Code as CodeIcon,
+  CheckCircle2, Loader2, Building2, Sparkles, Lightbulb, ClipboardList, FolderKanban,
 } from 'lucide-react'
 import DataTable, { type ColumnDef } from '../components/DataTable'
 import Modal, { Drawer, ConfirmModal } from '../components/Modal'
@@ -36,6 +37,7 @@ const NAV = [
   { id: 'loading',    label: '加载状态',    icon: Loader },
   { id: 'empty',      label: '空状态',      icon: Ghost },
   { id: 'icons',      label: '图标',        icon: Smile },
+  { id: 'workspace',  label: '工作台模式',  icon: FolderKanban },
   { id: 'tokens',     label: 'Token 速查',  icon: Layout },
 ]
 
@@ -1107,6 +1109,205 @@ const tabs = ['概览', '文档', '成员', '设置']
 // 旋转动画
 <Loader size={16} className="animate-spin text-brand" />`}
           </Code>
+        </Section>
+
+        {/* ── Workspace Patterns ─────────────────────────────────────────── */}
+        <Section id="workspace" title="工作台模式 · Workspace Patterns" subtitle="2026-04 新增。围绕「项目」组织页面的复合模式：Hero 卡 / 阶段步进器 / 统计卡 / 抽屉式侧栏">
+
+          <SubSection title="Hero Card · 项目头卡">
+            <div className="bg-white border border-line rounded-2xl p-5 mb-3">
+              <div className="flex items-start gap-4">
+                <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-white shrink-0"
+                     style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}>
+                  <Building2 size={20} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h1 className="text-2xl font-bold text-ink leading-tight">某某 CRM 系统实施项目</h1>
+                  <div className="mt-1.5 flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-ink-secondary">
+                    <span>某某科技</span><span>· 制造业</span><span>· 立项 2026-03-01</span><span>· 12 份文档</span>
+                  </div>
+                </div>
+                <button className="px-3 py-1.5 text-xs rounded-lg border border-line text-ink-secondary hover:bg-canvas">编辑</button>
+              </div>
+            </div>
+            <Code>{`<div className="bg-white border border-line rounded-2xl p-5">
+  <div className="flex items-start gap-4">
+    <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-white shrink-0"
+         style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}>
+      <Building2 size={20} />
+    </div>
+    <div className="flex-1 min-w-0">
+      <h1 className="text-2xl font-bold text-ink leading-tight">{title}</h1>
+      <div className="mt-1.5 flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-ink-secondary">
+        {/* meta chips: 客户 / 行业 / 立项日 / 文档数 */}
+      </div>
+    </div>
+    <ActionButton />
+  </div>
+</div>`}</Code>
+            <p className="text-xs text-ink-muted mt-2">用法：详情页顶部锁定项目身份。橙渐变方块图标 + 大标题（24px bold）+ 一行 meta（chips by ·）+ 右侧动作按钮。</p>
+          </SubSection>
+
+          <SubSection title="Stage Stepper · 阶段步进器">
+            <div className="bg-white border border-line rounded-2xl p-5 mb-3">
+              <div className="flex items-start">
+                {[
+                  { label: '项目洞察',  status: 'done' },
+                  { label: '启动会',    status: 'done' },
+                  { label: '需求调研',  status: 'inflight' },
+                  { label: '方案设计',  status: 'idle', active: true },
+                  { label: '项目实施',  status: 'locked' },
+                  { label: '上线测试',  status: 'locked' },
+                  { label: '项目验收',  status: 'locked' },
+                ].map((s, i, arr) => (
+                  <div key={i} className="flex items-start min-w-[88px] flex-1">
+                    <div className="flex flex-col items-center flex-1">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold ${
+                        s.status === 'done' ? 'bg-emerald-500 text-white' :
+                        s.status === 'inflight' ? 'bg-blue-500 text-white' :
+                        s.status === 'locked' ? 'bg-gray-100 text-ink-muted border border-dashed border-gray-300' :
+                        'text-white shadow-md ring-4 ring-orange-100'
+                      }`} style={s.active ? { background: 'linear-gradient(135deg,#FF8D1A,#D96400)' } : undefined}>
+                        {s.status === 'done' ? <CheckCircle2 size={16} /> :
+                         s.status === 'inflight' ? <Loader2 size={14} className="animate-spin" /> :
+                         s.status === 'locked' ? <Lock size={11} /> : <span>{i + 1}</span>}
+                      </div>
+                      <span className={`mt-2 text-[11px] text-center px-1 ${
+                        s.active ? 'text-ink font-semibold' :
+                        s.status === 'locked' ? 'text-ink-muted' : 'text-ink-secondary'
+                      }`}>{s.label}</span>
+                    </div>
+                    {i < arr.length - 1 && (
+                      <div className={`h-px flex-1 mt-[18px] ${s.status === 'done' ? 'bg-emerald-300' : 'bg-line'}`} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-ink-muted mb-2">
+              <strong>状态四态：</strong>
+              <span className="inline-flex items-center gap-1 mx-2"><span className="w-3 h-3 rounded-full bg-emerald-500"/>done</span>
+              <span className="inline-flex items-center gap-1 mx-2"><span className="w-3 h-3 rounded-full bg-blue-500"/>inflight</span>
+              <span className="inline-flex items-center gap-1 mx-2"><span className="w-3 h-3 rounded-full" style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}/>idle (active)</span>
+              <span className="inline-flex items-center gap-1 mx-2"><span className="w-3 h-3 rounded-full bg-gray-100 border border-dashed border-gray-400"/>locked</span>
+            </p>
+            <Code>{`type Status = 'done' | 'inflight' | 'idle' | 'locked'
+
+// 节点圆 + 标签 + 连接线（最后一个无连接线）
+<div className="flex items-start">
+  {stages.map((s, i, arr) => (
+    <div key={s.key} className="flex items-start min-w-[88px] flex-1">
+      <div className="flex flex-col items-center flex-1">
+        <button className={\`w-9 h-9 rounded-full ... \${classByStatus(s.status, s.active)}\`}>
+          {s.status === 'done' ? <CheckCircle2/> :
+           s.status === 'inflight' ? <Loader2 className="animate-spin"/> :
+           s.status === 'locked' ? <Lock/> : <span>{i+1}</span>}
+        </button>
+        <span className="mt-2 text-[11px]">{s.label}</span>
+      </div>
+      {i < arr.length - 1 && (
+        <div className={\`h-px flex-1 mt-[18px] \${s.status === 'done' ? 'bg-emerald-300' : 'bg-line'}\`}/>
+      )}
+    </div>
+  ))}
+</div>`}</Code>
+          </SubSection>
+
+          <SubSection title="Action Strip · 当前阶段动作条">
+            <div className="rounded-xl border border-line bg-canvas/50 px-4 py-3 flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white"
+                     style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}>
+                  <Lightbulb size={13}/>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink truncate">项目洞察</p>
+                  <p className="text-[11px] text-ink-muted truncate">尚未生成，可开始对话生成</p>
+                </div>
+              </div>
+              <div className="ml-auto">
+                <button className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-lg shadow-sm"
+                        style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}>
+                  <Sparkles size={11}/> 开始对话生成
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-ink-muted">紧贴步进器下方的状态-动作面板：左侧标签 + 描述文案，右侧动作按钮（预览/下载/重生成 或 开始生成）。</p>
+          </SubSection>
+
+          <SubSection title="StatCard · 统计卡">
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              {[
+                { Icon: Building2,    label: '活跃项目',     val: 12, color: '#D96400', bg: 'bg-orange-50' },
+                { Icon: CheckCircle2, label: '已生成交付物', val: 38, color: '#059669', bg: 'bg-emerald-50' },
+                { Icon: Loader2,      label: '后台进行中',   val: 2,  color: '#2563EB', bg: 'bg-blue-50', spin: true },
+              ].map(({ Icon, label, val, color, bg, spin }) => (
+                <div key={label} className="bg-white border border-line rounded-2xl p-4 flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+                    <Icon size={16} style={{ color }} className={spin ? 'animate-spin' : undefined}/>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xl font-bold text-ink leading-none">{val}</p>
+                    <p className="text-[11px] text-ink-muted mt-1.5">{label}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Code>{`<div className="bg-white border border-line rounded-2xl p-4 flex items-center gap-3">
+  <div className={\`w-10 h-10 rounded-xl \${bg} flex items-center justify-center shrink-0\`}>
+    <Icon size={16} style={{ color }} />
+  </div>
+  <div className="min-w-0">
+    <p className="text-xl font-bold text-ink leading-none">{value}</p>
+    <p className="text-[11px] text-ink-muted mt-1.5">{label}</p>
+  </div>
+</div>`}</Code>
+          </SubSection>
+
+          <SubSection title="Drawer Trigger · 抽屉触发按钮">
+            <div className="flex items-center gap-2 mb-3">
+              <button className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border border-line text-ink-secondary hover:bg-canvas hover:text-ink">
+                <ClipboardList size={12}/> 关联文档
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-canvas text-ink-muted">12</span>
+              </button>
+            </div>
+            <p className="text-xs text-ink-muted">右上角次要入口的标准模式：图标 + 标签 + 灰色 pill 计数。点击调用 <code className="px-1 bg-canvas rounded">@/components/Modal</code> 的 <code className="px-1 bg-canvas rounded">Drawer</code>。</p>
+          </SubSection>
+
+          <SubSection title="Tab Bar · 双模 Chat 切换">
+            <div className="px-4 pt-3 pb-0 border border-line bg-white rounded-xl flex items-end gap-1 mb-3">
+              <span className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-t-lg border-b-2 border-[#D96400] text-ink font-semibold bg-orange-50/60">
+                <MessageSquare size={12}/> 项目问答
+              </span>
+              <span className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-t-lg border-b-2 border-transparent text-ink-secondary">
+                <Sparkles size={12}/> 生成 · 项目洞察
+              </span>
+            </div>
+            <p className="text-xs text-ink-muted">下划线 Tab：激活态用品牌橙下边框 + 浅橙背景 + 加粗。非激活无边框、灰色文字。</p>
+          </SubSection>
+
+          <SubSection title="约束 · Do / Don't">
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div className="border border-emerald-200 bg-emerald-50/40 rounded-xl p-4">
+                <p className="text-xs font-semibold text-emerald-700 mb-2">✓ Do</p>
+                <ul className="text-xs text-ink-secondary leading-relaxed space-y-1">
+                  <li>• 详情页用 <code>h-[calc(100vh-56px)] overflow-hidden flex flex-col</code> 强约束高度，让 chat 输入贴底</li>
+                  <li>• 状态色仅 4 种语义：done(绿) / inflight(蓝) / idle/active(橙) / locked(灰虚线)</li>
+                  <li>• 锁定状态用 dashed border + Lock 图标，不要混 disabled 灰色按钮</li>
+                  <li>• Drawer 可叠层（如「关联文档」抽屉里点文档打开「文档预览」抽屉）</li>
+                </ul>
+              </div>
+              <div className="border border-red-200 bg-red-50/40 rounded-xl p-4">
+                <p className="text-xs font-semibold text-red-700 mb-2">✗ Don't</p>
+                <ul className="text-xs text-ink-secondary leading-relaxed space-y-1">
+                  <li>• 不要用 <code>min-h</code>，会让 chat 输入下方留白</li>
+                  <li>• 阶段卡片不要塞预览/下载等小动作（&lt;12px 的密集按钮）— 集中到当前阶段动作条</li>
+                  <li>• 不要在同一页堆叠紫/蓝/绿/橙多种品牌色按钮 — 仅橙为主，其他只表达状态</li>
+                  <li>• 不在阶段卡内塞图标+文字+按钮三件套，只放数字/图标即可</li>
+                </ul>
+              </div>
+            </div>
+          </SubSection>
         </Section>
 
         {/* ── Token Reference ────────────────────────────────────────────── */}

@@ -91,6 +91,7 @@ async def startup():
             "CREATE INDEX IF NOT EXISTS idx_chunks_batch ON chunks(batch_id)",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS mcp_api_key VARCHAR(64) UNIQUE",
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS industry VARCHAR(50)",
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS customer_profile TEXT",
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS industry VARCHAR(50)",
             "CREATE INDEX IF NOT EXISTS idx_documents_industry ON documents(industry)",
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS conversion_error TEXT",

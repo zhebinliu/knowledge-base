@@ -22,8 +22,8 @@ import RequireAuth from './auth/RequireAuth'
 // Console 工作台（对外输出视图）
 import ConsoleHome from './pages/console/ConsoleHome'
 import ConsoleQA from './pages/console/ConsoleQA'
-import ConsolePM from './pages/console/ConsolePM'
-import ConsoleOutputs from './pages/console/ConsoleOutputs'
+import ConsoleProjects from './pages/console/ConsoleProjects'
+import ConsoleProjectDetail from './pages/console/ConsoleProjectDetail'
 import ConsoleMeeting from './pages/console/ConsoleMeeting'
 
 export default function App() {
@@ -43,10 +43,10 @@ export default function App() {
       <Route element={<RequireAuth />}>
         <Route path="console" element={<ConsoleLayout />}>
           <Route index          element={<ConsoleHome />} />
-          <Route path="qa"      element={<ConsoleQA />} />
-          <Route path="pm"      element={<ConsolePM />} />
-          <Route path="outputs" element={<ConsoleOutputs />} />
-          <Route path="meeting" element={<ConsoleMeeting />} />
+          <Route path="qa"           element={<ConsoleQA />} />
+          <Route path="projects"     element={<ConsoleProjects />} />
+          <Route path="projects/:id" element={<ConsoleProjectDetail />} />
+          <Route path="meeting"      element={<ConsoleMeeting />} />
         </Route>
       </Route>
 

@@ -27,6 +27,7 @@ class ProjectIn(BaseModel):
     modules: list[str] | None = None
     kickoff_date: date | None = None
     description: str | None = None
+    customer_profile: str | None = None
 
 
 class ProjectPatch(BaseModel):
@@ -36,6 +37,7 @@ class ProjectPatch(BaseModel):
     modules: list[str] | None = None
     kickoff_date: date | None = None
     description: str | None = None
+    customer_profile: str | None = None
 
 
 def _project_dto(p: Project, doc_count: int = 0) -> dict:
@@ -47,6 +49,7 @@ def _project_dto(p: Project, doc_count: int = 0) -> dict:
         "modules": p.modules or [],
         "kickoff_date": p.kickoff_date.isoformat() if p.kickoff_date else None,
         "description": p.description,
+        "customer_profile": p.customer_profile,
         "created_by": p.created_by,
         "created_at": p.created_at,
         "updated_at": p.updated_at,
@@ -119,6 +122,7 @@ async def create_project(
         modules=modules,
         kickoff_date=body.kickoff_date,
         description=body.description,
+        customer_profile=body.customer_profile,
         created_by=user.id,
     )
     session.add(p)
@@ -161,6 +165,8 @@ async def update_project(
         p.kickoff_date = body.kickoff_date
     if body.description is not None:
         p.description = body.description
+    if body.customer_profile is not None:
+        p.customer_profile = body.customer_profile
     await session.commit()
     await session.refresh(p)
     cnt = await session.scalar(
@@ -199,6 +205,61 @@ async def delete_project(
 
 
 # ── Documents under project ─────────────────────────────────────────────────
+
+@router.post("/{project_id}/generate_profile")
+async def generate_customer_profile(
+    project_id: str,
+    session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_user),
+):
+    """LLM 一次成稿生成客户画像草稿（不入库，返回字符串，前端确认后再 PATCH 写回）。"""
+    p = await session.get(Project, project_id)
+    if not p:
+        raise HTTPException(404, "项目不存在")
+
+    # 拉取已关联文档摘要（最多 5 份）作为上下文
+    doc_rows = (await session.execute(
+        select(Document.filename, Document.summary)
+        .where(Document.project_id == project_id)
+        .order_by(Document.created_at.desc())
+        .limit(5)
+    )).all()
+    doc_ctx = "\n".join(
+        f"- 《{fn}》：{(s or '')[:300]}" for fn, s in doc_rows if (s or "").strip()
+    )
+
+    from services.model_router import model_router
+
+    system = """你是资深企业咨询顾问，正在为某客户撰写"客户画像"小节，给项目交付团队对齐认知。
+
+【输出风格】
+- 用 Markdown，长度 400–700 字
+- 结构：① 公司速写（行业地位、规模、阶段）② 业务模式与增长动能 ③ 组织与决策风格 ④ 数字化成熟度 ⑤ 与本项目相关的关键诉求/痛点（结合 industry / 文档摘要推断）
+- 数据缺失时用"信息缺失，建议在 Phase 1 第一周补访"标注，不要编造具体数字
+- 不要 emoji、不要营销话术、不要一级标题（H1）
+"""
+    prompt = f"""客户名称：{p.customer or '—'}
+项目名称：{p.name}
+行业：{p.industry or '—'}
+立项日期：{p.kickoff_date.isoformat() if p.kickoff_date else '—'}
+项目描述：{p.description or '—'}
+
+{f"【已关联文档摘要】{chr(10)}{doc_ctx}" if doc_ctx else "【已关联文档】无"}
+
+请输出客户画像 Markdown 正文，不要包含项目名称作为标题。"""
+    try:
+        content, _model = await model_router.chat_with_routing(
+            "doc_generation",
+            [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            max_tokens=2000,
+            timeout=120.0,
+        )
+    except Exception as e:
+        logger.error("generate_profile_failed", project_id=project_id, error=str(e)[:200])
+        raise HTTPException(502, f"画像生成失败：{str(e)[:120] or type(e).__name__}")
+
+    return {"profile": (content or "").strip()}
+
 
 @router.get("/{project_id}/documents")
 async def list_project_documents(project_id: str, session: AsyncSession = Depends(get_session)):

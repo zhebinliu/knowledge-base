@@ -1,6 +1,57 @@
 # 任务跟踪
 
-## 新迭代：访谈式产出 + 项目模式自动锁定（2026-04-25）
+## 新迭代：Console 项目管理融合（2026-04-25）
+
+### 背景
+将「输出中心」+「PM 视角」融合为「项目管理」一级菜单。项目列表 → 项目详情，详情页内置阶段推进器 / 文档侧栏 / 双模聊天。会议纪要保持独立菜单（未来支持选项目关联）。
+
+### 阶段 → Skill 映射
+| 阶段 | Skill | 启用 |
+|------|------|------|
+| 项目洞察 | insight | ✅ |
+| 启动会 | kickoff_pptx | ✅ |
+| 需求调研 | survey | ✅ |
+| 方案设计 / 项目实施 / 上线测试 / 项目验收 | — | 占位 |
+
+### Backend
+- [x] B1. Project 加 `customer_profile TEXT`；幂等迁移在 main.py（无 alembic）
+- [x] B2. `PATCH /api/projects/{id}` 支持改 industry / kickoff_date / customer / customer_profile / description
+- [x] B3. `POST /api/projects/{id}/generate_profile`：LLM 基于 customer/industry/已关联文档摘要生成画像草稿（不入库，前端确认后 PATCH）
+
+### Frontend
+- [x] F1. 路由：删 `/console/pm`、`/console/outputs`，加 `/console/projects` + `/console/projects/:id`；ConsoleLayout 顶导更新
+- [x] F2. `ConsoleProjects.tsx`：项目卡片列表（基础信息 + 3 阶段进度徽章 + 品牌色头像）
+- [x] F3. `ConsoleProjectDetail.tsx` 骨架：Hero 卡 + Stage Stepper + Action Strip + 全宽 Chat
+- [x] F4. `StageStepper`：横向 7 stage 圆形节点 + 连接线，状态四态（done/inflight/idle/locked）
+- [x] F5. Action Strip：done → 预览/下载/重生成；inflight → loader；idle → 开始对话生成
+- [x] F6. 关联文档改抽屉式（420px Drawer），点文档再开预览抽屉（叠层）
+- [x] F7. 双模 Chat：Tab 切「项目问答」(QA + lockedProjectId) / 「生成 X」(OutputChatPanel)
+- [x] F8. 项目基础信息编辑面板（顶部展开）：客户 / 行业 / 立项日 / 客户画像 + AI 生成草稿按钮
+- [x] F9. UI 美化迭代：Hero 卡品牌色图标、严格视口高度修复输入框留白、抽屉化关联文档
+
+### ConsoleHome 更新
+- [x] H1. 卡片精简为 3 张：知识问答 / 项目管理 / 会议纪要(disabled)
+- [x] H2. 顶部 3 个 StatCard：活跃项目 / 已生成交付物 / 后台进行中
+- [x] H3. 增加「最近项目」+「最近生成」两个 Panel
+
+### 设计系统更新
+- [x] D1. `/ds#workspace` 新增「工作台模式」section：Hero Card / Stage Stepper / Action Strip / StatCard / Drawer Trigger / Tab Bar / Do-Don't
+- [x] D2. `frontend/public/ds.md` 同步新增「工作台模式」章节，加约束规则（严格高度 / 不要常驻侧栏 / 状态四态语义）
+
+### 验证
+- [x] V1. `npx tsc --noEmit -p tsconfig.json` 通过
+- [x] V2. 后端 customer_profile 列已生效（生产 DB 验证）
+- [x] V3. 端到端：建项目 → 改基础信息 → 生成画像 → 点洞察 stage → 对话 → 生成 → 同 stage 看到预览
+- [x] V4. 部署 + 在线 smoke（kb.tokenwave.cloud）
+
+### 边界
+- 不动 Document chunk 逻辑
+- 不动 `/console/meeting` 与 `/console/qa`
+- 不破坏现有 `/api/outputs/*` API 形状
+
+---
+
+## 旧迭代：访谈式产出 + 项目模式自动锁定（2026-04-25）
 
 ### 背景
 - PPT/洞察 产出时项目处于早期，KB 切片少，直接丢模型会瞎编 → 改为向导式"一问一答"，答案沉淀为项目资产，下次生成复用。
