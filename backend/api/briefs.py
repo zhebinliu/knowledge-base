@@ -1,4 +1,5 @@
 """Brief CRUD + auto-extraction endpoints."""
+import asyncio
 import json
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -120,16 +121,39 @@ async def extract_brief_stream(
             if existing:
                 existing_fields = existing.fields or {}
 
+        # 用队列把生成器事件 + 心跳合并；LLM 长 await 期间靠 ping 保活
+        q: asyncio.Queue = asyncio.Queue()
+
+        async def producer():
+            try:
+                async for ev in stream_extract_brief_draft(project_id, kind):
+                    await q.put(("event", ev))
+            except Exception as e:
+                await q.put(("event", {"type": "error", "message": str(e)}))
+            finally:
+                await q.put(("end", None))
+
+        task = asyncio.create_task(producer())
         try:
-            async for ev in stream_extract_brief_draft(project_id, kind):
+            yield ": connected\n\n"  # 立即冲一行让客户端拿到响应头
+            while True:
+                try:
+                    kind_, payload = await asyncio.wait_for(q.get(), timeout=15.0)
+                except asyncio.TimeoutError:
+                    yield ": ping\n\n"
+                    continue
+                if kind_ == "end":
+                    break
+                ev = payload
                 if ev.get("type") == "done":
                     merged = merge_extract_with_user_edits(existing_fields, ev.get("fields") or {})
-                    payload = {"type": "done", "fields": merged, "schema": get_schema(kind)}
-                    yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                    out = {"type": "done", "fields": merged, "schema": get_schema(kind)}
+                    yield f"data: {json.dumps(out, ensure_ascii=False)}\n\n"
                 else:
                     yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'type':'error','message':str(e)})}\n\n"
+        finally:
+            if not task.done():
+                task.cancel()
 
     return StreamingResponse(
         gen(),
@@ -137,7 +161,6 @@ async def extract_brief_stream(
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
         },
     )
 
