@@ -109,6 +109,11 @@ export default function ConsoleProjectDetail() {
     setBriefDrawer({ kind: activeStage.kind, label: activeStage.label })
   }
 
+  const startChatFallback = () => {
+    if (!activeStage.active || !activeStage.kind) return
+    setChatMode({ type: 'output', kind: activeStage.kind, label: activeStage.label })
+  }
+
   const handleBriefGenerate = async () => {
     if (!briefDrawer) return
     try {
@@ -258,14 +263,25 @@ export default function ConsoleProjectDetail() {
                 <Loader2 size={11} className="animate-spin" /> 后台任务进行中
               </span>
             ) : activeStage.active ? (
-              <button
-                onClick={startGeneration}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-lg shadow-sm"
-                style={{ background: BRAND_GRAD }}
-              >
-                <Sparkles size={11} />
-                {activeStage.kind && BRIEF_KINDS.includes(activeStage.kind) ? '填写 Brief 并生成' : '开始对话生成'}
-              </button>
+              <>
+                {activeStage.kind && BRIEF_KINDS.includes(activeStage.kind) && (
+                  <button
+                    onClick={startChatFallback}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg border border-line text-ink-secondary hover:bg-white"
+                    title="走旧版逐题问答流程"
+                  >
+                    <MessageSquare size={11} /> 对话生成
+                  </button>
+                )}
+                <button
+                  onClick={startGeneration}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-lg shadow-sm"
+                  style={{ background: BRAND_GRAD }}
+                >
+                  <Sparkles size={11} />
+                  {activeStage.kind && BRIEF_KINDS.includes(activeStage.kind) ? '填写 Brief 并生成' : '开始对话生成'}
+                </button>
+              </>
             ) : (
               <span className="text-xs text-ink-muted">敬请期待</span>
             )}
