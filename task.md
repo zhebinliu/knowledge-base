@@ -68,34 +68,31 @@
 3. **沉淀复用**：Brief 落库为项目资产；后续重生成 / 切换 skill 复用同一份 Brief。
 
 ### X1. 数据模型
-- [ ] 新表 `project_brief`
-  - columns: id, project_id, output_kind, fields (JSONB), updated_at, updated_by
-  - UNIQUE (project_id, output_kind)
-  - `fields` 结构：`{ field_key: { value, confidence: 'high'|'medium'|'low'|null, sources: [{type, ref, snippet}], auto_filled_at?, edited_at? } }`
-- [ ] Skill 模型加字段 `brief_schema` (JSONB, default [])
-  - 结构：`[{key, label, hint?, required, group?, type?: 'text'|'list'|'date'}]`
-  - 把现有 PPT/洞察 skill 的题库从 `prompt_snippet` 抽出来填进 `brief_schema`，prompt_snippet 保留风格/方法论
-- [ ] 幂等迁移在 main.py（不开 alembic）
+- [x] 新表 `project_briefs`（columns: id, project_id, output_kind, fields JSONB, updated_at, updated_by；UNIQUE(project_id, output_kind)）
+- [x] 简化方案：skill 模型不加 `brief_schema`，直接在 `services/brief_service.py` 按 output_kind 硬编码 BRIEF_SCHEMAS（kickoff_pptx 14 字段 / insight 9 字段）
+- [x] 幂等迁移在 main.py 通过 `Base.metadata.create_all`
 
 ### X2. 后端 API & 服务
-- [ ] `GET /api/briefs/{kind}?project_id=X` → 返回已存 brief 或 `{ fields: {} }`
-- [ ] `POST /api/briefs/{kind}/extract` → 运行 LLM 抽取，**不入库**，返回草稿（前端自行覆盖未编辑字段）
-  - prompt：skill.brief_schema + 项目元数据 + 关联文档前 N 段摘要 + KB top-K
-  - 输出 JSON schema 严格约束：每字段必须给 `value | null` + `confidence` + `sources[]`（来源切片 ID / 文档 ID，便于 UI 显示）
-- [ ] `PUT /api/briefs/{kind}` → upsert 整份 brief
-- [ ] 改造 `output_service.generate_*`：prompt 拼接 = `skill.prompt_snippet` + brief.fields（已确认值） + 极少 KB 佐证
+- [x] `GET /api/briefs/{kind}?project_id=X` → 返回 brief 或空骨架 + schema
+- [x] `POST /api/briefs/{kind}/extract` → LLM 抽取，**不入库**，返回与已有 brief 合并后的草稿
+- [x] `POST /api/briefs/{kind}/extract/stream` → SSE 流式抽取，逐阶段吐进度（metadata / documents / chunks / llm）+ 最终 done 事件携带 fields
+- [x] `PUT /api/briefs/{kind}` → upsert 整份 brief
+- [x] `output_service._gather_inputs` 接入 brief：generate_insight / generate_kickoff_pptx prompt 拼接已确认 brief 块
+- [x] 解析容错：`raw_decode` 容忍 LLM 输出尾部多余字符
+- [x] 字段归一化：list 项 dict 自动拼成 "key: value · key: value" 字符串
+- [x] SSE 心跳：15s ping 注释行，移除 hop-by-hop Connection 头
 
 ### X3. 前端
-- [ ] ConsoleProjectDetail Action Strip 「开始生成」按钮：
-  - 若 skill 有 brief_schema 且 brief 缺失 / 过期 → 打开 `BriefDrawer`
-  - 否则保持当前 OutputChatPanel 的对话生成
-- [ ] `BriefDrawer` 组件（右侧抽屉）：
-  - 进入时若无 brief，自动 POST `/extract` 拿草稿（loading 态显示"正在从文档中提取…"）
-  - 字段按 `group` 分区展示；高置信折叠 + ✅ 标记，中/低置信默认展开 + 引用来源 chip，空白必填高亮
-  - 每字段右侧显示 confidence 圆点 + 来源数；点击查看引用切片
+- [x] ConsoleProjectDetail Action Strip：BRIEF_KINDS（kickoff_pptx/insight）走 BriefDrawer，survey 保持 OutputChatPanel
+- [x] 备选入口：BRIEF_KINDS 阶段额外提供「对话生成」按钮走旧 OutputChatPanel
+- [x] `BriefDrawer` 组件（右侧抽屉）：
+  - 自动 POST `/extract/stream`，蒙版动态 checklist（每阶段打勾 + 明细，最后"AI 生成中…"）
+  - 字段按 group 分组折叠；ConfidenceDot（绿/黄/灰）+ 来源 popover
+  - ListEditor / DateInput / Textarea 三态；编辑过自动打 edited_at 戳
   - 底部：「保存草稿」/「保存并生成」
-- [ ] 项目详情新增「项目 Brief」入口（与「关联文档」并列的按钮）：可随时回看/编辑已确认 Brief
-- [ ] Brief 编辑过的字段不再被下次 `/extract` 覆盖（前端合并策略：edited_at > auto_filled_at 的字段保持不动）
+- [x] `extractBriefStream` fetch + ReadableStream（带 Authorization header）替代 axios mutation
+- [x] 编辑过字段不被下次 extract 覆盖（后端 merge_extract_with_user_edits 实现）
+- [x] 项目详情阶段栏重做：单向 chevron 箭头 + 描线房子图标，三段式紧凑布局
 
 ---
 
@@ -109,11 +106,10 @@
 
 ## 部署顺序
 1. ~~Feature Y~~（已完成）
-2. X1：数据模型 + skill.brief_schema 题库迁移
-3. X2：`/extract` 端点先打通（这是最关键也最易翻车的一步——验证 LLM JSON 输出 + 来源标注稳定性）
-4. X2 余下：GET / PUT brief；接入 output_service 拼 prompt
-5. X3：BriefDrawer 一页表单 + Action Strip 集成
-6. 端到端：新建项目 → 点 PPT 阶段 → 看到自动抽取的 Brief 草稿（含来源） → 编辑空白项 → 保存并生成 → 下载验证
+2. ~~X1~~ 数据模型（project_briefs 已上线，schema 改为后端硬编码不依赖 skill 表）
+3. ~~X2~~ 后端 API + 流式 extract + 解析容错 + 字段归一化（已上线）
+4. ~~X3~~ BriefDrawer + Action Strip + 阶段栏重做（已上线）
+5. ~~端到端验证~~：实际项目走 kickoff/insight，extract 草稿正常返回、字段填充正常、生成调用 brief 成功
 
 ## 边界
 - `survey` 保持原逻辑（survey 本身就是问卷，不需要 Brief）
