@@ -170,13 +170,15 @@ def _parse_brief_response(raw: str, schema: list[dict]) -> dict:
         if text.endswith("```"):
             text = text[:-3]
         text = text.strip()
+    # 截到第一个 { 开头
     if not text.startswith("{"):
         i = text.find("{")
-        j = text.rfind("}")
-        if i >= 0 and j > i:
-            text = text[i:j+1]
+        if i >= 0:
+            text = text[i:]
+    # 用 raw_decode 解析第一个完整 JSON 值，忽略任何尾部 token / 多余对象
+    parsed = None
     try:
-        parsed = json.loads(text)
+        parsed, _end = json.JSONDecoder().raw_decode(text)
     except Exception as e:
         logger.warning("brief_extract_json_parse_failed", error=str(e)[:120], head=text[:200])
         return {}
