@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     xiaomi_api_key: str = ""
     dashscope_api_key: str = ""
 
+    # Web search（可选，配置后生成期会做真实联网检索）
+    bocha_api_key: str = ""
+    bocha_api_base: str = "https://api.bochaai.com"
+    tavily_api_key: str = ""
+
     # 挑战配置
     challenge_auto_accept_threshold: float = 0.9
     challenge_review_threshold: float = 0.7

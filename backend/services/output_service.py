@@ -129,6 +129,95 @@ async def _mark_conversation(bundle_id: str, status: str):
             await s.commit()
 
 
+INDUSTRY_PRIMING_SYSTEM = """你是一位资深的企业级 SaaS 实施研究员（前 Gartner / IDC 分析师背景）。
+基于客户、行业、模块信息，输出一份结构化【行业/客户研究简报】，给到下游的咨询顾问做参考。
+要求：
+1. 不要虚构具体数字，但可以使用业内公开常识和典型范围（标"行业典型"或"业界基准"）
+2. 不要写成营销话术，要写成内部研究备忘录的语气：客观、克制、能落地
+3. 引用具体竞品 / 标杆客户名字时必须确认是真实存在的；不确定的写"同行业头部企业"
+4. 用 Markdown 输出，包含下面 6 个块：
+   ## 行业宏观
+   - 当前规模 / 增速 / 政策动向 / 数字化渗透率（用业内公开口径）
+   ## 客户画像
+   - 该客户在行业里的位置（头部/中部/长尾）、典型业务模式、CRM 成熟度推断
+   ## 同行业 CRM 实施常见模式
+   - 头部客户怎么落 LTC / SFA / CPQ / Service？典型周期、典型团队规模、典型预算区间
+   ## 该行业 CRM 实施的 5 大常见陷阱
+   - 每条：陷阱名 / 触发条件 / 后果 / 规避建议
+   ## 监管与合规要点
+   - 行业相关的数据合规（个保法 / 行业专项 / 跨境数据）
+   ## 关键成功要素（CSF）
+   - 5–7 条，每条一句话结论
+"""
+
+
+async def _industry_priming(proj, industry: str | None, kind: str, model: str | None) -> str:
+    """让 LLM 当行业研究员，先生成一份结构化的行业/客户研究 brief，作为后续生成的素材。
+    这相当于用模型自己的训练知识做一轮"准检索"。"""
+    if not industry and not (proj and proj.customer):
+        return ""
+    customer = proj.customer if proj else ""
+    modules = ", ".join(proj.modules or []) if proj else ""
+    prompt = f"""客户：{customer or "未提供"}
+行业：{industry or "未提供"}
+拟实施模块：{modules or "未提供"}
+当前任务类型：{kind}
+
+请按系统提示要求，输出该客户/行业的研究简报（800–1500 字）。"""
+    try:
+        return await _llm_call(prompt, system=INDUSTRY_PRIMING_SYSTEM, model=model, max_tokens=3000)
+    except Exception as e:
+        logger.warning("industry_priming_failed", err=str(e)[:120])
+        return ""
+
+
+async def _web_research(proj, industry: str | None, kind: str) -> tuple[list[dict], list[dict]]:
+    """真实联网检索：返回 (条目列表, 调用日志)。没配 key 时返回空。"""
+    from services.web_search_service import web_search, has_web_search_provider
+    if not has_web_search_provider():
+        return [], []
+    queries: list[str] = []
+    if industry:
+        queries.append(f"{industry} CRM 实施 案例 2024")
+        queries.append(f"{industry} 数字化转型 痛点")
+        if kind == "kickoff_pptx":
+            queries.append(f"{industry} 龙头企业 销售管理 流程")
+        elif kind == "insight":
+            queries.append(f"{industry} CRM 项目 失败原因")
+            queries.append(f"{industry} 客户管理 行业基准")
+        elif kind == "survey":
+            queries.append(f"{industry} 销售 调研 关键指标")
+    if proj and proj.customer:
+        queries.append(f"{proj.customer} 业务模式 数字化")
+    queries = list(dict.fromkeys([q.strip() for q in queries if q.strip()]))[:5]
+
+    items: list[dict] = []
+    log: list[dict] = []
+    for q in queries:
+        hits = await web_search(q, top_k=5)
+        log.append({"query": q, "hits": len(hits)})
+        items.extend(hits)
+    return items, log
+
+
+def _format_web_items(items: list[dict]) -> str:
+    if not items:
+        return ""
+    seen = set()
+    blocks = []
+    for it in items:
+        u = it.get("url", "")
+        if u in seen or not u:
+            continue
+        seen.add(u)
+        title = it.get("title") or "—"
+        snippet = (it.get("snippet") or "").strip()
+        blocks.append(f"[{title}]({u})\n{snippet}")
+        if len(blocks) >= 12:
+            break
+    return "\n\n".join(blocks)
+
+
 async def _gather_inputs(bundle_id: str, project_id: str, kind: str) -> dict:
     """统一拉取对话 / 项目 / 智能体配置，并在生成阶段做额外 KB 检索丰富上下文。"""
     async with async_session_maker() as s:
@@ -146,13 +235,23 @@ async def _gather_inputs(bundle_id: str, project_id: str, kind: str) -> dict:
     extra_refs, kb_log = await _generation_kb_search(proj, industry, kind, conv)
     all_refs_text = _merge_refs_text(_format_refs(conv), extra_refs)
 
-    # 把检索日志写回 bundle.extra，前端可看
-    if kb_log:
-        async with async_session_maker() as s:
-            b = await s.get(CuratedBundle, bundle_id)
-            if b:
-                b.extra = {**(b.extra or {}), "generation_kb_calls": kb_log}
-                await s.commit()
+    # 行业 / 客户研究 priming（使用模型自身知识做"准检索"）
+    industry_brief = await _industry_priming(proj, industry, kind, agent_cfg.get("model"))
+    # 真实 web 搜索（仅当配置了 key）
+    web_items, web_log = await _web_research(proj, industry, kind)
+    web_text = _format_web_items(web_items)
+
+    # 把所有检索日志写回 bundle.extra，前端可看
+    async with async_session_maker() as s:
+        b = await s.get(CuratedBundle, bundle_id)
+        if b:
+            b.extra = {
+                **(b.extra or {}),
+                "generation_kb_calls": kb_log,
+                "web_search_calls": web_log,
+                "has_industry_brief": bool(industry_brief),
+            }
+            await s.commit()
     return {
         "project": proj,
         "industry": industry,
@@ -162,7 +261,10 @@ async def _gather_inputs(bundle_id: str, project_id: str, kind: str) -> dict:
         "skill_text": skill_text,
         "transcript": transcript,
         "refs_text": all_refs_text,
+        "industry_brief": industry_brief,
+        "web_text": web_text,
         "kb_calls": kb_log,
+        "web_calls": web_log,
     }
 
 
@@ -248,13 +350,31 @@ def _merge_refs_text(existing_text: str, extra_refs: list[dict]) -> str:
 
 # ── Survey ────────────────────────────────────────────────────────────────────
 
-SURVEY_SYSTEM = """你是一位资深的 CRM 实施顾问，擅长设计系统调研问卷。
-基于用户访谈记录和知识库片段，生成专业的问题清单。
-要求：
-1. 每个大类至少 3 题，最多 8 题
-2. 问题要具体可回答，避免宽泛
-3. 格式：## 一、业务流程类\\n- 问题…\\n## 二、角色权限类\\n…
-4. 五大类：业务流程 / 角色权限 / 数据与集成 / 风险与约束 / 进度与资源"""
+SURVEY_SYSTEM = """你是 MBB 风格的资深 CRM 实施顾问（MECE 思维 / 金字塔原理）。
+你正在为客户设计一份【实施前调研问卷】，交付给客户的项目经理 + 业务负责人填答。
+
+【输出风格 — 严格遵守】
+- 咨询公司内部文档体例：编号清晰、可勾选、可批注
+- 不写"赋能/抓手/闭环/链路/生态"等黑话
+- 每个问题要具体到可作答的颗粒度（"贵司销售从线索到签单的平均周期是多少天？" 而不是"贵司的销售周期如何？"）
+- 区分【事实型】（一定有标准答案）/【判断型】（需主观评估）/【数据型】（需要从系统导出数据）
+- 每题后面用斜体注明：*为什么问 / 答案如何使用*
+
+【题量规模 — 至少要这么多，否则视为不合格】
+- 总计 ≥ 60 题
+- 7 个大类，每类 8–12 题：
+  1. 战略与目标
+  2. 组织与角色
+  3. 业务流程（线索→机会→合同→交付→回款）
+  4. 数据治理与主数据
+  5. 系统集成与接口
+  6. 合规、安全、权限
+  7. 资源、预算与进度
+
+【必须在问卷顶部加一段说明】
+> 本问卷用于 CRM 实施启动前的现状摸底。请由对应模块责任人填写。带 ★ 的题目为重点题，请务必填答。
+
+输出 Markdown 格式。"""
 
 
 async def generate_survey(bundle_id: str, project_id: str):
@@ -267,18 +387,22 @@ async def generate_survey(bundle_id: str, project_id: str):
         prompt = f"""{scope_line}
 行业：{ctx['industry'] or '未填写'}
 
-【访谈记录（主要依据）】
+【访谈记录（已知信息）】
 {ctx['transcript']}
 
+{f"【行业/客户研究 brief（模型自身知识）】{chr(10)}{ctx['industry_brief']}" if ctx.get('industry_brief') else ""}
+
 {f"【知识库佐证】{chr(10)}{ctx['refs_text']}" if ctx['refs_text'] else ""}
+
+{f"【联网检索结果】{chr(10)}{ctx['web_text']}" if ctx.get('web_text') else ""}
 
 {f"【方法论/风格要求】{chr(10)}{ctx['agent_prompt']}" if ctx['agent_prompt'] else ""}
 
 {f"【启用技能】{chr(10)}{ctx['skill_text']}" if ctx['skill_text'] else ""}
 
-请基于上述访谈记录生成详细的实施调研问卷，按五大类组织，返回 Markdown 格式。访谈未覆盖的维度请标"待补充"而不要编造。"""
+请按系统提示要求，输出 ≥60 题的实施前调研问卷（7 个大类 × 8–12 题）。访谈已经有的信息**不要再问**，要根据已有信息**精准追问没覆盖的维度**。"""
 
-        md = await _llm_call(prompt, system=SURVEY_SYSTEM, model=ctx["agent_model"])
+        md = await _llm_call(prompt, system=SURVEY_SYSTEM, model=ctx["agent_model"], max_tokens=8000)
 
         docx_key: str | None = None
         try:
@@ -300,8 +424,25 @@ async def generate_survey(bundle_id: str, project_id: str):
 
 # ── Insight ───────────────────────────────────────────────────────────────────
 
-INSIGHT_SYSTEM = """你是一位资深 CRM 实施顾问兼 PMO 专家，擅长将访谈记录提炼为高管可用的项目洞察报告。
-每个章节要有明确结论、量化指标（若访谈提到）、数据出处。访谈未覆盖的请标"待补充"而不要编造。"""
+INSIGHT_SYSTEM = """你是 MBB 风格的资深咨询顾问（McKinsey / BCG / Bain），现在为客户高管层撰写【项目洞察报告】。
+
+【风格 — 严格执行】
+1. **金字塔原理**：每节先给"Bottom line"结论（1 句话，加粗），再展开论据
+2. **Claim → Evidence → So what**：每个论点都要有数据支撑（行业 brief、知识库或访谈），并写出"对项目意味着什么"
+3. **表格优先于 bullet**：能用表格表达的不要用 bullet（风险矩阵、决策表、干系人画像、量化指标）
+4. **不写黑话**：禁止"赋能 / 抓手 / 闭环 / 链路 / 生态 / 数字化转型 / 一站式"
+5. **数字化**：每节至少一个量化指标（区间也可以，标"业界基准 / 行业典型"）
+6. **专业克制**：不要感叹号，不要营销话术，"我们认为"、"建议"用得克制
+7. **可信度标注**：信息源用 [访谈] / [知识库] / [行业 brief] / [Web] 四种标签清晰区分；模型推断的用 [推断] 并说明依据
+8. **不编造**：访谈和素材都没覆盖的，写"信息缺失，建议在 Phase 1 第一周补访"
+
+【格式】
+- 用 Markdown
+- 表格用 GFM 语法
+- 不要用 emoji
+- 章节之间用 `---` 分隔
+- 风险用「高/中/低」标签，不用 🔴🟡🟢
+"""
 
 INSIGHT_SECTIONS = [
     ("执行摘要", "用 3–5 条 bullet 概括项目当前态势、最关键 1 个机会与最关键 1 个风险，给高管 30 秒就能读完。"),
@@ -327,18 +468,28 @@ async def generate_insight(bundle_id: str, project_id: str):
             prompt = f"""{scope_line}
 行业：{ctx['industry'] or '—'}
 
-【访谈记录（主要依据）】
+【访谈记录】
 {ctx['transcript']}
 
+{f"【行业/客户研究 brief】{chr(10)}{ctx['industry_brief']}" if ctx.get('industry_brief') else ""}
+
 {f"【知识库佐证】{chr(10)}{ctx['refs_text']}" if ctx['refs_text'] else ""}
+
+{f"【联网检索】{chr(10)}{ctx['web_text']}" if ctx.get('web_text') else ""}
 
 {f"【方法论】{chr(10)}{ctx['agent_prompt']}" if ctx['agent_prompt'] else ""}
 
 {f"【启用技能】{chr(10)}{ctx['skill_text']}" if ctx['skill_text'] else ""}
 
-问题：{question}
+本节主题：**{title}**
+本节任务：{question}
 
-请给出 400–900 字的结构化回答，Markdown 格式（用表格、bullet、加粗强调），访谈未覆盖的标"待补充"。"""
+【输出要求】
+- 第一行就是 Bottom line 结论（加粗一句话）
+- 必须用一张 Markdown 表格作为主要载体（除非"执行摘要"这种总览）
+- 每个数据点末尾用 [访谈]/[知识库]/[行业 brief]/[Web]/[推断] 标注来源
+- 字数 600–1200，禁止黑话
+- 信息缺口写"信息缺失，建议在 Phase 1 第一周补访"，不要编造"""
             answer = await _llm_call(prompt, system=INSIGHT_SYSTEM, model=ctx["agent_model"], max_tokens=4000)
             sections.append(f"## {title}\n\n{answer}")
 
@@ -363,7 +514,15 @@ async def generate_insight(bundle_id: str, project_id: str):
 
 # ── Kickoff PPTX（HTML 交付物，Claude 风格） ─────────────────────────────────
 
-HTML_PPTX_SYSTEM = """你是一位 MBB 风格咨询顾问，负责为 CRM 实施项目的启动会生成【可直接交付给甲方高层】的幻灯片。
+HTML_PPTX_SYSTEM = """你是一位 MBB 风格（McKinsey/BCG/Bain）咨询顾问，负责为 CRM 实施项目的启动会生成【可直接交付给甲方 C-level】的幻灯片。
+
+【内容风格 — 严格遵守】
+- 不要"好看"，要"专业"。深色文字、克制留白、表格 / 矩阵 / 图示优先
+- 每页主标都是结论句（"基于现状诊断，主数据治理是 Phase 1 优先级最高的工作流"），副标可以是描述句
+- 每页正文必须包含【至少 1 张表格 / 矩阵 / 图示】，不能是纯文字 bullet
+- 每个论断必须带数字（行业 brief 中的"业界基准"也算）
+- 信息源标签：每个数据点旁边用小字标 [访谈] / [知识库] / [行业 brief]；模型推断标 [推断]
+- 不允许出现：赋能 / 抓手 / 闭环 / 链路 / 生态 / 一站式 / 全方位 / 数字化转型 / 全链路 / emoji
 输出形态：一个完整自包含的 HTML 文件字符串，绝对不要 ```html 代码块围栏，直接从 <!DOCTYPE html> 开始。
 
 【硬性规范】
@@ -430,16 +589,20 @@ async def generate_kickoff_pptx(bundle_id: str, project_id: str):
 
         prompt = f"""{scope_block}
 
-【访谈记录（主要依据）】
+【访谈记录】
 {ctx['transcript']}
 
+{f"【行业/客户研究 brief（务必把这部分变成 PPT 内容，不要只读一遍）】{chr(10)}{ctx['industry_brief']}" if ctx.get('industry_brief') else ""}
+
 {f"【知识库佐证】{chr(10)}{ctx['refs_text']}" if ctx['refs_text'] else ""}
+
+{f"【联网检索】{chr(10)}{ctx['web_text']}" if ctx.get('web_text') else ""}
 
 {f"【方法论/风格要求】{chr(10)}{ctx['agent_prompt']}" if ctx['agent_prompt'] else ""}
 
 {f"【启用技能（PPT 骨架 / 版式 / 文案规范）】{chr(10)}{ctx['skill_text']}" if ctx['skill_text'] else ""}
 
-请生成完整的启动会 HTML 幻灯片（11 页）。直接输出 HTML 字符串。"""
+请生成完整的启动会 HTML 幻灯片（11 页）。直接输出 HTML 字符串。每页都要有表格/矩阵/图示，不能纯文字。"""
 
         html_raw = await _llm_call(prompt, system=HTML_PPTX_SYSTEM, model=ctx["agent_model"], max_tokens=16000)
         html = _strip_html_fences(html_raw)
