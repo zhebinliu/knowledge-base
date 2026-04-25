@@ -1,10 +1,12 @@
 """Brief CRUD + auto-extraction endpoints."""
+import json
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import get_session
+from models import get_session, async_session_maker
 from models.project import Project
 from models.project_brief import ProjectBrief
 from models.user import User
@@ -12,6 +14,7 @@ from services.auth import get_current_user
 from services.brief_service import (
     BRIEF_SCHEMAS, get_schema, empty_brief,
     merge_extract_with_user_edits, extract_brief_draft,
+    stream_extract_brief_draft,
 )
 
 router = APIRouter()
@@ -89,6 +92,54 @@ async def extract_brief(
         "fields": merged,
         "schema": get_schema(kind),
     }
+
+
+@router.post("/{kind}/extract/stream")
+async def extract_brief_stream(
+    kind: str,
+    project_id: str = Query(...),
+    current_user: User = Depends(get_current_user),
+):
+    """SSE 流式抽取：逐阶段吐进度，最终事件携带 merged fields。"""
+    if kind not in BRIEF_SCHEMAS:
+        raise HTTPException(404, f"Unsupported output_kind: {kind}")
+
+    async def gen():
+        existing_fields: dict = {}
+        async with async_session_maker() as s:
+            proj = await s.get(Project, project_id)
+            if not proj:
+                yield f"data: {json.dumps({'type':'error','message':'Project not found'})}\n\n"
+                return
+            existing = (await s.execute(
+                select(ProjectBrief).where(
+                    ProjectBrief.project_id == project_id,
+                    ProjectBrief.output_kind == kind,
+                )
+            )).scalar_one_or_none()
+            if existing:
+                existing_fields = existing.fields or {}
+
+        try:
+            async for ev in stream_extract_brief_draft(project_id, kind):
+                if ev.get("type") == "done":
+                    merged = merge_extract_with_user_edits(existing_fields, ev.get("fields") or {})
+                    payload = {"type": "done", "fields": merged, "schema": get_schema(kind)}
+                    yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                else:
+                    yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type':'error','message':str(e)})}\n\n"
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 class PutBriefBody(BaseModel):

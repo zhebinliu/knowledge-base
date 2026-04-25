@@ -161,47 +161,7 @@ async def _gather_extract_context(project_id: str, kind: str) -> dict:
     }
 
 
-async def extract_brief_draft(project_id: str, output_kind: str, model: str | None = None) -> dict:
-    """让 LLM 抽取一份 brief 草稿。返回 fields dict（不入库）。"""
-    schema = get_schema(output_kind)
-    if not schema:
-        return {}
-
-    ctx = await _gather_extract_context(project_id, output_kind)
-    proj = ctx["project"]
-
-    meta_block = "（无项目元数据）"
-    if proj:
-        meta_block = f"""项目名称：{proj.name}
-客户：{proj.customer or '—'}
-行业：{proj.industry or '—'}
-启动日期：{proj.kickoff_date.isoformat() if proj.kickoff_date else '—'}
-实施模块：{', '.join(proj.modules or []) or '—'}
-项目描述：{proj.description or '—'}
-客户画像：{proj.customer_profile or '—'}"""
-
-    schema_block = _format_schema_for_prompt(schema)
-
-    prompt = f"""【交付物类型】{output_kind}
-
-【项目元数据】
-{meta_block}
-
-【关联文档摘要】
-{ctx['docs_summary']}
-
-【项目相关切片（节选，作为引用素材）】
-{ctx['chunks_text'] or '（无相关切片）'}
-
-【需要抽取的字段 schema】
-{schema_block}
-
-请按系统提示要求，输出 JSON。所有 schema 中的 key 都必须出现在 fields 中。"""
-
-    from services.output_service import _llm_call
-    raw = await _llm_call(prompt, system=EXTRACT_SYSTEM, model=model, max_tokens=6000, timeout=240.0)
-
-    # 解析 JSON（容错：剥围栏 + 截取首个 { ... }）
+def _parse_brief_response(raw: str, schema: list[dict]) -> dict:
     text = (raw or "").strip()
     if text.startswith("```"):
         nl = text.find("\n")
@@ -215,22 +175,19 @@ async def extract_brief_draft(project_id: str, output_kind: str, model: str | No
         j = text.rfind("}")
         if i >= 0 and j > i:
             text = text[i:j+1]
-
     try:
         parsed = json.loads(text)
     except Exception as e:
         logger.warning("brief_extract_json_parse_failed", error=str(e)[:120], head=text[:200])
-        return empty_brief(output_kind)
-
+        return {}
     fields_raw = parsed.get("fields") if isinstance(parsed, dict) else None
     if not isinstance(fields_raw, dict):
-        return empty_brief(output_kind)
-
+        return {}
     from datetime import datetime, timezone
     now_iso = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     out: dict = {}
-    schema_keys = {f["key"] for f in schema}
-    for k in schema_keys:
+    for f in schema:
+        k = f["key"]
         v = fields_raw.get(k) or {}
         out[k] = {
             "value": v.get("value"),
@@ -239,6 +196,139 @@ async def extract_brief_draft(project_id: str, output_kind: str, model: str | No
             "auto_filled_at": now_iso,
         }
     return out
+
+
+async def stream_extract_brief_draft(project_id: str, output_kind: str, model: str | None = None):
+    """异步生成器：边干边吐进度事件。
+
+    事件 schema：
+    - {"type":"stage_start","id":"...","label":"..."}
+    - {"type":"stage_done","id":"...","detail":"..."}
+    - {"type":"done","fields":{...}}
+    - {"type":"error","message":"..."}
+    """
+    schema = get_schema(output_kind)
+    if not schema:
+        yield {"type": "done", "fields": {}}
+        return
+
+    # ── 1. 项目元数据 ─────────────────────────────────────
+    yield {"type": "stage_start", "id": "metadata", "label": "拉取项目元数据"}
+    try:
+        async with async_session_maker() as s:
+            proj = await s.get(Project, project_id) if project_id else None
+        yield {"type": "stage_done", "id": "metadata",
+               "detail": (proj.name if proj else "无项目")}
+    except Exception as e:
+        yield {"type": "error", "message": f"读取项目失败：{e}"}
+        return
+
+    # ── 2. 关联文档摘要 ──────────────────────────────────
+    yield {"type": "stage_start", "id": "documents", "label": "读取关联文档摘要"}
+    doc_rows = []
+    try:
+        if proj:
+            async with async_session_maker() as s:
+                doc_rows = (await s.execute(
+                    select(Document.id, Document.filename, Document.summary, Document.doc_type)
+                    .where(Document.project_id == proj.id)
+                    .limit(30)
+                )).all()
+        yield {"type": "stage_done", "id": "documents",
+               "detail": f"{len(doc_rows)} 份文档"}
+    except Exception as e:
+        yield {"type": "error", "message": f"读取文档失败：{e}"}
+        return
+
+    # ── 3. KB 相关切片 ───────────────────────────────────
+    yield {"type": "stage_start", "id": "chunks", "label": "检索知识库相关切片"}
+    chunks_text = ""
+    chunk_n = 0
+    try:
+        doc_ids = [r.id for r in doc_rows]
+        if doc_ids:
+            async with async_session_maker() as s:
+                chunk_rows = (await s.execute(
+                    select(Chunk.content, Chunk.source_section, Document.filename)
+                    .join(Document, Document.id == Chunk.document_id)
+                    .where(Chunk.document_id.in_(doc_ids))
+                    .where(Chunk.review_status != "rejected")
+                    .order_by(Chunk.citation_count.desc())
+                    .limit(30)
+                )).all()
+            chunk_n = len(chunk_rows)
+            chunks_text = "\n\n".join(
+                f"[{r.filename or '未知文档'}{(' · ' + r.source_section) if r.source_section else ''}]\n{(r.content or '')[:400]}"
+                for r in chunk_rows
+            )
+        yield {"type": "stage_done", "id": "chunks",
+               "detail": f"{chunk_n} 条切片"}
+    except Exception as e:
+        yield {"type": "error", "message": f"检索切片失败：{e}"}
+        return
+
+    # ── 4. LLM 抽取 ──────────────────────────────────────
+    yield {"type": "stage_start", "id": "llm", "label": "AI 综合素材并抽取字段"}
+
+    docs_summary = "\n".join(
+        f"- {r.filename}（{r.doc_type or '未分类'}）: {(r.summary or '')[:200]}"
+        for r in doc_rows
+    ) if doc_rows else "（无关联文档）"
+
+    meta_block = "（无项目元数据）"
+    if proj:
+        meta_block = f"""项目名称：{proj.name}
+客户：{proj.customer or '—'}
+行业：{proj.industry or '—'}
+启动日期：{proj.kickoff_date.isoformat() if proj.kickoff_date else '—'}
+实施模块：{', '.join(proj.modules or []) or '—'}
+项目描述：{proj.description or '—'}
+客户画像：{proj.customer_profile or '—'}"""
+
+    schema_block = _format_schema_for_prompt(schema)
+    prompt = f"""【交付物类型】{output_kind}
+
+【项目元数据】
+{meta_block}
+
+【关联文档摘要】
+{docs_summary}
+
+【项目相关切片（节选，作为引用素材）】
+{chunks_text or '（无相关切片）'}
+
+【需要抽取的字段 schema】
+{schema_block}
+
+请按系统提示要求，输出 JSON。所有 schema 中的 key 都必须出现在 fields 中。"""
+
+    from services.output_service import _llm_call
+    try:
+        raw = await _llm_call(prompt, system=EXTRACT_SYSTEM, model=model, max_tokens=6000, timeout=240.0)
+    except Exception as e:
+        yield {"type": "error", "message": f"LLM 调用失败：{e}"}
+        return
+
+    out = _parse_brief_response(raw, schema)
+    if not out:
+        out = empty_brief(output_kind)
+        yield {"type": "stage_done", "id": "llm", "detail": "解析失败，已返回空骨架"}
+    else:
+        filled = sum(1 for cell in out.values() if cell.get("value") not in (None, "", []))
+        yield {"type": "stage_done", "id": "llm", "detail": f"{filled}/{len(schema)} 字段已抽取"}
+
+    yield {"type": "done", "fields": out}
+
+
+async def extract_brief_draft(project_id: str, output_kind: str, model: str | None = None) -> dict:
+    """非流式封装：跑完 stream，取 done 事件的 fields。"""
+    fields: dict = {}
+    async for ev in stream_extract_brief_draft(project_id, output_kind, model):
+        if ev.get("type") == "done":
+            fields = ev.get("fields") or {}
+        elif ev.get("type") == "error":
+            return empty_brief(output_kind)
+    return fields or empty_brief(output_kind)
 
 
 def render_brief_for_prompt(brief_fields: dict, schema: list[dict]) -> str:

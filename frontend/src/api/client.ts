@@ -803,3 +803,46 @@ export const extractBrief = (kind: string, project_id: string) =>
 
 export const putBrief = (kind: string, project_id: string, fields: Record<string, BriefFieldCell>) =>
   api.put<BriefDoc>(`/briefs/${kind}`, { fields }, { params: { project_id } }).then(r => r.data)
+
+export type BriefStreamEvent =
+  | { type: 'stage_start'; id: string; label: string }
+  | { type: 'stage_done'; id: string; detail?: string }
+  | { type: 'done'; fields: Record<string, BriefFieldCell>; schema: BriefFieldDef[] }
+  | { type: 'error'; message: string }
+
+export async function extractBriefStream(
+  kind: string,
+  project_id: string,
+  onEvent: (ev: BriefStreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const token = localStorage.getItem(TOKEN_STORAGE_KEY)
+  const res = await fetch(`/api/briefs/${kind}/extract/stream?project_id=${encodeURIComponent(project_id)}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token ?? ''}` },
+    signal,
+  })
+  if (!res.ok || !res.body) {
+    const txt = await res.text().catch(() => '')
+    throw new Error(`extract stream failed: ${res.status} ${txt.slice(0, 200)}`)
+  }
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder('utf-8')
+  let buf = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buf += decoder.decode(value, { stream: true })
+    const parts = buf.split('\n\n')
+    buf = parts.pop() ?? ''
+    for (const block of parts) {
+      const line = block.split('\n').find(l => l.startsWith('data:'))
+      if (!line) continue
+      const json = line.slice(5).trim()
+      if (!json) continue
+      try {
+        onEvent(JSON.parse(json) as BriefStreamEvent)
+      } catch { /* ignore malformed event */ }
+    }
+  }
+}

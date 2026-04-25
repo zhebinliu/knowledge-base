@@ -4,9 +4,11 @@ import {
   X, Loader2, Wand2, Save, Sparkles, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Info,
 } from 'lucide-react'
 import {
-  getBrief, extractBrief, putBrief,
-  type BriefFieldCell, type BriefFieldDef, type BriefDoc, type BriefConfidence,
+  getBrief, extractBriefStream, putBrief,
+  type BriefFieldCell, type BriefFieldDef, type BriefConfidence,
 } from '../api/client'
+
+type StageState = { id: string; label: string; status: 'pending' | 'running' | 'done'; detail?: string }
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -47,15 +49,44 @@ export default function BriefDrawer({ open, kind, projectId, stageTitle, onClose
     }
   }, [briefData])
 
-  const extractMut = useMutation({
-    mutationFn: () => extractBrief(kind, projectId),
-    onSuccess: (res: BriefDoc) => {
-      setFields(res.fields || {})
-      setSchema(res.schema || [])
-      setExtracted(true)
-    },
-    onError: (e: any) => setErr(e?.response?.data?.detail || '抽取失败'),
-  })
+  const [stages, setStages] = useState<StageState[]>([])
+  const [extracting, setExtracting] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
+
+  const runExtract = async () => {
+    setErr('')
+    setExtracting(true)
+    setStages([])
+    abortRef.current?.abort()
+    const ac = new AbortController()
+    abortRef.current = ac
+    try {
+      await extractBriefStream(kind, projectId, (ev) => {
+        if (ev.type === 'stage_start') {
+          setStages(prev => {
+            if (prev.some(s => s.id === ev.id)) {
+              return prev.map(s => s.id === ev.id ? { ...s, status: 'running' } : s)
+            }
+            return [...prev, { id: ev.id, label: ev.label, status: 'running' }]
+          })
+        } else if (ev.type === 'stage_done') {
+          setStages(prev => prev.map(s => s.id === ev.id ? { ...s, status: 'done', detail: ev.detail } : s))
+        } else if (ev.type === 'done') {
+          setFields(ev.fields || {})
+          setSchema(ev.schema || [])
+          setExtracted(true)
+        } else if (ev.type === 'error') {
+          setErr(ev.message || '抽取失败')
+        }
+      }, ac.signal)
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') setErr(e?.message || '抽取失败')
+    } finally {
+      setExtracting(false)
+    }
+  }
+
+  useEffect(() => () => abortRef.current?.abort(), [])
 
   const saveMut = useMutation({
     mutationFn: () => putBrief(kind, projectId, fields),
@@ -67,11 +98,12 @@ export default function BriefDrawer({ open, kind, projectId, stageTitle, onClose
 
   // 进入时若 brief 不存在，自动跑一次 extract
   useEffect(() => {
-    if (open && briefData && !briefData.exists && !extractMut.isPending && !extracted) {
+    if (open && briefData && !briefData.exists && !extracting && !extracted) {
       setExtracted(true)
-      extractMut.mutate()
+      runExtract()
     }
-  }, [open, briefData, extracted, extractMut])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, briefData, extracted])
 
   const groups = useMemo(() => {
     const map = new Map<string, BriefFieldDef[]>()
@@ -145,13 +177,13 @@ export default function BriefDrawer({ open, kind, projectId, stageTitle, onClose
             </span>
           </div>
           <button
-            onClick={() => extractMut.mutate()}
-            disabled={extractMut.isPending}
+            onClick={runExtract}
+            disabled={extracting}
             className="flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-lg border border-orange-200 text-orange-700 hover:bg-orange-50 disabled:opacity-50"
             title="重新跑一次自动抽取（已编辑过的字段不会被覆盖）"
           >
-            {extractMut.isPending ? <Loader2 size={10} className="animate-spin" /> : <Wand2 size={10} />}
-            {extractMut.isPending ? '抽取中…' : '重新抽取'}
+            {extracting ? <Loader2 size={10} className="animate-spin" /> : <Wand2 size={10} />}
+            {extracting ? '抽取中…' : '重新抽取'}
           </button>
         </div>
 
@@ -163,23 +195,73 @@ export default function BriefDrawer({ open, kind, projectId, stageTitle, onClose
             </div>
           )}
 
-          {!isLoading && !extractMut.isPending && schema.length === 0 && (
+          {!isLoading && !extracting && schema.length === 0 && (
             <div className="text-center py-12 text-xs text-ink-muted">该交付物没有 Brief 模板</div>
           )}
 
-          {extractMut.isPending && (
-            <div className="absolute inset-0 z-10 bg-white/75 backdrop-blur-[1px] flex items-center justify-center pointer-events-auto">
-              <div className="flex flex-col items-center gap-3 px-8 py-6 rounded-2xl bg-white border border-orange-200 shadow-lg max-w-sm">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white" style={{ background: BRAND_GRAD }}>
-                  <Loader2 size={20} className="animate-spin" />
+          {extracting && (
+            <div className="absolute inset-0 z-10 bg-white/80 backdrop-blur-[1px] flex items-center justify-center pointer-events-auto">
+              <div className="flex flex-col items-stretch gap-3 px-6 py-5 rounded-2xl bg-white border border-orange-200 shadow-lg w-[340px]">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: BRAND_GRAD }}>
+                    <Loader2 size={16} className="animate-spin" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink">AI 正在思考中…</p>
+                    <p className="text-[10.5px] text-ink-muted">逐步采集素材 → 综合抽取字段</p>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-ink">AI 正在思考中…</p>
-                  <p className="text-[11px] text-ink-muted mt-1 leading-relaxed">
-                    从项目元数据 / 关联文档 / 知识库中抽取字段
-                    <br />通常需要 30–90 秒
-                  </p>
-                </div>
+                {(() => {
+                  const gather = stages.filter(s => s.id !== 'llm')
+                  const llm = stages.find(s => s.id === 'llm')
+                  const gatherDone = gather.length > 0 && gather.every(s => s.status === 'done')
+                  return (
+                    <>
+                      <ul className="space-y-1.5 mt-1">
+                        {gather.map(s => (
+                          <li key={s.id} className="flex items-start gap-2 text-[12px]">
+                            <span className="mt-0.5 shrink-0">
+                              {s.status === 'done'
+                                ? <CheckCircle2 size={13} className="text-emerald-500" />
+                                : s.status === 'running'
+                                  ? <Loader2 size={13} className="animate-spin text-orange-500" />
+                                  : <span className="inline-block w-[13px] h-[13px] rounded-full border border-line" />}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <span className={s.status === 'done' ? 'text-ink' : s.status === 'running' ? 'text-ink font-medium' : 'text-ink-muted'}>
+                                {s.label}
+                              </span>
+                              {s.detail && s.status === 'done' && (
+                                <span className="ml-1.5 text-[10.5px] text-ink-muted">· {s.detail}</span>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                        {gather.length === 0 && (
+                          <li className="text-[11px] text-ink-muted italic">准备中…</li>
+                        )}
+                      </ul>
+                      {gatherDone && (
+                        <div className="mt-1 pt-2.5 border-t border-line">
+                          <div className="flex items-center gap-2 text-[12px]">
+                            {llm?.status === 'done'
+                              ? <CheckCircle2 size={13} className="text-emerald-500" />
+                              : <Loader2 size={13} className="animate-spin text-orange-500" />}
+                            <span className="font-semibold text-orange-700">
+                              {llm?.status === 'done' ? '生成完成' : 'AI 生成中…'}
+                            </span>
+                            {llm?.detail && llm.status === 'done' && (
+                              <span className="text-[10.5px] text-ink-muted">· {llm.detail}</span>
+                            )}
+                          </div>
+                          {llm?.status !== 'done' && (
+                            <p className="text-[10.5px] text-ink-muted mt-1 ml-[20px]">综合素材抽取字段，通常 30–90 秒</p>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
             </div>
           )}
