@@ -92,16 +92,16 @@ def _format_refs(conv: OutputConversation | None) -> str:
     return "\n\n".join(lines[:20])
 
 
-async def _llm_call(prompt: str, system: str = "", model: str | None = None, max_tokens: int = 8000) -> str:
+async def _llm_call(prompt: str, system: str = "", model: str | None = None, max_tokens: int = 8000, timeout: float = 180.0) -> str:
     from services.model_router import model_router
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
     if model:
-        content, _ = await model_router.chat(model, messages, max_tokens=max_tokens)
+        content, _ = await model_router.chat(model, messages, max_tokens=max_tokens, timeout=timeout)
     else:
-        content, _ = await model_router.chat_with_routing("doc_generation", messages, max_tokens=max_tokens)
+        content, _ = await model_router.chat_with_routing("doc_generation", messages, max_tokens=max_tokens, timeout=timeout)
     return content
 
 
@@ -604,7 +604,9 @@ async def generate_kickoff_pptx(bundle_id: str, project_id: str):
 
 请生成完整的启动会 HTML 幻灯片（11 页）。直接输出 HTML 字符串。每页都要有表格/矩阵/图示，不能纯文字。"""
 
-        html_raw = await _llm_call(prompt, system=HTML_PPTX_SYSTEM, model=ctx["agent_model"], max_tokens=16000)
+        # PPT 生成体量大（系统提示 + 行业 brief + 11 页 HTML），固定用 qwen3-next（速度更稳）+ 5 分钟超时
+        pptx_model = ctx["agent_model"] or "qwen3-next-80b-a3b"
+        html_raw = await _llm_call(prompt, system=HTML_PPTX_SYSTEM, model=pptx_model, max_tokens=12000, timeout=420.0)
         html = _strip_html_fences(html_raw)
         if not html.lstrip().lower().startswith("<!doctype") and "<html" not in html.lower():
             html = _fallback_html(title_name, customer, kickoff_date_str, html_raw)
