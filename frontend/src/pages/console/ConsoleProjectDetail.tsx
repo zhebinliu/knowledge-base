@@ -168,7 +168,7 @@ export default function ConsoleProjectDetail() {
         />
       )}
 
-      {/* 阶段流程：单向箭头 chevron */}
+      {/* 阶段流程：单向箭头 chevron 铺满整行 */}
       <div className="flex-shrink-0 bg-white border-b border-line py-2 px-2 sm:px-3">
         <div className="flex items-stretch gap-[2px] overflow-x-auto scrollbar-thin">
           {STAGES.map((s, i) => {
@@ -176,7 +176,7 @@ export default function ConsoleProjectDetail() {
             const isActive = activeStageKey === s.key
             const isFirst = i === 0
             const isLast = i === STAGES.length - 1
-            const arrow = 8 // px — 箭头深度
+            const arrow = 10 // px — 箭头深度
             const points: string[] = []
             points.push('0 0')
             points.push(isLast ? '100% 0' : `calc(100% - ${arrow}px) 0`)
@@ -188,10 +188,10 @@ export default function ConsoleProjectDetail() {
 
             const bg = isActive
               ? BRAND_GRAD
-              : status === 'done' ? '#D1FAE5'           // emerald-100
-              : status === 'inflight' ? '#DBEAFE'       // blue-100
-              : status === 'locked' ? '#F3F4F6'         // gray-100
-              : '#F8FAFC'                                // slate-50
+              : status === 'done' ? '#D1FAE5'
+              : status === 'inflight' ? '#DBEAFE'
+              : status === 'locked' ? '#F3F4F6'
+              : '#F8FAFC'
 
             const text = isActive
               ? '#FFFFFF'
@@ -205,15 +205,15 @@ export default function ConsoleProjectDetail() {
                 key={s.key}
                 onClick={() => s.active && setActiveStageKey(s.key)}
                 disabled={!s.active}
-                className={`relative h-8 flex items-center gap-1.5 text-[11.5px] whitespace-nowrap shrink-0 ${
+                className={`relative h-8 flex-1 min-w-[96px] flex items-center justify-center gap-1.5 text-[11.5px] whitespace-nowrap ${
                   isActive ? 'font-semibold' : ''
                 } ${!s.active ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                 style={{
                   clipPath,
                   background: bg,
                   color: text,
-                  paddingLeft: isFirst ? 12 : arrow + 8,
-                  paddingRight: isLast ? 12 : arrow + 8,
+                  paddingLeft: isFirst ? 10 : arrow + 4,
+                  paddingRight: isLast ? 10 : arrow + 4,
                 }}
                 title={s.label}
               >
