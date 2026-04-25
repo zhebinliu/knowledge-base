@@ -223,6 +223,8 @@ export default function ConsoleOutputs() {
   }
 
   const isHtmlBundle = (b: CuratedBundle) => b.kind === 'kickoff_pptx' && b.has_file
+  const canPreview = (b: CuratedBundle) => b.has_content || (b.kind === 'kickoff_pptx' && b.has_file)
+  const previewLabel = (b: CuratedBundle) => (b.kind === 'kickoff_pptx' && b.has_file ? '在线播放' : '在线预览')
 
   const currentKind = KIND_MAP[kind]
 
@@ -521,15 +523,25 @@ export default function ConsoleOutputs() {
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-ink truncate">{b.title}</p>
-                    <p className="text-xs text-ink-muted">{fmt(b.created_at)}</p>
+                    <p className="text-xs text-ink-muted flex items-center gap-2">
+                      <span>{fmt(b.created_at)}</span>
+                      {b.kb_calls && b.kb_calls.length > 0 && (
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] text-orange-600 bg-orange-50 border border-orange-100 rounded-full px-1.5"
+                          title={b.kb_calls.map(c => `${c.query} → ${c.hits} hits`).join('\n')}
+                        >
+                          <Search size={9} /> 生成时调用知识库 {b.kb_calls.length} 次 · {b.kb_calls.reduce((s, c) => s + (c.hits || 0), 0)} 条片段
+                        </span>
+                      )}
+                    </p>
                   </div>
                   <StatusBadge status={b.status} />
-                  {b.status === 'done' && isHtmlBundle(b) && (
+                  {b.status === 'done' && canPreview(b) && (
                     <button
                       onClick={() => playBundle(b)}
                       className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-50 shrink-0"
                     >
-                      <ExternalLink size={12} /> 在线播放
+                      <ExternalLink size={12} /> {previewLabel(b)}
                     </button>
                   )}
                   {b.status === 'done' && (b.has_file || b.has_content) && (

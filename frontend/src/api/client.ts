@@ -737,6 +737,7 @@ export interface CuratedBundle {
   error: string | null
   has_content: boolean
   has_file: boolean
+  kb_calls?: { query: string; hits: number; error?: string }[]
   created_at: string
   updated_at: string
   content_md?: string

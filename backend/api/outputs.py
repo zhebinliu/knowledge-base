@@ -40,6 +40,7 @@ class GenerateRequest(BaseModel):
 
 
 def _bundle_dto(b: CuratedBundle) -> dict:
+    kb_log = (b.extra or {}).get("generation_kb_calls") or []
     return {
         "id": b.id,
         "kind": b.kind,
@@ -49,6 +50,7 @@ def _bundle_dto(b: CuratedBundle) -> dict:
         "error": b.error,
         "has_content": bool(b.content_md),
         "has_file": bool(b.file_key),
+        "kb_calls": kb_log,
         "created_at": b.created_at,
         "updated_at": b.updated_at,
     }
@@ -205,20 +207,74 @@ async def view_output(
         raise HTTPException(404, "Bundle not found")
     if not current_user.is_admin and b.created_by != current_user.id:
         raise HTTPException(403, "Access denied")
-    if b.status != "done" or not b.file_key or not b.file_key.endswith(".html"):
-        raise HTTPException(400, "Only HTML outputs support inline viewing")
+    if b.status != "done":
+        raise HTTPException(400, f"Bundle not ready (status={b.status})")
 
-    from config import settings
-    from minio import Minio
-    mc = Minio(settings.minio_endpoint, access_key=settings.minio_user, secret_key=settings.minio_password, secure=False)
-    try:
-        response = mc.get_object(settings.minio_bucket, b.file_key)
-        data = response.read()
-    except Exception as e:
-        raise HTTPException(500, f"Failed to fetch file: {e}")
+    # HTML 文件直接回吐
+    if b.file_key and b.file_key.endswith(".html"):
+        from config import settings
+        from minio import Minio
+        mc = Minio(settings.minio_endpoint, access_key=settings.minio_user, secret_key=settings.minio_password, secure=False)
+        try:
+            response = mc.get_object(settings.minio_bucket, b.file_key)
+            data = response.read()
+        except Exception as e:
+            raise HTTPException(500, f"Failed to fetch file: {e}")
+        return StreamingResponse(
+            io.BytesIO(data),
+            media_type="text/html; charset=utf-8",
+            headers={"Cache-Control": "private, max-age=60"},
+        )
 
-    return StreamingResponse(
-        io.BytesIO(data),
-        media_type="text/html; charset=utf-8",
-        headers={"Cache-Control": "private, max-age=60"},
-    )
+    # Markdown 内容包成阅读器 HTML
+    if b.content_md:
+        html = _markdown_reader_html(b.title, b.content_md)
+        return StreamingResponse(
+            io.BytesIO(html.encode("utf-8")),
+            media_type="text/html; charset=utf-8",
+            headers={"Cache-Control": "private, max-age=60"},
+        )
+
+    raise HTTPException(400, "No previewable content")
+
+
+def _markdown_reader_html(title: str, md: str) -> str:
+    """把 markdown 文本包成一个自包含、带样式的 HTML 阅读器，浏览器即开即看。"""
+    import html as _h
+    import json as _json
+    safe_title = _h.escape(title or "输出预览")
+    payload = _json.dumps(md)
+    return f"""<!DOCTYPE html>
+<html lang=\"zh-CN\"><head><meta charset=\"UTF-8\">
+<title>{safe_title}</title>
+<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">
+<script src=\"https://cdn.jsdelivr.net/npm/marked/marked.min.js\"></script>
+<style>
+body{{font-family:"PingFang SC","Microsoft YaHei",-apple-system,"Helvetica Neue",sans-serif;background:#FAFAFA;color:#1F2937;margin:0;line-height:1.75}}
+.wrap{{max-width:880px;margin:0 auto;padding:48px 56px 96px;background:#fff;min-height:100vh;box-shadow:0 4px 24px rgba(0,0,0,.04)}}
+h1{{color:#D96400;font-size:30px;border-bottom:3px solid #D96400;padding-bottom:12px;margin-top:0}}
+h2{{color:#1F2937;font-size:22px;border-left:4px solid #D96400;padding-left:12px;margin-top:36px}}
+h3{{color:#374151;font-size:17px;margin-top:24px}}
+p{{margin:12px 0}}
+ul,ol{{padding-left:24px}}
+li{{margin:6px 0}}
+table{{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px}}
+th,td{{border:1px solid #E5E7EB;padding:8px 12px;text-align:left}}
+th{{background:#FFF7ED;color:#9A3412}}
+code{{background:#F3F4F6;padding:2px 6px;border-radius:4px;font-size:13px}}
+pre{{background:#F9FAFB;padding:16px;border-radius:8px;overflow-x:auto}}
+hr{{border:none;border-top:1px solid #E5E7EB;margin:32px 0}}
+.toolbar{{position:sticky;top:0;background:rgba(255,255,255,.95);backdrop-filter:blur(8px);border-bottom:1px solid #E5E7EB;padding:12px 24px;display:flex;justify-content:flex-end;gap:8px;z-index:10}}
+.toolbar button{{background:#D96400;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer}}
+.toolbar button:hover{{background:#B5560E}}
+@media print{{.toolbar{{display:none}} .wrap{{box-shadow:none;padding:0}}}}
+</style>
+</head>
+<body>
+<div class=\"toolbar\"><button onclick=\"window.print()\">打印 / 导出 PDF</button></div>
+<div class=\"wrap\" id=\"content\">加载中…</div>
+<script>
+var md = {payload};
+document.getElementById('content').innerHTML = (window.marked ? marked.parse(md) : md.replace(/&/g,'&amp;').replace(/</g,'&lt;'));
+</script>
+</body></html>"""
