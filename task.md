@@ -75,26 +75,26 @@
 - [ ] PUT `/api/interviews/{kind}/answer` upsert
 - [ ] 改造 output_service：prompt = skill.prompt_snippet + 访谈答案 + 极少 KB 佐证（top 10）
 
-### X3. 前端
-- [ ] ConsoleOutputs：PPT/洞察 卡片改"开始访谈"
-- [ ] InterviewModal 组件：一问一答、进度条、自动保存、完成后"生成文档"
-- [ ] 项目资产加"访谈答案"Tab（可编辑）
+### X3. 前端（注：ConsoleOutputs 已删除，需改为接入 ConsoleProjectDetail）
+- [ ] ConsoleProjectDetail：阶段 Action Strip 的「开始对话生成」按钮根据 skill 是否有 `questions` 走访谈流；否则走当前 OutputChatPanel
+- [ ] `InterviewModal` 组件：一问一答、进度条、自动保存、完成后"生成文档"
+- [ ] 项目详情页加"访谈答案"区域（与关联文档抽屉并列，可编辑）
 
 ---
 
-## Feature Y：进入项目自动锁定 PM 模式
+## Feature Y：进入项目自动锁定 PM 模式 ✅ 已完成（随项目管理融合一起做了）
 
-- [ ] QA.tsx: useEffect 监听 project_id（URL 或 router state），有项目则强制 persona='pm' + 隐藏"通用"切换
-- [ ] PM 视角页面同步
-- [ ] 从项目详情跳转 QA 时传 project_id
+- [x] QA.tsx 接受 `lockedProjectId` prop，强制 persona='pm' + 隐藏"通用/PM"切换
+- [x] ConsoleProjectDetail 用 `<QA lockedProjectId={id} />` 嵌入「项目问答」Tab
+- [x] PM 视角原独立页已并入项目详情，无需单独同步
 
 ---
 
 ## 部署顺序
-1. Feature Y（小改动，快速）
-2. Feature X1+X2 后端
-3. Feature X3 前端
-4. 端到端：新建项目 → 开访谈 → 生成 PPT → 下载验证
+1. ~~Feature Y~~（已完成）
+2. Feature X1+X2 后端（数据模型 + 访谈 API）
+3. Feature X3 前端（InterviewModal + 接入 ConsoleProjectDetail）
+4. 端到端：新建项目 → 点 PPT 阶段 → 走访谈 → 生成 → 下载验证
 
 ## 边界
 - survey 保持原逻辑，不走访谈
