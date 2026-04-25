@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, FileText, ClipboardList, Lightbulb, MessageSquare, Sparkles,
   CheckCircle2, Loader2, Lock, Download, ExternalLink,
-  Save, X, Wand2, AlertCircle, Pencil, Building2, Files, Search,
+  Save, X, Wand2, AlertCircle, Pencil, Home, Files, Search,
 } from 'lucide-react'
 import {
   getProject, updateProject, generateCustomerProfile, generateOutput,
@@ -135,9 +135,7 @@ export default function ConsoleProjectDetail() {
         >
           <ArrowLeft size={15} />
         </button>
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: BRAND_GRAD }}>
-          <Building2 size={15} />
-        </div>
+        <Home size={15} strokeWidth={1.75} className="text-ink-muted shrink-0" />
         <div className="min-w-0 flex-1">
           <h1 className="text-sm sm:text-base font-bold text-ink leading-tight truncate">{project.name}</h1>
           <div className="flex items-center gap-1.5 text-[11px] text-ink-muted truncate mt-0.5">
@@ -170,31 +168,60 @@ export default function ConsoleProjectDetail() {
         />
       )}
 
-      {/* 阶段 tabs（底部下划线） */}
-      <div className="flex-shrink-0 bg-white border-b border-line">
-        <div className="px-2 sm:px-4 flex items-center gap-0 overflow-x-auto scrollbar-thin">
+      {/* 阶段流程：单向箭头 chevron */}
+      <div className="flex-shrink-0 bg-white border-b border-line py-2 px-2 sm:px-3">
+        <div className="flex items-stretch gap-[2px] overflow-x-auto scrollbar-thin">
           {STAGES.map((s, i) => {
             const status = stageStatus(s)
             const isActive = activeStageKey === s.key
+            const isFirst = i === 0
+            const isLast = i === STAGES.length - 1
+            const arrow = 8 // px — 箭头深度
+            const points: string[] = []
+            points.push('0 0')
+            points.push(isLast ? '100% 0' : `calc(100% - ${arrow}px) 0`)
+            if (!isLast) points.push('100% 50%')
+            points.push(isLast ? '100% 100%' : `calc(100% - ${arrow}px) 100%`)
+            points.push('0 100%')
+            if (!isFirst) points.push(`${arrow}px 50%`)
+            const clipPath = `polygon(${points.join(', ')})`
+
+            const bg = isActive
+              ? BRAND_GRAD
+              : status === 'done' ? '#D1FAE5'           // emerald-100
+              : status === 'inflight' ? '#DBEAFE'       // blue-100
+              : status === 'locked' ? '#F3F4F6'         // gray-100
+              : '#F8FAFC'                                // slate-50
+
+            const text = isActive
+              ? '#FFFFFF'
+              : status === 'done' ? '#047857'
+              : status === 'inflight' ? '#1D4ED8'
+              : status === 'locked' ? '#9CA3AF'
+              : '#475569'
+
             return (
               <button
                 key={s.key}
                 onClick={() => s.active && setActiveStageKey(s.key)}
                 disabled={!s.active}
-                className={`relative flex items-center gap-1.5 px-3 py-2.5 text-xs whitespace-nowrap shrink-0 transition-colors ${
-                  isActive ? 'text-ink font-semibold' :
-                  status === 'locked' ? 'text-ink-muted cursor-not-allowed' :
-                  'text-ink-secondary hover:text-ink'
-                }`}
+                className={`relative h-8 flex items-center gap-1.5 text-[11.5px] whitespace-nowrap shrink-0 ${
+                  isActive ? 'font-semibold' : ''
+                } ${!s.active ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                style={{
+                  clipPath,
+                  background: bg,
+                  color: text,
+                  paddingLeft: isFirst ? 12 : arrow + 8,
+                  paddingRight: isLast ? 12 : arrow + 8,
+                }}
+                title={s.label}
               >
-                <StageStatusBadge status={status} num={i + 1} />
+                {status === 'done' ? <CheckCircle2 size={11} /> :
+                 status === 'inflight' ? <Loader2 size={10} className="animate-spin" /> :
+                 status === 'locked' ? <Lock size={9} /> :
+                 <span className="text-[9.5px] opacity-70 font-semibold tabular-nums">{i + 1}</span>}
                 {s.label}
-                {isActive && (
-                  <span
-                    className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full"
-                    style={{ background: BRAND_GRAD }}
-                  />
-                )}
               </button>
             )
           })}
@@ -315,35 +342,6 @@ export default function ConsoleProjectDetail() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-
-function StageStatusBadge({ status, num }: { status: StageStatus; num: number }) {
-  if (status === 'done') {
-    return (
-      <span className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center">
-        <CheckCircle2 size={10} />
-      </span>
-    )
-  }
-  if (status === 'inflight') {
-    return (
-      <span className="w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center">
-        <Loader2 size={9} className="animate-spin" />
-      </span>
-    )
-  }
-  if (status === 'locked') {
-    return (
-      <span className="w-4 h-4 rounded-full bg-gray-100 text-ink-muted flex items-center justify-center">
-        <Lock size={8} />
-      </span>
-    )
-  }
-  return (
-    <span className="w-4 h-4 rounded-full bg-canvas text-ink-muted text-[10px] font-semibold flex items-center justify-center">
-      {num}
-    </span>
-  )
-}
 
 function ChatTabs({ mode, setMode, docCount, onOpenDocs }: {
   mode: ChatMode; setMode: (m: ChatMode) => void; docCount: number; onOpenDocs: () => void
