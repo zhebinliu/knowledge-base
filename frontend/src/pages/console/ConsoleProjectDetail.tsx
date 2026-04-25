@@ -127,20 +127,20 @@ export default function ConsoleProjectDetail() {
   return (
     <div className="-mx-4 sm:-mx-6 -my-6 h-[calc(100vh-56px)] flex flex-col bg-canvas overflow-hidden">
       {/* Hero 项目卡 */}
-      <div className="flex-shrink-0 px-4 sm:px-6 pt-5 pb-4 bg-white border-b border-line">
+      <div className="flex-shrink-0 px-4 sm:px-6 pt-3 sm:pt-5 pb-2.5 sm:pb-4 bg-white border-b border-line">
         <button
           onClick={() => nav('/console/projects')}
-          className="flex items-center gap-1 mb-3 px-2 py-0.5 -ml-2 rounded text-xs text-ink-muted hover:text-ink hover:bg-canvas"
+          className="flex items-center gap-1 mb-1.5 sm:mb-3 px-2 py-0.5 -ml-2 rounded text-xs text-ink-muted hover:text-ink hover:bg-canvas"
         >
           <ArrowLeft size={12} /> 返回项目列表
         </button>
-        <div className="flex items-start gap-4">
-          <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: BRAND_GRAD }}>
-            <Building2 size={20} />
+        <div className="flex items-start gap-3 sm:gap-4">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: BRAND_GRAD }}>
+            <Building2 size={18} />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-ink leading-tight truncate">{project.name}</h1>
-            <div className="mt-1.5 flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-ink-secondary">
+            <h1 className="text-base sm:text-2xl font-bold text-ink leading-tight truncate">{project.name}</h1>
+            <div className="mt-1 sm:mt-1.5 flex items-center flex-wrap gap-x-3 sm:gap-x-4 gap-y-1 text-[11px] sm:text-xs text-ink-secondary">
               <span className="inline-flex items-center gap-1"><Building2 size={11} className="text-ink-muted" />{project.customer || '未填客户'}</span>
               {project.industry && (
                 <span className="inline-flex items-center gap-1"><Tag size={11} className="text-ink-muted" />{industryLabel(project.industry)}</span>
@@ -171,56 +171,52 @@ export default function ConsoleProjectDetail() {
         />
       )}
 
-      {/* 阶段进度条 */}
-      <div className="flex-shrink-0 bg-white border-b border-line px-4 sm:px-6 py-5">
-        <div className="flex items-start overflow-x-auto pb-1">
+      {/* 阶段选择 — 单行横滚 pill */}
+      <div className="flex-shrink-0 bg-white border-b border-line px-3 sm:px-6 py-2.5 sm:py-3">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 -mx-1 px-1 scrollbar-thin">
           {STAGES.map((s, i) => {
             const status = stageStatus(s)
             const isActive = activeStageKey === s.key
+            const Icon = s.icon
             return (
-              <div key={s.key} className="flex items-start min-w-[88px] flex-1">
-                <div className="flex flex-col items-center flex-1">
-                  <button
-                    onClick={() => s.active && setActiveStageKey(s.key)}
-                    disabled={!s.active}
-                    className={`relative w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${
-                      status === 'done' ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-200' :
-                      status === 'inflight' ? 'bg-blue-500 text-white shadow-sm shadow-blue-200' :
-                      status === 'locked' ? 'bg-gray-100 text-ink-muted border border-dashed border-gray-300' :
-                      isActive ? 'text-white shadow-md ring-4 ring-orange-100' :
-                      'bg-white text-ink border border-line hover:border-orange-300'
-                    } ${!s.active ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                    style={isActive && status === 'idle' ? { background: BRAND_GRAD } : undefined}
-                  >
-                    {status === 'done' ? <CheckCircle2 size={16} /> :
-                     status === 'inflight' ? <Loader2 size={14} className="animate-spin" /> :
-                     status === 'locked' ? <Lock size={11} /> :
-                     <span>{i + 1}</span>}
-                  </button>
-                  <button
-                    onClick={() => s.active && setActiveStageKey(s.key)}
-                    disabled={!s.active}
-                    className={`mt-2 text-[11px] leading-tight text-center px-1 ${
-                      isActive ? 'text-ink font-semibold' :
-                      status === 'locked' ? 'text-ink-muted' :
-                      'text-ink-secondary'
-                    } ${!s.active ? 'cursor-not-allowed' : 'cursor-pointer hover:text-ink'}`}
-                  >
-                    {s.label}
-                  </button>
-                </div>
-                {i < STAGES.length - 1 && (
-                  <div className={`h-px flex-1 mt-[18px] ${
-                    status === 'done' ? 'bg-emerald-300' : 'bg-line'
-                  }`} />
-                )}
-              </div>
+              <button
+                key={s.key}
+                onClick={() => s.active && setActiveStageKey(s.key)}
+                disabled={!s.active}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs whitespace-nowrap shrink-0 border transition-all ${
+                  isActive
+                    ? 'text-white border-transparent shadow-sm'
+                    : status === 'done'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                      : status === 'inflight'
+                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                        : status === 'locked'
+                          ? 'bg-gray-50 text-ink-muted border-gray-200 cursor-not-allowed'
+                          : 'bg-white text-ink-secondary border-line hover:border-orange-300 hover:text-ink'
+                }`}
+                style={isActive ? { background: BRAND_GRAD } : undefined}
+              >
+                <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-semibold ${
+                  isActive ? 'bg-white/25 text-white' :
+                  status === 'done' ? 'bg-emerald-500 text-white' :
+                  status === 'inflight' ? 'bg-blue-500 text-white' :
+                  status === 'locked' ? 'bg-gray-200 text-ink-muted' :
+                  'bg-canvas text-ink-muted'
+                }`}>
+                  {status === 'done' ? <CheckCircle2 size={10} /> :
+                   status === 'inflight' ? <Loader2 size={9} className="animate-spin" /> :
+                   status === 'locked' ? <Lock size={8} /> :
+                   <span>{i + 1}</span>}
+                </span>
+                <Icon size={11} className={isActive ? 'text-white/90' : ''} />
+                <span className={isActive ? 'font-semibold' : ''}>{s.label}</span>
+              </button>
             )
           })}
         </div>
 
         {/* 当前阶段动作条 */}
-        <div className="mt-5 rounded-xl border border-line bg-canvas/50 px-4 py-3 flex items-center gap-3 flex-wrap">
+        <div className="mt-2.5 sm:mt-3 rounded-xl border border-line bg-canvas/50 px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
             <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
               activeStage.active ? 'text-white' : 'bg-gray-100 text-ink-muted'
