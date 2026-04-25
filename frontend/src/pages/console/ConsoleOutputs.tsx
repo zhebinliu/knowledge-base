@@ -32,16 +32,28 @@ const CHOICES_RE = /<choices(\s+multi=(?:"true"|'true'|true))?\s*>\s*(\[[\s\S]*?
 // 防御：把 `<choices>...</choices>`、```xml\n<choices>...</choices>\n``` 这类被代码化的写法里的围栏一并剥掉
 const FENCED_CHOICES_RE = /(```[a-zA-Z]*\s*)?`?\s*<choices(?:\s+multi=(?:"true"|'true'|true))?\s*>\s*(\[[\s\S]*?\])\s*<\/choices>\s*`?(\s*```)?/i
 
+function parseChoicesArray(raw: string): string[] | null {
+  try {
+    const arr = JSON.parse(raw)
+    if (Array.isArray(arr) && arr.every(x => typeof x === 'string')) return arr
+  } catch { /* fall through to tolerant parse */ }
+  // 容错：模型生成的数组里常带未转义的 " (例如 ("提升""更好"这种))。
+  // 用 "," 作为项分隔符切分，去掉首尾的 [" 和 "]。
+  const inner = raw.trim().replace(/^\[\s*"/, '').replace(/"\s*\]$/, '')
+  if (!inner) return null
+  const parts = inner.split(/"\s*,\s*"/)
+  if (parts.length === 0) return null
+  return parts.map(s => s.trim()).filter(Boolean)
+}
+
 function extractChoices(text: string): { cleaned: string; choices: string[]; multi: boolean } {
   const m = text.match(CHOICES_RE)
   if (!m) return { cleaned: text, choices: [], multi: false }
-  try {
-    const arr = JSON.parse(m[2])
-    if (Array.isArray(arr) && arr.every(x => typeof x === 'string')) {
-      const cleaned = text.replace(FENCED_CHOICES_RE, '').replace(/\n{3,}/g, '\n\n').trim()
-      return { cleaned, choices: arr, multi: !!m[1] }
-    }
-  } catch { /* fall through */ }
+  const arr = parseChoicesArray(m[2])
+  if (arr && arr.length > 0) {
+    const cleaned = text.replace(FENCED_CHOICES_RE, '').replace(/\n{3,}/g, '\n\n').trim()
+    return { cleaned, choices: arr, multi: !!m[1] }
+  }
   return { cleaned: text, choices: [], multi: false }
 }
 
