@@ -156,22 +156,32 @@ export default function BriefDrawer({ open, kind, projectId, stageTitle, onClose
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5 relative">
           {isLoading && schema.length === 0 && (
             <div className="flex items-center gap-2 text-xs text-ink-muted py-12 justify-center">
               <Loader2 size={13} className="animate-spin" /> 加载 Brief…
             </div>
           )}
 
-          {extractMut.isPending && (
-            <div className="flex items-center gap-2 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
-              <Loader2 size={13} className="animate-spin" />
-              正在用 LLM 从项目元数据 / 关联文档 / 知识库中抽取字段，通常需要 30–90 秒…（界面已可见，请稍候自动填充）
-            </div>
-          )}
-
           {!isLoading && !extractMut.isPending && schema.length === 0 && (
             <div className="text-center py-12 text-xs text-ink-muted">该交付物没有 Brief 模板</div>
+          )}
+
+          {extractMut.isPending && (
+            <div className="absolute inset-0 z-10 bg-white/75 backdrop-blur-[1px] flex items-center justify-center pointer-events-auto">
+              <div className="flex flex-col items-center gap-3 px-8 py-6 rounded-2xl bg-white border border-orange-200 shadow-lg max-w-sm">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white" style={{ background: BRAND_GRAD }}>
+                  <Loader2 size={20} className="animate-spin" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-ink">AI 正在思考中…</p>
+                  <p className="text-[11px] text-ink-muted mt-1 leading-relaxed">
+                    从项目元数据 / 关联文档 / 知识库中抽取字段
+                    <br />通常需要 30–90 秒
+                  </p>
+                </div>
+              </div>
+            </div>
           )}
 
           {schema.length > 0 && groups.map(([groupName, defs]) => {
