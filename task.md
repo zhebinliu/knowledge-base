@@ -59,26 +59,43 @@
 
 ---
 
-## Feature X：交互式访谈（kickoff_pptx / insight）
+## Feature X：项目 Brief（自动预填 + 单页确认 → 替代逐题问答）
+
+### 设计思路
+原方案：逐题问 N 题 → 太慢。新方案：
+1. **自动抽取**：用项目元数据（customer / industry / customer_profile）+ 关联文档摘要 + KB 检索结果，让 LLM 一次性抽取所有字段，每个字段带 `confidence` 和 `sources`。
+2. **单页确认**：用户看到的是一页可编辑的 Brief 表单，高置信项默认折叠（"采用"），低置信项展开必填，空白项必填。**用户只编辑空白和不准的字段**——预计 80% 字段 KB 已能填出。
+3. **沉淀复用**：Brief 落库为项目资产；后续重生成 / 切换 skill 复用同一份 Brief。
 
 ### X1. 数据模型
-- [ ] 新表 `project_interview_answer`
-  - columns: id, project_id, output_kind, question_key, question_text, answer, updated_at
-  - UNIQUE (project_id, output_kind, question_key)
-- [ ] Skill 模型加字段 `questions` (JSONB, default [])
-  - 结构: `[{key, stage, question, hint?}]`
-- [ ] 把现有两个 skill 的题库从 prompt_snippet 迁到 questions；prompt_snippet 保留风格/方法论
-- [ ] alembic migration 或直接 SQL 建表 + 加列
+- [ ] 新表 `project_brief`
+  - columns: id, project_id, output_kind, fields (JSONB), updated_at, updated_by
+  - UNIQUE (project_id, output_kind)
+  - `fields` 结构：`{ field_key: { value, confidence: 'high'|'medium'|'low'|null, sources: [{type, ref, snippet}], auto_filled_at?, edited_at? } }`
+- [ ] Skill 模型加字段 `brief_schema` (JSONB, default [])
+  - 结构：`[{key, label, hint?, required, group?, type?: 'text'|'list'|'date'}]`
+  - 把现有 PPT/洞察 skill 的题库从 `prompt_snippet` 抽出来填进 `brief_schema`，prompt_snippet 保留风格/方法论
+- [ ] 幂等迁移在 main.py（不开 alembic）
 
-### X2. 后端 API
-- [ ] GET `/api/interviews/{kind}?project_id=X` → `{questions, answers, next_key}`
-- [ ] PUT `/api/interviews/{kind}/answer` upsert
-- [ ] 改造 output_service：prompt = skill.prompt_snippet + 访谈答案 + 极少 KB 佐证（top 10）
+### X2. 后端 API & 服务
+- [ ] `GET /api/briefs/{kind}?project_id=X` → 返回已存 brief 或 `{ fields: {} }`
+- [ ] `POST /api/briefs/{kind}/extract` → 运行 LLM 抽取，**不入库**，返回草稿（前端自行覆盖未编辑字段）
+  - prompt：skill.brief_schema + 项目元数据 + 关联文档前 N 段摘要 + KB top-K
+  - 输出 JSON schema 严格约束：每字段必须给 `value | null` + `confidence` + `sources[]`（来源切片 ID / 文档 ID，便于 UI 显示）
+- [ ] `PUT /api/briefs/{kind}` → upsert 整份 brief
+- [ ] 改造 `output_service.generate_*`：prompt 拼接 = `skill.prompt_snippet` + brief.fields（已确认值） + 极少 KB 佐证
 
-### X3. 前端（注：ConsoleOutputs 已删除，需改为接入 ConsoleProjectDetail）
-- [ ] ConsoleProjectDetail：阶段 Action Strip 的「开始对话生成」按钮根据 skill 是否有 `questions` 走访谈流；否则走当前 OutputChatPanel
-- [ ] `InterviewModal` 组件：一问一答、进度条、自动保存、完成后"生成文档"
-- [ ] 项目详情页加"访谈答案"区域（与关联文档抽屉并列，可编辑）
+### X3. 前端
+- [ ] ConsoleProjectDetail Action Strip 「开始生成」按钮：
+  - 若 skill 有 brief_schema 且 brief 缺失 / 过期 → 打开 `BriefDrawer`
+  - 否则保持当前 OutputChatPanel 的对话生成
+- [ ] `BriefDrawer` 组件（右侧抽屉）：
+  - 进入时若无 brief，自动 POST `/extract` 拿草稿（loading 态显示"正在从文档中提取…"）
+  - 字段按 `group` 分区展示；高置信折叠 + ✅ 标记，中/低置信默认展开 + 引用来源 chip，空白必填高亮
+  - 每字段右侧显示 confidence 圆点 + 来源数；点击查看引用切片
+  - 底部：「保存草稿」/「保存并生成」
+- [ ] 项目详情新增「项目 Brief」入口（与「关联文档」并列的按钮）：可随时回看/编辑已确认 Brief
+- [ ] Brief 编辑过的字段不再被下次 `/extract` 覆盖（前端合并策略：edited_at > auto_filled_at 的字段保持不动）
 
 ---
 
@@ -92,11 +109,14 @@
 
 ## 部署顺序
 1. ~~Feature Y~~（已完成）
-2. Feature X1+X2 后端（数据模型 + 访谈 API）
-3. Feature X3 前端（InterviewModal + 接入 ConsoleProjectDetail）
-4. 端到端：新建项目 → 点 PPT 阶段 → 走访谈 → 生成 → 下载验证
+2. X1：数据模型 + skill.brief_schema 题库迁移
+3. X2：`/extract` 端点先打通（这是最关键也最易翻车的一步——验证 LLM JSON 输出 + 来源标注稳定性）
+4. X2 余下：GET / PUT brief；接入 output_service 拼 prompt
+5. X3：BriefDrawer 一页表单 + Action Strip 集成
+6. 端到端：新建项目 → 点 PPT 阶段 → 看到自动抽取的 Brief 草稿（含来源） → 编辑空白项 → 保存并生成 → 下载验证
 
 ## 边界
-- survey 保持原逻辑，不走访谈
-- 访谈与 bundle 解耦：同项目多次生成共用答案
-- 答案可在资产页编辑，重生成用最新版
+- `survey` 保持原逻辑（survey 本身就是问卷，不需要 Brief）
+- Brief 与 bundle 解耦：同项目多次生成 / 不同 skill 共用 Brief（按 output_kind 分别存）
+- 用户编辑过的字段不被自动抽取覆盖
+- 来源 chip 必须能链回原文档/切片，否则用户无法验证置信度
