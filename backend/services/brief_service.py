@@ -192,12 +192,45 @@ def _parse_brief_response(raw: str, schema: list[dict]) -> dict:
         k = f["key"]
         v = fields_raw.get(k) or {}
         out[k] = {
-            "value": v.get("value"),
+            "value": _coerce_value(v.get("value"), f.get("type", "text")),
             "confidence": v.get("confidence") if v.get("confidence") in {"high", "medium", "low"} else None,
             "sources": v.get("sources") if isinstance(v.get("sources"), list) else [],
             "auto_filled_at": now_iso,
         }
     return out
+
+
+def _stringify_item(item) -> str:
+    """LLM 偶尔会把 list 项返回成 dict（如 {role, weight, stance}），拼成 'k: v · k: v' 字符串。"""
+    if item is None:
+        return ""
+    if isinstance(item, str):
+        return item
+    if isinstance(item, (int, float, bool)):
+        return str(item)
+    if isinstance(item, dict):
+        parts = [f"{k}: {_stringify_item(v)}" for k, v in item.items() if v not in (None, "", [])]
+        return " · ".join(parts)
+    if isinstance(item, list):
+        return "; ".join(_stringify_item(x) for x in item if x not in (None, "", []))
+    return str(item)
+
+
+def _coerce_value(value, ftype: str):
+    if value is None:
+        return None
+    if ftype == "list":
+        if isinstance(value, list):
+            return [s for s in (_stringify_item(x) for x in value) if s]
+        # LLM 偶尔把单条 list 返成 string / dict
+        s = _stringify_item(value)
+        return [s] if s else []
+    if ftype == "date":
+        return value if isinstance(value, str) else None
+    # text
+    if isinstance(value, str):
+        return value
+    return _stringify_item(value)
 
 
 async def stream_extract_brief_draft(project_id: str, output_kind: str, model: str | None = None):
