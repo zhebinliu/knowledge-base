@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import {
   listProjects, listOutputs, getProjectMeta, TOKEN_STORAGE_KEY,
-  createOutputChat, sendOutputChatMessage, finalizeOutputChat,
+  createOutputChat, sendOutputChatMessage, finalizeOutputChat, listOutputChats, getOutputChat,
   type Project, type CuratedBundle, type OutputKind, type OutputChat, type OutputChatMessage,
 } from '../../api/client'
 import MarkdownView from '../../components/MarkdownView'
@@ -98,6 +98,31 @@ export default function ConsoleOutputs() {
   }, [messages])
 
   const ready = scope === 'project' ? !!projectId : !!industry
+
+  // 查询本 (kind, 项目) 是否存在历史对话，方便用户刷新后继续
+  const { data: existingChats } = useQuery({
+    queryKey: ['output-chats', kind, scope === 'project' ? projectId : null],
+    queryFn: () => listOutputChats({ kind, project_id: scope === 'project' ? projectId : undefined, limit: 5 }),
+    enabled: ready && !chat && scope === 'project',
+  })
+  const resumableChat = useMemo(() => {
+    if (!existingChats || existingChats.length === 0) return null
+    // 优先取 active 的最新一条；没有再取最新一条
+    return existingChats.find(c => c.status === 'active') || existingChats[0]
+  }, [existingChats])
+
+  const resumeChat = async (id: string) => {
+    setError(''); setStarting(true)
+    try {
+      const c = await getOutputChat(id)
+      setChat(c)
+      setMessages(c.messages)
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || '加载历史对话失败')
+    } finally {
+      setStarting(false)
+    }
+  }
 
   const startChat = async () => {
     if (!ready) return
@@ -222,6 +247,21 @@ export default function ConsoleOutputs() {
                 <Wand2 size={28} className="mx-auto mb-3 text-[#FF8D1A]" />
                 <p className="mb-1 text-ink">右侧完成设置后，点击「开始对话」</p>
                 <p className="text-xs">智能体会先问候并抛出第一个问题</p>
+                {resumableChat && (
+                  <div className="mt-5 inline-flex flex-col items-center gap-2 px-4 py-3 rounded-xl bg-orange-50 border border-orange-100">
+                    <p className="text-xs text-ink">
+                      该项目已有一条历史对话（{resumableChat.status === 'active' ? '进行中' : resumableChat.status}）
+                    </p>
+                    <button
+                      onClick={() => resumeChat(resumableChat.id)}
+                      disabled={starting}
+                      className="text-xs text-white px-3 py-1.5 rounded-lg disabled:opacity-50"
+                      style={{ background: BRAND_GRAD }}
+                    >
+                      继续上次对话
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ) : (

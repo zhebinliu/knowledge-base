@@ -688,6 +688,9 @@ export interface OutputChat {
 export const createOutputChat = (body: { kind: OutputKind; project_id?: string | null; industry?: string | null }) =>
   api.post<OutputChat>('/output-chats', body).then(r => r.data)
 
+export const listOutputChats = (params: { kind?: OutputKind; project_id?: string; limit?: number } = {}) =>
+  api.get<OutputChat[]>('/output-chats', { params }).then(r => r.data)
+
 export const sendOutputChatMessage = (id: string, content: string) =>
   api.post<{ reply: string; tool_uses: { name: string; arguments: string }[]; refs_added: number; total_refs: number }>(
     `/output-chats/${id}/message`,
