@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, FileText, ClipboardList, Lightbulb, MessageSquare, Sparkles,
   CheckCircle2, Loader2, Lock, Download, ExternalLink,
-  Save, X, Wand2, AlertCircle, Pencil, Building2, Calendar, Tag, Files, Search,
+  Save, X, Wand2, AlertCircle, Pencil, Building2, Files, Search,
 } from 'lucide-react'
 import {
   getProject, updateProject, generateCustomerProfile, generateOutput,
@@ -126,38 +126,37 @@ export default function ConsoleProjectDetail() {
 
   return (
     <div className="-mx-4 sm:-mx-6 -my-6 h-[calc(100vh-56px)] flex flex-col bg-canvas overflow-hidden">
-      {/* Hero 项目卡 */}
-      <div className="flex-shrink-0 px-4 sm:px-6 pt-3 sm:pt-5 pb-2.5 sm:pb-4 bg-white border-b border-line">
+      {/* 顶部信息条：返回 + 项目名 + 元信息 + 编辑 */}
+      <div className="flex-shrink-0 px-4 sm:px-6 py-2.5 bg-white border-b border-line flex items-center gap-3">
         <button
           onClick={() => nav('/console/projects')}
-          className="flex items-center gap-1 mb-1.5 sm:mb-3 px-2 py-0.5 -ml-2 rounded text-xs text-ink-muted hover:text-ink hover:bg-canvas"
+          className="p-1.5 -ml-1.5 rounded-lg text-ink-muted hover:text-ink hover:bg-canvas shrink-0"
+          title="返回项目列表"
         >
-          <ArrowLeft size={12} /> 返回项目列表
+          <ArrowLeft size={15} />
         </button>
-        <div className="flex items-start gap-3 sm:gap-4">
-          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: BRAND_GRAD }}>
-            <Building2 size={18} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-base sm:text-2xl font-bold text-ink leading-tight truncate">{project.name}</h1>
-            <div className="mt-1 sm:mt-1.5 flex items-center flex-wrap gap-x-3 sm:gap-x-4 gap-y-1 text-[11px] sm:text-xs text-ink-secondary">
-              <span className="inline-flex items-center gap-1"><Building2 size={11} className="text-ink-muted" />{project.customer || '未填客户'}</span>
-              {project.industry && (
-                <span className="inline-flex items-center gap-1"><Tag size={11} className="text-ink-muted" />{industryLabel(project.industry)}</span>
-              )}
-              <span className="inline-flex items-center gap-1"><Calendar size={11} className="text-ink-muted" />{project.kickoff_date ? `立项 ${project.kickoff_date}` : '未填立项日'}</span>
-              <span className="inline-flex items-center gap-1"><Files size={11} className="text-ink-muted" />{project.document_count} 份文档</span>
-            </div>
-          </div>
-          <button
-            onClick={() => setEditing(v => !v)}
-            className={`flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg border transition-colors ${
-              editing ? 'border-orange-300 text-orange-700 bg-orange-50' : 'border-line text-ink-secondary hover:bg-canvas'
-            }`}
-          >
-            <Pencil size={11} /> 项目信息
-          </button>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: BRAND_GRAD }}>
+          <Building2 size={15} />
         </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-sm sm:text-base font-bold text-ink leading-tight truncate">{project.name}</h1>
+          <div className="flex items-center gap-1.5 text-[11px] text-ink-muted truncate mt-0.5">
+            <span className="truncate">{project.customer || '未填客户'}</span>
+            {project.industry && <><span className="opacity-50">·</span><span className="truncate">{industryLabel(project.industry)}</span></>}
+            <span className="opacity-50">·</span>
+            <span className="shrink-0">{project.document_count} 份文档</span>
+          </div>
+        </div>
+        <button
+          onClick={() => setEditing(v => !v)}
+          className={`shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
+            editing ? 'border-orange-300 text-orange-700 bg-orange-50' : 'border-line text-ink-secondary hover:bg-canvas'
+          }`}
+          title="项目信息"
+        >
+          <Pencil size={11} />
+          <span className="hidden sm:inline">项目信息</span>
+        </button>
       </div>
 
       {editing && (
@@ -171,117 +170,91 @@ export default function ConsoleProjectDetail() {
         />
       )}
 
-      {/* 阶段选择 — 单行横滚 pill */}
-      <div className="flex-shrink-0 bg-white border-b border-line px-3 sm:px-6 py-2.5 sm:py-3">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 -mx-1 px-1 scrollbar-thin">
+      {/* 阶段 tabs（底部下划线） */}
+      <div className="flex-shrink-0 bg-white border-b border-line">
+        <div className="px-2 sm:px-4 flex items-center gap-0 overflow-x-auto scrollbar-thin">
           {STAGES.map((s, i) => {
             const status = stageStatus(s)
             const isActive = activeStageKey === s.key
-            const Icon = s.icon
             return (
               <button
                 key={s.key}
                 onClick={() => s.active && setActiveStageKey(s.key)}
                 disabled={!s.active}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs whitespace-nowrap shrink-0 border transition-all ${
-                  isActive
-                    ? 'text-white border-transparent shadow-sm'
-                    : status === 'done'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                      : status === 'inflight'
-                        ? 'bg-blue-50 text-blue-700 border-blue-200'
-                        : status === 'locked'
-                          ? 'bg-gray-50 text-ink-muted border-gray-200 cursor-not-allowed'
-                          : 'bg-white text-ink-secondary border-line hover:border-orange-300 hover:text-ink'
+                className={`relative flex items-center gap-1.5 px-3 py-2.5 text-xs whitespace-nowrap shrink-0 transition-colors ${
+                  isActive ? 'text-ink font-semibold' :
+                  status === 'locked' ? 'text-ink-muted cursor-not-allowed' :
+                  'text-ink-secondary hover:text-ink'
                 }`}
-                style={isActive ? { background: BRAND_GRAD } : undefined}
               >
-                <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-semibold ${
-                  isActive ? 'bg-white/25 text-white' :
-                  status === 'done' ? 'bg-emerald-500 text-white' :
-                  status === 'inflight' ? 'bg-blue-500 text-white' :
-                  status === 'locked' ? 'bg-gray-200 text-ink-muted' :
-                  'bg-canvas text-ink-muted'
-                }`}>
-                  {status === 'done' ? <CheckCircle2 size={10} /> :
-                   status === 'inflight' ? <Loader2 size={9} className="animate-spin" /> :
-                   status === 'locked' ? <Lock size={8} /> :
-                   <span>{i + 1}</span>}
-                </span>
-                <Icon size={11} className={isActive ? 'text-white/90' : ''} />
-                <span className={isActive ? 'font-semibold' : ''}>{s.label}</span>
+                <StageStatusBadge status={status} num={i + 1} />
+                {s.label}
+                {isActive && (
+                  <span
+                    className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full"
+                    style={{ background: BRAND_GRAD }}
+                  />
+                )}
               </button>
             )
           })}
         </div>
+      </div>
 
-        {/* 当前阶段动作条 */}
-        <div className="mt-2.5 sm:mt-3 rounded-xl border border-line bg-canvas/50 px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-              activeStage.active ? 'text-white' : 'bg-gray-100 text-ink-muted'
-            }`} style={activeStage.active ? { background: BRAND_GRAD } : undefined}>
-              <activeStage.icon size={13} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-ink truncate">{activeStage.label}</p>
-              <p className="text-[11px] text-ink-muted truncate">
-                {!activeStage.active ? '该阶段即将上线' :
-                 activeBundle ? '已生成交付物' :
-                 activeInflight ? '正在生成…' :
-                 '尚未生成，可开始对话生成'}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 ml-auto flex-wrap">
-            {activeStage.kind && BRIEF_KINDS.includes(activeStage.kind) && (
+      {/* 极简 action toolbar：左状态文字 / 右按钮 */}
+      <div className="flex-shrink-0 px-4 sm:px-6 py-2 bg-canvas/40 border-b border-line flex items-center gap-2">
+        <span className="text-[11px] text-ink-muted truncate">
+          {!activeStage.active ? '该阶段即将上线' :
+           activeBundle ? '已生成交付物' :
+           activeInflight ? '正在生成中…' :
+           '尚未生成'}
+        </span>
+        <div className="flex items-center gap-1.5 ml-auto shrink-0">
+          {activeStage.active && activeStage.kind && BRIEF_KINDS.includes(activeStage.kind) && !activeInflight && (
+            <button
+              onClick={openBriefForActive}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md text-ink-secondary hover:bg-white hover:text-ink"
+              title="查看 / 编辑项目 Brief"
+            >
+              <ClipboardList size={11} /> Brief
+            </button>
+          )}
+          {activeBundle ? (
+            <>
+              <BundlePreviewBtn b={activeBundle} />
+              <BundleDownloadBtn b={activeBundle} />
               <button
-                onClick={openBriefForActive}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg border border-line text-ink-secondary hover:bg-white"
-                title="查看 / 编辑项目 Brief"
+                onClick={startGeneration}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md text-ink-secondary hover:bg-white hover:text-ink"
               >
-                <ClipboardList size={11} /> 项目 Brief
+                <Sparkles size={11} /> 重新生成
               </button>
-            )}
-            {activeBundle ? (
-              <>
-                <BundlePreviewBtn b={activeBundle} />
-                <BundleDownloadBtn b={activeBundle} />
+            </>
+          ) : activeInflight ? (
+            <span className="flex items-center gap-1 px-2.5 py-1 text-xs text-blue-700">
+              <Loader2 size={11} className="animate-spin" /> 后台任务进行中
+            </span>
+          ) : activeStage.active ? (
+            <>
+              {activeStage.kind && BRIEF_KINDS.includes(activeStage.kind) && (
                 <button
-                  onClick={startGeneration}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg border border-line text-ink-secondary hover:bg-white"
+                  onClick={startChatFallback}
+                  className="hidden sm:flex items-center gap-1 px-2.5 py-1 text-xs rounded-md text-ink-secondary hover:bg-white hover:text-ink"
+                  title="走旧版逐题问答流程"
                 >
-                  <Sparkles size={11} /> 重新生成
+                  <MessageSquare size={11} /> 对话
                 </button>
-              </>
-            ) : activeInflight ? (
-              <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
-                <Loader2 size={11} className="animate-spin" /> 后台任务进行中
-              </span>
-            ) : activeStage.active ? (
-              <>
-                {activeStage.kind && BRIEF_KINDS.includes(activeStage.kind) && (
-                  <button
-                    onClick={startChatFallback}
-                    className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg border border-line text-ink-secondary hover:bg-white"
-                    title="走旧版逐题问答流程"
-                  >
-                    <MessageSquare size={11} /> 对话生成
-                  </button>
-                )}
-                <button
-                  onClick={startGeneration}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-lg shadow-sm"
-                  style={{ background: BRAND_GRAD }}
-                >
-                  <Sparkles size={11} />
-                  {activeStage.kind && BRIEF_KINDS.includes(activeStage.kind) ? '填写 Brief 并生成' : '开始对话生成'}
-                </button>
-              </>
-            ) : (
-              <span className="text-xs text-ink-muted">敬请期待</span>
-            )}
-          </div>
+              )}
+              <button
+                onClick={startGeneration}
+                className="flex items-center gap-1 px-3 py-1 text-xs font-semibold text-white rounded-md shadow-sm"
+                style={{ background: BRAND_GRAD }}
+              >
+                <Sparkles size={11} />
+                {activeStage.kind && BRIEF_KINDS.includes(activeStage.kind) ? '填写 Brief 并生成' : '开始生成'}
+              </button>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -342,6 +315,35 @@ export default function ConsoleProjectDetail() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+
+function StageStatusBadge({ status, num }: { status: StageStatus; num: number }) {
+  if (status === 'done') {
+    return (
+      <span className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center">
+        <CheckCircle2 size={10} />
+      </span>
+    )
+  }
+  if (status === 'inflight') {
+    return (
+      <span className="w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center">
+        <Loader2 size={9} className="animate-spin" />
+      </span>
+    )
+  }
+  if (status === 'locked') {
+    return (
+      <span className="w-4 h-4 rounded-full bg-gray-100 text-ink-muted flex items-center justify-center">
+        <Lock size={8} />
+      </span>
+    )
+  }
+  return (
+    <span className="w-4 h-4 rounded-full bg-canvas text-ink-muted text-[10px] font-semibold flex items-center justify-center">
+      {num}
+    </span>
+  )
+}
 
 function ChatTabs({ mode, setMode, docCount, onOpenDocs }: {
   mode: ChatMode; setMode: (m: ChatMode) => void; docCount: number; onOpenDocs: () => void
