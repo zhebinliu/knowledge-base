@@ -442,6 +442,11 @@ INSIGHT_SYSTEM = """你是 MBB 风格的资深咨询顾问（McKinsey / BCG / Ba
 - 不要用 emoji
 - 章节之间用 `---` 分隔
 - 风险用「高/中/低」标签，不用 🔴🟡🟢
+
+【关键约束 — 段落级输出】
+- 你只负责输出**当前一节**的正文内容，不要再次输出整篇报告的标题、封面、元信息表（"客户名称 / 项目代号 / 报告日期 / 编写人 / 版本"等）
+- **禁止**输出 `# 项目洞察报告` / `## 执行摘要` / `## {章节名}` 这类 H1/H2 标题，章节标题已由系统注入
+- 直接从 Bottom line 加粗结论开始，需要更细粒度可用 H3 (`###`) 及以下
 """
 
 INSIGHT_SECTIONS = [
@@ -491,6 +496,7 @@ async def generate_insight(bundle_id: str, project_id: str):
 - 字数 600–1200，禁止黑话
 - 信息缺口写"信息缺失，建议在 Phase 1 第一周补访"，不要编造"""
             answer = await _llm_call(prompt, system=INSIGHT_SYSTEM, model=ctx["agent_model"], max_tokens=4000)
+            answer = _strip_section_preamble(answer, title)
             sections.append(f"## {title}\n\n{answer}")
 
         report_date = date.today().strftime("%Y年%m月%d日")
@@ -631,6 +637,42 @@ async def generate_kickoff_pptx(bundle_id: str, project_id: str):
         logger.error("pptx_failed", bundle_id=bundle_id, error=str(e)[:200])
         await _mark_bundle(bundle_id, "failed", error=str(e)[:500])
         await _mark_conversation(bundle_id, "failed")
+
+
+def _strip_section_preamble(answer: str, section_title: str) -> str:
+    """去掉模型在 section answer 里重复输出的整篇标题、封面元信息表、与本节标题重名的 H1/H2。"""
+    import re as _re
+    s = (answer or "").strip()
+    if s.startswith("```"):
+        first_nl = s.find("\n")
+        if first_nl >= 0:
+            s = s[first_nl + 1:]
+        if s.endswith("```"):
+            s = s[:-3]
+        s = s.strip()
+    lines = s.split("\n")
+    meta_keys = ("客户名称", "项目代号", "报告日期", "编写人", "版本号", "生成日期")
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        if not line or line in ("---", "***"):
+            i += 1
+            continue
+        if _re.match(r"^#{1,2}\s+", line):
+            i += 1
+            continue
+        # 封面元信息表：连续 | 开头的行，包含"客户名称/项目代号/报告日期"等
+        if line.startswith("|"):
+            j = i
+            while j < len(lines) and lines[j].strip().startswith("|"):
+                j += 1
+            block = "\n".join(lines[i:j])
+            if any(k in block for k in meta_keys):
+                i = j
+                continue
+            break
+        break
+    return "\n".join(lines[i:]).strip()
 
 
 def _strip_html_fences(raw: str) -> str:
