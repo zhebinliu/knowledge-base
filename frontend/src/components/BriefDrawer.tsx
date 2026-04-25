@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   X, Loader2, Wand2, Save, Sparkles, AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Info,
@@ -32,12 +32,18 @@ export default function BriefDrawer({ open, kind, projectId, stageTitle, onClose
     queryKey: ['brief', kind, projectId],
     queryFn: () => getBrief(kind, projectId),
     enabled: open,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    staleTime: Infinity,
   })
 
+  // 仅在第一次拿到 briefData 时初始化；之后不让 GET 覆盖用户编辑或抽取结果
+  const initedRef = useRef(false)
   useEffect(() => {
-    if (briefData) {
+    if (briefData && !initedRef.current) {
       setFields(briefData.fields || {})
       setSchema(briefData.schema || [])
+      initedRef.current = true
     }
   }, [briefData])
 
@@ -151,9 +157,16 @@ export default function BriefDrawer({ open, kind, projectId, stageTitle, onClose
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-          {(isLoading || (extractMut.isPending && !extracted)) && (
+          {isLoading && schema.length === 0 && (
             <div className="flex items-center gap-2 text-xs text-ink-muted py-12 justify-center">
-              <Loader2 size={13} className="animate-spin" /> 正在从项目元数据 / 关联文档 / 知识库中抽取字段…
+              <Loader2 size={13} className="animate-spin" /> 加载 Brief…
+            </div>
+          )}
+
+          {extractMut.isPending && (
+            <div className="flex items-center gap-2 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+              <Loader2 size={13} className="animate-spin" />
+              正在用 LLM 从项目元数据 / 关联文档 / 知识库中抽取字段，通常需要 30–90 秒…（界面已可见，请稍候自动填充）
             </div>
           )}
 
@@ -161,7 +174,7 @@ export default function BriefDrawer({ open, kind, projectId, stageTitle, onClose
             <div className="text-center py-12 text-xs text-ink-muted">该交付物没有 Brief 模板</div>
           )}
 
-          {!isLoading && schema.length > 0 && groups.map(([groupName, defs]) => {
+          {schema.length > 0 && groups.map(([groupName, defs]) => {
             const collapsed = collapsedGroups[groupName] === true
             return (
               <section key={groupName} className="border border-line rounded-xl overflow-hidden">
