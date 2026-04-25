@@ -10,7 +10,7 @@
 
 ## 部署
 
-- 远程服务器: `liu@34.45.112.217` (GCP)，SSH key: `~/.ssh/id_rsa_github_deploy`
+- 远程服务器: `liu@34.45.112.217` (GCP)，SSH key: `/Users/zhebinliu/Documents/projects/private_key`
 - 远程路径: `/opt/kb-system`
 - 运行方式: Docker Compose (postgres, qdrant, redis, minio, backend, frontend, celery_worker)
 - 同步脚本: `scripts/sync-dev.sh`（fswatch + rsync）
@@ -20,10 +20,10 @@
 
 ```bash
 # 1. rsync 同步
-rsync -avz --delete --exclude=.git --exclude=.env --exclude=__pycache__ --exclude="*.pyc" --exclude=node_modules --exclude=dist --exclude=.DS_Store -e "ssh -i ~/.ssh/id_rsa_github_deploy -o StrictHostKeyChecking=no" ./ liu@34.45.112.217:/opt/kb-system/
+rsync -avz --delete --exclude=.git --exclude=.env --exclude=__pycache__ --exclude="*.pyc" --exclude=node_modules --exclude=dist --exclude=.DS_Store -e "ssh -i /Users/zhebinliu/Documents/projects/private_key -o StrictHostKeyChecking=no" ./ liu@34.45.112.217:/opt/kb-system/
 
 # 2. 远程 rebuild + restart（按需选择 backend / frontend）
-ssh -i ~/.ssh/id_rsa_github_deploy liu@34.45.112.217 "cd /opt/kb-system && sudo docker compose build backend frontend && sudo docker compose up -d backend frontend"
+ssh -i /Users/zhebinliu/Documents/projects/private_key liu@34.45.112.217 "cd /opt/kb-system && sudo docker compose build backend frontend && sudo docker compose up -d backend frontend"
 ```
 
 ## 项目结构
