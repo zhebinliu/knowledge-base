@@ -5,7 +5,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats
+from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs
 from services.rate_limit import limiter
 from services.vector_store import vector_store
 
@@ -46,6 +46,7 @@ app.include_router(call_logs.router, prefix="/api/call-logs", tags=["call-logs"]
 app.include_router(outputs.router, prefix="/api/outputs", tags=["outputs"])
 app.include_router(meeting.router, prefix="/api/meeting", tags=["meeting"])
 app.include_router(output_chats.router, prefix="/api/output-chats", tags=["output-chats"])
+app.include_router(briefs.router, prefix="/api/briefs", tags=["briefs"])
 
 
 @app.on_event("startup")
@@ -68,6 +69,7 @@ async def startup():
     from models.api_call_log import ApiCallLog  # noqa: F401
     from models.curated_bundle import CuratedBundle  # noqa: F401
     from models.output_conversation import OutputConversation  # noqa: F401
+    from models.project_brief import ProjectBrief  # noqa: F401
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

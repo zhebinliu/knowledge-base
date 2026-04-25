@@ -766,3 +766,40 @@ export const getOutput = (id: string) =>
 
 export const downloadOutputUrl = (id: string) => `/api/outputs/${id}/download`
 export const viewOutputUrl = (id: string) => `/api/outputs/${id}/view`
+
+// ── Project Brief ────────────────────────────────────────────────────────────
+
+export type BriefConfidence = 'high' | 'medium' | 'low' | null
+export interface BriefSource { type: string; ref?: string; snippet?: string }
+export interface BriefFieldCell {
+  value: string | string[] | null
+  confidence: BriefConfidence
+  sources: BriefSource[]
+  auto_filled_at?: string | null
+  edited_at?: string | null
+}
+export interface BriefFieldDef {
+  key: string
+  label: string
+  hint?: string
+  group?: string
+  type?: 'text' | 'list' | 'date'
+  required?: boolean
+}
+export interface BriefDoc {
+  project_id: string
+  output_kind: string
+  fields: Record<string, BriefFieldCell>
+  schema: BriefFieldDef[]
+  exists: boolean
+  updated_at: string | null
+}
+
+export const getBrief = (kind: string, project_id: string) =>
+  api.get<BriefDoc>(`/briefs/${kind}`, { params: { project_id } }).then(r => r.data)
+
+export const extractBrief = (kind: string, project_id: string) =>
+  api.post<BriefDoc>(`/briefs/${kind}/extract`, null, { params: { project_id } }).then(r => r.data)
+
+export const putBrief = (kind: string, project_id: string, fields: Record<string, BriefFieldCell>) =>
+  api.put<BriefDoc>(`/briefs/${kind}`, { fields }, { params: { project_id } }).then(r => r.data)

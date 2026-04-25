@@ -1,0 +1,132 @@
+"""Brief CRUD + auto-extraction endpoints."""
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from models import get_session
+from models.project import Project
+from models.project_brief import ProjectBrief
+from models.user import User
+from services.auth import get_current_user
+from services.brief_service import (
+    BRIEF_SCHEMAS, get_schema, empty_brief,
+    merge_extract_with_user_edits, extract_brief_draft,
+)
+
+router = APIRouter()
+
+
+def _dto(brief: ProjectBrief | None, kind: str, project_id: str) -> dict:
+    schema = get_schema(kind)
+    if brief:
+        fields = brief.fields or {}
+        return {
+            "project_id": project_id,
+            "output_kind": kind,
+            "fields": fields,
+            "schema": schema,
+            "updated_at": brief.updated_at,
+            "exists": True,
+        }
+    return {
+        "project_id": project_id,
+        "output_kind": kind,
+        "fields": empty_brief(kind),
+        "schema": schema,
+        "updated_at": None,
+        "exists": False,
+    }
+
+
+@router.get("/{kind}")
+async def get_brief(
+    kind: str,
+    project_id: str = Query(...),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    if kind not in BRIEF_SCHEMAS:
+        raise HTTPException(404, f"Unsupported output_kind: {kind}")
+    proj = await session.get(Project, project_id)
+    if not proj:
+        raise HTTPException(404, "Project not found")
+    brief = (await session.execute(
+        select(ProjectBrief).where(
+            ProjectBrief.project_id == project_id,
+            ProjectBrief.output_kind == kind,
+        )
+    )).scalar_one_or_none()
+    return _dto(brief, kind, project_id)
+
+
+@router.post("/{kind}/extract")
+async def extract_brief(
+    kind: str,
+    project_id: str = Query(...),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """LLM 抽取草稿（不入库）。前端拿到后与已有 brief 合并（保留用户已编辑字段）展示。"""
+    if kind not in BRIEF_SCHEMAS:
+        raise HTTPException(404, f"Unsupported output_kind: {kind}")
+    proj = await session.get(Project, project_id)
+    if not proj:
+        raise HTTPException(404, "Project not found")
+
+    existing = (await session.execute(
+        select(ProjectBrief).where(
+            ProjectBrief.project_id == project_id,
+            ProjectBrief.output_kind == kind,
+        )
+    )).scalar_one_or_none()
+
+    draft = await extract_brief_draft(project_id, kind)
+    merged = merge_extract_with_user_edits(existing.fields if existing else {}, draft)
+    return {
+        "project_id": project_id,
+        "output_kind": kind,
+        "fields": merged,
+        "schema": get_schema(kind),
+    }
+
+
+class PutBriefBody(BaseModel):
+    fields: dict
+
+
+@router.put("/{kind}")
+async def put_brief(
+    kind: str,
+    body: PutBriefBody,
+    project_id: str = Query(...),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    if kind not in BRIEF_SCHEMAS:
+        raise HTTPException(404, f"Unsupported output_kind: {kind}")
+    proj = await session.get(Project, project_id)
+    if not proj:
+        raise HTTPException(404, "Project not found")
+
+    brief = (await session.execute(
+        select(ProjectBrief).where(
+            ProjectBrief.project_id == project_id,
+            ProjectBrief.output_kind == kind,
+        )
+    )).scalar_one_or_none()
+
+    if brief:
+        brief.fields = body.fields
+        brief.updated_by = current_user.id
+    else:
+        brief = ProjectBrief(
+            project_id=project_id,
+            output_kind=kind,
+            fields=body.fields,
+            updated_by=current_user.id,
+        )
+        session.add(brief)
+    await session.commit()
+    await session.refresh(brief)
+    return _dto(brief, kind, project_id)

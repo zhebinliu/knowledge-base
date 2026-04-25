@@ -7,14 +7,17 @@ import {
   Save, X, Wand2, AlertCircle, Pencil, Building2, Calendar, Tag, Files, Search,
 } from 'lucide-react'
 import {
-  getProject, updateProject, generateCustomerProfile,
+  getProject, updateProject, generateCustomerProfile, generateOutput,
   listProjectDocuments, getDocumentMarkdown, listOutputs, downloadOutputUrl, viewOutputUrl,
   getProjectMeta, TOKEN_STORAGE_KEY,
   type CuratedBundle, type OutputKind, type Project, type ProjectDocument,
 } from '../../api/client'
 import OutputChatPanel from '../../components/OutputChatPanel'
+import BriefDrawer from '../../components/BriefDrawer'
 import MarkdownView from '../../components/MarkdownView'
 import QA from '../QA'
+
+const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'insight']
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -49,6 +52,7 @@ export default function ConsoleProjectDetail() {
   const [previewDocId, setPreviewDocId] = useState<string | null>(null)
   const [activeStageKey, setActiveStageKey] = useState<string>('insight')
   const [docsOpen, setDocsOpen] = useState(false)
+  const [briefDrawer, setBriefDrawer] = useState<{ kind: OutputKind; label: string } | null>(null)
 
   const { data: project, isLoading } = useQuery({
     queryKey: ['project', id], queryFn: () => getProject(id!), enabled: !!id,
@@ -93,7 +97,26 @@ export default function ConsoleProjectDetail() {
 
   const startGeneration = () => {
     if (!activeStage.active || !activeStage.kind) return
-    setChatMode({ type: 'output', kind: activeStage.kind, label: activeStage.label })
+    if (BRIEF_KINDS.includes(activeStage.kind)) {
+      setBriefDrawer({ kind: activeStage.kind, label: activeStage.label })
+    } else {
+      setChatMode({ type: 'output', kind: activeStage.kind, label: activeStage.label })
+    }
+  }
+
+  const openBriefForActive = () => {
+    if (!activeStage.kind || !BRIEF_KINDS.includes(activeStage.kind)) return
+    setBriefDrawer({ kind: activeStage.kind, label: activeStage.label })
+  }
+
+  const handleBriefGenerate = async () => {
+    if (!briefDrawer) return
+    try {
+      await generateOutput({ kind: briefDrawer.kind, project_id: id! })
+      refetchOutputs()
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || '触发生成失败')
+    }
   }
 
   return (
@@ -210,6 +233,15 @@ export default function ConsoleProjectDetail() {
             </div>
           </div>
           <div className="flex items-center gap-2 ml-auto flex-wrap">
+            {activeStage.kind && BRIEF_KINDS.includes(activeStage.kind) && (
+              <button
+                onClick={openBriefForActive}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg border border-line text-ink-secondary hover:bg-white"
+                title="查看 / 编辑项目 Brief"
+              >
+                <ClipboardList size={11} /> 项目 Brief
+              </button>
+            )}
             {activeBundle ? (
               <>
                 <BundlePreviewBtn b={activeBundle} />
@@ -231,7 +263,8 @@ export default function ConsoleProjectDetail() {
                 className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-lg shadow-sm"
                 style={{ background: BRAND_GRAD }}
               >
-                <Sparkles size={11} /> 开始对话生成
+                <Sparkles size={11} />
+                {activeStage.kind && BRIEF_KINDS.includes(activeStage.kind) ? '填写 Brief 并生成' : '开始对话生成'}
               </button>
             ) : (
               <span className="text-xs text-ink-muted">敬请期待</span>
@@ -279,6 +312,17 @@ export default function ConsoleProjectDetail() {
           docId={previewDocId}
           docs={docs ?? []}
           onClose={() => setPreviewDocId(null)}
+        />
+      )}
+
+      {briefDrawer && (
+        <BriefDrawer
+          open={true}
+          kind={briefDrawer.kind}
+          projectId={id}
+          stageTitle={briefDrawer.label}
+          onClose={() => setBriefDrawer(null)}
+          onGenerate={handleBriefGenerate}
         />
       )}
     </div>

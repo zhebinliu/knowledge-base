@@ -218,6 +218,27 @@ def _format_web_items(items: list[dict]) -> str:
     return "\n\n".join(blocks)
 
 
+async def _get_brief_block(project_id: str, kind: str) -> str:
+    """读取已确认 Brief，渲染为 markdown 块；没有就返回空串。"""
+    if not project_id:
+        return ""
+    from models.project_brief import ProjectBrief
+    from services.brief_service import get_schema, render_brief_for_prompt
+    schema = get_schema(kind)
+    if not schema:
+        return ""
+    async with async_session_maker() as s:
+        row = (await s.execute(
+            select(ProjectBrief).where(
+                ProjectBrief.project_id == project_id,
+                ProjectBrief.output_kind == kind,
+            )
+        )).scalar_one_or_none()
+    if not row or not row.fields:
+        return ""
+    return render_brief_for_prompt(row.fields, schema)
+
+
 async def _gather_inputs(bundle_id: str, project_id: str, kind: str) -> dict:
     """统一拉取对话 / 项目 / 智能体配置，并在生成阶段做额外 KB 检索丰富上下文。"""
     async with async_session_maker() as s:
@@ -237,6 +258,8 @@ async def _gather_inputs(bundle_id: str, project_id: str, kind: str) -> dict:
 
     # 行业 / 客户研究 priming（使用模型自身知识做"准检索"）
     industry_brief = await _industry_priming(proj, industry, kind, agent_cfg.get("model"))
+    # 项目 Brief（用户已确认/编辑过的字段，作为最权威的素材）
+    project_brief_text = await _get_brief_block(project_id, kind)
     # 真实 web 搜索（仅当配置了 key）
     web_items, web_log = await _web_research(proj, industry, kind)
     web_text = _format_web_items(web_items)
@@ -262,6 +285,7 @@ async def _gather_inputs(bundle_id: str, project_id: str, kind: str) -> dict:
         "transcript": transcript,
         "refs_text": all_refs_text,
         "industry_brief": industry_brief,
+        "project_brief": project_brief_text,
         "web_text": web_text,
         "kb_calls": kb_log,
         "web_calls": web_log,
@@ -486,6 +510,8 @@ async def generate_insight(bundle_id: str, project_id: str):
 
 {f"【启用技能】{chr(10)}{ctx['skill_text']}" if ctx['skill_text'] else ""}
 
+{f"【已确认的项目 Brief（最权威素材，请优先采信，不要绕过）】{chr(10)}{ctx['project_brief']}" if ctx.get('project_brief') else ""}
+
 本节主题：**{title}**
 本节任务：{question}
 
@@ -607,6 +633,8 @@ async def generate_kickoff_pptx(bundle_id: str, project_id: str):
 {f"【方法论/风格要求】{chr(10)}{ctx['agent_prompt']}" if ctx['agent_prompt'] else ""}
 
 {f"【启用技能（PPT 骨架 / 版式 / 文案规范）】{chr(10)}{ctx['skill_text']}" if ctx['skill_text'] else ""}
+
+{f"【已确认的项目 Brief（最权威素材，PPT 各页内容必须基于此展开，不要绕过）】{chr(10)}{ctx['project_brief']}" if ctx.get('project_brief') else ""}
 
 请生成完整的启动会 HTML 幻灯片（11 页）。直接输出 HTML 字符串。每页都要有表格/矩阵/图示，不能纯文字。"""
 
