@@ -341,6 +341,154 @@ export default function Demo() {
           <StatBadge value="MCP" label="Model Context Protocol" />
         </div>
 
+        {/* ── Multi-layer knowledge memory architecture ───────────── */}
+        <div className="mb-20">
+          <div className="text-center mb-8">
+            <Tag>核心架构</Tag>
+            <h2 className="text-2xl font-bold text-ink mt-3 mb-2">多层知识记忆体系</h2>
+            <p className="text-ink-secondary text-sm max-w-xl mx-auto">
+              每个项目都有 4 层记忆——从「我是谁」到「我说过什么」再到「已对齐的事实」。
+              问答 / PM 视角 / 文档生成共享同一份记忆。
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-line bg-surface shadow-sm p-5 sm:p-8">
+
+            {/* Inputs row */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-1">
+              {[
+                { icon: Upload,        label: '文档上传',   sub: 'PDF · DOCX · PPT · MD' },
+                { icon: Folder,        label: '项目信息',   sub: '客户 / 行业 / 立项日' },
+                { icon: MessageSquare, label: '对话与反馈', sub: '问答 · 👎 · Brief 编辑' },
+              ].map(({ icon: Icon, label, sub }) => (
+                <div key={label} className="rounded-xl border border-line bg-canvas px-3 py-2.5">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <Icon size={13} className="text-ink-muted flex-shrink-0" />
+                    <p className="text-xs font-semibold text-ink truncate">{label}</p>
+                  </div>
+                  <p className="text-[10px] text-ink-muted truncate">{sub}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Down arrow w/ caption */}
+            <div className="flex flex-col items-center my-3">
+              <div className="w-px h-3 bg-line" />
+              <div className="text-[10px] text-ink-muted bg-canvas border border-line rounded-full px-2.5 py-0.5">
+                LLM 抽取 · 切片 · 向量化
+              </div>
+              <div className="w-px h-3 bg-line" />
+              <ChevronRight size={12} className="text-ink-muted rotate-90 -mt-0.5" />
+            </div>
+
+            {/* 4 memory layers stack */}
+            <div className="rounded-xl border-2 border-orange-200 overflow-hidden bg-white">
+              {[
+                {
+                  id: 1, name: '项目元数据', tagline: '我是谁',
+                  icon: Folder, color: '#D96400', bg: 'bg-orange-50',
+                  what: ['客户名称', '行业', '立项日期', '客户画像'],
+                  store: 'PostgreSQL · projects',
+                  query: '主键直查 · 项目锁定',
+                },
+                {
+                  id: 2, name: '文档层', tagline: '我有哪些资料',
+                  icon: FileText, color: '#2563EB', bg: 'bg-blue-50',
+                  what: ['文件名', 'Markdown 全文', 'AI 摘要', '阶段标签'],
+                  store: 'PostgreSQL · documents',
+                  query: '元数据过滤 · 摘要拼接',
+                },
+                {
+                  id: 3, name: '切片层（真相源）', tagline: '具体说了什么',
+                  icon: Layers, color: '#7C3AED', bg: 'bg-purple-50',
+                  what: ['文本切片', '阶段/模块标签', '向量 1024d', '审核状态', '🔥 热度'],
+                  store: 'PostgreSQL · chunks  +  Qdrant',
+                  query: '语义检索 + rerank + 过滤未审核',
+                },
+                {
+                  id: 4, name: 'Brief 层（确认知识）', tagline: '已对齐的事实',
+                  icon: ClipboardList, color: '#059669', bg: 'bg-emerald-50',
+                  what: ['kickoff_pptx Brief', 'insight Brief', '置信度 · 来源', '人工确认'],
+                  store: 'PostgreSQL · project_briefs',
+                  query: '按 output_kind 直查 · 注入 prompt',
+                },
+              ].map((L, idx) => (
+                <div key={L.id} className={`flex items-stretch ${idx > 0 ? 'border-t border-line' : ''} ${L.bg}`}>
+                  {/* Layer badge */}
+                  <div className="flex-shrink-0 w-12 sm:w-20 flex flex-col items-center justify-center py-3 border-r border-line/60">
+                    <span className="text-[9px] sm:text-[10px] uppercase tracking-wider text-ink-muted leading-none">Layer</span>
+                    <span className="text-xl sm:text-2xl font-extrabold leading-tight" style={{ color: L.color }}>{L.id}</span>
+                  </div>
+
+                  {/* Name + what */}
+                  <div className="flex-1 px-3 sm:px-4 py-3 min-w-0">
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 flex-wrap">
+                      <L.icon size={14} style={{ color: L.color, flexShrink: 0 }} />
+                      <p className="text-sm font-semibold text-ink">{L.name}</p>
+                      <span className="text-[10px] text-ink-muted">· {L.tagline}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {L.what.map(w => (
+                        <span key={w} className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-line text-ink-secondary">{w}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Storage column */}
+                  <div className="flex-shrink-0 w-28 sm:w-48 px-2 sm:px-3 py-3 flex flex-col justify-center border-l border-line/60 bg-white/60">
+                    <p className="text-[9px] uppercase tracking-wider text-ink-muted leading-none mb-1">存储 / 召回</p>
+                    <p className="text-[11px] sm:text-xs font-mono font-semibold text-ink leading-snug">{L.store}</p>
+                    <p className="text-[10px] text-ink-muted leading-snug mt-0.5">{L.query}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Down arrow w/ caption */}
+            <div className="flex flex-col items-center my-3">
+              <div className="w-px h-3 bg-line" />
+              <div className="text-[10px] text-ink-muted bg-canvas border border-line rounded-full px-2.5 py-0.5">
+                组合检索 · 上下文拼装
+              </div>
+              <div className="w-px h-3 bg-line" />
+              <ChevronRight size={12} className="text-ink-muted rotate-90 -mt-0.5" />
+            </div>
+
+            {/* Consumers row */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              {[
+                { icon: MessageSquare, label: '智能问答',   sub: 'L3 召回 + 引用' },
+                { icon: Brain,         label: 'PM 视角',    sub: 'L1+L2+L3 + 项目锁定' },
+                { icon: Wand2,         label: '文档生成',   sub: 'L4 Brief 驱动 · L1/L2/L3 补全' },
+              ].map(({ icon: Icon, label, sub }) => (
+                <div key={label} className="rounded-xl px-3 py-2.5 text-white shadow-sm" style={{ background: BRAND_GRAD }}>
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <Icon size={13} className="flex-shrink-0" />
+                    <p className="text-xs font-semibold truncate">{label}</p>
+                  </div>
+                  <p className="text-[10px] opacity-90 truncate">{sub}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Support tier footer */}
+            <div className="mt-5 pt-4 border-t border-dashed border-line flex items-center justify-center gap-1.5 flex-wrap">
+              <span className="text-[10px] uppercase tracking-wider text-ink-muted mr-1">支撑设施</span>
+              {[
+                { label: 'Redis', desc: '异步任务队列' },
+                { label: 'MinIO', desc: '原始文件留存' },
+                { label: 'Celery', desc: '文档解析 worker' },
+                { label: 'BGE-M3', desc: '1024d 嵌入模型' },
+              ].map(({ label, desc }) => (
+                <span key={label} className="text-[10px] px-2 py-0.5 rounded-full bg-canvas border border-line text-ink-secondary">
+                  <span className="font-mono font-semibold text-ink">{label}</span>
+                  <span className="text-ink-muted"> · {desc}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* ── Quality governance highlight (Block 1 + Block 2) ───── */}
         <div className="mb-20">
           <div className="text-center mb-8">
