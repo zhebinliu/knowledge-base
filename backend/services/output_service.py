@@ -638,8 +638,8 @@ async def generate_kickoff_pptx(bundle_id: str, project_id: str):
 
 请生成完整的启动会 HTML 幻灯片（11 页）。直接输出 HTML 字符串。每页都要有表格/矩阵/图示，不能纯文字。"""
 
-        # PPT 生成体量大（系统提示 + 行业 brief + 11 页 HTML），固定用 qwen3-next（速度更稳）+ 5 分钟超时
-        pptx_model = ctx["agent_model"] or "qwen3-next-80b-a3b"
+        # PPT 生成默认走小米 mimo-v2-pro（视觉/排版多样性优于 qwen3-next）；agent_config 显式指定时优先生效
+        pptx_model = ctx["agent_model"] or "mimo-v2-pro"
         html_raw = await _llm_call(prompt, system=HTML_PPTX_SYSTEM, model=pptx_model, max_tokens=12000, timeout=420.0)
         html = _strip_html_fences(html_raw)
         if not html.lstrip().lower().startswith("<!doctype") and "<html" not in html.lower():
