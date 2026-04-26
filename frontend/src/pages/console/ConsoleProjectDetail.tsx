@@ -229,7 +229,7 @@ export default function ConsoleProjectDetail() {
       </div>
 
       {/* 极简 action toolbar：左状态文字 / 右按钮 */}
-      <div className="flex-shrink-0 px-4 sm:px-6 py-2 bg-canvas/40 border-b border-line flex items-center gap-2">
+      <div className="flex-shrink-0 px-4 sm:px-6 py-2 bg-canvas border-b border-line flex items-center gap-2">
         <span className="text-[11px] text-ink-muted truncate">
           {!activeStage.active ? '该阶段即将上线' :
            activeBundle ? '已生成交付物' :
