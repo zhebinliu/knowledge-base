@@ -655,7 +655,7 @@ async def generate_kickoff_pptx(bundle_id: str, project_id: str):
         # PPT 生成默认走小米 mimo-v2-pro（视觉/排版多样性优于 qwen3-next）；agent_config 显式指定时优先生效
         # max_tokens=None：不设上限，让模型按自身 max 输出（mimo 会先 think 再出 HTML，需要给足空间）
         pptx_model = ctx["agent_model"] or "mimo-v2-pro"
-        html_raw = await _llm_call(prompt, system=HTML_PPTX_SYSTEM, model=pptx_model, max_tokens=None, timeout=600.0)
+        html_raw = await _llm_call(prompt, system=HTML_PPTX_SYSTEM, model=pptx_model, max_tokens=None, timeout=1200.0)
         html = _strip_html_fences(html_raw)
         if not html.lstrip().lower().startswith("<!doctype") and "<html" not in html.lower():
             html = _fallback_html(title_name, customer, kickoff_date_str, html_raw)
