@@ -92,7 +92,7 @@ def _format_refs(conv: OutputConversation | None) -> str:
     return "\n\n".join(lines[:20])
 
 
-async def _llm_call(prompt: str, system: str = "", model: str | None = None, max_tokens: int = 8000, timeout: float = 180.0) -> str:
+async def _llm_call(prompt: str, system: str = "", model: str | None = None, max_tokens: int | None = 8000, timeout: float = 180.0) -> str:
     from services.model_router import model_router
     messages = []
     if system:
@@ -639,8 +639,9 @@ async def generate_kickoff_pptx(bundle_id: str, project_id: str):
 请生成完整的启动会 HTML 幻灯片（11 页）。直接输出 HTML 字符串。每页都要有表格/矩阵/图示，不能纯文字。"""
 
         # PPT 生成默认走小米 mimo-v2-pro（视觉/排版多样性优于 qwen3-next）；agent_config 显式指定时优先生效
+        # max_tokens=None：不设上限，让模型按自身 max 输出（mimo 会先 think 再出 HTML，需要给足空间）
         pptx_model = ctx["agent_model"] or "mimo-v2-pro"
-        html_raw = await _llm_call(prompt, system=HTML_PPTX_SYSTEM, model=pptx_model, max_tokens=12000, timeout=420.0)
+        html_raw = await _llm_call(prompt, system=HTML_PPTX_SYSTEM, model=pptx_model, max_tokens=None, timeout=600.0)
         html = _strip_html_fences(html_raw)
         if not html.lstrip().lower().startswith("<!doctype") and "<html" not in html.lower():
             html = _fallback_html(title_name, customer, kickoff_date_str, html_raw)

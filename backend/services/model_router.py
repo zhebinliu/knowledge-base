@@ -165,21 +165,23 @@ class ModelRouter:
         self,
         model_name: str,
         messages: list[dict],
-        max_tokens: int = 8000,
+        max_tokens: int | None = 8000,
         temperature: float = 0.3,
         response_format: dict | None = None,
         timeout: float = 180.0,
     ) -> tuple[str, str]:
-        """Returns (content, model_name) tuple. Retries on 429 with exponential backoff."""
+        """Returns (content, model_name) tuple. Retries on 429 with exponential backoff.
+        max_tokens=None 时不下发该字段，由模型按自身 max 输出。"""
         config = await self._get_model_config(model_name)
         api_key = await self._get_api_key(config)
 
         payload: dict = {
             "model": config["model_id"],
             "messages": messages,
-            "max_tokens": max_tokens,
             "temperature": temperature,
         }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
         if response_format:
             payload["response_format"] = response_format
 
