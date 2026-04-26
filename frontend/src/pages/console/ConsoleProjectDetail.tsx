@@ -168,8 +168,8 @@ export default function ConsoleProjectDetail() {
         />
       )}
 
-      {/* 阶段流程：单向箭头 chevron 铺满整行 */}
-      <div className="flex-shrink-0 bg-white border-b border-line py-2 px-2 sm:px-3">
+      {/* 阶段流程 + 当前阶段动作 — 视觉上一整块 */}
+      <div className="flex-shrink-0 bg-white border-b border-line pt-2 px-2 sm:px-3">
         <div className="flex items-stretch gap-[2px] overflow-x-auto scrollbar-thin">
           {STAGES.map((s, i) => {
             const status = stageStatus(s)
@@ -228,8 +228,8 @@ export default function ConsoleProjectDetail() {
         </div>
       </div>
 
-      {/* 极简 action toolbar：左状态文字 / 右按钮 */}
-      <div className="flex-shrink-0 px-4 sm:px-6 py-2 bg-canvas border-b border-line flex items-center gap-2">
+      {/* 当前阶段 action — 与上方阶段栏共享白底 */}
+      <div className="flex-shrink-0 px-2 sm:px-3 pt-2 pb-2.5 bg-white border-b border-line flex items-center gap-2">
         <span className="text-[11px] text-ink-muted truncate">
           {!activeStage.active ? '该阶段即将上线' :
            activeBundle ? '已生成交付物' :
