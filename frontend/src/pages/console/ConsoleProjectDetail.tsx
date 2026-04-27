@@ -17,7 +17,7 @@ import BriefDrawer from '../../components/BriefDrawer'
 import MarkdownView from '../../components/MarkdownView'
 import QA from '../QA'
 
-const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'insight']
+const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight']
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -233,6 +233,7 @@ export default function ConsoleProjectDetail() {
       <div className="flex-shrink-0 px-2 sm:px-3 pt-2 pb-2.5 bg-white border-b border-line flex items-center gap-2">
         <span className="text-[11px] text-ink-muted truncate">
           {!activeStage.active ? '该阶段即将上线' :
+           activeInflight && activeBundle ? '已有交付物 · 正在重新生成…' :
            activeBundle ? '已生成交付物' :
            activeInflight ? '正在生成中…' :
            '尚未生成'}
@@ -251,12 +252,18 @@ export default function ConsoleProjectDetail() {
             <>
               <BundlePreviewBtn b={activeBundle} />
               <BundleDownloadBtn b={activeBundle} />
-              <button
-                onClick={startGeneration}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md text-ink-secondary hover:bg-white hover:text-ink"
-              >
-                <Sparkles size={11} /> 重新生成
-              </button>
+              {activeInflight ? (
+                <span className="flex items-center gap-1 px-2.5 py-1 text-xs text-blue-700">
+                  <Loader2 size={11} className="animate-spin" /> 重新生成中…
+                </span>
+              ) : (
+                <button
+                  onClick={startGeneration}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md text-ink-secondary hover:bg-white hover:text-ink"
+                >
+                  <Sparkles size={11} /> 重新生成
+                </button>
+              )}
             </>
           ) : activeInflight ? (
             <span className="flex items-center gap-1 px-2.5 py-1 text-xs text-blue-700">
@@ -380,8 +387,16 @@ function BundlePreviewBtn({ b }: { b: CuratedBundle }) {
   // 只有 HTML / markdown 内容可在浏览器内联预览；真 .pptx 需要下载后用 PPT 打开
   const previewable = b.has_content || (b.has_file && b.file_ext === 'html')
   if (!previewable) return null
+  const isHtmlFile = b.has_file && b.file_ext === 'html'
   const onClick = () => {
-    const token = localStorage.getItem(TOKEN_STORAGE_KEY)
+    const token = localStorage.getItem(TOKEN_STORAGE_KEY) || ''
+    if (isHtmlFile) {
+      // HTML 幻灯片：直接 new tab 打开同源 URL，注入的 deck-nav 才能调 save API
+      const url = `${viewOutputUrl(b.id)}?token=${encodeURIComponent(token)}`
+      window.open(url, '_blank', 'noopener,noreferrer')
+      return
+    }
+    // markdown / 其他：blob 沙箱预览
     fetch(viewOutputUrl(b.id), { headers: { Authorization: `Bearer ${token}` } })
       .then(async res => {
         if (!res.ok) { alert('预览失败'); return }

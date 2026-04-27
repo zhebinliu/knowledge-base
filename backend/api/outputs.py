@@ -1,7 +1,7 @@
 """API for output center: generate and retrieve CuratedBundles."""
 import io
 from urllib.parse import quote
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 
 def _content_disposition(filename: str) -> str:
@@ -16,8 +16,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import get_session
 from models.curated_bundle import CuratedBundle
-from services.auth import get_current_user
+from services.auth import get_current_user, decode_access_token
 from models.user import User
+import jwt as _jwt
+
+
+async def get_user_via_query_or_header(
+    request: Request,
+    token: str | None = Query(None),
+    session: AsyncSession = Depends(get_session),
+) -> User:
+    """View / save HTML 端点用：浏览器 new tab 拿不到 Authorization header，允许 ?token=。"""
+    auth = request.headers.get("Authorization", "")
+    bearer = auth.split(" ", 1)[1].strip() if auth.lower().startswith("bearer ") else None
+    real_tok = bearer or token
+    if not real_tok:
+        raise HTTPException(401, "未登录")
+    try:
+        payload = decode_access_token(real_tok)
+    except _jwt.ExpiredSignatureError:
+        raise HTTPException(401, "登录已过期")
+    except _jwt.InvalidTokenError:
+        raise HTTPException(401, "无效凭证")
+    user_id = payload.get("sub")
+    user = await session.get(User, user_id) if user_id else None
+    if not user or not user.is_active:
+        raise HTTPException(401, "用户不存在或已禁用")
+    return user
 
 router = APIRouter()
 
@@ -207,13 +232,149 @@ async def download_output(
         raise HTTPException(400, "No downloadable content available")
 
 
+_DECK_NAV_TEMPLATE = """
+<style id="__deck_nav_css">
+  body { background: #1F2937 !important; min-height: 100vh; margin: 0; padding: 24px 0 80px; }
+  .slide { display: none !important; margin: 0 auto !important; }
+  .slide.__active { display: block !important; }
+  /* 编辑模式高亮 */
+  body.__edit *[contenteditable="true"]:hover { outline: 2px dashed #FB923C; cursor: text; }
+  body.__edit *[contenteditable="true"]:focus { outline: 2px solid #D96400; }
+  /* nav bar */
+  .__deck-nav { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 9999;
+    background: rgba(31,41,55,.95); border: 1px solid #4B5563; border-radius: 12px;
+    padding: 8px 14px; display: flex; align-items: center; gap: 10px;
+    color: #fff; font-family: -apple-system, "Microsoft YaHei", sans-serif; font-size: 13px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+  .__deck-nav button { background: transparent; color: #fff; border: 1px solid #4B5563; border-radius: 6px;
+    padding: 4px 10px; cursor: pointer; font-size: 12px; }
+  .__deck-nav button:hover { background: #374151; }
+  .__deck-nav button:disabled { opacity: .35; cursor: not-allowed; }
+  .__deck-nav button.__primary { background: #D96400; border-color: #D96400; }
+  .__deck-nav button.__primary:hover { background: #FB923C; border-color: #FB923C; }
+  .__deck-nav .__sep { width: 1px; height: 18px; background: #4B5563; }
+  .__deck-nav .__page { min-width: 56px; text-align: center; opacity: .8; }
+  .__deck-nav .__saved { color: #34D399; opacity: 0; transition: opacity .3s; }
+  .__deck-nav .__saved.__show { opacity: 1; }
+</style>
+<div class="__deck-nav" id="__deck_nav">
+  <button id="__deck_prev" title="上一页 ←">←</button>
+  <span class="__page" id="__deck_page">1 / 1</span>
+  <button id="__deck_next" title="下一页 →">→</button>
+  <span class="__sep"></span>
+  <button id="__deck_edit" title="编辑文字">编辑</button>
+  <button id="__deck_save" class="__primary" hidden title="保存到服务器">保存</button>
+  <button id="__deck_full" title="全屏 F">⛶</button>
+  <span class="__saved" id="__deck_saved">已保存 ✓</span>
+</div>
+<script id="__deck_nav_js">
+(function(){
+  const TOK = __TOKEN__;
+  const SAVE_URL = __SAVE_URL__;
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  if (slides.length === 0) {
+    document.getElementById('__deck_nav').style.display = 'none';
+    return;
+  }
+  let idx = 0, editing = false, dirty = false;
+  function render() {
+    slides.forEach((s, i) => s.classList.toggle('__active', i === idx));
+    document.getElementById('__deck_page').textContent = (idx+1) + ' / ' + slides.length;
+    document.getElementById('__deck_prev').disabled = idx === 0;
+    document.getElementById('__deck_next').disabled = idx === slides.length - 1;
+  }
+  document.getElementById('__deck_prev').onclick = () => { if (idx>0) { idx--; render(); } };
+  document.getElementById('__deck_next').onclick = () => { if (idx<slides.length-1) { idx++; render(); } };
+  document.addEventListener('keydown', (e) => {
+    if (e.target && (e.target.isContentEditable || /^(INPUT|TEXTAREA)$/.test(e.target.tagName))) return;
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') { document.getElementById('__deck_prev').click(); }
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { document.getElementById('__deck_next').click(); e.preventDefault(); }
+    if (e.key === 'f' || e.key === 'F') document.getElementById('__deck_full').click();
+  });
+  document.getElementById('__deck_full').onclick = () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen();
+  };
+  function setEditable(on) {
+    document.body.classList.toggle('__edit', on);
+    slides.forEach(s => {
+      s.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,td,th,span,div').forEach(el => {
+        if (el.closest('.__deck-nav, script, style')) return;
+        if (el.children.length > 0) return;  // 只让叶子文字节点可编辑，避免破坏布局
+        const t = el.textContent || '';
+        if (!t.trim()) return;
+        el.contentEditable = on ? 'true' : 'false';
+        if (on) el.addEventListener('input', () => { dirty = true; }, { once: false });
+      });
+    });
+    document.getElementById('__deck_save').hidden = !on;
+    document.getElementById('__deck_edit').textContent = on ? '退出编辑' : '编辑';
+  }
+  document.getElementById('__deck_edit').onclick = () => {
+    editing = !editing;
+    setEditable(editing);
+  };
+  document.getElementById('__deck_save').onclick = async () => {
+    // 移除 deck-nav 注入，再上传
+    const clone = document.documentElement.cloneNode(true);
+    clone.querySelectorAll('#__deck_nav_css, #__deck_nav, #__deck_nav_js').forEach(n => n.remove());
+    clone.querySelectorAll('[contenteditable]').forEach(n => n.removeAttribute('contenteditable'));
+    clone.querySelectorAll('.__active').forEach(n => n.classList.remove('__active'));
+    if (!clone.classList) clone.className = '';
+    clone.classList.remove('__edit');
+    const html = '<!DOCTYPE html>\\n' + clone.outerHTML;
+    const btn = document.getElementById('__deck_save');
+    const orig = btn.textContent; btn.textContent = '保存中…'; btn.disabled = true;
+    try {
+      const r = await fetch(SAVE_URL + '?token=' + encodeURIComponent(TOK), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        body: html,
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      dirty = false;
+      const tag = document.getElementById('__deck_saved');
+      tag.classList.add('__show');
+      setTimeout(() => tag.classList.remove('__show'), 2000);
+    } catch (err) {
+      alert('保存失败：' + err.message);
+    } finally {
+      btn.textContent = orig; btn.disabled = false;
+    }
+  };
+  window.addEventListener('beforeunload', (e) => {
+    if (dirty) { e.preventDefault(); e.returnValue = ''; }
+  });
+  render();
+})();
+</script>
+"""
+
+
+def _inject_deck_nav(html: bytes, save_url: str, token: str) -> bytes:
+    """把 deck-nav CSS+JS 注入到 HTML </body> 前。"""
+    import json as _json
+    text = html.decode("utf-8", errors="replace")
+    snippet = _DECK_NAV_TEMPLATE.replace("__TOKEN__", _json.dumps(token)).replace(
+        "__SAVE_URL__", _json.dumps(save_url)
+    )
+    if "</body>" in text:
+        text = text.replace("</body>", snippet + "\n</body>", 1)
+    else:
+        text += snippet
+    return text.encode("utf-8")
+
+
 @router.get("/{bundle_id}/view")
 async def view_output(
     bundle_id: str,
-    current_user: User = Depends(get_current_user),
+    request: Request,
+    token: str | None = Query(None),
+    current_user: User = Depends(get_user_via_query_or_header),
     session: AsyncSession = Depends(get_session),
 ):
-    """Inline view (no Content-Disposition: attachment). 用于 HTML 幻灯片在线播放。"""
+    """Inline view (no Content-Disposition: attachment). 用于 HTML 幻灯片在线播放。
+    认证支持 ?token= 或 Authorization header（new tab 场景）。"""
     b = await session.get(CuratedBundle, bundle_id)
     if not b:
         raise HTTPException(404, "Bundle not found")
@@ -222,7 +383,7 @@ async def view_output(
     if b.status != "done":
         raise HTTPException(400, f"Bundle not ready (status={b.status})")
 
-    # HTML 文件直接回吐
+    # HTML 文件：拉回来注入 deck-nav 后吐
     if b.file_key and b.file_key.endswith(".html"):
         from config import settings
         from minio import Minio
@@ -232,10 +393,17 @@ async def view_output(
             data = response.read()
         except Exception as e:
             raise HTTPException(500, f"Failed to fetch file: {e}")
+        # 注入 deck-nav；token 透传给前端 JS 用于保存请求
+        # 优先用 query token，否则从 header 提取（保存功能要求 token 不为空）
+        auth = request.headers.get("Authorization", "")
+        header_tok = auth.split(" ", 1)[1].strip() if auth.lower().startswith("bearer ") else None
+        active_tok = token or header_tok or ""
+        save_url = f"/api/outputs/{bundle_id}/html"
+        injected = _inject_deck_nav(data, save_url, active_tok)
         return StreamingResponse(
-            io.BytesIO(data),
+            io.BytesIO(injected),
             media_type="text/html; charset=utf-8",
-            headers={"Cache-Control": "private, max-age=60"},
+            headers={"Cache-Control": "private, max-age=0, no-store"},
         )
 
     # Markdown 内容包成阅读器 HTML
@@ -248,6 +416,46 @@ async def view_output(
         )
 
     raise HTTPException(400, "No previewable content")
+
+
+@router.put("/{bundle_id}/html")
+async def save_html_output(
+    bundle_id: str,
+    request: Request,
+    token: str | None = Query(None),
+    current_user: User = Depends(get_user_via_query_or_header),
+    session: AsyncSession = Depends(get_session),
+):
+    """编辑器内点保存：把整份 HTML 重写到 MinIO。仅对 .html 类型 bundle 有效。"""
+    b = await session.get(CuratedBundle, bundle_id)
+    if not b:
+        raise HTTPException(404, "Bundle not found")
+    if not current_user.is_admin and b.created_by != current_user.id:
+        raise HTTPException(403, "Access denied")
+    if not b.file_key or not b.file_key.endswith(".html"):
+        raise HTTPException(400, "仅 HTML 类型 bundle 支持就地编辑")
+
+    body = await request.body()
+    if not body or len(body) > 4 * 1024 * 1024:
+        raise HTTPException(400, "HTML 体积异常（空或 >4MB）")
+    text = body.decode("utf-8", errors="replace")
+    if "<html" not in text.lower():
+        raise HTTPException(400, "提交内容不是有效 HTML")
+
+    from config import settings
+    from minio import Minio
+    mc = Minio(settings.minio_endpoint, access_key=settings.minio_user, secret_key=settings.minio_password, secure=False)
+    try:
+        mc.put_object(
+            settings.minio_bucket,
+            b.file_key,
+            io.BytesIO(body),
+            length=len(body),
+            content_type="text/html; charset=utf-8",
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Failed to save file: {e}")
+    return {"ok": True, "bytes": len(body)}
 
 
 def _markdown_reader_html(title: str, md: str) -> str:
