@@ -20,6 +20,12 @@ def generate_kickoff_pptx(self, bundle_id: str, project_id: str):
     _run(_gen(bundle_id, project_id))
 
 
+@celery_app.task(name="generate_kickoff_html", bind=True, max_retries=2)
+def generate_kickoff_html(self, bundle_id: str, project_id: str):
+    from services.output_service import generate_kickoff_html as _gen
+    _run(_gen(bundle_id, project_id))
+
+
 @celery_app.task(name="generate_survey", bind=True, max_retries=2)
 def generate_survey(self, bundle_id: str, project_id: str):
     from services.output_service import generate_survey as _gen

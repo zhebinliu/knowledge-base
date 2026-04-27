@@ -30,9 +30,10 @@ interface StageDef {
 }
 
 const STAGES: StageDef[] = [
-  { key: 'insight',    label: '项目洞察', kind: 'insight',      icon: Lightbulb,     active: true },
-  { key: 'kickoff',    label: '启动会',   kind: 'kickoff_pptx', icon: FileText,      active: true },
-  { key: 'survey',     label: '需求调研', kind: 'survey',       icon: ClipboardList, active: true },
+  { key: 'insight',       label: '项目洞察',   kind: 'insight',      icon: Lightbulb,     active: true },
+  { key: 'kickoff',       label: '启动会·PPT', kind: 'kickoff_pptx', icon: FileText,      active: true },
+  { key: 'kickoff_html',  label: '启动会·HTML', kind: 'kickoff_html', icon: FileText,     active: true },
+  { key: 'survey',        label: '需求调研',   kind: 'survey',       icon: ClipboardList, active: true },
   { key: 'design',     label: '方案设计', kind: null,           icon: FileText,      active: false },
   { key: 'implement',  label: '项目实施', kind: null,           icon: FileText,      active: false },
   { key: 'test',       label: '上线测试', kind: null,           icon: FileText,      active: false },
@@ -376,7 +377,8 @@ function ChatTabs({ mode, setMode, docCount, onOpenDocs }: {
 }
 
 function BundlePreviewBtn({ b }: { b: CuratedBundle }) {
-  const previewable = b.has_content || (b.kind === 'kickoff_pptx' && b.has_file)
+  // 只有 HTML / markdown 内容可在浏览器内联预览；真 .pptx 需要下载后用 PPT 打开
+  const previewable = b.has_content || (b.has_file && b.file_ext === 'html')
   if (!previewable) return null
   const onClick = () => {
     const token = localStorage.getItem(TOKEN_STORAGE_KEY)

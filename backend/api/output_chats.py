@@ -25,10 +25,11 @@ from agents.output_chat import (
 logger = structlog.get_logger()
 router = APIRouter()
 
-VALID_KINDS = ("kickoff_pptx", "survey", "insight")
+VALID_KINDS = ("kickoff_pptx", "kickoff_html", "survey", "insight")
 
 KIND_TITLES = {
-    "kickoff_pptx": "启动会 PPT",
+    "kickoff_pptx": "启动会 PPT（pptxgen）",
+    "kickoff_html": "启动会 PPT（htmlppt）",
     "survey": "实施调研问卷",
     "insight": "项目洞察报告",
 }
@@ -227,9 +228,10 @@ async def finalize_and_generate(
     proj = None
     if conv.project_id:
         proj = await session.get(Project, conv.project_id)
-    if conv.kind == "kickoff_pptx":
+    if conv.kind in ("kickoff_pptx", "kickoff_html"):
         scope = (proj.customer or proj.name) if proj else (conv.industry or "行业")
-        title = f"{scope} 启动会 PPT"
+        suffix = "PPT" if conv.kind == "kickoff_pptx" else "HTML"
+        title = f"{scope} 启动会 {suffix}"
     else:
         scope = (proj.customer or proj.name) if proj else (conv.industry or "行业")
         title = f"{KIND_TITLES.get(conv.kind, conv.kind)} · {scope}"
@@ -249,8 +251,13 @@ async def finalize_and_generate(
     conv.status = "generating"
     await session.commit()
 
-    from tasks.output_tasks import generate_kickoff_pptx, generate_survey, generate_insight
-    task_fn = {"kickoff_pptx": generate_kickoff_pptx, "survey": generate_survey, "insight": generate_insight}[conv.kind]
+    from tasks.output_tasks import generate_kickoff_pptx, generate_kickoff_html, generate_survey, generate_insight
+    task_fn = {
+        "kickoff_pptx": generate_kickoff_pptx,
+        "kickoff_html": generate_kickoff_html,
+        "survey": generate_survey,
+        "insight": generate_insight,
+    }[conv.kind]
     # 沿用旧签名 (bundle_id, project_id)；project_id 可能为 None（行业作用域）
     task_fn.delay(bundle.id, conv.project_id or "")
     return {"bundle_id": bundle.id, "status": "pending"}

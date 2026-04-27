@@ -180,7 +180,7 @@ async def _web_research(proj, industry: str | None, kind: str) -> tuple[list[dic
     if industry:
         queries.append(f"{industry} CRM 实施 案例 2024")
         queries.append(f"{industry} 数字化转型 痛点")
-        if kind == "kickoff_pptx":
+        if kind in ("kickoff_pptx", "kickoff_html"):
             queries.append(f"{industry} 龙头企业 销售管理 流程")
         elif kind == "insight":
             queries.append(f"{industry} CRM 项目 失败原因")
@@ -304,7 +304,7 @@ async def _generation_kb_search(proj, industry: str | None, kind: str, conv) -> 
         for m in (proj.modules or [])[:3]:
             queries.append(f"{proj.industry or ''} {m} 实施要点 最佳实践")
     if industry:
-        if kind == "kickoff_pptx":
+        if kind in ("kickoff_pptx", "kickoff_html"):
             queries.extend([
                 f"{industry} CRM 启动会 议程 范围",
                 f"{industry} 实施 风险 应对",
@@ -611,6 +611,173 @@ HTML_PPTX_SYSTEM = """你是一位 MBB 风格（McKinsey/BCG/Bain）咨询顾问
 【输出】直接输出完整 HTML 字符串，不要任何解释、不要 markdown 围栏、不要前后语。从 <!DOCTYPE html> 起到 </html> 止。"""
 
 
+PPTGEN_PYTHON_SYSTEM = """你是一位 MBB 风格（McKinsey/BCG/Bain）咨询顾问 + Python 工程师，要为 CRM 实施项目的启动会生成【可直接交付给甲方 C-level】的真·PPTX 文件。
+
+**输出形态：纯 Python 代码字符串**——可被 `python xxx.py` 直接执行，最终在当前目录生成 `out.pptx`。绝对不要 ```python 围栏，绝对不要任何解释文字、markdown，只输出代码。
+
+【内容风格 — 严格遵守】
+- 不要"好看"，要"专业"。深色文字、克制留白、表格 / 矩阵 / 图示优先
+- 每页主标都是结论句（"基于现状诊断，主数据治理是 Phase 1 优先级最高的工作流"），副标可以是描述句
+- 每页正文必须包含【至少 1 张表格 / 矩阵 / 图示】，不能是纯文字 bullet
+- 每个论断必须带数字（行业 brief 中的"业界基准"也算）
+- 信息源标签：每个数据点旁边用小字标 [访谈] / [知识库] / [行业 brief]；模型推断标 [推断]
+- 不允许出现：赋能 / 抓手 / 闭环 / 链路 / 生态 / 一站式 / 全方位 / 数字化转型 / 全链路 / emoji
+- 文案简练：每条 bullet ≤ 25 汉字；标题 ≤ 22 汉字
+
+【硬性栅格 — 严格遵守，否则会重叠！】
+- 幻灯片 16:9：宽 13.333"，高 7.5"
+- **左右半区分隔（关键）**：
+  - 左半区任何元素的 x + w ≤ **6.4**（即 x 起点 0.6，宽度上限 5.8）
+  - 右半区任何元素的 x ≥ **6.9**（即 x 起点 6.9，宽度上限 5.8，到 12.7）
+  - "左 X + 右 Y" 布局时，左侧元素绝对不能跨过 6.4，右侧不能跨过 6.9 往左
+- **垂直分区**：标题 y ∈ [0.4, 1.3]，正文 y ∈ [1.5, 6.7]，页脚 y ∈ [6.9, 7.3]
+- 每个元素之间至少留 0.2" gap，绝对不允许 bbox 重叠
+- 在写代码前先在注释里声明每页的 x/y 分区表，再绘制
+
+【硬性技术规范 — Python 代码层面】
+- 必须包含：`import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt`
+- 必须设 matplotlib 中文字体（容器里已装 Noto CJK，但 .ttc 在 matplotlib font_manager 里只注册了 JP face，JP 字形包含全部汉字，对中文显示完全 OK）：
+  ```
+  plt.rcParams['font.sans-serif'] = ['Noto Sans CJK JP', 'Noto Sans CJK SC', 'WenQuanYi Zen Hei', 'DejaVu Sans']
+  plt.rcParams['axes.unicode_minus'] = False
+  ```
+  **必须把 'Noto Sans CJK JP' 放第一位**，否则 matplotlib 找不到字体降级到 DejaVu，中文渲染成方框。
+- 必须使用 `from pptx import Presentation; from pptx.util import Inches, Pt, Emu; from pptx.dml.color import RGBColor; from pptx.enum.shapes import MSO_SHAPE; from pptx.enum.text import PP_ALIGN, MSO_ANCHOR`
+- 16:9 设置：`prs.slide_width = Inches(13.333); prs.slide_height = Inches(7.5)`
+- 全部使用 `prs.slide_layouts[6]`（blank layout）
+- 色板（用 RGBColor，严格只用这几个）：
+  - BRAND_ORANGE = RGBColor(0xD9, 0x64, 0x00)
+  - LIGHT_ORANGE = RGBColor(0xFB, 0x92, 0x3C)
+  - INK = RGBColor(0x1F, 0x29, 0x37)
+  - SUB = RGBColor(0x4B, 0x55, 0x63)
+  - MUTED = RGBColor(0x9C, 0xA3, 0xAF)
+  - DIVIDER = RGBColor(0xE5, 0xE7, 0xEB)
+  - BG = RGBColor(0xFA, 0xFA, 0xFA)
+  - WHITE = RGBColor(0xFF, 0xFF, 0xFF)
+- 字号：封面主标 44pt / 副标 20pt；页面标题 28pt；小节标题 18pt；正文 14pt；图注 10pt
+- **中文字体统一用 ZH_FONT = "Microsoft YaHei"（黑体系，跨 Win/Mac 都有）**——所有 r.font.name 必须显式赋 ZH_FONT，禁止用 PingFang SC（Windows 上没有会回落到衬线字体）。matplotlib 图内中文字体无关 ZH_FONT，由 plt.rcParams['font.sans-serif'] 决定（已设 Noto Sans CJK JP）。
+
+【色调统一 — 强制】**全篇只能出现上面 8 个色板色，不能出现任何其他颜色**（包括 python-pptx / matplotlib 的默认蓝、绿、红、紫）：
+- **表格（add_table）禁止使用默认蓝色样式**。创建表后必须遍历每个 cell 显式设置：
+  - 表头行：`cell.fill.solid(); cell.fill.fore_color.rgb = BRAND_ORANGE`；文字 WHITE 加粗
+  - 数据行（奇/偶）：背景 WHITE 或 BG，文字 INK / SUB
+  - 边框：python-pptx 表格边框需要操作 XML，可改用 add_rect 拼网格替代 add_table（更可控）
+- **matplotlib 颜色严格映射**到品牌色（先把 RGBColor 转 hex 字符串：`BRAND_HEX = "#D96400"` 等，matplotlib 用这些 hex）：
+  - 柱状图主色：`color='#D96400'`（BRAND_ORANGE）；分组配色用 `['#D96400', '#FB923C', '#9CA3AF']`
+  - 雷达图：填充 `'#D96400'` 透明度 0.25，描边 `'#D96400'` 实线宽 2
+  - 网格线：`'#E5E7EB'`（DIVIDER）；轴标签 `'#4B5563'`（SUB）；标题 `'#1F2937'`（INK）
+  - 禁止使用 matplotlib 默认 'tab10' / 'C0..C9' 配色循环（默认蓝 #1f77b4 与品牌色冲突）
+- **chevron / shape 高亮**：当前阶段 BRAND_ORANGE，未激活阶段 DIVIDER（不要用浅灰、深灰等其他灰）
+- **里程碑 DIAMOND**：填充 BRAND_ORANGE，描边 WHITE
+- **任何 matplotlib spines / ticks 颜色**：`ax.spines[s].set_color('#9CA3AF')`，避免黑色硬边
+
+【matplotlib 图表 — 关键防扭曲规则】
+- **figsize 与 add_picture 必须等比例**！算法：picture 占位框 width_in × height_in（PPT 中 inch），figsize=(width_in, height_in)（matplotlib 中 inch），dpi=150
+- **保留比例 add_picture**：`slide.shapes.add_picture(buf, Inches(x), Inches(y), width=Inches(W))`，**只传 width，不传 height**——让 PPT 按图自动算高度。或同时传 width 和 height，但保证比例和 figsize 完全一致
+- **极坐标雷达**：`fig, ax = plt.subplots(figsize=(4.5, 4.5), subplot_kw={'projection':'polar'})`，必须正方形！add_picture 也用正方形 width=height
+- 背景透明：`fig.patch.set_alpha(0); ax.patch.set_alpha(0)`
+- 保存：`fig.savefig(buf, format='png', dpi=150, bbox_inches='tight', transparent=True)`
+- savefig 后必须 `plt.close(fig)` 释放
+- 中文允许出现在 matplotlib 内（已装 CJK 字体），但**所有数据标签优先放外部 add_textbox**，图表内只放最少必要文本
+
+【11 页结构 — 严格按此顺序，缺数据用"[待确认]"，不要编造】
+1. 封面：左侧品牌色竖条（宽 0.5"）；中央客户名 + "项目启动会"主标 + 日期；右下角"Fenxiao CRM · LTC 实施方法论"脚标
+2. 议程：6 条编号目录
+3. 现状与挑战：**左 2×2 矩阵（x ∈ [0.6, 6.4]）+ 右摘要文字（x ∈ [6.9, 12.7]）**。矩阵示例数据结构：
+   ```
+   # 2×2 数据：每个 quadrant 是 {title, bullets[]}
+   quadrants = [
+       {"title": "业务痛点·内部", "bullets": ["销售流程在线率<30% [访谈]", "客户信息分散 [访谈]"]},
+       {"title": "业务痛点·外部", "bullets": ["商机转化周期 45 天 [行业 brief]", "客户流失率 12% [推断]"]},
+       {"title": "系统约束·当前", "bullets": ["6 套独立系统 [访谈]", "数据孤岛 [访谈]"]},
+       {"title": "系统约束·未来", "bullets": ["无统一权限 [推断]", "无 BI 集成 [访谈]"]},
+   ]
+   # 4 个 cell 排成 2×2，cell 宽 (5.8-0.2)/2=2.8，cell 高 (5.0-0.2)/2=2.4
+   for idx, q in enumerate(quadrants):
+       row, col = idx // 2, idx % 2
+       cx = 0.6 + col * 3.0
+       cy = 1.6 + row * 2.6
+       add_rect(slide, cx, cy, 2.8, 2.4, fill=BG, line=DIVIDER)
+       add_text(slide, cx+0.15, cy+0.1, 2.5, 0.4, q["title"], size=14, bold=True, color=BRAND_ORANGE)
+       for k, b in enumerate(q["bullets"]):
+           add_text(slide, cx+0.15, cy+0.6+k*0.5, 2.5, 0.5, "• "+b, size=11, color=SUB)
+   ```
+4. 项目目标：3 张 SMART 目标卡，每张宽 ≈ 4.0，间距 0.2，y ∈ [1.6, 6.4]
+5. 范围边界：左 In-scope 表 + 右 Out-of-scope 表（**严格守左右半区**）
+6. 方法论：LTC 4 阶段 chevron 流（机会 → 合同 → 交付 → 回款），**当前阶段必须是第一阶段"机会"**（i==0 高亮 BRAND_ORANGE，其他 DIVIDER），因为是 kickoff
+7. 实施路径：甘特图，rect 横条 + DIAMOND 里程碑，至少 4 阶段
+8. 团队与治理：RACI 表（首列任务名 + 4 列角色 × 至少 8 行）
+9. 风险与应对：**左 雷达图（width=height=4.5"，正方形！）+ 右 风险表**
+10. 资源与投入：**左 柱状图（width=6.0", height=4.0", figsize=(6.0, 4.0)）+ 右 角色卡**
+11. 下一步：本周 / 下周双列 Action Items
+
+【代码模板骨架（必须保留这些工具函数和初始化，11 页正文请你自己展开）】
+```
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+plt.rcParams['font.sans-serif'] = ['Noto Sans CJK JP', 'Noto Sans CJK SC', 'WenQuanYi Zen Hei', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
+import io
+from pptx import Presentation
+from pptx.util import Inches, Pt, Emu
+from pptx.dml.color import RGBColor
+from pptx.enum.shapes import MSO_SHAPE
+from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+
+BRAND_ORANGE = RGBColor(0xD9, 0x64, 0x00)
+LIGHT_ORANGE = RGBColor(0xFB, 0x92, 0x3C)
+INK = RGBColor(0x1F, 0x29, 0x37)
+SUB = RGBColor(0x4B, 0x55, 0x63)
+MUTED = RGBColor(0x9C, 0xA3, 0xAF)
+DIVIDER = RGBColor(0xE5, 0xE7, 0xEB)
+BG = RGBColor(0xFA, 0xFA, 0xFA)
+WHITE = RGBColor(0xFF, 0xFF, 0xFF)
+# matplotlib hex 等价
+HEX_BRAND = "#D96400"; HEX_LIGHT = "#FB923C"; HEX_INK = "#1F2937"
+HEX_SUB = "#4B5563"; HEX_MUTED = "#9CA3AF"; HEX_DIVIDER = "#E5E7EB"
+ZH_FONT = "Microsoft YaHei"  # 黑体系字体，Win/Mac 都默认安装；避免 PingFang 在 Windows 上失效
+
+prs = Presentation()
+prs.slide_width = Inches(13.333)
+prs.slide_height = Inches(7.5)
+BLANK = prs.slide_layouts[6]
+
+def add_text(slide, x, y, w, h, text, *, size=14, bold=False, color=INK, align=PP_ALIGN.LEFT, font=ZH_FONT):
+    tb = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h))
+    tf = tb.text_frame; tf.word_wrap = True
+    p = tf.paragraphs[0]; p.alignment = align
+    r = p.add_run(); r.text = text
+    r.font.size = Pt(size); r.font.bold = bold
+    r.font.color.rgb = color; r.font.name = font
+    return tb
+
+def add_rect(slide, x, y, w, h, *, fill=BRAND_ORANGE, line=None, rounded=False):
+    shape_type = MSO_SHAPE.ROUNDED_RECTANGLE if rounded else MSO_SHAPE.RECTANGLE
+    s = slide.shapes.add_shape(shape_type, Inches(x), Inches(y), Inches(w), Inches(h))
+    s.fill.solid(); s.fill.fore_color.rgb = fill
+    if line is None:
+        s.line.fill.background()
+    else:
+        s.line.color.rgb = line
+    s.shadow.inherit = False
+    return s
+
+# ……此处展开全部 11 页 ……
+
+prs.save("out.pptx")
+```
+
+【自检清单 — 写完每一页后默念，然后写下一页】
+1. 这一页有没有元素的 bbox 越过 x=6.4 和 x=6.9 的中线（如果是左右布局）？
+2. 这一页有没有 matplotlib 图，如果有，figsize 和 add_picture 的 inch 比例是否完全一致？
+3. 这一页的标题是不是结论句 + 数字？
+4. 表格 / 图示是否真出现（不能纯文字 bullet）？
+5. 这一页所有颜色是否都来自 8 色色板（无默认蓝、绿、红、紫等乱入）？matplotlib 是否显式传 color/edgecolor，没有依赖默认配色？表格 cell 是否显式 fill.solid + RGBColor，没有用默认蓝表样式？
+
+【最终输出】只输出可直接执行的 Python 源码，从 import 行起，到 `prs.save("out.pptx")` 止。不要 ``` 围栏，不要任何 markdown 或解释文字。"""
+
+
 async def generate_kickoff_pptx(bundle_id: str, project_id: str):
     try:
         await _mark_bundle(bundle_id, "generating")
@@ -650,35 +817,119 @@ async def generate_kickoff_pptx(bundle_id: str, project_id: str):
 
 {f"【已确认的项目 Brief（最权威素材，PPT 各页内容必须基于此展开，不要绕过）】{chr(10)}{ctx['project_brief']}" if ctx.get('project_brief') else ""}
 
-请生成完整的启动会 HTML 幻灯片（11 页）。直接输出 HTML 字符串。每页都要有表格/矩阵/图示，不能纯文字。"""
+请输出可执行的 Python 源代码，使用 python-pptx 生成 11 页启动会 .pptx，最终 prs.save("out.pptx")。每页都要有表格/矩阵/图示，不要纯文字 bullet。"""
 
-        # PPT 生成默认走小米 mimo-v2-pro（视觉/排版多样性优于 qwen3-next）；agent_config 显式指定时优先生效
-        # max_tokens=None：不设上限，让模型按自身 max 输出（mimo 会先 think 再出 HTML，需要给足空间）
+        # PPT 生成默认走小米 mimo-v2-pro；max_tokens=None 不设上限（mimo 先 think 再出代码，需要给足空间）
+        from services.pptx_codeexec import execute_pptx_code, strip_python_fences
+
         pptx_model = ctx["agent_model"] or "mimo-v2-pro"
-        html_raw = await _llm_call(prompt, system=HTML_PPTX_SYSTEM, model=pptx_model, max_tokens=None, timeout=1200.0)
-        html = _strip_html_fences(html_raw)
-        if not html.lstrip().lower().startswith("<!doctype") and "<html" not in html.lower():
-            html = _fallback_html(title_name, customer, kickoff_date_str, html_raw)
-        # 注入幻灯片切换 CSS / JS（保留所有原有 slide 内容）
-        html = _inject_slideshow(html)
+        code_raw = await _llm_call(prompt, system=PPTGEN_PYTHON_SYSTEM, model=pptx_model, max_tokens=None, timeout=1200.0)
+        code = strip_python_fences(code_raw)
+        if "prs.save" not in code or "from pptx" not in code:
+            raise RuntimeError(f"模型未输出有效 python-pptx 代码：开头 200 字符 = {code[:200]!r}")
 
-        html_key = f"outputs/{bundle_id}/kickoff.html"
-        _minio_put(html_key, html.encode("utf-8"), "text/html; charset=utf-8")
+        logger.info("pptx_code_received", bundle_id=bundle_id, code_len=len(code))
+        pptx_bytes = await execute_pptx_code(code, timeout=180.0)
 
-        # 同时保留 markdown 便于预览
+        pptx_key = f"outputs/{bundle_id}/kickoff.pptx"
+        _minio_put(pptx_key, pptx_bytes,
+                   "application/vnd.openxmlformats-officedocument.presentationml.presentation")
+
+        # 同时保留生成代码作为调试快照（次要文件，下载链接仍指向 .pptx）
+        code_key = f"outputs/{bundle_id}/kickoff_gen.py"
+        _minio_put(code_key, code.encode("utf-8"), "text/x-python; charset=utf-8")
+
         md = f"# {customer or title_name} · 启动会 PPT\n\n" \
              f"**生成日期**：{date.today().strftime('%Y-%m-%d')}  \n" \
              f"**客户**：{customer or '—'}  \n" \
              f"**行业**：{ctx['industry'] or '—'}\n\n" \
-             f"> HTML 幻灯片已生成，点击下载后浏览器打开，使用「打印 → 另存为 PDF」可导出 PDF。"
+             f"> 真 .pptx 文件已生成（{len(pptx_bytes)//1024} KB），点击下载后用 PowerPoint / Keynote / WPS 直接打开编辑。"
+
+        await _mark_bundle(bundle_id, "done", content_md=md, file_key=pptx_key)
+        await _mark_conversation(bundle_id, "done")
+        logger.info("pptx_generated", bundle_id=bundle_id, project_id=project_id, format="pptx",
+                    size=len(pptx_bytes))
+    except Exception as e:
+        # httpx.ReadTimeout 等异常的 str(e) 可能为空，统一拼上类型名便于排查
+        msg = f"{type(e).__name__}: {str(e) or '(no message)'}"
+        logger.error("pptx_failed", bundle_id=bundle_id, error=msg[:500])
+        await _mark_bundle(bundle_id, "failed", error=msg[:500])
+        await _mark_conversation(bundle_id, "failed")
+
+
+# ── Kickoff HTML（HTML 版幻灯片，浏览器内播放） ─────────────────────────────────
+
+async def generate_kickoff_html(bundle_id: str, project_id: str):
+    """旧版 HTML 启动会 PPT：模型直出 HTML，浏览器即开即看。与 generate_kickoff_pptx 并存。"""
+    try:
+        await _mark_bundle(bundle_id, "generating")
+        ctx = await _gather_inputs(bundle_id, project_id, "kickoff_html")
+        proj = ctx["project"]
+
+        if proj:
+            customer = proj.customer or ""
+            kickoff_date_str = proj.kickoff_date.strftime("%Y年%m月%d日") if proj.kickoff_date else "待定"
+            scope_block = f"""项目名称：{proj.name}
+客户：{customer or "未填写"}
+行业：{ctx['industry'] or "未填写"}
+启动日期：{kickoff_date_str}
+实施模块：{", ".join(proj.modules or []) or "未填写"}
+项目描述：{proj.description or "无"}"""
+            title_name = proj.name
+        else:
+            customer = ""
+            scope_block = f"行业：{ctx['industry'] or '—'}\n（没有具体项目信息，按行业共性展开）"
+            title_name = ctx["industry"] or "行业启动会"
+
+        prompt = f"""{scope_block}
+
+【访谈记录】
+{ctx['transcript']}
+
+{f"【行业/客户研究 brief（务必把这部分变成 PPT 内容，不要只读一遍）】{chr(10)}{ctx['industry_brief']}" if ctx.get('industry_brief') else ""}
+
+{f"【知识库佐证】{chr(10)}{ctx['refs_text']}" if ctx['refs_text'] else ""}
+
+{f"【联网检索】{chr(10)}{ctx['web_text']}" if ctx.get('web_text') else ""}
+
+{f"【方法论/风格要求】{chr(10)}{ctx['agent_prompt']}" if ctx['agent_prompt'] else ""}
+
+{f"【启用技能（PPT 骨架 / 版式 / 文案规范）】{chr(10)}{ctx['skill_text']}" if ctx['skill_text'] else ""}
+
+{f"【已确认的项目 Brief（最权威素材，PPT 各页内容必须基于此展开，不要绕过）】{chr(10)}{ctx['project_brief']}" if ctx.get('project_brief') else ""}
+
+请输出完整自包含 HTML，11 页 16:9 幻灯片（1280×720），从 <!DOCTYPE html> 起到 </html> 止。"""
+
+        html_model = ctx["agent_model"]  # 走 doc_generation 路由
+        html = await _llm_call(prompt, system=HTML_PPTX_SYSTEM, model=html_model, max_tokens=None, timeout=900.0)
+        # 去 ``` 围栏
+        s = (html or "").strip()
+        if s.startswith("```"):
+            nl = s.find("\n")
+            s = s[nl + 1:] if nl >= 0 else s
+            if s.endswith("```"):
+                s = s[:-3]
+            s = s.strip()
+        if "<!DOCTYPE" not in s and "<html" not in s.lower():
+            raise RuntimeError(f"模型未输出有效 HTML：开头 200 字符 = {s[:200]!r}")
+
+        html_key = f"outputs/{bundle_id}/kickoff.html"
+        _minio_put(html_key, s.encode("utf-8"), "text/html; charset=utf-8")
+
+        md = f"# {customer or title_name} · 启动会 PPT（HTML 版）\n\n" \
+             f"**生成日期**：{date.today().strftime('%Y-%m-%d')}  \n" \
+             f"**客户**：{customer or '—'}  \n" \
+             f"**行业**：{ctx['industry'] or '—'}\n\n" \
+             f"> HTML 幻灯片已生成（{len(s)//1024} KB），点击预览即可全屏播放，浏览器打印即可导出 PDF。"
 
         await _mark_bundle(bundle_id, "done", content_md=md, file_key=html_key)
         await _mark_conversation(bundle_id, "done")
-        logger.info("pptx_generated", bundle_id=bundle_id, project_id=project_id, format="html",
-                    size=len(html))
+        logger.info("html_generated", bundle_id=bundle_id, project_id=project_id, format="html",
+                    size=len(s))
     except Exception as e:
-        logger.error("pptx_failed", bundle_id=bundle_id, error=str(e)[:200])
-        await _mark_bundle(bundle_id, "failed", error=str(e)[:500])
+        msg = f"{type(e).__name__}: {str(e) or '(no message)'}"
+        logger.error("html_failed", bundle_id=bundle_id, error=msg[:500])
+        await _mark_bundle(bundle_id, "failed", error=msg[:500])
         await _mark_conversation(bundle_id, "failed")
 
 

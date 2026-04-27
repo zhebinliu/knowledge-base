@@ -74,6 +74,7 @@ export default function ConsoleHome() {
   const KIND_LABEL: Record<string, string> = {
     insight: '项目洞察',
     kickoff_pptx: '启动会 PPT',
+    kickoff_html: '启动会 HTML',
     survey: '需求调研',
   }
 

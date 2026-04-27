@@ -329,7 +329,7 @@ async def delete_skill(skill_id: str, session: AsyncSession = Depends(get_sessio
 
 # ---- Output Agent Configs ----
 
-OUTPUT_AGENT_KEYS = ("kickoff_pptx", "survey", "insight")
+OUTPUT_AGENT_KEYS = ("kickoff_pptx", "kickoff_html", "survey", "insight")
 
 
 class OutputAgentBody(BaseModel):
