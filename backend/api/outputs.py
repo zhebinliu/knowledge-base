@@ -23,12 +23,14 @@ router = APIRouter()
 
 KIND_TO_TASK = {
     "kickoff_pptx": "generate_kickoff_pptx",
+    "kickoff_html": "generate_kickoff_html",
     "survey": "generate_survey",
     "insight": "generate_insight",
 }
 
 KIND_TITLES = {
-    "kickoff_pptx": "启动会 PPT",
+    "kickoff_pptx": "启动会 PPT（pptxgen）",
+    "kickoff_html": "启动会 PPT（htmlppt）",
     "survey": "调研问卷",
     "insight": "项目洞察报告",
 }
@@ -41,6 +43,8 @@ class GenerateRequest(BaseModel):
 
 def _bundle_dto(b: CuratedBundle) -> dict:
     extra = b.extra or {}
+    fk = b.file_key or ""
+    file_ext = fk.rsplit(".", 1)[-1].lower() if "." in fk else ""
     return {
         "id": b.id,
         "kind": b.kind,
@@ -50,6 +54,7 @@ def _bundle_dto(b: CuratedBundle) -> dict:
         "error": b.error,
         "has_content": bool(b.content_md),
         "has_file": bool(b.file_key),
+        "file_ext": file_ext,
         "kb_calls": extra.get("generation_kb_calls") or [],
         "web_calls": extra.get("web_search_calls") or [],
         "has_industry_brief": bool(extra.get("has_industry_brief")),
@@ -86,8 +91,13 @@ async def generate_output(
     await session.refresh(bundle)
 
     # Fire Celery task
-    from tasks.output_tasks import generate_kickoff_pptx, generate_survey, generate_insight
-    task_fn = {"kickoff_pptx": generate_kickoff_pptx, "survey": generate_survey, "insight": generate_insight}[body.kind]
+    from tasks.output_tasks import generate_kickoff_pptx, generate_kickoff_html, generate_survey, generate_insight
+    task_fn = {
+        "kickoff_pptx": generate_kickoff_pptx,
+        "kickoff_html": generate_kickoff_html,
+        "survey": generate_survey,
+        "insight": generate_insight,
+    }[body.kind]
     task_fn.delay(bundle.id, body.project_id)
 
     return _bundle_dto(bundle)

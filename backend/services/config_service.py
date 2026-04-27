@@ -147,6 +147,7 @@ class ConfigService:
             # Output agents
             output_agent_defaults = {
                 "kickoff_pptx": {"prompt": "你是一位专业的实施顾问，请根据提供的知识库内容和项目信息，生成一份专业的启动会 PPT 大纲和内容要点。", "skill_ids": []},
+                "kickoff_html": {"prompt": "你是一位专业的实施顾问，请根据提供的知识库内容和项目信息，生成一份专业的启动会 HTML 幻灯片（11 页 16:9）。", "skill_ids": []},
                 "survey": {"prompt": "你是一位专业的实施顾问，请根据提供的知识库内容和项目背景，生成一份详细的项目调研问卷，涵盖业务流程、系统需求、痛点分析等维度。", "skill_ids": []},
                 "insight": {"prompt": "你是一位专业的数据分析师和实施顾问，请根据提供的知识库内容，生成一份项目洞察报告，包含关键发现、风险点和建议。", "skill_ids": []},
             }

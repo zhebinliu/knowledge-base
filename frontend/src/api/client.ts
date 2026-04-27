@@ -667,7 +667,7 @@ export const updateOutputAgent = (key: string, body: { prompt: string; skill_ids
 
 // ── Output Chats (对话式产出) ───────────────────────────────────────────────
 
-export type OutputKind = 'kickoff_pptx' | 'survey' | 'insight'
+export type OutputKind = 'kickoff_pptx' | 'kickoff_html' | 'survey' | 'insight'
 
 export interface OutputChatMessage {
   role: 'user' | 'assistant'
@@ -742,6 +742,7 @@ export interface CuratedBundle {
   error: string | null
   has_content: boolean
   has_file: boolean
+  file_ext?: string
   kb_calls?: { query: string; hits: number; error?: string }[]
   created_at: string
   updated_at: string

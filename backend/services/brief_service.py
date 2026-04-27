@@ -63,6 +63,9 @@ BRIEF_SCHEMAS: dict[str, list[dict]] = {
 
 
 def get_schema(output_kind: str) -> list[dict]:
+    # kickoff_html 与 kickoff_pptx 共用同一份 brief schema（两者输入素材一致，仅渲染形态不同）
+    if output_kind == "kickoff_html":
+        return BRIEF_SCHEMAS.get("kickoff_pptx", [])
     return BRIEF_SCHEMAS.get(output_kind, [])
 
 
@@ -77,8 +80,13 @@ def merge_extract_with_user_edits(existing: dict, draft: dict) -> dict:
     merged: dict = {}
     keys = set(existing or {}) | set(draft or {})
     for k in keys:
-        old = (existing or {}).get(k) or {}
-        new = (draft or {}).get(k) or {}
+        old = (existing or {}).get(k)
+        new = (draft or {}).get(k)
+        # 裸值（list/str/...）容错：当作未编辑过的草稿值使用
+        if not isinstance(old, dict):
+            old = {}
+        if not isinstance(new, dict):
+            new = {"value": new} if new is not None else {}
         if old.get("edited_at"):
             merged[k] = old
         else:
@@ -190,7 +198,14 @@ def _parse_brief_response(raw: str, schema: list[dict]) -> dict:
     out: dict = {}
     for f in schema:
         k = f["key"]
-        v = fields_raw.get(k) or {}
+        raw_v = fields_raw.get(k)
+        # LLM 偶尔把 cell 直接返成裸值（list / str / dict），统一包成 {value,confidence,sources}
+        if isinstance(raw_v, dict):
+            v = raw_v
+        elif raw_v is None:
+            v = {}
+        else:
+            v = {"value": raw_v}
         out[k] = {
             "value": _coerce_value(v.get("value"), f.get("type", "text")),
             "confidence": v.get("confidence") if v.get("confidence") in {"high", "medium", "low"} else None,
@@ -349,7 +364,7 @@ async def stream_extract_brief_draft(project_id: str, output_kind: str, model: s
         out = empty_brief(output_kind)
         yield {"type": "stage_done", "id": "llm", "detail": "解析失败，已返回空骨架"}
     else:
-        filled = sum(1 for cell in out.values() if cell.get("value") not in (None, "", []))
+        filled = sum(1 for cell in out.values() if isinstance(cell, dict) and cell.get("value") not in (None, "", []))
         yield {"type": "stage_done", "id": "llm", "detail": f"{filled}/{len(schema)} 字段已抽取"}
 
     yield {"type": "done", "fields": out}
@@ -372,7 +387,10 @@ def render_brief_for_prompt(brief_fields: dict, schema: list[dict]) -> str:
         return ""
     by_group: dict[str, list[str]] = {}
     for f in schema:
-        cell = (brief_fields or {}).get(f["key"]) or {}
+        cell = (brief_fields or {}).get(f["key"])
+        # 容错：cell 也许是裸值（list/str），统一包成 {value}
+        if not isinstance(cell, dict):
+            cell = {"value": cell} if cell is not None else {}
         v = cell.get("value")
         if v is None or (isinstance(v, str) and not v.strip()) or (isinstance(v, list) and not v):
             continue

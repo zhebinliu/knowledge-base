@@ -8,13 +8,15 @@ const btnPrimary = 'flex items-center gap-1.5 px-3 py-1.5 text-white text-sm rou
 const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-orange-300'
 
 const AGENT_LABELS: Record<string, string> = {
-  kickoff_pptx: '启动会 PPT',
+  kickoff_pptx: '启动会 PPT · pptxgen',
+  kickoff_html: '启动会 PPT · htmlppt',
   survey: '调研问卷',
   insight: '洞察报告',
 }
 
 const AGENT_DESCS: Record<string, string> = {
-  kickoff_pptx: '生成项目启动会演示文稿内容框架',
+  kickoff_pptx: '真 .pptx 文件（python-pptx 直生成，可下载到 PowerPoint/Keynote 编辑）',
+  kickoff_html: 'HTML 幻灯片（自包含一份 HTML，浏览器内即开即看，可打印 PDF）',
   survey: '生成实施调研问卷',
   insight: '生成项目洞察与分析报告',
 }

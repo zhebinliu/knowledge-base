@@ -108,7 +108,8 @@ def build_system_prompt(
     scope_desc: str,
 ) -> str:
     kind_label = {
-        "kickoff_pptx": "启动会 PPT",
+        "kickoff_pptx": "启动会 PPT（pptxgen·真 .pptx）",
+        "kickoff_html": "启动会 PPT（htmlppt·HTML 幻灯片）",
         "survey": "实施调研问卷",
         "insight": "项目洞察报告",
     }.get(kind, kind)
