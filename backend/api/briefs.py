@@ -21,6 +21,11 @@ from services.brief_service import (
 router = APIRouter()
 
 
+def _canonical_kind(kind: str) -> str:
+    """kickoff 阶段两套 PPT 管线（pptxgen / htmlppt）共用一份 brief：统一以 kickoff_pptx 落库。"""
+    return "kickoff_pptx" if kind == "kickoff_html" else kind
+
+
 def _dto(brief: ProjectBrief | None, kind: str, project_id: str) -> dict:
     schema = get_schema(kind)
     if brief:
@@ -50,7 +55,8 @@ async def get_brief(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    if kind not in BRIEF_SCHEMAS:
+    canon = _canonical_kind(kind)
+    if canon not in BRIEF_SCHEMAS:
         raise HTTPException(404, f"Unsupported output_kind: {kind}")
     proj = await session.get(Project, project_id)
     if not proj:
@@ -58,7 +64,7 @@ async def get_brief(
     brief = (await session.execute(
         select(ProjectBrief).where(
             ProjectBrief.project_id == project_id,
-            ProjectBrief.output_kind == kind,
+            ProjectBrief.output_kind == canon,
         )
     )).scalar_one_or_none()
     return _dto(brief, kind, project_id)
@@ -72,7 +78,8 @@ async def extract_brief(
     session: AsyncSession = Depends(get_session),
 ):
     """LLM 抽取草稿（不入库）。前端拿到后与已有 brief 合并（保留用户已编辑字段）展示。"""
-    if kind not in BRIEF_SCHEMAS:
+    canon = _canonical_kind(kind)
+    if canon not in BRIEF_SCHEMAS:
         raise HTTPException(404, f"Unsupported output_kind: {kind}")
     proj = await session.get(Project, project_id)
     if not proj:
@@ -81,17 +88,17 @@ async def extract_brief(
     existing = (await session.execute(
         select(ProjectBrief).where(
             ProjectBrief.project_id == project_id,
-            ProjectBrief.output_kind == kind,
+            ProjectBrief.output_kind == canon,
         )
     )).scalar_one_or_none()
 
-    draft = await extract_brief_draft(project_id, kind)
+    draft = await extract_brief_draft(project_id, canon)
     merged = merge_extract_with_user_edits(existing.fields if existing else {}, draft)
     return {
         "project_id": project_id,
         "output_kind": kind,
         "fields": merged,
-        "schema": get_schema(kind),
+        "schema": get_schema(canon),
     }
 
 
@@ -102,7 +109,8 @@ async def extract_brief_stream(
     current_user: User = Depends(get_current_user),
 ):
     """SSE 流式抽取：逐阶段吐进度，最终事件携带 merged fields。"""
-    if kind not in BRIEF_SCHEMAS:
+    canon = _canonical_kind(kind)
+    if canon not in BRIEF_SCHEMAS:
         raise HTTPException(404, f"Unsupported output_kind: {kind}")
 
     async def gen():
@@ -115,7 +123,7 @@ async def extract_brief_stream(
             existing = (await s.execute(
                 select(ProjectBrief).where(
                     ProjectBrief.project_id == project_id,
-                    ProjectBrief.output_kind == kind,
+                    ProjectBrief.output_kind == canon,
                 )
             )).scalar_one_or_none()
             if existing:
@@ -126,7 +134,7 @@ async def extract_brief_stream(
 
         async def producer():
             try:
-                async for ev in stream_extract_brief_draft(project_id, kind):
+                async for ev in stream_extract_brief_draft(project_id, canon):
                     await q.put(("event", ev))
             except Exception as e:
                 await q.put(("event", {"type": "error", "message": str(e)}))
@@ -147,7 +155,7 @@ async def extract_brief_stream(
                 ev = payload
                 if ev.get("type") == "done":
                     merged = merge_extract_with_user_edits(existing_fields, ev.get("fields") or {})
-                    out = {"type": "done", "fields": merged, "schema": get_schema(kind)}
+                    out = {"type": "done", "fields": merged, "schema": get_schema(canon)}
                     yield f"data: {json.dumps(out, ensure_ascii=False)}\n\n"
                 else:
                     yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
@@ -177,7 +185,8 @@ async def put_brief(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    if kind not in BRIEF_SCHEMAS:
+    canon = _canonical_kind(kind)
+    if canon not in BRIEF_SCHEMAS:
         raise HTTPException(404, f"Unsupported output_kind: {kind}")
     proj = await session.get(Project, project_id)
     if not proj:
@@ -186,7 +195,7 @@ async def put_brief(
     brief = (await session.execute(
         select(ProjectBrief).where(
             ProjectBrief.project_id == project_id,
-            ProjectBrief.output_kind == kind,
+            ProjectBrief.output_kind == canon,
         )
     )).scalar_one_or_none()
 
@@ -196,7 +205,7 @@ async def put_brief(
     else:
         brief = ProjectBrief(
             project_id=project_id,
-            output_kind=kind,
+            output_kind=canon,
             fields=body.fields,
             updated_by=current_user.id,
         )
