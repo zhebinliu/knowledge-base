@@ -75,27 +75,31 @@ function ApiKeyRow({ entry, qc }: { entry: ApiKeyEntry; qc: ReturnType<typeof us
   return (
     <tr className="hover:bg-gray-50 transition-colors">
       <td className="px-6 py-3 font-mono text-xs font-semibold text-gray-800">{entry.key}</td>
-      <td className="px-4 py-3">
+      <td className="px-4 py-3 max-w-md">
         {editing ? (
-          <div className="relative inline-block">
+          <div className="relative w-full min-w-[420px]">
             <input
               type={showValue ? 'text' : 'password'}
               value={value}
               onChange={e => setValue(e.target.value)}
-              placeholder="输入新密钥"
-              className="w-56 border border-gray-200 rounded-lg px-3 py-1.5 pr-8 text-sm font-mono"
+              placeholder="粘贴新密钥（任意长度都可以）"
+              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 pr-9 text-sm font-mono"
               autoFocus
             />
             <button
               type="button"
               onClick={() => setShowValue(!showValue)}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              title={showValue ? '隐藏' : '显示'}
             >
               {showValue ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>
           </div>
         ) : (
-          <span className="font-mono text-xs text-gray-500">
+          <span
+            className="font-mono text-xs text-gray-500 block truncate max-w-md"
+            title={entry.masked_value || ''}
+          >
             {entry.masked_value || <span className="text-gray-300 italic">未设置</span>}
           </span>
         )}
