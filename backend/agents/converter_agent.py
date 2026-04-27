@@ -13,7 +13,12 @@ from prompts.conversion import build_conversion_prompt
 logger = structlog.get_logger()
 
 SUPPORTED_FORMATS = {".docx", ".pdf", ".pptx", ".xlsx", ".csv", ".md", ".txt"}
-MAX_CHUNK_CHARS = 50000
+# 转换分段大小：~10K 字符约对应 5-7K tokens 输入，配合 max_tokens=8000 输出
+# 留约 1.2x 膨胀空间和 reasoning model 的 <think> 预算，避免输出被截断。
+# 历史值是 50000，配 8000 输出强制 4x 压缩，导致大量文档后半段丢失。
+MAX_CHUNK_CHARS = 10000
+# 截断检测阈值：单段输出字符数若 ≥ 该值，认为命中 max_tokens 上限被截断
+TRUNCATION_WARN_CHARS = 11000
 
 
 def extract_text_from_docx(content: bytes) -> str:
@@ -121,6 +126,61 @@ def extract_raw_text(filename: str, content: bytes) -> str:
         raise ValueError(f"不支持的格式: {ext}")
 
 
+def _xlsx_raw_to_markdown(raw_text: str, doc_title: str) -> str:
+    """xlsx/csv 抽取出来的原始文本本身已结构化（[Sheet:xx] + " | " 分隔的行），
+    转 markdown 不需要 LLM 重新理解，纯本地处理：
+      - [Sheet: xx] -> ## xx
+      - 每个 sheet 第一行作为表头，紧跟 | --- | 分隔行
+      - 数据行用 markdown table 格式 | a | b | c |
+      - cell 内换行替换为 <br>
+    """
+    out: list[str] = [f"# {doc_title}", ""]
+    lines = [ln for ln in raw_text.split("\n") if ln.strip()]
+    in_table = False
+    is_first_row = True
+    col_count = 0
+
+    def _normalize_row(line: str) -> tuple[str, int]:
+        cells = [c.strip().replace("\n", "<br>") for c in line.split(" | ")]
+        return "| " + " | ".join(cells) + " |", len(cells)
+
+    for ln in lines:
+        if ln.startswith("[Sheet: ") and ln.endswith("]"):
+            sheet_name = ln[len("[Sheet: "):-1].strip()
+            out.append("")
+            out.append(f"## Sheet：{sheet_name}")
+            out.append("")
+            in_table = False
+            is_first_row = True
+            continue
+
+        # 普通文本行（无 ` | `）
+        if " | " not in ln:
+            # 收尾上一段表格
+            if in_table:
+                out.append("")
+                in_table = False
+                is_first_row = True
+            out.append(ln)
+            continue
+
+        # 表格行
+        row_md, cnt = _normalize_row(ln)
+        if is_first_row or cnt != col_count:
+            # 起新表 / 列数变化时另起一表
+            if in_table and not is_first_row:
+                out.append("")
+            out.append(row_md)
+            out.append("| " + " | ".join(["---"] * cnt) + " |")
+            col_count = cnt
+            in_table = True
+            is_first_row = False
+        else:
+            out.append(row_md)
+
+    return "\n".join(out).strip() + "\n"
+
+
 async def convert_to_markdown(filename: str, content: bytes) -> tuple[str, str | None]:
     """Returns (markdown_text, model_name_or_None)."""
     ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -130,6 +190,16 @@ async def convert_to_markdown(filename: str, content: bytes) -> tuple[str, str |
 
     raw_text = extract_raw_text(filename, content)
     logger.info("text_extracted", filename=filename, chars=len(raw_text))
+
+    # xlsx / csv 走本地 fast path：原始抽取已是结构化表格，LLM 能加的价值有限，
+    # 直接构造 markdown 既零 token 消耗，也不会被 max_tokens 截断。
+    if ext in (".xlsx", ".csv"):
+        if not raw_text.strip():
+            return "", None
+        doc_title = filename.rsplit(".", 1)[0]
+        md = _xlsx_raw_to_markdown(raw_text, doc_title)
+        logger.info("converted_local_fast_path", filename=filename, ext=ext, chars=len(md))
+        return md, None
 
     # 分段发送（超过 MAX_CHUNK_CHARS 时）
     if len(raw_text) <= MAX_CHUNK_CHARS:
@@ -151,6 +221,13 @@ async def convert_to_markdown(filename: str, content: bytes) -> tuple[str, str |
                 timeout=180.0,
             )
             result = re.sub(r"<think>[\s\S]*?</think>", "", result, flags=re.IGNORECASE).strip()
+            # 截断检测：输出字符数贴近 max_tokens 对应字符上限就 warn
+            if len(result) >= TRUNCATION_WARN_CHARS:
+                logger.warning(
+                    "segment_likely_truncated",
+                    filename=filename, segment=idx + 1, total=len(segments),
+                    output_chars=len(result), input_chars=len(segment), model=model,
+                )
             logger.info("segment_converted", filename=filename, segment=idx + 1, total=len(segments), model=model)
             return idx, result, model
 
