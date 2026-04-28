@@ -1,5 +1,5 @@
 /**
- * SurveyDemo — 调研问卷 v2 (agentic) 走查页
+ * SurveyDemo — 调研问卷 (新版) 走查页
  * Route: /demo/survey (no auth required)
  *
  * 风格:跟 InsightDemo 一样,以「友发钢管」为主线逐步走查。
@@ -22,22 +22,22 @@ export default function SurveyDemo() {
             <ArrowLeft size={14} /> 返回
           </Link>
           <span className="text-ink-muted text-xs">/</span>
-          <span className="text-sm text-ink-secondary">Skill 走查</span>
+          <span className="text-sm text-ink-secondary">功能走查</span>
           <span className="text-ink-muted text-xs">/</span>
-          <span className="text-sm font-semibold text-ink">调研问卷 v2</span>
+          <span className="text-sm font-semibold text-ink">调研问卷(新版)</span>
         </div>
       </div>
 
       {/* Hero */}
       <div className="max-w-4xl mx-auto px-6 pt-12 pb-8">
         <div className="flex items-center gap-2 mb-4">
-          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">v2 · Beta</span>
-          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-orange-100 text-[#D96400]">Agentic</span>
+          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">新版 · 内测</span>
+          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-orange-100 text-[#D96400]">智能体</span>
         </div>
-        <h1 className="text-3xl font-extrabold text-ink tracking-tight">调研问卷 v2 — 一份真的发得出去、客户愿意填的问卷</h1>
+        <h1 className="text-3xl font-extrabold text-ink tracking-tight">调研问卷 新版 — 一份真的发得出去、客户愿意填的问卷</h1>
         <p className="mt-3 text-ink-secondary text-base leading-relaxed">
           顾问做实施前调研时,需要把"问什么、问谁、为什么问"打包成一份能直接发给客户业务负责人的问卷。
-          v2 跟 v1 最大的不同:<strong className="text-ink">不再一份 60 题超级长卷塞给所有人</strong> —
+          新版跟旧版 最大的不同:<strong className="text-ink">不再一份 60 题超级长卷塞给所有人</strong> —
           拆成 L1 高管短卷(10 分钟填完)+ L2 模块化分卷(各模块责任人各填各的),还会自动跳过访谈里已经聊过的话题。
         </p>
 
@@ -50,9 +50,9 @@ export default function SurveyDemo() {
       </div>
 
       {/* Step 1 */}
-      <Step n={1} title="点项目阶段栏的「需求调研 v2 (β)」">
+      <Step n={1} title="点项目阶段栏的「需求调研 (新版)」">
         <p className="text-sm text-ink-secondary mb-3">
-          阶段栏第二个橙色 Beta 是 Survey v2。点它就开始。
+          阶段栏第二个橙色内测是 调研问卷(新版)。点它就开始。
         </p>
         <MockStageBar />
       </Step>
@@ -69,8 +69,8 @@ export default function SurveyDemo() {
       {/* Step 3 */}
       <Step n={3} title="后台扫访谈记录,识别「已经聊过」的话题(去重)">
         <p className="text-sm text-ink-secondary mb-3">
-          v1 不管你之前有没有访谈,问卷里都会再问一遍组织架构 / KPI / 商机 — 客户填到吐血。
-          v2 会先扫 transcript,识别覆盖话题,在后续生成里 <strong>主动跳过</strong>。
+          旧版 不管你之前有没有访谈,问卷里都会再问一遍组织架构 / KPI / 商机 — 客户填到吐血。
+           新版 会先扫 transcript,识别覆盖话题,在后续生成里 <strong>主动跳过</strong>。
         </p>
         <MockDedupView />
       </Step>
@@ -86,7 +86,7 @@ export default function SurveyDemo() {
       {/* Step 5 */}
       <Step n={5} title="智能制造客户自动加 12 道行业扩展题">
         <p className="text-sm text-ink-secondary mb-3">
-          因为友发钢管是 manufacturing 行业,系统自动激活智能制造行业包,在相关分卷里追加专属题目(
+          因为友发钢管是 智能制造行业,系统自动激活智能制造行业包,在相关分卷里追加专属题目(
           BOM 嵌套 / Install Base / 经销商门户 / ERP 厂商 / MES / PLM / 项目报备等)。
           其他行业不会出现这些题。
         </p>
@@ -107,7 +107,7 @@ export default function SurveyDemo() {
         <div className="rounded-xl p-6 text-white" style={{ background: BRAND_GRAD }}>
           <h3 className="text-lg font-bold mb-1.5">现在去试一下</h3>
           <p className="text-sm opacity-90 mb-4">
-            进任意 manufacturing 行业的项目,点橙色阶段「需求调研 v2 (β)」体验。
+            进任意 智能制造行业的项目,点橙色阶段「需求调研 (新版)」体验。
             生成出来会同时有 markdown 预览 和 .docx 下载,可以直接发给客户。
           </p>
           <div className="flex gap-2">
@@ -115,7 +115,7 @@ export default function SurveyDemo() {
               <Sparkles size={13} /> 去项目列表
             </Link>
             <Link to="/demo/insight" className="px-4 py-2 bg-white/20 text-white border border-white/40 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5 hover:bg-white/30">
-              <Lightbulb size={13} /> 看 Insight v2 走查 →
+              <Lightbulb size={13} /> 看 项目洞察(新版)走查 →
             </Link>
           </div>
         </div>
@@ -131,9 +131,9 @@ export default function SurveyDemo() {
           </summary>
           <div className="px-4 pb-4 text-xs text-ink-secondary space-y-2 leading-relaxed">
             <p>分卷定义在 <code className="bg-slate-100 px-1.5 rounded">backend/services/agentic/survey_modules.py</code>:7 themes × 13 subsections。L1 单独一个 SubsectionSpec(L1_EXEC_SUBSECTION)。</p>
-            <p>去重:planner.py 里 <code className="bg-slate-100 px-1.5 rounded">plan_survey()</code> 用关键词扫描 transcript_text(组织架构/KPI/商机/线索/回款/BOM/经销商/ERP/Install Base/工单/合规/预算 etc),命中即标已覆盖,Executor prompt 里告知 LLM 跳过。</p>
+            <p>去重:planner.py 里 <code className="bg-slate-100 px-1.5 rounded">plan_survey()</code> 用关键词扫描 transcript_text(组织架构/KPI/商机/线索/回款/BOM/经销商/ERP/Install Base/工单/合规/预算 etc),命中即标已覆盖,执行器 prompt 里告知 LLM 跳过。</p>
             <p>行业扩展题来自 <code className="bg-slate-100 px-1.5 rounded">industry_packs/smart_manufacturing.py</code> 的 extra_question_seeds(12 条),按 theme key 路由到对应分卷。</p>
-            <p>Critic 评分维度:type_diversity / no_jargon / actionable / no_duplicate(全 ≥3 通过)。</p>
+            <p>评审 评分维度:type_diversity / no_jargon / actionable / no_duplicate(全 ≥3 通过)。</p>
             <p>输出:Markdown 直显 + .docx(MinIO 存),前端 V2ValidityBanner 展示分卷状态。</p>
           </div>
         </details>
@@ -167,8 +167,8 @@ function MockStageBar() {
     { label: '启动会·PPT', state: 'idle', color: '#F8FAFC' },
     { label: '启动会·HTML', state: 'idle', color: '#F8FAFC' },
     { label: '需求调研', state: 'done', color: '#D1FAE5' },
-    { label: '项目洞察 v2 (β)', state: 'idle', color: '#F8FAFC' },
-    { label: '需求调研 v2 (β)', state: 'active', color: BRAND_GRAD },
+    { label: '项目洞察 (新版)', state: 'idle', color: '#F8FAFC' },
+    { label: '需求调研 (新版)', state: 'active', color: BRAND_GRAD },
   ]
   return (
     <div className="bg-white border border-line rounded-lg p-3">
@@ -209,7 +209,7 @@ function MockL1Brief() {
     <div className="bg-white border border-line rounded-lg overflow-hidden shadow-sm">
       <div className="px-4 py-2.5 border-b border-line bg-slate-50 flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-          <FileText size={13} /> Brief · 调研问卷 v2 · L1 高管层 · 友发钢管集团
+          <FileText size={13} /> 项目要点 · 调研问卷(新版) · L1 高管层 · 友发钢管集团
         </div>
         <span className="text-[11px] text-ink-muted">8 字段中 2 个待补</span>
       </div>

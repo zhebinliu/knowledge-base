@@ -43,9 +43,9 @@ const STAGES: StageDef[] = [
   { key: 'kickoff_html',  label: '启动会·HTML',       kind: 'kickoff_html', icon: FileText,      active: true },
   { key: 'survey',        label: '需求调研',          kind: 'survey',       icon: ClipboardList, active: true },
   // v2 (agentic) — 旁路验证版本
-  { key: 'insight_v2',    label: '项目洞察 v2 (β)',   kind: 'insight_v2',   icon: Bot,           active: true, beta: true },
+  { key: 'insight_v2',    label: '项目洞察(新版)',   kind: 'insight_v2',   icon: Bot,           active: true, beta: true },
   // 「需求调研 v2」 stage 下两个按钮:大纲 / 问卷(各自独立 brief / bundle / 状态)
-  { key: 'survey_v2',     label: '需求调研 v2 (β)',   kind: null,           icon: Bot,           active: true, beta: true,
+  { key: 'survey_v2',     label: '需求调研(新版)',   kind: null,           icon: Bot,           active: true, beta: true,
     subKinds: [
       { kind: 'survey_outline_v2', label: '调研大纲' },
       { kind: 'survey_v2',         label: '调研问卷' },
@@ -303,9 +303,9 @@ export default function ConsoleProjectDetail() {
             <button
               onClick={openBriefForActive}
               className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md text-ink-secondary hover:bg-white hover:text-ink"
-              title="查看 / 编辑项目 Brief"
+              title="查看 / 编辑项目要点"
             >
-              <ClipboardList size={11} /> Brief
+              <ClipboardList size={11} /> 要点
             </button>
           )}
           {activeBundle ? (
@@ -450,7 +450,7 @@ function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onR
   const bg = isInvalid ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
   const text = isInvalid ? 'text-red-700' : 'text-amber-700'
   const textMuted = isInvalid ? 'text-red-700/80' : 'text-amber-700/80'
-  const label = isInvalid ? '信息不足 · invalid' : '部分通过 · partial'
+  const label = isInvalid ? '信息不足' : '部分通过'
 
   // 把模块 + critic issues 拼成 hint 行
   const renderModuleList = (mods: typeof all, cls: string) => mods.map((m, i) => {
@@ -496,7 +496,7 @@ function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onR
             <div className="mt-1 text-[11px] text-ink-secondary">
               <span className="font-medium">关键模块质量待提升:</span>
               <ul className="ml-4 mt-0.5 list-disc">{renderModuleList(warnCritical, '')}</ul>
-              <div className="ml-4 mt-0.5 text-ink-muted/80">提示:补充更具体的证据 / 量化数据 / Owner 与 deadline,critic 会打更高分</div>
+              <div className="ml-4 mt-0.5 text-ink-muted/80">提示:补充更具体的证据 / 量化数据 / 责任人与截止日期,AI 评审会打更高分</div>
             </div>
           )}
 
@@ -534,7 +534,7 @@ function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onR
           {/* 兜底:没明细 */}
           {!hasAnyDetail && (
             <div className="mt-1 text-[11px] text-ink-muted italic">
-              没有具体的未完成项,可能是 Critic 评分异常或模块状态丢失。建议重新生成。
+              没有具体的未完成项,可能是 AI 评审异常或模块状态丢失,建议重新生成。
             </div>
           )}
         </div>

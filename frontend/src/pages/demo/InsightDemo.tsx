@@ -1,9 +1,9 @@
 /**
- * InsightDemo — 项目洞察 v2 (agentic) 走查页
+ * InsightDemo — 项目洞察 (新版) 走查页
  * Route: /demo/insight (no auth required)
  *
  * 风格:以「友发钢管」一个真实项目为主线,逐步走查"你会看到什么、你会拿到什么"。
- * 不讲架构(Planner / Critic 那些),只讲用户视角。
+ * 不讲架构(规划器 / 评审 那些),只讲用户视角。
  */
 import { Link } from 'react-router-dom'
 import {
@@ -26,37 +26,37 @@ export default function InsightDemo() {
             <ArrowLeft size={14} /> 返回
           </Link>
           <span className="text-ink-muted text-xs">/</span>
-          <span className="text-sm text-ink-secondary">Skill 走查</span>
+          <span className="text-sm text-ink-secondary">功能走查</span>
           <span className="text-ink-muted text-xs">/</span>
-          <span className="text-sm font-semibold text-ink">项目洞察 v2</span>
+          <span className="text-sm font-semibold text-ink">项目洞察(新版)</span>
         </div>
       </div>
 
       {/* Hero */}
       <div className="max-w-4xl mx-auto px-6 pt-12 pb-8">
         <div className="flex items-center gap-2 mb-4">
-          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">v2 · Beta</span>
-          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-orange-100 text-[#D96400]">Agentic</span>
+          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">新版 · 内测</span>
+          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-orange-100 text-[#D96400]">智能体</span>
         </div>
-        <h1 className="text-3xl font-extrabold text-ink tracking-tight">项目洞察 v2 — 一份给高管看的项目诊断报告</h1>
+        <h1 className="text-3xl font-extrabold text-ink tracking-tight">项目洞察 新版 — 一份给高管看的项目诊断报告</h1>
         <p className="mt-3 text-ink-secondary text-base leading-relaxed">
           顾问做对内汇报 / 内部对齐时,需要一份"项目现在怎么样、有什么风险、下一步做什么"的洞察报告。
-          v2 跟 v1 最大的不同:<strong className="text-ink">不会编</strong>。信息够,生成完整报告;信息不够,直接告诉你缺什么、不出残缺品。
+          新版跟旧版 最大的不同:<strong className="text-ink">不会编</strong>。信息够,生成完整报告;信息不够,直接告诉你缺什么、不出残缺品。
         </p>
 
         <div className="mt-8 p-4 bg-orange-50 border-l-4 border-orange-400 rounded-r-lg">
           <div className="text-sm font-semibold text-[#92400E] mb-1">下面我们用「友发钢管集团」这个真实项目走一遍</div>
           <div className="text-xs text-ink-secondary">
             背景:集团化制造业客户,5 家子公司 + 多个事业部,2024-09 启动 CRM,正在 UAT 前期。<br/>
-            行业:manufacturing(智能制造)。已经有 6 份相关文档 + 一段访谈记录在系统里。
+            行业:智能制造。已经有 6 份相关文档 + 一段访谈记录在系统里。
           </div>
         </div>
       </div>
 
       {/* Step 1 */}
-      <Step n={1} title="点项目阶段栏的「项目洞察 v2 (β)」">
+      <Step n={1} title="点项目阶段栏的「项目洞察 (新版)」">
         <p className="text-sm text-ink-secondary mb-3">
-          进入友发钢管项目详情,顶部阶段栏现在多了 2 个 Beta 阶段。点第一个橙色那个。
+          进入友发钢管项目详情,顶部阶段栏现在多了 2 个内测阶段。点第一个橙色那个。
         </p>
         <MockStageBar />
       </Step>
@@ -64,7 +64,7 @@ export default function InsightDemo() {
       {/* Step 2 */}
       <Step n={2} title="抽屉自动弹出,大半字段已经替你填好">
         <p className="text-sm text-ink-secondary mb-3">
-          系统会扫"项目元数据 + 已上传文档 + 之前的访谈记录",自动预填 v2 需要的字段。你只需要校对 + 补几个缺的。
+          系统会扫"项目元数据 + 已上传文档 + 之前的访谈记录",自动预填  新版 需要的字段。你只需要校对 + 补几个缺的。
         </p>
         <MockBriefDrawer />
         <p className="text-xs text-ink-muted mt-3">
@@ -93,7 +93,7 @@ export default function InsightDemo() {
       {/* Step 5 — sample output */}
       <Step n={5} title="拿到报告(摘录两段)">
         <p className="text-sm text-ink-secondary mb-3">
-          下面是友发钢管 v2 报告的真实样式。每段结论都标了 <strong>来源</strong>,不带来源的"洞察"不许出现。
+          下面是友发钢管 新版报告的真实样式。每段结论都标了 <strong>来源</strong>,不带来源的"洞察"不许出现。
         </p>
         <MockReportSnippet />
       </Step>
@@ -101,12 +101,12 @@ export default function InsightDemo() {
       {/* Step 6 — invalid */}
       <Step n={6} title="如果信息不够,你会看到红色 banner(而不是糊弄你的报告)">
         <p className="text-sm text-ink-secondary mb-3">
-          换个新建的空项目(没访谈、没文档、没 Brief)跑 v2,系统不会强行编。它会标 invalid,把缺的清单列出来,等你补完再点重新生成。
+          换个新建的空项目(没访谈、没文档、没 Brief)跑新版,系统不会强行编。它会标 invalid,把缺的清单列出来,等你补完再点重新生成。
         </p>
         <MockInvalidBanner />
         <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900 leading-relaxed">
           <strong>这是设计,不是 bug。</strong>
-          v1 的策略是"宁可写也别空着",结果一堆空话和编造;v2 改成"宁可不写也别糊弄",信息不够的章节就标"信息缺失"。
+          旧版 的策略是"宁可写也别空着",结果一堆空话和编造;新版改成"宁可不写也别糊弄",信息不够的章节就标"信息缺失"。
           <br/>对顾问的实际意义:你拿这份报告对内汇报,不会被同事问"这数据哪里来的、你确定吗"。
         </div>
       </Step>
@@ -116,15 +116,15 @@ export default function InsightDemo() {
         <div className="rounded-xl p-6 text-white" style={{ background: BRAND_GRAD }}>
           <h3 className="text-lg font-bold mb-1.5">现在去试一下</h3>
           <p className="text-sm opacity-90 mb-4">
-            进任意 manufacturing 行业的项目(友发钢管 / 特变新能源 / 唐山天地矿业 / 百迈客生物科技 / 东方雨虹)
-            ,点橙色阶段「项目洞察 v2 (β)」体验。
+            进任意 智能制造行业的项目(友发钢管 / 特变新能源 / 唐山天地矿业 / 百迈客生物科技 / 东方雨虹)
+            ,点橙色阶段「项目洞察 (新版)」体验。
           </p>
           <div className="flex gap-2">
             <Link to="/console/projects" className="px-4 py-2 bg-white text-[#D96400] rounded-lg text-sm font-semibold inline-flex items-center gap-1.5">
               <Sparkles size={13} /> 去项目列表
             </Link>
             <Link to="/demo/survey" className="px-4 py-2 bg-white/20 text-white border border-white/40 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5 hover:bg-white/30">
-              <ClipboardList size={13} /> 看 Survey v2 走查 →
+              <ClipboardList size={13} /> 看 调研问卷(新版)走查 →
             </Link>
           </div>
         </div>
@@ -140,7 +140,7 @@ export default function InsightDemo() {
           </summary>
           <div className="px-4 pb-4 text-xs text-ink-secondary space-y-2 leading-relaxed">
             <p>10 个模块声明在 <code className="bg-slate-100 px-1.5 rounded">backend/services/agentic/insight_modules.py</code>(必要 6 个 / 可选 4 个)。</p>
-            <p>流程编排在 <code className="bg-slate-100 px-1.5 rounded">runner.py</code>:Planner(规则化)→ Gap Fill(并行 KB 检索)→ Executor(并行 LLM 模块填充)→ Critic(Sopact 四要素评分:Specificity / Evidence / Timeliness / Next Step)。</p>
+            <p>流程编排在 <code className="bg-slate-100 px-1.5 rounded">runner.py</code>:规划器(规则化)→ Gap Fill(并行 KB 检索)→ 执行器(并行 LLM 模块填充)→ 评审(四要素评分:Specificity / Evidence / Timeliness / Next Step)。</p>
             <p>智能制造扩展在 <code className="bg-slate-100 px-1.5 rounded">industry_packs/smart_manufacturing.py</code>:13 字段补丁 + 10 痛点 + 3 标杆案例(友发 / 特变 / 唐山天地)+ 12 行业种子题。</p>
             <p>结果落到 <code className="bg-slate-100 px-1.5 rounded">bundle.extra.{`{validity_status, module_states, ask_user_prompts, run_history}`}</code>。无 alembic migration。</p>
           </div>
@@ -167,7 +167,7 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
   )
 }
 
-// ── Mock UI:阶段栏 ───────────────────────────────────────────────────────────
+// ── 样式预览:阶段栏 ───────────────────────────────────────────────────────────
 
 function MockStageBar() {
   const stages = [
@@ -175,8 +175,8 @@ function MockStageBar() {
     { label: '启动会·PPT', state: 'idle', color: '#F8FAFC' },
     { label: '启动会·HTML', state: 'idle', color: '#F8FAFC' },
     { label: '需求调研', state: 'done', color: '#D1FAE5' },
-    { label: '项目洞察 v2 (β)', state: 'active', color: BRAND_GRAD },
-    { label: '需求调研 v2 (β)', state: 'idle', color: '#F8FAFC' },
+    { label: '项目洞察 (新版)', state: 'active', color: BRAND_GRAD },
+    { label: '需求调研 (新版)', state: 'idle', color: '#F8FAFC' },
   ]
   return (
     <div className="bg-white border border-line rounded-lg p-3">
@@ -200,7 +200,7 @@ function MockStageBar() {
   )
 }
 
-// ── Mock UI:Brief 抽屉 ──────────────────────────────────────────────────────
+// ── 样式预览:Brief 抽屉 ──────────────────────────────────────────────────────
 
 function MockBriefDrawer() {
   const fields = [
@@ -215,7 +215,7 @@ function MockBriefDrawer() {
     <div className="bg-white border border-line rounded-lg overflow-hidden shadow-sm">
       <div className="px-4 py-2.5 border-b border-line bg-slate-50 flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-          <FileText size={13} /> Brief · 项目洞察 v2 · 友发钢管集团
+          <FileText size={13} /> 项目要点 · 项目洞察(新版) · 友发钢管集团
         </div>
         <span className="text-[11px] text-ink-muted">15 字段中 4 个待补</span>
       </div>
@@ -253,7 +253,7 @@ function MockBriefDrawer() {
   )
 }
 
-// ── Mock UI:Planner 评估 ────────────────────────────────────────────────────
+// ── 样式预览:规划器 评估 ────────────────────────────────────────────────────
 
 function MockEvidenceAssessment() {
   const modules = [
@@ -301,7 +301,7 @@ function MockEvidenceAssessment() {
   )
 }
 
-// ── Mock UI:并行生成进度 ────────────────────────────────────────────────────
+// ── 样式预览:并行生成进度 ────────────────────────────────────────────────────
 
 function MockGenerationProgress() {
   const items = [
@@ -341,7 +341,7 @@ function MockGenerationProgress() {
   )
 }
 
-// ── Mock UI:报告样本 ────────────────────────────────────────────────────────
+// ── 样式预览:报告样本 ────────────────────────────────────────────────────────
 
 function MockReportSnippet() {
   return (
@@ -430,7 +430,7 @@ function MockReportSnippet() {
   )
 }
 
-// ── Mock UI:invalid banner ──────────────────────────────────────────────────
+// ── 样式预览:invalid banner ──────────────────────────────────────────────────
 
 function MockInvalidBanner() {
   return (

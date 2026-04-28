@@ -118,7 +118,7 @@ export default function V2GapFiller({ bundle, kind, projectId, onSubmitted }: Pr
     return (
       <div className="m-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
         <AlertCircle size={14} className="inline mr-1" />
-        Planner 标本次为 invalid,但没产出可作答问题清单。请检查访谈记录或联系管理员。
+        系统标本次为信息不足,但没产出可作答问题清单。请检查访谈记录或联系管理员。
       </div>
     )
   }
@@ -137,7 +137,7 @@ export default function V2GapFiller({ bundle, kind, projectId, onSubmitted }: Pr
               <div className="mt-1 text-xs text-ink-secondary leading-relaxed">
                 系统检测到关键模块缺少必要信息,直接拦截了生成 — 避免输出无依据的洞察 / 浪费算力。
                 请在下方逐题作答,有选项的优先选,选不对就用「其他」自填。提交后会自动用你的答案
-                更新 Brief 并重新生成。
+                更新项目要点并重新生成。
               </div>
             </div>
           </div>
@@ -192,7 +192,7 @@ export default function V2GapFiller({ bundle, kind, projectId, onSubmitted }: Pr
             <span className="text-xs text-red-700">{error}</span>
           )}
           <span className="text-[11px] text-ink-muted ml-auto">
-            提交会保存到 Brief 并触发新一轮生成
+            提交会保存到项目要点并触发新一轮生成
           </span>
           <button
             onClick={onSubmit}

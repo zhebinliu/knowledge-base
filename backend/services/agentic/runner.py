@@ -110,6 +110,76 @@ def _ts() -> str:
     return datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
 
 
+# ── 行业 / 方法论 名词解释库 ────────────────────────────────────────────────────
+# 文档生成完会扫一遍 markdown,只列出现过的术语,追加"名词解释"附录
+
+GLOSSARY: dict[str, str] = {
+    # CRM 实施场景
+    "CRM": "客户关系管理(Customer Relationship Management)",
+    "ERP": "企业资源计划(Enterprise Resource Planning),如金蝶 / 用友 / SAP",
+    "MES": "制造执行系统(Manufacturing Execution System),工厂车间生产管理",
+    "PLM": "产品生命周期管理(Product Lifecycle Management),如达索 / 西门子",
+    "OA":  "办公自动化系统(Office Automation),如泛微 / 致远 / 钉钉",
+    "PRM": "伙伴关系管理(Partner Relationship Management),即「伙伴云 / 经销商门户」",
+    "BOM": "物料清单(Bill of Materials),产品由哪些零部件组成",
+    "CPQ": "配置-报价-定价(Configure-Price-Quote),复杂产品报价工具",
+    "SFA": "销售自动化(Sales Force Automation),CRM 的核心模块之一",
+    "SaaS":"软件即服务(Software as a Service)",
+    "PaaS":"平台即服务(Platform as a Service)",
+    # 流程缩写
+    "L2C": "线索到合同(Lead to Contract),销售前端全流程",
+    "O2C": "订单到现金(Order to Cash),订单履约 + 收款全流程",
+    "S2C": "服务到合同(Service to Contract),售后服务转化收入",
+    # 项目管理 / 测试
+    "PMO": "项目管理办公室(Project Management Office)",
+    "RACI":"责任分配矩阵(Responsible/Accountable/Consulted/Informed)",
+    "UAT": "用户验收测试(User Acceptance Testing)",
+    "SIT": "系统集成测试(System Integration Test)",
+    "POC": "概念验证(Proof of Concept)",
+    # 业务术语
+    "Install Base": "已售设备基数,累积已交付给客户的设备清单(售后/续约的根基)",
+    "KPI": "关键绩效指标(Key Performance Indicator)",
+    "OKR": "目标与关键成果(Objectives and Key Results)",
+    "SMART": "目标设定原则:Specific(具体)/Measurable(可量化)/Achievable(可达成)/Relevant(相关)/Time-bound(有时限)",
+    "B2B": "企业对企业(Business to Business)",
+    # 方法论
+    "RAG": "红黄绿三色评级(Red/Amber/Green),用于项目健康度",
+    "RAID":"风险/行动/议题/决策(Risks/Actions/Issues/Decisions)四件套",
+    "SCQA":"咨询叙事框架:情境(Situation)→冲突(Complication)→问题(Question)→答案(Answer)",
+    "MBB": "顶级战略咨询公司:McKinsey / BCG / Bain",
+    "Quick Win": "快速见效:2 周内能落地、风险低、效果可见的动作",
+    "Bottom line": "首行结论:文档/章节最重要的一句话,放最前",
+    "Pyramid": "金字塔原理:先抛结论再展开论据的表达结构",
+}
+
+
+def _build_glossary_appendix(md: str) -> str:
+    """扫 markdown 找出现过的术语,生成"名词解释"附录段落。空则返回空串。"""
+    import re
+    found = []
+    seen = set()
+    for term, expl in GLOSSARY.items():
+        if term in seen:
+            continue
+        # 用单词边界匹配,避免 "OAuth" 误匹配 "OA";Install Base 这种短语直接子串匹配
+        if " " in term:
+            if term in md:
+                found.append((term, expl))
+                seen.add(term)
+        else:
+            # 单词:左右不能是字母数字
+            if re.search(rf'(?<![A-Za-z0-9]){re.escape(term)}(?![A-Za-z0-9])', md):
+                found.append((term, expl))
+                seen.add(term)
+    if not found:
+        return ""
+    lines = ["\n## 附录 · 名词解释\n"]
+    lines.append("> 以下术语是 CRM 实施 / 项目管理 / 咨询行业的常用缩写,文档中按行业惯例直接使用,在此统一释义。\n")
+    for term, expl in found:
+        lines.append(f"- **{term}**:{expl}")
+    return "\n".join(lines)
+
+
 # ── 共享:信息不足拦截器(insight / outline 共用)─────────────────────────────
 
 async def _short_circuit_invalid(
@@ -410,6 +480,8 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
             md_blocks.append(f"- 行业包:smart_manufacturing 已激活")
 
         full_md = "\n".join(md_blocks)
+        glossary = _build_glossary_appendix(full_md)
+        if glossary: full_md += "\n\n" + glossary
 
         # 写回 bundle
         new_extra = dict(ctx["bundle_extra"])
@@ -597,6 +669,8 @@ async def generate_survey_v2(bundle_id: str, project_id: str):
         md_blocks.append(f"- 已覆盖话题(去重):{', '.join(plan.already_covered) or '无'}")
         md_blocks.append(f"- 行业包种子注入:{len(plan.extra_seeds_from_pack)} 条")
         full_md = "\n".join(md_blocks)
+        glossary = _build_glossary_appendix(full_md)
+        if glossary: full_md += "\n\n" + glossary
 
         # 生成 docx(复用 v1 的 _build_docx)
         docx_key: str | None = None
@@ -864,6 +938,8 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
         if pack:
             md_blocks.append(f"- 行业包:{pack.industry} 已激活(注入 {len(pack.must_visit_departments)} 必访部门 + {len(pack.default_sessions)} 默认 sessions)")
         full_md = "\n".join(md_blocks)
+        glossary = _build_glossary_appendix(full_md)
+        if glossary: full_md += "\n\n" + glossary
 
         # 生成 docx(复用 v1 工具)
         docx_key: str | None = None
