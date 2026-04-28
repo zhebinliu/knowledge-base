@@ -16,6 +16,7 @@ import {
 import OutputChatPanel from '../../components/OutputChatPanel'
 import BriefDrawer from '../../components/BriefDrawer'
 import MarkdownView from '../../components/MarkdownView'
+import V2GapFiller from '../../components/V2GapFiller'
 import QA from '../QA'
 
 const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'insight_v2', 'survey_v2', 'survey_outline_v2']
@@ -352,35 +353,51 @@ export default function ConsoleProjectDetail() {
         </div>
       </div>
 
-      {/* v2 validity banner —— 仅 agentic 产物且 validity != valid 时显示 */}
-      {activeBundle?.agentic_version === 'v2' && activeBundle.validity_status && activeBundle.validity_status !== 'valid' && (
-        <V2ValidityBanner bundle={activeBundle} onReGenerate={startGeneration} />
-      )}
+      {/* v2 partial validity banner — 仅 partial 时显示(invalid+short_circuited 走 V2GapFiller) */}
+      {activeBundle?.agentic_version === 'v2'
+        && activeBundle.validity_status === 'partial'
+        && (
+          <V2ValidityBanner bundle={activeBundle} onReGenerate={startGeneration} />
+        )}
 
-      {/* 主区：对话独占 */}
-      <div className="flex-1 min-h-0 flex flex-col bg-white">
-        <ChatTabs
-          mode={chatMode}
-          setMode={setChatMode}
-          docCount={docs?.length ?? 0}
-          onOpenDocs={() => setDocsOpen(true)}
+      {/* 主区:invalid+short_circuited 场景 → V2GapFiller 替代对话区(让用户填问卷) */}
+      {activeBundle?.agentic_version === 'v2'
+        && activeBundle.validity_status === 'invalid'
+        && activeBundle.short_circuited
+        && activeKind ? (
+        <V2GapFiller
+          key={`gap-${activeBundle.id}`}
+          bundle={activeBundle}
+          kind={activeKind}
+          projectId={id}
+          onSubmitted={() => refetchOutputs()}
         />
-        <div className="flex-1 min-h-0 flex flex-col">
-          {chatMode.type === 'pm' ? (
-            <div className="flex-1 min-h-0 h-full">
-              <QA lockedProjectId={id} />
-            </div>
-          ) : (
-            <OutputChatPanel
-              key={`${chatMode.kind}-${id}`}
-              kind={chatMode.kind}
-              projectId={id}
-              stageTitle={chatMode.label}
-              onGenerated={() => refetchOutputs()}
-            />
-          )}
+      ) : (
+        /* 主区:正常对话 */
+        <div className="flex-1 min-h-0 flex flex-col bg-white">
+          <ChatTabs
+            mode={chatMode}
+            setMode={setChatMode}
+            docCount={docs?.length ?? 0}
+            onOpenDocs={() => setDocsOpen(true)}
+          />
+          <div className="flex-1 min-h-0 flex flex-col">
+            {chatMode.type === 'pm' ? (
+              <div className="flex-1 min-h-0 h-full">
+                <QA lockedProjectId={id} />
+              </div>
+            ) : (
+              <OutputChatPanel
+                key={`${chatMode.kind}-${id}`}
+                kind={chatMode.kind}
+                projectId={id}
+                stageTitle={chatMode.label}
+                onGenerated={() => refetchOutputs()}
+              />
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {docsOpen && (
         <DocsDrawer

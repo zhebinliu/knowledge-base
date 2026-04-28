@@ -31,6 +31,9 @@ class FieldSpec:
     compute_from: list[str] = field(default_factory=list)  # gap_action=compute_from 时引用其他字段
     required: bool = False                # 模块内必填:缺则模块降级
     description: str = ""
+    # 给"信息不足拦截"问卷用 — 单/多选选项;前端会渲染 chip,留 "其他(自填)" 口
+    options: list[str] = field(default_factory=list)
+    multi: bool = False                   # options 是否多选(配合 type=list 用)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -86,10 +89,15 @@ INSIGHT_MODULES: list[ModuleSpec] = [
                       user_question="项目最大的难点 / 卡点是什么?", required=True),
             FieldSpec("top_opportunity", "最大机会", "text",
                       ["conversation", "brief"], "ask_user",
-                      user_question="如果项目顺利,最大的业务机会是什么?"),
+                      user_question="如果项目顺利,最大的业务机会是什么?",
+                      options=["销售效率提升", "渠道管控强化", "数据驱动决策",
+                               "客户体验升级", "服务收入转型", "组织数字化"]),
             FieldSpec("top_risk", "最大风险", "text",
                       ["conversation", "brief"], "ask_user",
-                      user_question="最担心的一件事是什么?"),
+                      user_question="最担心的一件事是什么?",
+                      options=["范围蔓延 / 镀金", "推广阻力 / 采纳率低", "数据迁移质量",
+                               "集成复杂度", "时间压力 / 上线延期", "预算超支",
+                               "关键人离场", "客户内部协调失败"]),
             FieldSpec("overall_rag", "总体健康度", "rag_label",
                       ["compute"], "compute_from",
                       compute_from=["M3_health_radar"], required=True),
@@ -116,24 +124,33 @@ INSIGHT_MODULES: list[ModuleSpec] = [
         necessity="critical",
         purpose="量化快照:用户数 / 模块数 / 预算 / 时间窗 / 当前阶段",
         fields=[
-            FieldSpec("user_count", "目标用户数(规模)", "number",
+            FieldSpec("user_count", "目标用户数(规模)", "text",
                       ["brief", "conversation", "kb_search"], "ask_user",
                       kb_query_hint="目标用户 角色 数量",
                       user_question="目标用户数(全员 / 销售 / 渠道分别多少)?",
-                      required=True),
+                      required=True,
+                      options=["< 50 人", "50-200 人", "200-500 人",
+                               "500-2000 人", "2000-10000 人", "> 10000 人"]),
             FieldSpec("module_list", "实施模块清单", "list",
                       ["metadata", "brief", "conversation"], "downgrade",
                       description="从 Project.modules + Brief.scope_in 合并"),
             FieldSpec("budget_range", "预算区间", "text",
                       ["brief", "conversation"], "ask_user",
-                      user_question="项目预算区间 / 是否含硬件软件人天?"),
+                      user_question="项目预算区间 / 是否含硬件软件人天?",
+                      options=["< 50 万", "50-200 万", "200-500 万",
+                               "500-1000 万", "1000-3000 万", "> 3000 万"]),
             FieldSpec("timeline", "时间窗", "text",
                       ["metadata", "brief"], "ask_user",
-                      user_question="项目启动 → 上线 → 验收的关键日期?", required=True),
+                      user_question="项目启动 → 上线 → 验收的关键日期?", required=True,
+                      options=["1 个月内", "2-3 个月", "3-6 个月",
+                               "6-12 个月", "1-2 年", "> 2 年"]),
             FieldSpec("current_phase", "当前所处阶段", "text",
                       ["conversation", "brief"], "ask_user",
                       user_question="目前在哪个阶段(需求 / 方案 / 配置 / UAT / 上线)?",
-                      required=True),
+                      required=True,
+                      options=["需求调研", "方案设计", "系统配置 / 开发",
+                               "数据迁移", "SIT / UAT", "上线前准备",
+                               "已上线 / 运维", "二期规划"]),
         ],
         prompt_template="""请生成项目洞察报告的【项目快照】章节。
 
@@ -164,15 +181,25 @@ INSIGHT_MODULES: list[ModuleSpec] = [
                       kb_query_hint="变更控制 范围变化 需求新增", required=True),
             FieldSpec("budget", "预算执行", "table",
                       ["brief", "conversation"], "ask_user",
-                      user_question="预算消耗比例?是否有超支风险?"),
+                      user_question="预算消耗比例?是否有超支风险?",
+                      options=["< 30% 已用,正常", "30-60% 已用,正常",
+                               "60-90% 已用,关注", "> 90% 已用,超支风险",
+                               "已超支"]),
             FieldSpec("quality", "质量(缺陷/UAT)", "table",
                       ["kb_search", "conversation"], "kb_search",
                       kb_query_hint="UAT 缺陷 测试报告 bug"),
             FieldSpec("team", "团队稳定", "table",
                       ["conversation"], "ask_user",
-                      user_question="团队稳定性 / 关键人离场 / 客户配合度?"),
-            FieldSpec("risk", "风险整体", "table",
-                      ["brief", "conversation"], "downgrade", required=True),
+                      user_question="团队稳定性 / 关键人离场 / 客户配合度?",
+                      options=["双方稳定,配合好", "我方稳定,客户配合一般",
+                               "我方稳定,客户配合差", "我方关键人离场",
+                               "客户关键人离场", "双方都有变动"]),
+            FieldSpec("risk", "风险整体 RAG", "text",
+                      ["brief", "conversation"], "ask_user", required=True,
+                      user_question="项目风险整体评估?",
+                      options=["红 - 高风险,需立即介入",
+                               "黄 - 中风险,需关注",
+                               "绿 - 低风险,正常推进"]),
         ],
         prompt_template="""请生成项目洞察报告的【健康度雷达】章节。
 
@@ -212,7 +239,10 @@ RAG 用 红/黄/绿 三档(不要 emoji)。
                       user_question="各关键角色态度?(积极/观望/阻力)"),
             FieldSpec("decision_chain", "决策链层级", "text",
                       ["conversation", "brief"], "ask_user",
-                      user_question="重大决策走几层?(直线 / 委员会 / 集团-子公司)"),
+                      user_question="重大决策走几层?(直线 / 委员会 / 集团-子公司)",
+                      options=["单一负责人直线决策", "部门内部委员会",
+                               "跨部门联合委员会", "集团-子公司两层",
+                               "集团-事业部-子公司三层", "需董事会 / 国资委审批"]),
         ],
         prompt_template="""请生成项目洞察报告的【干系人画像】章节。
 
@@ -283,7 +313,8 @@ RAG 用 红/黄/绿 三档(不要 emoji)。
         fields=[
             FieldSpec("findings_pool", "候选发现池", "list",
                       ["conversation", "brief", "kb_search"], "downgrade",
-                      kb_query_hint="风险 问题 痛点 卡点", required=True),
+                      kb_query_hint="风险 问题 痛点 卡点",
+                      description="主要从访谈/refs 中由 LLM 提炼;若没有,模块会写信息不足"),
         ],
         prompt_template="""请生成项目洞察报告的【关键发现】章节。
 
@@ -318,7 +349,13 @@ RAG 用 红/黄/绿 三档(不要 emoji)。
         fields=[
             FieldSpec("risks", "Top 风险", "list",
                       ["brief", "conversation"], "ask_user",
-                      user_question="目前最担心的 3-5 个风险是什么?", required=True),
+                      user_question="目前最担心的 3-5 个风险是什么?", required=True,
+                      multi=True,
+                      options=["范围蔓延 / 镀金", "推广阻力 / 采纳率低",
+                               "数据迁移质量", "集成复杂度(ERP/MES/PLM)",
+                               "时间压力 / 上线延期", "预算超支",
+                               "关键人离场", "客户内部协调失败",
+                               "需求变更频繁", "性能 / 稳定性"]),
             FieldSpec("issues_open", "已发生的待解决议题", "list",
                       ["conversation", "kb_search"], "kb_search",
                       kb_query_hint="问题 议题 待解决"),
@@ -418,7 +455,8 @@ RAG 用 红/黄/绿 三档(不要 emoji)。
         purpose="分级建议:本周 / 本月 / 季度,每条 Owner + deadline + 预期产出",
         fields=[
             FieldSpec("quick_wins_2w", "Quick Win(2 周内)", "list",
-                      ["conversation", "brief"], "downgrade", required=True),
+                      ["conversation", "brief"], "downgrade",
+                      description="主要从访谈/brief 提取;若没有,模块会写'待补访'"),
             FieldSpec("this_month", "本月行动", "list",
                       ["conversation", "brief"], "downgrade"),
             FieldSpec("strategic_q", "季度战略", "list",

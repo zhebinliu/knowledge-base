@@ -97,6 +97,7 @@ def _bundle_dto(b: CuratedBundle) -> dict:
         "validity_status": extra.get("validity_status"),
         "ask_user_prompts": extra.get("ask_user_prompts") or [],
         "module_states": extra.get("module_states") or {},
+        "short_circuited": bool(extra.get("short_circuited")),
     }
 
 

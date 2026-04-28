@@ -110,6 +110,93 @@ def _ts() -> str:
     return datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
 
 
+# ── 共享:信息不足拦截器(insight / outline 共用)─────────────────────────────
+
+async def _short_circuit_invalid(
+    *, bundle_id: str, project_id: str, kind_label: str,
+    ctx: dict, plan, run_history: list[dict],
+) -> None:
+    """关键模块信息不足时调用。不跑 Executor / Critic,直接写 invalid bundle + 问卷。
+
+    bundle.extra:
+      - validity_status='invalid'
+      - short_circuited=True
+      - ask_user_prompts: 含 options / multi / field_label / module_title 的完整 dto
+      - module_states: 各模块的 planner_status(blocked / skipped / ready 但本次未运行)
+    """
+    # ask_user prompts(从 plan.gap_actions 过滤出来,带 options)
+    ask_user_prompts = [g.to_dict() for g in plan.gap_actions if g.action == "ask_user"]
+    # 按 module 分组(给前端用)
+    by_module: dict[str, list[dict]] = {}
+    for p in ask_user_prompts:
+        by_module.setdefault(p["module_key"], []).append(p)
+
+    # module_states:全部模块都没跑,blocked 模块标 blocked,其他标 not_run
+    module_states: dict[str, dict] = {}
+    for assess in plan.modules:
+        if assess.status == "skipped":
+            mod_status = "skipped"
+        elif assess.status == "blocked":
+            mod_status = "blocked"
+        else:
+            mod_status = "not_run"
+        module_states[assess.key] = {
+            "key": assess.key,
+            "title": assess.title,
+            "necessity": assess.necessity,
+            "status": mod_status,
+            "planner_status": assess.status,
+            "score": None,
+            "missing_fields": [
+                {"key": fk, "label": fs.label, "note": fs.note}
+                for fk, fs in assess.fields.items() if fs.status == "missing"
+            ],
+            "reason": assess.reason,
+        }
+
+    blocked = [ms for ms in module_states.values()
+               if ms["necessity"] == "critical" and ms["status"] == "blocked"]
+
+    # 简短的 markdown(不烧 LLM token,只占位)
+    proj = ctx["project"]
+    title_main = proj.name if proj else (ctx["industry"] or "—")
+    md = (
+        f"# {title_main} · {kind_label} v2 (agentic)\n\n"
+        f"**生成日期**:{date.today().strftime('%Y年%m月%d日')}  \n"
+        f"**Validity**:invalid · **拦截**(未跑 LLM)\n\n"
+        f"---\n\n"
+        f"> ⚠️ **本次未生成 — 关键信息不足**\n>\n"
+        f"> 系统检测到 **{len(blocked)}** 个关键模块缺少必要信息,为避免输出无依据的洞察 / 浪费算力,\n"
+        f"> 直接拦截了本次生成。**请在下方问卷里补充信息后重新生成。**\n\n"
+        f"### 信息不足的关键模块\n\n"
+    )
+    for ms in blocked:
+        missing = ", ".join(f["label"] for f in ms["missing_fields"]) or ms["reason"]
+        md += f"- **{ms['title']}**:{missing}\n"
+    md += (
+        f"\n### 待补充的问题清单\n\n"
+        f"共 **{len(ask_user_prompts)}** 个问题,在前端「补充信息」面板里逐题作答(大部分有选项,1-3 分钟搞定)。\n"
+    )
+
+    new_extra = dict(ctx["bundle_extra"])
+    new_extra.update({
+        "validity_status": "invalid",
+        "short_circuited": True,
+        "module_states": module_states,
+        "ask_user_prompts": ask_user_prompts,
+        "ask_user_by_module": by_module,
+        "run_history": run_history + [{"phase": "short_circuit", "ts": _ts(),
+                                       "detail": {"reason": "sufficient_critical=False",
+                                                  "blocked_n": len(blocked),
+                                                  "ask_user_n": len(ask_user_prompts)}}],
+        "agentic_version": "v2",
+    })
+    await _mark(bundle_id, "done", content_md=md, file_key=None, extra=new_extra)
+    await _mark_conv(bundle_id, "done")
+    logger.info("v2_short_circuited", bundle_id=bundle_id, kind=kind_label,
+                blocked_n=len(blocked), ask_user_n=len(ask_user_prompts))
+
+
 # ── Insight v2 入口 ────────────────────────────────────────────────────────────
 
 async def generate_insight_v2(bundle_id: str, project_id: str):
@@ -149,6 +236,14 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
                 "sufficient_critical": plan.sufficient_critical,
             },
         })
+
+        # ── 拦截:关键模块信息不足 → 不跑 Executor / Critic,直接出问卷 ──
+        if not plan.sufficient_critical:
+            await _short_circuit_invalid(
+                bundle_id=bundle_id, project_id=project_id, kind_label="项目洞察",
+                ctx=ctx, plan=plan, run_history=run_history,
+            )
+            return
 
         # ── Phase 3: Gap Fill (KB 搜索) ──
         kb_refs = await fill_kb_gaps(plan, project_id=project_id, industry=ctx["industry"])
@@ -582,6 +677,14 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
                 "sufficient_critical": plan.sufficient_critical,
             },
         })
+
+        # ── 拦截:关键模块信息不足 → 不跑 Executor / Critic ──
+        if not plan.sufficient_critical:
+            await _short_circuit_invalid(
+                bundle_id=bundle_id, project_id=project_id, kind_label="调研大纲",
+                ctx=ctx, plan=plan, run_history=run_history,
+            )
+            return
 
         # ── Phase 3: Gap Fill(outline 大多 downgrade,KB 检索极少) ──
         kb_refs = await fill_kb_gaps(plan, project_id=project_id, industry=ctx["industry"])

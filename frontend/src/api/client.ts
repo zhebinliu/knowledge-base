@@ -737,6 +737,20 @@ export const listCallLogs = (page = 1, page_size = 50, call_type?: string) =>
 
 // ── Outputs ───────────────────────────────────────────────────────────────────
 
+// v2 agentic 用 — 一道"补充信息"问题(Planner 标记的 ask_user gap)
+export interface V2GapPrompt {
+  module_key: string
+  field_key: string
+  question: string                       // 给用户看的问题
+  field_label: string                    // 字段中文标签
+  field_type: 'text' | 'list' | 'number' | 'date' | string
+  options: string[]                      // 选项 chip;空表示纯开放题
+  multi: boolean                         // options 是否多选
+  required: boolean                      // critical-required 字段
+  module_title: string                   // 字段所属模块的中文标题
+  necessity: 'critical' | 'optional' | string
+}
+
 export interface CuratedBundle {
   id: string
   kind: string
@@ -751,10 +765,11 @@ export interface CuratedBundle {
   created_at: string
   updated_at: string
   content_md?: string
-  // v2 (agentic) 字段(只在 kind ∈ {'insight_v2','survey_v2'} 时有值)
+  // v2 (agentic) 字段(只在 kind ∈ {'insight_v2','survey_v2','survey_outline_v2'} 时有值)
   agentic_version?: 'v2' | null
   validity_status?: 'valid' | 'partial' | 'invalid' | null
-  ask_user_prompts?: { module_key: string; field_key: string; question: string }[]
+  short_circuited?: boolean       // true=Planner 拦截,未跑 LLM
+  ask_user_prompts?: V2GapPrompt[]
   module_states?: Record<string, {
     key: string
     title: string

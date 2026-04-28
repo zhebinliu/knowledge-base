@@ -74,6 +74,14 @@ class GapAction:
     field_key: str
     action: Literal["kb_search", "web_search", "ask_user", "downgrade"]
     detail: str                    # query / question / 说明
+    # 给前端 V2GapFiller 用的元数据(action='ask_user' 时使用)
+    field_label: str = ""          # 字段中文标签
+    field_type: str = "text"       # text / list / number / date(决定怎么序列化提交)
+    options: list = field(default_factory=list)  # 选项 chip 列表;空表示纯开放题
+    multi: bool = False            # 单选 vs 多选(配合 type=list 用)
+    required: bool = False         # 是否 critical 必填(前端高亮)
+    module_title: str = ""         # 模块中文标题(前端分组显示)
+    necessity: str = ""            # critical | optional
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -249,16 +257,23 @@ def _plan_modules_generic(
                     gap_actions.append(GapAction(
                         module_key=module.key, field_key=fs.key,
                         action="kb_search", detail=fs.kb_query_hint or fs.label,
+                        field_label=fs.label, field_type=fs.type,
+                        required=fs.required, module_title=module.title, necessity=module.necessity,
                     ))
                 elif fs.gap_action == "web_search":
                     gap_actions.append(GapAction(
                         module_key=module.key, field_key=fs.key,
                         action="web_search", detail=fs.kb_query_hint or fs.label,
+                        field_label=fs.label, field_type=fs.type,
+                        required=fs.required, module_title=module.title, necessity=module.necessity,
                     ))
                 elif fs.gap_action == "ask_user":
                     gap_actions.append(GapAction(
                         module_key=module.key, field_key=fs.key,
                         action="ask_user", detail=fs.user_question or fs.label,
+                        field_label=fs.label, field_type=fs.type,
+                        options=list(fs.options), multi=fs.multi,
+                        required=fs.required, module_title=module.title, necessity=module.necessity,
                     ))
                     if fs.required:
                         any_required_missing = True

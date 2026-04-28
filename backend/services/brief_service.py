@@ -78,10 +78,10 @@ BRIEF_SCHEMAS: dict[str, list[dict]] = {
         {"key": "daily_drivers",      "label": "日常推进人",          "hint": "客户方IT/业务的核心推进人",                       "group": "M4 干系人", "type": "list", "required": False},
         {"key": "decision_chain",     "label": "决策链层级",          "hint": "重大决策走几层(直线/委员会/集团-子公司)",          "group": "M4 干系人", "type": "text", "required": False},
         # M7 RAID
-        {"key": "risks_top",          "label": "Top 风险(3-5 条)",    "hint": "风险/影响/可能性/应对/Owner",                     "group": "M7 RAID", "type": "list", "required": True},
+        {"key": "risks",              "label": "Top 风险(3-5 条)",    "hint": "风险/影响/可能性/应对/Owner",                     "group": "M7 RAID", "type": "list", "required": True},
         {"key": "decisions_pending",  "label": "待决策事项",          "hint": "事项/选项/截止时间/拍板人",                       "group": "M7 RAID", "type": "list", "required": False},
         # M8 里程碑
-        {"key": "key_milestones",     "label": "关键里程碑",          "hint": "UAT / 上线 / 验收日期",                            "group": "M8 里程碑", "type": "list", "required": False},
+        {"key": "milestones",         "label": "关键里程碑",          "hint": "UAT / 上线 / 验收日期",                            "group": "M8 里程碑", "type": "list", "required": False},
         # M10 下一步
         {"key": "quick_wins_2w",      "label": "Quick Win(2周内)",    "hint": "2周内可见效的 3-4 条动作,含 Owner+deadline",       "group": "M10 下一步", "type": "list", "required": False},
     ],
