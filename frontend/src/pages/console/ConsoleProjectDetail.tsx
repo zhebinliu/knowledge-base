@@ -5,6 +5,7 @@ import {
   ArrowLeft, FileText, ClipboardList, Lightbulb, MessageSquare, Sparkles,
   CheckCircle2, Loader2, Lock, Download, ExternalLink,
   Save, X, Wand2, AlertCircle, Pencil, Home, Files, Search,
+  Bot, ShieldAlert,
 } from 'lucide-react'
 import {
   getProject, updateProject, generateCustomerProfile, generateOutput,
@@ -17,7 +18,7 @@ import BriefDrawer from '../../components/BriefDrawer'
 import MarkdownView from '../../components/MarkdownView'
 import QA from '../QA'
 
-const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight']
+const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'insight_v2', 'survey_v2']
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -27,17 +28,21 @@ interface StageDef {
   kind: OutputKind | null
   icon: typeof FileText
   active: boolean
+  beta?: boolean                      // v2 / agentic 标记
 }
 
 const STAGES: StageDef[] = [
-  { key: 'insight',       label: '项目洞察',   kind: 'insight',      icon: Lightbulb,     active: true },
-  { key: 'kickoff',       label: '启动会·PPT', kind: 'kickoff_pptx', icon: FileText,      active: true },
-  { key: 'kickoff_html',  label: '启动会·HTML', kind: 'kickoff_html', icon: FileText,     active: true },
-  { key: 'survey',        label: '需求调研',   kind: 'survey',       icon: ClipboardList, active: true },
-  { key: 'design',     label: '方案设计', kind: null,           icon: FileText,      active: false },
-  { key: 'implement',  label: '项目实施', kind: null,           icon: FileText,      active: false },
-  { key: 'test',       label: '上线测试', kind: null,           icon: FileText,      active: false },
-  { key: 'acceptance', label: '项目验收', kind: null,           icon: FileText,      active: false },
+  { key: 'insight',       label: '项目洞察',          kind: 'insight',      icon: Lightbulb,     active: true },
+  { key: 'kickoff',       label: '启动会·PPT',        kind: 'kickoff_pptx', icon: FileText,      active: true },
+  { key: 'kickoff_html',  label: '启动会·HTML',       kind: 'kickoff_html', icon: FileText,      active: true },
+  { key: 'survey',        label: '需求调研',          kind: 'survey',       icon: ClipboardList, active: true },
+  // v2 (agentic) — 旁路验证版本
+  { key: 'insight_v2',    label: '项目洞察 v2 (β)',   kind: 'insight_v2',   icon: Bot,           active: true, beta: true },
+  { key: 'survey_v2',     label: '需求调研 v2 (β)',   kind: 'survey_v2',    icon: Bot,           active: true, beta: true },
+  { key: 'design',        label: '方案设计',          kind: null,           icon: FileText,      active: false },
+  { key: 'implement',     label: '项目实施',          kind: null,           icon: FileText,      active: false },
+  { key: 'test',          label: '上线测试',          kind: null,           icon: FileText,      active: false },
+  { key: 'acceptance',    label: '项目验收',          kind: null,           icon: FileText,      active: false },
 ]
 
 type ChatMode = { type: 'pm' } | { type: 'output'; kind: OutputKind; label: string }
@@ -293,6 +298,11 @@ export default function ConsoleProjectDetail() {
         </div>
       </div>
 
+      {/* v2 validity banner —— 仅 agentic 产物且 validity != valid 时显示 */}
+      {activeBundle?.agentic_version === 'v2' && activeBundle.validity_status && activeBundle.validity_status !== 'valid' && (
+        <V2ValidityBanner bundle={activeBundle} onReGenerate={startGeneration} />
+      )}
+
       {/* 主区：对话独占 */}
       <div className="flex-1 min-h-0 flex flex-col bg-white">
         <ChatTabs
@@ -350,6 +360,56 @@ export default function ConsoleProjectDetail() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+
+function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onReGenerate: () => void }) {
+  const isInvalid = bundle.validity_status === 'invalid'
+  const askPrompts = bundle.ask_user_prompts || []
+  const moduleStates = bundle.module_states || {}
+  const insufficient = Object.values(moduleStates).filter(m =>
+    m && (m.status === 'blocked' || m.status === 'insufficient')
+  )
+  const bg = isInvalid ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
+  const text = isInvalid ? 'text-red-700' : 'text-amber-700'
+  const label = isInvalid ? '信息不足 · invalid' : '部分通过 · partial'
+
+  return (
+    <div className={`flex-shrink-0 px-3 sm:px-4 py-2.5 border-b ${bg}`}>
+      <div className="flex items-start gap-2">
+        <ShieldAlert size={14} className={`${text} mt-0.5 shrink-0`} />
+        <div className="min-w-0 flex-1">
+          <div className={`text-xs font-semibold ${text}`}>
+            {label}{isInvalid && ' — 本份产物缺少关键信息,建议补充后重新生成'}
+          </div>
+          {insufficient.length > 0 && (
+            <div className="mt-1 text-[11px] text-ink-secondary">
+              <span className="font-medium">未完成关键模块:</span>{' '}
+              {insufficient.map(m => m!.title).join(', ')}
+            </div>
+          )}
+          {askPrompts.length > 0 && (
+            <details className="mt-1.5">
+              <summary className={`text-[11px] cursor-pointer ${text} font-medium`}>
+                需要补充的信息({askPrompts.length} 项)
+              </summary>
+              <ul className="mt-1.5 space-y-0.5 text-[11px] text-ink-secondary list-disc list-inside">
+                {askPrompts.slice(0, 8).map((p, i) => <li key={i}>{p.question}</li>)}
+              </ul>
+            </details>
+          )}
+        </div>
+        <button
+          onClick={onReGenerate}
+          className={`shrink-0 flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-md border ${
+            isInvalid ? 'border-red-300 text-red-700 bg-white hover:bg-red-100'
+                      : 'border-amber-300 text-amber-700 bg-white hover:bg-amber-100'
+          }`}
+        >
+          <Sparkles size={10} /> 补充信息后重新生成
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function ChatTabs({ mode, setMode, docCount, onOpenDocs }: {
   mode: ChatMode; setMode: (m: ChatMode) => void; docCount: number; onOpenDocs: () => void

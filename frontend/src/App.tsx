@@ -5,6 +5,8 @@ import DesignSystem from './pages/DesignSystem'
 import ApiDocs      from './pages/ApiDocs'
 import Help         from './pages/Help'
 import Demo         from './pages/Demo'
+import InsightDemo  from './pages/demo/InsightDemo'
+import SurveyDemo   from './pages/demo/SurveyDemo'
 import Dashboard    from './pages/Dashboard'
 import Documents from './pages/Documents'
 import Chunks    from './pages/Chunks'
@@ -32,7 +34,9 @@ export default function App() {
       <Route path="/ds"       element={<DesignSystem />} />
       <Route path="/api"      element={<ApiDocs />} />
       <Route path="/help"     element={<Help />} />
-      <Route path="/demo"     element={<Demo />} />
+      <Route path="/demo"          element={<Demo />} />
+      <Route path="/demo/insight"  element={<InsightDemo />} />
+      <Route path="/demo/survey"   element={<SurveyDemo />} />
       <Route path="/login"    element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/change-password" element={<RequireAuth />}>

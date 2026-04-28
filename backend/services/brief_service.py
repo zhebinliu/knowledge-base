@@ -59,6 +59,43 @@ BRIEF_SCHEMAS: dict[str, list[dict]] = {
         # 行动
         {"key": "next_actions",       "label": "下一步建议",         "hint": "5–8 条；区分 Quick Win / Strategic；含 Owner+deadline+预期产出", "group": "行动", "type": "list", "required": True},
     ],
+    # ── v2 (agentic) — 旁路验证版本，与 insight/survey 并存 ──
+    # insight_v2: 对齐 INSIGHT_MODULES 中标 source_priority 含 "brief" 的关键字段，
+    # 让 BriefDrawer 可以一次性预抽取，再交给 Planner / Executor 用。
+    "insight_v2": [
+        # M1 执行摘要
+        {"key": "situation",          "label": "项目态势(Situation)", "hint": "一句话:规模/阶段/紧迫度",                        "group": "M1 执行摘要", "type": "text", "required": True},
+        {"key": "complication",       "label": "项目难点(Complication)", "hint": "项目最大的卡点/困难",                          "group": "M1 执行摘要", "type": "text", "required": True},
+        {"key": "top_opportunity",    "label": "最大机会",            "hint": "项目顺利时最大的业务机会",                       "group": "M1 执行摘要", "type": "text", "required": False},
+        {"key": "top_risk",           "label": "最大风险",            "hint": "最担心的一件事",                                 "group": "M1 执行摘要", "type": "text", "required": False},
+        # M2 项目快照
+        {"key": "user_count",         "label": "目标用户数",          "hint": "全员/销售/渠道分别多少",                          "group": "M2 项目快照", "type": "text", "required": True},
+        {"key": "budget_range",       "label": "预算区间",            "hint": "含软件/实施/培训/运维",                            "group": "M2 项目快照", "type": "text", "required": False},
+        {"key": "timeline",           "label": "时间窗",              "hint": "启动→上线→验收的关键日期",                        "group": "M2 项目快照", "type": "text", "required": True},
+        {"key": "current_phase",      "label": "当前阶段",            "hint": "需求/方案/配置/UAT/上线",                         "group": "M2 项目快照", "type": "text", "required": True},
+        # M4 干系人
+        {"key": "decision_makers",    "label": "关键决策人",          "hint": "拍板预算/范围/上线的最高决策人",                  "group": "M4 干系人", "type": "list", "required": True},
+        {"key": "daily_drivers",      "label": "日常推进人",          "hint": "客户方IT/业务的核心推进人",                       "group": "M4 干系人", "type": "list", "required": False},
+        {"key": "decision_chain",     "label": "决策链层级",          "hint": "重大决策走几层(直线/委员会/集团-子公司)",          "group": "M4 干系人", "type": "text", "required": False},
+        # M7 RAID
+        {"key": "risks_top",          "label": "Top 风险(3-5 条)",    "hint": "风险/影响/可能性/应对/Owner",                     "group": "M7 RAID", "type": "list", "required": True},
+        {"key": "decisions_pending",  "label": "待决策事项",          "hint": "事项/选项/截止时间/拍板人",                       "group": "M7 RAID", "type": "list", "required": False},
+        # M8 里程碑
+        {"key": "key_milestones",     "label": "关键里程碑",          "hint": "UAT / 上线 / 验收日期",                            "group": "M8 里程碑", "type": "list", "required": False},
+        # M10 下一步
+        {"key": "quick_wins_2w",      "label": "Quick Win(2周内)",    "hint": "2周内可见效的 3-4 条动作,含 Owner+deadline",       "group": "M10 下一步", "type": "list", "required": False},
+    ],
+    # survey_v2: L1 高管短卷 — 战略+痛点对齐(对齐 L1_EXEC_SUBSECTION must_cover)
+    "survey_v2": [
+        {"key": "strategic_intent",   "label": "战略意图",            "hint": "为什么上 CRM(业务驱动 / 合规 / 数字化转型)",        "group": "L1 战略", "type": "text", "required": True},
+        {"key": "success_metrics",    "label": "成功标准(3 个 SMART)", "hint": "可量化、可验证(例:商机赢率提升 X%)",                "group": "L1 战略", "type": "list", "required": True},
+        {"key": "top_pain_points",    "label": "Top 3 痛点",          "hint": "按优先级排序",                                     "group": "L1 痛点", "type": "list", "required": True},
+        {"key": "decision_chain",     "label": "决策链 / 拍板人",     "hint": "最终决策人+审批层级",                              "group": "L1 治理", "type": "text", "required": True},
+        {"key": "timeline_target",    "label": "时间预期",            "hint": "上线节点 + 是否有刚性截止(年度大会 / 合规)",        "group": "L1 时间", "type": "text", "required": True},
+        {"key": "budget_range",       "label": "预算区间",            "hint": "含软件 / 实施 / 培训 / 运维",                       "group": "L1 资源", "type": "text", "required": False},
+        {"key": "existing_systems",   "label": "现有系统生态",        "hint": "ERP / OA / MES / PLM / 其他 CRM",                   "group": "L1 集成", "type": "list", "required": True},
+        {"key": "channel_complexity", "label": "渠道结构概况",        "hint": "直销/经销商比例 + 是否需要渠道门户",                "group": "L1 渠道", "type": "text", "required": False},
+    ],
 }
 
 
@@ -66,6 +103,15 @@ def get_schema(output_kind: str) -> list[dict]:
     # kickoff_html 与 kickoff_pptx 共用同一份 brief schema（两者输入素材一致，仅渲染形态不同）
     if output_kind == "kickoff_html":
         return BRIEF_SCHEMAS.get("kickoff_pptx", [])
+    return BRIEF_SCHEMAS.get(output_kind, [])
+
+
+def get_v2_paired_schema(output_kind: str) -> list[dict]:
+    """v2 输出辅助: insight_v2 / survey_v2 共用 v2 schema(用于 BriefDrawer 抽取)。
+
+    本期不区分 v2 与原版 schema 的 BriefDrawer 流;直接复用 BRIEF_SCHEMAS 注册即可。
+    保留此函数以便后续做 v1/v2 schema 镜像时统一入口。
+    """
     return BRIEF_SCHEMAS.get(output_kind, [])
 
 

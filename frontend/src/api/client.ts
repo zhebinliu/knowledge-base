@@ -667,7 +667,11 @@ export const updateOutputAgent = (key: string, body: { prompt: string; skill_ids
 
 // ── Output Chats (对话式产出) ───────────────────────────────────────────────
 
-export type OutputKind = 'kickoff_pptx' | 'kickoff_html' | 'survey' | 'insight'
+export type OutputKind =
+  | 'kickoff_pptx' | 'kickoff_html'
+  | 'survey' | 'insight'
+  // v2 (agentic) — 旁路验证版本
+  | 'insight_v2' | 'survey_v2'
 
 export interface OutputChatMessage {
   role: 'user' | 'assistant'
@@ -747,6 +751,27 @@ export interface CuratedBundle {
   created_at: string
   updated_at: string
   content_md?: string
+  // v2 (agentic) 字段(只在 kind ∈ {'insight_v2','survey_v2'} 时有值)
+  agentic_version?: 'v2' | null
+  validity_status?: 'valid' | 'partial' | 'invalid' | null
+  ask_user_prompts?: { module_key: string; field_key: string; question: string }[]
+  module_states?: Record<string, {
+    key: string
+    title: string
+    necessity?: 'critical' | 'optional'
+    layer?: 'L1' | 'L2'
+    target_roles?: string[]
+    status: string                         // ready | done | done_with_warnings | insufficient | blocked | skipped | failed
+    score?: {
+      module_key?: string
+      subsection_key?: string
+      scores?: Record<string, number>
+      overall: 'pass' | 'needs_rework' | 'insufficient'
+      issues?: string[]
+    } | null
+    missing_fields?: { key: string; label: string; note: string }[]
+    reason?: string
+  }>
 }
 
 export interface OutputPage {

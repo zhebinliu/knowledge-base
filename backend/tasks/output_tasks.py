@@ -36,3 +36,17 @@ def generate_survey(self, bundle_id: str, project_id: str):
 def generate_insight(self, bundle_id: str, project_id: str):
     from services.output_service import generate_insight as _gen
     _run(_gen(bundle_id, project_id))
+
+
+# ── v2 (agentic) — 旁路验证 ──────────────────────────────────────────────────
+
+@celery_app.task(name="generate_insight_v2", bind=True, max_retries=2)
+def generate_insight_v2(self, bundle_id: str, project_id: str):
+    from services.agentic.runner import generate_insight_v2 as _gen
+    _run(_gen(bundle_id, project_id))
+
+
+@celery_app.task(name="generate_survey_v2", bind=True, max_retries=2)
+def generate_survey_v2(self, bundle_id: str, project_id: str):
+    from services.agentic.runner import generate_survey_v2 as _gen
+    _run(_gen(bundle_id, project_id))

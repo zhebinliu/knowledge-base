@@ -51,6 +51,72 @@
 
 ---
 
+## 新迭代：项目洞察 + 调研问卷 v2（agentic 旁路重构）（2026-04-28）
+
+### 背景
+现有 `insight` / `survey` 走"一次性 LLM 调用 + 章节硬编码"，质量不稳、信息缺口不可见、无"无效文档"概念。重新设计为**模块化 + 三层 agentic 流程（Plan → Execute → Critic）**，针对智能制造 + 纷享销客场景做差异化。
+
+设计方案完整文档：`/Users/zhebin/.claude/plans/skill-zany-hopcroft.md`
+
+### 关键策略：旁路并存（v2）
+- **新代码不替换旧代码**，新增 kind `insight_v2` / `survey_v2`
+- 新代码集中在 `backend/services/agentic/`（独立目录，不污染顶层 services）
+- 现有 `generate_insight` / `generate_survey` 保留不动
+- 前端在项目详情页新增 2 个 Beta 阶段供切换体验
+- demo 路径加 `/demo/insight` 和 `/demo/survey` 讲解 skill 逻辑
+
+### Phase 1 — 数据层（agentic 包）
+- [x] **1.1** `backend/services/agentic/__init__.py`
+- [x] **1.2** `backend/services/agentic/insight_modules.py` — 10 模块定义（476 行）
+- [x] **1.3** `backend/services/agentic/survey_modules.py` — 7 主题 × 13 子模块 + L1/L2 划分（368 行）
+- [x] **1.4** `backend/services/agentic/industry_packs/{__init__.py,smart_manufacturing.py}` — 行业字段包（注册表 + 智能制造包: 13 字段补丁/10 痛点/3 标杆案例/12 行业种子题）
+- [x] **1.5** `backend/services/brief_service.py` — 加 `insight_v2`(15 字段) / `survey_v2`(8 字段) schema（additive only）
+
+### Phase 2 — Agent 核心
+- [x] **2.1** `backend/services/agentic/planner.py` — 规则化 plan_insight + plan_survey + fill_kb_gaps（491 行）
+- [x] **2.2** `backend/services/agentic/executor.py` — execute_insight_module + execute_survey_subsection（261 行）
+- [x] **2.3** `backend/services/agentic/critic.py` — Sopact rubric + survey-specific rubric（286 行）
+- [x] **2.4** `backend/services/agentic/runner.py` — generate_insight_v2 / generate_survey_v2 完整流程（539 行）
+
+### Phase 3 — 系统接入
+- [x] **3.1** `backend/tasks/output_tasks.py` — 加 Celery 任务 `generate_insight_v2` / `generate_survey_v2`
+- [x] **3.2** `backend/api/outputs.py` — KIND_TO_TASK / KIND_TITLES 加 v2；_bundle_dto 透出 validity_status / ask_user_prompts / module_states
+- [x] **3.3** `backend/api/output_chats.py` — VALID_KINDS / KIND_TITLES 加 v2
+
+### Phase 4 — 前端
+- [x] **4.1** `frontend/src/api/client.ts` — `OutputKind` 加 v2；`CuratedBundle` 类型加 v2 字段（validity_status / module_states / ask_user_prompts / agentic_version）
+- [x] **4.2** `frontend/src/pages/console/ConsoleProjectDetail.tsx` — STAGES 加 2 个 Beta 阶段（Bot 图标）；BRIEF_KINDS 加 v2；新增 V2ValidityBanner 组件
+- [x] **4.3** `frontend/src/pages/demo/InsightDemo.tsx`(282 行) + `SurveyDemo.tsx`(280 行) 讲解页
+- [x] **4.4** `frontend/src/App.tsx` — 加路由 `/demo/insight` + `/demo/survey`
+
+### Phase 5 — 验证 & 部署
+- [x] **5.1** Python 3.11 py_compile 全部通过（13 个改动文件 OK）
+- [x] **5.2** `npx tsc --noEmit -p tsconfig.json` 通过（0 错误）
+- [ ] **5.3** 用友发钢管 / 特变新能源 / 空项目跑 v2，对照 v1 结果（**待生产部署后**）
+- [ ] **5.4** rsync + docker rebuild + 生产环境验证（**等用户拍板**）
+
+### 验收标准
+1. v1（`insight` / `survey`）行为完全不变，前端旧 stage 仍可用
+2. v2 `insight_v2` 跑友发钢管，M5 industry_context 自动激活
+3. v2 空项目跑 → bundle.extra.validity_status='invalid'，前端展示"信息不足"
+4. `/demo/insight` 和 `/demo/survey` 页面可访问且讲清楚流程
+5. backend import 不报错，tsc --noEmit 不报错
+6. 生产环境真实账号能跑 v2，顾问能对比 v1/v2 输出质量
+
+### 简化决策
+- ❌ 不加 alembic migration：`bundle.extra` 已是 JSON
+- ❌ 不建 `insight_runs` 表：历史写到 `bundle.extra.run_history`
+- ❌ 本期不做 .xlsx 多 sheet 输出（保留 markdown + docx）
+- ❌ 本期只做 smart_manufacturing 一个行业包
+
+### 边界
+- 不动 v1 `generate_insight` / `generate_survey` 任何代码
+- 不动 `kickoff_pptx` / `kickoff_html`
+- 不动 model_router / vector_store / brief_service.extract 基础设施
+- AgentConfig 表不动；v2 复用 `output_agent` 配置（按 kind 注入 skill_ids）
+
+---
+
 ## 旧迭代：访谈式产出 + 项目模式自动锁定（2026-04-25）
 
 ### 背景

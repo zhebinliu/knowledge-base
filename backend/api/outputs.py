@@ -51,6 +51,9 @@ KIND_TO_TASK = {
     "kickoff_html": "generate_kickoff_html",
     "survey": "generate_survey",
     "insight": "generate_insight",
+    # v2 (agentic) — 旁路验证
+    "insight_v2": "generate_insight_v2",
+    "survey_v2": "generate_survey_v2",
 }
 
 KIND_TITLES = {
@@ -58,6 +61,8 @@ KIND_TITLES = {
     "kickoff_html": "启动会 PPT（htmlppt）",
     "survey": "调研问卷",
     "insight": "项目洞察报告",
+    "insight_v2": "项目洞察报告 v2 (agentic)",
+    "survey_v2": "调研问卷 v2 (agentic)",
 }
 
 
@@ -85,6 +90,11 @@ def _bundle_dto(b: CuratedBundle) -> dict:
         "has_industry_brief": bool(extra.get("has_industry_brief")),
         "created_at": b.created_at,
         "updated_at": b.updated_at,
+        # v2 (agentic) — 旁路验证字段
+        "agentic_version": extra.get("agentic_version"),
+        "validity_status": extra.get("validity_status"),
+        "ask_user_prompts": extra.get("ask_user_prompts") or [],
+        "module_states": extra.get("module_states") or {},
     }
 
 
@@ -116,12 +126,17 @@ async def generate_output(
     await session.refresh(bundle)
 
     # Fire Celery task
-    from tasks.output_tasks import generate_kickoff_pptx, generate_kickoff_html, generate_survey, generate_insight
+    from tasks.output_tasks import (
+        generate_kickoff_pptx, generate_kickoff_html, generate_survey, generate_insight,
+        generate_insight_v2, generate_survey_v2,
+    )
     task_fn = {
         "kickoff_pptx": generate_kickoff_pptx,
         "kickoff_html": generate_kickoff_html,
         "survey": generate_survey,
         "insight": generate_insight,
+        "insight_v2": generate_insight_v2,
+        "survey_v2": generate_survey_v2,
     }[body.kind]
     task_fn.delay(bundle.id, body.project_id)
 
