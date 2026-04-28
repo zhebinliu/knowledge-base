@@ -438,16 +438,35 @@ function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onR
   const isInvalid = bundle.validity_status === 'invalid'
   const askPrompts = bundle.ask_user_prompts || []
   const moduleStates = bundle.module_states || {}
-  // 区分关键(critical)和非关键(optional)的未完成模块,banner 措辞要准
-  const incompleteCritical = Object.values(moduleStates).filter(m =>
-    m && m.necessity === 'critical' && (m.status === 'blocked' || m.status === 'insufficient')
-  )
-  const incompleteOptional = Object.values(moduleStates).filter(m =>
-    m && m.necessity !== 'critical' && (m.status === 'blocked' || m.status === 'insufficient')
-  )
+  const all = Object.values(moduleStates).filter(Boolean) as NonNullable<typeof moduleStates[string]>[]
+
+  const incompleteCritical = all.filter(m => m.necessity === 'critical' && (m.status === 'blocked' || m.status === 'insufficient' || m.status === 'failed'))
+  const incompleteOptional = all.filter(m => m.necessity !== 'critical' && (m.status === 'blocked' || m.status === 'insufficient' || m.status === 'failed'))
+  const warnCritical = all.filter(m => m.necessity === 'critical' && m.status === 'done_with_warnings')
+  const warnOptional = all.filter(m => m.necessity !== 'critical' && m.status === 'done_with_warnings')
+  const allCriticalDone = all.filter(m => m.necessity === 'critical' && m.status === 'done').length
+  const totalCritical = all.filter(m => m.necessity === 'critical' && m.status !== 'skipped').length
+
   const bg = isInvalid ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
   const text = isInvalid ? 'text-red-700' : 'text-amber-700'
+  const textMuted = isInvalid ? 'text-red-700/80' : 'text-amber-700/80'
   const label = isInvalid ? '信息不足 · invalid' : '部分通过 · partial'
+
+  // 把模块 + critic issues 拼成 hint 行
+  const renderModuleList = (mods: typeof all, cls: string) => mods.map((m, i) => {
+    const issues = m.score?.issues || []
+    return (
+      <li key={i} className={cls}>
+        <span className="font-medium">{m.title}</span>
+        {issues.length > 0 && (
+          <span className="text-ink-muted">{' — '}{issues.slice(0, 2).join('; ')}</span>
+        )}
+      </li>
+    )
+  })
+
+  // 没任何明细可展示的兜底总结
+  const hasAnyDetail = incompleteCritical.length + incompleteOptional.length + warnCritical.length + warnOptional.length + askPrompts.length > 0
 
   return (
     <div className={`flex-shrink-0 px-3 sm:px-4 py-2.5 border-b ${bg}`}>
@@ -455,30 +474,68 @@ function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onR
         <ShieldAlert size={14} className={`${text} mt-0.5 shrink-0`} />
         <div className="min-w-0 flex-1">
           <div className={`text-xs font-semibold ${text}`}>
-            {label}{isInvalid && ' — 本份产物缺少关键信息,建议补充后重新生成'}
+            {label}
+            {isInvalid && ' — 本份产物缺少关键信息,建议补充后重新生成'}
+            {!isInvalid && totalCritical > 0 && (
+              <span className="ml-2 text-[11px] font-normal text-ink-secondary">
+                ({allCriticalDone}/{totalCritical} 关键模块完整通过)
+              </span>
+            )}
           </div>
+
+          {/* 关键模块未完成(blocked / insufficient / failed) */}
           {incompleteCritical.length > 0 && (
             <div className="mt-1 text-[11px] text-ink-secondary">
-              <span className="font-medium">未完成关键模块:</span>{' '}
-              {incompleteCritical.map(m => m!.title).join(', ')}
+              <span className="font-medium">未完成关键模块:</span>
+              <ul className="ml-4 mt-0.5 list-disc">{renderModuleList(incompleteCritical, '')}</ul>
             </div>
           )}
+
+          {/* 关键模块质量不够(done_with_warnings) */}
+          {warnCritical.length > 0 && (
+            <div className="mt-1 text-[11px] text-ink-secondary">
+              <span className="font-medium">关键模块质量待提升:</span>
+              <ul className="ml-4 mt-0.5 list-disc">{renderModuleList(warnCritical, '')}</ul>
+              <div className="ml-4 mt-0.5 text-ink-muted/80">提示:补充更具体的证据 / 量化数据 / Owner 与 deadline,critic 会打更高分</div>
+            </div>
+          )}
+
+          {/* 可选模块未完成 */}
           {incompleteOptional.length > 0 && (
             <div className="mt-1 text-[11px] text-ink-muted">
-              <span className="font-medium">未完成可选模块:</span>{' '}
-              {incompleteOptional.map(m => m!.title).join(', ')}
-              <span className="text-ink-muted/70"> (不影响整体洞察)</span>
+              <span className="font-medium">未完成可选模块:</span>
+              <ul className="ml-4 mt-0.5 list-disc">{renderModuleList(incompleteOptional, '')}</ul>
+              <div className="ml-4 mt-0.5">不影响整体洞察的合格性</div>
             </div>
           )}
+
+          {/* 可选模块质量提示(更弱信号,折叠) */}
+          {warnOptional.length > 0 && (
+            <details className="mt-1">
+              <summary className={`text-[11px] cursor-pointer ${textMuted} font-medium`}>
+                可选模块质量提示({warnOptional.length} 个)
+              </summary>
+              <ul className="ml-4 mt-1 list-disc text-[11px] text-ink-muted">{renderModuleList(warnOptional, '')}</ul>
+            </details>
+          )}
+
+          {/* 待补充字段(ask_user) */}
           {askPrompts.length > 0 && (
             <details className="mt-1.5">
               <summary className={`text-[11px] cursor-pointer ${text} font-medium`}>
-                需要补充的信息({askPrompts.length} 项)
+                需要补充的信息({askPrompts.length} 项 — 点开展开)
               </summary>
               <ul className="mt-1.5 space-y-0.5 text-[11px] text-ink-secondary list-disc list-inside">
                 {askPrompts.slice(0, 8).map((p, i) => <li key={i}>{p.question}</li>)}
               </ul>
             </details>
+          )}
+
+          {/* 兜底:没明细 */}
+          {!hasAnyDetail && (
+            <div className="mt-1 text-[11px] text-ink-muted italic">
+              没有具体的未完成项,可能是 Critic 评分异常或模块状态丢失。建议重新生成。
+            </div>
           )}
         </div>
         <button
@@ -488,7 +545,7 @@ function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onR
                       : 'border-amber-300 text-amber-700 bg-white hover:bg-amber-100'
           }`}
         >
-          <Sparkles size={10} /> 补充信息后重新生成
+          <Sparkles size={10} /> {isInvalid ? '补充信息后重新生成' : '重新生成'}
         </button>
       </div>
     </div>
