@@ -18,17 +18,22 @@ import BriefDrawer from '../../components/BriefDrawer'
 import MarkdownView from '../../components/MarkdownView'
 import QA from '../QA'
 
-const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'insight_v2', 'survey_v2']
+const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'insight_v2', 'survey_v2', 'survey_outline_v2']
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
+interface SubKindDef {
+  kind: OutputKind
+  label: string
+}
 interface StageDef {
   key: string
   label: string
-  kind: OutputKind | null
+  kind: OutputKind | null               // 单一 kind(没有 subKinds 时使用)
   icon: typeof FileText
   active: boolean
-  beta?: boolean                      // v2 / agentic 标记
+  beta?: boolean                        // v2 / agentic 标记
+  subKinds?: SubKindDef[]               // 可选:本 stage 下有多个产物(在 action strip 显示按钮组)
 }
 
 const STAGES: StageDef[] = [
@@ -38,7 +43,13 @@ const STAGES: StageDef[] = [
   { key: 'survey',        label: '需求调研',          kind: 'survey',       icon: ClipboardList, active: true },
   // v2 (agentic) — 旁路验证版本
   { key: 'insight_v2',    label: '项目洞察 v2 (β)',   kind: 'insight_v2',   icon: Bot,           active: true, beta: true },
-  { key: 'survey_v2',     label: '需求调研 v2 (β)',   kind: 'survey_v2',    icon: Bot,           active: true, beta: true },
+  // 「需求调研 v2」 stage 下两个按钮:大纲 / 问卷(各自独立 brief / bundle / 状态)
+  { key: 'survey_v2',     label: '需求调研 v2 (β)',   kind: null,           icon: Bot,           active: true, beta: true,
+    subKinds: [
+      { kind: 'survey_outline_v2', label: '调研大纲' },
+      { kind: 'survey_v2',         label: '调研问卷' },
+    ],
+  },
   { key: 'design',        label: '方案设计',          kind: null,           icon: FileText,      active: false },
   { key: 'implement',     label: '项目实施',          kind: null,           icon: FileText,      active: false },
   { key: 'test',          label: '上线测试',          kind: null,           icon: FileText,      active: false },
@@ -59,6 +70,8 @@ export default function ConsoleProjectDetail() {
   const [activeStageKey, setActiveStageKey] = useState<string>('insight')
   const [docsOpen, setDocsOpen] = useState(false)
   const [briefDrawer, setBriefDrawer] = useState<{ kind: OutputKind; label: string } | null>(null)
+  // 当 active stage 有 subKinds 时,记当前选中的 sub-action(默认第一个)
+  const [selectedSubKind, setSelectedSubKind] = useState<OutputKind | null>(null)
 
   const { data: project, isLoading } = useQuery({
     queryKey: ['project', id], queryFn: () => getProject(id!), enabled: !!id,
@@ -86,15 +99,27 @@ export default function ConsoleProjectDetail() {
   const inflightByKind = (kind: OutputKind) => bundles.find(b => b.kind === kind && (b.status === 'pending' || b.status === 'generating'))
 
   const stageStatus = (s: StageDef): StageStatus => {
-    if (!s.active || !s.kind) return 'locked'
-    if (bundleByKind(s.kind)) return 'done'
-    if (inflightByKind(s.kind)) return 'inflight'
+    if (!s.active) return 'locked'
+    const kindsToCheck: OutputKind[] = s.subKinds ? s.subKinds.map(sk => sk.kind) : (s.kind ? [s.kind] : [])
+    if (kindsToCheck.length === 0) return 'locked'
+    // subKinds 时:任一 done → done;任一 inflight → inflight
+    if (kindsToCheck.some(k => bundleByKind(k))) return 'done'
+    if (kindsToCheck.some(k => inflightByKind(k))) return 'inflight'
     return 'idle'
   }
 
   const activeStage = STAGES.find(s => s.key === activeStageKey) ?? STAGES[0]
-  const activeBundle = activeStage.kind ? bundleByKind(activeStage.kind) : undefined
-  const activeInflight = activeStage.kind ? inflightByKind(activeStage.kind) : undefined
+  // 当 stage 有 subKinds,activeKind 取 selectedSubKind ?? 第一个 sub
+  const activeKind: OutputKind | null = activeStage.subKinds
+    ? (selectedSubKind && activeStage.subKinds.some(sk => sk.kind === selectedSubKind)
+        ? selectedSubKind
+        : activeStage.subKinds[0].kind)
+    : activeStage.kind
+  const activeKindLabel = activeStage.subKinds
+    ? (activeStage.subKinds.find(sk => sk.kind === activeKind)?.label || activeStage.label)
+    : activeStage.label
+  const activeBundle = activeKind ? bundleByKind(activeKind) : undefined
+  const activeInflight = activeKind ? inflightByKind(activeKind) : undefined
 
   const industryLabel = (val: string | null) => {
     if (!val) return null
@@ -102,22 +127,22 @@ export default function ConsoleProjectDetail() {
   }
 
   const startGeneration = () => {
-    if (!activeStage.active || !activeStage.kind) return
-    if (BRIEF_KINDS.includes(activeStage.kind)) {
-      setBriefDrawer({ kind: activeStage.kind, label: activeStage.label })
+    if (!activeStage.active || !activeKind) return
+    if (BRIEF_KINDS.includes(activeKind)) {
+      setBriefDrawer({ kind: activeKind, label: activeKindLabel })
     } else {
-      setChatMode({ type: 'output', kind: activeStage.kind, label: activeStage.label })
+      setChatMode({ type: 'output', kind: activeKind, label: activeKindLabel })
     }
   }
 
   const openBriefForActive = () => {
-    if (!activeStage.kind || !BRIEF_KINDS.includes(activeStage.kind)) return
-    setBriefDrawer({ kind: activeStage.kind, label: activeStage.label })
+    if (!activeKind || !BRIEF_KINDS.includes(activeKind)) return
+    setBriefDrawer({ kind: activeKind, label: activeKindLabel })
   }
 
   const startChatFallback = () => {
-    if (!activeStage.active || !activeStage.kind) return
-    setChatMode({ type: 'output', kind: activeStage.kind, label: activeStage.label })
+    if (!activeStage.active || !activeKind) return
+    setChatMode({ type: 'output', kind: activeKind, label: activeKindLabel })
   }
 
   const handleBriefGenerate = async () => {
@@ -234,17 +259,46 @@ export default function ConsoleProjectDetail() {
         </div>
       </div>
 
+      {/* 当 stage 有 subKinds — 显示按钮组(大纲 / 问卷) */}
+      {activeStage.subKinds && (
+        <div className="flex-shrink-0 px-3 pt-2 pb-1 bg-white border-b border-line flex items-center gap-1">
+          <span className="text-[11px] text-ink-muted mr-1">本阶段产物:</span>
+          {activeStage.subKinds.map(sk => {
+            const has = !!bundleByKind(sk.kind)
+            const inflight = !!inflightByKind(sk.kind)
+            const selected = activeKind === sk.kind
+            return (
+              <button
+                key={sk.kind}
+                onClick={() => setSelectedSubKind(sk.kind)}
+                className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border transition-colors ${
+                  selected
+                    ? 'border-[#D96400] bg-orange-50 text-[#D96400] font-semibold'
+                    : 'border-line text-ink-secondary hover:bg-canvas'
+                }`}
+                title={sk.label}
+              >
+                {has ? <CheckCircle2 size={10} className="text-emerald-600" /> :
+                 inflight ? <Loader2 size={10} className="animate-spin text-blue-500" /> :
+                 <span className="w-2 h-2 rounded-full bg-slate-300" />}
+                {sk.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {/* 当前阶段 action — 与上方阶段栏共享白底 */}
       <div className="flex-shrink-0 px-2 sm:px-3 pt-2 pb-2.5 bg-white border-b border-line flex items-center gap-2">
         <span className="text-[11px] text-ink-muted truncate">
           {!activeStage.active ? '该阶段即将上线' :
-           activeInflight && activeBundle ? '已有交付物 · 正在重新生成…' :
-           activeBundle ? '已生成交付物' :
-           activeInflight ? '正在生成中…' :
-           '尚未生成'}
+           activeInflight && activeBundle ? `${activeKindLabel} · 已有交付物 · 正在重新生成…` :
+           activeBundle ? `${activeKindLabel} · 已生成交付物` :
+           activeInflight ? `${activeKindLabel} · 正在生成中…` :
+           `${activeKindLabel} · 尚未生成`}
         </span>
         <div className="flex items-center gap-1.5 ml-auto shrink-0">
-          {activeStage.active && activeStage.kind && BRIEF_KINDS.includes(activeStage.kind) && !activeInflight && (
+          {activeStage.active && activeKind && BRIEF_KINDS.includes(activeKind) && !activeInflight && (
             <button
               onClick={openBriefForActive}
               className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md text-ink-secondary hover:bg-white hover:text-ink"
@@ -276,7 +330,7 @@ export default function ConsoleProjectDetail() {
             </span>
           ) : activeStage.active ? (
             <>
-              {activeStage.kind && BRIEF_KINDS.includes(activeStage.kind) && (
+              {activeKind && BRIEF_KINDS.includes(activeKind) && (
                 <button
                   onClick={startChatFallback}
                   className="hidden sm:flex items-center gap-1 px-2.5 py-1 text-xs rounded-md text-ink-secondary hover:bg-white hover:text-ink"
@@ -291,7 +345,7 @@ export default function ConsoleProjectDetail() {
                 style={{ background: BRAND_GRAD }}
               >
                 <Sparkles size={11} />
-                {activeStage.kind && BRIEF_KINDS.includes(activeStage.kind) ? '填写 Brief 并生成' : '开始生成'}
+                {activeKind && BRIEF_KINDS.includes(activeKind) ? '填写 Brief 并生成' : '开始生成'}
               </button>
             </>
           ) : null}

@@ -537,3 +537,253 @@ async def generate_survey_v2(bundle_id: str, project_id: str):
         except Exception as e2:
             logger.error("survey_v2_failed_writeback_failed", error=str(e2)[:200])
         await _mark_conv(bundle_id, "failed")
+
+
+# ── Outline v2 入口(survey_outline_v2)─────────────────────────────────────────
+
+async def generate_outline_v2(bundle_id: str, project_id: str):
+    """调研大纲 v2 入口 — 与 insight_v2 同结构,只换模块清单。
+
+    7 个模块 (M1-M7),核心是 M3 调研日程表(9 列表格)。
+    行业差异化通过 industry_pack.default_sessions / must_visit_departments / typical_customer_materials 注入。
+    """
+    from .outline_modules import OUTLINE_MODULES, get_outline_module
+    from .industry_packs import get_pack
+
+    run_history: list[dict] = []
+    try:
+        await _mark(bundle_id, "generating")
+        run_history.append({"phase": "started", "ts": _ts()})
+
+        # ── Phase 1: ctx ──
+        ctx = await _load_ctx(bundle_id, project_id, "survey_outline_v2")
+        run_history.append({
+            "phase": "ctx_loaded", "ts": _ts(),
+            "detail": {
+                "industry": ctx["industry"],
+                "transcript_len": len(ctx["transcript"]),
+                "brief_fields_n": len(ctx["brief_fields"]),
+            },
+        })
+
+        # ── Phase 2: Planner(outline 7 个模块全部激活) ──
+        from .planner import plan_outline, fill_kb_gaps
+        plan = plan_outline(
+            project=ctx["project"], industry=ctx["industry"],
+            brief_fields=ctx["brief_fields"],
+            has_conversation=bool(ctx["transcript"]) and ctx["transcript"] != "(没有可用的访谈记录)",
+        )
+        run_history.append({
+            "phase": "planned", "ts": _ts(),
+            "detail": {
+                "ready": [m.key for m in plan.modules if m.status == "ready"],
+                "blocked": [m.key for m in plan.modules if m.status == "blocked"],
+                "gaps_n": len(plan.gap_actions),
+                "sufficient_critical": plan.sufficient_critical,
+            },
+        })
+
+        # ── Phase 3: Gap Fill(outline 大多 downgrade,KB 检索极少) ──
+        kb_refs = await fill_kb_gaps(plan, project_id=project_id, industry=ctx["industry"])
+
+        # ── Phase 4: Executor(并行) ──
+        ready_modules = [m for m in plan.modules if m.status == "ready"]
+        ready_pairs = []
+        for spec in OUTLINE_MODULES:
+            for assess in ready_modules:
+                if assess.key == spec.key:
+                    ready_pairs.append((spec, assess))
+                    break
+
+        # 给 executor 注入行业包的"必访部门 + 默认 sessions + 客户材料模板"
+        # 我们把这些作为 agent_prompt 的"行业上下文"补丁,Executor 会渲染到 evidence_block
+        pack = get_pack(ctx["industry"])
+        industry_outline_brief = ""
+        if pack and (pack.must_visit_departments or pack.default_sessions or pack.typical_customer_materials):
+            parts = [f"### 行业大纲补丁:{pack.display_name}"]
+            if pack.must_visit_departments:
+                parts.append("**典型必访部门(若 brief.in_scope_departments 没列全,优先补充以下):**")
+                parts.extend(f"- {d}" for d in pack.must_visit_departments)
+            if pack.default_sessions:
+                parts.append("\n**行业典型 sessions(给 M3 日程表参考,挑相关的纳入):**")
+                for s in pack.default_sessions[:14]:
+                    parts.append(f"- 议题:{s['topic']} · 方法:{s['method']} · 对象:{s['target']} · 时长:{s['duration']}")
+            if pack.typical_customer_materials:
+                parts.append("\n**行业典型客户准备材料(给 M4 清单参考):**")
+                for cat in pack.typical_customer_materials:
+                    parts.append(f"- {cat['category']}:{', '.join(cat['items'])}")
+            industry_outline_brief = "\n".join(parts)
+
+        # 拼接到原 agent_prompt 后面(如果 brief 字段也含,LLM 会 cross-check)
+        enhanced_agent_prompt = (ctx["agent_prompt"] or "")
+        if industry_outline_brief:
+            enhanced_agent_prompt = (enhanced_agent_prompt + "\n\n" if enhanced_agent_prompt else "") + industry_outline_brief
+
+        async def _run_one(spec, assess):
+            from .executor import execute_insight_module  # 模块化报告流程通用
+            content = await execute_insight_module(
+                module=spec, assessment=assess,
+                project=ctx["project"], industry=ctx["industry"],
+                transcript=ctx["transcript"], refs=ctx["refs_raw"],
+                extra_kb_refs=kb_refs,
+                skill_text=ctx["skill_text"], agent_prompt=enhanced_agent_prompt,
+                model=ctx["agent_model"],
+            )
+            return spec.key, content
+
+        results = await asyncio.gather(*(_run_one(s, a) for s, a in ready_pairs), return_exceptions=True)
+        module_contents: dict[str, str] = {}
+        for r in results:
+            if isinstance(r, Exception):
+                logger.warning("outline_executor_exception", error=str(r)[:200])
+                continue
+            mk, content = r
+            module_contents[mk] = content
+        run_history.append({
+            "phase": "executed", "ts": _ts(),
+            "detail": {"completed": list(module_contents.keys())},
+        })
+
+        # ── Phase 5: Critic(复用 critique_modules) ──
+        from .critic import critique_modules
+        scores = await critique_modules(list(module_contents.items()), model=ctx["agent_model"])
+        run_history.append({
+            "phase": "critiqued", "ts": _ts(),
+            "detail": {mk: s.overall for mk, s in scores.items()},
+        })
+
+        # ── Phase 6: 组装 + Validity ──
+        module_states: dict[str, dict] = {}
+        for assess in plan.modules:
+            score = scores.get(assess.key)
+            mod_status = assess.status
+            if assess.status == "ready" and assess.key in module_contents:
+                if score:
+                    if score.overall == "pass":
+                        mod_status = "done"
+                    elif score.overall == "needs_rework":
+                        mod_status = "done_with_warnings"
+                    elif score.overall == "insufficient":
+                        mod_status = "insufficient"
+                else:
+                    mod_status = "done"
+            module_states[assess.key] = {
+                "key": assess.key,
+                "title": assess.title,
+                "necessity": assess.necessity,
+                "status": mod_status,
+                "planner_status": assess.status,
+                "score": score.to_dict() if score else None,
+                "missing_fields": [
+                    {"key": fk, "label": fs.label, "note": fs.note}
+                    for fk, fs in assess.fields.items() if fs.status == "missing"
+                ],
+                "reason": assess.reason,
+            }
+
+        critical_states = [
+            ms for ms in module_states.values()
+            if ms["necessity"] == "critical" and ms["status"] != "skipped"
+        ]
+        critical_bad = [ms for ms in critical_states
+                        if ms["status"] in ("blocked", "insufficient") or ms["planner_status"] == "blocked"]
+        critical_warn = [ms for ms in critical_states if ms["status"] == "done_with_warnings"]
+        if critical_bad:
+            validity_status = "invalid"
+        elif critical_warn:
+            validity_status = "partial"
+        else:
+            validity_status = "valid"
+
+        ask_user_prompts = [
+            {"module_key": g.module_key, "field_key": g.field_key, "question": g.detail}
+            for g in plan.gap_actions if g.action == "ask_user"
+        ]
+
+        # 拼装 markdown
+        proj = ctx["project"]
+        title_main = proj.name if proj else (ctx["industry"] or "—")
+        md_blocks = [f"# {title_main} · 调研大纲 v2 (agentic)\n"]
+        md_blocks.append(f"**生成日期**:{date.today().strftime('%Y年%m月%d日')}  ")
+        md_blocks.append(f"**客户**:{(proj.customer if proj else '—') or '—'}  ")
+        md_blocks.append(f"**行业**:{ctx['industry'] or '—'}  ")
+        md_blocks.append(f"**Validity**:{validity_status}\n")
+        md_blocks.append("\n本份大纲是「调研问卷」的上游交付物 — 先定调研场次和议题,再用「调研问卷」生成对应分卷给责任人。\n")
+
+        if validity_status == "invalid":
+            md_blocks.append("---\n")
+            md_blocks.append("> ⚠️ **本份大纲判定为「信息不足」(invalid)**\n>")
+            md_blocks.append("> 以下关键模块因关键字段缺失,未能完整生成:")
+            for ms in critical_bad:
+                missing = ", ".join(f["label"] for f in ms["missing_fields"]) or ms["reason"]
+                md_blocks.append(f"> - **{ms['title']}**:{missing}")
+            if ask_user_prompts:
+                md_blocks.append(">\n> **建议补充以下信息后重新生成:**")
+                for q in ask_user_prompts[:8]:
+                    md_blocks.append(f"> - {q['question']}")
+            md_blocks.append("\n---\n")
+
+        for spec in OUTLINE_MODULES:
+            ms = module_states.get(spec.key)
+            if not ms or ms["status"] == "skipped":
+                continue
+            md_blocks.append(f"\n## {spec.title}\n")
+            content = module_contents.get(spec.key)
+            if content:
+                md_blocks.append(content)
+            else:
+                missing = ", ".join(f["label"] for f in ms["missing_fields"]) or ms["reason"] or "未知"
+                md_blocks.append(f"> _本模块因信息不足未生成。缺失:{missing}_\n")
+            if ms.get("score") and ms["score"]["overall"] != "pass":
+                issues = ms["score"].get("issues", [])
+                if issues:
+                    md_blocks.append(f"\n> _Critic 提示:{'; '.join(issues[:3])}_\n")
+            md_blocks.append("\n---")
+
+        md_blocks.append("\n## 附录 · 运行报告\n")
+        md_blocks.append(f"- 已生成模块:{len(module_contents)} / 总 {len(plan.modules)}")
+        md_blocks.append(f"- 待用户补充:{len(ask_user_prompts)} 项")
+        if pack:
+            md_blocks.append(f"- 行业包:{pack.industry} 已激活(注入 {len(pack.must_visit_departments)} 必访部门 + {len(pack.default_sessions)} 默认 sessions)")
+        full_md = "\n".join(md_blocks)
+
+        # 生成 docx(复用 v1 工具)
+        docx_key: str | None = None
+        try:
+            from services.output_service import _build_docx, _minio_put
+            docx_bytes = _build_docx(f"调研大纲 v2 · {title_main}", full_md)
+            docx_key = f"outputs/{bundle_id}/survey_outline_v2.docx"
+            _minio_put(docx_key, docx_bytes,
+                       "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        except Exception as e:
+            logger.warning("outline_v2_docx_failed", error=str(e)[:120])
+
+        new_extra = dict(ctx["bundle_extra"])
+        new_extra.update({
+            "validity_status": validity_status,
+            "module_states": module_states,
+            "ask_user_prompts": ask_user_prompts,
+            "run_history": run_history,
+            "agentic_version": "v2",
+        })
+        await _mark(bundle_id, "done", content_md=full_md, file_key=docx_key, extra=new_extra)
+        await _mark_conv(bundle_id, "done")
+        logger.info("outline_v2_generated", bundle_id=bundle_id, validity=validity_status,
+                    modules_n=len(module_contents))
+    except Exception as e:
+        logger.error("outline_v2_failed", bundle_id=bundle_id, error=str(e)[:300])
+        run_history.append({"phase": "failed", "ts": _ts(), "detail": str(e)[:300]})
+        try:
+            async with async_session_maker() as s:
+                b = await s.get(CuratedBundle, bundle_id)
+                if b:
+                    new_extra = dict(b.extra or {})
+                    new_extra["run_history"] = run_history
+                    new_extra["agentic_version"] = "v2"
+                    b.extra = new_extra
+                    b.status = "failed"
+                    b.error = str(e)[:500]
+                    await s.commit()
+        except Exception as e2:
+            logger.error("outline_v2_failed_writeback_failed", error=str(e2)[:200])
+        await _mark_conv(bundle_id, "failed")

@@ -671,7 +671,7 @@ export type OutputKind =
   | 'kickoff_pptx' | 'kickoff_html'
   | 'survey' | 'insight'
   // v2 (agentic) — 旁路验证版本
-  | 'insight_v2' | 'survey_v2'
+  | 'insight_v2' | 'survey_v2' | 'survey_outline_v2'
 
 export interface OutputChatMessage {
   role: 'user' | 'assistant'

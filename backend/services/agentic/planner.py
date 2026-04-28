@@ -213,33 +213,27 @@ def _resolve_field(
 
 # ── Insight Planner ────────────────────────────────────────────────────────────
 
-def plan_insight(
+def _plan_modules_generic(
     *,
+    all_modules: list,
+    active_modules: list,
     project,
     industry: str | None,
     brief_fields: dict,
     has_conversation: bool,
 ) -> ExecutionPlan:
-    """规则化 planner: 不调 LLM,纯结构判断。Returns ExecutionPlan。
+    """通用模块计划 helper(insight / outline 共用)。
 
-    判断逻辑:
-    - 模块按 industry 过滤(含 industry_filter 的模块只在匹配行业激活,否则 skipped)
-    - 每个模块的字段按 source_priority 解析为 FieldState
-    - 模块状态:
-        - 行业不匹配 → skipped
-        - 任一 required 字段 status=missing 且 gap_action=downgrade → blocked
-        - 否则 → ready
-    - gap_actions: 收集所有 status=missing 但有 gap_action 的字段
-    - sufficient_critical: 所有 critical 模块的状态 ∈ {ready}
+    all_modules: 所有声明的模块(用来标 skipped)
+    active_modules: 本次激活的模块(已经按行业过滤好)
     """
-    modules_for_industry = list_modules_for_industry(industry)
-    skipped_keys = {m.key for m in INSIGHT_MODULES} - {m.key for m in modules_for_industry}
+    skipped_keys = {m.key for m in all_modules} - {m.key for m in active_modules}
 
     assessments: list[ModuleAssessment] = []
     gap_actions: list[GapAction] = []
 
     # 处理激活模块
-    for module in modules_for_industry:
+    for module in active_modules:
         field_states: dict[str, FieldState] = {}
         any_required_missing = False
         for fs in module.fields:
@@ -291,13 +285,12 @@ def plan_insight(
 
     # 处理 skipped 模块(行业不匹配)
     for sk in skipped_keys:
-        from .insight_modules import get_module
-        m = get_module(sk)
-        if m:
+        m_lookup = next((mm for mm in all_modules if mm.key == sk), None)
+        if m_lookup:
             assessments.append(ModuleAssessment(
-                key=m.key, title=m.title, necessity=m.necessity,
+                key=m_lookup.key, title=m_lookup.title, necessity=m_lookup.necessity,
                 status="skipped", fields={},
-                reason=f"行业 {industry or '未指定'} 不在 {m.industry_filter} 内",
+                reason=f"行业 {industry or '未指定'} 不在 {m_lookup.industry_filter} 内",
             ))
 
     sufficient = all(
@@ -310,13 +303,53 @@ def plan_insight(
         industry=industry, modules=assessments,
         gap_actions=gap_actions, sufficient_critical=sufficient,
     )
+    return plan
+
+
+def plan_insight(
+    *,
+    project,
+    industry: str | None,
+    brief_fields: dict,
+    has_conversation: bool,
+) -> ExecutionPlan:
+    """Insight v2 规则化 planner: 按 industry 过滤模块,按 source_priority 解析字段。"""
+    active = list_modules_for_industry(industry)
+    plan = _plan_modules_generic(
+        all_modules=INSIGHT_MODULES, active_modules=active,
+        project=project, industry=industry,
+        brief_fields=brief_fields, has_conversation=has_conversation,
+    )
     logger.info("insight_plan_built",
                 industry=industry,
-                ready_n=sum(1 for a in assessments if a.status == "ready"),
-                blocked_n=sum(1 for a in assessments if a.status == "blocked"),
-                skipped_n=sum(1 for a in assessments if a.status == "skipped"),
-                gaps_n=len(gap_actions),
-                sufficient=sufficient)
+                ready_n=sum(1 for a in plan.modules if a.status == "ready"),
+                blocked_n=sum(1 for a in plan.modules if a.status == "blocked"),
+                skipped_n=sum(1 for a in plan.modules if a.status == "skipped"),
+                gaps_n=len(plan.gap_actions),
+                sufficient=plan.sufficient_critical)
+    return plan
+
+
+def plan_outline(
+    *,
+    project,
+    industry: str | None,
+    brief_fields: dict,
+    has_conversation: bool,
+) -> ExecutionPlan:
+    """Outline v2 规则化 planner: 7 个模块全部激活,行业差异化在 industry_pack 的 default sessions 里。"""
+    from .outline_modules import OUTLINE_MODULES
+    plan = _plan_modules_generic(
+        all_modules=OUTLINE_MODULES, active_modules=list(OUTLINE_MODULES),
+        project=project, industry=industry,
+        brief_fields=brief_fields, has_conversation=has_conversation,
+    )
+    logger.info("outline_plan_built",
+                industry=industry,
+                ready_n=sum(1 for a in plan.modules if a.status == "ready"),
+                blocked_n=sum(1 for a in plan.modules if a.status == "blocked"),
+                gaps_n=len(plan.gap_actions),
+                sufficient=plan.sufficient_critical)
     return plan
 
 

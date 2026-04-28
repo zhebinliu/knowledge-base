@@ -54,6 +54,7 @@ KIND_TO_TASK = {
     # v2 (agentic) — 旁路验证
     "insight_v2": "generate_insight_v2",
     "survey_v2": "generate_survey_v2",
+    "survey_outline_v2": "generate_survey_outline_v2",
 }
 
 KIND_TITLES = {
@@ -63,6 +64,7 @@ KIND_TITLES = {
     "insight": "项目洞察报告",
     "insight_v2": "项目洞察报告 v2 (agentic)",
     "survey_v2": "调研问卷 v2 (agentic)",
+    "survey_outline_v2": "调研大纲 v2 (agentic)",
 }
 
 
@@ -128,7 +130,7 @@ async def generate_output(
     # Fire Celery task
     from tasks.output_tasks import (
         generate_kickoff_pptx, generate_kickoff_html, generate_survey, generate_insight,
-        generate_insight_v2, generate_survey_v2,
+        generate_insight_v2, generate_survey_v2, generate_survey_outline_v2,
     )
     task_fn = {
         "kickoff_pptx": generate_kickoff_pptx,
@@ -137,6 +139,7 @@ async def generate_output(
         "insight": generate_insight,
         "insight_v2": generate_insight_v2,
         "survey_v2": generate_survey_v2,
+        "survey_outline_v2": generate_survey_outline_v2,
     }[body.kind]
     task_fn.delay(bundle.id, body.project_id)
 

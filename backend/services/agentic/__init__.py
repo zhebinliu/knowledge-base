@@ -9,6 +9,6 @@
 完整设计见 /Users/zhebin/.claude/plans/skill-zany-hopcroft.md
 """
 
-from .runner import generate_insight_v2, generate_survey_v2
+from .runner import generate_insight_v2, generate_survey_v2, generate_outline_v2
 
-__all__ = ["generate_insight_v2", "generate_survey_v2"]
+__all__ = ["generate_insight_v2", "generate_survey_v2", "generate_outline_v2"]

@@ -85,6 +85,18 @@ BRIEF_SCHEMAS: dict[str, list[dict]] = {
         # M10 下一步
         {"key": "quick_wins_2w",      "label": "Quick Win(2周内)",    "hint": "2周内可见效的 3-4 条动作,含 Owner+deadline",       "group": "M10 下一步", "type": "list", "required": False},
     ],
+    # survey_outline_v2: L0 调研启动 brief — 给"调研大纲"skill 用
+    # 大纲是问卷的上游(先定调研场次和议题,再拼对应分卷给责任人)
+    "survey_outline_v2": [
+        {"key": "discovery_purpose",     "label": "调研目的",          "hint": "本轮调研要解决什么(摸底现状 / 验证方案 / 收集需求 / 确认变更)", "group": "L0 目标", "type": "text", "required": True},
+        {"key": "duration_weeks",        "label": "总周期",            "hint": "几周(2 / 3 / 4 周)",                                          "group": "L0 节奏", "type": "text", "required": True},
+        {"key": "in_scope_departments",  "label": "涵盖部门",          "hint": "客户哪些部门参与本轮调研",                                       "group": "L0 范围", "type": "list", "required": True},
+        {"key": "expected_decisions",    "label": "调研后要拍板的事项","hint": "调研结束后必须做的决策(范围 / 优先级 / 阶段切分)",              "group": "L0 目标", "type": "list", "required": False},
+        {"key": "customer_contact",      "label": "客户对接人",        "hint": "客户方的 PMO / 主对接人,负责协调档期、催材料",                 "group": "L0 协作", "type": "text", "required": True},
+        {"key": "our_team_members",      "label": "我方调研团队",      "hint": "主访 / 记录 / 跟进 / 工作坊主持 各角色人员",                   "group": "L0 团队", "type": "list", "required": False},
+        {"key": "time_constraints",      "label": "时间窗约束",        "hint": "客户上班时间 / 节假日避开 / 关键人档期 / 材料到位时间",         "group": "L0 节奏", "type": "text", "required": False},
+        {"key": "preferred_format",      "label": "偏好形式",          "hint": "集中 vs 分散;线上 vs 线下;集中工作坊 vs 一对一访谈",          "group": "L0 节奏", "type": "text", "required": False},
+    ],
     # survey_v2: L1 高管短卷 — 战略+痛点对齐(对齐 L1_EXEC_SUBSECTION must_cover)
     "survey_v2": [
         {"key": "strategic_intent",   "label": "战略意图",            "hint": "为什么上 CRM(业务驱动 / 合规 / 数字化转型)",        "group": "L1 战略", "type": "text", "required": True},

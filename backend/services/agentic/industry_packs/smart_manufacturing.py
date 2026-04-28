@@ -82,6 +82,8 @@ SMART_MFG = IndustryPack(
         },
     ],
 
+    # 调研大纲(survey_outline_v2)用 — 智能制造典型必访部门 + 工业品 B2B 特有 sessions
+    # 通过 IndustryPack 上的 extra_data 字段挂载;outline_modules 的 industry_pack source 会读取
     extra_question_seeds=[
         # 项目型销售
         {"type": "fact", "theme": "biz_process",
@@ -128,5 +130,45 @@ SMART_MFG = IndustryPack(
     ],
 )
 
+
+SMART_MFG.must_visit_departments = [
+    "销售总部 / 大客户部",
+    "区域销售 / 分公司",
+    "渠道运营 / 经销商管理",
+    "售前 / 解决方案",
+    "售后服务 / 客户服务",
+    "产品 / 研发",
+    "制造 / 生产计划",
+    "物流 / 仓储 / 备件",
+    "财务 / 应收 / 商务",
+    "IT / 信息中心",
+    "PMO / 战略",
+]
+
+SMART_MFG.default_sessions = [
+    {"topic": "高管战略对齐 1on1",                      "method": "1on1 访谈",   "target": "总裁 / 销售 VP / CIO",     "duration": "2h"},
+    {"topic": "销售总部 — 全流程现状(L2C / O2C)",     "method": "集中访谈",   "target": "销售总监 + 销售运营",       "duration": "3h"},
+    {"topic": "区域销售 — 一线销售流程痛点",            "method": "集中访谈",   "target": "区域经理 + 一线销售",       "duration": "3h"},
+    {"topic": "渠道运营 — 经销商管理 + 防串货",          "method": "集中访谈",   "target": "渠道总监 + 大区渠道经理",   "duration": "3h"},
+    {"topic": "经销商代表座谈",                         "method": "工作坊",     "target": "钻 / 金 / 银 各级 2-3 家代表","duration": "半天"},
+    {"topic": "售前 — 报价 / BOM / 投标流程",           "method": "集中访谈",   "target": "售前总监 + 高级售前",       "duration": "3h"},
+    {"topic": "售后服务 — Install Base / 工单 / 备件",  "method": "集中访谈",   "target": "服务总监 + 区域服务经理",   "duration": "3h"},
+    {"topic": "试样 / 试机 现场观察",                    "method": "现场观察",   "target": "产品 + 一线 + 客户",        "duration": "全天"},
+    {"topic": "客户备件管理走访",                       "method": "现场观察",   "target": "售后 + 物流 + 客户",        "duration": "全天"},
+    {"topic": "ERP 主数据负责人 — 同步规则梳理",         "method": "1on1 访谈",   "target": "财务 + IT(ERP 主管)",     "duration": "2h"},
+    {"topic": "MES / PLM 集成可行性 workshop",           "method": "工作坊",     "target": "IT + 制造 + 产品",          "duration": "半天"},
+    {"topic": "财务 — 开票 / 回款 / 对账",               "method": "集中访谈",   "target": "财务总监 + 商务",           "duration": "3h"},
+    {"topic": "PMO + IT 联合 — 集成方案 workshop",       "method": "工作坊",     "target": "PMO + IT + 业务联合",       "duration": "半天"},
+    {"topic": "材料收集与现状文档审阅",                  "method": "资料收集",   "target": "客户 PMO 提供",             "duration": "贯穿"},
+]
+
+SMART_MFG.typical_customer_materials = [
+    {"category": "组织",     "items": ["集团组织架构图(含子公司 / 事业部)", "RACI 现状", "销售团队规模与分工"]},
+    {"category": "业务流程", "items": ["L2C 流程图(线索→商机→合同)", "O2C 流程图(订单→发货→开票→回款)", "S2C 流程图(报修→派工→关闭)", "项目报备流程", "试样试机标准流程"]},
+    {"category": "数据",     "items": ["产品 + BOM 现状清单", "客户主数据样本(含分级)", "Install Base 清单(若有)", "经销商分级表 + 数量分布"]},
+    {"category": "系统",     "items": ["ERP 厂商 + 版本", "MES / PLM 现状(若有)", "OA / IM 使用情况", "现有 CRM / SFA(若有,导出 schema)"]},
+    {"category": "制度",     "items": ["奖惩 / 考核办法", "数据合规要求", "审批权限矩阵"]},
+    {"category": "战略",     "items": ["未来 12 个月业务规划", "Top 3 业务挑战", "成功 KPI 定义"]},
+]
 
 register(SMART_MFG)

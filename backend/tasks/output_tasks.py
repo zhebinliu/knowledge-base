@@ -50,3 +50,9 @@ def generate_insight_v2(self, bundle_id: str, project_id: str):
 def generate_survey_v2(self, bundle_id: str, project_id: str):
     from services.agentic.runner import generate_survey_v2 as _gen
     _run(_gen(bundle_id, project_id))
+
+
+@celery_app.task(name="generate_survey_outline_v2", bind=True, max_retries=2)
+def generate_survey_outline_v2(self, bundle_id: str, project_id: str):
+    from services.agentic.runner import generate_outline_v2 as _gen
+    _run(_gen(bundle_id, project_id))

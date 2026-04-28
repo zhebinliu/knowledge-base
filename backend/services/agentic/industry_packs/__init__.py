@@ -12,12 +12,16 @@ from typing import Optional
 
 @dataclass
 class IndustryPack:
-    industry: str                           # 与 Project.industry 字段对齐
+    industry: str                                            # 与 Project.industry 字段对齐
     display_name: str
-    field_patches: dict                     # {field_key: {label, ask, options?}} — 注入到 insight modules
-    pain_points: list[str]                  # 典型痛点
-    cases: list[dict]                       # [{name, pattern}, ...] 标杆案例
-    extra_question_seeds: list[dict]        # 给 survey planner 用的额外种子
+    field_patches: dict                                      # {field_key: {label, ask, options?}} — 注入到 insight modules
+    pain_points: list[str]                                   # 典型痛点
+    cases: list[dict]                                        # [{name, pattern}, ...] 标杆案例
+    extra_question_seeds: list[dict]                         # 给 survey planner 用的额外种子
+    # 调研大纲(survey_outline_v2)用 — 智能制造典型必访部门 + 行业默认 sessions
+    must_visit_departments: list[str] = field(default_factory=list)
+    default_sessions: list[dict] = field(default_factory=list)
+    typical_customer_materials: list[dict] = field(default_factory=list)
 
 
 _REGISTRY: dict[str, IndustryPack] = {}

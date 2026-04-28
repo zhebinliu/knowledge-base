@@ -25,7 +25,7 @@ from agents.output_chat import (
 logger = structlog.get_logger()
 router = APIRouter()
 
-VALID_KINDS = ("kickoff_pptx", "kickoff_html", "survey", "insight", "insight_v2", "survey_v2")
+VALID_KINDS = ("kickoff_pptx", "kickoff_html", "survey", "insight", "insight_v2", "survey_v2", "survey_outline_v2")
 
 KIND_TITLES = {
     "kickoff_pptx": "启动会 PPT（pptxgen）",
@@ -34,6 +34,7 @@ KIND_TITLES = {
     "insight": "项目洞察报告",
     "insight_v2": "项目洞察报告 v2 (agentic)",
     "survey_v2": "实施调研问卷 v2 (agentic)",
+    "survey_outline_v2": "调研大纲 v2 (agentic)",
 }
 
 
