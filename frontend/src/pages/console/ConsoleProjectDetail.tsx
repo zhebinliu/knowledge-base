@@ -360,11 +360,13 @@ export default function ConsoleProjectDetail() {
           <V2ValidityBanner bundle={activeBundle} onReGenerate={startGeneration} />
         )}
 
-      {/* 主区:invalid+short_circuited 场景 → V2GapFiller 替代对话区(让用户填问卷) */}
+      {/* 主区:invalid+short_circuited 场景 → V2GapFiller 替代对话区(让用户填问卷)
+          有新一轮生成在跑(activeInflight 非空)时不显示,让顶部 action strip 的 "正在生成中" 状态接管 */}
       {activeBundle?.agentic_version === 'v2'
         && activeBundle.validity_status === 'invalid'
         && activeBundle.short_circuited
-        && activeKind ? (
+        && activeKind
+        && !activeInflight ? (
         <V2GapFiller
           key={`gap-${activeBundle.id}`}
           bundle={activeBundle}
@@ -436,8 +438,12 @@ function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onR
   const isInvalid = bundle.validity_status === 'invalid'
   const askPrompts = bundle.ask_user_prompts || []
   const moduleStates = bundle.module_states || {}
-  const insufficient = Object.values(moduleStates).filter(m =>
-    m && (m.status === 'blocked' || m.status === 'insufficient')
+  // 区分关键(critical)和非关键(optional)的未完成模块,banner 措辞要准
+  const incompleteCritical = Object.values(moduleStates).filter(m =>
+    m && m.necessity === 'critical' && (m.status === 'blocked' || m.status === 'insufficient')
+  )
+  const incompleteOptional = Object.values(moduleStates).filter(m =>
+    m && m.necessity !== 'critical' && (m.status === 'blocked' || m.status === 'insufficient')
   )
   const bg = isInvalid ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
   const text = isInvalid ? 'text-red-700' : 'text-amber-700'
@@ -451,10 +457,17 @@ function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onR
           <div className={`text-xs font-semibold ${text}`}>
             {label}{isInvalid && ' — 本份产物缺少关键信息,建议补充后重新生成'}
           </div>
-          {insufficient.length > 0 && (
+          {incompleteCritical.length > 0 && (
             <div className="mt-1 text-[11px] text-ink-secondary">
               <span className="font-medium">未完成关键模块:</span>{' '}
-              {insufficient.map(m => m!.title).join(', ')}
+              {incompleteCritical.map(m => m!.title).join(', ')}
+            </div>
+          )}
+          {incompleteOptional.length > 0 && (
+            <div className="mt-1 text-[11px] text-ink-muted">
+              <span className="font-medium">未完成可选模块:</span>{' '}
+              {incompleteOptional.map(m => m!.title).join(', ')}
+              <span className="text-ink-muted/70"> (不影响整体洞察)</span>
             </div>
           )}
           {askPrompts.length > 0 && (

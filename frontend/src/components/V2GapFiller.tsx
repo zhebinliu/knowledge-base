@@ -104,8 +104,10 @@ export default function V2GapFiller({ bundle, kind, projectId, onSubmitted }: Pr
       await putBrief(kind, projectId, merged)
       // 4. 触发新一轮 generate
       await generateOutput({ kind, project_id: projectId })
-      // 5. 通知父组件
+      // 5. 通知父组件 refetch — 父组件拿到 inflight bundle 后会卸载本组件
       onSubmitted()
+      // 6. 兜底:即便父组件没卸载,也归位 submitting + 清空 answers,避免按钮卡住
+      setSubmitting(false)
     } catch (e: any) {
       setError(e?.response?.data?.detail || e?.message || '提交失败')
       setSubmitting(false)
