@@ -73,10 +73,15 @@ BRIEF_SCHEMAS: dict[str, list[dict]] = {
         {"key": "budget_range",       "label": "预算区间",            "hint": "含软件/实施/培训/运维",                            "group": "M2 项目快照", "type": "text", "required": False},
         {"key": "timeline",           "label": "时间窗",              "hint": "启动→上线→验收的关键日期",                        "group": "M2 项目快照", "type": "text", "required": True},
         {"key": "current_phase",      "label": "当前阶段",            "hint": "需求/方案/配置/UAT/上线",                         "group": "M2 项目快照", "type": "text", "required": True},
+        # M3 健康度 — 关键字段(让 LLM 抽取也能预填,BriefDrawer 也能编辑)
+        {"key": "budget",             "label": "预算执行情况",        "hint": "预算消耗比例 / 是否超支风险",                       "group": "M3 健康度", "type": "text", "required": False},
+        {"key": "team",               "label": "团队稳定性",          "hint": "双方团队 / 关键人离场 / 客户配合度",                "group": "M3 健康度", "type": "text", "required": False},
+        {"key": "risk",               "label": "整体风险 RAG",        "hint": "红 / 黄 / 绿 三档风险评估",                          "group": "M3 健康度", "type": "text", "required": True},
         # M4 干系人
         {"key": "decision_makers",    "label": "关键决策人",          "hint": "拍板预算/范围/上线的最高决策人",                  "group": "M4 干系人", "type": "list", "required": True},
         {"key": "daily_drivers",      "label": "日常推进人",          "hint": "客户方IT/业务的核心推进人",                       "group": "M4 干系人", "type": "list", "required": False},
         {"key": "decision_chain",     "label": "决策链层级",          "hint": "重大决策走几层(直线/委员会/集团-子公司)",          "group": "M4 干系人", "type": "text", "required": False},
+        {"key": "attitudes",          "label": "各方态度",            "hint": "各关键角色态度(积极/观望/阻力)",                   "group": "M4 干系人", "type": "text", "required": False},
         # M7 RAID
         {"key": "risks",              "label": "Top 风险(3-5 条)",    "hint": "风险/影响/可能性/应对/Owner",                     "group": "M7 RAID", "type": "list", "required": True},
         {"key": "decisions_pending",  "label": "待决策事项",          "hint": "事项/选项/截止时间/拍板人",                       "group": "M7 RAID", "type": "list", "required": False},

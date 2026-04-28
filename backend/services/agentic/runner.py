@@ -300,16 +300,21 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
         for assess in plan.modules:
             score = scores.get(assess.key)
             mod_status = assess.status  # planned default
-            if assess.status == "ready" and assess.key in module_contents:
-                if score:
-                    if score.overall == "pass":
+            if assess.status == "ready":
+                if assess.key in module_contents:
+                    # executor 成功 → 看 critic 评分
+                    if score:
+                        if score.overall == "pass":
+                            mod_status = "done"
+                        elif score.overall == "needs_rework":
+                            mod_status = "done_with_warnings"
+                        elif score.overall == "insufficient":
+                            mod_status = "insufficient"
+                    else:
                         mod_status = "done"
-                    elif score.overall == "needs_rework":
-                        mod_status = "done_with_warnings"
-                    elif score.overall == "insufficient":
-                        mod_status = "insufficient"
                 else:
-                    mod_status = "done"
+                    # planner 标 ready 但 executor 没产出 → 执行失败(超时 / LLM 异常 / 等)
+                    mod_status = "failed"
             module_states[assess.key] = {
                 "key": assess.key,
                 "title": assess.title,
@@ -383,9 +388,12 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
             if content:
                 md_blocks.append(content)
             else:
-                # blocked 模块的占位
-                missing = ", ".join(f["label"] for f in ms["missing_fields"]) or ms["reason"] or "未知"
-                md_blocks.append(f"> _本模块因信息不足未生成。缺失:{missing}_\n")
+                # 区分:执行失败 vs 信息不足(planner 阶段就 blocked)vs 未运行
+                if ms["status"] == "failed":
+                    md_blocks.append("> _本模块**执行失败**(可能是 LLM 超时 / 异常),建议重新生成_\n")
+                else:
+                    missing = ", ".join(f["label"] for f in ms["missing_fields"]) or ms["reason"] or "未知"
+                    md_blocks.append(f"> _本模块因信息不足未生成。缺失:{missing}_\n")
             # critic 提示(如有警告)
             if ms.get("score") and ms["score"]["overall"] != "pass":
                 issues = ms["score"].get("issues", [])
@@ -760,16 +768,20 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
         for assess in plan.modules:
             score = scores.get(assess.key)
             mod_status = assess.status
-            if assess.status == "ready" and assess.key in module_contents:
-                if score:
-                    if score.overall == "pass":
+            if assess.status == "ready":
+                if assess.key in module_contents:
+                    if score:
+                        if score.overall == "pass":
+                            mod_status = "done"
+                        elif score.overall == "needs_rework":
+                            mod_status = "done_with_warnings"
+                        elif score.overall == "insufficient":
+                            mod_status = "insufficient"
+                    else:
                         mod_status = "done"
-                    elif score.overall == "needs_rework":
-                        mod_status = "done_with_warnings"
-                    elif score.overall == "insufficient":
-                        mod_status = "insufficient"
                 else:
-                    mod_status = "done"
+                    # planner 标 ready 但 executor 没产出 → 执行失败
+                    mod_status = "failed"
             module_states[assess.key] = {
                 "key": assess.key,
                 "title": assess.title,
@@ -835,8 +847,11 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
             if content:
                 md_blocks.append(content)
             else:
-                missing = ", ".join(f["label"] for f in ms["missing_fields"]) or ms["reason"] or "未知"
-                md_blocks.append(f"> _本模块因信息不足未生成。缺失:{missing}_\n")
+                if ms["status"] == "failed":
+                    md_blocks.append("> _本模块**执行失败**(可能是 LLM 超时 / 异常),建议重新生成_\n")
+                else:
+                    missing = ", ".join(f["label"] for f in ms["missing_fields"]) or ms["reason"] or "未知"
+                    md_blocks.append(f"> _本模块因信息不足未生成。缺失:{missing}_\n")
             if ms.get("score") and ms["score"]["overall"] != "pass":
                 issues = ms["score"].get("issues", [])
                 if issues:
