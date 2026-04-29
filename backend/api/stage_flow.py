@@ -11,10 +11,11 @@
 """
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from typing import Literal
 from sqlalchemy import select
+from sqlalchemy.orm.attributes import flag_modified
 
 from models import async_session_maker
 from models.agent_config import AgentConfig
@@ -125,9 +126,14 @@ def _validate(stages: list[StageDef]) -> None:
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
 @router.get("/stage-flow", response_model=StageFlowDto, dependencies=[Depends(get_current_user)])
-async def get_stage_flow():
+async def get_stage_flow(response: Response):
     """读取项目流程配置。所有登录用户可读(前台 ConsoleProjectDetail 也要用)。"""
     stages, is_default = await _read()
+    # 强制不缓存 — 防 CDN / 浏览器 / Service Worker 拦截
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    logger.info("stage_flow_read", is_default=is_default, stages_n=len(stages),
+                first_keys=[s.get("key") if isinstance(s, dict) else None for s in stages[:3]])
     return {"stages": stages, "is_default": is_default}
 
 
@@ -145,6 +151,9 @@ async def put_stage_flow(body: StageFlowConfig):
         )).scalar_one_or_none()
         if row:
             row.config_value = payload
+            # JSON 列防坑:有些 SQLAlchemy + DB 组合下,新值跟旧值结构相似时
+            # change tracker 不一定标 dirty,显式 flag_modified 兜底
+            flag_modified(row, "config_value")
         else:
             s.add(AgentConfig(
                 config_type=CONFIG_TYPE,
@@ -153,8 +162,16 @@ async def put_stage_flow(body: StageFlowConfig):
                 description="项目阶段流程动态配置(/console/projects/:id 顶部阶段栏的来源)",
             ))
         await s.commit()
-    logger.info("stage_flow_updated", stages_n=len(body.stages))
-    return {"ok": True, "stages_n": len(body.stages)}
+    # 写完立即回读校验,日志记录第一行 key,排查时一眼看出"写没写进去"
+    verify_stages, verify_default = await _read()
+    logger.info("stage_flow_updated",
+                requested_n=len(body.stages),
+                requested_first=[s.key for s in body.stages[:3]],
+                stored_n=len(verify_stages),
+                stored_first=[s.get("key") if isinstance(s, dict) else None for s in verify_stages[:3]],
+                is_default_after_write=verify_default)
+    return {"ok": True, "stages_n": len(verify_stages), "is_default": verify_default,
+            "verify_first_keys": [s.get("key") if isinstance(s, dict) else None for s in verify_stages[:3]]}
 
 
 @router.post("/stage-flow/reset", dependencies=[Depends(require_admin)])

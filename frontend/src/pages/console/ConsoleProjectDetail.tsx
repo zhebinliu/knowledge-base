@@ -122,9 +122,11 @@ export default function ConsoleProjectDetail() {
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   })
-  const STAGES: StageDef[] = stageFlow?.stages?.length
+  // 后端返回所有 stage(含禁用占位),前端只渲染启用的 — 干净简洁
+  const ALL_STAGES: StageDef[] = stageFlow?.stages?.length
     ? stageFlow.stages.map(_mapStage)
     : DEFAULT_STAGES
+  const STAGES: StageDef[] = ALL_STAGES.filter(s => s.active)
 
   if (!id) return null
   if (isLoading) return <div className="text-center py-20 text-ink-muted text-sm">加载中…</div>
@@ -144,6 +146,14 @@ export default function ConsoleProjectDetail() {
     return 'idle'
   }
 
+  // STAGES 已过滤为启用项;若全空(管理员配置不当)→ 提示而非崩溃
+  if (STAGES.length === 0) {
+    return (
+      <div className="text-center py-20 text-ink-muted text-sm">
+        当前没有启用任何阶段,请管理员到「系统配置 · 项目流程」启用至少一个阶段
+      </div>
+    )
+  }
   const activeStage = STAGES.find(s => s.key === activeStageKey) ?? STAGES[0]
   // 当 stage 有 subKinds,activeKind 取 selectedSubKind ?? 第一个 sub
   const activeKind: OutputKind | null = activeStage.subKinds
