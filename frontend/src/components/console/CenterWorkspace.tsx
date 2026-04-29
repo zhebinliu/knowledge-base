@@ -118,90 +118,202 @@ function PreparationView({
   const c = checklist?.completion
   const reqDone   = (c?.required ?? 0) + (c?.virtual_required ?? 0)
   const reqTotal  = (c?.required_total ?? 0) + (c?.virtual_required_total ?? 0)
+  const recDone   = (c?.recommended ?? 0) + (c?.virtual_recommended ?? 0)
+  const recTotal  = (c?.recommended_total ?? 0) + (c?.virtual_recommended_total ?? 0)
   const allReady  = c?.all_required_done ?? false
   const reqPct    = reqTotal > 0 ? Math.round(reqDone / reqTotal * 100) : 0
 
+  // 已上传的所有文档(展平)
+  const uploadedDocs: { doc_id: string; filename: string; type_label: string; status: string }[] = []
+  for (const d of (checklist?.required_docs || []).concat(checklist?.recommended_docs || [])) {
+    for (const doc of d.documents) {
+      uploadedDocs.push({
+        doc_id: doc.doc_id, filename: doc.filename, type_label: d.label, status: doc.status,
+      })
+    }
+  }
+  // 已填的虚拟物
+  const filledVirtuals = (checklist?.virtual_required || []).concat(checklist?.virtual_recommended || [])
+    .filter(v => v.filled)
+
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8">
-      {/* Hero */}
-      <div className="bg-white rounded-xl border border-line p-6 mb-4">
-        <div className="flex items-start gap-3 mb-4">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-               style={{ background: BRAND_GRAD }}>
-            <Lightbulb size={18} className="text-white" />
+    <div className="h-full overflow-auto bg-canvas">
+      <div className="px-6 py-5 max-w-[1400px] mx-auto space-y-4">
+
+        {/* —— 顶部 Hero —— 横幅,占满中栏 —— */}
+        <div className="bg-white rounded-xl border border-line overflow-hidden shadow-sm">
+          <div className="px-6 py-5 flex items-start gap-4 border-b border-line"
+               style={{ background: 'linear-gradient(to right, #FFF7ED 0%, #FFFFFF 60%)' }}>
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+                 style={{ background: BRAND_GRAD }}>
+              <Lightbulb size={20} className="text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-bold text-ink">项目洞察(新版)</h2>
+              <p className="text-xs text-ink-muted mt-1 leading-relaxed">
+                基于上传文档 + 引导问卷生成项目诊断报告。
+                <br/>把左侧文档清单补齐,系统会自动从文档抽取信息并标注每段来源。
+              </p>
+            </div>
+            {/* 完成度大数字 */}
+            <div className="text-right shrink-0">
+              <div className="text-2xl font-extrabold tabular-nums"
+                   style={{ color: allReady ? '#10B981' : '#D96400' }}>
+                {reqDone}<span className="text-sm text-ink-muted font-normal"> / {reqTotal}</span>
+              </div>
+              <div className="text-[11px] text-ink-muted">必备资料</div>
+            </div>
           </div>
-          <div className="flex-1">
-            <h2 className="text-lg font-bold text-ink">项目洞察(新版)</h2>
-            <p className="text-xs text-ink-muted mt-0.5">
-              基于上传文档 + 引导问卷生成项目诊断报告。先把左侧文档清单补齐,再点开始生成。
-            </p>
+
+          {/* 进度条 + 提示 + CTA */}
+          <div className="px-6 py-4">
+            <div className="h-2 bg-slate-100 rounded-full overflow-hidden mb-3">
+              <div className="h-full transition-all rounded-full" style={{
+                width: `${reqPct}%`,
+                background: allReady ? '#10B981' : BRAND_GRAD,
+              }} />
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-ink-secondary flex-1">
+                {allReady
+                  ? '✅ 必备资料已齐,可以开始生成洞察'
+                  : `还差 ${reqTotal - reqDone} 项必备资料(左栏 「+」 上传 / 「问卷」 填写)`}
+              </span>
+              {activeInflight ? (
+                <button disabled
+                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm font-medium">
+                  <Loader2 size={14} className="animate-spin" />
+                  正在生成中…
+                </button>
+              ) : activeBundle ? (
+                <button
+                  onClick={() => genMut.mutate()}
+                  disabled={genMut.isPending}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 border border-line rounded-lg text-sm text-ink hover:bg-canvas"
+                >
+                  <RotateCw size={13} /> 重新生成
+                </button>
+              ) : (
+                <button
+                  onClick={() => genMut.mutate()}
+                  disabled={genMut.isPending || !allReady}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 text-white rounded-lg text-sm font-semibold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: BRAND_GRAD }}
+                  title={!allReady ? '必备资料未齐,请先到左栏补齐' : ''}
+                >
+                  {genMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                  {allReady ? '开始生成洞察' : '请先补齐必备资料'}
+                </button>
+              )}
+            </div>
+            {error && <div className="mt-2 text-xs text-red-600">{error}</div>}
           </div>
         </div>
 
-        {/* 完成度卡 */}
-        <div className="border border-slate-200 rounded-lg p-4 mb-3">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-semibold text-ink">必备资料完成度</span>
-            <span className="ml-auto tabular-nums text-sm font-bold"
-                  style={{ color: allReady ? '#10B981' : '#D96400' }}>
-              {reqDone}/{reqTotal}
-              {allReady && ' ✓'}
-            </span>
-          </div>
-          <div className="h-2 bg-slate-100 rounded overflow-hidden">
-            <div className="h-full transition-all" style={{
-              width: `${reqPct}%`,
-              background: allReady ? '#10B981' : BRAND_GRAD,
-            }} />
-          </div>
-          <p className="text-[11px] text-ink-muted mt-2">
-            {allReady
-              ? '✅ 必备资料已齐,可以开始生成。'
-              : `还需补齐 ${reqTotal - reqDone} 项必需资料(左栏「+」 上传 / 「问卷」 填写)。`}
-          </p>
+        {/* —— 中部三卡片网格 —— */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* 必备资料 */}
+          <StatCard
+            label="必备资料"
+            value={`${reqDone} / ${reqTotal}`}
+            sub={allReady ? '已齐' : `还差 ${reqTotal - reqDone} 项`}
+            color={allReady ? '#10B981' : '#D96400'}
+            icon={CheckCircle2}
+          />
+          {/* 推荐资料 */}
+          <StatCard
+            label="推荐资料"
+            value={`${recDone} / ${recTotal}`}
+            sub={recDone === recTotal ? '已齐' : '建议补全'}
+            color={recDone === recTotal ? '#10B981' : '#3B82F6'}
+            icon={Lightbulb}
+          />
+          {/* 已上传文档总数 */}
+          <StatCard
+            label="已上传文档"
+            value={`${uploadedDocs.length}`}
+            sub={uploadedDocs.length > 0 ? '点击下方查看' : '尚未上传'}
+            color="#8B5CF6"
+            icon={FileText}
+          />
         </div>
 
-        {/* 行动按钮 */}
-        <div className="flex items-center gap-2">
-          {activeInflight ? (
-            <button disabled
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm font-medium">
-              <Loader2 size={14} className="animate-spin" />
-              正在生成中… 大约 60-180 秒
-            </button>
-          ) : activeBundle ? (
-            <>
-              <button
-                onClick={() => genMut.mutate()}
-                disabled={genMut.isPending}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-line rounded-lg text-sm text-ink hover:bg-canvas"
-              >
-                <RotateCw size={13} /> 重新生成
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => genMut.mutate()}
-              disabled={genMut.isPending || !allReady}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-white rounded-lg text-sm font-semibold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: BRAND_GRAD }}
-              title={!allReady ? '必备资料未齐,请先到左栏补齐' : ''}
-            >
-              {genMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-              {allReady ? '开始生成洞察' : '请先补齐必备资料'}
-            </button>
-          )}
-        </div>
-        {error && <div className="mt-2 text-xs text-red-600">{error}</div>}
+        {/* —— 已上传文档预览 —— */}
+        {uploadedDocs.length > 0 && (
+          <div className="bg-white rounded-xl border border-line overflow-hidden">
+            <div className="px-5 py-3 border-b border-line flex items-center gap-2">
+              <FileText size={13} className="text-ink-muted" />
+              <h3 className="text-sm font-semibold text-ink">已上传文档</h3>
+              <span className="text-[11px] text-ink-muted">{uploadedDocs.length} 份</span>
+            </div>
+            <div className="divide-y divide-line">
+              {uploadedDocs.slice(0, 6).map(d => (
+                <div key={d.doc_id} className="px-5 py-2.5 flex items-center gap-3 hover:bg-canvas">
+                  <FileText size={12} className="text-ink-muted shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm text-ink truncate">{d.filename}</div>
+                    <div className="text-[11px] text-ink-muted">
+                      <span className="px-1.5 py-0 rounded bg-orange-50 text-[#D96400] mr-1.5">{d.type_label}</span>
+                      {d.status === 'completed' ? '已索引' : <span className="text-amber-600">{d.status} 中…</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* —— 已填问卷预览 —— */}
+        {filledVirtuals.length > 0 && (
+          <div className="bg-white rounded-xl border border-line p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles size={13} className="text-purple-600" />
+              <h3 className="text-sm font-semibold text-ink">已填问卷</h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {filledVirtuals.map(v => (
+                <div key={v.key} className="flex items-center gap-2 p-2.5 bg-emerald-50/40 border border-emerald-200 rounded">
+                  <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-medium text-ink truncate">{v.label}</div>
+                    <div className="text-[10px] text-ink-muted">已答 {v.filled_count}/{v.total_count}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* —— 操作提示 —— */}
+        {!allReady && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-xs text-[#92400E] leading-relaxed">
+            <strong>下一步:</strong> 在<strong>左侧文档清单</strong>里补齐带「★ 必需」的资料 —
+            上传文档点 <span className="px-1 py-0.5 bg-white rounded text-[10px] border border-orange-300">+</span>
+             按钮、问卷点对应行打开作答。补完后回到这里点「开始生成」。
+          </div>
+        )}
       </div>
+    </div>
+  )
+}
 
-      {/* 状态说明 */}
-      {activeBundle && !activeInflight && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-xs text-emerald-900">
-          <CheckCircle2 size={13} className="inline mr-1" />
-          已有一份生成的报告,点切到右上角「在线预览」或重新生成。
-        </div>
-      )}
+function StatCard({
+  label, value, sub, color, icon: Icon,
+}: {
+  label: string; value: string; sub: string; color: string
+  icon: typeof Lightbulb
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-line p-4 flex items-center gap-3">
+      <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+           style={{ background: `${color}15`, color }}>
+        <Icon size={18} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-[11px] text-ink-muted">{label}</div>
+        <div className="text-lg font-bold tabular-nums" style={{ color }}>{value}</div>
+        <div className="text-[10px] text-ink-muted">{sub}</div>
+      </div>
     </div>
   )
 }
