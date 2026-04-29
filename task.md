@@ -1,5 +1,65 @@
 # 任务跟踪
 
+## 新迭代:项目洞察 v3 — 文档驱动重构(2026-04-29)
+
+### 背景
+现状 v2 用「访谈 + 表单 brief」做输入,但实际项目实施场景下,顾问手里的核心资料是
+**SOW / 合同 / 交接单 / 干系人图** 这种结构化文档。把文档作为洞察生成的主输入,
+让 agent「先看够文档,缺啥补啥,有据可依不编造」。
+
+### 设计文档(已确认)
+- 文档清单:7 项(SOW / 系统集成 / 合同 / 交接单 ★;组织架构 / 售前方案 / 售前调研 推荐)
+- 虚拟物 3 项:成功指标(引导问卷)/ 风险预警(KB 推清单)/ 引导问卷(占位)
+- 三栏布局:文档清单 320px / 中报告或预览 / 右引用栏 + QA tab(默认收起)
+- 信息源标注:句子级角标 [^N] + Hover + 右栏聚合,closed-corpus
+- 缺信息:KB → Web 试探(用户裁决) → 对话/表单
+- M9 行业最佳实践:KB(0.7) + Web(0.3) 融合,标来源
+- Web search:**先做逻辑,后台留 Bocha/Tavily API key 配置入口**
+
+### Phase 1 — 后端基础
+- [ ] **1.1** 后端 DOC_TYPES 扩 7 项 + 新增 3 个虚拟产物类型(成功指标 / 风险预警 / 引导问卷)
+- [ ] **1.2** 项目阶段→必需文档清单 配置(可暂硬编码,后端 API 暴露)
+- [ ] **1.3** 后端 Web Search API key 配置入口(/api/settings/api-keys 或 ApiKeysTab)
+
+### Phase 2 — 后端文档接入 + 虚拟物
+- [ ] **2.1** runner.py `_load_ctx` 加 `docs_by_type` 读 markdown_content
+- [ ] **2.2** planner.py 加 `doc_content` source 类型 + `_resolve_field` 支持
+- [ ] **2.3** brief_service 按 doc_type 分类提取(DOC_TYPE_EXTRACTION_HINTS)
+- [ ] **2.4** 虚拟物模块:
+       · 成功指标问卷(8 题带选项,落到 brief.success_metrics)
+       · 风险预警通用清单(从 industry_pack 推 8-12 条 + KB 检索补充)
+
+### Phase 3 — 引用追溯 + Web 融合
+- [ ] **3.1** Executor 输出 provenance 字段 + KB refs 自动加角标 [^N]
+- [ ] **3.2** M9 模块改 KB(权重 0.7) + Web(权重 0.3) 融合,每条标来源
+- [ ] **3.3** 新 API `POST /api/agentic/suggest-from-web` — 给定 field + 项目上下文,
+       返回 1-3 条 Web 候选答案 + 来源(没配 key 灰显)
+
+### Phase 4 — 前端三栏布局
+- [ ] **4.1** ConsoleProjectDetail 重构:顶部 + 阶段栏不变,工作区改三栏
+- [ ] **4.2** 新建 `DocChecklist` 组件(左栏 320px) — 7 文档 + 3 虚拟物 + 上传/状态
+- [ ] **4.3** 中栏切换逻辑(报告 / 准备状态 / 预览 / GapFiller)
+- [ ] **4.4** 右栏 — 引用 tab + QA tab,默认收起
+
+### Phase 5 — 引用 + Web 抓取按钮
+- [ ] **5.1** `CitedReportView` 组件 — 角标 hover preview + 跳右栏定位
+- [ ] **5.2** GapFiller 加「✨ 试试网络获取」按钮 + 候选答案选择 UI
+
+### Phase 6 — 验证 & 部署
+- [ ] **6.1** Python 3.11 py_compile + tsc 通过
+- [ ] **6.2** 友发钢管 / 中科时代 端到端测试
+- [ ] **6.3** rsync + docker rebuild + 生产验证
+
+### 边界
+- 不动 v1 / v2 旧 stage(survey / kickoff / insight v1)
+- 不破坏旧 ConsoleProjectDetail 主流程(改三栏但保留 Brief / OutputChatPanel 入口)
+- DocChecklist 只在 insight_v2 stage 激活,其他 stage 暂时仍走原对话流
+- M5 行业上下文之前的 industry_pack 行业字段补丁不动
+
+---
+
+
+
 ## 新迭代：Console 项目管理融合（2026-04-25）
 
 ### 背景

@@ -174,7 +174,7 @@ async def _industry_priming(proj, industry: str | None, kind: str, model: str | 
 async def _web_research(proj, industry: str | None, kind: str) -> tuple[list[dict], list[dict]]:
     """真实联网检索：返回 (条目列表, 调用日志)。没配 key 时返回空。"""
     from services.web_search_service import web_search, has_web_search_provider
-    if not has_web_search_provider():
+    if not await has_web_search_provider():
         return [], []
     queries: list[str] = []
     if industry:

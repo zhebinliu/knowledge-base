@@ -67,6 +67,28 @@ def _format_project_block(project) -> str:
     return "\n".join(lines)
 
 
+def _format_docs_block(docs_by_type: dict | None, max_chars_per_doc: int = 4000) -> str:
+    """把 docs_by_type({doc_type: [{doc_id, filename, summary, markdown}]}) 渲染成 prompt 用的块。
+
+    每个文档:摘要 + 截断的 markdown(避免 prompt 爆 token)。
+    LLM 会自己挑相关章节作为证据。每段引用时要带 [文档名] 标识。
+    """
+    if not docs_by_type:
+        return ""
+    from models.project import DOC_TYPE_LABELS
+    parts = ["### 项目上传文档(按类型分组,作为生成依据,引用必须标 [文档名]):"]
+    for doc_type, docs in docs_by_type.items():
+        type_label = DOC_TYPE_LABELS.get(doc_type, doc_type)
+        for d in docs:
+            content = (d.get("markdown") or d.get("summary") or "").strip()
+            if not content:
+                continue
+            if len(content) > max_chars_per_doc:
+                content = content[:max_chars_per_doc] + f"\n…(余下 {len(content) - max_chars_per_doc} 字省略)"
+            parts.append(f"\n**[{type_label} · {d.get('filename', '未命名')}]**\n{content}")
+    return "\n".join(parts) if len(parts) > 1 else ""
+
+
 def _format_industry_pack_block(industry: str | None) -> str:
     pack = get_pack(industry)
     if not pack:
@@ -95,6 +117,8 @@ async def execute_insight_module(
     skill_text: str,
     agent_prompt: str,
     model: str | None,
+    docs_by_type: dict | None = None,           # v3 新增
+    web_research_block: str = "",                # v3 新增(M9 用)
 ) -> str:
     """生成单个 insight 模块的 markdown 内容。"""
     from services.output_service import _llm_call
@@ -115,13 +139,18 @@ async def execute_insight_module(
     if module.industry_filter or module.key == "M9_industry_benchmark":
         industry_block = _format_industry_pack_block(industry)
 
+    # v3 新增:项目上传文档(按 doc_type 分组,作为最权威证据)
+    docs_block = _format_docs_block(docs_by_type)
+
     # 拼装 prompt(使用 module.prompt_template 的占位符)
     user_prompt = module.prompt_template.format(
         fields_block=f"【字段评估】\n{fields_block}",
         project_block=f"【项目元数据】\n{project_block}",
         evidence_block=(
-            f"【访谈记录】\n{transcript or '（无访谈记录）'}\n\n"
-            f"【证据材料(知识库)】\n{refs_block or '（无证据材料）'}\n\n"
+            (f"{docs_block}\n\n" if docs_block else "")           # ← 文档放最前(权威优先)
+            + f"【访谈记录】\n{transcript or '（无访谈记录）'}\n\n"
+            + f"【证据材料(知识库)】\n{refs_block or '（无证据材料）'}\n\n"
+            + (f"{web_research_block}\n\n" if web_research_block else "")
             + (f"{industry_block}\n\n" if industry_block else "")
             + (f"【方法论】\n{agent_prompt}\n\n" if agent_prompt else "")
             + (f"【启用技能】\n{skill_text}" if skill_text else "")
@@ -138,6 +167,18 @@ async def execute_insight_module(
 - 用简体中文 + Markdown
 - 关键 rubric 维度:{', '.join(module.rubric_focus)}
 - 缺信息时写"信息缺失,建议在 Phase 1 第一周补访"或类似表达;**绝不**编造
+
+【信息源标注 — 强制执行】
+- 每个事实陈述末尾必须标来源,采用句子级内联角标格式:`句子内容[^N]`
+- N 是数字编号(从 1 开始,本节内连续)
+- 在该模块文末输出来源映射(每段独立一行):
+    [^1]: SOW 需求说明书 · 章节名 / 段落片段
+    [^2]: 访谈 · 张三(销售总监)
+    [^3]: 知识库 · 文档名
+    [^4]: Web · domain.com
+- 来源类型分 5 种:**文档**(用 [文档名] 标识)/ **访谈** / **知识库** / **Web** / **推断**
+- 编造或来源不明的内容一律不写;宁可写"信息缺失"也不要瞎扯
+- 只能引用上述 evidence_block 里给出的素材,**closed-corpus**(不许编)
 """
     try:
         content = await _llm_call(user_prompt, system=system, model=model, max_tokens=3000, timeout=180.0)

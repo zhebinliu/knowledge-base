@@ -80,6 +80,30 @@ async def _load_ctx(bundle_id: str, project_id: str, kind: str) -> dict:
         if row and row.fields:
             brief_fields = row.fields
 
+    # 加载项目下的"已完成"文档(按 doc_type 索引,markdown_content 直接可读)
+    # 给 planner / executor 用作首要信息源 — 实施场景下顾问主要靠这些文档
+    docs_by_type: dict[str, list[dict]] = {}
+    if project_id:
+        from models.document import Document
+        async with async_session_maker() as s:
+            doc_rows = (await s.execute(
+                select(
+                    Document.id, Document.filename, Document.doc_type,
+                    Document.summary, Document.markdown_content,
+                )
+                .where(Document.project_id == project_id)
+                .where(Document.conversion_status == "completed")
+            )).all()
+        for r in doc_rows:
+            if not r.doc_type:
+                continue
+            docs_by_type.setdefault(r.doc_type, []).append({
+                "doc_id": r.id,
+                "filename": r.filename,
+                "summary": (r.summary or "")[:600],   # 摘要用于 prompt 概览
+                "markdown": (r.markdown_content or ""),  # 全文,供按 doc_type 抽取用
+            })
+
     return {
         "bundle_id": bundle_id,
         "bundle_extra": extra,
@@ -93,6 +117,8 @@ async def _load_ctx(bundle_id: str, project_id: str, kind: str) -> dict:
         "agent_prompt": agent_cfg.get("prompt", ""),
         "agent_model": agent_cfg.get("model"),
         "skill_text": skill_text,
+        # v3 新增:按 doc_type 索引的项目文档(markdown 已转好)
+        "docs_by_type": docs_by_type,
     }
 
 
@@ -108,6 +134,53 @@ async def _mark_conv(bundle_id: str, status: str):
 
 def _ts() -> str:
     return datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+
+
+# ── v3: M9 行业最佳实践的 Web 研究融合 ────────────────────────────────────────
+# KB 走 fill_kb_gaps,Web 走这个 helper;融合后注入 executor
+
+async def _build_m9_web_block(industry: str, project) -> str:
+    """对 M9 跑 Web 搜索(2 个 query),拼成 prompt 块。没配 key 返回空串。"""
+    try:
+        from services.web_search_service import web_search, has_web_search_provider
+        if not await has_web_search_provider():
+            return ""
+        customer = project.customer if project else ""
+        queries = [
+            f"{industry} CRM 实施 标杆案例 最佳实践 2025",
+            f"{industry} 数字化转型 失败教训 项目陷阱",
+        ]
+        if customer:
+            queries.append(f"{customer} 企业数字化 CRM 案例")
+        all_hits = []
+        for q in queries[:3]:
+            hits = await web_search(q, top_k=3)
+            for h in hits:
+                all_hits.append({**h, "_query": q})
+        if not all_hits:
+            return ""
+        # 去重(按 url)
+        seen = set()
+        deduped = []
+        for h in all_hits:
+            u = h.get("url") or ""
+            if u in seen:
+                continue
+            seen.add(u)
+            deduped.append(h)
+        lines = [
+            "### 互联网检索结果(M9 行业最佳实践对照专用,权重低于 KB)",
+            "> 引用时标 `[Web · domain]`,数据需交叉验证",
+        ]
+        for h in deduped[:8]:
+            domain = (h.get("url") or "").split("/")[2] if h.get("url") else "—"
+            title = (h.get("title") or "")[:80]
+            snippet = (h.get("snippet") or "")[:300]
+            lines.append(f"- **[{title}]** ({domain})\n  {snippet}")
+        return "\n".join(lines)
+    except Exception as e:
+        logger.warning("m9_web_block_failed", err=str(e)[:120])
+        return ""
 
 
 # ── 行业 / 方法论 名词解释库 ────────────────────────────────────────────────────
@@ -289,6 +362,48 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
             },
         })
 
+        # ── Phase 1.5(v3): 自动从文档抽取 brief 字段 ──
+        # 项目刚上传 4+ 必需文档 + brief 还没填的场景 — 自动跑一次 brief extract,
+        # 让 planner 看到字段已被文档填充,直接 ready,而不是要求用户填一遍 GapFiller。
+        docs_by_type = ctx.get("docs_by_type") or {}
+        brief_filled_count = sum(1 for v in (ctx["brief_fields"] or {}).values()
+                                 if isinstance(v, dict) and v.get("value") not in (None, "", []))
+        if docs_by_type and brief_filled_count < 5:
+            try:
+                from services.brief_service import extract_brief_draft, merge_extract_with_user_edits
+                from models.project_brief import ProjectBrief
+                logger.info("v3_auto_extract_start",
+                            project_id=project_id, docs_n=sum(len(v) for v in docs_by_type.values()),
+                            brief_filled_pre=brief_filled_count)
+                draft = await extract_brief_draft(project_id, "insight_v2", model=ctx["agent_model"])
+                # 合并到现有 brief(用户已编辑的字段优先保留)
+                merged = merge_extract_with_user_edits(ctx["brief_fields"] or {}, draft)
+                async with async_session_maker() as s:
+                    row = (await s.execute(
+                        select(ProjectBrief).where(
+                            ProjectBrief.project_id == project_id,
+                            ProjectBrief.output_kind == "insight_v2",
+                        )
+                    )).scalar_one_or_none()
+                    if row:
+                        row.fields = merged
+                        from sqlalchemy.orm.attributes import flag_modified
+                        flag_modified(row, "fields")
+                    else:
+                        s.add(ProjectBrief(project_id=project_id,
+                                           output_kind="insight_v2", fields=merged))
+                    await s.commit()
+                ctx["brief_fields"] = merged
+                run_history.append({
+                    "phase": "v3_auto_extract", "ts": _ts(),
+                    "detail": {"docs_n": sum(len(v) for v in docs_by_type.values()),
+                               "brief_filled_pre": brief_filled_count,
+                               "brief_filled_post": sum(1 for v in merged.values()
+                                                        if isinstance(v, dict) and v.get("value") not in (None, "", []))},
+                })
+            except Exception as e:
+                logger.warning("v3_auto_extract_failed", error=str(e)[:200])
+
         # ── Phase 2: Planner ──
         plan = plan_insight(
             project=ctx["project"],
@@ -332,6 +447,11 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
                     ready_pairs.append((spec, assess))
                     break
 
+        # v3: M9 行业最佳实践 — 跑 web research 注入(KB 已通过 fill_kb_gaps)
+        web_research_block = ""
+        if ctx["industry"]:
+            web_research_block = await _build_m9_web_block(ctx["industry"], ctx["project"])
+
         async def _run_one(spec, assess):
             content = await execute_insight_module(
                 module=spec, assessment=assess,
@@ -340,6 +460,8 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
                 extra_kb_refs=kb_refs,
                 skill_text=ctx["skill_text"], agent_prompt=ctx["agent_prompt"],
                 model=ctx["agent_model"],
+                docs_by_type=ctx.get("docs_by_type"),                                # v3
+                web_research_block=web_research_block if spec.key == "M9_industry_benchmark" else "",
             )
             return spec.key, content
 

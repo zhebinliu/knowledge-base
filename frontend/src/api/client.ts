@@ -665,6 +665,85 @@ export const listOutputAgents = () => api.get<OutputAgentConfig[]>('/settings/ou
 export const updateOutputAgent = (key: string, body: { prompt: string; skill_ids: string[]; model: string | null }) =>
   api.put(`/settings/output-agents/${key}`, body)
 
+// ── Doc Checklist (项目文档清单 + 虚拟物状态) ──────────────────────────────
+
+export interface DocChecklistItem {
+  doc_type: string
+  label: string
+  necessity: 'required' | 'recommended'
+  uploaded: boolean
+  uploaded_count: number
+  documents: { doc_id: string; filename: string; status: string; uploaded_at: string | null }[]
+  kind: 'doc'
+}
+export interface VirtualChecklistItem {
+  key: string                                  // v_success_metrics / v_risk_alert / v_guided_questionnaire
+  label: string
+  description: string
+  necessity: 'required' | 'recommended'
+  filled: boolean
+  filled_count: number
+  total_count: number
+  kind: 'virtual'
+}
+export interface DocChecklistDto {
+  stage: string
+  stage_has_checklist: boolean
+  required_docs: DocChecklistItem[]
+  recommended_docs: DocChecklistItem[]
+  virtual_required: VirtualChecklistItem[]
+  virtual_recommended: VirtualChecklistItem[]
+  completion: {
+    required: number; required_total: number
+    recommended: number; recommended_total: number
+    virtual_required: number; virtual_required_total: number
+    virtual_recommended: number; virtual_recommended_total: number
+    all_required_done: boolean
+  }
+}
+
+export const getDocChecklist = (projectId: string, stage = 'insight_v2') =>
+  api.get<DocChecklistDto>(`/doc-checklist/${projectId}`, { params: { stage } }).then(r => r.data)
+
+// ── Virtual Artifacts (成功指标 / 风险预警 等问卷型虚拟物) ──────────────────
+
+export interface VirtualArtifactDto {
+  vkey: string
+  title: string
+  description: string
+  ask_user_prompts: V2GapPrompt[]              // 复用 GapFiller 类型
+  current_values: Record<string, BriefFieldCell>
+}
+
+export const getVirtualArtifact = (vkey: string, projectId: string) =>
+  api.get<VirtualArtifactDto>(`/virtual/${vkey}`, { params: { project_id: projectId } }).then(r => r.data)
+
+export const submitVirtualArtifact = (vkey: string, projectId: string, fields: Record<string, any>) =>
+  api.post<{ ok: boolean; vkey: string; fields_saved: number }>(
+    `/virtual/${vkey}/submit`, { fields }, { params: { project_id: projectId } },
+  ).then(r => r.data)
+
+// ── Web Suggest (字段试探 Web 抓取建议) ────────────────────────────────────
+
+export interface WebSuggestCandidate {
+  text: string
+  source_title: string
+  source_url: string
+  source_domain: string
+}
+export interface WebSuggestResponse {
+  ok: boolean
+  query: string
+  candidates: WebSuggestCandidate[]
+  note?: string
+}
+
+export const webSuggest = (body: {
+  project_id: string; field_key: string; field_label: string; question: string; field_type?: string
+}) => api.post<WebSuggestResponse>('/web-suggest', body).then(r => r.data)
+
+// (uploadDocument 已在文档管理章节定义,见 line ~206)
+
 // ── Stage Flow (项目阶段流程动态配置) ──────────────────────────────────────
 
 export interface StageSubKindDef {

@@ -116,8 +116,12 @@ async def list_api_keys():
         env = m.get("api_key_env", "")
         if env:
             key_envs.add(env)
-    # Also include embedding/rerank keys
-    key_envs.update(["embedding_api_key", "rerank_api_key"])
+    # Also include embedding/rerank keys + Web search providers
+    key_envs.update([
+        "embedding_api_key", "rerank_api_key",
+        "bocha_api_key",        # Web search · Bocha(api.bochaai.com)
+        "tavily_api_key",       # Web search · Tavily
+    ])
 
     result = []
     for env_name in sorted(key_envs):

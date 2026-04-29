@@ -11,10 +11,14 @@
  * 没有 options 的题渲染开放文本;有 options 的渲染单/多选 chip + 「其他(自填)」兜底。
  */
 import { useState, useMemo } from 'react'
-import { ShieldAlert, Sparkles, Loader2, CheckCircle2, AlertCircle, Plus } from 'lucide-react'
+import {
+  ShieldAlert, Sparkles, Loader2, CheckCircle2, AlertCircle, Plus,
+  Globe, ExternalLink, X,
+} from 'lucide-react'
 import {
   type CuratedBundle, type V2GapPrompt, type BriefFieldCell, type OutputKind,
-  getBrief, putBrief, generateOutput,
+  type WebSuggestCandidate,
+  getBrief, putBrief, generateOutput, webSuggest,
 } from '../api/client'
 
 interface Props {
@@ -22,6 +26,10 @@ interface Props {
   kind: OutputKind
   projectId: string
   onSubmitted: () => void          // 父组件应 refetch outputs
+}
+
+interface QuestionItemExtra {
+  projectId: string
 }
 
 type AnswerValue =
@@ -179,6 +187,7 @@ export default function V2GapFiller({ bundle, kind, projectId, onSubmitted }: Pr
                     prompt={p}
                     answer={answers[p.field_key]}
                     onChange={v => setAnswer(p.field_key, v)}
+                    projectId={projectId}
                   />
                 ))}
               </div>
@@ -212,11 +221,12 @@ export default function V2GapFiller({ bundle, kind, projectId, onSubmitted }: Pr
 // ── 单道题 ────────────────────────────────────────────────────────────────────
 
 function QuestionItem({
-  prompt, answer, onChange,
+  prompt, answer, onChange, projectId,
 }: {
   prompt: V2GapPrompt
   answer: AnswerValue | undefined
   onChange: (a: AnswerValue) => void
+  projectId: string
 }) {
   const isMulti = prompt.multi
   const hasOptions = prompt.options && prompt.options.length > 0
@@ -228,13 +238,113 @@ function QuestionItem({
   const [showFreeText, setShowFreeText] = useState(false)
   const isCustom = ans.kind === 'text' && ans.value !== '' && hasOptions && !prompt.options.includes(ans.value)
 
+  // Web 抓取建议
+  const [webOpen, setWebOpen] = useState(false)
+  const [webLoading, setWebLoading] = useState(false)
+  const [webError, setWebError] = useState<string | null>(null)
+  const [webCandidates, setWebCandidates] = useState<WebSuggestCandidate[] | null>(null)
+
+  const onTryWeb = async () => {
+    setWebOpen(true)
+    setWebLoading(true)
+    setWebError(null)
+    setWebCandidates(null)
+    try {
+      const res = await webSuggest({
+        project_id: projectId,
+        field_key: prompt.field_key,
+        field_label: prompt.field_label,
+        question: prompt.question,
+        field_type: prompt.field_type,
+      })
+      setWebCandidates(res.candidates || [])
+    } catch (e: any) {
+      const status = e?.response?.status
+      const msg = e?.response?.data?.detail || e?.message || '获取失败'
+      if (status === 503) {
+        setWebError('管理员未配置 Web 搜索 API key,联系管理员开启')
+      } else {
+        setWebError(msg)
+      }
+    } finally {
+      setWebLoading(false)
+    }
+  }
+
+  const adoptCandidate = (c: WebSuggestCandidate) => {
+    if (isMulti && ans.kind === 'list') {
+      onChange({ kind: 'list', value: [...ans.value, c.text], freetext: ans.freetext })
+    } else {
+      onChange({ kind: 'text', value: c.text })
+    }
+    setWebOpen(false)
+  }
+
   return (
     <div className="px-4 py-3.5">
       <div className="flex items-baseline gap-1.5 mb-2">
         <span className="text-sm font-medium text-ink">{prompt.field_label || prompt.field_key}</span>
         {prompt.required && <span className="text-[10px] text-red-600 font-semibold">必答</span>}
+        <button
+          type="button"
+          onClick={onTryWeb}
+          className="ml-auto flex items-center gap-1 px-1.5 py-0.5 text-[10px] text-purple-700 hover:text-purple-900 hover:bg-purple-50 rounded transition-colors"
+          title="试试从公开互联网抓取候选答案"
+        >
+          <Globe size={10} /> 试试网络获取
+        </button>
       </div>
       <div className="text-xs text-ink-secondary mb-2.5">{prompt.question}</div>
+
+      {/* Web 抓取候选答案面板 */}
+      {webOpen && (
+        <div className="mb-3 p-3 bg-purple-50/40 border border-purple-200 rounded-md">
+          <div className="flex items-center gap-2 mb-2">
+            <Globe size={11} className="text-purple-700" />
+            <span className="text-[11px] font-medium text-purple-900">网络候选答案</span>
+            <button onClick={() => setWebOpen(false)} className="ml-auto text-purple-700 hover:text-purple-900">
+              <X size={11} />
+            </button>
+          </div>
+          {webLoading && (
+            <div className="text-[11px] text-ink-muted py-2">
+              <Loader2 size={11} className="inline animate-spin mr-1" /> 搜索中…
+            </div>
+          )}
+          {webError && (
+            <div className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded p-2">
+              {webError}
+            </div>
+          )}
+          {webCandidates && webCandidates.length === 0 && !webLoading && (
+            <div className="text-[11px] text-ink-muted italic">没找到相关结果,建议直接填</div>
+          )}
+          {webCandidates && webCandidates.length > 0 && (
+            <div className="space-y-2">
+              {webCandidates.map((c, i) => (
+                <div key={i} className="bg-white border border-purple-200 rounded p-2.5">
+                  <div className="text-xs text-ink leading-relaxed">{c.text}</div>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <a href={c.source_url} target="_blank" rel="noopener noreferrer"
+                       className="text-[10px] text-purple-700 hover:underline flex items-center gap-0.5 truncate max-w-xs">
+                      <ExternalLink size={9} /> {c.source_domain}
+                    </a>
+                    <button
+                      onClick={() => adoptCandidate(c)}
+                      className="ml-auto px-2 py-0.5 text-[10px] text-purple-700 border border-purple-300 rounded hover:bg-purple-100"
+                    >
+                      <CheckCircle2 size={9} className="inline mr-0.5" />采纳
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <div className="text-[10px] text-ink-muted italic">
+                结果来自互联网公开信息,仅供参考。建议交叉验证后采纳。
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 有选项 — 渲染 chip */}
       {hasOptions && (

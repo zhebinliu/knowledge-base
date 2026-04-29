@@ -19,7 +19,10 @@ import OutputChatPanel from '../../components/OutputChatPanel'
 import BriefDrawer from '../../components/BriefDrawer'
 import MarkdownView from '../../components/MarkdownView'
 import V2GapFiller from '../../components/V2GapFiller'
+import DocChecklist from '../../components/console/DocChecklist'
+import CenterWorkspace, { type CenterView } from '../../components/console/CenterWorkspace'
 import QA from '../QA'
+import { useEffect } from 'react'
 
 const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'insight_v2', 'survey_v2', 'survey_outline_v2']
 
@@ -96,6 +99,10 @@ export default function ConsoleProjectDetail() {
   const [briefDrawer, setBriefDrawer] = useState<{ kind: OutputKind; label: string } | null>(null)
   // 当 active stage 有 subKinds 时,记当前选中的 sub-action(默认第一个)
   const [selectedSubKind, setSelectedSubKind] = useState<OutputKind | null>(null)
+  // v3 insight_v2 stage 的中栏 view(其他 stage 不用)
+  const [centerView, setCenterView] = useState<CenterView>({ type: 'preparation' })
+  // 右栏(QA + 引用)是否展开
+  const [rightOpen, setRightOpen] = useState(false)
 
   const { data: project, isLoading } = useQuery({
     queryKey: ['project', id], queryFn: () => getProject(id!), enabled: !!id,
@@ -405,13 +412,24 @@ export default function ConsoleProjectDetail() {
           <V2ValidityBanner bundle={activeBundle} onReGenerate={startGeneration} />
         )}
 
-      {/* 主区:invalid+short_circuited 场景 → V2GapFiller 替代对话区(让用户填问卷)
-          有新一轮生成在跑(activeInflight 非空)时不显示,让顶部 action strip 的 "正在生成中" 状态接管 */}
-      {activeBundle?.agentic_version === 'v2'
+      {/* ── insight_v2 stage 用 v3 三栏布局 ── */}
+      {activeKind === 'insight_v2' ? (
+        <InsightV3Workspace
+          projectId={id}
+          activeBundle={activeBundle}
+          activeInflight={activeInflight}
+          centerView={centerView}
+          setCenterView={setCenterView}
+          rightOpen={rightOpen}
+          setRightOpen={setRightOpen}
+          onRefetch={refetchOutputs}
+        />
+      ) : activeBundle?.agentic_version === 'v2'
         && activeBundle.validity_status === 'invalid'
         && activeBundle.short_circuited
         && activeKind
         && !activeInflight ? (
+        /* 其他 stage 的 v2 invalid+short_circuited 仍用旧 GapFiller 占满 */
         <V2GapFiller
           key={`gap-${activeBundle.id}`}
           bundle={activeBundle}
@@ -420,7 +438,7 @@ export default function ConsoleProjectDetail() {
           onSubmitted={() => refetchOutputs()}
         />
       ) : (
-        /* 主区:正常对话 */
+        /* 主区:正常对话(其他非 insight_v2 stage) */
         <div className="flex-1 min-h-0 flex flex-col bg-white">
           <ChatTabs
             mode={chatMode}
@@ -478,6 +496,90 @@ export default function ConsoleProjectDetail() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+
+// ──────────────────────────────────────────────────────────────────────────────
+// InsightV3Workspace —— insight_v2 stage 的三栏工作区
+// 左:DocChecklist 280px / 中:CenterWorkspace flex-1 / 右:可折叠 380px(QA)
+// ──────────────────────────────────────────────────────────────────────────────
+
+function InsightV3Workspace({
+  projectId, activeBundle, activeInflight, centerView, setCenterView,
+  rightOpen, setRightOpen, onRefetch,
+}: {
+  projectId: string
+  activeBundle: CuratedBundle | undefined
+  activeInflight: CuratedBundle | undefined
+  centerView: CenterView
+  setCenterView: (v: CenterView) => void
+  rightOpen: boolean
+  setRightOpen: (b: boolean) => void
+  onRefetch: () => void
+}) {
+  // 根据 bundle 状态自动选定中栏内容(只在 view='preparation' 时主动切,避免覆盖用户操作)
+  useEffect(() => {
+    if (centerView.type !== 'preparation') return
+    if (activeInflight) return  // 跑生成中,保留 preparation 显示进度
+    if (activeBundle?.agentic_version === 'v2'
+        && activeBundle.validity_status === 'invalid'
+        && activeBundle.short_circuited) {
+      setCenterView({ type: 'gap_filler' })
+    } else if (activeBundle?.status === 'done') {
+      setCenterView({ type: 'report' })
+    }
+  }, [activeBundle?.id, activeBundle?.status, activeBundle?.validity_status,
+      activeBundle?.short_circuited, activeInflight?.id])
+
+  return (
+    <div className="flex-1 min-h-0 flex bg-canvas overflow-hidden">
+      {/* 左:文档清单 */}
+      <div className="w-[300px] flex-shrink-0">
+        <DocChecklist
+          projectId={projectId}
+          stage="insight_v2"
+          onOpenDocPreview={(docId) => setCenterView({ type: 'preview', docId })}
+          onOpenVirtualForm={(vkey) => setCenterView({ type: 'virtual', vkey })}
+        />
+      </div>
+
+      {/* 中:工作区 */}
+      <CenterWorkspace
+        projectId={projectId}
+        activeBundle={activeBundle}
+        activeInflight={activeInflight}
+        view={centerView}
+        setView={setCenterView}
+        onRefetch={onRefetch}
+      />
+
+      {/* 右:QA 抽屉(可折叠) */}
+      {rightOpen ? (
+        <div className="w-[380px] flex-shrink-0 flex flex-col bg-white border-l border-line">
+          <div className="flex-shrink-0 px-3 py-2 border-b border-line flex items-center gap-2">
+            <span className="text-xs font-semibold text-ink">项目问答</span>
+            <button
+              onClick={() => setRightOpen(false)}
+              className="ml-auto p-1 text-ink-muted hover:text-ink"
+              title="收起"
+            >
+              <X size={13} />
+            </button>
+          </div>
+          <div className="flex-1 min-h-0">
+            <QA lockedProjectId={projectId} />
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setRightOpen(true)}
+          className="absolute right-4 bottom-4 z-10 flex items-center gap-1.5 px-3 py-2 bg-white border border-line rounded-full shadow-md text-xs text-ink-secondary hover:text-ink hover:border-orange-300"
+          title="展开项目问答"
+        >
+          <MessageSquare size={12} /> 项目问答
+        </button>
+      )}
+    </div>
+  )
+}
 
 function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onReGenerate: () => void }) {
   const isInvalid = bundle.validity_status === 'invalid'
