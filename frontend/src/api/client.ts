@@ -686,6 +686,20 @@ export interface VirtualChecklistItem {
   total_count: number
   kind: 'virtual'
 }
+export interface ExtraReferenceItem {
+  doc_id: string
+  filename: string
+  status: string
+  uploaded_at: string | null
+}
+export interface CandidateAttachItem {
+  doc_id: string
+  filename: string
+  doc_type: string | null
+  doc_type_label: string | null
+  status: string
+  uploaded_at: string | null
+}
 export interface DocChecklistDto {
   stage: string
   stage_has_checklist: boolean
@@ -693,6 +707,8 @@ export interface DocChecklistDto {
   recommended_docs: DocChecklistItem[]
   virtual_required: VirtualChecklistItem[]
   virtual_recommended: VirtualChecklistItem[]
+  extra_references?: ExtraReferenceItem[]            // 附加参考文档(已挂在洞察的)
+  candidates_to_attach?: CandidateAttachItem[]       // 项目里其他可被关联进来的文档
   completion: {
     required: number; required_total: number
     recommended: number; recommended_total: number
@@ -701,6 +717,7 @@ export interface DocChecklistDto {
     all_required_done: boolean
   }
 }
+
 
 export const getDocChecklist = (projectId: string, stage = 'insight_v2') =>
   api.get<DocChecklistDto>(`/doc-checklist/${projectId}`, { params: { stage } }).then(r => r.data)

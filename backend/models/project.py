@@ -26,6 +26,7 @@ DOC_TYPES = (
     "stakeholder_map",          # 组织架构 + 干系人图谱
     "presales_solution",        # 售前解决方案
     "presales_survey",          # 售前调研问卷
+    "extra_reference",          # 附加参考文档(用户在清单里手动加进来的额外资料)
 )
 
 DOC_TYPE_LABELS = {
@@ -41,6 +42,7 @@ DOC_TYPE_LABELS = {
     "stakeholder_map":      "组织架构 / 干系人图谱",
     "presales_solution":    "售前解决方案",
     "presales_survey":      "售前调研问卷",
+    "extra_reference":      "附加参考",
 }
 
 

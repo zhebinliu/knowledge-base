@@ -16,11 +16,12 @@ import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle2, Upload, Loader2, FileText, Lightbulb, Sparkles,
-  ChevronRight, Clock, Network,
+  ChevronRight, Clock, Network, Paperclip, Plus, Link2, X,
 } from 'lucide-react'
 import {
-  getDocChecklist, uploadDocument,
+  getDocChecklist, uploadDocument, updateDocumentMeta,
   type DocChecklistItem, type VirtualChecklistItem,
+  type ExtraReferenceItem, type CandidateAttachItem,
 } from '../../api/client'
 
 interface Props {
@@ -120,6 +121,202 @@ export default function DocChecklist({ projectId, stage, onOpenDocPreview, onOpe
             ))}
           </Section>
         )}
+
+        {/* 附加参考文档 — 不在 7 类预设里,用户手动添加 */}
+        <ExtraReferencesSection
+          projectId={projectId}
+          extraRefs={data.extra_references ?? []}
+          candidates={data.candidates_to_attach ?? []}
+          onPreview={onOpenDocPreview}
+          onChanged={onRefresh}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ── 附加参考文档 section ─────────────────────────────────────────────────────
+
+function ExtraReferencesSection({
+  projectId, extraRefs, candidates, onPreview, onChanged,
+}: {
+  projectId: string
+  extraRefs: ExtraReferenceItem[]
+  candidates: CandidateAttachItem[]
+  onPreview: (docId: string) => void
+  onChanged: () => void
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setUploading(true); setError(null)
+    try {
+      await uploadDocument(f, { project_id: projectId, doc_type: 'extra_reference' })
+      onChanged()
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || err?.message || '上传失败')
+    } finally {
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  // 解除关联(把 extra_reference doc_type 清掉,文档仍在项目里)
+  const onDetach = async (docId: string) => {
+    try {
+      await updateDocumentMeta(docId, { doc_type: null })
+      onChanged()
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || err?.message || '解除关联失败')
+    }
+  }
+
+  return (
+    <div>
+      <div className="text-[10px] text-ink-muted font-medium px-1 mb-1.5 uppercase tracking-wider flex items-center gap-1">
+        <Paperclip size={10} /> 附加参考
+        <span className="text-[9px] normal-case text-ink-muted/70">· 喂给洞察的额外文档</span>
+      </div>
+
+      {/* 已挂的附加文档 */}
+      <div className="space-y-1">
+        {extraRefs.map(d => (
+          <div key={d.doc_id}
+               className="px-2 py-1.5 rounded border border-purple-100 bg-purple-50/30 flex items-center gap-1.5">
+            <FileText size={11} className="text-purple-600 shrink-0" />
+            <button onClick={() => onPreview(d.doc_id)}
+                    className="text-[11px] text-ink hover:text-[#D96400] truncate text-left flex-1"
+                    title={d.filename}>
+              {d.filename}
+            </button>
+            {d.status !== 'completed' && <Clock size={9} className="text-amber-600 shrink-0" />}
+            <button onClick={() => onDetach(d.doc_id)}
+                    className="shrink-0 p-0.5 text-ink-muted hover:text-red-600"
+                    title="解除关联(文档保留在项目里)">
+              <X size={11} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* 操作按钮组 */}
+      <div className="mt-1.5 flex items-center gap-1.5">
+        <button onClick={() => fileRef.current?.click()} disabled={uploading}
+          className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] text-ink-muted hover:text-[#D96400] border border-dashed border-line hover:border-orange-300 rounded transition-colors disabled:opacity-50">
+          {uploading ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
+          上传文件
+        </button>
+        <button onClick={() => setPickerOpen(true)} disabled={candidates.length === 0}
+          className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] text-ink-muted hover:text-[#D96400] border border-dashed border-line hover:border-orange-300 rounded transition-colors disabled:opacity-40 disabled:hover:text-ink-muted disabled:hover:border-line"
+          title={candidates.length === 0 ? '项目里没有可关联的其他文档' : `从项目里 ${candidates.length} 份其他文档里选`}>
+          <Link2 size={10} />
+          关联已有 {candidates.length > 0 && <span className="text-ink-muted/60">({candidates.length})</span>}
+        </button>
+      </div>
+      {error && <div className="text-[10px] text-red-600 mt-1 px-1">{error}</div>}
+      <input ref={fileRef} type="file" className="hidden"
+             accept=".pdf,.docx,.pptx,.xlsx,.csv,.md,.txt"
+             onChange={onUpload} />
+
+      {/* 选择器:列出项目里的其他文档供多选 */}
+      {pickerOpen && (
+        <AttachExistingPicker
+          candidates={candidates}
+          onClose={() => setPickerOpen(false)}
+          onConfirm={async (docIds) => {
+            try {
+              await Promise.all(docIds.map(id => updateDocumentMeta(id, { doc_type: 'extra_reference' })))
+              onChanged()
+              setPickerOpen(false)
+            } catch (err: any) {
+              setError(err?.response?.data?.detail || err?.message || '关联失败')
+            }
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function AttachExistingPicker({
+  candidates, onClose, onConfirm,
+}: {
+  candidates: CandidateAttachItem[]
+  onClose: () => void
+  onConfirm: (docIds: string[]) => Promise<void>
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [submitting, setSubmitting] = useState(false)
+
+  const toggle = (id: string) => {
+    setSelected(prev => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id); else n.add(id)
+      return n
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-[480px] max-h-[70vh] flex flex-col"
+           onClick={e => e.stopPropagation()}>
+        <div className="px-4 py-3 border-b border-line flex items-center gap-2">
+          <Link2 size={13} className="text-purple-600" />
+          <span className="text-sm font-semibold text-ink">关联项目里的已有文档</span>
+          <button onClick={onClose} className="ml-auto p-1 text-ink-muted hover:text-ink">
+            <X size={14} />
+          </button>
+        </div>
+        <div className="px-4 py-2 text-[11px] text-ink-muted bg-slate-50 border-b border-line">
+          选中后这些文档会被作为「附加参考」喂给项目洞察生成。
+        </div>
+        <div className="flex-1 overflow-auto p-3 space-y-1.5">
+          {candidates.length === 0 && (
+            <div className="text-center text-xs text-ink-muted py-8">项目里没有可关联的其他文档</div>
+          )}
+          {candidates.map(c => (
+            <label key={c.doc_id}
+                   className={`flex items-center gap-2 px-2.5 py-2 rounded border cursor-pointer transition-colors ${
+                     selected.has(c.doc_id) ? 'border-purple-300 bg-purple-50/40' : 'border-line hover:border-purple-200'
+                   }`}>
+              <input type="checkbox" checked={selected.has(c.doc_id)} onChange={() => toggle(c.doc_id)}
+                     className="accent-purple-600" />
+              <FileText size={11} className="text-ink-muted shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="text-xs text-ink truncate" title={c.filename}>{c.filename}</div>
+                <div className="text-[10px] text-ink-muted">
+                  {c.doc_type_label || '未分类'}
+                  {c.status !== 'completed' && <span className="text-amber-600 ml-1.5">· {c.status}</span>}
+                </div>
+              </div>
+            </label>
+          ))}
+        </div>
+        <div className="px-4 py-3 border-t border-line flex items-center gap-2">
+          <span className="text-[11px] text-ink-muted">已选 {selected.size} 份</span>
+          <button onClick={onClose}
+            className="ml-auto px-3 py-1.5 text-xs text-ink-muted border border-line rounded hover:bg-canvas">
+            取消
+          </button>
+          <button
+            onClick={async () => {
+              if (selected.size === 0) return
+              setSubmitting(true)
+              try { await onConfirm(Array.from(selected)) }
+              finally { setSubmitting(false) }
+            }}
+            disabled={selected.size === 0 || submitting}
+            className="px-3 py-1.5 text-xs text-white rounded shadow-sm disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}>
+            {submitting ? <Loader2 size={11} className="inline animate-spin mr-1" /> : <Link2 size={11} className="inline mr-1" />}
+            关联选中
+          </button>
+        </div>
       </div>
     </div>
   )

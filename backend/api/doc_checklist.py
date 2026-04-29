@@ -164,7 +164,38 @@ async def get_doc_checklist(project_id: str, stage: str = "insight_v2"):
     virtual_required    = [await _render_virtual_slot(k, "required")    for k in req.get("virtual_required",    [])]
     virtual_recommended = [await _render_virtual_slot(k, "recommended") for k in req.get("virtual_recommended", [])]
 
-    # 6. 完成度
+    # 6. 附加参考文档(用户手动归到 doc_type='extra_reference' 的文件)
+    #    + 项目里"未分类 / 不在清单 7 类"的文档(供前端"关联已有"功能选)
+    extra_references = [
+        {
+            "doc_id": d["doc_id"],
+            "filename": d["filename"],
+            "status": d["status"],
+            "uploaded_at": d["uploaded_at"],
+        }
+        for d in docs_by_type.get("extra_reference", [])
+    ]
+    # 项目里其他可被"关联进来"的候选文档:
+    #   - doc_type 为空(未分类),或
+    #   - doc_type 在 5 个"通用"老类 + 7 类预设之外的(本期就是除 extra_reference / 7 类 / 5 老类之外)
+    # 简化:列出 doc_type 不在「当前 stage required+recommended+extra_reference」白名单的文档
+    stage_white = set(req.get("required_docs", []) + req.get("recommended_docs", []) + ["extra_reference"])
+    candidates_to_attach = []
+    for r in doc_rows:
+        if r.doc_type in stage_white:
+            continue
+        if r.conversion_status not in ("completed", "processing"):
+            continue
+        candidates_to_attach.append({
+            "doc_id": r.id,
+            "filename": r.filename,
+            "doc_type": r.doc_type,
+            "doc_type_label": DOC_TYPE_LABELS.get(r.doc_type) if r.doc_type else "未分类",
+            "status": r.conversion_status,
+            "uploaded_at": r.created_at.isoformat() if r.created_at else None,
+        })
+
+    # 7. 完成度
     req_done   = sum(1 for d in required_docs    if d["uploaded"])
     rec_done   = sum(1 for d in recommended_docs if d["uploaded"])
     vreq_done  = sum(1 for v in virtual_required    if v["filled"])
@@ -189,5 +220,7 @@ async def get_doc_checklist(project_id: str, stage: str = "insight_v2"):
         "recommended_docs": recommended_docs,
         "virtual_required": virtual_required,
         "virtual_recommended": virtual_recommended,
+        "extra_references": extra_references,                # 已挂在洞察的附加参考文档
+        "candidates_to_attach": candidates_to_attach,        # 项目里可被"关联"的其他文档
         "completion": completion,
     }
