@@ -45,3 +45,11 @@ ssh -i /Users/zhebinliu/Documents/projects/private_key liu@34.45.112.217 "cd /op
 - **task.md 实时更新**：每完成一项划掉，遇到阻塞或范围调整即时记录在文件里。
 - Git: 直接在 main 上开发，commit + push 不需确认。
 - 分支: 不开 feature 分支。
+
+## 产品决策（已确认，勿轻易回退）
+
+- **项目洞察阶段：文档喂全文，不走切片召回**（用户 2026-04-29 明确决策）
+  - `backend/services/agentic/executor.py` 的 `_build_sources_index` 默认 `max_chars_per_doc=30000`
+  - 单份文档 ~10-12k tokens；一次 insight 最多 4-7 份 D 类文档，总文档证据 50-80k tokens，加 prompt + 输出仍在 Opus 200k 上下文里富余
+  - SOW / 方案 / 合同 / 交接单这类核心文档要让 LLM 看到全文，避免切片漏掉关键条款
+  - 长文档切片召回（RAG）作为后续优化方向，不在当前阶段做

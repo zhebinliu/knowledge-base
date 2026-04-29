@@ -82,7 +82,9 @@ def _build_sources_index(
     extra_kb_refs: dict | None,
     web_research_refs: list[dict] | None,
     module_key: str,
-    max_chars_per_doc: int = 4000,
+    max_chars_per_doc: int = 30000,   # 项目洞察阶段:文档喂全文(不走切片召回);
+                                       # 30000 字 ≈ 10-12k tokens / 文档,够覆盖 SOW / 方案 / 合同等长文。
+                                       # 后续若改走 RAG 切片召回再降回小值。
 ) -> tuple[dict, str]:
     """构建该模块的 sources_index(后端给每个 source 编号)+ 渲染的 evidence_block 文本。
 
