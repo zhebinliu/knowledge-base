@@ -115,10 +115,12 @@ export default function ConsoleProjectDetail() {
   const { data: meta } = useQuery({ queryKey: ['project-meta'], queryFn: getProjectMeta })
 
   // 项目阶段流程 — 后端动态配置(/api/settings/stage-flow);失败 fallback 到内置默认
+  // staleTime 短 + refetchOnMount=always:管理员改完配置,前台进项目页就能立刻看到新流程
   const { data: stageFlow } = useQuery({
     queryKey: ['stage-flow'],
     queryFn: getStageFlow,
-    staleTime: 5 * 60 * 1000,   // 5 分钟内不重拉(配置不会经常变)
+    staleTime: 30 * 1000,
+    refetchOnMount: 'always',
   })
   const STAGES: StageDef[] = stageFlow?.stages?.length
     ? stageFlow.stages.map(_mapStage)

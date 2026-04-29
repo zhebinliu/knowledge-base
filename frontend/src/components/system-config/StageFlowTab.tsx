@@ -13,16 +13,38 @@
  *  - 重置为默认
  *  - 保存(全量 PUT,带校验)
  */
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Loader2, Plus, Trash2, ChevronUp, ChevronDown, Save, RotateCcw,
   AlertCircle, CheckCircle2, ChevronRight,
+  // —— 图标选择器要用的 ——
+  FileText, Lightbulb, ClipboardList, Bot, Sparkles, Search,
+  Settings, Box, MessageSquare, Target, Calendar, Package, Users,
 } from 'lucide-react'
 import {
   getStageFlow, putStageFlow, resetStageFlow, getStageFlowMeta,
   type StageDef, type StageSubKindDef,
 } from '../../api/client'
+
+// ── 图标名 → 组件 + 中文显示名 ────────────────────────────────────────────────
+// 跟后端 stage_flow.ALLOWED_ICONS 对齐
+const ICON_REGISTRY: Record<string, { Comp: typeof FileText; label: string }> = {
+  FileText:      { Comp: FileText,      label: '文件' },
+  Lightbulb:     { Comp: Lightbulb,     label: '灯泡' },
+  ClipboardList: { Comp: ClipboardList, label: '清单' },
+  Bot:           { Comp: Bot,           label: '机器人' },
+  Sparkles:      { Comp: Sparkles,      label: '闪光' },
+  Search:        { Comp: Search,        label: '搜索' },
+  Settings:      { Comp: Settings,      label: '齿轮' },
+  Box:           { Comp: Box,           label: '盒子' },
+  MessageSquare: { Comp: MessageSquare, label: '消息' },
+  Target:        { Comp: Target,        label: '靶心' },
+  Calendar:      { Comp: Calendar,      label: '日历' },
+  Package:       { Comp: Package,       label: '包裹' },
+  Users:         { Comp: Users,         label: '用户' },
+  CheckCircle2:  { Comp: CheckCircle2,  label: '对勾' },
+}
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -245,16 +267,12 @@ export default function StageFlowTab() {
                     <option key={k} value={k}>{meta.kind_titles[k] || k}</option>
                   ))}
                 </select>
-                {/* 图标 */}
-                <select
+                {/* 图标 — 弹出网格选择器(可视化) */}
+                <IconPicker
                   value={s.icon}
-                  onChange={e => updateStage(i, { icon: e.target.value })}
-                  className="px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:border-orange-400"
-                >
-                  {meta?.icons.map(ic => (
-                    <option key={ic} value={ic}>{ic}</option>
-                  ))}
-                </select>
+                  options={meta?.icons || []}
+                  onChange={ic => updateStage(i, { icon: ic })}
+                />
                 {/* 内测 */}
                 <div>
                   <Toggle checked={s.beta} onChange={v => updateStage(i, { beta: v })} />
@@ -340,6 +358,75 @@ export default function StageFlowTab() {
 }
 
 // ── 小组件 ────────────────────────────────────────────────────────────────────
+
+function IconPicker({
+  value, options, onChange,
+}: {
+  value: string
+  options: string[]
+  onChange: (v: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // 点外面关闭
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  const current = ICON_REGISTRY[value]
+  const CurrentIcon = current?.Comp || FileText
+  const currentLabel = current?.label || value
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-1.5 px-2 py-1 text-xs border border-gray-200 rounded hover:border-orange-400 focus:outline-none focus:border-orange-400 bg-white"
+      >
+        <CurrentIcon size={13} className="text-gray-700 shrink-0" />
+        <span className="truncate text-gray-700">{currentLabel}</span>
+        <ChevronDown size={11} className="ml-auto text-gray-400 shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 top-full left-0 mt-1 p-2 bg-white border border-gray-200 rounded-lg shadow-lg w-[260px]">
+          <div className="text-[10px] text-gray-400 mb-1.5 px-1">选个图标(共 {options.length} 个)</div>
+          <div className="grid grid-cols-4 gap-1">
+            {options.map(name => {
+              const reg = ICON_REGISTRY[name]
+              if (!reg) return null
+              const { Comp, label } = reg
+              const selected = name === value
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => { onChange(name); setOpen(false) }}
+                  className={`flex flex-col items-center justify-center py-2 rounded hover:bg-orange-50 ${
+                    selected ? 'bg-orange-100 ring-1 ring-orange-400' : ''
+                  }`}
+                  title={`${label}(${name})`}
+                >
+                  <Comp size={18} className={selected ? 'text-[#D96400]' : 'text-gray-700'} />
+                  <span className={`text-[10px] mt-0.5 ${selected ? 'text-[#D96400] font-medium' : 'text-gray-500'}`}>
+                    {label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   // 用 inline style 确定位置 — 避免 Tailwind JIT 漏抓动态 translate-x-* class
