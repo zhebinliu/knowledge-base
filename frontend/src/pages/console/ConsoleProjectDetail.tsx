@@ -581,6 +581,7 @@ function InsightV3Workspace({
           stage="insight_v2"
           onOpenDocPreview={(docId) => setCenterView({ type: 'preview', docId })}
           onOpenVirtualForm={(vkey) => setCenterView({ type: 'virtual', vkey })}
+          onOpenStakeholderCanvas={() => setCenterView({ type: 'canvas' })}
         />
       </div>
 

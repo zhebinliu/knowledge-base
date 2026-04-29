@@ -17,38 +17,35 @@
 - Web search:**先做逻辑,后台留 Bocha/Tavily API key 配置入口**
 
 ### Phase 1 — 后端基础
-- [ ] **1.1** 后端 DOC_TYPES 扩 7 项 + 新增 3 个虚拟产物类型(成功指标 / 风险预警 / 引导问卷)
-- [ ] **1.2** 项目阶段→必需文档清单 配置(可暂硬编码,后端 API 暴露)
-- [ ] **1.3** 后端 Web Search API key 配置入口(/api/settings/api-keys 或 ApiKeysTab)
+- [x] **1.1** 后端 DOC_TYPES 扩 7 项 + 新增 3 个虚拟产物类型(成功指标 / 风险预警 / 引导问卷)
+- [x] **1.2** 项目阶段→必需文档清单 配置(STAGE_DOC_REQUIREMENTS,后端 API 暴露)
+- [x] **1.3** 后端 Web Search API key 配置入口(ApiKeysTab 加 bocha/tavily)
 
 ### Phase 2 — 后端文档接入 + 虚拟物
-- [ ] **2.1** runner.py `_load_ctx` 加 `docs_by_type` 读 markdown_content
-- [ ] **2.2** planner.py 加 `doc_content` source 类型 + `_resolve_field` 支持
-- [ ] **2.3** brief_service 按 doc_type 分类提取(DOC_TYPE_EXTRACTION_HINTS)
-- [ ] **2.4** 虚拟物模块:
-       · 成功指标问卷(8 题带选项,落到 brief.success_metrics)
-       · 风险预警通用清单(从 industry_pack 推 8-12 条 + KB 检索补充)
+- [x] **2.1** runner.py `_load_ctx` 加 `docs_by_type` 读 markdown_content
+- [x] **2.2** planner.py 加 `doc_content` source 类型 + `_resolve_field` 支持
+- [x] **2.3** brief_service 按 doc_type 分类提取(DOC_TYPE_EXTRACTION_HINTS — 7 类差异化 hint)
+- [x] **2.4** 虚拟物模块:成功指标问卷 + 风险预警通用清单
 
 ### Phase 3 — 引用追溯 + Web 融合
-- [ ] **3.1** Executor 输出 provenance 字段 + KB refs 自动加角标 [^N]
-- [ ] **3.2** M9 模块改 KB(权重 0.7) + Web(权重 0.3) 融合,每条标来源
-- [ ] **3.3** 新 API `POST /api/agentic/suggest-from-web` — 给定 field + 项目上下文,
-       返回 1-3 条 Web 候选答案 + 来源(没配 key 灰显)
+- [x] **3.1** Executor 后端给 source 编号(D1/K1/W1)+ provenance 字段写 bundle.extra
+- [x] **3.2** M9 模块改 KB + Web refs 融合,每条标来源
+- [x] **3.3** 新 API `POST /api/web-suggest` — 候选答案 + 来源(没配 key 灰显)
 
 ### Phase 4 — 前端三栏布局
-- [ ] **4.1** ConsoleProjectDetail 重构:顶部 + 阶段栏不变,工作区改三栏
-- [ ] **4.2** 新建 `DocChecklist` 组件(左栏 320px) — 7 文档 + 3 虚拟物 + 上传/状态
-- [ ] **4.3** 中栏切换逻辑(报告 / 准备状态 / 预览 / GapFiller)
-- [ ] **4.4** 右栏 — 引用 tab + QA tab,默认收起
+- [x] **4.1** ConsoleProjectDetail 重构:三栏布局
+- [x] **4.2** 新建 `DocChecklist` 组件(左栏)— 7 文档 + 3 虚拟物 + 上传/状态
+- [x] **4.3** 中栏切换逻辑(报告 / 准备状态 / 预览 / GapFiller / VirtualForm)
+- [x] **4.4** 右栏 — CitationsPanel(引用追溯)+ FloatingChat(QA 浮动窗)
 
 ### Phase 5 — 引用 + Web 抓取按钮
-- [ ] **5.1** `CitedReportView` 组件 — 角标 hover preview + 跳右栏定位
-- [ ] **5.2** GapFiller 加「✨ 试试网络获取」按钮 + 候选答案选择 UI
+- [x] **5.1** `CitedReportView` 组件 — sup chip + hover tooltip + 跳右栏定位
+- [x] **5.2** GapFiller 加「✨ 试试网络获取」按钮 + 候选答案选择 UI
 
 ### Phase 6 — 验证 & 部署
-- [ ] **6.1** Python 3.11 py_compile + tsc 通过
+- [x] **6.1** Python 3.11 py_compile + tsc 通过
 - [ ] **6.2** 友发钢管 / 中科时代 端到端测试
-- [ ] **6.3** rsync + docker rebuild + 生产验证
+- [x] **6.3** rsync + docker rebuild + 生产验证(GH Actions deploy 成功)
 
 ### 边界
 - 不动 v1 / v2 旧 stage(survey / kickoff / insight v1)

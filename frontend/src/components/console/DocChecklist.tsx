@@ -16,7 +16,7 @@ import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle2, Upload, Loader2, FileText, Lightbulb, Sparkles,
-  AlertCircle, ChevronRight, Clock,
+  ChevronRight, Clock, Network,
 } from 'lucide-react'
 import {
   getDocChecklist, uploadDocument,
@@ -28,11 +28,12 @@ interface Props {
   stage: string                    // 默认 insight_v2
   onOpenDocPreview: (docId: string) => void
   onOpenVirtualForm: (vkey: string) => void
+  onOpenStakeholderCanvas?: () => void   // 干系人图谱 canvas 编辑入口
 }
 
 const BRAND = '#D96400'
 
-export default function DocChecklist({ projectId, stage, onOpenDocPreview, onOpenVirtualForm }: Props) {
+export default function DocChecklist({ projectId, stage, onOpenDocPreview, onOpenVirtualForm, onOpenStakeholderCanvas }: Props) {
   const qc = useQueryClient()
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['doc-checklist', projectId, stage],
@@ -97,6 +98,7 @@ export default function DocChecklist({ projectId, stage, onOpenDocPreview, onOpe
             <DocRow
               key={d.doc_type} item={d} projectId={projectId}
               onPreview={onOpenDocPreview} onUploaded={onRefresh}
+              onCanvas={d.doc_type === 'stakeholder_map' ? onOpenStakeholderCanvas : undefined}
             />
           ))}
           {data.virtual_required.map(v => (
@@ -110,6 +112,7 @@ export default function DocChecklist({ projectId, stage, onOpenDocPreview, onOpe
               <DocRow
                 key={d.doc_type} item={d} projectId={projectId}
                 onPreview={onOpenDocPreview} onUploaded={onRefresh}
+                onCanvas={d.doc_type === 'stakeholder_map' ? onOpenStakeholderCanvas : undefined}
               />
             ))}
             {data.virtual_recommended.map(v => (
@@ -147,12 +150,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function DocRow({
-  item, projectId, onPreview, onUploaded,
+  item, projectId, onPreview, onUploaded, onCanvas,
 }: {
   item: DocChecklistItem
   projectId: string
   onPreview: (docId: string) => void
   onUploaded: () => void
+  onCanvas?: () => void          // 仅 stakeholder_map 支持画图入口
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
@@ -216,6 +220,17 @@ function DocRow({
             <div className="text-[10px] text-red-600 mt-1">{error}</div>
           )}
         </div>
+        {/* 干系人图谱专属:画图入口 */}
+        {onCanvas && (
+          <button
+            type="button"
+            onClick={onCanvas}
+            className="shrink-0 p-1 text-purple-500 hover:text-purple-700"
+            title="在画布上手动编辑组织架构 / 干系人"
+          >
+            <Network size={11} />
+          </button>
+        )}
         {/* 上传按钮 */}
         <button
           type="button"

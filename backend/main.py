@@ -5,7 +5,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest
+from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph
 from services.rate_limit import limiter
 from services.vector_store import vector_store
 
@@ -51,6 +51,7 @@ app.include_router(stage_flow.router, prefix="/api/settings", tags=["stage-flow"
 app.include_router(doc_checklist.router, prefix="/api/doc-checklist", tags=["doc-checklist"])
 app.include_router(virtual_artifacts.router, prefix="/api/virtual", tags=["virtual-artifacts"])
 app.include_router(web_suggest.router, prefix="/api/web-suggest", tags=["web-suggest"])
+app.include_router(stakeholder_graph.router, prefix="/api/stakeholder-graph", tags=["stakeholder-graph"])
 
 
 @app.on_event("startup")

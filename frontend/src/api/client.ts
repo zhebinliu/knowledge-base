@@ -742,6 +742,37 @@ export const webSuggest = (body: {
   project_id: string; field_key: string; field_label: string; question: string; field_type?: string
 }) => api.post<WebSuggestResponse>('/web-suggest', body).then(r => r.data)
 
+// ── 干系人图谱(stakeholder graph)— canvas 编辑入口 ──────────────────────────
+
+export interface StakeholderNode {
+  id: string
+  type: 'department' | 'person'
+  name: string
+  title?: string | null
+  dept?: string | null
+  x: number
+  y: number
+}
+
+export interface StakeholderEdge {
+  id: string
+  source: string
+  target: string
+  label?: string | null
+}
+
+export interface StakeholderGraph {
+  nodes: StakeholderNode[]
+  edges: StakeholderEdge[]
+  updated_at?: string | null
+}
+
+export const getStakeholderGraph = (projectId: string) =>
+  api.get<StakeholderGraph>(`/stakeholder-graph/${projectId}`).then(r => r.data)
+
+export const saveStakeholderGraph = (projectId: string, payload: { nodes: StakeholderNode[]; edges: StakeholderEdge[] }) =>
+  api.put<StakeholderGraph>(`/stakeholder-graph/${projectId}`, payload).then(r => r.data)
+
 // (uploadDocument 已在文档管理章节定义,见 line ~206)
 
 // ── Stage Flow (项目阶段流程动态配置) ──────────────────────────────────────

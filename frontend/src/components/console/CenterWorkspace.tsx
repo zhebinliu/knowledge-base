@@ -23,6 +23,7 @@ import { useState } from 'react'
 import MarkdownView from '../MarkdownView'
 import V2GapFiller from '../V2GapFiller'
 import CitedReportView from './CitedReportView'
+import StakeholderCanvas from './StakeholderCanvas'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -32,6 +33,7 @@ export type CenterView =
   | { type: 'report' }
   | { type: 'gap_filler' }
   | { type: 'virtual'; vkey: string }
+  | { type: 'canvas' }                     // 干系人图谱手动编辑
 
 interface Props {
   projectId: string
@@ -48,8 +50,8 @@ export default function CenterWorkspace({
 }: Props) {
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-white overflow-hidden">
-      {/* 视图顶部:返回按钮(预览/虚拟物时) */}
-      {(view.type === 'preview' || view.type === 'virtual') && (
+      {/* 视图顶部:返回按钮(预览/虚拟物/canvas 时) */}
+      {(view.type === 'preview' || view.type === 'virtual' || view.type === 'canvas') && (
         <div className="flex-shrink-0 px-4 py-2 bg-slate-50 border-b border-line flex items-center gap-2">
           <button
             onClick={() => setView({ type: activeBundle ? 'report' : 'preparation' })}
@@ -60,6 +62,7 @@ export default function CenterWorkspace({
           </button>
           {view.type === 'preview' && <span className="text-[11px] text-ink-muted">· 文档预览</span>}
           {view.type === 'virtual' && <span className="text-[11px] text-ink-muted">· 虚拟物问卷</span>}
+          {view.type === 'canvas'  && <span className="text-[11px] text-ink-muted">· 组织架构 / 干系人图谱</span>}
         </div>
       )}
 
@@ -90,6 +93,9 @@ export default function CenterWorkspace({
             projectId={projectId}
             onDone={() => { setView({ type: 'preparation' }); onRefetch() }}
           />
+        )}
+        {view.type === 'canvas' && (
+          <StakeholderCanvas projectId={projectId} />
         )}
       </div>
     </div>
