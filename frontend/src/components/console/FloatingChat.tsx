@@ -13,7 +13,7 @@ import { useState, useEffect, useRef } from 'react'
 import {
   MessageSquare, Minus, Maximize2, Minimize2, X, GripVertical,
 } from 'lucide-react'
-import QA from '../../pages/QA'
+import FloatingQA from './FloatingQA'
 
 export interface FloatingChatState {
   open: boolean
@@ -135,9 +135,9 @@ export default function FloatingChat({ projectId, state, onChange }: Props) {
         </div>
       </div>
 
-      {/* 对话主体(QA 组件) */}
+      {/* 对话主体(轻量 FloatingQA — 单列,适配窄宽) */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        <QA lockedProjectId={projectId} />
+        <FloatingQA projectId={projectId} />
       </div>
     </div>
   )
