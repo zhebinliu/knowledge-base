@@ -342,13 +342,21 @@ export default function StageFlowTab() {
 // ── 小组件 ────────────────────────────────────────────────────────────────────
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  // 用 inline style 确定位置 — 避免 Tailwind JIT 漏抓动态 translate-x-* class
   return (
     <button
+      type="button"
       onClick={() => onChange(!checked)}
-      className={`relative w-9 h-5 rounded-full transition-colors ${checked ? 'bg-orange-500' : 'bg-gray-300'}`}
+      className={`relative inline-block rounded-full transition-colors ${checked ? 'bg-orange-500' : 'bg-gray-300'}`}
+      style={{ width: 36, height: 20, flexShrink: 0 }}
+      aria-pressed={checked}
     >
       <span
-        className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`}
+        className="absolute bg-white rounded-full shadow-sm transition-all"
+        style={{
+          width: 16, height: 16, top: 2,
+          left: checked ? 18 : 2,
+        }}
       />
     </button>
   )
