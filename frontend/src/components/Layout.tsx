@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { NavLink, Outlet, Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Brain, MessageSquare,
-  ClipboardCheck, BookOpen, Settings, ChevronDown, LogOut, KeyRound, Shield, Folder,
+  ClipboardCheck, BookOpen, Settings, Sliders, ChevronDown, LogOut, KeyRound, Shield, Folder,
   Copy, RefreshCw, Check, Plug, Trash2, AlertCircle, Menu, Sparkles,
 } from 'lucide-react'
 // BookOpen kept for chunks nav icon
@@ -19,6 +19,7 @@ const pathToModule: Record<string, string> = {
   '/review': 'review',
   '/challenge': 'challenge',
   '/settings': 'settings',
+  '/system-config': 'system-config',
 }
 
 const allNavGroups = [
@@ -37,7 +38,8 @@ const allNavGroups = [
   {
     label: '系统',
     items: [
-      { to: '/settings', label: '系统设置', icon: Settings, adminOnly: true },
+      { to: '/system-config', label: '系统配置', icon: Sliders, adminOnly: true },
+      { to: '/settings',      label: '系统设置', icon: Settings, adminOnly: true },
     ],
   },
 ]

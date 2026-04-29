@@ -11,7 +11,9 @@ import {
   getProject, updateProject, generateCustomerProfile, generateOutput,
   listProjectDocuments, getDocumentMarkdown, listOutputs, downloadOutputUrl, viewOutputUrl,
   getProjectMeta, TOKEN_STORAGE_KEY,
+  getStageFlow,
   type CuratedBundle, type OutputKind, type Project, type ProjectDocument,
+  type StageDef as ApiStageDef,
 } from '../../api/client'
 import OutputChatPanel from '../../components/OutputChatPanel'
 import BriefDrawer from '../../components/BriefDrawer'
@@ -22,6 +24,12 @@ import QA from '../QA'
 const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'insight_v2', 'survey_v2', 'survey_outline_v2']
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
+
+// 图标白名单 — 与后端 stage_flow.ALLOWED_ICONS 对齐
+const STAGE_ICON_MAP = {
+  FileText, Lightbulb, ClipboardList, Bot, Sparkles, Search,
+  // 其他 lucide 图标按需添加
+} as const
 
 interface SubKindDef {
   kind: OutputKind
@@ -37,14 +45,29 @@ interface StageDef {
   subKinds?: SubKindDef[]               // 可选:本 stage 下有多个产物(在 action strip 显示按钮组)
 }
 
-const STAGES: StageDef[] = [
+// 后端 ApiStageDef → 前端 StageDef:icon 字符串映射成组件
+function _mapStage(s: ApiStageDef): StageDef {
+  const IconComp = (STAGE_ICON_MAP as any)[s.icon] || FileText
+  return {
+    key: s.key,
+    label: s.label,
+    kind: (s.kind as OutputKind | null),
+    icon: IconComp,
+    active: s.active,
+    beta: s.beta,
+    subKinds: s.sub_kinds && s.sub_kinds.length > 0
+      ? s.sub_kinds.map(sk => ({ kind: sk.kind as OutputKind, label: sk.label }))
+      : undefined,
+  }
+}
+
+// API 拉取失败时的默认 fallback(跟后端 DEFAULT_STAGES 同步)
+const DEFAULT_STAGES: StageDef[] = [
   { key: 'insight',       label: '项目洞察',          kind: 'insight',      icon: Lightbulb,     active: true },
   { key: 'kickoff',       label: '启动会·PPT',        kind: 'kickoff_pptx', icon: FileText,      active: true },
   { key: 'kickoff_html',  label: '启动会·HTML',       kind: 'kickoff_html', icon: FileText,      active: true },
   { key: 'survey',        label: '需求调研',          kind: 'survey',       icon: ClipboardList, active: true },
-  // v2 (agentic) — 旁路验证版本
   { key: 'insight_v2',    label: '项目洞察(新版)',   kind: 'insight_v2',   icon: Bot,           active: true, beta: true },
-  // 「需求调研 v2」 stage 下两个按钮:大纲 / 问卷(各自独立 brief / bundle / 状态)
   { key: 'survey_v2',     label: '需求调研(新版)',   kind: null,           icon: Bot,           active: true, beta: true,
     subKinds: [
       { kind: 'survey_outline_v2', label: '调研大纲' },
@@ -90,6 +113,16 @@ export default function ConsoleProjectDetail() {
     },
   })
   const { data: meta } = useQuery({ queryKey: ['project-meta'], queryFn: getProjectMeta })
+
+  // 项目阶段流程 — 后端动态配置(/api/settings/stage-flow);失败 fallback 到内置默认
+  const { data: stageFlow } = useQuery({
+    queryKey: ['stage-flow'],
+    queryFn: getStageFlow,
+    staleTime: 5 * 60 * 1000,   // 5 分钟内不重拉(配置不会经常变)
+  })
+  const STAGES: StageDef[] = stageFlow?.stages?.length
+    ? stageFlow.stages.map(_mapStage)
+    : DEFAULT_STAGES
 
   if (!id) return null
   if (isLoading) return <div className="text-center py-20 text-ink-muted text-sm">加载中…</div>

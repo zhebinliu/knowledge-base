@@ -665,6 +665,43 @@ export const listOutputAgents = () => api.get<OutputAgentConfig[]>('/settings/ou
 export const updateOutputAgent = (key: string, body: { prompt: string; skill_ids: string[]; model: string | null }) =>
   api.put(`/settings/output-agents/${key}`, body)
 
+// ── Stage Flow (项目阶段流程动态配置) ──────────────────────────────────────
+
+export interface StageSubKindDef {
+  kind: string
+  label: string
+}
+export interface StageDef {
+  key: string
+  label: string
+  kind: string | null
+  icon: string                    // lucide-react 图标名(白名单)
+  active: boolean
+  beta: boolean
+  sub_kinds: StageSubKindDef[]
+}
+export interface StageFlowDto {
+  stages: StageDef[]
+  is_default: boolean
+}
+export interface StageFlowMeta {
+  icons: string[]
+  kinds: string[]
+  kind_titles: Record<string, string>
+}
+
+export const getStageFlow = () =>
+  api.get<StageFlowDto>('/settings/stage-flow').then(r => r.data)
+
+export const putStageFlow = (stages: StageDef[]) =>
+  api.put<{ ok: boolean; stages_n: number }>('/settings/stage-flow', { stages }).then(r => r.data)
+
+export const resetStageFlow = () =>
+  api.post<{ ok: boolean }>('/settings/stage-flow/reset').then(r => r.data)
+
+export const getStageFlowMeta = () =>
+  api.get<StageFlowMeta>('/settings/stage-flow/meta').then(r => r.data)
+
 // ── Output Chats (对话式产出) ───────────────────────────────────────────────
 
 export type OutputKind =

@@ -5,7 +5,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs
+from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow
 from services.rate_limit import limiter
 from services.vector_store import vector_store
 
@@ -47,6 +47,7 @@ app.include_router(outputs.router, prefix="/api/outputs", tags=["outputs"])
 app.include_router(meeting.router, prefix="/api/meeting", tags=["meeting"])
 app.include_router(output_chats.router, prefix="/api/output-chats", tags=["output-chats"])
 app.include_router(briefs.router, prefix="/api/briefs", tags=["briefs"])
+app.include_router(stage_flow.router, prefix="/api/settings", tags=["stage-flow"])
 
 
 @app.on_event("startup")

@@ -1,23 +1,19 @@
 import { useState } from 'react'
-import { Settings as SettingsIcon, Cpu, GitBranch, FileCode, KeyRound, Users, Wand2, Bot, ScrollText } from 'lucide-react'
+import { Settings as SettingsIcon, Cpu, GitBranch, KeyRound, Users, ScrollText } from 'lucide-react'
 import clsx from 'clsx'
 import ModelsTab       from '../components/settings/ModelsTab'
 import RoutingTab      from '../components/settings/RoutingTab'
-import PromptsTab      from '../components/settings/PromptsTab'
 import ApiKeysTab      from '../components/settings/ApiKeysTab'
 import UsersTab        from '../components/settings/UsersTab'
-import SkillsTab       from '../components/settings/SkillsTab'
-import OutputAgentsTab from '../components/settings/OutputAgentsTab'
 import CallLogsTab     from '../components/settings/CallLogsTab'
 
+// 系统设置 = 运维 / 接入 / 用户管理(机器跑得动相关)
+// 业务行为类(项目流程 / 提示词 / 技能库 / 输出智能体)拆到 /system-config
 const tabs = [
   { key: 'models',        label: '模型管理',     icon: Cpu },
   { key: 'routing',       label: '路由与参数',   icon: GitBranch },
-  { key: 'prompts',       label: '提示词',       icon: FileCode },
   { key: 'api-keys',      label: 'API 密钥',     icon: KeyRound },
   { key: 'users',         label: '用户管理',     icon: Users },
-  { key: 'skills',        label: '技能库',       icon: Wand2 },
-  { key: 'output-agents', label: '输出智能体',   icon: Bot },
   { key: 'call-logs',     label: '调用日志',     icon: ScrollText },
 ] as const
 
@@ -32,7 +28,9 @@ export default function Settings() {
         <SettingsIcon size={22} className="text-gray-400" />
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">系统设置</h1>
       </div>
-      <p className="text-xs md:text-sm text-gray-500 mb-6 md:mb-8">管理模型、路由规则、提示词模板与 API 密钥</p>
+      <p className="text-xs md:text-sm text-gray-500 mb-6 md:mb-8">
+        模型 · 路由 · API 密钥 · 用户 · 调用日志(业务规则配置在「系统配置」菜单)
+      </p>
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit max-w-full overflow-x-auto">
@@ -56,11 +54,8 @@ export default function Settings() {
       {/* Tab content */}
       {active === 'models'        && <ModelsTab />}
       {active === 'routing'       && <RoutingTab />}
-      {active === 'prompts'       && <PromptsTab />}
       {active === 'api-keys'      && <ApiKeysTab />}
       {active === 'users'         && <UsersTab />}
-      {active === 'skills'        && <SkillsTab />}
-      {active === 'output-agents' && <OutputAgentsTab />}
       {active === 'call-logs'     && <CallLogsTab />}
     </div>
   )
