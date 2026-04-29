@@ -98,6 +98,7 @@ def _bundle_dto(b: CuratedBundle) -> dict:
         "ask_user_prompts": extra.get("ask_user_prompts") or [],
         "module_states": extra.get("module_states") or {},
         "short_circuited": bool(extra.get("short_circuited")),
+        "provenance": extra.get("provenance") or {},     # v3: {module_key: {D1/K1/W1: meta}}
     }
 
 

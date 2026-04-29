@@ -853,6 +853,22 @@ export const listCallLogs = (page = 1, page_size = 50, call_type?: string) =>
 
 // ── Outputs ───────────────────────────────────────────────────────────────────
 
+// v3:报告引用追溯 — 每个 module 的 sources_index 项
+export interface ProvenanceEntry {
+  type: 'doc' | 'kb' | 'web'
+  label: string
+  snippet: string
+  // doc/kb 字段
+  doc_id?: string
+  filename?: string
+  doc_type?: string
+  chunk_id?: string
+  section?: string
+  // web 字段
+  url?: string
+  domain?: string
+}
+
 // v2 agentic 用 — 一道"补充信息"问题(Planner 标记的 ask_user gap)
 export interface V2GapPrompt {
   module_key: string
@@ -886,6 +902,8 @@ export interface CuratedBundle {
   validity_status?: 'valid' | 'partial' | 'invalid' | null
   short_circuited?: boolean       // true=Planner 拦截,未跑 LLM
   ask_user_prompts?: V2GapPrompt[]
+  // v3 文档驱动 — 引用追溯
+  provenance?: Record<string, Record<string, ProvenanceEntry>>    // {module_key: {D1/K1/W1: entry}}
   module_states?: Record<string, {
     key: string
     title: string

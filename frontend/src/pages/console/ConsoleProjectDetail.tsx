@@ -21,6 +21,8 @@ import MarkdownView from '../../components/MarkdownView'
 import V2GapFiller from '../../components/V2GapFiller'
 import DocChecklist from '../../components/console/DocChecklist'
 import CenterWorkspace, { type CenterView } from '../../components/console/CenterWorkspace'
+import CitationsPanel from '../../components/console/CitationsPanel'
+import FloatingChat, { type FloatingChatState } from '../../components/console/FloatingChat'
 import QA from '../QA'
 import { useEffect } from 'react'
 
@@ -101,8 +103,14 @@ export default function ConsoleProjectDetail() {
   const [selectedSubKind, setSelectedSubKind] = useState<OutputKind | null>(null)
   // v3 insight_v2 stage 的中栏 view(其他 stage 不用)
   const [centerView, setCenterView] = useState<CenterView>({ type: 'preparation' })
-  // 右栏(QA + 引用)是否展开
+  // 右栏(引用面板)是否展开
   const [rightOpen, setRightOpen] = useState(false)
+  // 右栏当前高亮的引用 ID(报告角标点击 → 同步)
+  const [highlightedRef, setHighlightedRef] = useState<string | null>(null)
+  // 浮动聊天框状态
+  const [chatState, setChatState] = useState<FloatingChatState>({
+    open: false, minimized: false, fullscreen: false,
+  })
 
   const { data: project, isLoading } = useQuery({
     queryKey: ['project', id], queryFn: () => getProject(id!), enabled: !!id,
@@ -129,6 +137,16 @@ export default function ConsoleProjectDetail() {
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   })
+  // STAGES 加载后,若当前 activeStageKey 不在新清单里(管理员改过流程,或默认 'insight' 被禁用),
+  // 自动同步到第一个有效阶段,避免阶段栏没高亮的 bug
+  useEffect(() => {
+    if (!stageFlow?.stages?.length) return
+    const activeKeys = stageFlow.stages.filter(s => s.active).map(s => s.key)
+    if (activeKeys.length === 0) return
+    if (!activeKeys.includes(activeStageKey)) {
+      setActiveStageKey(activeKeys[0])
+    }
+  }, [stageFlow?.stages, activeStageKey])
   // 后端返回所有 stage(含禁用占位),前端只渲染启用的 — 干净简洁
   const ALL_STAGES: StageDef[] = stageFlow?.stages?.length
     ? stageFlow.stages.map(_mapStage)
@@ -253,7 +271,7 @@ export default function ConsoleProjectDetail() {
       )}
 
       {/* 阶段流程 + 当前阶段动作 — 视觉上一整块 */}
-      <div className="flex-shrink-0 bg-white border-b border-line pt-2 px-2 sm:px-3">
+      <div className="flex-shrink-0 bg-white border-b border-line pt-2 pb-3 px-2 sm:px-3">
         <div className="flex items-stretch gap-[2px] overflow-x-auto scrollbar-thin">
           {STAGES.map((s, i) => {
             const status = stageStatus(s)
@@ -422,6 +440,8 @@ export default function ConsoleProjectDetail() {
           setCenterView={setCenterView}
           rightOpen={rightOpen}
           setRightOpen={setRightOpen}
+          highlightedRef={highlightedRef}
+          setHighlightedRef={setHighlightedRef}
           onRefetch={refetchOutputs}
         />
       ) : activeBundle?.agentic_version === 'v2'
@@ -491,6 +511,21 @@ export default function ConsoleProjectDetail() {
           onGenerate={handleBriefGenerate}
         />
       )}
+
+      {/* 全局浮动聊天窗(任意 stage 可用,切换不打断对话进程) */}
+      <FloatingChat projectId={id} state={chatState} onChange={setChatState} />
+
+      {/* 浮动 chat 触发按钮(右下角,chat 关闭时显示) */}
+      {!chatState.open && (
+        <button
+          onClick={() => setChatState({ open: true, minimized: false, fullscreen: false })}
+          className="fixed bottom-5 right-5 z-40 flex items-center gap-2 px-4 py-2.5 text-white text-sm font-medium rounded-full shadow-lg hover:shadow-xl transition-shadow"
+          style={{ background: BRAND_GRAD }}
+          title="打开项目问答"
+        >
+          <MessageSquare size={14} /> 项目问答
+        </button>
+      )}
     </div>
   )
 }
@@ -504,7 +539,7 @@ export default function ConsoleProjectDetail() {
 
 function InsightV3Workspace({
   projectId, activeBundle, activeInflight, centerView, setCenterView,
-  rightOpen, setRightOpen, onRefetch,
+  rightOpen, setRightOpen, highlightedRef, setHighlightedRef, onRefetch,
 }: {
   projectId: string
   activeBundle: CuratedBundle | undefined
@@ -513,6 +548,8 @@ function InsightV3Workspace({
   setCenterView: (v: CenterView) => void
   rightOpen: boolean
   setRightOpen: (b: boolean) => void
+  highlightedRef: string | null
+  setHighlightedRef: (s: string | null) => void
   onRefetch: () => void
 }) {
   // 根据 bundle 状态自动选定中栏内容(只在 view='preparation' 时主动切,避免覆盖用户操作)
@@ -528,6 +565,12 @@ function InsightV3Workspace({
     }
   }, [activeBundle?.id, activeBundle?.status, activeBundle?.validity_status,
       activeBundle?.short_circuited, activeInflight?.id])
+
+  // 报告角标点击 → 自动展开右栏 + 高亮对应 ref + 滚动定位
+  const onCitationClick = (moduleKey: string, refId: string) => {
+    setRightOpen(true)
+    setHighlightedRef(`${moduleKey}:${refId}`)
+  }
 
   return (
     <div className="flex-1 min-h-0 flex bg-canvas overflow-hidden">
@@ -549,34 +592,29 @@ function InsightV3Workspace({
         view={centerView}
         setView={setCenterView}
         onRefetch={onRefetch}
+        onCitationClick={onCitationClick}
       />
 
-      {/* 右:QA 抽屉(可折叠) */}
+      {/* 右:引用追溯面板(默认收起,点报告角标自动展开) */}
       {rightOpen ? (
-        <div className="w-[380px] flex-shrink-0 flex flex-col bg-white border-l border-line">
-          <div className="flex-shrink-0 px-3 py-2 border-b border-line flex items-center gap-2">
-            <span className="text-xs font-semibold text-ink">项目问答</span>
-            <button
-              onClick={() => setRightOpen(false)}
-              className="ml-auto p-1 text-ink-muted hover:text-ink"
-              title="收起"
-            >
-              <X size={13} />
-            </button>
-          </div>
-          <div className="flex-1 min-h-0">
-            <QA lockedProjectId={projectId} />
-          </div>
+        <div className="w-[400px] flex-shrink-0 border-l border-line">
+          <CitationsPanel
+            bundle={activeBundle}
+            highlightedRefId={highlightedRef}
+            onPreviewDoc={(docId) => setCenterView({ type: 'preview', docId })}
+            onClose={() => setRightOpen(false)}
+          />
         </div>
-      ) : (
+      ) : activeBundle?.provenance && Object.keys(activeBundle.provenance).length > 0 ? (
         <button
           onClick={() => setRightOpen(true)}
-          className="absolute right-4 bottom-4 z-10 flex items-center gap-1.5 px-3 py-2 bg-white border border-line rounded-full shadow-md text-xs text-ink-secondary hover:text-ink hover:border-orange-300"
-          title="展开项目问答"
+          className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1.5 px-2 py-3 bg-white border border-line rounded-l-md shadow text-xs text-ink-secondary hover:text-ink hover:border-orange-300 writing-vertical"
+          style={{ writingMode: 'vertical-rl' as any }}
+          title="展开引用追溯面板"
         >
-          <MessageSquare size={12} /> 项目问答
+          引用追溯
         </button>
-      )}
+      ) : null}
     </div>
   )
 }

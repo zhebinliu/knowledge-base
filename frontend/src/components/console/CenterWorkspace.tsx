@@ -22,6 +22,7 @@ import {
 import { useState } from 'react'
 import MarkdownView from '../MarkdownView'
 import V2GapFiller from '../V2GapFiller'
+import CitedReportView from './CitedReportView'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -39,16 +40,17 @@ interface Props {
   view: CenterView
   setView: (v: CenterView) => void
   onRefetch: () => void
+  onCitationClick?: (moduleKey: string, refId: string) => void   // v3:报告角标点击 → 跳右栏
 }
 
 export default function CenterWorkspace({
-  projectId, activeBundle, activeInflight, view, setView, onRefetch,
+  projectId, activeBundle, activeInflight, view, setView, onRefetch, onCitationClick,
 }: Props) {
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-canvas overflow-hidden">
+    <div className="flex-1 min-h-0 flex flex-col bg-white overflow-hidden">
       {/* 视图顶部:返回按钮(预览/虚拟物时) */}
       {(view.type === 'preview' || view.type === 'virtual') && (
-        <div className="flex-shrink-0 px-4 py-2 bg-white border-b border-line flex items-center gap-2">
+        <div className="flex-shrink-0 px-4 py-2 bg-slate-50 border-b border-line flex items-center gap-2">
           <button
             onClick={() => setView({ type: activeBundle ? 'report' : 'preparation' })}
             className="flex items-center gap-1 px-2 py-1 text-xs text-ink-muted hover:text-ink rounded hover:bg-canvas"
@@ -71,7 +73,7 @@ export default function CenterWorkspace({
           <DocPreview docId={view.docId} />
         )}
         {view.type === 'report' && activeBundle && (
-          <ReportView bundle={activeBundle} />
+          <ReportView bundle={activeBundle} onCitationClick={onCitationClick} />
         )}
         {view.type === 'gap_filler' && activeBundle && (
           <V2GapFiller
@@ -137,11 +139,11 @@ function PreparationView({
     .filter(v => v.filled)
 
   return (
-    <div className="h-full overflow-auto bg-canvas">
+    <div className="h-full overflow-auto bg-white">
       <div className="px-6 py-5 max-w-[1400px] mx-auto space-y-4">
 
         {/* —— 顶部 Hero —— 横幅,占满中栏 —— */}
-        <div className="bg-white rounded-xl border border-line overflow-hidden shadow-sm">
+        <div className="bg-slate-50/50 rounded-xl border border-line overflow-hidden shadow-sm">
           <div className="px-6 py-5 flex items-start gap-4 border-b border-line"
                style={{ background: 'linear-gradient(to right, #FFF7ED 0%, #FFFFFF 60%)' }}>
             <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
@@ -240,7 +242,7 @@ function PreparationView({
 
         {/* —— 已上传文档预览 —— */}
         {uploadedDocs.length > 0 && (
-          <div className="bg-white rounded-xl border border-line overflow-hidden">
+          <div className="bg-slate-50/50 rounded-xl border border-line overflow-hidden">
             <div className="px-5 py-3 border-b border-line flex items-center gap-2">
               <FileText size={13} className="text-ink-muted" />
               <h3 className="text-sm font-semibold text-ink">已上传文档</h3>
@@ -265,7 +267,7 @@ function PreparationView({
 
         {/* —— 已填问卷预览 —— */}
         {filledVirtuals.length > 0 && (
-          <div className="bg-white rounded-xl border border-line p-5">
+          <div className="bg-slate-50/50 rounded-xl border border-line p-5">
             <div className="flex items-center gap-2 mb-3">
               <Sparkles size={13} className="text-purple-600" />
               <h3 className="text-sm font-semibold text-ink">已填问卷</h3>
@@ -304,7 +306,7 @@ function StatCard({
   icon: typeof Lightbulb
 }) {
   return (
-    <div className="bg-white rounded-xl border border-line p-4 flex items-center gap-3">
+    <div className="bg-slate-50/50 rounded-xl border border-line p-4 flex items-center gap-3">
       <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
            style={{ background: `${color}15`, color }}>
         <Icon size={18} />
@@ -325,51 +327,67 @@ function DocPreview({ docId }: { docId: string }) {
     queryKey: ['document', docId],
     queryFn: () => getDocumentMarkdown(docId),
   })
-  if (isLoading) return <div className="p-6 text-center text-xs text-ink-muted"><Loader2 size={16} className="inline animate-spin" /> 加载中…</div>
-  if (!data) return <div className="p-6 text-center text-xs text-ink-muted">文档不存在</div>
+  if (isLoading) return <div className="h-full bg-white flex items-center justify-center text-xs text-ink-muted"><Loader2 size={16} className="inline animate-spin mr-2" /> 加载中…</div>
+  if (!data) return <div className="h-full bg-white p-6 text-center text-xs text-ink-muted">文档不存在</div>
   return (
-    <div className="max-w-4xl mx-auto px-6 py-6">
-      <div className="mb-3 flex items-center gap-2">
-        <FileText size={14} className="text-ink-muted" />
-        <h3 className="text-sm font-semibold text-ink">{data.filename}</h3>
-      </div>
-      {data.markdown_content ? (
-        <MarkdownView content={data.markdown_content} />
-      ) : (
-        <div className="text-sm text-ink-muted italic">
-          {data.status === 'completed' ? '该文档无 Markdown 内容(可能转换异常)' : `转换中(${data.status})…`}
+    <div className="h-full bg-white overflow-auto">
+      <div className="max-w-[1100px] mx-auto px-6 py-6">
+        <div className="mb-4 pb-3 border-b border-line flex items-center gap-2">
+          <FileText size={14} className="text-ink-muted" />
+          <h3 className="text-sm font-semibold text-ink">{data.filename}</h3>
         </div>
-      )}
+        {data.markdown_content ? (
+          <MarkdownView content={data.markdown_content} />
+        ) : (
+          <div className="text-sm text-ink-muted italic">
+            {data.status === 'completed' ? '该文档无 Markdown 内容(可能转换异常)' : `转换中(${data.status})…`}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
 // ── 已生成报告 ───────────────────────────────────────────────────────────────
 
-function ReportView({ bundle }: { bundle: CuratedBundle }) {
+function ReportView({
+  bundle, onCitationClick,
+}: {
+  bundle: CuratedBundle
+  onCitationClick?: (moduleKey: string, refId: string) => void
+}) {
   const { data, isLoading } = useQuery({
     queryKey: ['output', bundle.id],
     queryFn: () => import('../../api/client').then(m => m.getOutput(bundle.id)),
   })
   const validity = bundle.validity_status
+  // v3 provenance:from bundle.provenance(via dto)or full output detail(若 dto 没透出)
+  const provenance = bundle.provenance || {}
+
   return (
-    <div className="max-w-4xl mx-auto px-6 py-6">
-      {validity && validity !== 'valid' && (
-        <div className={`mb-3 px-3 py-2 rounded text-xs ${
-          validity === 'invalid' ? 'bg-red-50 text-red-800 border border-red-200' :
-                                   'bg-amber-50 text-amber-800 border border-amber-200'
-        }`}>
-          <AlertCircle size={11} className="inline mr-1" />
-          报告 validity:{validity === 'invalid' ? '信息不足' : '部分通过'} — 检查右上角 banner 详情
-        </div>
-      )}
-      {isLoading ? (
-        <div className="text-center text-xs text-ink-muted py-8"><Loader2 size={16} className="inline animate-spin" /> 加载报告内容…</div>
-      ) : data?.content_md ? (
-        <MarkdownView content={data.content_md} />
-      ) : (
-        <div className="text-sm text-ink-muted italic">没有 markdown 内容</div>
-      )}
+    <div className="h-full bg-white overflow-auto">
+      <div className="max-w-[1100px] mx-auto px-6 py-6">
+        {validity && validity !== 'valid' && (
+          <div className={`mb-4 px-3 py-2 rounded text-xs ${
+            validity === 'invalid' ? 'bg-red-50 text-red-800 border border-red-200' :
+                                     'bg-amber-50 text-amber-800 border border-amber-200'
+          }`}>
+            <AlertCircle size={11} className="inline mr-1" />
+            报告 validity:{validity === 'invalid' ? '信息不足' : '部分通过'} — 检查右上角 banner 详情
+          </div>
+        )}
+        {isLoading ? (
+          <div className="text-center text-xs text-ink-muted py-8"><Loader2 size={16} className="inline animate-spin" /> 加载报告内容…</div>
+        ) : data?.content_md ? (
+          <CitedReportView
+            content={data.content_md}
+            provenance={provenance}
+            onCitationClick={onCitationClick || (() => {})}
+          />
+        ) : (
+          <div className="text-sm text-ink-muted italic">没有 markdown 内容</div>
+        )}
+      </div>
     </div>
   )
 }
@@ -388,8 +406,12 @@ function VirtualForm({ vkey, projectId, onDone }: {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  if (isLoading) return <div className="p-6 text-center text-xs text-ink-muted"><Loader2 size={16} className="inline animate-spin" /> 加载问卷…</div>
-  if (!data) return <div className="p-6 text-xs text-ink-muted">无法加载</div>
+  if (isLoading) return (
+    <div className="h-full bg-white flex items-center justify-center text-xs text-ink-muted">
+      <Loader2 size={16} className="inline animate-spin mr-2" /> 加载问卷…
+    </div>
+  )
+  if (!data) return <div className="h-full bg-white p-6 text-xs text-ink-muted">无法加载</div>
 
   const setAnswer = (fk: string, val: any) => setAnswers(a => ({ ...a, [fk]: val }))
 
@@ -423,22 +445,27 @@ function VirtualForm({ vkey, projectId, onDone }: {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-6">
-      <div className="mb-4">
-        <h2 className="text-lg font-bold text-ink">{data.title}</h2>
-        <p className="text-xs text-ink-muted mt-1">{data.description}</p>
+    <div className="h-full bg-white overflow-auto">
+      <div className="max-w-[1100px] mx-auto px-6 py-6 pb-20">
+        <div className="mb-5 pb-4 border-b border-line">
+          <h2 className="text-lg font-bold text-ink">{data.title}</h2>
+          <p className="text-xs text-ink-muted mt-1">{data.description}</p>
+        </div>
+        <div className="space-y-4">
+          {data.ask_user_prompts.map(p => (
+            <PromptCard key={p.field_key} prompt={p} value={valueOf(p)}
+                        onChange={v => setAnswer(p.field_key, v)} />
+          ))}
+        </div>
       </div>
-      <div className="space-y-4">
-        {data.ask_user_prompts.map(p => (
-          <PromptCard key={p.field_key} prompt={p} value={valueOf(p)} onChange={v => setAnswer(p.field_key, v)} />
-        ))}
-      </div>
-      <div className="mt-6 flex items-center gap-3 sticky bottom-0 bg-canvas pt-4 pb-2">
+      {/* 底部固定操作栏(白底 + 顶分割线) */}
+      <div className="absolute bottom-0 left-0 right-0 px-6 py-3 bg-white border-t border-line flex items-center gap-3 shadow-[0_-2px_4px_rgba(0,0,0,0.03)]">
         {error && <span className="text-xs text-red-600">{error}</span>}
+        <span className="ml-auto text-[11px] text-ink-muted">保存后会自动写入项目要点</span>
         <button
           onClick={onSubmit}
           disabled={submitting}
-          className="ml-auto flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded shadow-sm disabled:opacity-50"
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded shadow-sm disabled:opacity-50"
           style={{ background: BRAND_GRAD }}
         >
           {submitting ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}

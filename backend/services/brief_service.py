@@ -157,10 +157,85 @@ def merge_extract_with_user_edits(existing: dict, draft: dict) -> dict:
     return merged
 
 
+# ── 文档类型 → 优先抽取字段 + 抽取重点提示(差异化提取策略) ──
+# 用于 insight_v2 的文档驱动 brief extraction。每种文档类型擅长承载哪些字段,
+# 给 LLM 显式 must_extract / nice_to_have / why_focus 提示,而不是让它一锅炖。
+DOC_TYPE_EXTRACTION_HINTS: dict[str, dict] = {
+    "sow": {
+        "label": "SOW 需求说明书",
+        "must_extract":   ["situation", "complication", "user_count", "timeline", "current_phase", "decision_makers"],
+        "nice_to_have":   ["top_risk", "top_opportunity", "milestones", "decision_chain"],
+        "why_focus":      "SOW 是项目范围+目标的权威源 — 优先提取项目态势/难点/规模/时间窗/决策人;Top 风险与里程碑次之。",
+    },
+    "system_integration": {
+        "label": "系统集成清单",
+        "must_extract":   ["module_list", "decisions_pending"],
+        "nice_to_have":   ["risks", "milestones", "complication"],
+        "why_focus":      "集成清单专注外部依赖 + 模块范围 — 优先提取实施模块清单 / 待决策的集成项;集成相关风险次之。",
+    },
+    "contract": {
+        "label": "项目合同",
+        "must_extract":   ["budget_range", "user_count", "timeline", "module_list"],
+        "nice_to_have":   ["milestones", "decision_makers"],
+        "why_focus":      "合同条款是数据化指标的硬来源 — 直接采信预算/账号数/时间窗/模块清单;不要从其他文档覆盖合同的硬数据。",
+    },
+    "handover": {
+        "label": "交接单",
+        "must_extract":   ["situation", "current_phase", "complication", "team", "risks"],
+        "nice_to_have":   ["decisions_pending", "quick_wins_2w", "milestones"],
+        "why_focus":      "交接单反映项目实际进展 — 优先提取当前态势/阶段/已发现的难点/团队稳定性;待执行 action 与 Quick Win 次之。",
+    },
+    "stakeholder_map": {
+        "label": "组织架构 / 干系人图谱",
+        "must_extract":   ["decision_makers", "daily_drivers", "attitudes", "decision_chain"],
+        "nice_to_have":   [],
+        "why_focus":      "干系人图是 M4 模块的唯一权威源 — 提完 4 个干系人字段后即可。",
+    },
+    "presales_solution": {
+        "label": "售前解决方案",
+        "must_extract":   ["top_opportunity", "module_list"],
+        "nice_to_have":   ["complication", "risks", "current_phase"],
+        "why_focus":      "售前方案给的是预期目标 + 解决思路 — 优先提取最大机会/拟定模块;难点与风险次之。注意:预期目标 ≠ 现状,不要用方案描述代替交接单的实际进展。",
+    },
+    "presales_survey": {
+        "label": "售前调研问卷",
+        "must_extract":   ["situation", "complication", "user_count", "current_phase"],
+        "nice_to_have":   ["decision_makers", "decision_chain", "top_risk"],
+        "why_focus":      "售前调研问卷反映客户的初始陈述 — 优先提取业务现状/痛点/规模/项目阶段;干系人 + 风险次之。",
+    },
+    # 老 doc_types 兜底
+    "requirement_research": {
+        "label": "需求调研",
+        "must_extract": ["situation", "complication"],
+        "nice_to_have": ["risks", "user_count"],
+        "why_focus": "需求调研材料,提取客户业务现状与核心痛点。",
+    },
+    "meeting_notes": {
+        "label": "会议纪要",
+        "must_extract": ["decisions_pending"],
+        "nice_to_have": ["risks", "current_phase"],
+        "why_focus": "会议纪要主要承载已决策事项 + 待拍板事项,注意时间线。",
+    },
+}
+
+
+def get_extraction_hints(doc_type: str | None) -> dict | None:
+    """按 doc_type 取抽取重点提示;未定义返回 None(LLM 走通用策略)。"""
+    if not doc_type:
+        return None
+    return DOC_TYPE_EXTRACTION_HINTS.get(doc_type)
+
+
 # ── LLM 抽取 ────────────────────────────────────────────────────────────────
 
 EXTRACT_SYSTEM = """你是一名 MBB 风格的资深咨询顾问助理，正在为一份 CRM 实施项目交付物起草 Brief。
 你只负责"抽取与初填"，不负责创作；遇到没有依据的字段一律给 null + low confidence。
+
+【按文档类型差异化提取 — 严格执行】
+不同文档类型有自己的"权威字段"。当下方素材里某文档类型给出 must_extract 提示时:
+- 优先从该类型文档抽取相应字段(其他文档来源仅作交叉验证,不覆盖该类型的硬数据)
+- 例如:合同的 budget_range 是硬数据,不要被 SOW 里"预估预算" 覆盖;干系人图的 decision_makers 是权威源,不要被会议纪要里随口提的人名覆盖。
+- 沿用文档原话作为 sources 引用,不要重述。
 
 【输出 — 严格 JSON】
 - 必须输出可被 JSON.parse 解析的对象，不要 ```json 围栏，不要任何前后语句
@@ -194,17 +269,25 @@ def _format_schema_for_prompt(schema: list[dict]) -> str:
 
 
 async def _gather_extract_context(project_id: str, kind: str) -> dict:
-    """拉项目元数据 + 关联文档摘要 + 项目相关 KB chunks（轻量）。"""
+    """拉项目元数据 + 关联文档(按 doc_type 分组,带抽取重点提示) + KB chunks。
+
+    v3 升级:文档不再"一锅炖摘要",而是按 doc_type 分组渲染,每组带 must_extract / why_focus
+    提示给 LLM,实现差异化提取(SOW 提范围,合同提预算,交接单提进展...)。
+    """
     async with async_session_maker() as s:
         proj = await s.get(Project, project_id) if project_id else None
-        doc_rows = []
+        doc_rows: list = []
         chunks_text = ""
         if proj:
-            doc_rows = (await s.execute(
-                select(Document.id, Document.filename, Document.summary, Document.doc_type)
+            doc_rows = list((await s.execute(
+                select(
+                    Document.id, Document.filename, Document.summary,
+                    Document.doc_type, Document.markdown_content,
+                )
                 .where(Document.project_id == proj.id)
+                .where(Document.conversion_status == "completed")
                 .limit(30)
-            )).all()
+            )).all())
             doc_ids = [r.id for r in doc_rows]
             if doc_ids:
                 chunk_rows = (await s.execute(
@@ -220,14 +303,49 @@ async def _gather_extract_context(project_id: str, kind: str) -> dict:
                     for r in chunk_rows
                 )
 
+    # 按 doc_type 分组(未分类的归一组)
+    grouped: dict[str, list] = {}
+    for r in doc_rows:
+        grouped.setdefault(r.doc_type or "_unspecified", []).append(r)
+
+    # 渲染每组:带 must_extract / why_focus 提示 + 各文档摘要 + 截断 markdown
+    docs_block_parts: list[str] = []
+    if doc_rows:
+        for doc_type, rows in grouped.items():
+            hints = get_extraction_hints(doc_type)
+            label = (hints or {}).get("label") or doc_type or "未分类"
+            docs_block_parts.append(f"\n### 【文档类型:{label}】({len(rows)} 份)")
+            if hints:
+                must = ", ".join(hints.get("must_extract") or []) or "—"
+                nice = ", ".join(hints.get("nice_to_have") or []) or "—"
+                docs_block_parts.append(f"- **must_extract**: {must}")
+                docs_block_parts.append(f"- **nice_to_have**: {nice}")
+                if hints.get("why_focus"):
+                    docs_block_parts.append(f"- **重点说明**: {hints['why_focus']}")
+            else:
+                docs_block_parts.append("- (该文档类型未定义抽取重点,通用策略)")
+            for r in rows:
+                summary = (r.summary or "")[:300]
+                # markdown 截断 — 每份 6000 字符上限,够看完关键段(整体 LLM 输入控制)
+                md_excerpt = (r.markdown_content or "")[:6000]
+                docs_block_parts.append(f"\n  **[{r.filename or '未命名'}]**")
+                if summary:
+                    docs_block_parts.append(f"  摘要:{summary}")
+                if md_excerpt:
+                    docs_block_parts.append(f"  正文(截断):\n```\n{md_excerpt}\n```")
+
+    docs_block = "\n".join(docs_block_parts) if docs_block_parts else "（无关联文档)"
+
+    # 兼容字段:docs_summary(老接口仍在用)
     docs_summary = "\n".join(
-        f"- {r.filename}（{r.doc_type or '未分类'}）: {(r.summary or '')[:200]}"
+        f"- {r.filename}（{(get_extraction_hints(r.doc_type) or {}).get('label') or r.doc_type or '未分类'}）: {(r.summary or '')[:200]}"
         for r in doc_rows
     ) if doc_rows else "（无关联文档）"
 
     return {
         "project": proj,
         "docs_summary": docs_summary,
+        "docs_block": docs_block,         # ← v3 新增:按 doc_type 分组的完整素材
         "chunks_text": chunks_text,
     }
 
@@ -336,19 +454,28 @@ async def stream_extract_brief_draft(project_id: str, output_kind: str, model: s
         yield {"type": "error", "message": f"读取项目失败：{e}"}
         return
 
-    # ── 2. 关联文档摘要 ──────────────────────────────────
-    yield {"type": "stage_start", "id": "documents", "label": "读取关联文档摘要"}
+    # ── 2. 关联文档(按 doc_type 分组,带正文截断) ───────
+    yield {"type": "stage_start", "id": "documents", "label": "读取关联文档(按类型分组)"}
     doc_rows = []
     try:
         if proj:
             async with async_session_maker() as s:
-                doc_rows = (await s.execute(
-                    select(Document.id, Document.filename, Document.summary, Document.doc_type)
+                doc_rows = list((await s.execute(
+                    select(Document.id, Document.filename, Document.summary,
+                           Document.doc_type, Document.markdown_content)
                     .where(Document.project_id == proj.id)
+                    .where(Document.conversion_status == "completed")
                     .limit(30)
-                )).all()
+                )).all())
+        # 按 doc_type 分组拼 detail
+        by_type: dict[str, int] = {}
+        for r in doc_rows:
+            t = r.doc_type or "_unspecified"
+            by_type[t] = by_type.get(t, 0) + 1
+        detail_str = " · ".join(f"{(get_extraction_hints(t) or {}).get('label') or t}({n})"
+                                 for t, n in by_type.items())
         yield {"type": "stage_done", "id": "documents",
-               "detail": f"{len(doc_rows)} 份文档"}
+               "detail": f"{len(doc_rows)} 份 — {detail_str}" if detail_str else f"{len(doc_rows)} 份"}
     except Exception as e:
         yield {"type": "error", "message": f"读取文档失败：{e}"}
         return
@@ -380,13 +507,38 @@ async def stream_extract_brief_draft(project_id: str, output_kind: str, model: s
         yield {"type": "error", "message": f"检索切片失败：{e}"}
         return
 
-    # ── 4. LLM 抽取 ──────────────────────────────────────
-    yield {"type": "stage_start", "id": "llm", "label": "AI 综合素材并抽取字段"}
+    # ── 4. LLM 抽取(按 doc_type 差异化) ────────────────
+    yield {"type": "stage_start", "id": "llm", "label": "AI 综合素材并按文档类型差异化抽取"}
 
-    docs_summary = "\n".join(
-        f"- {r.filename}（{r.doc_type or '未分类'}）: {(r.summary or '')[:200]}"
-        for r in doc_rows
-    ) if doc_rows else "（无关联文档）"
+    # v3:按 doc_type 分组渲染 + 抽取重点提示
+    grouped: dict[str, list] = {}
+    for r in doc_rows:
+        grouped.setdefault(r.doc_type or "_unspecified", []).append(r)
+
+    docs_block_parts: list[str] = []
+    if doc_rows:
+        for doc_type, rows in grouped.items():
+            hints = get_extraction_hints(doc_type)
+            label = (hints or {}).get("label") or doc_type or "未分类"
+            docs_block_parts.append(f"\n### 【文档类型:{label}】({len(rows)} 份)")
+            if hints:
+                must = ", ".join(hints.get("must_extract") or []) or "—"
+                nice = ", ".join(hints.get("nice_to_have") or []) or "—"
+                docs_block_parts.append(f"- **must_extract**(优先抽取): {must}")
+                docs_block_parts.append(f"- **nice_to_have**(次要): {nice}")
+                if hints.get("why_focus"):
+                    docs_block_parts.append(f"- **重点说明**: {hints['why_focus']}")
+            else:
+                docs_block_parts.append("- (该文档类型未定义抽取重点,通用策略)")
+            for r in rows:
+                summary = (r.summary or "")[:300]
+                md_excerpt = (r.markdown_content or "")[:6000]
+                docs_block_parts.append(f"\n  **[{r.filename or '未命名'}]**")
+                if summary:
+                    docs_block_parts.append(f"  摘要:{summary}")
+                if md_excerpt:
+                    docs_block_parts.append(f"  正文(截 6000 字):\n```\n{md_excerpt}\n```")
+    docs_summary = "\n".join(docs_block_parts) if docs_block_parts else "（无关联文档)"
 
     meta_block = "（无项目元数据）"
     if proj:

@@ -139,12 +139,15 @@ def _ts() -> str:
 # ── v3: M9 行业最佳实践的 Web 研究融合 ────────────────────────────────────────
 # KB 走 fill_kb_gaps,Web 走这个 helper;融合后注入 executor
 
-async def _build_m9_web_block(industry: str, project) -> str:
-    """对 M9 跑 Web 搜索(2 个 query),拼成 prompt 块。没配 key 返回空串。"""
+async def _build_m9_web_refs(industry: str, project) -> list[dict]:
+    """对 M9 跑 Web 搜索,返回结构化 refs 列表(executor 自动编号 [W1] [W2]...)。
+
+    Returns: [{title, url, domain, snippet, source}, ...]  没配 key 返回 []。
+    """
     try:
         from services.web_search_service import web_search, has_web_search_provider
         if not await has_web_search_provider():
-            return ""
+            return []
         customer = project.customer if project else ""
         queries = [
             f"{industry} CRM 实施 标杆案例 最佳实践 2025",
@@ -155,10 +158,7 @@ async def _build_m9_web_block(industry: str, project) -> str:
         all_hits = []
         for q in queries[:3]:
             hits = await web_search(q, top_k=3)
-            for h in hits:
-                all_hits.append({**h, "_query": q})
-        if not all_hits:
-            return ""
+            all_hits.extend(hits)
         # 去重(按 url)
         seen = set()
         deduped = []
@@ -167,20 +167,12 @@ async def _build_m9_web_block(industry: str, project) -> str:
             if u in seen:
                 continue
             seen.add(u)
-            deduped.append(h)
-        lines = [
-            "### 互联网检索结果(M9 行业最佳实践对照专用,权重低于 KB)",
-            "> 引用时标 `[Web · domain]`,数据需交叉验证",
-        ]
-        for h in deduped[:8]:
-            domain = (h.get("url") or "").split("/")[2] if h.get("url") else "—"
-            title = (h.get("title") or "")[:80]
-            snippet = (h.get("snippet") or "")[:300]
-            lines.append(f"- **[{title}]** ({domain})\n  {snippet}")
-        return "\n".join(lines)
+            domain = u.split("/")[2] if "//" in u else ""
+            deduped.append({**h, "domain": domain})
+        return deduped[:8]
     except Exception as e:
-        logger.warning("m9_web_block_failed", err=str(e)[:120])
-        return ""
+        logger.warning("m9_web_refs_failed", err=str(e)[:120])
+        return []
 
 
 # ── 行业 / 方法论 名词解释库 ────────────────────────────────────────────────────
@@ -447,13 +439,13 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
                     ready_pairs.append((spec, assess))
                     break
 
-        # v3: M9 行业最佳实践 — 跑 web research 注入(KB 已通过 fill_kb_gaps)
-        web_research_block = ""
+        # v3: M9 行业最佳实践 — 跑 web research(返回结构化 refs 供 sources_index 编号)
+        m9_web_refs: list[dict] = []
         if ctx["industry"]:
-            web_research_block = await _build_m9_web_block(ctx["industry"], ctx["project"])
+            m9_web_refs = await _build_m9_web_refs(ctx["industry"], ctx["project"])
 
         async def _run_one(spec, assess):
-            content = await execute_insight_module(
+            result = await execute_insight_module(
                 module=spec, assessment=assess,
                 project=ctx["project"], industry=ctx["industry"],
                 transcript=ctx["transcript"], refs=ctx["refs_raw"],
@@ -461,21 +453,29 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
                 skill_text=ctx["skill_text"], agent_prompt=ctx["agent_prompt"],
                 model=ctx["agent_model"],
                 docs_by_type=ctx.get("docs_by_type"),                                # v3
-                web_research_block=web_research_block if spec.key == "M9_industry_benchmark" else "",
+                web_research_refs=m9_web_refs if spec.key == "M9_industry_benchmark" else None,
             )
-            return spec.key, content
+            # result = {"content": str, "sources_index": dict}
+            return spec.key, result.get("content", ""), result.get("sources_index", {})
 
         results = await asyncio.gather(*(_run_one(s, a) for s, a in ready_pairs), return_exceptions=True)
         module_contents: dict[str, str] = {}
+        provenance: dict[str, dict] = {}      # v3:{module_key: sources_index dict}
         for r in results:
             if isinstance(r, Exception):
                 logger.warning("executor_exception", error=str(r)[:200])
                 continue
-            mk, content = r
+            mk, content, sources_idx = r
             module_contents[mk] = content
+            if sources_idx:
+                provenance[mk] = sources_idx
         run_history.append({
             "phase": "executed", "ts": _ts(),
-            "detail": {"completed": list(module_contents.keys())},
+            "detail": {
+                "completed": list(module_contents.keys()),
+                "provenance_modules_n": len(provenance),
+                "total_sources": sum(len(v) for v in provenance.values()),
+            },
         })
 
         # ── Phase 5: Critic ──
@@ -613,11 +613,14 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
             "ask_user_prompts": ask_user_prompts,
             "run_history": run_history,
             "agentic_version": "v2",
+            "provenance": provenance,            # v3:{module_key: {D1/K1/W1: meta}}
         })
         await _mark(bundle_id, "done", content_md=full_md, extra=new_extra)
         await _mark_conv(bundle_id, "done")
         logger.info("insight_v2_generated", bundle_id=bundle_id, validity=validity_status,
-                    modules_n=len(module_contents))
+                    modules_n=len(module_contents),
+                    provenance_modules=len(provenance),
+                    total_sources=sum(len(v) for v in provenance.values()))
     except Exception as e:
         logger.error("insight_v2_failed", bundle_id=bundle_id, error=str(e)[:300])
         run_history.append({"phase": "failed", "ts": _ts(), "detail": str(e)[:300]})

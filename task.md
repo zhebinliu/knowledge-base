@@ -56,6 +56,14 @@
 - DocChecklist 只在 insight_v2 stage 激活,其他 stage 暂时仍走原对话流
 - M5 行业上下文之前的 industry_pack 行业字段补丁不动
 
+### 后续待做(独立 Phase,不在本批次)
+- **干系人图谱可视化 canvas**(用户 2026-04-29 提的需求):
+  · 组织机构 / 干系人图谱(stakeholder_map 文档)右栏加 canvas 编辑器
+  · 手动添加部门 / 干系人节点 + 拖拽关联
+  · 候选库:react-flow / dagre / cytoscape
+  · 数据:存到 ProjectBrief 或单独 ProjectStakeholderGraph 表
+  · 跟现有 stakeholder_map.docx 上传共存(用户可选择"上传文档"或"画图")
+
 ---
 
 

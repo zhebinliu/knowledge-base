@@ -1,8 +1,16 @@
 """Executor — 单模块 / 单分卷的 LLM 填充。
 
-每个 module / subsection 一个 executor 调用,返回 markdown 内容。
+每个 module / subsection 一个 executor 调用,返回 markdown 内容 + provenance 索引。
 所有 executor 可并行调度(由 runner 编排)。
+
+v3:引入 sources_index 机制,后端给每个 source(doc/kb/web)显式编号 D1/K1/W1,
+LLM 在生成正文时强约束用这些 ID 引用,Executor 后处理:
+  - 正则把 `[D1]` 替换成 markdown footnote `[^D1]`
+  - 在内容末尾追加 footnote 定义区块(`[^D1]: SOW · 文件名`)
+  - 返回 sources_index 给 runner 写入 bundle.extra.provenance
+前端用这个 provenance 渲染角标 hover preview + 跳右栏引用栏。
 """
+import re
 import structlog
 from typing import Any
 
@@ -67,26 +75,145 @@ def _format_project_block(project) -> str:
     return "\n".join(lines)
 
 
-def _format_docs_block(docs_by_type: dict | None, max_chars_per_doc: int = 4000) -> str:
-    """把 docs_by_type({doc_type: [{doc_id, filename, summary, markdown}]}) 渲染成 prompt 用的块。
+def _build_sources_index(
+    *,
+    docs_by_type: dict | None,
+    conv_refs: list[dict] | None,
+    extra_kb_refs: dict | None,
+    web_research_refs: list[dict] | None,
+    module_key: str,
+    max_chars_per_doc: int = 4000,
+) -> tuple[dict, str]:
+    """构建该模块的 sources_index(后端给每个 source 编号)+ 渲染的 evidence_block 文本。
 
-    每个文档:摘要 + 截断的 markdown(避免 prompt 爆 token)。
-    LLM 会自己挑相关章节作为证据。每段引用时要带 [文档名] 标识。
+    Returns: (sources_index, evidence_block_text)
+
+    sources_index 结构:
+        {
+          "D1": {"type":"doc",  "label":"SOW 需求说明书 · xxx.docx",
+                 "doc_id":"...", "filename":"...", "doc_type":"sow", "snippet":"..."},
+          "K1": {"type":"kb",   "label":"KB · 文件名 · 章节",
+                 "chunk_id":"...", "filename":"...", "section":"...", "snippet":"..."},
+          "W1": {"type":"web",  "label":"标题",
+                 "url":"...", "domain":"...", "snippet":"..."},
+        }
+
+    evidence_block 里每个 source 前面会显式标 [D1] [K1] [W1],强约束 LLM 用这些 ID 引用。
     """
-    if not docs_by_type:
-        return ""
-    from models.project import DOC_TYPE_LABELS
-    parts = ["### 项目上传文档(按类型分组,作为生成依据,引用必须标 [文档名]):"]
-    for doc_type, docs in docs_by_type.items():
-        type_label = DOC_TYPE_LABELS.get(doc_type, doc_type)
-        for d in docs:
-            content = (d.get("markdown") or d.get("summary") or "").strip()
-            if not content:
+    sources_index: dict[str, dict] = {}
+    blocks: list[str] = []
+    next_d = 1
+    next_k = 1
+    next_w = 1
+    seen_chunks: set = set()
+
+    # 1. 项目上传文档
+    if docs_by_type:
+        from models.project import DOC_TYPE_LABELS
+        blocks.append("### 项目上传文档(权威源,引用用 [D1] [D2] 这种 ID):")
+        for doc_type, docs in docs_by_type.items():
+            type_label = DOC_TYPE_LABELS.get(doc_type, doc_type)
+            for d in docs:
+                content = (d.get("markdown") or d.get("summary") or "").strip()
+                if not content:
+                    continue
+                src_id = f"D{next_d}"
+                next_d += 1
+                excerpt = content[:max_chars_per_doc]
+                if len(content) > max_chars_per_doc:
+                    excerpt += f"\n…(余下 {len(content) - max_chars_per_doc} 字省略)"
+                sources_index[src_id] = {
+                    "type": "doc",
+                    "label": f"{type_label} · {d.get('filename', '未命名')}",
+                    "doc_id": d.get("doc_id"),
+                    "filename": d.get("filename"),
+                    "doc_type": doc_type,
+                    "snippet": (d.get("summary") or content[:200])[:300],
+                }
+                blocks.append(f"\n**[{src_id}] {type_label} · {d.get('filename')}**\n{excerpt}")
+
+    # 2. 对话期 KB refs(过滤当前 module)
+    kb_pool: list[dict] = []
+    for r in (conv_refs or []):
+        if not r.get("for_module") or r["for_module"] == module_key:
+            kb_pool.append(r)
+    for fk, rlist in (extra_kb_refs or {}).items():
+        for r in rlist:
+            if not r.get("for_module") or r["for_module"] == module_key:
+                kb_pool.append(r)
+
+    if kb_pool:
+        blocks.append("\n### 知识库证据(引用用 [K1] [K2] 这种 ID):")
+        for r in kb_pool:
+            cid = r.get("chunk_id")
+            if cid in seen_chunks:
                 continue
-            if len(content) > max_chars_per_doc:
-                content = content[:max_chars_per_doc] + f"\n…(余下 {len(content) - max_chars_per_doc} 字省略)"
-            parts.append(f"\n**[{type_label} · {d.get('filename', '未命名')}]**\n{content}")
-    return "\n".join(parts) if len(parts) > 1 else ""
+            seen_chunks.add(cid)
+            src_id = f"K{next_k}"
+            next_k += 1
+            section = r.get("source_section") or ""
+            filename = r.get("filename") or "未知文档"
+            label = f"KB · {filename}" + (f" · {section}" if section else "")
+            content = (r.get("content") or "")[:400]
+            sources_index[src_id] = {
+                "type": "kb",
+                "label": label,
+                "chunk_id": cid,
+                "filename": filename,
+                "section": section,
+                "snippet": content[:300],
+            }
+            blocks.append(f"\n**[{src_id}] {label}**\n{content}")
+            if next_k > 12:    # 限制单模块 KB 引用数量
+                break
+
+    # 3. Web research refs(M9 行业最佳实践用)
+    if web_research_refs:
+        blocks.append("\n### 互联网检索结果(权重低于 KB,引用用 [W1] [W2] 这种 ID):")
+        for w in web_research_refs:
+            src_id = f"W{next_w}"
+            next_w += 1
+            url = w.get("url") or ""
+            domain = w.get("domain") or (url.split("/")[2] if "//" in url else "")
+            title = (w.get("title") or "")[:80]
+            snippet = (w.get("snippet") or "")[:300]
+            sources_index[src_id] = {
+                "type": "web",
+                "label": title or domain,
+                "url": url,
+                "domain": domain,
+                "snippet": snippet,
+            }
+            blocks.append(f"\n**[{src_id}] {title}** ({domain})\n{snippet}")
+
+    return sources_index, "\n".join(blocks)
+
+
+# 后处理:把 LLM 输出的 [D1] [K1] [W1] 转成 markdown link `[D1](#cite-<module_key>-D1)`
+# 前端 CitedReportView 自定义 a renderer 检测 #cite- 前缀,渲染为可点击角标 + 跳引用栏
+_INLINE_CITATION_RE = re.compile(r'\[([DKW]\d{1,3})\](?!\()')   # [D1] 但不是 [D1](url)
+
+
+def _post_process_citations(content: str, sources_index: dict, module_key: str) -> tuple[str, dict]:
+    """正则把 [D1] → `[D1](#cite-<module_key>-D1)`(markdown link)。
+
+    前端 CitedReportView 检测 `#cite-` 前缀,把链接渲染为可点击角标 chip,
+    点击触发 onCitationClick(moduleKey, refId) → 父组件跳右栏引用面板。
+
+    Returns: (new_content, used_sources_index_filtered_to_used_ids)
+    """
+    if not content:
+        return content, {}
+    used_ids = set(_INLINE_CITATION_RE.findall(content))
+    if not used_ids:
+        return content, {}
+    # 替换 [D1] → [D1](#cite-<module_key>-D1)
+    def repl(m):
+        sid = m.group(1)
+        return f"[{sid}](#cite-{module_key}-{sid})"
+    new_content = _INLINE_CITATION_RE.sub(repl, content)
+    used_index = {sid: sources_index[sid] for sid in used_ids if sid in sources_index}
+    return new_content, used_index
 
 
 def _format_industry_pack_block(industry: str | None) -> str:
@@ -117,45 +244,49 @@ async def execute_insight_module(
     skill_text: str,
     agent_prompt: str,
     model: str | None,
-    docs_by_type: dict | None = None,           # v3 新增
-    web_research_block: str = "",                # v3 新增(M9 用)
-) -> str:
-    """生成单个 insight 模块的 markdown 内容。"""
+    docs_by_type: dict | None = None,
+    web_research_refs: list[dict] | None = None,    # v3 改:从 block 改成结构化 list
+) -> dict:
+    """生成单个 insight 模块的内容 + provenance。
+
+    Returns: {"content": str, "sources_index": dict}
+    """
     from services.output_service import _llm_call
 
     fields_block = _format_field_states(assessment)
     project_block = _format_project_block(project)
 
-    # 组合 refs:对话期 refs + 该模块对应的 KB 补充
-    module_refs = list(refs or [])
-    for fk, rlist in extra_kb_refs.items():
-        for r in rlist:
-            if r.get("for_module") == module.key:
-                module_refs.append(r)
-    refs_block = _format_kb_refs(module_refs, for_module_key=None)
+    # v3 核心:统一编号所有 source,生成 sources_index + evidence_block
+    sources_index, evidence_text = _build_sources_index(
+        docs_by_type=docs_by_type,
+        conv_refs=refs,
+        extra_kb_refs=extra_kb_refs,
+        web_research_refs=web_research_refs if module.key == "M9_industry_benchmark" else None,
+        module_key=module.key,
+    )
 
-    # 行业包(只在该模块的 industry_filter 命中或开放给所有模块的 M9_industry_benchmark)
+    # 行业包(只在该模块的 industry_filter 命中或 M9 开放)
     industry_block = ""
     if module.industry_filter or module.key == "M9_industry_benchmark":
         industry_block = _format_industry_pack_block(industry)
 
-    # v3 新增:项目上传文档(按 doc_type 分组,作为最权威证据)
-    docs_block = _format_docs_block(docs_by_type)
-
-    # 拼装 prompt(使用 module.prompt_template 的占位符)
+    # 拼装 prompt
     user_prompt = module.prompt_template.format(
         fields_block=f"【字段评估】\n{fields_block}",
         project_block=f"【项目元数据】\n{project_block}",
         evidence_block=(
-            (f"{docs_block}\n\n" if docs_block else "")           # ← 文档放最前(权威优先)
-            + f"【访谈记录】\n{transcript or '（无访谈记录）'}\n\n"
-            + f"【证据材料(知识库)】\n{refs_block or '（无证据材料）'}\n\n"
-            + (f"{web_research_block}\n\n" if web_research_block else "")
+            (f"{evidence_text}\n\n" if evidence_text else "")
+            + f"【访谈记录】\n{transcript or '（无访谈记录,引用时不要造 ID）'}\n\n"
             + (f"{industry_block}\n\n" if industry_block else "")
             + (f"【方法论】\n{agent_prompt}\n\n" if agent_prompt else "")
             + (f"【启用技能】\n{skill_text}" if skill_text else "")
         ),
     )
+
+    # 准备给 LLM 看的 ID 范围说明
+    available_ids = sorted(sources_index.keys(),
+                           key=lambda x: (x[0], int(x[1:]) if x[1:].isdigit() else 0))
+    ids_summary = ", ".join(available_ids[:30]) if available_ids else "(无可引用素材)"
 
     system = f"""你是 MBB 风格的资深 CRM 实施咨询顾问。
 你正在生成项目洞察报告的【{module.title}】章节。
@@ -166,26 +297,36 @@ async def execute_insight_module(
 - 只输出本节正文,不要重复输出"# {module.title}"标题(系统会注入)
 - 用简体中文 + Markdown
 - 关键 rubric 维度:{', '.join(module.rubric_focus)}
-- 缺信息时写"信息缺失,建议在 Phase 1 第一周补访"或类似表达;**绝不**编造
+- 缺信息时写"信息缺失,建议在 Phase 1 第一周补访";**绝不**编造数据或来源
 
-【信息源标注 — 强制执行】
-- 每个事实陈述末尾必须标来源,采用句子级内联角标格式:`句子内容[^N]`
-- N 是数字编号(从 1 开始,本节内连续)
-- 在该模块文末输出来源映射(每段独立一行):
-    [^1]: SOW 需求说明书 · 章节名 / 段落片段
-    [^2]: 访谈 · 张三(销售总监)
-    [^3]: 知识库 · 文档名
-    [^4]: Web · domain.com
-- 来源类型分 5 种:**文档**(用 [文档名] 标识)/ **访谈** / **知识库** / **Web** / **推断**
-- 编造或来源不明的内容一律不写;宁可写"信息缺失"也不要瞎扯
-- 只能引用上述 evidence_block 里给出的素材,**closed-corpus**(不许编)
+【信息源引用 — 强制执行】
+- evidence_block 里每个 source 都已经标了 ID:[D1][D2]... 是上传文档,
+  [K1][K2]... 是知识库证据,[W1][W2]... 是 Web 检索结果
+- 本节可用的 ID:{ids_summary}
+- 你在正文里**每个事实陈述末尾**必须用 ID 引用,格式:
+    "陕西分公司 12/15 出现 2 次商机审批超时 [D2][K3]"
+    "行业典型周期 6-9 个月 [W1]"
+- **不要**自己编新的 ID(如 [^1] [^2] 这种数字 footnote);只能用上面列出的 ID。
+- **不要**用"[访谈]"/"[KB]"/"[Brief]"这种泛化标签 — 必须用具体 ID。
+- 系统会自动把 [D1] 转成可点击的 footnote,前端能 hover 看原文。
+- 如果某段没素材支撑,写"信息缺失"或干脆别写;**绝不**裸输出无引用的事实。
 """
     try:
-        content = await _llm_call(user_prompt, system=system, model=model, max_tokens=3000, timeout=180.0)
-        return content.strip()
+        raw_content = await _llm_call(user_prompt, system=system, model=model,
+                                      max_tokens=3000, timeout=180.0)
+        content_processed, used_sources = _post_process_citations(
+            raw_content.strip(), sources_index, module.key,
+        )
+        return {
+            "content": content_processed,
+            "sources_index": used_sources,
+        }
     except Exception as e:
         logger.warning("insight_executor_failed", module=module.key, error=str(e)[:200])
-        return f"_（本模块生成失败:{str(e)[:120]}）_"
+        return {
+            "content": f"_（本模块生成失败:{str(e)[:120]}）_",
+            "sources_index": {},
+        }
 
 
 # ── Survey 单分卷执行 ─────────────────────────────────────────────────────────

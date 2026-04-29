@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { FolderKanban, Search, FileText, ClipboardList, Lightbulb, CheckCircle2, Circle, Loader2, Building2, Calendar, Files } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { FolderKanban, Search, FileText, ClipboardList, Lightbulb, CheckCircle2, Circle, Loader2, Building2, Calendar, Files, Plus } from 'lucide-react'
 import { listProjects, listOutputs, getProjectMeta, type Project, type CuratedBundle } from '../../api/client'
+import ProjectFormModal from '../../components/ProjectFormModal'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -35,7 +36,9 @@ function StageBadge({ project, kind, label, color, Icon, bundles }: {
 
 export default function ConsoleProjects() {
   const nav = useNavigate()
+  const qc = useQueryClient()
   const [q, setQ] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
 
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
   const { data: outputs }  = useQuery({
@@ -88,6 +91,13 @@ export default function ConsoleProjects() {
           />
         </div>
         <span className="text-xs text-ink-muted">共 {filtered.length} 个项目</span>
+        <button
+          onClick={() => setCreateOpen(true)}
+          className="ml-auto flex items-center gap-1.5 px-4 py-2 text-white text-sm font-medium rounded-lg shadow-sm hover:shadow transition-all"
+          style={{ background: 'linear-gradient(135deg, #FF8D1A, #D96400)' }}
+        >
+          <Plus size={14} /> 新增项目
+        </button>
       </div>
 
       {filtered.length === 0 ? (
@@ -137,6 +147,17 @@ export default function ConsoleProjects() {
           ))}
         </div>
       )}
+
+      <ProjectFormModal
+        open={createOpen}
+        meta={meta}
+        initial={null}
+        onClose={() => setCreateOpen(false)}
+        onSaved={() => {
+          setCreateOpen(false)
+          qc.invalidateQueries({ queryKey: ['projects'] })
+        }}
+      />
     </div>
   )
 }
