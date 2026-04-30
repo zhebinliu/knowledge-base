@@ -673,7 +673,7 @@ export interface DocChecklistItem {
   necessity: 'required' | 'recommended'
   uploaded: boolean
   uploaded_count: number
-  documents: { doc_id: string; filename: string; status: string; uploaded_at: string | null }[]
+  documents: { doc_id: string; filename: string; status: string; error?: string | null; uploaded_at: string | null }[]
   kind: 'doc'
 }
 export interface VirtualChecklistItem {
@@ -690,6 +690,7 @@ export interface ExtraReferenceItem {
   doc_id: string
   filename: string
   status: string
+  error?: string | null
   uploaded_at: string | null
 }
 export interface CandidateAttachItem {

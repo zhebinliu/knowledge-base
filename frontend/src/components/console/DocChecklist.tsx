@@ -187,19 +187,31 @@ function ExtraReferencesSection({
       <div className="space-y-1">
         {extraRefs.map(d => (
           <div key={d.doc_id}
-               className="px-2 py-1.5 rounded border border-purple-100 bg-purple-50/30 flex items-center gap-1.5">
-            <FileText size={11} className="text-purple-600 shrink-0" />
-            <button onClick={() => onPreview(d.doc_id)}
-                    className="text-[11px] text-ink hover:text-[#D96400] truncate text-left flex-1"
-                    title={d.filename}>
-              {d.filename}
-            </button>
-            {d.status !== 'completed' && <Clock size={9} className="text-amber-600 shrink-0" />}
-            <button onClick={() => onDetach(d.doc_id)}
-                    className="shrink-0 p-0.5 text-ink-muted hover:text-red-600"
-                    title="解除关联(文档保留在项目里)">
-              <X size={11} />
-            </button>
+               className="px-2 py-1.5 rounded border border-purple-100 bg-purple-50/30">
+            <div className="flex items-center gap-1.5">
+              <FileText size={11} className="text-purple-600 shrink-0" />
+              <button onClick={() => onPreview(d.doc_id)}
+                      className="text-[11px] text-ink hover:text-[#D96400] truncate text-left flex-1"
+                      title={d.filename}>
+                {d.filename}
+                {d.status !== 'completed' && (
+                  <span className="ml-1 text-[10px] text-ink-muted">
+                    ({d.status === 'retrying' ? '重试中' : d.status === 'failed' ? '失败' : d.status})
+                  </span>
+                )}
+              </button>
+              {d.status !== 'completed' && <Clock size={9} className={d.status === 'failed' ? 'text-red-600 shrink-0' : 'text-amber-600 shrink-0'} />}
+              <button onClick={() => onDetach(d.doc_id)}
+                      className="shrink-0 p-0.5 text-ink-muted hover:text-red-600"
+                      title="解除关联(文档保留在项目里)">
+                <X size={11} />
+              </button>
+            </div>
+            {d.error && (
+              <div className="text-[10px] text-red-600 mt-0.5 leading-snug" title={d.error}>
+                ⚠ {d.error.length > 100 ? d.error.slice(0, 100) + '…' : d.error}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -401,15 +413,29 @@ function DocRow({
           {item.documents.length > 0 && (
             <div className="mt-1 space-y-0.5">
               {item.documents.map(doc => (
-                <button
-                  key={doc.doc_id}
-                  onClick={() => onPreview(doc.doc_id)}
-                  className="block w-full text-left text-[10.5px] text-ink-secondary hover:text-[#D96400] truncate"
-                  title={doc.filename}
-                >
-                  {doc.status !== 'completed' && <Clock size={8} className="inline mr-0.5 text-amber-600" />}
-                  · {doc.filename}
-                </button>
+                <div key={doc.doc_id}>
+                  <button
+                    onClick={() => onPreview(doc.doc_id)}
+                    className="block w-full text-left text-[10.5px] text-ink-secondary hover:text-[#D96400] truncate"
+                    title={doc.filename}
+                  >
+                    {doc.status === 'retrying' && <Clock size={8} className="inline mr-0.5 text-amber-600" />}
+                    {doc.status === 'failed'   && <Clock size={8} className="inline mr-0.5 text-red-600" />}
+                    {(doc.status === 'converting' || doc.status === 'slicing' || doc.status === 'pending') &&
+                      <Clock size={8} className="inline mr-0.5 text-blue-600" />}
+                    · {doc.filename}
+                    {doc.status !== 'completed' && (
+                      <span className="ml-1 text-[9.5px] text-ink-muted/80">
+                        ({doc.status === 'retrying' ? '重试中' : doc.status === 'failed' ? '失败' : doc.status})
+                      </span>
+                    )}
+                  </button>
+                  {doc.error && (
+                    <div className="text-[9.5px] text-red-600 mt-0.5 pl-3 leading-snug" title={doc.error}>
+                      ⚠ {doc.error.length > 80 ? doc.error.slice(0, 80) + '…' : doc.error}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}

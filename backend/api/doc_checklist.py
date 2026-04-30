@@ -120,7 +120,7 @@ async def get_doc_checklist(project_id: str, stage: str = "insight_v2"):
         doc_rows = (await s.execute(
             select(
                 Document.id, Document.filename, Document.doc_type,
-                Document.conversion_status, Document.created_at,
+                Document.conversion_status, Document.conversion_error, Document.created_at,
             )
             .where(Document.project_id == project_id)
         )).all()
@@ -134,6 +134,7 @@ async def get_doc_checklist(project_id: str, stage: str = "insight_v2"):
             "doc_id": r.id,
             "filename": r.filename,
             "status": r.conversion_status,
+            "error": (r.conversion_error or "")[:300] if r.conversion_status in ("failed", "retrying") else None,
             "uploaded_at": r.created_at.isoformat() if r.created_at else None,
         })
 
@@ -176,6 +177,7 @@ async def get_doc_checklist(project_id: str, stage: str = "insight_v2"):
             "doc_id": d["doc_id"],
             "filename": d["filename"],
             "status": d["status"],
+            "error": d.get("error"),
             "uploaded_at": d["uploaded_at"],
         }
         for d in docs_by_type.get("extra_reference", [])
