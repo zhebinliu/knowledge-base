@@ -163,9 +163,11 @@ OUTLINE_MODULES: list[ModuleSpec] = [
         necessity="critical",
         purpose="客户在调研开始前需要提前准备的所有材料,按类型汇总(避免临时跑腿)",
         fields=[
+            # required=False:本字段是 LLM 可基于行业包 + 访谈日程派生的标准化产物,
+            # 不该硬卡(原 required=True 在 brief 没填时整个 outline 短路)
             FieldSpec("material_categories", "材料类别", "list",
                       ["brief", "industry_pack"], "downgrade",
-                      required=True),
+                      required=False),
         ],
         prompt_template="""请生成调研大纲的【客户准备材料清单】章节。
 
@@ -229,9 +231,11 @@ OUTLINE_MODULES: list[ModuleSpec] = [
         fields=[
             FieldSpec("per_session_deliverables", "每场访谈产出", "list",
                       ["brief"], "downgrade"),
+            # required=False:产出物清单是高度标准化的(访谈纪要 / 流程现状描述 / 需求与差距分析),
+            # LLM prompt_template 已固定模板,brief 没填也能完整输出。原 required=True 是过严
             FieldSpec("final_deliverables", "最终汇总产出", "list",
                       ["brief"], "downgrade",
-                      required=True),
+                      required=False),
         ],
         prompt_template="""请生成调研大纲的【调研产出物清单】章节。
 
