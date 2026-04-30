@@ -138,7 +138,7 @@ export default function V2GapFiller({ bundle, kind, projectId, onSubmitted }: Pr
         <div className="mb-5 p-4 bg-red-50 border-l-4 border-red-400 rounded-r-lg">
           <div className="flex items-start gap-2">
             <ShieldAlert size={16} className="text-red-700 mt-0.5 shrink-0" />
-            <div>
+            <div className="flex-1">
               <div className="text-sm font-semibold text-red-700">
                 关键信息不足 · 本次未生成报告
               </div>
@@ -148,6 +148,30 @@ export default function V2GapFiller({ bundle, kind, projectId, onSubmitted }: Pr
                 更新项目要点并重新生成。
               </div>
             </div>
+          </div>
+          {/* v3.2:跳过问卷直接重生成入口 — 当用户已经上传文档,planner 现在能从文档兜底,
+              不需要再填问卷,直接重新触发生成即可。 */}
+          <div className="mt-3 pt-3 border-t border-red-200 flex items-center gap-2">
+            <span className="text-[11px] text-ink-secondary flex-1">
+              已经上传足够文档?可以跳过问卷,直接重新生成 — planner 现在会从文档抽信息。
+            </span>
+            <button
+              onClick={async () => {
+                if (!confirm('跳过问卷,直接用已上传文档重新生成洞察?')) return
+                setSubmitting(true); setError(null)
+                try {
+                  await generateOutput({ kind, project_id: projectId })
+                  onSubmitted()
+                } catch (e: any) {
+                  setError(e?.response?.data?.detail || e?.message || '触发失败')
+                  setSubmitting(false)
+                }
+              }}
+              disabled={submitting}
+              className="px-3 py-1.5 text-[11px] font-medium border border-orange-300 text-[#D96400] bg-white rounded hover:bg-orange-50 disabled:opacity-50 shrink-0"
+            >
+              ⚡ 跳过 → 直接重新生成
+            </button>
           </div>
         </div>
 
