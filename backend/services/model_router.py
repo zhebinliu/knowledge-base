@@ -113,6 +113,8 @@ ROUTING_RULES = {
     "slicing_review":         {"primary": "glm-5",             "fallback": "minimax-m2.5"},
     "challenge_questioning":  {"primary": "mimo-v2-pro",       "fallback": "glm-5"},
     "challenge_judging":      {"primary": "glm-5",             "fallback": "qwen3-next-80b-a3b"},
+    # 扫描件 PDF / 图像 OCR — 多模态模型直接看图转写,准确率比 Tesseract 高
+    "pdf_ocr":                {"primary": "mimo-v2-omni",      "fallback": "mimo-v2-omni"},
 }
 
 

@@ -117,6 +117,12 @@ def extract_text_from_docx(content: bytes) -> str:
 
 
 def extract_text_from_pdf(content: bytes) -> str:
+    """优先抽 PDF 文本层(PyMuPDF);
+    若总字数 < 平均每页 50 字 → 判定扫描件,日志提示走 vision OCR(由 convert_to_markdown 调度)。
+
+    这里只返回文本层结果,扫描件检测的入口在 convert_to_markdown 里 — 因为 vision OCR 是异步,
+    且要复用 model_router,放在 convert_to_markdown 同步路径里更顺。
+    """
     import fitz
     doc = fitz.open(stream=content, filetype="pdf")
     parts = []
@@ -125,6 +131,91 @@ def extract_text_from_pdf(content: bytes) -> str:
         if text.strip():
             parts.append(f"[第{page_num}页]\n{text}")
     return "\n\n".join(parts)
+
+
+def _pdf_page_count(content: bytes) -> int:
+    import fitz
+    return fitz.open(stream=content, filetype="pdf").page_count
+
+
+def _is_scanned_pdf(text: str, page_count: int) -> bool:
+    """判定:平均每页文本 < 50 字 → 当扫描件处理。
+    这个阈值能捕获完全无文本层的纯扫描件 + 文本层稀疏(只 OCR 了一部分)的混合件,
+    可能误伤 PPT 转 PDF / 封面页 + 正文有文本但极简的文档,但召回率优先。
+    """
+    if page_count <= 0:
+        return False
+    avg = len(text.strip()) / page_count
+    return avg < 50
+
+
+async def _ocr_pdf_via_vision_llm(content: bytes) -> str:
+    """扫描件 PDF → 多模态 LLM 逐页转写 markdown。
+
+    流程:
+      1. PyMuPDF 把每页 render 为 PNG (dpi=180,平衡清晰度 + base64 体积)
+      2. base64 编码塞 OpenAI 多模态格式 messages[].content[].image_url
+      3. 并发 5 路调 mimo-v2-omni(routing 'pdf_ocr')
+      4. 按页码拼回 markdown,失败页标 (识别失败) 不阻断整篇
+
+    成本权衡:每页 1 次调用 ≈ 几千 token (图像编码后)。30 页 PDF 约 ¥0.5-2。
+    """
+    import asyncio, base64
+    import fitz
+
+    doc = fitz.open(stream=content, filetype="pdf")
+    n_pages = doc.page_count
+    if n_pages == 0:
+        return ""
+
+    # render 所有页为 PNG → base64
+    pages_b64: list[str] = []
+    for page in doc:
+        pix = page.get_pixmap(dpi=180)
+        png = pix.tobytes("png")
+        pages_b64.append(base64.b64encode(png).decode("ascii"))
+    doc.close()
+
+    sem = asyncio.Semaphore(5)
+
+    async def _ocr_one(idx: int, b64: str) -> tuple[int, str]:
+        async with sem:
+            try:
+                messages = [{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                f"这是一份 PDF 扫描件的第 {idx + 1}/{n_pages} 页。请忠实转写本页所有文字内容为 markdown:\n"
+                                "- 保留段落、标题层级(用 # ## ###)、表格(用 markdown table 语法)、列表(- / 1.)\n"
+                                "- 印章 / 签名 / 手写批注用 [印章: ...]、[签名: ...]、[手写: ...] 标注位置\n"
+                                "- 公式 / 图表里的数据要转写,纯装饰性图忽略\n"
+                                "- **不要总结,不要补全或修正你认为应该有的内容**,只忠实转写图上看到的文字\n"
+                                "- 整页空白或仅装饰图无文字 → 输出 \"(本页无文字)\"\n"
+                                "- 不要包裹 ```markdown 代码块,直接输出 markdown 正文"
+                            ),
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/png;base64,{b64}"},
+                        },
+                    ],
+                }]
+                content_md, _model = await model_router.chat_with_routing(
+                    "pdf_ocr", messages, max_tokens=4000, temperature=0.1, timeout=180.0,
+                )
+                return idx, (content_md or "").strip()
+            except Exception as e:
+                logger.warning("pdf_ocr_page_failed", page=idx + 1, err=str(e)[:120])
+                return idx, f"(第 {idx + 1} 页识别失败: {str(e)[:80]})"
+
+    results = await asyncio.gather(*[_ocr_one(i, b) for i, b in enumerate(pages_b64)])
+    results.sort(key=lambda x: x[0])
+    blocks: list[str] = []
+    for i, md in results:
+        blocks.append(f"## 第 {i + 1} 页\n\n{md}".rstrip())
+    return "\n\n---\n\n".join(blocks)
 
 
 def extract_text_from_pptx(content: bytes) -> str:
@@ -329,8 +420,26 @@ async def convert_to_markdown(filename: str, content: bytes) -> tuple[str, str |
     if ext in (".md", ".txt"):
         return content.decode("utf-8", errors="replace"), None
 
-    raw_text = extract_raw_text(filename, content)
-    logger.info("text_extracted", filename=filename, chars=len(raw_text))
+    # PDF:先抽文本层,若是扫描件(平均每页<50字)→ 走多模态 vision OCR
+    if ext == ".pdf":
+        text_layer = extract_raw_text(filename, content)
+        try:
+            n_pages = _pdf_page_count(content)
+        except Exception:
+            n_pages = 0
+        if _is_scanned_pdf(text_layer, n_pages):
+            logger.info(
+                "pdf_scanned_detected_using_vision_ocr",
+                filename=filename, pages=n_pages, text_layer_chars=len(text_layer.strip()),
+            )
+            ocr_md = await _ocr_pdf_via_vision_llm(content)
+            return ocr_md, "mimo-v2-omni"
+        # 文本层够 → 走原 LLM 整理路径
+        raw_text = text_layer
+        logger.info("text_extracted", filename=filename, chars=len(raw_text), source="text_layer")
+    else:
+        raw_text = extract_raw_text(filename, content)
+        logger.info("text_extracted", filename=filename, chars=len(raw_text))
 
     # xlsx / csv 走本地 fast path：原始抽取已是结构化表格，LLM 能加的价值有限，
     # 直接构造 markdown 既零 token 消耗，也不会被 max_tokens 截断。
