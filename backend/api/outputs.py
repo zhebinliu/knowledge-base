@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import get_session
 from models.curated_bundle import CuratedBundle
+from models.challenge_round import ChallengeRound
 from services.auth import get_current_user, decode_access_token
 from models.user import User
 import jwt as _jwt
@@ -99,6 +100,8 @@ def _bundle_dto(b: CuratedBundle) -> dict:
         "module_states": extra.get("module_states") or {},
         "short_circuited": bool(extra.get("short_circuited")),
         "provenance": extra.get("provenance") or {},     # v3: {module_key: {D1/K1/W1: meta}}
+        "progress": extra.get("progress") or None,       # v3.1: 进度卡片 (生成中显示)
+        "challenge_summary": extra.get("challenge_summary") or None,  # v3.1: 挑战循环结果摘要
     }
 
 
@@ -196,6 +199,43 @@ async def get_output(
     dto = _bundle_dto(b)
     dto["content_md"] = b.content_md
     return dto
+
+
+@router.get("/{bundle_id}/challenges")
+async def list_challenge_rounds(
+    bundle_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """挑战回合详情(每轮 critique JSON + 重生成的模块)。前端工作台「挑战回合」面板用。"""
+    b = await session.get(CuratedBundle, bundle_id)
+    if not b:
+        raise HTTPException(404, "Bundle not found")
+    if not current_user.is_admin and b.created_by != current_user.id:
+        raise HTTPException(403, "Access denied")
+    rows = (await session.execute(
+        select(ChallengeRound)
+        .where(ChallengeRound.bundle_id == bundle_id)
+        .order_by(ChallengeRound.round_idx)
+    )).scalars().all()
+    return {
+        "bundle_id": bundle_id,
+        "rounds": [
+            {
+                "id": r.id,
+                "round_idx": r.round_idx,
+                "status": r.status,
+                "critique": r.critique_json,             # 完整 JSON
+                "modules_regenerated": r.modules_regenerated or [],
+                "challenger_model": r.challenger_model,
+                "regen_model": r.regen_model,
+                "regen_chars": r.regen_chars,
+                "duration_ms": r.duration_ms,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rows
+        ],
+    }
 
 
 @router.get("/{bundle_id}/download")

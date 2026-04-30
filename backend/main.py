@@ -75,6 +75,7 @@ async def startup():
     from models.curated_bundle import CuratedBundle  # noqa: F401
     from models.output_conversation import OutputConversation  # noqa: F401
     from models.project_brief import ProjectBrief  # noqa: F401
+    from models.challenge_round import ChallengeRound  # noqa: F401
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

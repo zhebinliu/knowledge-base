@@ -248,6 +248,7 @@ async def execute_insight_module(
     model: str | None,
     docs_by_type: dict | None = None,
     web_research_refs: list[dict] | None = None,    # v3 改:从 block 改成结构化 list
+    revision_suffix: str = "",                       # v3.1 挑战循环:上轮挑战意见,追加到 user prompt 末
 ) -> dict:
     """生成单个 insight 模块的内容 + provenance。
 
@@ -284,6 +285,9 @@ async def execute_insight_module(
             + (f"【启用技能】\n{skill_text}" if skill_text else "")
         ),
     )
+    # 挑战循环:追加上一轮挑战意见(只 regenerate 模式才有)
+    if revision_suffix:
+        user_prompt += revision_suffix
 
     # 准备给 LLM 看的 ID 范围说明
     available_ids = sorted(sources_index.keys(),

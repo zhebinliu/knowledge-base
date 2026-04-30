@@ -38,6 +38,9 @@ from .survey_modules import L1_EXEC_SUBSECTION, list_subsections_for_layer, get_
 from .planner import plan_insight, plan_survey, fill_kb_gaps
 from .executor import execute_insight_module, execute_survey_subsection
 from .critic import critique_modules, critique_subsections, ModuleScore, SubsectionScore
+from .challenger import (
+    challenge_report, affected_modules, should_continue, build_regen_user_suffix,
+)
 
 logger = structlog.get_logger()
 
@@ -277,6 +280,237 @@ async def _mark_conv(bundle_id: str, status: str):
     await _mark_conversation(bundle_id, status)
 
 
+CHALLENGE_MAX_ROUNDS = 3       # 最多 3 轮挑战
+
+
+async def _persist_challenge_round(
+    *, bundle_id: str, round_idx: int, status: str,
+    critique_json: dict | None, modules_regenerated: list[str] | None,
+    challenger_model: str | None, regen_model: str | None,
+    regen_chars: int | None, duration_ms: int | None,
+):
+    """新增 / 更新一条 challenge_rounds 记录。"""
+    from models.challenge_round import ChallengeRound
+    async with async_session_maker() as s:
+        # 一个 (bundle_id, round_idx) 对应一行 — 先查再 upsert
+        existing = (await s.execute(
+            select(ChallengeRound).where(
+                ChallengeRound.bundle_id == bundle_id,
+                ChallengeRound.round_idx == round_idx,
+            )
+        )).scalar_one_or_none()
+        if existing:
+            existing.status = status
+            if critique_json is not None:
+                existing.critique_json = critique_json
+            if modules_regenerated is not None:
+                existing.modules_regenerated = modules_regenerated
+            if challenger_model:
+                existing.challenger_model = challenger_model
+            if regen_model:
+                existing.regen_model = regen_model
+            if regen_chars is not None:
+                existing.regen_chars = regen_chars
+            if duration_ms is not None:
+                existing.duration_ms = duration_ms
+        else:
+            s.add(ChallengeRound(
+                bundle_id=bundle_id, round_idx=round_idx, status=status,
+                critique_json=critique_json,
+                modules_regenerated=modules_regenerated,
+                challenger_model=challenger_model,
+                regen_model=regen_model,
+                regen_chars=regen_chars,
+                duration_ms=duration_ms,
+            ))
+        from sqlalchemy.orm.attributes import flag_modified
+        if existing and critique_json is not None:
+            flag_modified(existing, "critique_json")
+        await s.commit()
+
+
+async def _run_challenge_loop(
+    *,
+    bundle_id: str,
+    full_md_initial: str,
+    module_contents: dict,                 # 会被原地修改:重生成的模块 content 替换进去
+    ready_pairs: list,                      # [(spec, assess), ...] 用于查找 spec/assess 重生成
+    ctx: dict,
+    kb_refs: dict,
+    m9_web_refs: list,
+    assemble_fn,                            # callable() → str  重新拼装 markdown
+    run_history: list,
+    skip_loop: bool = False,                # invalid 报告不挑
+) -> dict:
+    """挑战循环:
+    1. challenger 评 full_md → 写 ChallengeRound
+    2. 解析 issues → 找出受影响的 module_keys (severity ∈ {blocker, major})
+    3. 重新跑这些模块 (executor + revision_suffix 携带挑战意见)
+    4. 替换 module_contents → 重新 assemble full_md
+    5. 重复直到 verdict='pass' 或 round >= MAX_ROUNDS
+
+    Returns: {
+      "final_md": str, "rounds_total": int,
+      "final_verdict": str, "issues_remaining": int,
+    }
+    """
+    import time
+    if skip_loop:
+        return {
+            "final_md": full_md_initial, "rounds_total": 0,
+            "final_verdict": "skipped_invalid", "issues_remaining": 0,
+        }
+
+    # 准备 (spec, assess) 索引,挑战循环里按 module_key 查
+    by_key = {spec.key: (spec, assess) for spec, assess in ready_pairs}
+    cur_md = full_md_initial
+    last_critique = None
+    rounds_done = 0
+
+    for round_idx in range(CHALLENGE_MAX_ROUNDS):
+        rounds_done = round_idx + 1
+        round_start = time.time()
+
+        # ── 1. 挑战 ──
+        await _update_progress(
+            bundle_id, stage="challenging", round_idx=round_idx,
+            message=f"第 {round_idx + 1}/{CHALLENGE_MAX_ROUNDS} 轮挑战:挑战者审核报告中…",
+        )
+        critique, challenger_model = await challenge_report(full_md=cur_md, model=ctx.get("agent_model"))
+        last_critique = critique
+        run_history.append({
+            "phase": "challenged", "ts": _ts(),
+            "detail": {"round": round_idx, "verdict": critique["verdict"],
+                       "issues_n": len(critique["issues"])},
+        })
+        # 写一条 ChallengeRound 占位 (status=critiquing → done after)
+        await _persist_challenge_round(
+            bundle_id=bundle_id, round_idx=round_idx, status="critiquing",
+            critique_json=critique, modules_regenerated=None,
+            challenger_model=challenger_model, regen_model=None,
+            regen_chars=None, duration_ms=None,
+        )
+
+        # 用挑战 summary 更新进度卡片
+        verdict_label = {"pass": "✓ 无重大问题", "minor_issues": "⚠ 轻微问题",
+                         "major_issues": "🚫 严重问题"}.get(critique["verdict"], "?")
+        await _update_progress(
+            bundle_id, stage="challenging", round_idx=round_idx,
+            message=f"第 {round_idx + 1} 轮:{verdict_label} · {critique.get('summary', '')[:80]}",
+        )
+
+        # ── 2. 决定下一步 ──
+        affected = affected_modules(critique)
+        if not should_continue(critique, round_idx, CHALLENGE_MAX_ROUNDS) or not affected:
+            await _persist_challenge_round(
+                bundle_id=bundle_id, round_idx=round_idx, status="final",
+                critique_json=critique, modules_regenerated=[],
+                challenger_model=challenger_model, regen_model=None,
+                regen_chars=None,
+                duration_ms=int((time.time() - round_start) * 1000),
+            )
+            break
+
+        # ── 3. 重新生成被挑出的模块 ──
+        regen_keys_actual = [k for k in affected if k in by_key]
+        await _update_progress(
+            bundle_id, stage="regenerating", round_idx=round_idx,
+            message=f"第 {round_idx + 1} 轮:正在重新生成 {len(regen_keys_actual)} 个章节 ({', '.join(regen_keys_actual[:3])}{'...' if len(regen_keys_actual) > 3 else ''})…",
+            modules_in_flight=regen_keys_actual,
+        )
+
+        async def _regen_one(mk: str):
+            spec, assess = by_key[mk]
+            suffix = build_regen_user_suffix(mk, critique)
+            try:
+                result = await execute_insight_module(
+                    module=spec, assessment=assess,
+                    project=ctx["project"], industry=ctx["industry"],
+                    transcript=ctx["transcript"], refs=ctx["refs_raw"],
+                    extra_kb_refs=kb_refs,
+                    skill_text=ctx["skill_text"], agent_prompt=ctx["agent_prompt"],
+                    model=ctx["agent_model"],
+                    docs_by_type=ctx.get("docs_by_type"),
+                    web_research_refs=m9_web_refs if spec.key == "M9_industry_benchmark" else None,
+                    revision_suffix=suffix,
+                )
+                return mk, result.get("content", "")
+            except Exception as e:
+                logger.warning("regen_module_failed", mk=mk, err=str(e)[:120])
+                return mk, None
+
+        regen_results = await asyncio.gather(*(_regen_one(k) for k in regen_keys_actual))
+        regen_chars = 0
+        for mk, content in regen_results:
+            if content:
+                module_contents[mk] = content
+                regen_chars += len(content)
+
+        # ── 4. 重新 assemble ──
+        cur_md = assemble_fn()
+        run_history.append({
+            "phase": "regenerated", "ts": _ts(),
+            "detail": {"round": round_idx, "modules": regen_keys_actual,
+                       "regen_chars": regen_chars},
+        })
+        await _persist_challenge_round(
+            bundle_id=bundle_id, round_idx=round_idx, status="done",
+            critique_json=critique, modules_regenerated=regen_keys_actual,
+            challenger_model=challenger_model, regen_model=ctx.get("agent_model"),
+            regen_chars=regen_chars,
+            duration_ms=int((time.time() - round_start) * 1000),
+        )
+
+    # 终了:统计未解决的 issues
+    issues_remaining = 0
+    final_verdict = "skipped"
+    if last_critique:
+        issues_remaining = len([
+            it for it in last_critique.get("issues", [])
+            if it.get("severity") in ("blocker", "major")
+        ])
+        final_verdict = last_critique.get("verdict", "?")
+
+    return {
+        "final_md": cur_md,
+        "rounds_total": rounds_done,
+        "final_verdict": final_verdict,
+        "issues_remaining": issues_remaining,
+    }
+
+
+async def _update_progress(
+    bundle_id: str, *,
+    stage: str,
+    message: str,
+    round_idx: int | None = None,
+    modules_in_flight: list[str] | None = None,
+):
+    """轻量进度写入 — 直接 patch bundle.extra.progress,前端 polling 拉到。
+
+    stage: 'planning' | 'executing' | 'critiquing' | 'challenging' | 'regenerating' | 'finalizing'
+    message: 给用户看的一句话(中文,人话不要黑话)
+    round_idx: 挑战轮次(0/1/2)
+    modules_in_flight: 正在生成 / 重生成的 module_keys
+    """
+    from sqlalchemy.orm.attributes import flag_modified
+    async with async_session_maker() as s:
+        b = await s.get(CuratedBundle, bundle_id)
+        if not b:
+            return
+        extra = dict(b.extra or {})
+        extra["progress"] = {
+            "stage": stage,
+            "message": message,
+            "round_idx": round_idx,
+            "modules_in_flight": modules_in_flight or [],
+            "updated_at": _ts(),
+        }
+        b.extra = extra
+        flag_modified(b, "extra")
+        await s.commit()
+
+
 def _ts() -> str:
     return datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
 
@@ -485,6 +719,7 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
     try:
         await _mark(bundle_id, "generating")
         run_history.append({"phase": "started", "ts": _ts()})
+        await _update_progress(bundle_id, stage="planning", message="加载项目上下文 + 生成方案规划中…")
 
         # ── Phase 1: 加载 ctx ──
         ctx = await _load_ctx(bundle_id, project_id, "insight_v2")
@@ -568,6 +803,8 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
             return
 
         # ── Phase 3: Gap Fill (KB 搜索) ──
+        await _update_progress(bundle_id, stage="planning",
+                               message=f"信息地图已规划:{len([m for m in plan.modules if m.status == 'ready'])} 个章节待生成,正在补充 KB 证据…")
         kb_refs = await fill_kb_gaps(plan, project_id=project_id, industry=ctx["industry"])
         run_history.append({
             "phase": "gaps_filled", "ts": _ts(),
@@ -576,6 +813,11 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
 
         # ── Phase 4: Executor (并行) ──
         ready_modules = [m for m in plan.modules if m.status == "ready"]
+        await _update_progress(
+            bundle_id, stage="executing",
+            message=f"并行生成 {len(ready_modules)} 个章节中…",
+            modules_in_flight=[m.key for m in ready_modules],
+        )
         # 同步 module_spec 与 assessment(顺序保留 INSIGHT_MODULES 的逻辑顺序)
         ready_pairs = []
         for spec in INSIGHT_MODULES:
@@ -624,6 +866,8 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
         })
 
         # ── Phase 5: Critic ──
+        await _update_progress(bundle_id, stage="critiquing",
+                               message=f"逐模块质量打分中(共 {len(module_contents)} 个章节)…")
         scores: dict[str, ModuleScore] = await critique_modules(
             list(module_contents.items()), model=ctx["agent_model"],
         )
@@ -690,67 +934,79 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
             for g in plan.gap_actions if g.action == "ask_user"
         ]
 
-        # 拼装最终 markdown
-        proj = ctx["project"]
-        title_main = proj.name if proj else (ctx["industry"] or "—")
-        md_blocks = []
-        # 头
-        md_blocks.append(f"# {title_main} · 项目洞察报告 v2 (agentic)\n")
-        md_blocks.append(f"**生成日期**:{date.today().strftime('%Y年%m月%d日')}  ")
-        md_blocks.append(f"**客户**:{(proj.customer if proj else '—') or '—'}  ")
-        md_blocks.append(f"**行业**:{ctx['industry'] or '—'}  ")
-        md_blocks.append(f"**Validity**:{validity_status}\n")
-
-        # invalid 提示
-        if validity_status == "invalid":
-            md_blocks.append("---\n")
-            md_blocks.append("> ⚠️ **本份报告判定为「信息不足」(invalid)**\n>")
-            md_blocks.append("> 以下关键模块因关键字段缺失,未能完整生成:")
-            for ms in critical_bad:
-                missing = ", ".join(f["label"] for f in ms["missing_fields"]) or ms["reason"]
-                md_blocks.append(f"> - **{ms['title']}**:{missing}")
-            if ask_user_prompts:
-                md_blocks.append(">\n> **建议补充以下信息后重新生成:**")
-                for q in ask_user_prompts[:8]:
-                    md_blocks.append(f"> - {q['question']}")
-            md_blocks.append("\n---\n")
-
-        # 各模块按 INSIGHT_MODULES 原始顺序输出
-        for spec in INSIGHT_MODULES:
-            ms = module_states.get(spec.key)
-            if not ms or ms["status"] == "skipped" or ms["planner_status"] == "skipped":
-                continue
-            md_blocks.append(f"\n## {spec.title}\n")
-            content = module_contents.get(spec.key)
-            if content:
-                md_blocks.append(content)
-            else:
-                # 区分:执行失败 vs 信息不足(planner 阶段就 blocked)vs 未运行
-                if ms["status"] == "failed":
-                    md_blocks.append("> _本模块**执行失败**(可能是 LLM 超时 / 异常),建议重新生成_\n")
+        # 把拼装抽成函数 — 挑战循环每轮重生成模块后会再调一次
+        def _assemble_full_md() -> str:
+            proj_local = ctx["project"]
+            title_local = proj_local.name if proj_local else (ctx["industry"] or "—")
+            blocks = [
+                f"# {title_local} · 项目洞察报告 v2 (agentic)\n",
+                f"**生成日期**:{date.today().strftime('%Y年%m月%d日')}  ",
+                f"**客户**:{(proj_local.customer if proj_local else '—') or '—'}  ",
+                f"**行业**:{ctx['industry'] or '—'}  ",
+                f"**Validity**:{validity_status}\n",
+            ]
+            if validity_status == "invalid":
+                blocks.append("---\n")
+                blocks.append("> ⚠️ **本份报告判定为「信息不足」(invalid)**\n>")
+                blocks.append("> 以下关键模块因关键字段缺失,未能完整生成:")
+                for ms_local in critical_bad:
+                    miss = ", ".join(f["label"] for f in ms_local["missing_fields"]) or ms_local["reason"]
+                    blocks.append(f"> - **{ms_local['title']}**:{miss}")
+                if ask_user_prompts:
+                    blocks.append(">\n> **建议补充以下信息后重新生成:**")
+                    for q in ask_user_prompts[:8]:
+                        blocks.append(f"> - {q['question']}")
+                blocks.append("\n---\n")
+            for spec_local in INSIGHT_MODULES:
+                ms_local = module_states.get(spec_local.key)
+                if not ms_local or ms_local["status"] == "skipped" or ms_local["planner_status"] == "skipped":
+                    continue
+                blocks.append(f"\n## {spec_local.title}\n")
+                content_local = module_contents.get(spec_local.key)
+                if content_local:
+                    blocks.append(content_local)
                 else:
-                    missing = ", ".join(f["label"] for f in ms["missing_fields"]) or ms["reason"] or "未知"
-                    md_blocks.append(f"> _本模块因信息不足未生成。缺失:{missing}_\n")
-            # critic 提示(如有警告)
-            if ms.get("score") and ms["score"]["overall"] != "pass":
-                issues = ms["score"].get("issues", [])
-                if issues:
-                    md_blocks.append(f"\n> _Critic 提示:{'; '.join(issues[:3])}_\n")
-            md_blocks.append("\n---")
+                    if ms_local["status"] == "failed":
+                        blocks.append("> _本模块**执行失败**(可能是 LLM 超时 / 异常),建议重新生成_\n")
+                    else:
+                        miss = ", ".join(f["label"] for f in ms_local["missing_fields"]) or ms_local["reason"] or "未知"
+                        blocks.append(f"> _本模块因信息不足未生成。缺失:{miss}_\n")
+                if ms_local.get("score") and ms_local["score"]["overall"] != "pass":
+                    issues_local = ms_local["score"].get("issues", [])
+                    if issues_local:
+                        blocks.append(f"\n> _Critic 提示:{'; '.join(issues_local[:3])}_\n")
+                blocks.append("\n---")
+            blocks.append("\n## 附录 · 运行报告\n")
+            blocks.append(f"- 已激活模块:{len([m for m in plan.modules if m.status != 'skipped'])} / 总 {len(plan.modules)}")
+            blocks.append(f"- KB 检索调用:{sum(len(v) for v in kb_refs.values())} 条 refs")
+            blocks.append(f"- 待用户补充:{len(ask_user_prompts)} 项")
+            if ctx["industry"] and ctx["industry"] == "manufacturing":
+                blocks.append(f"- 行业包:smart_manufacturing 已激活")
+            full = "\n".join(blocks)
+            gloss = _build_glossary_appendix(full)
+            if gloss:
+                full += "\n\n" + gloss
+            return full
 
-        # 尾:运行报告(可观测)
-        md_blocks.append("\n## 附录 · 运行报告\n")
-        md_blocks.append(f"- 已激活模块:{len([m for m in plan.modules if m.status != 'skipped'])} / 总 {len(plan.modules)}")
-        md_blocks.append(f"- KB 检索调用:{sum(len(v) for v in kb_refs.values())} 条 refs")
-        md_blocks.append(f"- 待用户补充:{len(ask_user_prompts)} 项")
-        if ctx["industry"] and ctx["industry"] == "manufacturing":
-            md_blocks.append(f"- 行业包:smart_manufacturing 已激活")
+        full_md = _assemble_full_md()
 
-        full_md = "\n".join(md_blocks)
-        glossary = _build_glossary_appendix(full_md)
-        if glossary: full_md += "\n\n" + glossary
+        # ── Phase 7 (新): 挑战循环 (最多 3 轮,只在 valid/partial 报告上跑,invalid 不挑) ──
+        challenge_summary = await _run_challenge_loop(
+            bundle_id=bundle_id,
+            full_md_initial=full_md,
+            module_contents=module_contents,
+            ready_pairs=ready_pairs,
+            ctx=ctx,
+            kb_refs=kb_refs,
+            m9_web_refs=m9_web_refs,
+            assemble_fn=_assemble_full_md,
+            run_history=run_history,
+            skip_loop=(validity_status == "invalid"),
+        )
+        full_md = challenge_summary["final_md"]
 
         # 写回 bundle
+        await _update_progress(bundle_id, stage="finalizing", message="拼装最终报告并入库…")
         new_extra = dict(ctx["bundle_extra"])
         new_extra.update({
             "validity_status": validity_status,
@@ -759,6 +1015,18 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
             "run_history": run_history,
             "agentic_version": "v2",
             "provenance": provenance,            # v3:{module_key: {D1/K1/W1: meta}}
+            "challenge_summary": {                # v3.1 挑战循环摘要(详情见 challenge_rounds 表)
+                "rounds_total": challenge_summary["rounds_total"],
+                "final_verdict": challenge_summary["final_verdict"],
+                "issues_remaining": challenge_summary["issues_remaining"],
+            },
+            "progress": {                          # 完成态:进度卡片显示完成
+                "stage": "done",
+                "message": "✓ 报告生成完成",
+                "round_idx": None,
+                "modules_in_flight": [],
+                "updated_at": _ts(),
+            },
         })
         await _mark(bundle_id, "done", content_md=full_md, extra=new_extra)
         await _mark_conv(bundle_id, "done")
