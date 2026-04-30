@@ -80,33 +80,40 @@ def _docx_zip_fallback(content: bytes) -> str:
 
 
 def extract_text_from_docx(content: bytes) -> str:
+    """优先用 python-docx 严格解析(保留段落 + 表格);
+    任何异常(包括 lazy-load 时的 KeyError)→ fallback 到 zip 直读。
+
+    典型 fallback 触发:
+      - "There is no item named 'NULL' in the archive" (WPS / Pages 异常 manifest)
+      - python-docx 找不到 [Content_Types].xml 里声明的 part
+      - zip 损坏但 word/document.xml 仍可读
+    """
     from docx import Document
     try:
         doc = Document(io.BytesIO(content))
-    except (KeyError, Exception) as e:
-        # python-docx 严格 OPC 校验失败 — 尝试 zip fallback 兜底
-        # 典型:"There is no item named 'NULL' in the archive" (WPS / Pages 导出)
+        parts = []
+        for para in doc.paragraphs:
+            if para.text.strip():
+                parts.append(para.text)
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = " | ".join(cell.text.strip() for cell in row.cells)
+                if row_text.strip():
+                    parts.append(row_text)
+        return "\n".join(parts)
+    except Exception as e:
         msg = str(e)[:120]
-        logger.warning("docx_strict_parse_failed_fallback", err=msg)
+        logger.warning("docx_strict_parse_failed_fallback", err=msg, exc_type=type(e).__name__)
         try:
             text = _docx_zip_fallback(content)
             if text.strip():
                 logger.info("docx_zip_fallback_ok", chars=len(text), prev_err=msg)
                 return text
+            logger.warning("docx_zip_fallback_empty", prev_err=msg)
         except Exception as fb_err:
             logger.warning("docx_zip_fallback_also_failed", err=str(fb_err)[:120])
         # 兜底也失败 → 抛原异常,让 task retry / 用户看错误
         raise
-    parts = []
-    for para in doc.paragraphs:
-        if para.text.strip():
-            parts.append(para.text)
-    for table in doc.tables:
-        for row in table.rows:
-            row_text = " | ".join(cell.text.strip() for cell in row.cells)
-            if row_text.strip():
-                parts.append(row_text)
-    return "\n".join(parts)
 
 
 def extract_text_from_pdf(content: bytes) -> str:
