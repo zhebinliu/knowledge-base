@@ -53,16 +53,16 @@ export default function FloatingChat({ projectId, state, onChange }: Props) {
 
   if (!state.open) return null
 
-  // 最小化:右下角气泡
+  // 最小化:右下角气泡(上移避开中栏 sticky 操作栏)
   if (state.minimized) {
     return (
       <button
         onClick={() => onChange({ ...state, minimized: false })}
-        className="fixed bottom-5 right-5 z-50 flex items-center gap-2 px-4 py-2.5 text-white text-sm font-medium rounded-full shadow-lg hover:shadow-xl transition-shadow"
+        className="fixed bottom-24 right-5 z-50 flex items-center gap-1.5 px-3 py-2 text-white text-xs font-medium rounded-full shadow-lg hover:shadow-xl transition-shadow"
         style={{ background: BRAND_GRAD }}
         title="展开项目问答"
       >
-        <MessageSquare size={14} /> 项目问答
+        <MessageSquare size={12} /> 项目问答
       </button>
     )
   }

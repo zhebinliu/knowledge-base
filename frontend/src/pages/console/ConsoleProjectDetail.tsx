@@ -515,15 +515,17 @@ export default function ConsoleProjectDetail() {
       {/* 全局浮动聊天窗(任意 stage 可用,切换不打断对话进程) */}
       <FloatingChat projectId={id} state={chatState} onChange={setChatState} />
 
-      {/* 浮动 chat 触发按钮(右下角,chat 关闭时显示) */}
+      {/* 浮动 chat 触发按钮(右下角,chat 关闭时显示)
+          位置上移到 bottom-24 避开中栏可能的 sticky 操作栏(如 VirtualForm 保存栏);
+          形态收缩成圆形 FAB,只显示 icon,降低视觉占位。 */}
       {!chatState.open && (
         <button
           onClick={() => setChatState({ open: true, minimized: false, fullscreen: false })}
-          className="fixed bottom-5 right-5 z-40 flex items-center gap-2 px-4 py-2.5 text-white text-sm font-medium rounded-full shadow-lg hover:shadow-xl transition-shadow"
+          className="fixed bottom-24 right-5 z-40 flex items-center justify-center w-12 h-12 text-white rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105"
           style={{ background: BRAND_GRAD }}
-          title="打开项目问答"
+          title="项目问答(基于本项目知识库)"
         >
-          <MessageSquare size={14} /> 项目问答
+          <MessageSquare size={18} />
         </button>
       )}
     </div>

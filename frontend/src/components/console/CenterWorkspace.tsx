@@ -131,7 +131,7 @@ function PreparationView({
   const allReady  = c?.all_required_done ?? false
   const reqPct    = reqTotal > 0 ? Math.round(reqDone / reqTotal * 100) : 0
 
-  // 已上传的所有文档(展平)
+  // 已上传的所有文档(展平):必需 + 推荐 + 附加参考
   const uploadedDocs: { doc_id: string; filename: string; type_label: string; status: string }[] = []
   for (const d of (checklist?.required_docs || []).concat(checklist?.recommended_docs || [])) {
     for (const doc of d.documents) {
@@ -139,6 +139,12 @@ function PreparationView({
         doc_id: doc.doc_id, filename: doc.filename, type_label: d.label, status: doc.status,
       })
     }
+  }
+  // 附加参考文档(用户在清单底部手动加进来的额外资料)
+  for (const ref of (checklist?.extra_references || [])) {
+    uploadedDocs.push({
+      doc_id: ref.doc_id, filename: ref.filename, type_label: '附加参考', status: ref.status,
+    })
   }
   // 已填的虚拟物
   const filledVirtuals = (checklist?.virtual_required || []).concat(checklist?.virtual_recommended || [])
