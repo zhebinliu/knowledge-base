@@ -12,7 +12,9 @@ from prompts.conversion import build_conversion_prompt
 
 logger = structlog.get_logger()
 
-SUPPORTED_FORMATS = {".docx", ".pdf", ".pptx", ".xlsx", ".csv", ".md", ".txt"}
+SUPPORTED_FORMATS = {".doc", ".docx", ".pdf", ".ppt", ".pptx", ".xls", ".xlsx", ".csv", ".md", ".txt"}
+# OLE2 二进制旧版 Office 格式 — 上传后先用 libreoffice headless 转成 OOXML 新格式
+LEGACY_OFFICE_FORMATS = {".doc": ".docx", ".ppt": ".pptx", ".xls": ".xlsx"}
 # 转换分段大小：~10K 字符约对应 5-7K tokens 输入，配合 max_tokens=8000 输出
 # 留约 1.2x 膨胀空间和 reasoning model 的 <think> 预算，避免输出被截断。
 # 历史值是 50000，配 8000 输出强制 4x 压缩，导致大量文档后半段丢失。
@@ -109,7 +111,66 @@ def extract_text_from_xlsx(content: bytes) -> str:
     return _extract_zip_fallback()
 
 
+def _soffice_convert(content: bytes, src_ext: str, target_ext: str) -> bytes:
+    """用 libreoffice headless 把 .doc/.ppt/.xls 转成 .docx/.pptx/.xlsx。
+
+    target_ext 不含点 (传 'docx' / 'pptx' / 'xlsx')。
+    soffice 必须在 PATH 里(Dockerfile 装了 libreoffice 包)。
+    """
+    import subprocess, tempfile, os
+    target_clean = target_ext.lstrip(".")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        in_path = os.path.join(tmpdir, f"input{src_ext}")
+        with open(in_path, "wb") as f:
+            f.write(content)
+        # soffice --headless --convert-to docx input.doc --outdir /tmp/x
+        try:
+            proc = subprocess.run(
+                ["soffice", "--headless", "--convert-to", target_clean,
+                 "--outdir", tmpdir, in_path],
+                capture_output=True, timeout=120,
+            )
+        except FileNotFoundError:
+            raise RuntimeError("libreoffice 未安装(需 apt-get install libreoffice)")
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"libreoffice 转换超时 (>120s) — 文件可能损坏或过大")
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"libreoffice 转换失败 (rc={proc.returncode}): {proc.stderr.decode('utf-8', errors='replace')[:200]}"
+            )
+        # 找输出文件 (input.docx 等)
+        out_name = f"input.{target_clean}"
+        out_path = os.path.join(tmpdir, out_name)
+        if not os.path.exists(out_path):
+            # 兜底:扫目录里第一个匹配后缀的文件
+            for fn in os.listdir(tmpdir):
+                if fn.endswith(f".{target_clean}"):
+                    out_path = os.path.join(tmpdir, fn)
+                    break
+            else:
+                raise RuntimeError(f"libreoffice 没生成 {target_clean} 文件")
+        with open(out_path, "rb") as f:
+            return f.read()
+
+
+def _normalize_legacy_office(filename: str, content: bytes) -> tuple[str, bytes]:
+    """如果是 .doc/.ppt/.xls,先用 soffice 转成 .docx/.pptx/.xlsx,返回新文件名 + 内容。
+    其他格式原样返回。
+    """
+    ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext in LEGACY_OFFICE_FORMATS:
+        target_ext = LEGACY_OFFICE_FORMATS[ext]
+        logger.info("legacy_office_convert", src=ext, target=target_ext, filename=filename)
+        new_content = _soffice_convert(content, src_ext=ext, target_ext=target_ext)
+        # 替换扩展名
+        base = filename.rsplit(".", 1)[0] if "." in filename else filename
+        return f"{base}{target_ext}", new_content
+    return filename, content
+
+
 def extract_raw_text(filename: str, content: bytes) -> str:
+    # 老 Office 格式先转换成新格式,再走原路径
+    filename, content = _normalize_legacy_office(filename, content)
     ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
     if ext == ".docx":
@@ -183,6 +244,8 @@ def _xlsx_raw_to_markdown(raw_text: str, doc_title: str) -> str:
 
 async def convert_to_markdown(filename: str, content: bytes) -> tuple[str, str | None]:
     """Returns (markdown_text, model_name_or_None)."""
+    # 老 Office 格式 (.doc/.ppt/.xls) 先用 soffice 转成新格式,后续 ext 判断按新格式走
+    filename, content = _normalize_legacy_office(filename, content)
     ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
     if ext in (".md", ".txt"):

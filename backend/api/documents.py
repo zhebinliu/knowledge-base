@@ -13,7 +13,7 @@ from services.rate_limit import limiter
 logger = structlog.get_logger()
 router = APIRouter()
 
-SUPPORTED_FORMATS = {".docx", ".pdf", ".pptx", ".xlsx", ".csv", ".md", ".txt"}
+SUPPORTED_FORMATS = {".doc", ".docx", ".pdf", ".ppt", ".pptx", ".xls", ".xlsx", ".csv", ".md", ".txt"}
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
 

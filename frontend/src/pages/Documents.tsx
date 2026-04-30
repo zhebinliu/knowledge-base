@@ -449,7 +449,7 @@ export default function Documents() {
             </button>
             <input
               ref={inputRef} type="file" multiple
-              accept=".pdf,.docx,.doc,.txt,.md,.pptx,.xlsx,.csv"
+              accept=".pdf,.docx,.doc,.txt,.md,.pptx,.ppt,.xlsx,.xls,.csv"
               className="hidden"
               onChange={e => { handleFiles(e.target.files); e.target.value = '' }}
             />

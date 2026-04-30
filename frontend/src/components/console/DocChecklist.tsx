@@ -220,7 +220,7 @@ function ExtraReferencesSection({
       </div>
       {error && <div className="text-[10px] text-red-600 mt-1 px-1">{error}</div>}
       <input ref={fileRef} type="file" className="hidden"
-             accept=".pdf,.docx,.pptx,.xlsx,.csv,.md,.txt"
+             accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls,.csv,.md,.txt"
              onChange={onUpload} />
 
       {/* 选择器:列出项目里的其他文档供多选 */}
@@ -441,7 +441,7 @@ function DocRow({
             : <Upload size={11} />}
         </button>
         <input ref={fileRef} type="file" className="hidden"
-               accept=".pdf,.docx,.pptx,.xlsx,.csv,.md,.txt"
+               accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls,.csv,.md,.txt"
                onChange={onPick} />
       </div>
     </div>
