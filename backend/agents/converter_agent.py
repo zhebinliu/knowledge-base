@@ -494,7 +494,11 @@ async def convert_to_markdown(filename: str, content: bytes) -> tuple[str, str |
                 filename=filename, pages=n_pages, text_layer_chars=len(text_layer.strip()),
             )
             ocr_md = await _ocr_pdf_via_vision_llm(content)
-            return ocr_md, "mimo-v2-omni"
+            # OCR 后也走一次复核(无 raw_text 对照,但能修格式问题)
+            refined_ocr = await _refine_markdown_with_llm(
+                raw_text="", draft_md=ocr_md, filename=filename,
+            )
+            return (refined_ocr or ocr_md), "mimo-v2-omni"
         # 文本层够 → 走原 LLM 整理路径
         raw_text = text_layer
         logger.info("text_extracted", filename=filename, chars=len(raw_text), source="text_layer")
@@ -546,5 +550,107 @@ async def convert_to_markdown(filename: str, content: bytes) -> tuple[str, str |
     outputs.sort(key=lambda x: x[0])
     markdown_parts = [o[1] for o in outputs]
     used_model = next((o[2] for o in outputs if o[2]), None)
+    draft_md = "\n\n".join(markdown_parts)
 
-    return "\n\n".join(markdown_parts), used_model
+    # ── 复核 (refinement pass) ──────────────────────────────────────────────────
+    # 把 raw_text + draft markdown 喂给 glm-5,让它对照原文找漏抽/错位/格式问题
+    # 失败时静默回退到 draft,不阻断转换。
+    refined = await _refine_markdown_with_llm(raw_text=raw_text, draft_md=draft_md, filename=filename)
+    if refined and refined.strip():
+        return refined, used_model
+    return draft_md, used_model
+
+
+_REFINE_SYSTEM = """你是文档转换质检员。输入两段:
+  (1) [原始抽取文本] — 从 PDF/Word 等本地解析出来的纯文本,可能格式丢失但内容完整
+  (2) [LLM 转换的 markdown 草稿] — 第一遍 LLM 把 (1) 整理出的 markdown,可能漏抽/错位/重复/标题层级跳级
+
+请严格对比两者,输出**修正后的 markdown 全文**。修正这些问题:
+- 漏抽:草稿里没出现,但原文有的内容(段落 / 表格行 / 列表项)→ 补回
+- 错抽:草稿与原文意思不符 → 改回
+- 重复:同一段落 / 标题被多次输出 → 去重
+- 表格列错位 / 列数不一致 → 修正
+- 标题层级跳级(# 直接到 ###)→ 调整为 ##
+- 列表黏成一段 → 拆开
+- 段落顺序倒乱 → 按原文顺序
+
+**绝不**:
+- 不能编造原文没有的内容
+- 不能删除原文有的实质信息(可以删除装饰性垃圾如纯空行)
+- 不能改写原文的意思(比如把"不能"改成"能")
+- 不能加自己的总结 / 评论
+
+输出格式:**只输出修正后的 markdown 正文**,不要前后加任何说明 / 不要包 ```markdown 代码块。
+"""
+
+
+async def _refine_markdown_with_llm(*, raw_text: str, draft_md: str, filename: str) -> str:
+    """LLM 复核:对比 raw_text 找漏抽/错位/格式问题,返回修正版 markdown。
+
+    失败时返回空字符串,调用方 fallback 到 draft。
+    raw_text 和 draft 都做 30k 字符截断保护(glm-5 能装下 200k,但保险起见控量)。
+    """
+    if not draft_md.strip():
+        return ""
+    if not raw_text.strip():
+        # 没原文可对照(纯 vision OCR 路径) — 仍跑一次自检 (找格式问题)
+        raw_text = "(无原始抽取文本,仅做格式自检)"
+
+    MAX_CHARS = 30000
+    raw_excerpt = raw_text[:MAX_CHARS]
+    if len(raw_text) > MAX_CHARS:
+        raw_excerpt += f"\n\n…(原始文本截断,余 {len(raw_text) - MAX_CHARS} 字省略)"
+    draft_excerpt = draft_md[:MAX_CHARS]
+    if len(draft_md) > MAX_CHARS:
+        draft_excerpt += f"\n\n…(草稿截断,余 {len(draft_md) - MAX_CHARS} 字省略)"
+
+    user_prompt = f"""文件名:{filename}
+
+[原始抽取文本]:
+{raw_excerpt}
+
+[LLM 转换的 markdown 草稿]:
+{draft_excerpt}
+
+请按 system 指令输出修正后的 markdown 全文。"""
+
+    try:
+        result, model = await model_router.chat_with_routing(
+            "conversion_refine",
+            [
+                {"role": "system", "content": _REFINE_SYSTEM},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_tokens=12000,
+            temperature=0.1,
+            timeout=180.0,
+        )
+        result = (result or "").strip()
+        # 去除可能的 ```markdown 包装
+        if result.startswith("```"):
+            lines = result.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            result = "\n".join(lines).strip()
+        if not result:
+            logger.warning("conversion_refine_empty", filename=filename, model=model)
+            return ""
+        # 防御:复核结果远小于草稿 → 怀疑模型偷懒/截断 → 不采用
+        if len(result) < len(draft_md) * 0.5:
+            logger.warning(
+                "conversion_refine_too_short_rejected",
+                filename=filename, model=model,
+                draft_chars=len(draft_md), refined_chars=len(result),
+            )
+            return ""
+        logger.info(
+            "conversion_refined",
+            filename=filename, model=model,
+            draft_chars=len(draft_md), refined_chars=len(result),
+        )
+        return result
+    except Exception as e:
+        logger.warning("conversion_refine_failed", filename=filename, err=str(e)[:120])
+        return ""

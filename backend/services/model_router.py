@@ -115,6 +115,8 @@ ROUTING_RULES = {
     "challenge_judging":      {"primary": "glm-5",             "fallback": "qwen3-next-80b-a3b"},
     # 扫描件 PDF / 图像 OCR — 多模态模型直接看图转写,准确率比 Tesseract 高
     "pdf_ocr":                {"primary": "mimo-v2-omni",      "fallback": "mimo-v2-omni"},
+    # 转换后的 markdown 复核(对比 raw_text 找漏抽/错位/格式问题)— glm-5 擅长 review/judging
+    "conversion_refine":      {"primary": "glm-5",             "fallback": "minimax-m2.5"},
 }
 
 
