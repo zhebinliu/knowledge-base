@@ -472,8 +472,14 @@ def _xlsx_raw_to_markdown(raw_text: str, doc_title: str) -> str:
     return "\n".join(out).strip() + "\n"
 
 
-async def convert_to_markdown(filename: str, content: bytes) -> tuple[str, str | None]:
-    """Returns (markdown_text, model_name_or_None)."""
+async def convert_to_markdown(
+    filename: str, content: bytes,
+    heartbeat=None,                  # async callable(msg: str) — 进度回调,可选
+) -> tuple[str, str | None]:
+    """Returns (markdown_text, model_name_or_None).
+
+    heartbeat 用于把"3/8 段完成"这种细粒度进度回写到 DB,前端 polling 能看到。
+    """
     # 老 Office 格式 (.doc/.ppt/.xls) 先用 soffice 转成新格式,后续 ext 判断按新格式走
     filename, content = _normalize_legacy_office(filename, content)
     ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -524,7 +530,10 @@ async def convert_to_markdown(filename: str, content: bytes) -> tuple[str, str |
 
     # 分段并发调 LLM —— Semaphore=3 限流，避免 provider 限速
     import asyncio
+    import os
     sem = asyncio.Semaphore(3)
+    n_segments = len(segments)
+    completed_n = {"v": 0}            # 闭包计数器(并发完成数)
 
     async def _convert_one(idx: int, segment: str) -> tuple[int, str, str | None]:
         async with sem:
@@ -540,11 +549,24 @@ async def convert_to_markdown(filename: str, content: bytes) -> tuple[str, str |
             if len(result) >= TRUNCATION_WARN_CHARS:
                 logger.warning(
                     "segment_likely_truncated",
-                    filename=filename, segment=idx + 1, total=len(segments),
+                    filename=filename, segment=idx + 1, total=n_segments,
                     output_chars=len(result), input_chars=len(segment), model=model,
                 )
-            logger.info("segment_converted", filename=filename, segment=idx + 1, total=len(segments), model=model)
+            logger.info("segment_converted", filename=filename, segment=idx + 1, total=n_segments, model=model)
+            # 心跳:每段完成后写一次进度
+            completed_n["v"] += 1
+            if heartbeat:
+                try:
+                    await heartbeat(f"LLM 整理 markdown 中:{completed_n['v']}/{n_segments} 段完成")
+                except Exception:
+                    pass
             return idx, result, model
+
+    if heartbeat:
+        try:
+            await heartbeat(f"LLM 整理 markdown 中:0/{n_segments} 段(并发 3 路)…")
+        except Exception:
+            pass
 
     outputs = await asyncio.gather(*[_convert_one(i, s) for i, s in enumerate(segments)])
     outputs.sort(key=lambda x: x[0])
@@ -553,8 +575,24 @@ async def convert_to_markdown(filename: str, content: bytes) -> tuple[str, str |
     draft_md = "\n\n".join(markdown_parts)
 
     # ── 复核 (refinement pass) ──────────────────────────────────────────────────
-    # 把 raw_text + draft markdown 喂给 glm-5,让它对照原文找漏抽/错位/格式问题
-    # 失败时静默回退到 draft,不阻断转换。
+    # 三重门控:
+    #   1. env REFINE_PASS_DISABLED=1 → 完全跳过(应急关闭)
+    #   2. 文档过长(raw_text + draft > 60k 字)→ 跳过(token 成本/截断风险高)
+    #   3. 默认开 → 调 glm-5 对照 raw_text 修正
+    # 失败时静默回退 draft,不阻断转换。
+    if os.getenv("REFINE_PASS_DISABLED") == "1":
+        logger.info("refine_skipped_env_disabled", filename=filename)
+        return draft_md, used_model
+    total_chars = len(raw_text) + len(draft_md)
+    if total_chars > 60000:
+        logger.info("refine_skipped_too_long", filename=filename, total_chars=total_chars)
+        return draft_md, used_model
+
+    if heartbeat:
+        try:
+            await heartbeat("refine 复核中(对照原文找漏抽/错位)…")
+        except Exception:
+            pass
     refined = await _refine_markdown_with_llm(raw_text=raw_text, draft_md=draft_md, filename=filename)
     if refined and refined.strip():
         return refined, used_model

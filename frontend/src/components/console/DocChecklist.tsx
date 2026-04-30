@@ -228,6 +228,11 @@ function ExtraReferencesSection({
                 ⚠ {d.error.length > 100 ? d.error.slice(0, 100) + '…' : d.error}
               </div>
             )}
+            {!d.error && d.progress && (
+              <div className="text-[10px] text-blue-600 mt-0.5 leading-snug truncate" title={d.progress}>
+                ⏳ {d.progress}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -461,11 +466,16 @@ function DocRow({
                   </button>
                 </div>
               ))}
-              {item.documents.some(d => d.error) && (
+              {item.documents.some(d => d.error || d.progress) && (
                 <div className="space-y-0.5 mt-0.5">
                   {item.documents.filter(d => d.error).map(d => (
                     <div key={`err-${d.doc_id}`} className="text-[9.5px] text-red-600 pl-3 leading-snug" title={d.error || ''}>
                       ⚠ {(d.error || '').length > 80 ? (d.error || '').slice(0, 80) + '…' : d.error}
+                    </div>
+                  ))}
+                  {item.documents.filter(d => !d.error && d.progress).map(d => (
+                    <div key={`prog-${d.doc_id}`} className="text-[9.5px] text-blue-600 pl-3 leading-snug truncate" title={d.progress || ''}>
+                      ⏳ {d.progress}
                     </div>
                   ))}
                 </div>

@@ -103,6 +103,7 @@ async def startup():
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS industry VARCHAR(50)",
             "CREATE INDEX IF NOT EXISTS idx_documents_industry ON documents(industry)",
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS conversion_error TEXT",
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS convert_progress VARCHAR(200)",
             "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS citation_count INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS last_cited_at TIMESTAMP NULL",
             "CREATE INDEX IF NOT EXISTS idx_chunks_citation ON chunks(citation_count DESC, last_cited_at DESC)",

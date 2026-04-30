@@ -320,6 +320,19 @@ async def _process_document_async(doc_id: str):
         # 此处状态已经在同步入口更新过，这里仅作记录
         logger.info("task_processing_start", doc_id=doc_id, filename=doc.filename)
 
+        # 心跳:每个 phase 开始前往 DB 写一句进度,前端 polling 拉到能显示
+        async def _heartbeat(msg: str):
+            try:
+                async with async_session_maker() as hs:
+                    d = await hs.get(Document, doc_id)
+                    if d:
+                        d.convert_progress = msg[:200]
+                        await hs.commit()
+            except Exception as he:
+                logger.warning("heartbeat_failed", doc_id=doc_id, err=str(he)[:80])
+
+        await _heartbeat("准备中:清理旧切片…")
+
         try:
             # 1b. 清理旧切片，防止重处理时产生重复数据
             existing_ids = (await session.execute(
@@ -337,6 +350,7 @@ async def _process_document_async(doc_id: str):
                 logger.info("existing_chunks_cleared", doc_id=doc_id, count=len(existing_ids))
 
             # 2. 从 MinIO 获取原始文件
+            await _heartbeat("从存储拉取原文件…")
             minio_client = Minio(
                 settings.minio_endpoint,
                 access_key=settings.minio_user,
@@ -347,8 +361,12 @@ async def _process_document_async(doc_id: str):
             content = response.read()
 
             # 3. 文档解析与 Markdown 转化
+            await _heartbeat("LLM 整理 markdown 中(可能需要 1-8 分钟)…")
             _t_convert_start = time.time()
-            markdown, convert_model = await convert_to_markdown(doc.filename, content)
+            markdown, convert_model = await convert_to_markdown(
+                doc.filename, content,
+                heartbeat=_heartbeat,             # 让 converter 内部分段时也能写心跳
+            )
             _convert_elapsed = time.time() - _t_convert_start
             doc.markdown_content = markdown
             doc.conversion_status = "slicing"
@@ -374,6 +392,7 @@ async def _process_document_async(doc_id: str):
                     )
 
             await session.commit()
+            await _heartbeat(f"切片中(共 {len(markdown)//500 + 1} 段预估)…")
 
             # 4. 高级切片与 LTC 分类
             _t_slice_start = time.time()
@@ -388,6 +407,7 @@ async def _process_document_async(doc_id: str):
             )
 
             # 5. 结构化入库
+            await _heartbeat(f"向量化入库中({len(slices)} 段)…")
             _t_embed_start = time.time()
             for slice_data in slices:
                 chunk = Chunk(
@@ -466,6 +486,7 @@ async def _process_document_async(doc_id: str):
 
             # 7. 标记成功
             doc.conversion_status = "completed"
+            doc.convert_progress = None                # 清掉进度提示
             await session.commit()
             logger.info(
                 "task_completed",

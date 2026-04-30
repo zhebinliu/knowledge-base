@@ -21,6 +21,9 @@ class Document(Base):
     conversion_quality_score: Mapped[float | None] = mapped_column(Float)
     # 永久失败时记录最终错误，pending/converting/completed 时为空
     conversion_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 转换/切片中实时进度提示(由 worker 在每段/每阶段写),供前端 DocChecklist 显示
+    # 例如:"convert 3/8 段完成" / "refine 复核中…" / "切片中" / "embedding 中"
+    convert_progress: Mapped[str | None] = mapped_column(String(200), nullable=True)
     # nullable：兼容老数据 + 未登录上传场景
     uploader_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("users.id"), nullable=True, index=True
