@@ -31,6 +31,17 @@ interface Props {
   bundle: CuratedBundle
 }
 
+// 不同 kind 的产物名,用在"正在生成 XXX"标题
+const KIND_LABEL: Record<string, string> = {
+  insight_v2: '项目洞察',
+  survey_outline_v2: '调研大纲',
+  survey_v2: '调研问卷',
+  kickoff_pptx: '启动会 PPT',
+  kickoff_html: '启动会 HTML',
+  insight: '项目洞察',
+  survey: '调研问卷',
+}
+
 export default function GenerationProgressCard({ bundle }: Props) {
   const progress = bundle.progress
   const stage = progress?.stage ?? 'planning'
@@ -39,6 +50,7 @@ export default function GenerationProgressCard({ bundle }: Props) {
   const inFlight = progress?.modules_in_flight ?? []
   const stageMeta = STAGE_LABEL[stage] || STAGE_LABEL['planning']
   const StageIcon = stageMeta.icon
+  const kindLabel = KIND_LABEL[bundle.kind] || '产物'
 
   // 实时拉挑战回合(只在 challenging/regenerating 阶段才频繁拉,其他阶段意义不大)
   const showChallengeStream = ['challenging', 'regenerating', 'finalizing'].includes(stage)
@@ -66,7 +78,7 @@ export default function GenerationProgressCard({ bundle }: Props) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <h2 className="text-base font-bold text-ink">正在生成项目洞察</h2>
+              <h2 className="text-base font-bold text-ink">正在生成{kindLabel}</h2>
               <span className="px-1.5 py-0.5 text-[10px] rounded-full font-medium"
                     style={{ background: stageMeta.color + '20', color: stageMeta.color }}>
                 {stageMeta.label}
