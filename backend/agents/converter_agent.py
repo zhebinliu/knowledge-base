@@ -23,9 +23,80 @@ MAX_CHUNK_CHARS = 10000
 TRUNCATION_WARN_CHARS = 11000
 
 
+def _docx_zip_fallback(content: bytes) -> str:
+    """绕开 python-docx 直接从 zip 抽 word/document.xml 的纯文本。
+
+    用于以下场景:
+    - python-docx 报 "There is no item named 'NULL' in the archive"
+      (WPS / Pages / LibreOffice 转换出的 docx,Content_Types.xml 里 PartName 异常)
+    - 文件 OOXML 结构基本完整但 manifest 不规范
+    - 其他 python-docx 严格校验失败但 zip 本身可读
+
+    实现:zip 里找 word/document.xml,解析所有 <w:t> 文本节点拼起来。
+    丢失格式 / 表格结构,但保留文字内容(对 LLM 后续理解够用)。
+    """
+    import zipfile, re
+    from xml.etree import ElementTree as ET
+
+    with zipfile.ZipFile(io.BytesIO(content)) as z:
+        names = z.namelist()
+        # 优先 word/document.xml,兜底任何 word/document*.xml
+        target = None
+        if "word/document.xml" in names:
+            target = "word/document.xml"
+        else:
+            for n in names:
+                if n.startswith("word/document") and n.endswith(".xml"):
+                    target = n; break
+        if not target:
+            raise RuntimeError(f"docx zip 里找不到 word/document.xml (zip entries: {names[:8]}...)")
+        xml_bytes = z.read(target)
+
+    # 解析所有 <w:t> 文本(忽略命名空间)
+    # 用宽松的正则兜底,避免 XML 解析对损坏文件再次抛错
+    try:
+        root = ET.fromstring(xml_bytes)
+        ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+        texts = [t.text for t in root.iter(f"{ns}t") if t.text]
+        # <w:p> 段落分隔
+        paras = []
+        cur = []
+        for elem in root.iter():
+            tag = elem.tag.replace(ns, "")
+            if tag == "p":
+                if cur:
+                    paras.append("".join(cur).strip())
+                    cur = []
+            elif tag == "t" and elem.text:
+                cur.append(elem.text)
+        if cur:
+            paras.append("".join(cur).strip())
+        return "\n".join(p for p in paras if p)
+    except ET.ParseError:
+        # XML 也炸了 — 用正则硬抽 <w:t>...</w:t>
+        text = xml_bytes.decode("utf-8", errors="replace")
+        chunks = re.findall(r'<w:t[^>]*>([^<]*)</w:t>', text)
+        return "\n".join(c for c in chunks if c.strip())
+
+
 def extract_text_from_docx(content: bytes) -> str:
     from docx import Document
-    doc = Document(io.BytesIO(content))
+    try:
+        doc = Document(io.BytesIO(content))
+    except (KeyError, Exception) as e:
+        # python-docx 严格 OPC 校验失败 — 尝试 zip fallback 兜底
+        # 典型:"There is no item named 'NULL' in the archive" (WPS / Pages 导出)
+        msg = str(e)[:120]
+        logger.warning("docx_strict_parse_failed_fallback", err=msg)
+        try:
+            text = _docx_zip_fallback(content)
+            if text.strip():
+                logger.info("docx_zip_fallback_ok", chars=len(text), prev_err=msg)
+                return text
+        except Exception as fb_err:
+            logger.warning("docx_zip_fallback_also_failed", err=str(fb_err)[:120])
+        # 兜底也失败 → 抛原异常,让 task retry / 用户看错误
+        raise
     parts = []
     for para in doc.paragraphs:
         if para.text.strip():
