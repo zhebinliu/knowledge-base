@@ -1409,6 +1409,41 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
                     ready_pairs.append((spec, assess))
                     break
 
+        # ── Phase 3.5: 行业 knowhow KB 召回 + LLM 二次评分(research v1) ──
+        # 跨项目沉淀的行业最佳实践 — 用 sow_mapper 命中的 LTC 模块名 + 行业拼 query,
+        # 召回 top-K → LLM 0-10 评分 → 仅 ≥7 注入 prompt;失败不阻断主流程
+        kb_candidates_dump: list[dict] = []
+        kb_inject_block = ""
+        try:
+            from .research.kb_filter import fetch_industry_knowhow, render_high_score_block
+            from .research.ltc_dictionary import get_module as _get_ltc_module
+            hit_keys = list({r.get("mapped_ltc_key") for r in ltc_map_items
+                             if r.get("mapped_ltc_key")})
+            keywords = [m.label for k in hit_keys if (m := _get_ltc_module(k))]
+            if not keywords:
+                keywords = ["需求调研", "实施调研访谈"]
+            kb_cands = await fetch_industry_knowhow(
+                ltc_module_key="outline",
+                ltc_module_label="调研大纲与访谈日程",
+                industry=ctx["industry"],
+                extra_keywords=keywords[:6],
+                top_k=12,
+                score_threshold=7.0,
+                model=ctx["agent_model"],
+            )
+            kb_inject_block = render_high_score_block(kb_cands, threshold=7.0, max_chunks=6)
+            kb_candidates_dump = [c.to_dict() for c in kb_cands]
+            run_history.append({
+                "phase": "kb_filtered", "ts": _ts(),
+                "detail": {
+                    "total": len(kb_cands),
+                    "high_score": sum(1 for c in kb_cands if c.ai_score >= 7.0),
+                    "query_keywords": keywords[:6],
+                },
+            })
+        except Exception as e:
+            logger.warning("outline_kb_filter_failed", error=str(e)[:200])
+
         # 给 executor 注入行业包的"必访部门 + 默认 sessions + 客户材料模板"
         # 我们把这些作为 agent_prompt 的"行业上下文"补丁,Executor 会渲染到 evidence_block
         pack = get_pack(ctx["industry"])
@@ -1432,6 +1467,9 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
         enhanced_agent_prompt = (ctx["agent_prompt"] or "")
         if industry_outline_brief:
             enhanced_agent_prompt = (enhanced_agent_prompt + "\n\n" if enhanced_agent_prompt else "") + industry_outline_brief
+        # research v1 — 把 KB 二次过滤后的高分行业 knowhow 也拼到 agent_prompt 末尾
+        if kb_inject_block:
+            enhanced_agent_prompt = (enhanced_agent_prompt + "\n\n" if enhanced_agent_prompt else "") + kb_inject_block
 
         async def _run_one(spec, assess):
             from .executor import execute_insight_module  # 模块化报告流程通用
@@ -1583,11 +1621,28 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
                                  "、".join(extras[:10]) +
                                  (f" 等 {len(extras)} 项" if len(extras) > 10 else ""))
 
+        # research v1:展示 KB 召回的行业 knowhow(给顾问审视用)
+        if kb_candidates_dump:
+            high_score = [c for c in kb_candidates_dump if (c.get("ai_score") or 0) >= 7.0]
+            md_blocks.append("\n## 附录 · KB 召回的行业 knowhow\n")
+            md_blocks.append(f"_共召回 {len(kb_candidates_dump)} 条,高相关度(≥7分)注入 LLM prompt 共 {len(high_score)} 条。下个迭代支持顾问在右栏剔除。_\n")
+            md_blocks.append("\n| 评分 | 来源 | 章节 | 摘要 |")
+            md_blocks.append("|---|---|---|---|")
+            for c in sorted(kb_candidates_dump, key=lambda x: -(x.get("ai_score") or 0))[:8]:
+                snippet = (c.get("content") or "")[:80].replace("|", "·").replace("\n", " ")
+                md_blocks.append(
+                    f"| {c.get('ai_score', 0):.1f} | {c.get('filename', '—')} "
+                    f"| {c.get('source_section') or '—'} | {snippet}… |"
+                )
+
         md_blocks.append("\n## 附录 · 运行报告\n")
         md_blocks.append(f"- 已生成模块:{len(module_contents)} / 总 {len(plan.modules)}")
         md_blocks.append(f"- 待用户补充:{len(ask_user_prompts)} 项")
         if ltc_map_items:
             md_blocks.append(f"- LTC 模块映射:已识别 {len(ltc_map_items)} 项,其中 extra {sum(1 for r in ltc_map_items if r.get('is_extra'))} 项")
+        if kb_candidates_dump:
+            high_n = sum(1 for c in kb_candidates_dump if (c.get('ai_score') or 0) >= 7.0)
+            md_blocks.append(f"- KB 行业 knowhow:召回 {len(kb_candidates_dump)} 条,LLM 二次评分后注入 {high_n} 条(≥7 分)")
         if pack:
             md_blocks.append(f"- 行业包:{pack.industry} 已激活(注入 {len(pack.must_visit_departments)} 必访部门 + {len(pack.default_sessions)} 默认 sessions)")
         full_md = "\n".join(md_blocks)
@@ -1613,6 +1668,7 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
             "run_history": run_history,
             "agentic_version": "v2",
             "ltc_module_map": ltc_map_items,    # research v1 — 前端工作区消费
+            "kb_candidates": kb_candidates_dump,  # research v1 — KB 召回 + 评分,前端右栏可剔除
         })
         await _mark(bundle_id, "done", content_md=full_md, file_key=docx_key, extra=new_extra)
         await _mark_conv(bundle_id, "done")
