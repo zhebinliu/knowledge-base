@@ -122,9 +122,10 @@ export default function ConsoleProjectDetail() {
     queryKey: ['project-bundles', id],
     queryFn: () => listOutputs({ project_id: id, page: 1 }),
     enabled: !!id,
-    refetchInterval: (q) => {
+    refetchInterval: (q: any) => {
+      // inflight 中 2s polling — 让 GenerationProgressCard 的进度更新更顺滑
       const items = q.state.data?.items ?? []
-      return items.some((b: CuratedBundle) => b.status === 'pending' || b.status === 'generating') ? 4000 : false
+      return items.some((b: CuratedBundle) => b.status === 'pending' || b.status === 'generating') ? 2000 : false
     },
   })
   const { data: meta } = useQuery({ queryKey: ['project-meta'], queryFn: getProjectMeta })

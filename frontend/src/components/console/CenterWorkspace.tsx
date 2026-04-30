@@ -24,6 +24,8 @@ import MarkdownView from '../MarkdownView'
 import V2GapFiller from '../V2GapFiller'
 import CitedReportView from './CitedReportView'
 import StakeholderCanvas from './StakeholderCanvas'
+import GenerationProgressCard from './GenerationProgressCard'
+import ChallengeRoundsPanel from './ChallengeRoundsPanel'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -154,75 +156,73 @@ function PreparationView({
     <div className="h-full overflow-auto bg-white">
       <div className="px-6 py-5 max-w-[1400px] mx-auto space-y-4">
 
-        {/* —— 顶部 Hero —— 横幅,占满中栏 —— */}
-        <div className="bg-slate-50/50 rounded-xl border border-line overflow-hidden shadow-sm">
-          <div className="px-6 py-5 flex items-start gap-4 border-b border-line"
-               style={{ background: 'linear-gradient(to right, #FFF7ED 0%, #FFFFFF 60%)' }}>
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-                 style={{ background: BRAND_GRAD }}>
-              <Lightbulb size={20} className="text-white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h2 className="text-lg font-bold text-ink">项目洞察(新版)</h2>
-              <p className="text-xs text-ink-muted mt-1 leading-relaxed">
-                基于上传文档 + 引导问卷生成项目诊断报告。
-                <br/>把左侧文档清单补齐,系统会自动从文档抽取信息并标注每段来源。
-              </p>
-            </div>
-            {/* 完成度大数字 */}
-            <div className="text-right shrink-0">
-              <div className="text-2xl font-extrabold tabular-nums"
-                   style={{ color: allReady ? '#10B981' : '#D96400' }}>
-                {reqDone}<span className="text-sm text-ink-muted font-normal"> / {reqTotal}</span>
+        {/* —— 顶部 Hero —— inflight 时换成进度卡 —— */}
+        {activeInflight ? (
+          <GenerationProgressCard bundle={activeInflight} />
+        ) : (
+          <div className="bg-slate-50/50 rounded-xl border border-line overflow-hidden shadow-sm">
+            <div className="px-6 py-5 flex items-start gap-4 border-b border-line"
+                 style={{ background: 'linear-gradient(to right, #FFF7ED 0%, #FFFFFF 60%)' }}>
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+                   style={{ background: BRAND_GRAD }}>
+                <Lightbulb size={20} className="text-white" />
               </div>
-              <div className="text-[11px] text-ink-muted">必备资料</div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg font-bold text-ink">项目洞察(新版)</h2>
+                <p className="text-xs text-ink-muted mt-1 leading-relaxed">
+                  基于上传文档 + 引导问卷生成项目诊断报告。
+                  <br/>把左侧文档清单补齐,系统会自动从文档抽取信息并标注每段来源。
+                </p>
+              </div>
+              {/* 完成度大数字 */}
+              <div className="text-right shrink-0">
+                <div className="text-2xl font-extrabold tabular-nums"
+                     style={{ color: allReady ? '#10B981' : '#D96400' }}>
+                  {reqDone}<span className="text-sm text-ink-muted font-normal"> / {reqTotal}</span>
+                </div>
+                <div className="text-[11px] text-ink-muted">必备资料</div>
+              </div>
             </div>
-          </div>
 
-          {/* 进度条 + 提示 + CTA */}
-          <div className="px-6 py-4">
-            <div className="h-2 bg-slate-100 rounded-full overflow-hidden mb-3">
-              <div className="h-full transition-all rounded-full" style={{
-                width: `${reqPct}%`,
-                background: allReady ? '#10B981' : BRAND_GRAD,
-              }} />
+            {/* 进度条 + 提示 + CTA */}
+            <div className="px-6 py-4">
+              <div className="h-2 bg-slate-100 rounded-full overflow-hidden mb-3">
+                <div className="h-full transition-all rounded-full" style={{
+                  width: `${reqPct}%`,
+                  background: allReady ? '#10B981' : BRAND_GRAD,
+                }} />
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-ink-secondary flex-1">
+                  {allReady
+                    ? '✅ 必备资料已齐,可以开始生成洞察'
+                    : `还差 ${reqTotal - reqDone} 项必备资料(左栏 「+」 上传 / 「问卷」 填写)`}
+                </span>
+                {activeBundle ? (
+                  <button
+                    onClick={() => genMut.mutate()}
+                    disabled={genMut.isPending}
+                    className="flex items-center justify-center gap-2 px-5 py-2.5 border border-line rounded-lg text-sm text-ink hover:bg-canvas"
+                  >
+                    <RotateCw size={13} /> 重新生成
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => genMut.mutate()}
+                    disabled={genMut.isPending || !allReady}
+                    className="flex items-center justify-center gap-2 px-5 py-2.5 text-white rounded-lg text-sm font-semibold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ background: BRAND_GRAD }}
+                    title={!allReady ? '必备资料未齐,请先到左栏补齐' : ''}
+                  >
+                    {genMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                    {allReady ? '开始生成洞察' : '请先补齐必备资料'}
+                  </button>
+                )}
+              </div>
+              {error && <div className="mt-2 text-xs text-red-600">{error}</div>}
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-ink-secondary flex-1">
-                {allReady
-                  ? '✅ 必备资料已齐,可以开始生成洞察'
-                  : `还差 ${reqTotal - reqDone} 项必备资料(左栏 「+」 上传 / 「问卷」 填写)`}
-              </span>
-              {activeInflight ? (
-                <button disabled
-                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm font-medium">
-                  <Loader2 size={14} className="animate-spin" />
-                  正在生成中…
-                </button>
-              ) : activeBundle ? (
-                <button
-                  onClick={() => genMut.mutate()}
-                  disabled={genMut.isPending}
-                  className="flex items-center justify-center gap-2 px-5 py-2.5 border border-line rounded-lg text-sm text-ink hover:bg-canvas"
-                >
-                  <RotateCw size={13} /> 重新生成
-                </button>
-              ) : (
-                <button
-                  onClick={() => genMut.mutate()}
-                  disabled={genMut.isPending || !allReady}
-                  className="flex items-center justify-center gap-2 px-5 py-2.5 text-white rounded-lg text-sm font-semibold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ background: BRAND_GRAD }}
-                  title={!allReady ? '必备资料未齐,请先到左栏补齐' : ''}
-                >
-                  {genMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                  {allReady ? '开始生成洞察' : '请先补齐必备资料'}
-                </button>
-              )}
-            </div>
-            {error && <div className="mt-2 text-xs text-red-600">{error}</div>}
           </div>
-        </div>
+        )}
 
         {/* —— 中部三卡片网格 —— */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -379,6 +379,9 @@ function ReportView({
   return (
     <div className="h-full bg-white overflow-auto">
       <div className="max-w-[1100px] mx-auto px-6 py-6">
+        {/* v3.1 挑战回合面板(报告头部,默认折叠) */}
+        <ChallengeRoundsPanel bundleId={bundle.id} challengeSummary={bundle.challenge_summary} />
+
         {validity && validity !== 'valid' && (
           <div className={`mb-4 px-3 py-2 rounded text-xs ${
             validity === 'invalid' ? 'bg-red-50 text-red-800 border border-red-200' :

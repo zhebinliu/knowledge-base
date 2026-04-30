@@ -970,7 +970,57 @@ export interface CuratedBundle {
     missing_fields?: { key: string; label: string; note: string }[]
     reason?: string
   }>
+  // v3.1 进度卡片 (生成中显示)
+  progress?: {
+    stage: 'planning' | 'executing' | 'critiquing' | 'challenging' | 'regenerating' | 'finalizing' | 'done'
+    message: string
+    round_idx: number | null
+    modules_in_flight: string[]
+    updated_at: string
+  } | null
+  // v3.1 挑战循环结果摘要
+  challenge_summary?: {
+    rounds_total: number
+    final_verdict: 'pass' | 'minor_issues' | 'major_issues' | 'skipped' | 'skipped_invalid'
+    issues_remaining: number
+  } | null
 }
+
+// v3.1 挑战回合详情 (GET /api/outputs/{id}/challenges)
+export interface ChallengeIssue {
+  module_key: string                       // module key 或 '_global'
+  dimension: 'specificity' | 'evidence' | 'timeliness' | 'next_step' | 'completeness' | 'consistency' | 'jargon' | string
+  severity: 'blocker' | 'major' | 'minor'
+  text: string
+  suggestion: string
+}
+
+export interface ChallengeCritique {
+  verdict: 'pass' | 'minor_issues' | 'major_issues'
+  summary: string
+  issues: ChallengeIssue[]
+}
+
+export interface ChallengeRound {
+  id: string
+  round_idx: number
+  status: 'critiquing' | 'regenerating' | 'done' | 'final'
+  critique: ChallengeCritique | null
+  modules_regenerated: string[]
+  challenger_model?: string | null
+  regen_model?: string | null
+  regen_chars?: number | null
+  duration_ms?: number | null
+  created_at: string | null
+}
+
+export interface ChallengeRoundsDto {
+  bundle_id: string
+  rounds: ChallengeRound[]
+}
+
+export const getChallengeRounds = (bundleId: string) =>
+  api.get<ChallengeRoundsDto>(`/outputs/${bundleId}/challenges`).then(r => r.data)
 
 export interface OutputPage {
   total: number
