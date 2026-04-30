@@ -1015,6 +1015,7 @@ export interface ChallengeRound {
   round_idx: number
   status: 'critiquing' | 'regenerating' | 'done' | 'final'
   critique: ChallengeCritique | null
+  critique_raw?: string | null                  // parse 失败时的原始 LLM 输出 (debug 用)
   modules_regenerated: string[]
   challenger_model?: string | null
   regen_model?: string | null

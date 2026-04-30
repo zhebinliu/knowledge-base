@@ -123,20 +123,65 @@ def _strip_code_fence(text: str) -> str:
     return text
 
 
-def _parse_critique_json(raw: str) -> dict:
-    """容错解析(三重兜底):
+def _balanced_json_block(text: str) -> str | None:
+    """从 text 里抓**最长的**括号平衡 {} 块,handle 嵌套。"""
+    candidates: list[str] = []
+    stack = 0
+    start = -1
+    for i, ch in enumerate(text):
+        if ch == '{':
+            if stack == 0:
+                start = i
+            stack += 1
+        elif ch == '}':
+            if stack > 0:
+                stack -= 1
+                if stack == 0 and start >= 0:
+                    candidates.append(text[start:i + 1])
+                    start = -1
+    if not candidates:
+        return None
+    return max(candidates, key=len)        # 选最长的 (最完整的)
+
+
+def _clean_jsonish(text: str) -> str:
+    """LLM 输出里常见的"非标准 JSON"字符做归一化:
+    - 移除 // 行注释 / /* ... */ 块注释
+    - 移除尾随逗号 (`, ]` / `, }`)
+    - 移除 Unicode BOM
+    """
+    # 移除 BOM
+    text = text.lstrip('﻿')
+    # 移除 /* ... */ 块注释
+    text = re.sub(r'/\*[\s\S]*?\*/', '', text)
+    # 移除 // 行注释 (但要避开 url 里的 //)
+    text = re.sub(r'(?<![:\w])//[^\n]*', '', text)
+    # 移除尾随逗号
+    text = re.sub(r',(\s*[\]\}])', r'\1', text)
+    return text
+
+
+def _parse_critique_json(raw: str) -> tuple[dict, str | None]:
+    """容错解析(多重兜底)。
+
+    Returns: (parsed_dict, raw_kept_on_failure)
+      - 成功:(parsed, None)
+      - 失败:(parse_failed_dict, raw_text_for_debug)
+
+    解析顺序:
     1. 严格 json.loads
-    2. ast.literal_eval — 能解 Python dict 字面量(单引号 / True/False/None)
-    3. 正则替换 '...' → "..." 后再 json.loads(粗糙但兜底常见 LLM 输出)
-    全失败 → verdict='parse_failed'。
+    2. _clean_jsonish 后 json.loads (去注释 / 尾逗号)
+    3. ast.literal_eval (单引号 / True/False/None)
+    4. 正则替换 '...' → "..." 后 json.loads
     """
     import ast
+    original = raw
     raw = _strip_code_fence(raw)
-    # 抓首个 {} 平衡块
+    # 抓首个 {} 平衡块(handle 嵌套,选最长)
     if not raw.startswith("{"):
-        m = re.search(r'\{[\s\S]*\}', raw)
-        if m:
-            raw = m.group(0)
+        block = _balanced_json_block(raw)
+        if block:
+            raw = block
 
     data = None
     parse_err = None
@@ -147,7 +192,16 @@ def _parse_critique_json(raw: str) -> dict:
     except json.JSONDecodeError as e:
         parse_err = e
 
-    # Tier 2: Python literal (单引号 / True/False/None)
+    # Tier 2: 清掉注释 / 尾逗号 后再 JSON
+    if data is None:
+        try:
+            cleaned = _clean_jsonish(raw)
+            data = json.loads(cleaned)
+            logger.info("challenger_parsed_after_cleanup", raw_head=raw[:80])
+        except json.JSONDecodeError:
+            pass
+
+    # Tier 3: Python literal (单引号 / True/False/None)
     if data is None:
         try:
             d = ast.literal_eval(raw)
@@ -157,13 +211,12 @@ def _parse_critique_json(raw: str) -> dict:
         except (SyntaxError, ValueError):
             pass
 
-    # Tier 3: 正则替换 '"key"' / '"value"' 后再 JSON
+    # Tier 4: 正则替换单引号 → 双引号 后再 JSON
     if data is None:
         try:
-            # 把 'xxx': 形式替换成 "xxx": (key)
             tmp = re.sub(r"(?<=[\{,\s])'([^']+)'(\s*:)", r'"\1"\2', raw)
-            # 把 : 'xxx' 形式替换成 : "xxx" (string value, 简化版,不处理嵌套引号)
             tmp = re.sub(r":\s*'([^']*)'(\s*[,\}])", r': "\1"\2', tmp)
+            tmp = _clean_jsonish(tmp)
             data = json.loads(tmp)
             logger.info("challenger_parsed_via_regex_quotes", raw_head=raw[:80])
         except Exception:
@@ -173,11 +226,12 @@ def _parse_critique_json(raw: str) -> dict:
         logger.warning("challenger_parse_failed",
                        err=str(parse_err)[:120] if parse_err else "all_tiers_failed",
                        raw_head=raw[:300])
+        # 把原始 LLM 输出返回给 caller(persist 到 DB,前端展示供 debug)
         return {
             "verdict": "parse_failed",
             "summary": f"⚠ 挑战器输出无法解析,本轮跳过审核(报告质量未确认):{str(parse_err)[:80] if parse_err else 'unknown parse error'}",
             "issues": [],
-        }
+        }, original[:4000]
 
     # 标准化
     verdict = data.get("verdict", "pass")
@@ -199,7 +253,7 @@ def _parse_critique_json(raw: str) -> dict:
         "verdict":  verdict,
         "summary": str(data.get("summary") or "")[:300],
         "issues":  norm_issues,
-    }
+    }, None
 
 
 def affected_modules(critique: dict) -> list[str]:
@@ -238,10 +292,11 @@ def should_continue(critique: dict, round_idx: int, max_rounds: int) -> bool:
     return True
 
 
-async def challenge_report(*, full_md: str, model: str | None = None) -> tuple[dict, str]:
-    """对完整 markdown 报告做一轮挑战,返回 (critique_dict, model_used)。
+async def challenge_report(*, full_md: str, model: str | None = None) -> tuple[dict, str, str | None]:
+    """对完整 markdown 报告做一轮挑战。
 
-    LLM 失败时返回 verdict='pass' 占位结果,不抛异常,让循环优雅退出。
+    Returns: (critique_dict, model_used, raw_on_failure)
+      - raw_on_failure:解析失败时携带前 4000 字 LLM 原始输出供 debug;成功为 None
     """
     # 控制 prompt 体量(大报告截断,保留头/中/尾各 1/3,确保上下文够看)
     MAX_REPORT_CHARS = 50000
@@ -252,7 +307,11 @@ async def challenge_report(*, full_md: str, model: str | None = None) -> tuple[d
     else:
         report_for_prompt = full_md
 
-    user_prompt = f"""请审阅以下项目洞察报告,按 system 给的 7 维 rubric 找问题,严格按 JSON 格式输出。
+    user_prompt = f"""请审阅以下项目洞察报告,按 system 给的 7 维 rubric 找问题。
+
+⚠ 严禁 输出非 JSON 内容(包括开头 / 结尾的中文说明 / markdown 代码围栏)。
+⚠ 第一个字符必须是 `{{`,最后一个字符必须是 `}}`。
+⚠ 所有 key / string value 必须用**双引号** "key" / "value",不能用单引号。
 
 [项目洞察报告]:
 
@@ -269,21 +328,22 @@ async def challenge_report(*, full_md: str, model: str | None = None) -> tuple[d
             temperature=0.2,
             timeout=180.0,
         )
-        critique = _parse_critique_json(result or "")
+        critique, raw_on_fail = _parse_critique_json(result or "")
         logger.info(
             "challenger_round_done",
             verdict=critique["verdict"],
             issues_n=len(critique["issues"]),
             model=used_model,
+            parse_failed=raw_on_fail is not None,
         )
-        return critique, used_model
+        return critique, used_model, raw_on_fail
     except Exception as e:
         logger.warning("challenger_failed", err=str(e)[:160])
         return {
             "verdict": "pass",
             "summary": f"挑战器调用失败,跳过: {str(e)[:80]}",
             "issues": [],
-        }, ""
+        }, "", None
 
 
 REGEN_SYSTEM_SUFFIX = """

@@ -288,6 +288,7 @@ async def _persist_challenge_round(
     critique_json: dict | None, modules_regenerated: list[str] | None,
     challenger_model: str | None, regen_model: str | None,
     regen_chars: int | None, duration_ms: int | None,
+    critique_raw: str | None = None,                # parse 失败时携带原始 LLM 输出
 ):
     """新增 / 更新一条 challenge_rounds 记录。"""
     from models.challenge_round import ChallengeRound
@@ -313,10 +314,13 @@ async def _persist_challenge_round(
                 existing.regen_chars = regen_chars
             if duration_ms is not None:
                 existing.duration_ms = duration_ms
+            if critique_raw is not None:
+                existing.critique_raw = critique_raw
         else:
             s.add(ChallengeRound(
                 bundle_id=bundle_id, round_idx=round_idx, status=status,
                 critique_json=critique_json,
+                critique_raw=critique_raw,
                 modules_regenerated=modules_regenerated,
                 challenger_model=challenger_model,
                 regen_model=regen_model,
@@ -376,19 +380,24 @@ async def _run_challenge_loop(
             bundle_id, stage="challenging", round_idx=round_idx,
             message=f"第 {round_idx + 1}/{CHALLENGE_MAX_ROUNDS} 轮挑战:挑战者审核报告中…",
         )
-        critique, challenger_model = await challenge_report(full_md=cur_md, model=ctx.get("agent_model"))
+        critique, challenger_model, critique_raw = await challenge_report(
+            full_md=cur_md, model=ctx.get("agent_model"),
+        )
         last_critique = critique
         run_history.append({
             "phase": "challenged", "ts": _ts(),
             "detail": {"round": round_idx, "verdict": critique["verdict"],
-                       "issues_n": len(critique["issues"])},
+                       "issues_n": len(critique["issues"]),
+                       "parse_failed": critique_raw is not None},
         })
         # 写一条 ChallengeRound 占位 (status=critiquing → done after)
+        # 解析失败时把原始 LLM 输出存到 critique_raw 字段供前端展示 + debug
         await _persist_challenge_round(
             bundle_id=bundle_id, round_idx=round_idx, status="critiquing",
             critique_json=critique, modules_regenerated=None,
             challenger_model=challenger_model, regen_model=None,
             regen_chars=None, duration_ms=None,
+            critique_raw=critique_raw,
         )
 
         # 用挑战 summary 更新进度卡片

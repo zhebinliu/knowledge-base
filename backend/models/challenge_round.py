@@ -5,7 +5,7 @@
 """
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, JSON, DateTime, ForeignKey
+from sqlalchemy import String, Integer, JSON, DateTime, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from models import Base
 
@@ -44,6 +44,8 @@ class ChallengeRound(Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="critiquing")
                                                                                   # critiquing / regenerating / done / final
     critique_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # parse 失败时存原始 LLM 输出(前 4000 字),供前端展示 + 用户复制给开发者诊断
+    critique_raw: Mapped[str | None] = mapped_column(Text, nullable=True)
     modules_regenerated: Mapped[list | None] = mapped_column(JSON, nullable=True) # ['M3_health_radar', ...]
     challenger_model: Mapped[str | None] = mapped_column(String(60), nullable=True)
     regen_model: Mapped[str | None] = mapped_column(String(60), nullable=True)

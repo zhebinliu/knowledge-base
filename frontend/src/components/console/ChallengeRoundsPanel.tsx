@@ -148,7 +148,19 @@ function RoundCard({ round }: { round: import('../../api/client').ChallengeRound
         <p className="text-[12px] text-ink-secondary leading-snug mb-2 italic">「{c.summary}」</p>
       )}
 
-      {grouped.size === 0 && c && (
+      {/* parse_failed 时展示原始 LLM 输出供 debug */}
+      {round.critique_raw && (
+        <details className="mb-2 text-[11px]">
+          <summary className="cursor-pointer text-amber-700 hover:text-amber-900 select-none">
+            🔍 查看挑战器原始输出 (debug)
+          </summary>
+          <pre className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded text-[10.5px] text-amber-900 whitespace-pre-wrap break-words font-mono max-h-[400px] overflow-auto">
+{round.critique_raw}
+          </pre>
+        </details>
+      )}
+
+      {grouped.size === 0 && c && c.verdict === 'pass' && (
         <div className="text-[11px] text-emerald-700 flex items-center gap-1">
           <CheckCircle2 size={11} /> 本轮挑战者认为没有显著问题。
         </div>

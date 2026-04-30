@@ -227,6 +227,7 @@ async def list_challenge_rounds(
                 "round_idx": r.round_idx,
                 "status": r.status,
                 "critique": r.critique_json,             # 完整 JSON
+                "critique_raw": r.critique_raw,           # parse 失败时的原始 LLM 输出
                 "modules_regenerated": r.modules_regenerated or [],
                 "challenger_model": r.challenger_model,
                 "regen_model": r.regen_model,
