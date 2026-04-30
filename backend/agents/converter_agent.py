@@ -149,23 +149,108 @@ def _is_scanned_pdf(text: str, page_count: int) -> bool:
     return avg < 50
 
 
+XIAOMI_VISION_ENDPOINT = "https://api.xiaomimimo.com/v1/chat/completions"
+XIAOMI_VISION_MODEL = "mimo-v2-omni"      # 或 mimo-v2.5,均支持 vision
+
+
+async def _resolve_xiaomi_key() -> str:
+    """读 xiaomi_api_key:DB(config_service api_keys 表)优先,fallback .env settings。"""
+    try:
+        from services.config_service import config_service
+        db_entry = await config_service.get("api_keys", "xiaomi_api_key")
+        if db_entry and db_entry.get("value"):
+            return db_entry["value"]
+    except Exception:
+        pass
+    from config import settings
+    return getattr(settings, "xiaomi_api_key", "") or ""
+
+
+async def _call_xiaomi_vision_one_page(
+    *, page_idx: int, n_pages: int, b64: str, api_key: str, client,
+) -> tuple[int, str]:
+    """按官方文档形态直接调 https://api.xiaomimimo.com/v1/chat/completions。
+
+    与 model_router.chat 的差异:
+    - endpoint 不同(api.xiaomimimo.com vs token-plan-cn 代理)
+    - header 用 api-key 而不是 Authorization: Bearer
+    - body 用 max_completion_tokens 而不是 max_tokens
+
+    单页失败返回错误占位文本,不抛异常 — 让整篇 OCR 不被一页拖垮。
+    """
+    import httpx
+    payload = {
+        "model": XIAOMI_VISION_MODEL,
+        "messages": [{
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{b64}"},
+                },
+                {
+                    "type": "text",
+                    "text": (
+                        f"这是一份 PDF 扫描件的第 {page_idx + 1}/{n_pages} 页。请忠实转写本页所有文字内容为 markdown:\n"
+                        "- 保留段落、标题层级(用 # ## ###)、表格(用 markdown table 语法)、列表(- / 1.)\n"
+                        "- 印章 / 签名 / 手写批注用 [印章: ...]、[签名: ...]、[手写: ...] 标注位置\n"
+                        "- 公式 / 图表里的数据要转写,纯装饰性图忽略\n"
+                        "- **不要总结,不要补全或修正你认为应该有的内容**,只忠实转写图上看到的文字\n"
+                        "- 整页空白或仅装饰图无文字 → 输出 \"(本页无文字)\"\n"
+                        "- 不要包裹 ```markdown 代码块,直接输出 markdown 正文"
+                    ),
+                },
+            ],
+        }],
+        "max_completion_tokens": 4000,
+        "temperature": 0.1,
+    }
+    try:
+        r = await client.post(
+            XIAOMI_VISION_ENDPOINT,
+            headers={"api-key": api_key, "Content-Type": "application/json"},
+            json=payload,
+            timeout=180.0,
+        )
+        if r.status_code != 200:
+            logger.warning("xiaomi_vision_http_error", page=page_idx + 1,
+                           status=r.status_code, body=r.text[:200])
+            return page_idx, f"(第 {page_idx + 1} 页识别失败: HTTP {r.status_code})"
+        data = r.json()
+        text = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+        return page_idx, text.strip()
+    except Exception as e:
+        logger.warning("xiaomi_vision_exception", page=page_idx + 1, err=str(e)[:120])
+        return page_idx, f"(第 {page_idx + 1} 页识别失败: {str(e)[:80]})"
+
+
 async def _ocr_pdf_via_vision_llm(content: bytes) -> str:
     """扫描件 PDF → 多模态 LLM 逐页转写 markdown。
 
     流程:
       1. PyMuPDF 把每页 render 为 PNG (dpi=180,平衡清晰度 + base64 体积)
       2. base64 编码塞 OpenAI 多模态格式 messages[].content[].image_url
-      3. 并发 5 路调 mimo-v2-omni(routing 'pdf_ocr')
-      4. 按页码拼回 markdown,失败页标 (识别失败) 不阻断整篇
+      3. 并发 5 路调 https://api.xiaomimimo.com/v1/chat/completions (mimo-v2-omni)
+      4. 按页码拼回 markdown,失败页标占位不阻断整篇
+
+    走官方 endpoint + api-key header(不是 model_router 的 token-plan-cn 代理),
+    因为 vision 调用按官方文档形态最稳。
 
     成本权衡:每页 1 次调用 ≈ 几千 token (图像编码后)。30 页 PDF 约 ¥0.5-2。
     """
     import asyncio, base64
+    import httpx
     import fitz
+
+    api_key = await _resolve_xiaomi_key()
+    if not api_key:
+        logger.warning("xiaomi_vision_no_key")
+        return "(扫描件 PDF — 但未配置 xiaomi_api_key,无法走 OCR)"
 
     doc = fitz.open(stream=content, filetype="pdf")
     n_pages = doc.page_count
     if n_pages == 0:
+        doc.close()
         return ""
 
     # render 所有页为 PNG → base64
@@ -178,39 +263,15 @@ async def _ocr_pdf_via_vision_llm(content: bytes) -> str:
 
     sem = asyncio.Semaphore(5)
 
-    async def _ocr_one(idx: int, b64: str) -> tuple[int, str]:
-        async with sem:
-            try:
-                messages = [{
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": (
-                                f"这是一份 PDF 扫描件的第 {idx + 1}/{n_pages} 页。请忠实转写本页所有文字内容为 markdown:\n"
-                                "- 保留段落、标题层级(用 # ## ###)、表格(用 markdown table 语法)、列表(- / 1.)\n"
-                                "- 印章 / 签名 / 手写批注用 [印章: ...]、[签名: ...]、[手写: ...] 标注位置\n"
-                                "- 公式 / 图表里的数据要转写,纯装饰性图忽略\n"
-                                "- **不要总结,不要补全或修正你认为应该有的内容**,只忠实转写图上看到的文字\n"
-                                "- 整页空白或仅装饰图无文字 → 输出 \"(本页无文字)\"\n"
-                                "- 不要包裹 ```markdown 代码块,直接输出 markdown 正文"
-                            ),
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/png;base64,{b64}"},
-                        },
-                    ],
-                }]
-                content_md, _model = await model_router.chat_with_routing(
-                    "pdf_ocr", messages, max_tokens=4000, temperature=0.1, timeout=180.0,
+    async with httpx.AsyncClient(timeout=180.0) as client:
+        async def _ocr_one(idx: int, b64: str) -> tuple[int, str]:
+            async with sem:
+                return await _call_xiaomi_vision_one_page(
+                    page_idx=idx, n_pages=n_pages, b64=b64,
+                    api_key=api_key, client=client,
                 )
-                return idx, (content_md or "").strip()
-            except Exception as e:
-                logger.warning("pdf_ocr_page_failed", page=idx + 1, err=str(e)[:120])
-                return idx, f"(第 {idx + 1} 页识别失败: {str(e)[:80]})"
+        results = await asyncio.gather(*[_ocr_one(i, b) for i, b in enumerate(pages_b64)])
 
-    results = await asyncio.gather(*[_ocr_one(i, b) for i, b in enumerate(pages_b64)])
     results.sort(key=lambda x: x[0])
     blocks: list[str] = []
     for i, md in results:
