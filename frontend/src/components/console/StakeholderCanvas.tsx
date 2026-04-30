@@ -186,8 +186,12 @@ export default function StakeholderCanvas({ projectId }: Props) {
     setMousePt(null)
   }
 
-  const onSvgClick = () => {
-    if (!draggingId && !connectFrom) {
+  const onSvgClick = (e: React.MouseEvent) => {
+    // 只在点空白(直接点中 svg/defs 这种"背景")时清空选择;
+    // 点节点时事件 target 是节点的 rect/text/circle,跳过。
+    if (draggingId || connectFrom) return
+    const tag = (e.target as Element)?.tagName
+    if (tag === 'svg') {
       setSelectedId(null)
     }
   }
@@ -332,6 +336,7 @@ export default function StakeholderCanvas({ projectId }: Props) {
                 <g key={n.id}
                   onMouseDown={(e) => onNodeMouseDown(e, n)}
                   onMouseUp={(e) => onNodeMouseUpForConnect(e, n)}
+                  onClick={(e) => e.stopPropagation()}      // 防止 click 冒泡到 svg 清掉选择
                   style={{ cursor: connectFrom ? 'pointer' : (draggingId === n.id ? 'grabbing' : 'grab') }}
                 >
                   <rect x={n.x} y={n.y} width={NODE_W} height={NODE_H}

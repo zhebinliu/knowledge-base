@@ -44,6 +44,118 @@ logger = structlog.get_logger()
 
 # ── 共享:加载 ctx ─────────────────────────────────────────────────────────────
 
+def _format_stakeholder_graph(fields: dict | None) -> str:
+    """把 canvas 画的图谱(节点+边)渲染成 markdown 文本,LLM 可读。
+
+    输出格式:
+        # 组织架构 / 干系人图谱(用户在画布上手动标注)
+
+        ## 部门 (N)
+        - 销售部
+        - 渠道部
+        - ...
+
+        ## 干系人 (N)
+        - 张三(销售总监)— 所属:销售部
+        - 李四(IT 总监)
+        - ...
+
+        ## 关系 (N)
+        - 张三 → 李四:汇报给
+        - 销售部 → 渠道部:管辖
+        - ...
+
+    返回空字符串表示图谱为空(不应注入 ctx)。
+    """
+    if not fields:
+        return ""
+    nodes = fields.get("nodes") or []
+    edges = fields.get("edges") or []
+    if not nodes and not edges:
+        return ""
+
+    depts = [n for n in nodes if n.get("type") == "department"]
+    persons = [n for n in nodes if n.get("type") == "person"]
+
+    out: list[str] = ["# 组织架构 / 干系人图谱(用户在画布上手动标注)", ""]
+    if depts:
+        out.append(f"## 部门 ({len(depts)})")
+        for d in depts:
+            out.append(f"- {d.get('name','?')}")
+        out.append("")
+    if persons:
+        out.append(f"## 干系人 ({len(persons)})")
+        for p in persons:
+            base = p.get("name","?")
+            extras = []
+            if p.get("title"):
+                extras.append(p["title"])
+            if p.get("dept"):
+                extras.append(f"所属:{p['dept']}")
+            if extras:
+                out.append(f"- {base}({' · '.join(extras)})")
+            else:
+                out.append(f"- {base}")
+        out.append("")
+    if edges:
+        # 用 id → name 映射
+        name_of = {n.get("id"): n.get("name","?") for n in nodes}
+        out.append(f"## 关系 ({len(edges)})")
+        for e in edges:
+            sname = name_of.get(e.get("source"), "?")
+            tname = name_of.get(e.get("target"), "?")
+            label = e.get("label") or "关联"
+            out.append(f"- {sname} → {tname}:{label}")
+    return "\n".join(out).strip()
+
+
+def _format_user_questionnaires(brief_fields: dict | None) -> str:
+    """聚合用户在「成功指标 / 风险预警」问卷里填的答案,渲染成 markdown。
+
+    不依赖前端 prompt 定义 — 直接扫 brief.fields 里 success_metric_* / risk_alert_*
+    前缀的 cell,展平 value(list / str / dict 都规范成可读字符串)。
+    """
+    if not brief_fields:
+        return ""
+
+    def _val_str(cell):
+        v = cell.get("value") if isinstance(cell, dict) else cell
+        if v in (None, "", [], {}):
+            return ""
+        if isinstance(v, list):
+            return "、".join(str(x) for x in v if x not in (None, ""))
+        return str(v)
+
+    success_items = []
+    risk_items = []
+    for k, cell in (brief_fields or {}).items():
+        if not k.startswith(("success_metric_", "risk_alert_")):
+            continue
+        s = _val_str(cell)
+        if not s:
+            continue
+        # 移除前缀,把 key 转成更可读的标签
+        if k.startswith("success_metric_"):
+            label = k.replace("success_metric_", "")
+            success_items.append(f"- **{label}**:{s}")
+        else:
+            label = k.replace("risk_alert_", "")
+            risk_items.append(f"- **{label}**:{s}")
+
+    if not success_items and not risk_items:
+        return ""
+
+    out: list[str] = ["# 用户填的项目问卷答案", ""]
+    if success_items:
+        out.append("## 成功指标 — 客户最关心的业务结果")
+        out.extend(success_items)
+        out.append("")
+    if risk_items:
+        out.append("## 风险预警 — 客户认可适用的典型风险")
+        out.extend(risk_items)
+    return "\n".join(out).strip()
+
+
 async def _load_ctx(bundle_id: str, project_id: str, kind: str) -> dict:
     """读 bundle / project / brief / conversation / agent_config。
 
@@ -103,6 +215,39 @@ async def _load_ctx(bundle_id: str, project_id: str, kind: str) -> dict:
                 "summary": (r.summary or "")[:600],   # 摘要用于 prompt 概览
                 "markdown": (r.markdown_content or ""),  # 全文,供按 doc_type 抽取用
             })
+
+    # v3.1 新增:加载干系人图谱 canvas — 用户在前端画布上手画的部门/人员关系。
+    # 渲染成 markdown 文本,作为合成"文档"塞进 docs_by_type['stakeholder_map'],
+    # 让 executor 像对待普通上传文档一样喂给 LLM(并被编号成 D 类源)。
+    if project_id:
+        async with async_session_maker() as s:
+            graph_row = (await s.execute(
+                select(ProjectBrief).where(
+                    ProjectBrief.project_id == project_id,
+                    ProjectBrief.output_kind == "stakeholder_graph",
+                )
+            )).scalar_one_or_none()
+        graph_md = _format_stakeholder_graph(graph_row.fields if graph_row else None)
+        if graph_md:
+            docs_by_type.setdefault("stakeholder_map", []).append({
+                "doc_id": f"canvas:{project_id}",
+                "filename": "组织架构 / 干系人图谱(画布)",
+                "summary": graph_md[:300],
+                "markdown": graph_md,
+            })
+
+    # v3.1 新增:用户填的虚拟物问卷(成功指标 / 风险预警),
+    # 字段名 success_metric_* / risk_alert_*,insight_modules 没显式列出 → planner 看不见。
+    # 这里聚合成 markdown 文本,合成成虚拟"上传文档"塞进 docs_by_type['user_questionnaire'],
+    # 自动被 executor 编号成 D 类源喂给 LLM。
+    user_q_md = _format_user_questionnaires(brief_fields)
+    if user_q_md:
+        docs_by_type.setdefault("user_questionnaire", []).append({
+            "doc_id": f"questionnaire:{project_id}",
+            "filename": "用户填的成功指标 + 风险预警问卷",
+            "summary": user_q_md[:300],
+            "markdown": user_q_md,
+        })
 
     return {
         "bundle_id": bundle_id,
