@@ -16,10 +16,10 @@ import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle2, Upload, Loader2, FileText, Lightbulb, Sparkles,
-  ChevronRight, Clock, Network, Paperclip, Plus, Link2, X,
+  ChevronRight, Clock, Network, Paperclip, Plus, Link2, X, Trash2,
 } from 'lucide-react'
 import {
-  getDocChecklist, uploadDocument, updateDocumentMeta,
+  getDocChecklist, uploadDocument, updateDocumentMeta, deleteDocument,
   type DocChecklistItem, type VirtualChecklistItem,
   type ExtraReferenceItem, type CandidateAttachItem,
 } from '../../api/client'
@@ -176,6 +176,17 @@ function ExtraReferencesSection({
     }
   }
 
+  // 彻底删除文档(不可撤销)
+  const onDelete = async (docId: string, filename: string) => {
+    if (!confirm(`删除文档「${filename}」?\n\n此操作不可撤销 — 文档会从项目里完全移除。`)) return
+    try {
+      await deleteDocument(docId)
+      onChanged()
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || err?.message || '删除失败')
+    }
+  }
+
   return (
     <div>
       <div className="text-[10px] text-ink-muted font-medium px-1 mb-1.5 uppercase tracking-wider flex items-center gap-1">
@@ -202,9 +213,14 @@ function ExtraReferencesSection({
               </button>
               {d.status !== 'completed' && <Clock size={9} className={d.status === 'failed' ? 'text-red-600 shrink-0' : 'text-amber-600 shrink-0'} />}
               <button onClick={() => onDetach(d.doc_id)}
-                      className="shrink-0 p-0.5 text-ink-muted hover:text-red-600"
+                      className="shrink-0 p-0.5 text-ink-muted hover:text-amber-600"
                       title="解除关联(文档保留在项目里)">
                 <X size={11} />
+              </button>
+              <button onClick={() => onDelete(d.doc_id, d.filename)}
+                      className="shrink-0 p-0.5 text-ink-muted hover:text-red-600"
+                      title="彻底删除(从项目完全移除)">
+                <Trash2 size={10} />
               </button>
             </div>
             {d.error && (
@@ -409,14 +425,14 @@ function DocRow({
               <span className="text-[9px] text-red-600 font-semibold">必需</span>
             )}
           </div>
-          {/* 已上传文档列表(可点击预览) */}
+          {/* 已上传文档列表(可点击预览,可删除) */}
           {item.documents.length > 0 && (
             <div className="mt-1 space-y-0.5">
               {item.documents.map(doc => (
-                <div key={doc.doc_id}>
+                <div key={doc.doc_id} className="group flex items-start gap-1">
                   <button
                     onClick={() => onPreview(doc.doc_id)}
-                    className="block w-full text-left text-[10.5px] text-ink-secondary hover:text-[#D96400] truncate"
+                    className="flex-1 min-w-0 text-left text-[10.5px] text-ink-secondary hover:text-[#D96400] truncate"
                     title={doc.filename}
                   >
                     {doc.status === 'retrying' && <Clock size={8} className="inline mr-0.5 text-amber-600" />}
@@ -430,13 +446,30 @@ function DocRow({
                       </span>
                     )}
                   </button>
-                  {doc.error && (
-                    <div className="text-[9.5px] text-red-600 mt-0.5 pl-3 leading-snug" title={doc.error}>
-                      ⚠ {doc.error.length > 80 ? doc.error.slice(0, 80) + '…' : doc.error}
-                    </div>
-                  )}
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      if (!confirm(`删除文档「${doc.filename}」?\n\n此操作不可撤销。`)) return
+                      try { await deleteDocument(doc.doc_id); onUploaded() } catch (err: any) {
+                        alert(err?.response?.data?.detail || err?.message || '删除失败')
+                      }
+                    }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-ink-muted hover:text-red-600 shrink-0"
+                    title="删除文档"
+                  >
+                    <Trash2 size={9} />
+                  </button>
                 </div>
               ))}
+              {item.documents.some(d => d.error) && (
+                <div className="space-y-0.5 mt-0.5">
+                  {item.documents.filter(d => d.error).map(d => (
+                    <div key={`err-${d.doc_id}`} className="text-[9.5px] text-red-600 pl-3 leading-snug" title={d.error || ''}>
+                      ⚠ {(d.error || '').length > 80 ? (d.error || '').slice(0, 80) + '…' : d.error}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {error && (
