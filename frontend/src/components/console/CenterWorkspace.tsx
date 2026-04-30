@@ -377,13 +377,13 @@ function ReportView({
   const provenance = bundle.provenance || {}
 
   return (
-    <div className="h-full bg-white overflow-auto">
-      <div className="max-w-[1100px] mx-auto px-6 py-6">
+    <div className="h-full bg-canvas overflow-auto">
+      <div className="max-w-[1100px] mx-auto px-6 py-6 space-y-4">
         {/* v3.1 挑战回合面板(报告头部,默认折叠) */}
         <ChallengeRoundsPanel bundleId={bundle.id} challengeSummary={bundle.challenge_summary} />
 
         {validity && validity !== 'valid' && (
-          <div className={`mb-4 px-3 py-2 rounded text-xs ${
+          <div className={`px-3 py-2 rounded text-xs ${
             validity === 'invalid' ? 'bg-red-50 text-red-800 border border-red-200' :
                                      'bg-amber-50 text-amber-800 border border-amber-200'
           }`}>
@@ -391,17 +391,24 @@ function ReportView({
             报告 validity:{validity === 'invalid' ? '信息不足' : '部分通过'} — 检查右上角 banner 详情
           </div>
         )}
-        {isLoading ? (
-          <div className="text-center text-xs text-ink-muted py-8"><Loader2 size={16} className="inline animate-spin" /> 加载报告内容…</div>
-        ) : data?.content_md ? (
-          <CitedReportView
-            content={data.content_md}
-            provenance={provenance}
-            onCitationClick={onCitationClick || (() => {})}
-          />
-        ) : (
-          <div className="text-sm text-ink-muted italic">没有 markdown 内容</div>
-        )}
+        {/* 报告正文白色卡片容器:border + shadow 让内容有清晰边界 */}
+        <div className="bg-white rounded-xl border border-line shadow-sm overflow-hidden">
+          <div className="px-8 py-7 overflow-x-auto">
+            {isLoading ? (
+              <div className="text-center text-xs text-ink-muted py-8">
+                <Loader2 size={16} className="inline animate-spin" /> 加载报告内容…
+              </div>
+            ) : data?.content_md ? (
+              <CitedReportView
+                content={data.content_md}
+                provenance={provenance}
+                onCitationClick={onCitationClick || (() => {})}
+              />
+            ) : (
+              <div className="text-sm text-ink-muted italic">没有 markdown 内容</div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
