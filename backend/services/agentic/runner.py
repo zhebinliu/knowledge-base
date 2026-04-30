@@ -710,10 +710,21 @@ async def _short_circuit_invalid(
     for ms in blocked:
         missing = ", ".join(f["label"] for f in ms["missing_fields"]) or ms["reason"]
         md += f"- **{ms['title']}**:{missing}\n"
-    md += (
-        f"\n### 待补充的问题清单\n\n"
-        f"共 **{len(ask_user_prompts)}** 个问题,在前端「补充信息」面板里逐题作答(大部分有选项,1-3 分钟搞定)。\n"
-    )
+    if ask_user_prompts:
+        md += (
+            f"\n### 待补充的问题清单\n\n"
+            f"共 **{len(ask_user_prompts)}** 个问题,在前端「补充信息」面板里逐题作答(大部分有选项,1-3 分钟搞定)。\n"
+        )
+    else:
+        # outline 等以 downgrade 为主、没 ask_user gap 的产物 —— 不显示"共 0 个问题"误导文案,
+        # 引导用户回上游补全(brief / 上传文档)
+        md += (
+            f"\n### 怎样补全信息\n\n"
+            f"本产物的关键字段没有引导式问卷题目,需要回到上游补:\n\n"
+            f"1. 回到「项目洞察」阶段,在 Brief 里完整填写关键字段;或\n"
+            f"2. 上传更多核心文档(SOW / 系统集成方案 / 售前调研报告),系统会自动从文档抽取;\n"
+            f"3. 补完后回到本阶段点「重新生成」。\n"
+        )
 
     new_extra = dict(ctx["bundle_extra"])
     new_extra.update({

@@ -16,6 +16,7 @@ import {
 import {
   generateOutput,
   getLtcDictionary,
+  getOutput,
   listResearchLtcModuleMap,
   type CuratedBundle,
   type ResearchLtcDictionaryEntry,
@@ -161,7 +162,7 @@ export default function ResearchV1Workspace({
           {view === 'outline' && (
             <div className="p-6 max-w-4xl mx-auto">
               {outlineBundle ? (
-                <MarkdownView content={outlineBundle.content_md || ''} />
+                <OutlineMarkdownView bundle={outlineBundle} />
               ) : (
                 <EmptyHint text="尚未生成调研大纲。请到「调研大纲」sub-action 触发生成。" />
               )}
@@ -363,6 +364,24 @@ function ProductCard({
       )}
     </div>
   )
+}
+
+/** 大纲 markdown 渲染 — list API 不返回 content_md,需单独 GET /api/outputs/{id} 拿详情。 */
+function OutlineMarkdownView({ bundle }: { bundle: CuratedBundle }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['research-outline-detail', bundle.id],
+    queryFn: () => getOutput(bundle.id),
+    enabled: !bundle.content_md,
+    initialData: bundle.content_md ? bundle as any : undefined,
+  })
+  if (isLoading) {
+    return <div className="text-center py-12 text-xs text-ink-muted">加载大纲内容…</div>
+  }
+  const md = data?.content_md
+  if (!md) {
+    return <div className="text-sm text-ink-muted italic py-8 text-center">没有 markdown 内容</div>
+  }
+  return <MarkdownView content={md} />
 }
 
 function EmptyHint({ text }: { text: string }) {

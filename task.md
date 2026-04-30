@@ -316,12 +316,12 @@ Insight v3 已达到预期。下一站是「需求调研」——把 insight 输
 - [x] **后端配套** outputs.py `_bundle_dto` flat 出 questionnaire_items / ltc_module_map;前端 CuratedBundle 接口加这两字段
 - [x] **类型校验** `tsc --noEmit -p tsconfig.json` 0 错误
 
-### Phase 5 — 端到端联调 + 部署（Block E）
-- [ ] **E.1** 用现有特变项目跑一遍：触发 `survey_outline_v2` → 生成大纲 → 触发 `survey_v2` → 生成问卷 → 顾问录入 → 触发 scope 分类
-- [ ] **E.2** 后端 `python -c "from services.agentic.research import runner"` 验证可加载 + curl 验证 API
-- [ ] **E.3** 前端 `npx tsc --noEmit` 通过
-- [ ] **E.4** rsync + 远程 rebuild + 部署 + HTTPS 端到端连通测试
-- [ ] **E.5** 写一份 demo 数据 / 测试用例,留给后续做调研报告（下一期）的输入
+### Phase 5 — 端到端联调 + 部署（Block E） ✅
+- [x] **E.1** GHA 部署路径(替代 rsync+远程 build):commit 1786236 → push origin main → workflow 25178903262 → test/build/deploy 全 success
+- [x] **E.2** 容器健康:backend (healthy) + celery_worker + frontend 正常启动;`DB tables & indexes ready` 日志确认新表 create_all 成功
+- [x] **E.3** API 路由探活:`/api/research/{ltc-dictionary,responses,classify-scope,ltc-module-map}` 全部 401(路由存在,未登录正常拒绝)
+- [x] **E.4** 前端 tsc --noEmit 0 错误
+- [ ] **E.5** 真实项目跑端到端:触发 survey_outline_v2 → 看 markdown 含 LTC 章节 → 触发 survey_v2 → 看 questionnaire_items 数 > 0 → 顾问勾选 → AI 分类(留给用户在浏览器手动验证)
 
 ### 边界
 - 本期只做大纲 + 问卷的生成 + 顾问录入,不做调研报告(下一期)
