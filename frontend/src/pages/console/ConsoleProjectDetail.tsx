@@ -572,10 +572,17 @@ function InsightV3Workspace({
   setHighlightedRef: (s: string | null) => void
   onRefetch: () => void
 }) {
-  // 根据 bundle 状态自动选定中栏内容(只在 view='preparation' 时主动切,避免覆盖用户操作)
+  // 根据 bundle 状态自动选定中栏内容
   useEffect(() => {
+    // v3.4:inflight 出现时(无论当前 view 是啥) → 跳回 preparation 显示进度卡
+    // 否则用户点了"重新生成"看不到 GenerationProgressCard
+    if (activeInflight && centerView.type !== 'preparation') {
+      setCenterView({ type: 'preparation' })
+      return
+    }
+    // 其他切换只在 preparation 视图触发,避免覆盖用户主动选择(预览/canvas/虚拟物等)
     if (centerView.type !== 'preparation') return
-    if (activeInflight) return  // 跑生成中,保留 preparation 显示进度
+    if (activeInflight) return  // 已经在 preparation,保留显示 GenerationProgressCard
     if (activeBundle?.agentic_version === 'v2'
         && activeBundle.validity_status === 'invalid'
         && activeBundle.short_circuited) {
