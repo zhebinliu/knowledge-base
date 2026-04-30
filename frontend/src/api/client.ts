@@ -993,6 +993,9 @@ export interface CuratedBundle {
     hits_n?: number
     error?: string
   } | null
+  // research v1 — 需求调研工作区(survey_outline_v2 / survey_v2 kind 才有值)
+  questionnaire_items?: ResearchQuestionItem[]
+  ltc_module_map?: { sow_term: string; mapped_ltc_key: string | null; confidence: number; is_extra: boolean }[]
 }
 
 // v3.1 挑战回合详情 (GET /api/outputs/{id}/challenges)
@@ -1130,3 +1133,80 @@ export async function extractBriefStream(
     }
   }
 }
+
+// ── Research v1(需求调研工作区) ─────────────────────────────────────────────
+
+export type ResearchScopeLabel = 'new' | 'digitize' | 'migrate' | 'out_of_scope'
+
+export interface ResearchOptionItem {
+  value: string
+  label: string
+  is_other?: boolean
+  is_not_applicable?: boolean
+}
+
+export interface ResearchQuestionItem {
+  item_key: string
+  ltc_module_key: string
+  audience_roles: string[]
+  type: 'single' | 'multi' | 'rating' | 'number' | 'text' | 'node_pick'
+  question: string
+  why?: string
+  options: ResearchOptionItem[]
+  rating_scale?: number
+  number_unit?: string
+  required?: boolean
+  hint?: string
+  scope_label?: ResearchScopeLabel | null
+  scope_label_source?: 'ai' | 'manual' | null
+  sow_evidence?: string
+  kb_refs?: any[]
+}
+
+export interface ResearchResponseItem {
+  item_key: string
+  answer_value: any
+  scope_label: ResearchScopeLabel | null
+  scope_label_source: 'ai' | 'manual' | null
+  updated_at: string | null
+}
+
+export interface ResearchLtcModuleMapItem {
+  id: string
+  sow_term: string
+  mapped_ltc_key: string | null
+  confidence: number
+  is_extra: boolean
+}
+
+export interface ResearchLtcDictionaryEntry {
+  key: string
+  label: string
+  purpose: string
+  aliases: string[]
+  standard_nodes: string[]
+  typical_audiences: string[]
+  default_option_pools: Record<string, string[]>
+  category: 'main' | 'support'
+}
+
+export const getLtcDictionary = () =>
+  api.get<{ modules: ResearchLtcDictionaryEntry[] }>('/research/ltc-dictionary').then(r => r.data)
+
+export const listResearchResponses = (bundle_id: string) =>
+  api.get<{ items: ResearchResponseItem[] }>('/research/responses', { params: { bundle_id } }).then(r => r.data)
+
+export const upsertResearchResponse = (body: {
+  bundle_id: string
+  project_id?: string | null
+  item_key: string
+  answer_value?: any
+  scope_label?: ResearchScopeLabel | null
+  scope_label_source?: 'ai' | 'manual' | null
+}) => api.post<{ ok: boolean }>('/research/responses', body).then(r => r.data)
+
+export const classifyResearchScope = (body: { bundle_id: string; ltc_module_key?: string | null }) =>
+  api.post<{ ok: boolean; items: any[]; skipped: number; errors: string[] }>('/research/classify-scope', body).then(r => r.data)
+
+export const listResearchLtcModuleMap = (project_id: string) =>
+  api.get<{ items: ResearchLtcModuleMapItem[] }>('/research/ltc-module-map', { params: { project_id } }).then(r => r.data)

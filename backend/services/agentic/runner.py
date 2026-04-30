@@ -1133,11 +1133,12 @@ async def generate_survey_v2(bundle_id: str, project_id: str):
         })
 
         # ── Execute (并行所有 ready 分卷) ──
+        # research v1:同时收集 markdown 文本 + 结构化 questionnaire_items
         async def _run_one_sub(sub_assessment):
             sub_spec = get_subsection(sub_assessment.key)
             if not sub_spec:
-                return sub_assessment.key, ""
-            content = await execute_survey_subsection(
+                return sub_assessment.key, {"markdown": "", "questionnaire_items": []}
+            result = await execute_survey_subsection(
                 subsection=sub_spec,
                 project=ctx["project"], industry=ctx["industry"],
                 transcript=ctx["transcript"],
@@ -1145,20 +1146,30 @@ async def generate_survey_v2(bundle_id: str, project_id: str):
                 extra_seeds_from_pack=plan.extra_seeds_from_pack,
                 skill_text=ctx["skill_text"], agent_prompt=ctx["agent_prompt"],
                 model=ctx["agent_model"],
+                ltc_module_key=None,    # C.3 之后接入 sub→LTC 推断
+                kb_inject_block="",      # C.3 之后接入 KB 二次过滤
             )
-            return sub_assessment.key, content
+            return sub_assessment.key, result
 
         results = await asyncio.gather(
             *(_run_one_sub(s) for s in plan.subsections if s.status == "ready"),
             return_exceptions=True,
         )
         sub_contents: dict[str, str] = {}
+        all_questionnaire_items: list[dict] = []   # research v1
         for r in results:
             if isinstance(r, Exception):
                 logger.warning("survey_executor_exception", error=str(r)[:200])
                 continue
-            sk, content = r
-            sub_contents[sk] = content
+            sk, payload = r
+            if isinstance(payload, dict):
+                sub_contents[sk] = payload.get("markdown") or ""
+                items = payload.get("questionnaire_items") or []
+                if items:
+                    all_questionnaire_items.extend(items)
+            else:
+                # 防御性:旧路径返回纯 str 时也兼容
+                sub_contents[sk] = payload or ""
         run_history.append({
             "phase": "executed", "ts": _ts(),
             "detail": {"completed": list(sub_contents.keys())},
@@ -1279,11 +1290,13 @@ async def generate_survey_v2(bundle_id: str, project_id: str):
             "run_history": run_history,
             "agentic_version": "v2",
             "already_covered": plan.already_covered,
+            "questionnaire_items": all_questionnaire_items,   # research v1 — 顾问录入工作区消费
         })
         await _mark(bundle_id, "done", content_md=full_md, file_key=docx_key, extra=new_extra)
         await _mark_conv(bundle_id, "done")
         logger.info("survey_v2_generated", bundle_id=bundle_id, validity=validity_status,
-                    subsections_n=len(sub_contents))
+                    subsections_n=len(sub_contents),
+                    questionnaire_items_n=len(all_questionnaire_items))
     except Exception as e:
         logger.error("survey_v2_failed", bundle_id=bundle_id, error=str(e)[:300])
         run_history.append({"phase": "failed", "ts": _ts(), "detail": str(e)[:300]})
@@ -1329,6 +1342,24 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
                 "brief_fields_n": len(ctx["brief_fields"]),
             },
         })
+
+        # ── Phase 1.5: SOW → LTC 字典 同义词归一(research v1 增量) ──
+        # 失败不阻断主流程 — markdown 里只是少一段 LTC 章节
+        ltc_map_items: list[dict] = []
+        try:
+            from .research.sow_mapper import map_sow_to_ltc
+            ltc_map_items = await map_sow_to_ltc(
+                project_id=project_id,
+                docs_by_type=ctx.get("docs_by_type") or {},
+                model=ctx["agent_model"],
+            )
+            run_history.append({
+                "phase": "ltc_mapped", "ts": _ts(),
+                "detail": {"items_n": len(ltc_map_items),
+                           "extra_n": sum(1 for r in ltc_map_items if r.get("is_extra"))},
+            })
+        except Exception as e:
+            logger.warning("outline_ltc_map_failed", error=str(e)[:200])
 
         # ── Phase 2: Planner(outline 7 个模块全部激活) ──
         from .planner import plan_outline, fill_kb_gaps
@@ -1519,9 +1550,33 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
                     md_blocks.append(f"\n> _Critic 提示:{'; '.join(issues[:3])}_\n")
             md_blocks.append("\n---")
 
+        # ── 追加:按 LTC 流程组织的调研主题(research v1 增量) ──
+        if ltc_map_items:
+            md_blocks.append("\n## 附录 · 按 LTC 流程组织的调研主题\n")
+            md_blocks.append("_来源:SOW / 系统集成 / 售前材料 抽取 + 同义词归一_\n")
+            from .research.sow_mapper import aggregate_by_ltc_key
+            from .research.ltc_dictionary import get_module
+            agg = aggregate_by_ltc_key(ltc_map_items)
+            extras = agg.pop("__extra__", [])
+            md_blocks.append("\n| LTC 模块 | 客户原文称呼 | 标准节点 |")
+            md_blocks.append("|---|---|---|")
+            for ltc_key, terms in agg.items():
+                m = get_module(ltc_key)
+                if not m:
+                    continue
+                terms_str = "、".join(terms[:5]) + (f" 等 {len(terms)} 项" if len(terms) > 5 else "")
+                nodes_str = " → ".join(m.standard_nodes[:5])
+                md_blocks.append(f"| {m.label} ({m.key}) | {terms_str} | {nodes_str} |")
+            if extras:
+                md_blocks.append("\n**SOW 中超出 LTC 字典的模块(待评估):** " +
+                                 "、".join(extras[:10]) +
+                                 (f" 等 {len(extras)} 项" if len(extras) > 10 else ""))
+
         md_blocks.append("\n## 附录 · 运行报告\n")
         md_blocks.append(f"- 已生成模块:{len(module_contents)} / 总 {len(plan.modules)}")
         md_blocks.append(f"- 待用户补充:{len(ask_user_prompts)} 项")
+        if ltc_map_items:
+            md_blocks.append(f"- LTC 模块映射:已识别 {len(ltc_map_items)} 项,其中 extra {sum(1 for r in ltc_map_items if r.get('is_extra'))} 项")
         if pack:
             md_blocks.append(f"- 行业包:{pack.industry} 已激活(注入 {len(pack.must_visit_departments)} 必访部门 + {len(pack.default_sessions)} 默认 sessions)")
         full_md = "\n".join(md_blocks)
@@ -1546,6 +1601,7 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
             "ask_user_prompts": ask_user_prompts,
             "run_history": run_history,
             "agentic_version": "v2",
+            "ltc_module_map": ltc_map_items,    # research v1 — 前端工作区消费
         })
         await _mark(bundle_id, "done", content_md=full_md, file_key=docx_key, extra=new_extra)
         await _mark_conv(bundle_id, "done")

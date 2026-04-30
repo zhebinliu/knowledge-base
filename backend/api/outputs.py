@@ -103,6 +103,9 @@ def _bundle_dto(b: CuratedBundle) -> dict:
         "progress": extra.get("progress") or None,       # v3.1: 进度卡片 (生成中显示)
         "challenge_summary": extra.get("challenge_summary") or None,  # v3.1: 挑战循环结果摘要
         "web_search_status": extra.get("web_search_status") or None,  # v3.4: M9 web 检索结果状态
+        # research v1 — 需求调研工作区前端消费
+        "questionnaire_items": extra.get("questionnaire_items") or [],
+        "ltc_module_map": extra.get("ltc_module_map") or [],
     }
 
 

@@ -385,8 +385,15 @@ async def execute_survey_subsection(
     skill_text: str,
     agent_prompt: str,
     model: str | None,
-) -> str:
-    """生成单个 survey 分卷的 markdown 内容(题目列表)。"""
+    ltc_module_key: str | None = None,   # research v1 — 用于 item_key 命名
+    kb_inject_block: str = "",            # research v1 — KB 二次过滤后的高分参考(由调用方预先准备好)
+) -> dict:
+    """生成单个 survey 分卷。
+
+    返回 dict:
+    - markdown: 现有的 markdown 题目列表(向后兼容)
+    - questionnaire_items: 结构化题目数组(research v1 新增,顾问录入用)
+    """
     from services.output_service import _llm_call
 
     # 选出与本 subsection 所属 theme 相关的额外种子(基于 theme key 简单匹配)
@@ -427,7 +434,10 @@ async def execute_survey_subsection(
     target_roles_label = " / ".join(subsection.target_roles)
     qmin, qmax = subsection.question_count_target
 
-    user_prompt = f"""请为本分卷生成一份**实施前调研问卷**(Markdown 格式)。
+    # research v1:item_key 前缀(顾问录入答案时按此 key 索引)
+    item_key_prefix = ltc_module_key or subsection.key
+
+    user_prompt = f"""请为本分卷生成一份**实施前调研问卷**。
 
 【分卷】{subsection.title}({subsection.layer})
 【目标受众】{target_roles_label}
@@ -447,21 +457,52 @@ async def execute_survey_subsection(
 【访谈记录(用于个性化题目)】
 {transcript or '（无访谈记录,按通用情形出题)'}
 
-{industry_block + chr(10) + chr(10) if industry_block else ''}{f"【方法论】{chr(10)}{agent_prompt}{chr(10)}{chr(10)}" if agent_prompt else ''}{f"【启用技能】{chr(10)}{skill_text}" if skill_text else ''}
+{kb_inject_block + chr(10) + chr(10) if kb_inject_block else ''}{industry_block + chr(10) + chr(10) if industry_block else ''}{f"【方法论】{chr(10)}{agent_prompt}{chr(10)}{chr(10)}" if agent_prompt else ''}{f"【启用技能】{chr(10)}{skill_text}" if skill_text else ''}
 
-【输出格式 — 严格遵守】
+【输出格式 — 严格两段式,顺序必须先 Markdown 后 JSON】
+
+**第一段:Markdown 题目列表**(给顾问可读)
 顶部加一段说明(1-2 句):本分卷的目的 + 预计填答时间 + 由谁填。
 
 每题格式:
 ```
-### {qmin}. <问题正文>
-- 类型: [事实型 / 判断型 / 数据型 / 开放题]
+### N. <问题正文>
+- 类型: [single / multi / rating / number / text / node_pick]
 - *为什么问:* <一句话>
 - *答案如何使用:* <一句话>
-- 选项(如适用): A. ... / B. ... / C. ...
+- 选项(single/multi/node_pick 必填): A. ... / B. ... / C. ... / 其他(请说明) / 不适用
+```
+
+**第二段:结构化 JSON**(给系统消费)— 用 ```json``` 围栏包裹,顶层是数组
+```json
+[
+  {{
+    "item_key": "{item_key_prefix}::<英文小写下划线短标识,与本题问题语义一致>",
+    "type": "single | multi | rating | number | text | node_pick",
+    "question": "<同上方第 N 题的问题正文>",
+    "why": "<同 *为什么问*>",
+    "options": [
+      {{"value": "<英文小写下划线>", "label": "<中文标签>"}},
+      ...
+      {{"value": "__other__", "label": "其他(请说明)", "is_other": true}},
+      {{"value": "__na__",   "label": "不适用",       "is_not_applicable": true}}
+    ],
+    "rating_scale": 5,
+    "number_unit": "<如「天」「万元」「%」, type=number 才用>",
+    "required": true,
+    "hint": "<给顾问的补充提示, 可空>"
+  }},
+  ...
+]
 ```
 
 【约束】
+- single/multi/node_pick 题的 options 必须包含「其他(请说明)」(value=__other__) 和「不适用」(value=__na__) 兜底
+- text/number/rating 题的 options 数组留空 []
+- rating 题默认 rating_scale=5(1-5 分级)
+- item_key 全局唯一,稳定可复用(顾问录答案后再生成不要换 key)
+- JSON 必须可被 json.loads 解析,不要带注释
+- Markdown 与 JSON 的题目数量、顺序、内容必须一致
 - 每题问题颗粒度具体到可作答(不是"贵司销售流程如何?")
 - 已访谈过的话题不重复
 - 单分卷题量必须在 {qmin}-{qmax} 范围内
@@ -469,18 +510,128 @@ async def execute_survey_subsection(
 - 用简体中文
 """
     system = f"""你是 MBB 风格的资深 CRM 实施咨询顾问,擅长设计实施前调研问卷。
-你正在为分卷【{subsection.title}】生成问题。
+你正在为分卷【{subsection.title}】生成问题,用于"顾问拿大纲口头问 + 系统选择题录入"的工作模式。
 
 设计原则:
+- 60% single/multi(单选多选,带选项池)
+- 15% rating(分级量表 1-5)
+- 10% number(数值/范围)
+- 10% text(短文本,顾问速记)
+- 5% node_pick(流程节点勾选)
 - MECE 思维(子主题不重叠不遗漏)
-- 区分事实型 / 判断型 / 数据型 / 开放题
-- 每题带"为什么问 / 答案如何使用"
 - 单分卷控制在 {qmin}-{qmax} 题,5-10 分钟可填完
 - 已访谈覆盖的话题不再重复出
+
+输出**两段**:Markdown 题目列表 + JSON 结构化数据。两段题目必须一致。
 """
     try:
-        content = await _llm_call(user_prompt, system=system, model=model, max_tokens=4000, timeout=180.0)
-        return content.strip()
+        content = await _llm_call(user_prompt, system=system, model=model, max_tokens=6000, timeout=240.0)
+        raw = content.strip()
+        # 拆 markdown / json
+        markdown, items = _split_markdown_and_questionnaire_json(raw, item_key_prefix=item_key_prefix,
+                                                                  ltc_module_key=ltc_module_key,
+                                                                  audience_roles=subsection.target_roles)
+        return {"markdown": markdown, "questionnaire_items": items}
     except Exception as e:
         logger.warning("survey_executor_failed", subsection=subsection.key, error=str(e)[:200])
-        return f"_（本分卷生成失败:{str(e)[:120]}）_"
+        return {
+            "markdown": f"_（本分卷生成失败:{str(e)[:120]}）_",
+            "questionnaire_items": [],
+        }
+
+
+# ── 结构化输出解析 ────────────────────────────────────────────────────────
+
+def _split_markdown_and_questionnaire_json(
+    raw: str, *, item_key_prefix: str, ltc_module_key: str | None,
+    audience_roles: list[str],
+) -> tuple[str, list[dict]]:
+    """从 LLM 原始输出里拆分 Markdown 部分和 JSON 数组。
+
+    LLM 应返回:<markdown> + ```json [...] ```。
+    解析失败时仅返回 markdown,questionnaire_items=[](前端会提示重新生成)。
+
+    在 items 上做后处理:
+    - 注入 ltc_module_key / audience_roles
+    - ensure_sentinels:single/multi/node_pick 必含"其他+不适用"
+    - item_key 缺失时按前缀+序号兜底生成
+    """
+    import json
+    import re
+
+    # 提取 ```json ... ``` 块(可能有多个,取最后一个 — LLM 可能在题干里也写了 json 围栏)
+    fence_pattern = re.compile(r"```json\s*(\[[\s\S]*?\])\s*```", re.IGNORECASE)
+    matches = fence_pattern.findall(raw)
+    if not matches:
+        # 兜底:无围栏,直接找最后一个 [ ... ]
+        i, j = raw.rfind("["), raw.rfind("]")
+        if 0 <= i < j:
+            candidate = raw[i:j+1]
+            try:
+                items_raw = json.loads(candidate)
+                markdown = raw[:i].rstrip()
+                return markdown, _post_process_items(items_raw,
+                                                     item_key_prefix=item_key_prefix,
+                                                     ltc_module_key=ltc_module_key,
+                                                     audience_roles=audience_roles)
+            except Exception:
+                pass
+        return raw, []
+
+    json_text = matches[-1]
+    # markdown 是 json 围栏之前的内容
+    fence_idx = raw.rfind("```json")
+    markdown = raw[:fence_idx].rstrip() if fence_idx > 0 else raw
+    try:
+        items_raw = json.loads(json_text)
+    except Exception:
+        return markdown, []
+    if not isinstance(items_raw, list):
+        return markdown, []
+    return markdown, _post_process_items(items_raw,
+                                          item_key_prefix=item_key_prefix,
+                                          ltc_module_key=ltc_module_key,
+                                          audience_roles=audience_roles)
+
+
+def _post_process_items(
+    items_raw: list, *, item_key_prefix: str, ltc_module_key: str | None,
+    audience_roles: list[str],
+) -> list[dict]:
+    """规整结构化题目:补 sentinel 选项 / 注入 ltc / 兜底 item_key。"""
+    from services.agentic.research.questionnaire_schema import (
+        QuestionItem, OptionItem, ensure_sentinels,
+    )
+    out: list[dict] = []
+    for idx, raw in enumerate(items_raw, 1):
+        if not isinstance(raw, dict):
+            continue
+        try:
+            # 强制注入 ltc_module_key + audience_roles(如果 LLM 没给或给错)
+            if ltc_module_key:
+                raw["ltc_module_key"] = ltc_module_key
+            else:
+                raw.setdefault("ltc_module_key", item_key_prefix)
+            raw["audience_roles"] = list(audience_roles)
+            # item_key 兜底
+            if not raw.get("item_key"):
+                raw["item_key"] = f"{item_key_prefix}::q{idx}"
+
+            # 补 sentinel
+            t = raw.get("type")
+            if t in ("single", "multi", "node_pick"):
+                opts_raw = raw.get("options") or []
+                opts = [OptionItem(**o) if isinstance(o, dict) else o for o in opts_raw]
+                opts = ensure_sentinels(opts)
+                raw["options"] = [o.to_dict() for o in opts]
+            else:
+                raw["options"] = []
+
+            # 跑一次 schema 序列化往返,过滤非法字段
+            q = QuestionItem.from_dict(raw)
+            out.append(q.to_dict())
+        except Exception as e:
+            logger.warning("questionnaire_item_postprocess_failed",
+                           idx=idx, error=str(e)[:120])
+            continue
+    return out

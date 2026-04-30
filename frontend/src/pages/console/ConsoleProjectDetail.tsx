@@ -23,6 +23,7 @@ import DocChecklist from '../../components/console/DocChecklist'
 import CenterWorkspace, { type CenterView } from '../../components/console/CenterWorkspace'
 import CitationsPanel from '../../components/console/CitationsPanel'
 import FloatingChat, { type FloatingChatState } from '../../components/console/FloatingChat'
+import ResearchV1Workspace from '../../components/console/research/ResearchV1Workspace'
 import QA from '../QA'
 import { useEffect } from 'react'
 
@@ -200,7 +201,7 @@ export default function ConsoleProjectDetail() {
 
   // v3:文档驱动的 kind — 不弹 brief,直接调 generateOutput 触发 v3 流程
   // (runner 会自动 auto_extract + planner 从 docs 兜底)
-  const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight_v2']
+  const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight_v2', 'survey_v2', 'survey_outline_v2']
 
   const startGeneration = async () => {
     if (!activeStage.active || !activeKind) return
@@ -460,6 +461,17 @@ export default function ConsoleProjectDetail() {
           setRightOpen={setRightOpen}
           highlightedRef={highlightedRef}
           setHighlightedRef={setHighlightedRef}
+          onRefetch={refetchOutputs}
+        />
+      ) : activeStageKey === 'survey_v2' ? (
+        /* survey_v2 stage 用 research v1 三栏 — 同一个工作区里同时承载 outline + survey 两个 sub-kind */
+        <ResearchV1Workspace
+          projectId={id}
+          outlineBundle={bundleByKind('survey_outline_v2')}
+          outlineInflight={inflightByKind('survey_outline_v2')}
+          surveyBundle={bundleByKind('survey_v2')}
+          surveyInflight={inflightByKind('survey_v2')}
+          activeKind={activeKind}
           onRefetch={refetchOutputs}
         />
       ) : activeBundle?.agentic_version === 'v2'

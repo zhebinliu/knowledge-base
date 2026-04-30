@@ -5,7 +5,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph
+from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, research
 from services.rate_limit import limiter
 from services.vector_store import vector_store
 
@@ -52,6 +52,7 @@ app.include_router(doc_checklist.router, prefix="/api/doc-checklist", tags=["doc
 app.include_router(virtual_artifacts.router, prefix="/api/virtual", tags=["virtual-artifacts"])
 app.include_router(web_suggest.router, prefix="/api/web-suggest", tags=["web-suggest"])
 app.include_router(stakeholder_graph.router, prefix="/api/stakeholder-graph", tags=["stakeholder-graph"])
+app.include_router(research.router, prefix="/api/research", tags=["research"])
 
 
 @app.on_event("startup")
@@ -76,6 +77,8 @@ async def startup():
     from models.output_conversation import OutputConversation  # noqa: F401
     from models.project_brief import ProjectBrief  # noqa: F401
     from models.challenge_round import ChallengeRound  # noqa: F401
+    from models.research_response import ResearchResponse  # noqa: F401
+    from models.research_ltc_module_map import ResearchLtcModuleMap  # noqa: F401
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

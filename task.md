@@ -247,3 +247,95 @@
 - Brief 与 bundle 解耦：同项目多次生成 / 不同 skill 共用 Brief（按 output_kind 分别存）
 - 用户编辑过的字段不被自动抽取覆盖
 - 来源 chip 必须能链回原文档/切片，否则用户无法验证置信度
+
+---
+
+## 新迭代：需求调研 v1 — survey_v2 stage 工作台填充（2026-05-01）
+
+### 背景
+Insight v3 已达到预期。下一站是「需求调研」——把 insight 输出（关键发现、风险、干系人）+ SOW + KB 行业 knowhow 转化为可上现场的**调研大纲 + 调研问卷**，目标是产出能直通蓝图设计的结构化交付物。
+
+### 现状盘点（实施前侦查的关键发现）
+- ✅ `survey_v2` + `survey_outline_v2` 两个 sub_kind 已在 stage_flow 里预留（[stage_flow.py:36](backend/api/stage_flow.py)）
+- ✅ `generate_survey_v2`（[runner.py:1107](backend/services/agentic/runner.py)）+ `generate_outline_v2`（[runner.py:1308](backend/services/agentic/runner.py)）已实现，能输出 markdown + docx
+- ✅ `survey_modules.py` 已有 L1+L2 双层 7 主题分卷（c_level/biz_owner/frontline_sales/it/finance/channel_mgr/service 七角色）
+- ✅ `outline_modules.py` 已有 7 模块大纲（M1-M7：目标 / 方法 / 日程表 / 材料 / 团队 / 产出 / 衔接）
+- ❌ **当前输出是 markdown 文本叙述**，不是结构化"选择题 + 选项池"
+- ❌ 没有 LTC 标准流程骨架（现状是 7 主题分类，需要叠加 LTC 主流程）
+- ❌ 没有 SOW 模块映射 / 同义词归一
+- ❌ 没有顾问录入回路 / 持久化答案
+- ❌ 没有范围四分类
+- ❌ KB 召回未做二次过滤
+- ❌ 工作区 UI（survey_v2 stage 当前还是对话模式 ChatTabs）
+
+### 本期方向：复用 + 增量升级（不重写已有逻辑）
+- **不动**：现有 survey_modules.py / outline_modules.py / generate_survey_v2 / generate_outline_v2 的 markdown 输出能力
+- **扩展**：在 runner 流程末尾追加生成**结构化 questionnaire JSON**写入 `bundle.extra.questionnaire_items[]`
+- **新增子目录** `services/agentic/research/`：放 LTC 字典 / SOW 映射 / KB 二次过滤 / 范围分类，与现有模块解耦
+- **新增表**：`research_response` 持久化顾问录入答案；`research_ltc_module_map` 持久化 SOW→LTC 映射
+- **复用 CuratedBundle**：不另起 schema，新输出挂在 extra JSON 里
+
+### 设计决策（已对齐）
+- **入口**：嵌入项目详情页工作区，`activeStageKey === 'survey_v2'` 切换专属三栏布局（参考 InsightV3Workspace）
+- **流程骨架**：内置华为 LTC 标准流程字典（8 主流程 + 5 横向支撑域），SOW 模块名走同义词归一映射；超出字典的作为 extra_modules
+- **问卷形态**：顾问拿大纲口头问 + 系统选择题录入。题型 60% 单选/多选 + 15% 分级 + 10% 数值 + 10% 短文本 + 5% 流程节点勾选。**每个选项池由 LLM 基于 SOW + 行业 knowhow 预填**
+- **范围四分类**（需新建 / 已有线下需数字化 / 已有需搬迁 / 不纳入）：不向受访者问，问卷填完后 LLM 综合判断 → 顾问可手改
+- **KB 行业 knowhow**：CLAUDE.md 已有「文档喂全文不切片」决策针对项目内文档；行业 knowhow 跨项目，**这一期上 RAG 切片召回**，但加 LLM 二次评分（≥7 才注入），前端展示来源 + 分数让顾问可剔除
+- **复用框架**：后端复用 insight v3 的 agentic 框架（planner / executor / critic / challenger / runner），目录平级 `services/agentic/research/`
+- **受访者分卷**：4 卷（高管 / 部门负责人 / 一线业务 / IT），来自 insight `M4_stakeholders` + brief
+- **本期不做**：调研报告（依赖回填，下一期）；docx 模板导出（下下期）
+
+### Phase 1 — LTC 字典 + 结构化输出契约 + DB（Block A） ✅
+- [x] **A.1** `backend/services/agentic/research/{__init__,ltc_dictionary}.py`：8 主 + 5 横向，13 模块,带 aliases / standard_nodes / typical_audiences / default_option_pools
+- [x] **A.2** `research/questionnaire_schema.py`：QuestionItem / OptionItem，6 种题型，scope_label 四分类，ensure_sentinels 兜底逻辑，validate_answer 弱校验
+- [x] **A.3** Models：`research_response`（uq bundle_id+item_key）+ `research_ltc_module_map`（idx project_id），main.py 注入 import 触发 create_all
+- [x] **A.4** `ConsoleProjectDetail.tsx` 的 `V3_DOC_DRIVEN_KINDS` 增加 survey_v2 / survey_outline_v2(OutputKind 类型已包含,无需改类型)
+- [x] **A.5** `backend/api/research.py`：responses upsert / list / classify-scope 占位 / ltc-module-map / ltc-dictionary 5 个端点；main.py 注册 prefix=/api/research
+- [x] **验证** LTC 字典同义词归一全部命中(销售机会管理→M02 / 招议标→M03 / 渠道商→S03 等);schema 序列化往返 OK;ensure_sentinels 自动补"其他+不适用"
+
+### Phase 2 — 大纲增强（Block B） ✅
+- [x] **B.1** `research/sow_mapper.py`:LLM 抽 SOW 功能模块清单 → 同义词归一映射到 LTC 字典 → 持久化 research_ltc_module_maps 表(覆盖式);本地 find_module_by_alias 兜底匹配;低置信度自动转 is_extra
+- [x] **B.2** `research/kb_filter.py`:行业 knowhow 召回(top-K=10) → LLM 0-10 批量评分 → ≥7 注入;同时返回所有候选给前端展示评分,顾问可剔除;render_high_score_block 渲染成 prompt 注入块
+- [x] **B.3** `generate_outline_v2`(runner.py:1308):ctx_loaded 后并入 sow_mapper(失败不阻断);markdown 末尾追加"按 LTC 流程组织的调研主题"表格(LTC 模块 / 客户原文 / 标准节点);bundle.extra.ltc_module_map 持久化
+
+### Phase 3 — 问卷结构化升级 + 范围分类（Block C） ✅ 主体
+- [x] **C.1** `execute_survey_subsection` 输出两段式（Markdown + ```json``` 围栏）;system/user prompt 加结构化契约;返回 dict {markdown, questionnaire_items};新增参数 ltc_module_key / kb_inject_block(留 hook)
+- [x] **C.1.5** `_split_markdown_and_questionnaire_json` + `_post_process_items`:JSON 围栏抽取 + sentinel 补全 + item_key 兜底 + schema 序列化往返过滤非法字段
+- [x] **C.2** `generate_survey_v2` 适配 dict 返回值(向后兼容旧 str 路径);收集所有 subsection 的结构化题目 → 写入 `bundle.extra.questionnaire_items[]`(扁平数组,前端按 ltc_module_key / audience_roles 分组)
+- [ ] **C.3** KB 二次过滤接入问卷 prompt(参数已留,实际接入留下期 — 当前 KB 行业 knowhow 数据质量不准)
+- [x] **C.4** `research/scope_classifier.py` + API `POST /api/research/classify-scope` 接入:LLM 批量给已答题打 four-label;不覆盖 manual 改过的;_stringify_answer 把 option value 反查 label 给 LLM 看
+- [x] **验证** sample LLM 输出解析:JSON 围栏抽取成功 → items 数 / type 正确;ensure_sentinels 把 3 选项补到 5(+其他+不适用)
+
+### Phase 4 — 前端工作区（Block D） ✅ MVP
+- [x] **D.1** ConsoleProjectDetail.tsx 加 `activeStageKey === 'survey_v2'` 分支 → `<ResearchV1Workspace>`,同时承载 outline + survey 两个 sub-kind
+- [x] **D.2** ResearchV1Workspace.tsx 三栏:左 LTC 模块清单(SOW 命中标橙点 + 已答题数计数 + extra 列表) / 中 view 切换(preparation / outline / questionnaire) / 右占位
+- [x] **D.3** PreparationView 内嵌:SOW 映射状态 + 两张 ProductCard(大纲 / 问卷,带 GenerationProgressCard inflight 显示)
+- [x] **D.4** outline view 直接 MarkdownView 渲染 content_md(已包含「按 LTC 流程组织的调研主题」表格)
+- [x] **D.5** ResearchQuestionnaire.tsx:按 selectedLtcKey 过滤题目;single/multi/text/rating/number/node_pick 全题型支持;自动保存(每改一次 upsert);"触发 AI 分类"按钮接 classify-scope
+- [x] **D.6** ScopeBadgeEditor:四标签 dropdown 切换(new/digitize/migrate/out_of_scope) + ai/手 来源标识 + 清除分类
+- [x] **后端配套** outputs.py `_bundle_dto` flat 出 questionnaire_items / ltc_module_map;前端 CuratedBundle 接口加这两字段
+- [x] **类型校验** `tsc --noEmit -p tsconfig.json` 0 错误
+
+### Phase 5 — 端到端联调 + 部署（Block E）
+- [ ] **E.1** 用现有特变项目跑一遍：触发 `survey_outline_v2` → 生成大纲 → 触发 `survey_v2` → 生成问卷 → 顾问录入 → 触发 scope 分类
+- [ ] **E.2** 后端 `python -c "from services.agentic.research import runner"` 验证可加载 + curl 验证 API
+- [ ] **E.3** 前端 `npx tsc --noEmit` 通过
+- [ ] **E.4** rsync + 远程 rebuild + 部署 + HTTPS 端到端连通测试
+- [ ] **E.5** 写一份 demo 数据 / 测试用例,留给后续做调研报告（下一期）的输入
+
+### 边界
+- 本期只做大纲 + 问卷的生成 + 顾问录入,不做调研报告(下一期)
+- 不动 Project 表 schema(`current_stage_key` 字段不加,stage 仍是前端 state)
+- LTC 字典先按通用 CRM 行业内置一份,客户的同义词通过 aliases 表逐步沉淀
+- KB 召回质量不准是已知问题,本期靠"二次评分 + 顾问可剔除"兜底
+- 复用 insight 的 `CuratedBundle` 表,不另起 schema(survey_outline_v2 / survey_v2 作为 kind 区分)
+
+### 关键文件参考(基于已有架构)
+- `backend/services/agentic/insight_modules.py` — 模块定义模板
+- `backend/services/agentic/runner.py` — 主流程模板
+- `backend/services/agentic/planner.py` — planner 模板
+- `backend/services/agentic/executor.py:_build_sources_index` — provenance 构建模板
+- `backend/api/stage_flow.py:30-45` — survey_v2 stage 已预留
+- `backend/api/outputs.py` — KIND_TO_TASK 待加 survey_v2 / survey_outline_v2 映射
+- `frontend/src/pages/console/ConsoleProjectDetail.tsx:560` — InsightV3Workspace 三栏布局参考
+- `frontend/src/components/console/CenterWorkspace.tsx` — 中栏视图切换模式参考
