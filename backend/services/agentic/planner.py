@@ -203,8 +203,15 @@ def _resolve_field(
                     value=None, note="executor 将从访谈记录提取",
                 )
         elif src == "kb_search":
-            # KB 搜索动作放到 gap_actions 里,planner 阶段不实际执行
-            continue
+            # v3.3 修:之前 continue 让 docs 兜底接管,导致 KB 召回 0 条。
+            # 改成返回 deferred(source='kb_search'),_plan_modules_generic 看到这个
+            # 状态会生成 GapAction(action='kb_search'),fill_kb_gaps 阶段跑 KB 召回。
+            # 跨项目知识沉淀(M9 行业最佳实践 / M5 业务流程模板)由此回归。
+            return FieldState(
+                key=field_spec.key, label=field_spec.label,
+                status="deferred", source="kb_search",
+                value=None, note=f"将由 fill_kb_gaps 跑 KB 召回(query: {field_spec.kb_query_hint or field_spec.label})",
+            )
         elif src == "compute":
             # 计算依赖在 critic 后做(M1.overall_rag 依赖 M3 的结果)
             return FieldState(
@@ -267,6 +274,18 @@ def _plan_modules_generic(
                 docs_by_type=docs_by_type,
             )
             field_states[fs.key] = state
+
+            # v3.3:source_priority 里有 kb_search 且 _resolve_field 标 deferred(source=kb_search)
+            #        → 主动生成 kb_search gap_action(不依赖 status='missing')
+            if state.status == "deferred" and state.source == "kb_search":
+                gap_actions.append(GapAction(
+                    module_key=module.key, field_key=fs.key,
+                    action="kb_search", detail=fs.kb_query_hint or fs.label,
+                    field_label=fs.label, field_type=fs.type,
+                    required=fs.required, module_title=module.title, necessity=module.necessity,
+                ))
+                # 仍标 deferred,不算 missing → 不触发 blocked
+                continue
 
             if state.status == "missing":
                 # 触发 gap action
