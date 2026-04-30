@@ -196,6 +196,40 @@ def _build_sources_index(
 _INLINE_CITATION_RE = re.compile(r'\[([DKW]\d{1,3})\](?!\()')   # [D1] 但不是 [D1](url)
 
 
+def _strip_redundant_title(content: str, module_title: str) -> str:
+    """剥掉 LLM 输出开头跟 module.title 重复的 H1/H2 行(runner 已经注入 ## title,
+    LLM 偶尔无视 system prompt 的"禁止输出标题"约束,造成 # title 出现两次)。
+
+    去重策略:
+    - 扫前 3 个非空行,如果是 # title / ## title / ### title 且 title 跟 module_title 相同
+      或仅相差 emoji / 空格 → 删掉那行
+    - 不动正文中间或末尾的子标题
+    """
+    if not content:
+        return content
+    lines = content.split("\n")
+    cleaned = []
+    seen_non_blank = 0
+    title_norm = module_title.strip().lower()
+    skipped = False
+    for line in lines:
+        stripped = line.strip()
+        if seen_non_blank < 3 and not skipped and stripped:
+            seen_non_blank += 1
+            # 检测 # / ## / ### + title (允许中间空格)
+            m = re.match(r'^(#{1,3})\s*(.+?)\s*$', stripped)
+            if m:
+                heading_text = m.group(2)
+                # 去掉中间括号注释 / emoji 比对
+                norm_heading = re.sub(r'[\s（）()【】\[\]·*~_]', '', heading_text).lower()
+                norm_target  = re.sub(r'[\s（）()【】\[\]·*~_]', '', title_norm)
+                if norm_target and (norm_heading == norm_target or norm_target in norm_heading):
+                    skipped = True
+                    continue   # 删除这一行
+        cleaned.append(line)
+    return "\n".join(cleaned).lstrip("\n")
+
+
 def _post_process_citations(content: str, sources_index: dict, module_key: str) -> tuple[str, dict]:
     """正则把 [D1] → `[D1](#cite-<module_key>-D1)`(markdown link)。
 
@@ -320,8 +354,11 @@ async def execute_insight_module(
     try:
         raw_content = await _llm_call(user_prompt, system=system, model=model,
                                       max_tokens=3000, timeout=180.0)
+        # 1. 剥重复标题(LLM 偶尔无视 system prompt 输出 ## 标题, runner 已注入)
+        content_clean = _strip_redundant_title(raw_content.strip(), module.title)
+        # 2. 引用 ID 后处理 [D1] → [D1](#cite-...)
         content_processed, used_sources = _post_process_citations(
-            raw_content.strip(), sources_index, module.key,
+            content_clean, sources_index, module.key,
         )
         return {
             "content": content_processed,

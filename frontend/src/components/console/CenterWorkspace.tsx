@@ -378,7 +378,7 @@ function ReportView({
 
   return (
     <div className="h-full bg-canvas overflow-auto">
-      <div className="max-w-[1100px] mx-auto px-6 py-6 space-y-4">
+      <div className="max-w-[1200px] mx-auto px-5 py-5 space-y-4">
         {/* v3.1 挑战回合面板(报告头部,默认折叠) */}
         <ChallengeRoundsPanel bundleId={bundle.id} challengeSummary={bundle.challenge_summary} />
 

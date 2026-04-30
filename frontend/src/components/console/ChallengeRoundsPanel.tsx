@@ -28,6 +28,7 @@ const VERDICT_META: Record<string, { label: string; color: string; bg: string }>
   pass:           { label: '✓ 通过',     color: '#059669', bg: 'bg-emerald-50 border-emerald-200' },
   minor_issues:   { label: '⚠ 小问题',   color: '#D97706', bg: 'bg-amber-50 border-amber-200' },
   major_issues:   { label: '🚫 大问题',  color: '#DC2626', bg: 'bg-red-50 border-red-200' },
+  parse_failed:   { label: '⚠ 解析失败 · 未确认质量', color: '#B45309', bg: 'bg-amber-100 border-amber-300' },
   skipped:        { label: '— 跳过',     color: '#64748B', bg: 'bg-slate-50 border-slate-200' },
   skipped_invalid:{ label: '— 信息不足跳过', color: '#64748B', bg: 'bg-slate-50 border-slate-200' },
 }

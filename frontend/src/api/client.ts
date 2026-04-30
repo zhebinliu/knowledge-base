@@ -982,7 +982,7 @@ export interface CuratedBundle {
   // v3.1 挑战循环结果摘要
   challenge_summary?: {
     rounds_total: number
-    final_verdict: 'pass' | 'minor_issues' | 'major_issues' | 'skipped' | 'skipped_invalid'
+    final_verdict: 'pass' | 'minor_issues' | 'major_issues' | 'parse_failed' | 'skipped' | 'skipped_invalid'
     issues_remaining: number
   } | null
 }
@@ -997,7 +997,7 @@ export interface ChallengeIssue {
 }
 
 export interface ChallengeCritique {
-  verdict: 'pass' | 'minor_issues' | 'major_issues'
+  verdict: 'pass' | 'minor_issues' | 'major_issues' | 'parse_failed'
   summary: string
   issues: ChallengeIssue[]
 }

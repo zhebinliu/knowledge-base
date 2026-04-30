@@ -953,11 +953,10 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
             proj_local = ctx["project"]
             title_local = proj_local.name if proj_local else (ctx["industry"] or "—")
             blocks = [
-                f"# {title_local} · 项目洞察报告 v2 (agentic)\n",
+                f"# {title_local} · 项目洞察报告\n",
                 f"**生成日期**:{date.today().strftime('%Y年%m月%d日')}  ",
                 f"**客户**:{(proj_local.customer if proj_local else '—') or '—'}  ",
-                f"**行业**:{ctx['industry'] or '—'}  ",
-                f"**Validity**:{validity_status}\n",
+                f"**行业**:{ctx['industry'] or '—'}\n",
             ]
             if validity_status == "invalid":
                 blocks.append("---\n")

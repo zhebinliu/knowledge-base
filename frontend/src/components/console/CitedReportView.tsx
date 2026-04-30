@@ -21,25 +21,32 @@ interface Props {
 export default function CitedReportView({ content, provenance, onCitationClick }: Props) {
   return (
     <div className={[
-      // prose 基础排版 + 限宽继承父容器
-      'prose prose-sm max-w-none',
-      // 标题层级:h1 大粗,h2 加上分隔线 + 充足上下间距,h3 中等
-      'prose-headings:font-bold prose-headings:text-ink',
-      'prose-h1:text-2xl prose-h1:mb-4 prose-h1:pb-3 prose-h1:border-b prose-h1:border-line',
-      'prose-h2:text-lg prose-h2:mt-8 prose-h2:mb-3 prose-h2:pb-1.5 prose-h2:border-b prose-h2:border-orange-100',
-      'prose-h3:text-[15px] prose-h3:mt-5 prose-h3:mb-2 prose-h3:text-[#D96400]',
+      'text-[14px] text-ink leading-relaxed',
+      // 标题层级 (用 [&_xxx]: arbitrary descendant 选择器,不依赖 prose 插件)
+      '[&_h1]:text-[26px] [&_h1]:font-extrabold [&_h1]:text-ink [&_h1]:mb-5 [&_h1]:pb-3 [&_h1]:border-b [&_h1]:border-line',
+      '[&_h2]:text-[19px] [&_h2]:font-bold [&_h2]:text-ink [&_h2]:mt-8 [&_h2]:mb-3 [&_h2]:pb-1.5 [&_h2]:border-b [&_h2]:border-orange-100',
+      '[&_h3]:text-[16px] [&_h3]:font-bold [&_h3]:text-[#D96400] [&_h3]:mt-5 [&_h3]:mb-2',
+      '[&_h4]:text-[14px] [&_h4]:font-semibold [&_h4]:text-ink [&_h4]:mt-4 [&_h4]:mb-1.5',
       // 段落 / 列表
-      'prose-p:my-2.5 prose-p:leading-relaxed prose-p:text-[14px]',
-      'prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5',
-      // 表格:全边框 + cell padding + 表头底色 + 横向滚动兜底
-      'prose-table:border-collapse prose-table:my-4 prose-table:text-[12.5px] prose-table:w-full',
-      'prose-th:border prose-th:border-line prose-th:bg-orange-50/50 prose-th:px-2.5 prose-th:py-1.5 prose-th:text-left prose-th:font-semibold',
-      'prose-td:border prose-td:border-line prose-td:px-2.5 prose-td:py-1.5 prose-td:align-top',
-      // 行内强调 / 链接 / 代码
-      'prose-strong:text-ink prose-strong:font-semibold',
-      'prose-code:bg-slate-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-[12.5px] prose-code:before:content-none prose-code:after:content-none',
-      'prose-blockquote:border-l-4 prose-blockquote:border-orange-300 prose-blockquote:bg-orange-50/30 prose-blockquote:py-1 prose-blockquote:px-3 prose-blockquote:my-3 prose-blockquote:not-italic prose-blockquote:text-ink-secondary',
-      'prose-hr:my-6 prose-hr:border-line',
+      '[&_p]:my-2.5 [&_p]:leading-[1.75]',
+      '[&_ul]:my-2.5 [&_ul]:pl-6 [&_ul]:list-disc',
+      '[&_ol]:my-2.5 [&_ol]:pl-6 [&_ol]:list-decimal',
+      '[&_li]:my-1 [&_li]:leading-[1.7]',
+      // 表格:全边框 + cell padding + 表头底色
+      '[&_table]:border-collapse [&_table]:my-4 [&_table]:w-full [&_table]:text-[13px]',
+      '[&_th]:border [&_th]:border-line [&_th]:bg-orange-50/60 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:text-ink',
+      '[&_td]:border [&_td]:border-line [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_td]:text-ink-secondary',
+      // 行内
+      '[&_strong]:text-ink [&_strong]:font-semibold',
+      '[&_em]:italic [&_em]:text-ink-secondary',
+      '[&_code]:bg-slate-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[12.5px] [&_code]:font-mono',
+      '[&_a:not(.not-prose_a)]:text-[#D96400] [&_a:not(.not-prose_a)]:no-underline hover:[&_a:not(.not-prose_a)]:underline',
+      // 引用块
+      '[&_blockquote]:border-l-4 [&_blockquote]:border-orange-300 [&_blockquote]:bg-orange-50/30 [&_blockquote]:py-2 [&_blockquote]:px-4 [&_blockquote]:my-3 [&_blockquote]:text-ink-secondary [&_blockquote_p]:my-1',
+      '[&_hr]:my-6 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-line',
+      // 代码块 (多行)
+      '[&_pre]:bg-slate-50 [&_pre]:border [&_pre]:border-line [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:text-[12.5px]',
+      '[&_pre_code]:bg-transparent [&_pre_code]:p-0',
     ].join(' ')}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}

@@ -599,9 +599,9 @@ function InsightV3Workspace({
         onCitationClick={onCitationClick}
       />
 
-      {/* 右:引用追溯面板(默认收起,点报告角标自动展开) */}
+      {/* 右:引用追溯面板(默认收起,点报告角标自动展开) — 320px 避免挤窄中栏 */}
       {rightOpen ? (
-        <div className="w-[400px] flex-shrink-0 border-l border-line">
+        <div className="w-[320px] flex-shrink-0 border-l border-line">
           <CitationsPanel
             bundle={activeBundle}
             highlightedRefId={highlightedRef}

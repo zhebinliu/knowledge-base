@@ -120,12 +120,16 @@ def _parse_critique_json(raw: str) -> dict:
         data = json.loads(raw)
     except json.JSONDecodeError as e:
         logger.warning("challenger_parse_failed", err=str(e)[:120], raw_head=raw[:200])
-        # 解析失败 → 当成 pass 收(不阻断流程,但 log warn)
-        return {"verdict": "pass", "summary": f"挑战器输出无法解析: {str(e)[:80]}", "issues": []}
+        # 解析失败 → verdict='parse_failed' (不当 pass!),让循环结束但前端能看出真状况
+        return {
+            "verdict": "parse_failed",
+            "summary": f"⚠ 挑战器输出无法解析,本轮跳过审核(报告质量未确认):{str(e)[:80]}",
+            "issues": [],
+        }
 
     # 标准化
     verdict = data.get("verdict", "pass")
-    if verdict not in ("pass", "minor_issues", "major_issues"):
+    if verdict not in ("pass", "minor_issues", "major_issues", "parse_failed"):
         verdict = "pass"
     issues = data.get("issues") or []
     norm_issues = []
@@ -170,6 +174,10 @@ def should_continue(critique: dict, round_idx: int, max_rounds: int) -> bool:
         return False
     verdict = critique.get("verdict")
     if verdict == "pass":
+        return False
+    # parse_failed:挑战器自己挂了 — 不继续 retry (避免无限挂),
+    # 但前端会用 verdict='parse_failed' 显示醒目的"未确认"状态,不当 pass
+    if verdict == "parse_failed":
         return False
     # major_issues 或 minor_issues 都进下一轮
     # 但若没有 blocker / major issues 也提前收(没东西改)
