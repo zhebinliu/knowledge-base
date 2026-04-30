@@ -198,8 +198,21 @@ export default function ConsoleProjectDetail() {
     return meta?.industries?.find(i => i.value === val)?.label || val
   }
 
-  const startGeneration = () => {
+  // v3:文档驱动的 kind — 不弹 brief,直接调 generateOutput 触发 v3 流程
+  // (runner 会自动 auto_extract + planner 从 docs 兜底)
+  const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight_v2']
+
+  const startGeneration = async () => {
     if (!activeStage.active || !activeKind) return
+    if (V3_DOC_DRIVEN_KINDS.includes(activeKind)) {
+      try {
+        await generateOutput({ kind: activeKind, project_id: id! })
+        refetchOutputs()
+      } catch (e) {
+        console.error('generateOutput failed', e)
+      }
+      return
+    }
     if (BRIEF_KINDS.includes(activeKind)) {
       setBriefDrawer({ kind: activeKind, label: activeKindLabel })
     } else {
@@ -417,7 +430,11 @@ export default function ConsoleProjectDetail() {
                 style={{ background: BRAND_GRAD }}
               >
                 <Sparkles size={11} />
-                {activeKind && BRIEF_KINDS.includes(activeKind) ? '填写 Brief 并生成' : '开始生成'}
+                {activeKind && V3_DOC_DRIVEN_KINDS.includes(activeKind)
+                  ? '开始生成'
+                  : activeKind && BRIEF_KINDS.includes(activeKind)
+                    ? '填写 Brief 并生成'
+                    : '开始生成'}
               </button>
             </>
           ) : null}
