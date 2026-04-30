@@ -168,6 +168,14 @@ def _parse_critique_json(raw: str) -> tuple[dict, str | None]:
       - 成功:(parsed, None)
       - 失败:(parse_failed_dict, raw_text_for_debug)
 
+    LLM 输出形态可能:
+      - 纯 JSON(理想)
+      - ```json {...} ``` (markdown 包裹)
+      - <think>...</think>{...}(推理模型,真正的 JSON 在 think 后)
+      - <think>...{...}</think>(推理模型把 JSON 也写在 think 里 — 抓 think 内的)
+      - 中文说明 + JSON + 中文(LLM 不听话)
+      - Python dict 风格(单引号)
+
     解析顺序:
     1. 严格 json.loads
     2. _clean_jsonish 后 json.loads (去注释 / 尾逗号)
@@ -177,11 +185,30 @@ def _parse_critique_json(raw: str) -> tuple[dict, str | None]:
     import ast
     original = raw
     raw = _strip_code_fence(raw)
-    # 抓首个 {} 平衡块(handle 嵌套,选最长)
-    if not raw.startswith("{"):
-        block = _balanced_json_block(raw)
+
+    # 推理模型可能整个回答都在 <think> 块里,后面没有真正输出 → 先尝试剥 think 找 JSON
+    # 1) 先剥 think 块,如果剩下的部分有 {},用它
+    # 2) 否则在原始 raw(含 think)里找最长 {} 块 — JSON 可能就在 think 里
+    raw_no_think = re.sub(r'<think>[\s\S]*?</think>', '', raw, flags=re.IGNORECASE).strip()
+    # 也处理只有 <think> 没 </think> 的情况(被截断)
+    if '<think>' in raw_no_think.lower():
+        idx = raw_no_think.lower().find('<think>')
+        raw_no_think = raw_no_think[:idx].strip()
+
+    candidate = raw_no_think if raw_no_think else raw     # 优先用剥 think 后的
+    if not candidate.startswith("{"):
+        block = _balanced_json_block(candidate)
         if block:
             raw = block
+        elif candidate is not raw:
+            # 剥 think 后没找到,再在原始 raw 里找(JSON 可能在 think 里)
+            block = _balanced_json_block(raw)
+            if block:
+                raw = block
+        else:
+            raw = candidate
+    else:
+        raw = candidate
 
     data = None
     parse_err = None
@@ -327,6 +354,9 @@ async def challenge_report(*, full_md: str, model: str | None = None) -> tuple[d
             max_tokens=4000,
             temperature=0.2,
             timeout=180.0,
+            strip_think=False,        # 关键:推理模型 GLM-5 可能把 JSON 也写在 <think>
+                                        # 块里,默认剥光会变成空字符串。这里拿原始内容,
+                                        # _parse_critique_json 用 _balanced_json_block 自己抓 JSON
         )
         critique, raw_on_fail = _parse_critique_json(result or "")
         logger.info(

@@ -173,6 +173,8 @@ class ModelRouter:
         temperature: float = 0.3,
         response_format: dict | None = None,
         timeout: float = 180.0,
+        strip_think: bool = True,                 # 推理模型 think 块默认剥;
+                                                   # 调用方需要原始内容(JSON 抽取/debug)时传 False
     ) -> tuple[str, str]:
         """Returns (content, model_name) tuple. Retries on 429 with exponential backoff.
         max_tokens=None 时不下发该字段，由模型按自身 max 输出。"""
@@ -212,8 +214,9 @@ class ModelRouter:
                 resp.raise_for_status()
                 self._failure_counts[model_name] = 0
                 content = resp.json()["choices"][0]["message"]["content"]
-                # 统一剥离 <think>...</think> 思考块，避免污染下游解析/展示
-                content = _strip_think(content)
+                if strip_think:
+                    # 统一剥离 <think>...</think> 思考块,避免污染下游解析/展示
+                    content = _strip_think(content)
                 return content, model_name
             except httpx.HTTPStatusError as e:
                 # 429 已在上面处理；到这里说明退避用完仍 429，或其他 4xx/5xx
