@@ -795,6 +795,7 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
             industry=ctx["industry"],
             brief_fields=ctx["brief_fields"],
             has_conversation=bool(ctx["transcript"]) and ctx["transcript"] != "（没有可用的访谈记录）",
+            docs_by_type=ctx.get("docs_by_type"),                  # v3.2 兜底:文档存在就标 deferred
         )
         run_history.append({
             "phase": "planned", "ts": _ts(),

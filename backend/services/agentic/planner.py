@@ -166,6 +166,7 @@ def _resolve_field(
     project,
     industry: str | None,
     has_conversation: bool,
+    docs_by_type: dict | None = None,            # v3.2: 上传文档兜底
 ) -> FieldState:
     """按 source_priority 顺序,确定该字段的 status / source / value。"""
     for src in field_spec.source_priority:
@@ -211,7 +212,21 @@ def _resolve_field(
                 status="deferred", source="compute",
                 value=None, note=f"由 {field_spec.compute_from} 计算",
             )
-    # 所有 source 都 miss → missing
+
+    # v3.2 兜底:所有声明的 source 都 miss,但项目里有上传文档 →
+    # 标 deferred 让 executor 直接从文档全文里抽 (executor 已经会喂 docs_by_type 给 LLM)。
+    # 这是关键修复 — 之前 planner 只看 brief / metadata 等结构化 source,
+    # 看不见用户上传的 9 份文档,导致字段全 missing → 关键模块全 blocked → short_circuit 拦截。
+    if docs_by_type and any(docs_by_type.values()):
+        n_docs = sum(len(v) for v in docs_by_type.values())
+        return FieldState(
+            key=field_spec.key, label=field_spec.label,
+            status="deferred", source="docs",
+            value=None,
+            note=f"将由 executor 从 {n_docs} 份上传文档全文抽取",
+        )
+
+    # 所有 source 都 miss + 也没有文档 → 真 missing
     return FieldState(
         key=field_spec.key, label=field_spec.label,
         status="missing", source=None, value=None,
@@ -229,6 +244,7 @@ def _plan_modules_generic(
     industry: str | None,
     brief_fields: dict,
     has_conversation: bool,
+    docs_by_type: dict | None = None,           # v3.2:文档兜底
 ) -> ExecutionPlan:
     """通用模块计划 helper(insight / outline 共用)。
 
@@ -248,6 +264,7 @@ def _plan_modules_generic(
             state = _resolve_field(
                 fs, brief_fields=brief_fields, project=project,
                 industry=industry, has_conversation=has_conversation,
+                docs_by_type=docs_by_type,
             )
             field_states[fs.key] = state
 
@@ -327,6 +344,7 @@ def plan_insight(
     industry: str | None,
     brief_fields: dict,
     has_conversation: bool,
+    docs_by_type: dict | None = None,
 ) -> ExecutionPlan:
     """Insight v2 规则化 planner: 按 industry 过滤模块,按 source_priority 解析字段。"""
     active = list_modules_for_industry(industry)
@@ -334,6 +352,7 @@ def plan_insight(
         all_modules=INSIGHT_MODULES, active_modules=active,
         project=project, industry=industry,
         brief_fields=brief_fields, has_conversation=has_conversation,
+        docs_by_type=docs_by_type,
     )
     logger.info("insight_plan_built",
                 industry=industry,
