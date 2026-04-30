@@ -368,9 +368,13 @@ function ReportView({
   bundle: CuratedBundle
   onCitationClick?: (moduleKey: string, refId: string) => void
 }) {
+  // v3.4: 如果 list 已经带了 content_md (大概率不带,因为 list 不返回 content_md),
+  //       直接用,否则才发起 getOutput(bundle.id)
   const { data, isLoading } = useQuery({
     queryKey: ['output', bundle.id],
     queryFn: () => import('../../api/client').then(m => m.getOutput(bundle.id)),
+    enabled: !bundle.content_md,
+    initialData: bundle.content_md ? bundle as any : undefined,
   })
   const validity = bundle.validity_status
   // v3 provenance:from bundle.provenance(via dto)or full output detail(若 dto 没透出)
@@ -388,7 +392,20 @@ function ReportView({
                                      'bg-amber-50 text-amber-800 border border-amber-200'
           }`}>
             <AlertCircle size={11} className="inline mr-1" />
-            报告 validity:{validity === 'invalid' ? '信息不足' : '部分通过'} — 检查右上角 banner 详情
+            报告 validity:{validity === 'invalid' ? '信息不足' : '部分通过 — 挑战循环未完全通过'}
+          </div>
+        )}
+        {/* v3.4 M9 web 检索失败提示 — 不阻断阅读,只告诉用户 M9 章节质量可能下降 */}
+        {bundle.web_search_status && !bundle.web_search_status.ok && (
+          <div className="px-3 py-2 rounded text-xs bg-blue-50 text-blue-800 border border-blue-200">
+            <AlertCircle size={11} className="inline mr-1" />
+            Web 检索 {{
+              no_provider: '未配置(后台「API 密钥」可加 Bocha / Tavily)',
+              no_hits: '返回 0 条结果',
+              exception: '调用异常',
+              no_industry: '项目未设行业,跳过',
+            }[bundle.web_search_status.reason as string] || bundle.web_search_status.reason}
+            — M9「行业最佳实践对照」章节可能仅依赖知识库内案例
           </div>
         )}
         {/* 报告正文白色卡片容器:border + shadow 让内容有清晰边界 */}

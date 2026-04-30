@@ -518,15 +518,21 @@ def _ts() -> str:
 # ── v3: M9 行业最佳实践的 Web 研究融合 ────────────────────────────────────────
 # KB 走 fill_kb_gaps,Web 走这个 helper;融合后注入 executor
 
-async def _build_m9_web_refs(industry: str, project) -> list[dict]:
+async def _build_m9_web_refs(industry: str, project) -> tuple[list[dict], dict]:
     """对 M9 跑 Web 搜索,返回结构化 refs 列表(executor 自动编号 [W1] [W2]...)。
 
-    Returns: [{title, url, domain, snippet, source}, ...]  没配 key 返回 []。
+    Returns: (refs_list, status_dict)
+      refs_list: [{title, url, domain, snippet, source}, ...]
+      status_dict: {ok: bool, reason: str, queries_n: int, hits_n: int}
+        - ok=False 时 reason 说明:no_provider / no_hits / exception
+        前端用这个状态在报告头部显示"⚠ Web 检索失败可能影响 M9 质量"banner
     """
+    status = {"ok": False, "reason": "", "queries_n": 0, "hits_n": 0}
     try:
         from services.web_search_service import web_search, has_web_search_provider
         if not await has_web_search_provider():
-            return []
+            status["reason"] = "no_provider"
+            return [], status
         customer = project.customer if project else ""
         queries = [
             f"{industry} CRM 实施 标杆案例 最佳实践 2025",
@@ -535,6 +541,7 @@ async def _build_m9_web_refs(industry: str, project) -> list[dict]:
         if customer:
             queries.append(f"{customer} 企业数字化 CRM 案例")
         all_hits = []
+        status["queries_n"] = min(len(queries), 3)
         for q in queries[:3]:
             hits = await web_search(q, top_k=3)
             all_hits.extend(hits)
@@ -548,10 +555,17 @@ async def _build_m9_web_refs(industry: str, project) -> list[dict]:
             seen.add(u)
             domain = u.split("/")[2] if "//" in u else ""
             deduped.append({**h, "domain": domain})
-        return deduped[:8]
+        deduped = deduped[:8]
+        status["hits_n"] = len(deduped)
+        status["ok"] = len(deduped) > 0
+        if not status["ok"]:
+            status["reason"] = "no_hits"
+        return deduped, status
     except Exception as e:
+        status["reason"] = "exception"
+        status["error"] = str(e)[:120]
         logger.warning("m9_web_refs_failed", err=str(e)[:120])
-        return []
+        return [], status
 
 
 # ── 行业 / 方法论 名词解释库 ────────────────────────────────────────────────────
@@ -842,8 +856,9 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
 
         # v3: M9 行业最佳实践 — 跑 web research(返回结构化 refs 供 sources_index 编号)
         m9_web_refs: list[dict] = []
+        m9_web_status: dict = {"ok": False, "reason": "no_industry"}
         if ctx["industry"]:
-            m9_web_refs = await _build_m9_web_refs(ctx["industry"], ctx["project"])
+            m9_web_refs, m9_web_status = await _build_m9_web_refs(ctx["industry"], ctx["project"])
 
         async def _run_one(spec, assess):
             result = await execute_insight_module(
@@ -1018,6 +1033,17 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
         )
         full_md = challenge_summary["final_md"]
 
+        # v3.4:挑战循环结果反向影响 validity
+        # 3 轮挑战后仍 major_issues / parse_failed → validity 降级为 partial
+        # (告诉用户:报告出来了,但质量未通过最严格审核,需要人工 review)
+        if validity_status == "valid":
+            fv = challenge_summary["final_verdict"]
+            if fv in ("major_issues", "parse_failed"):
+                validity_status = "partial"
+                logger.info("validity_downgraded_by_challenge",
+                            bundle_id=bundle_id, final_verdict=fv,
+                            issues_remaining=challenge_summary["issues_remaining"])
+
         # 写回 bundle
         await _update_progress(bundle_id, stage="finalizing", message="拼装最终报告并入库…")
         new_extra = dict(ctx["bundle_extra"])
@@ -1033,6 +1059,7 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
                 "final_verdict": challenge_summary["final_verdict"],
                 "issues_remaining": challenge_summary["issues_remaining"],
             },
+            "web_search_status": m9_web_status,   # v3.4 M9 web 检索结果(供前端 banner 提示)
             "progress": {                          # 完成态:进度卡片显示完成
                 "stage": "done",
                 "message": "✓ 报告生成完成",

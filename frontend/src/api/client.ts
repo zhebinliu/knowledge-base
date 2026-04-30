@@ -985,6 +985,14 @@ export interface CuratedBundle {
     final_verdict: 'pass' | 'minor_issues' | 'major_issues' | 'parse_failed' | 'skipped' | 'skipped_invalid'
     issues_remaining: number
   } | null
+  // v3.4 M9 web 检索状态 (失败时前端 banner 提示)
+  web_search_status?: {
+    ok: boolean
+    reason: 'no_provider' | 'no_hits' | 'exception' | 'no_industry' | string
+    queries_n?: number
+    hits_n?: number
+    error?: string
+  } | null
 }
 
 // v3.1 挑战回合详情 (GET /api/outputs/{id}/challenges)

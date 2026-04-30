@@ -102,6 +102,7 @@ def _bundle_dto(b: CuratedBundle) -> dict:
         "provenance": extra.get("provenance") or {},     # v3: {module_key: {D1/K1/W1: meta}}
         "progress": extra.get("progress") or None,       # v3.1: 进度卡片 (生成中显示)
         "challenge_summary": extra.get("challenge_summary") or None,  # v3.1: 挑战循环结果摘要
+        "web_search_status": extra.get("web_search_status") or None,  # v3.4: M9 web 检索结果状态
     }
 
 

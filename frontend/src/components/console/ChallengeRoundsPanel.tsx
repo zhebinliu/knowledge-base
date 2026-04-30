@@ -50,7 +50,11 @@ const DIMENSION_LABEL: Record<string, string> = {
 }
 
 export default function ChallengeRoundsPanel({ bundleId, challengeSummary }: Props) {
-  const [open, setOpen] = useState(false)
+  // v3.4: final_verdict 不是 pass 时默认展开 — 让用户立刻看到具体问题,
+  // 不需要再点一下"展开"
+  const fv = challengeSummary?.final_verdict
+  const defaultOpen = !!fv && fv !== 'pass' && fv !== 'skipped' && fv !== 'skipped_invalid'
+  const [open, setOpen] = useState(defaultOpen)
   const { data, isLoading } = useQuery({
     queryKey: ['challenge-rounds', bundleId],
     queryFn: () => getChallengeRounds(bundleId),
