@@ -735,12 +735,21 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
         })
 
         # ── Phase 1.5(v3): 自动从文档抽取 brief 字段 ──
-        # 项目刚上传 4+ 必需文档 + brief 还没填的场景 — 自动跑一次 brief extract,
-        # 让 planner 看到字段已被文档填充,直接 ready,而不是要求用户填一遍 GapFiller。
+        # 触发条件:有上传文档 + "真实模块字段"未填够 5 个。
+        # 注意:**必须排除 success_metric_* / risk_alert_* / 其他虚拟物前缀字段**,
+        # 这些是用户填问卷写入的,不是模块字段,数它们会让 auto_extract 永远不触发,
+        # planner 看不到文档信息 → critical 模块全 missing → short_circuit 错误拦截。
+        VIRTUAL_PREFIXES = ("success_metric_", "risk_alert_", "v_")
         docs_by_type = ctx.get("docs_by_type") or {}
-        brief_filled_count = sum(1 for v in (ctx["brief_fields"] or {}).values()
-                                 if isinstance(v, dict) and v.get("value") not in (None, "", []))
-        if docs_by_type and brief_filled_count < 5:
+        real_field_count = sum(
+            1 for k, v in (ctx["brief_fields"] or {}).items()
+            if isinstance(v, dict) and v.get("value") not in (None, "", [])
+               and not k.startswith(VIRTUAL_PREFIXES)
+        )
+        # 触发:任何上传文档 + 真实字段不足 5 个 → 跑抽取
+        # 也兼容旧 brief_filled_count 的语义,避免回归
+        if docs_by_type and real_field_count < 5:
+            brief_filled_count = real_field_count
             try:
                 from services.brief_service import extract_brief_draft, merge_extract_with_user_edits
                 from models.project_brief import ProjectBrief
@@ -766,12 +775,16 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
                                            output_kind="insight_v2", fields=merged))
                     await s.commit()
                 ctx["brief_fields"] = merged
+                post_real = sum(
+                    1 for k, v in merged.items()
+                    if isinstance(v, dict) and v.get("value") not in (None, "", [])
+                       and not k.startswith(VIRTUAL_PREFIXES)
+                )
                 run_history.append({
                     "phase": "v3_auto_extract", "ts": _ts(),
                     "detail": {"docs_n": sum(len(v) for v in docs_by_type.values()),
                                "brief_filled_pre": brief_filled_count,
-                               "brief_filled_post": sum(1 for v in merged.values()
-                                                        if isinstance(v, dict) and v.get("value") not in (None, "", []))},
+                               "brief_filled_post": post_real},
                 })
             except Exception as e:
                 logger.warning("v3_auto_extract_failed", error=str(e)[:200])
