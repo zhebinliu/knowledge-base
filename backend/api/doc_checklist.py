@@ -40,14 +40,26 @@ def _empty_completion() -> dict:
 
 
 async def _virtual_status(project_id: str, vkey: str) -> dict:
-    """评估虚拟产物的"填充状态"。
+    """评估虚拟产物的"填充状态"(基于该 vkey 在 virtual_artifacts.py 里定义的题目)。
 
-    暂时简化判定:
-    - v_success_metrics:看 brief.fields 里是否有非空的 success_metrics 字段
-    - v_risk_alert:看 brief.fields 里是否有非空的 risks_acknowledged 字段
-    - v_guided_questionnaire:占位,默认 not_filled
+    判定方式:
+    - 拉到该 vkey 的 prompts(题目清单),逐个检查 brief.fields 是否有对应非空答案
+    - filled_count = 已答数;total_count = 必答题量(required=True)
+    - filled = (filled_count >= total_count) — 必答全答完才算 done
     """
     if vkey == "v_guided_questionnaire":
+        return {"filled": False, "filled_count": 0, "total_count": 0, "kind": "insight_v2"}
+
+    # 拉对应虚拟物的 prompts 定义(权威清单)
+    from api.virtual_artifacts import SUCCESS_METRICS_PROMPTS, _build_risk_prompts
+    if vkey == "v_success_metrics":
+        prompts = SUCCESS_METRICS_PROMPTS
+    elif vkey == "v_risk_alert":
+        # 风险预警是按行业动态生成,这里只用项目 industry 拉一次清单
+        async with async_session_maker() as s:
+            proj = await s.get(Project, project_id)
+        prompts = _build_risk_prompts(getattr(proj, "industry", None) if proj else None)
+    else:
         return {"filled": False, "filled_count": 0, "total_count": 0, "kind": "insight_v2"}
 
     # 读 insight_v2 的 brief 看相关字段
@@ -60,25 +72,18 @@ async def _virtual_status(project_id: str, vkey: str) -> dict:
         )).scalar_one_or_none()
     fields = (row.fields if row else {}) or {}
 
-    # 字段映射
-    KEY_MAP = {
-        "v_success_metrics": ["success_metrics", "smart_goals"],
-        "v_risk_alert":      ["risks_acknowledged", "risks"],
-    }
-    relevant_keys = KEY_MAP.get(vkey, [])
-    filled = 0
-    for k in relevant_keys:
+    required_keys = [p["field_key"] for p in prompts if p.get("required")]
+    answered = 0
+    for k in required_keys:
         cell = fields.get(k)
-        if isinstance(cell, dict):
-            v = cell.get("value")
-        else:
-            v = cell
-        if v not in (None, "", []):
-            filled += 1
+        v = cell.get("value") if isinstance(cell, dict) else cell
+        if v not in (None, "", [], {}):
+            answered += 1
+    total = len(required_keys)
     return {
-        "filled": filled > 0,
-        "filled_count": filled,
-        "total_count": len(relevant_keys),
+        "filled": total > 0 and answered >= total,        # 必答全答完才打勾
+        "filled_count": answered,
+        "total_count": total,
         "kind": "insight_v2",
     }
 
