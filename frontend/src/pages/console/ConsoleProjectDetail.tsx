@@ -196,6 +196,27 @@ export default function ConsoleProjectDetail() {
   const activeBundle = activeKind ? bundleByKind(activeKind) : undefined
   const activeInflight = activeKind ? inflightByKind(activeKind) : undefined
 
+  // chatMode 跟随 activeKind 同步 — 解决两个问题:
+  //  1. 用户切换阶段后,chatMode.kind 残留旧值会让 OutputChatPanel 显示上一阶段的标题
+  //     (截图里 HTML 阶段中央却显示「启动会·PPT · 对话生成」)
+  //  2. 当前阶段已有 done bundle → 默认展示成果(预览),而不是 QA
+  // 关键:依赖只放 activeKind / activeBundle?.id,不依赖 chatMode 本身,
+  // 否则用户点了「项目问答」tab 切到 'pm' 后会被立刻强切回 'output' 死循环。
+  // → activeKind 变(stage 切换)或 bundle 从无到有,才重新评估默认 tab。
+  useEffect(() => {
+    if (!activeKind) return
+    if (activeBundle) {
+      setChatMode({ type: 'output', kind: activeKind, label: activeKindLabel })
+    } else {
+      setChatMode(prev =>
+        prev.type === 'output'
+          ? { type: 'output', kind: activeKind, label: activeKindLabel }
+          : prev,
+      )
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKind, activeKindLabel, activeBundle?.id])
+
   const industryLabel = (val: string | null) => {
     if (!val) return null
     return meta?.industries?.find(i => i.value === val)?.label || val
