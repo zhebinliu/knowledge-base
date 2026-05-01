@@ -498,7 +498,7 @@ export default function ConsoleProjectDetail() {
         /* 主区(非 insight_v2 stage):
            - 已生成 bundle (status=done) → 直接在工作区预览成果(HTML iframe / markdown / pptx 摘要)
            - 否则走原对话生成 (ChatTabs + OutputChatPanel)
-           对话历史可通过 ChatTabs 顶部「对话生成」tab 切回查看 */}
+           对话历史可通过 ChatTabs 顶部「对话生成」tab 切回查看 */
         <div className="flex-1 min-h-0 flex flex-col bg-white">
           <ChatTabs
             mode={chatMode}
