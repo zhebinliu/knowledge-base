@@ -45,6 +45,7 @@ export default function ResearchV1Workspace({
 }: Props) {
   const [selectedLtcKey, setSelectedLtcKey] = useState<string | null>(null)
   const [view, setView] = useState<ResearchView>('preparation')
+  const [refsOpen, setRefsOpen] = useState(false)   // 右侧"参考资料"默认收起
 
   // activeKind 切换 → 切默认 view(顾问点顶部 sub-action 切换大纲/问卷)
   useEffect(() => {
@@ -89,7 +90,7 @@ export default function ResearchV1Workspace({
   }, [ltcDict, sowHitKeys, selectedLtcKey])
 
   return (
-    <div className="flex-1 min-h-0 flex bg-canvas overflow-hidden">
+    <div className="flex-1 min-h-0 flex bg-canvas overflow-hidden relative">
       {/* ── 左:LTC 模块清单 ── */}
       <div className="w-[280px] flex-shrink-0 border-r border-line bg-white flex flex-col">
         <div className="flex-shrink-0 px-3 py-2.5 border-b border-line">
@@ -184,14 +185,32 @@ export default function ResearchV1Workspace({
         </div>
       </div>
 
-      {/* ── 右:占位侧栏(MVP 留空,后续放 KB chunk + 引用追溯) ── */}
-      <div className="w-[260px] flex-shrink-0 border-l border-line bg-white p-3">
-        <div className="text-[11px] text-ink-muted mb-2">参考资料</div>
-        <div className="text-[11px] text-ink-muted leading-relaxed">
-          下个迭代上线:行业 knowhow chunk 列表 + 引用追溯。
-          顾问可在此剔除质量不准的 KB 召回结果。
+      {/* ── 右:参考资料侧栏(默认收起,需要时点右侧 tab 展开) ── */}
+      {refsOpen ? (
+        <div className="w-[260px] flex-shrink-0 border-l border-line bg-white p-3 relative">
+          <button
+            onClick={() => setRefsOpen(false)}
+            className="absolute right-2 top-2 p-1 rounded hover:bg-slate-50 text-ink-muted"
+            title="收起"
+          >
+            <ChevronRight size={12} />
+          </button>
+          <div className="text-[11px] text-ink-muted mb-2">参考资料</div>
+          <div className="text-[11px] text-ink-muted leading-relaxed">
+            下个迭代上线:行业 knowhow chunk 列表 + 引用追溯。
+            顾问可在此剔除质量不准的 KB 召回结果。
+          </div>
         </div>
-      </div>
+      ) : (
+        <button
+          onClick={() => setRefsOpen(true)}
+          className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1.5 px-2 py-3 bg-white border border-line rounded-l-md shadow text-xs text-ink-secondary hover:text-ink hover:border-orange-300"
+          style={{ writingMode: 'vertical-rl' as any }}
+          title="展开参考资料侧栏"
+        >
+          参考资料
+        </button>
+      )}
     </div>
   )
 }
@@ -338,13 +357,26 @@ function ProductCard({
   onGenerate: () => void
   extraInfo?: string | null
 }) {
+  const isDone = bundle?.status === 'done'
+  const updatedAt = bundle?.updated_at ? new Date(bundle.updated_at) : null
+  const stamp = updatedAt
+    ? `${String(updatedAt.getMonth() + 1).padStart(2, '0')}/${String(updatedAt.getDate()).padStart(2, '0')} ${String(updatedAt.getHours()).padStart(2, '0')}:${String(updatedAt.getMinutes()).padStart(2, '0')}`
+    : ''
+
   return (
-    <div className="rounded-lg border border-line bg-white p-4 space-y-2">
+    <div className={`rounded-lg border bg-white p-4 space-y-2 ${
+      isDone ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-line'
+    }`}>
       <div className="flex items-start gap-3">
-        <div className="flex-1">
-          <div className="text-sm font-semibold text-ink flex items-center gap-2">
-            {title}
-            {bundle?.status === 'done' && <CheckCircle2 size={13} className="text-emerald-600" />}
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold text-ink flex items-center gap-2 flex-wrap">
+            <span>{title}</span>
+            {isDone && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-medium ring-1 ring-emerald-200">
+                <CheckCircle2 size={10} />
+                已生成{stamp ? ` · ${stamp}` : ''}
+              </span>
+            )}
           </div>
           <div className="text-xs text-ink-muted mt-1">{subtitle}</div>
           {extraInfo && (

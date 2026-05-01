@@ -5,7 +5,7 @@ import {
   ArrowLeft, FileText, ClipboardList, Lightbulb, MessageSquare, Sparkles,
   CheckCircle2, Loader2, Lock, Download, ExternalLink,
   Save, X, Wand2, AlertCircle, Pencil, Home, Files, Search,
-  Bot, ShieldAlert,
+  Bot, ShieldAlert, ChevronDown, ChevronRight,
 } from 'lucide-react'
 import {
   getProject, updateProject, generateCustomerProfile, generateOutput,
@@ -660,6 +660,8 @@ function InsightV3Workspace({
 }
 
 function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onReGenerate: () => void }) {
+  // 默认折叠 — 顶部 bar 已显示通过率 + 重生成按钮,详情按需展开
+  const [expanded, setExpanded] = useState(false)
   const isInvalid = bundle.validity_status === 'invalid'
   const askPrompts = bundle.ask_user_prompts || []
   const moduleStates = bundle.module_states || {}
@@ -694,20 +696,38 @@ function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onR
   const hasAnyDetail = incompleteCritical.length + incompleteOptional.length + warnCritical.length + warnOptional.length + askPrompts.length > 0
 
   return (
-    <div className={`flex-shrink-0 px-3 sm:px-4 py-2.5 border-b ${bg}`}>
-      <div className="flex items-start gap-2">
-        <ShieldAlert size={14} className={`${text} mt-0.5 shrink-0`} />
-        <div className="min-w-0 flex-1">
-          <div className={`text-xs font-semibold ${text}`}>
-            {label}
-            {isInvalid && ' — 本份产物缺少关键信息,建议补充后重新生成'}
-            {!isInvalid && totalCritical > 0 && (
-              <span className="ml-2 text-[11px] font-normal text-ink-secondary">
-                ({allCriticalDone}/{totalCritical} 关键模块完整通过)
-              </span>
-            )}
-          </div>
+    <div className={`flex-shrink-0 px-3 sm:px-4 py-2 border-b ${bg}`}>
+      {/* 标题行 — 整行可点击展开/折叠 */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setExpanded(o => !o)}
+          className="flex items-center gap-1.5 min-w-0 flex-1 text-left hover:opacity-80"
+          title={expanded ? '点击折叠详情' : '点击展开详情'}
+        >
+          {expanded ? <ChevronDown size={12} className={`${text} shrink-0`} /> : <ChevronRight size={12} className={`${text} shrink-0`} />}
+          <ShieldAlert size={13} className={`${text} shrink-0`} />
+          <span className={`text-xs font-semibold ${text}`}>{label}</span>
+          {isInvalid && <span className="text-[11px] font-normal text-ink-secondary truncate">— 本份产物缺少关键信息,建议补充后重新生成</span>}
+          {!isInvalid && totalCritical > 0 && (
+            <span className="text-[11px] font-normal text-ink-secondary">
+              ({allCriticalDone}/{totalCritical} 关键模块完整通过)
+            </span>
+          )}
+        </button>
+        <button
+          onClick={onReGenerate}
+          className={`shrink-0 flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-md border ${
+            isInvalid ? 'border-red-300 text-red-700 bg-white hover:bg-red-100'
+                      : 'border-amber-300 text-amber-700 bg-white hover:bg-amber-100'
+          }`}
+        >
+          <Sparkles size={10} /> {isInvalid ? '补充信息后重新生成' : '重新生成'}
+        </button>
+      </div>
 
+      {/* 详情区 — 默认收起 */}
+      {expanded && (
+        <div className="mt-1.5 ml-5">
           {/* 关键模块未完成(blocked / insufficient / failed) */}
           {incompleteCritical.length > 0 && (
             <div className="mt-1 text-[11px] text-ink-secondary">
@@ -763,16 +783,7 @@ function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onR
             </div>
           )}
         </div>
-        <button
-          onClick={onReGenerate}
-          className={`shrink-0 flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-md border ${
-            isInvalid ? 'border-red-300 text-red-700 bg-white hover:bg-red-100'
-                      : 'border-amber-300 text-amber-700 bg-white hover:bg-amber-100'
-          }`}
-        >
-          <Sparkles size={10} /> {isInvalid ? '补充信息后重新生成' : '重新生成'}
-        </button>
-      </div>
+      )}
     </div>
   )
 }
