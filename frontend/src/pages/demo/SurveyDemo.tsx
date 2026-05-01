@@ -8,7 +8,12 @@ import { Link } from 'react-router-dom'
 import {
   ArrowLeft, ClipboardList, ChevronRight, Sparkles, CheckCircle2,
   FileText, Bot, Lightbulb, Users, Building2, Scissors, Target, MinusCircle,
+  Workflow, Database, Cog, Layers, FileSearch, Boxes, ShieldAlert,
 } from 'lucide-react'
+import {
+  PipelineDiagram, ArchitectureDiagram, IOTable,
+  type PipelineStage, type ArchLayer, type IORow,
+} from './_demo_diagrams'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -17,7 +22,7 @@ export default function SurveyDemo() {
     <div className="min-h-screen bg-canvas">
       {/* Top nav */}
       <div className="bg-white border-b border-line sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-6 py-3 flex items-center gap-3">
+        <div className="max-w-[1500px] mx-auto px-8 sm:px-12 py-3 flex items-center gap-3">
           <Link to="/demo" className="text-ink-muted hover:text-ink flex items-center gap-1 text-sm">
             <ArrowLeft size={14} /> 返回
           </Link>
@@ -29,7 +34,7 @@ export default function SurveyDemo() {
       </div>
 
       {/* Hero */}
-      <div className="max-w-4xl mx-auto px-6 pt-12 pb-8">
+      <div className="max-w-[1500px] mx-auto px-8 sm:px-12 pt-12 pb-8">
         <div className="flex items-center gap-2 mb-4">
           <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">新版 · 内测</span>
           <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-orange-100 text-[#D96400]">智能体</span>
@@ -47,6 +52,42 @@ export default function SurveyDemo() {
             背景:智能制造行业 · 集团 + 5 家子公司 · 之前已经做过一轮访谈,聊过组织架构 / KPI / 商机 / 渠道结构 /奖惩制度。
           </div>
         </div>
+      </div>
+
+      {/* ── 流程图 ── */}
+      <PipelineDiagram
+        title="生成流程"
+        description="调研工作台分两个产物 — 调研大纲(顾问拿着上现场)+ 调研问卷(顾问勾选式录入)。下面是问卷生成的端到端流水线,大纲流程类似但少了结构化题目环节。"
+        stages={SURVEY_PIPELINE}
+      />
+
+      {/* ── 架构图 ── */}
+      <ArchitectureDiagram
+        title="模块架构"
+        description="跟项目洞察共用 agent v3 框架(Planner / Executor / Critic)。新增 LTC 字典 + SOW 同义词归一 + 客户自定义模块支持,让问卷题目按 LTC 流程组织,顾问按模块切换录入答案。"
+        layers={SURVEY_ARCH_LAYERS}
+      />
+
+      {/* ── 输入产物 ── */}
+      <IOTable
+        title="输入产物 — 系统会读什么"
+        variant="input"
+        description="调研问卷生成时,自动读项目文档 + 上游 outline 的 LTC 模块映射 + 历史访谈,LLM 据此为每个 LTC 模块生成结构化题目 + 选项池。"
+        rows={SURVEY_INPUTS}
+      />
+
+      {/* ── 输出产物 ── */}
+      <IOTable
+        title="输出产物 — 你会拿到什么"
+        variant="output"
+        description="生成完毕后,顾问在工作区按 LTC 模块切换,看到结构化题目(单选/多选/分级…),勾选式录入答案。每模块录完可触发 AI 范围四分类。"
+        rows={SURVEY_OUTPUTS}
+      />
+
+      {/* ── 实操走查 ── */}
+      <div className="max-w-[1500px] mx-auto px-8 sm:px-12 pt-16 pb-2">
+        <h2 className="text-2xl font-bold text-ink">实操走查</h2>
+        <p className="text-sm text-ink-secondary mt-2">下面用「友发钢管」走一遍完整界面。</p>
       </div>
 
       {/* Step 1 */}
@@ -103,7 +144,7 @@ export default function SurveyDemo() {
       </Step>
 
       {/* CTA */}
-      <div className="max-w-4xl mx-auto px-6 py-12">
+      <div className="max-w-[1500px] mx-auto px-8 sm:px-12 py-12">
         <div className="rounded-xl p-6 text-white" style={{ background: BRAND_GRAD }}>
           <h3 className="text-lg font-bold mb-1.5">现在去试一下</h3>
           <p className="text-sm opacity-90 mb-4">
@@ -122,7 +163,7 @@ export default function SurveyDemo() {
       </div>
 
       {/* For engineers */}
-      <div className="max-w-4xl mx-auto px-6 pb-16">
+      <div className="max-w-[1500px] mx-auto px-8 sm:px-12 pb-16">
         <details className="group bg-white rounded-lg border border-line">
           <summary className="cursor-pointer px-4 py-3 text-sm text-ink-secondary hover:text-ink flex items-center gap-2">
             <Bot size={14} />
@@ -144,9 +185,192 @@ export default function SurveyDemo() {
 
 // ── 公共骨架 ──────────────────────────────────────────────────────────────────
 
+// ── 流程 / 架构 / IO 数据常量 ──────────────────────────────────────────────
+
+const SURVEY_PIPELINE: PipelineStage[] = [
+  {
+    key: 'ctx_load',
+    label: '加载上下文',
+    short: '读项目文档 / Brief / 访谈,补 SOW→LTC 映射',
+    detail: '_load_ctx 拉项目文档 + Brief + 访谈,顺便从 research_ltc_module_maps 表读 outline 阶段写入的 SOW→LTC 映射(含 is_extra=true 的客户自定义模块)。',
+    color: 'blue',
+    icon: <Database size={14} />,
+  },
+  {
+    key: 'plan',
+    label: 'Plan 分卷',
+    short: '决定本项目要发哪些分卷(L1+L2)',
+    detail: 'plan_survey 看行业 + 已访谈话题(去重)+ 行业包额外种子,选出激活的 subsections(L1 高管短卷 + L2 业务模块分卷)。',
+    color: 'orange',
+    icon: <Cog size={14} />,
+  },
+  {
+    key: 'execute',
+    label: '生成题目',
+    short: '每分卷并行调 LLM,输出 markdown + 结构化 JSON',
+    detail: 'execute_survey_subsection 给 LLM 喂 LTC 字典(含 13 标准 + N 客户自定义),让 LLM 自主给每题打 ltc_module_key 标。两段输出:Markdown(可读)+ ```json``` 围栏(结构化题目),后端 _split 拆开。',
+    color: 'purple',
+    icon: <Workflow size={14} />,
+  },
+  {
+    key: 'sentinel',
+    label: '选项池兜底',
+    short: 'single/multi 必含「其他」+「不适用」',
+    detail: '_post_process_items 校验:single/multi/node_pick 必含 __other__ 和 __na__ sentinel 选项;ltc_module_key 必须在 LTC 字典 + customer_modules 内,无效落候选首项。',
+    color: 'purple',
+    icon: <CheckCircle2 size={14} />,
+  },
+  {
+    key: 'critic',
+    label: 'Critic 打分',
+    short: '4 维度 Sopact rubric 给每分卷质量打分',
+    detail: 'critique_subsections 一次性 LLM 评分。题目穷举度 / 必答覆盖率 / 行业贴合度 / 已访谈话题去重等都算入分数。',
+    color: 'purple',
+    icon: <CheckCircle2 size={14} />,
+  },
+  {
+    key: 'persist',
+    label: '入库 + 顾问录入',
+    short: 'questionnaire_items 写入 bundle.extra,顾问按 LTC 模块勾选答案',
+    detail: '所有 subsection 的结构化题目合并到 bundle.extra.questionnaire_items[]。前端 ResearchV1Workspace 按 LTC 模块过滤渲染。顾问勾选 → POST /api/research/responses upsert 到 research_responses 表。',
+    color: 'emerald',
+    icon: <Boxes size={14} />,
+  },
+  {
+    key: 'scope',
+    label: '范围分类',
+    short: '答完一模块,LLM 综合判定 4 分类标签',
+    detail: '顾问点「触发 AI 范围分类」→ scope_classifier 综合(SOW + insight + 答案)给每题打 4 分类:需新建 / 已有线下需数字化 / 已有需搬迁 / 不纳入。顾问可手改,manual 来源不被 ai 覆盖。',
+    color: 'emerald',
+    icon: <ShieldAlert size={14} />,
+  },
+]
+
+const SURVEY_ARCH_LAYERS: ArchLayer[] = [
+  {
+    key: 'input',
+    label: '输入层',
+    color: 'blue',
+    components: [
+      { name: '项目文档', description: 'SOW / 集成方案 / 售前材料,markdown 全文喂 LLM' },
+      { name: 'SOW→LTC 映射', description: 'outline 阶段持久化的 research_ltc_module_maps 表,含标准 LTC + 客户自定义模块' },
+      { name: 'Brief 字段', description: '虚拟物问卷:成功指标 / 风险预警等,LLM 据此个性化题目' },
+      { name: '历史访谈', description: 'OutputConversation 已聊过的话题,LLM 跳过避免重复' },
+      { name: '行业包', description: 'industry_packs 提供行业种子题(智能制造的项目型销售 / 售后等)' },
+      { name: 'LTC 字典', description: '13 模块(8 主流程 + 5 横向支撑) + standard_nodes 节点池' },
+    ],
+  },
+  {
+    key: 'engine',
+    label: '引擎层',
+    color: 'orange',
+    components: [
+      { name: 'Planner(survey)', description: 'plan_survey 决定激活哪些 subsection,做去重 / 行业过滤' },
+      { name: 'Executor(survey)', description: 'execute_survey_subsection 生成双段输出(Markdown + JSON 围栏)' },
+      { name: 'JSON 解析器', description: '_split_markdown_and_questionnaire_json 抽 JSON 数组,失败兜底' },
+      { name: '题目后处理器', description: '_post_process_items 补 sentinel 选项 + 校验 ltc_module_key' },
+      { name: 'Critic', description: 'critique_subsections 4 维度打分' },
+      { name: 'SOW Mapper', description: 'sow_mapper LLM 同义词归一 SOW 模块名 → LTC 字典 key' },
+      { name: 'Scope Classifier', description: 'scope_classifier LLM 综合判 4 分类标签' },
+    ],
+  },
+  {
+    key: 'config',
+    label: '配置层',
+    color: 'purple',
+    components: [
+      { name: 'Atomic Skills', description: '强制中文 / 6 题型规范 / JSON 严格 / 表格规范 / LTC 骨架' },
+      { name: 'Output Agent', description: 'agent_config(survey_v2)的 prompt + skill_ids,后台可改' },
+      { name: 'LTC 字典', description: 'ltc_dictionary.py 硬编码,后续可迁移 DB 让运营管理 aliases' },
+      { name: 'Subsection→LTC hints', description: 'SUBSECTION_TO_LTC_HINTS 映射,告诉 LLM 每分卷主要服务哪些 LTC' },
+    ],
+  },
+  {
+    key: 'output',
+    label: '输出层',
+    color: 'emerald',
+    components: [
+      { name: 'CuratedBundle', description: 'content_md(可下载 docx)+ extra(JSON)' },
+      { name: 'extra.questionnaire_items', description: '结构化题目数组(每题 type/options/ltc_module_key)' },
+      { name: 'research_responses', description: '顾问录入的答案 + scope_label 分类' },
+      { name: 'research_ltc_module_maps', description: 'SOW 模块名 → LTC 映射(供 outline 和 survey 共用)' },
+    ],
+  },
+]
+
+const SURVEY_INPUTS: IORow[] = [
+  {
+    key: 'docs',
+    label: '项目文档',
+    source: 'documents 表',
+    format: 'doc_type 索引 + markdown 全文',
+    example: 'SOW / 集成方案 / 售前调研报告 等',
+  },
+  {
+    key: 'ltc_map',
+    label: 'SOW→LTC 映射',
+    source: 'research_ltc_module_maps 表',
+    format: '[{sow_term, mapped_ltc_key, is_extra}]',
+    example: '[{sow_term:"商机机会管理", mapped_ltc_key:"M02_opportunity"}, {sow_term:"测试服务管理", is_extra:true}]',
+  },
+  {
+    key: 'transcript',
+    label: '历史访谈',
+    source: 'output_conversations 表',
+    format: '已聊话题 list (already_covered)',
+    example: '["商机阶段定义", "渠道分级", "KPI 口径"]',
+  },
+  {
+    key: 'brief',
+    label: 'Brief 字段',
+    source: 'project_briefs 表',
+    format: '虚拟物问卷字段 dict',
+    example: '{success_metric_revenue: ["销售额"], risk_alert_data_quality: 3}',
+  },
+  {
+    key: 'ltc_dict',
+    label: 'LTC 字典',
+    source: 'ltc_dictionary.py 常量',
+    format: '13 模块 + standard_nodes + aliases',
+    example: 'M01_lead / M02_opportunity / ... / S05_integration\n每模块带 standard_nodes(线索获取 / 分配 / 跟进...)',
+  },
+]
+
+const SURVEY_OUTPUTS: IORow[] = [
+  {
+    key: 'questionnaire',
+    label: '结构化题目',
+    source: 'bundle.extra.questionnaire_items',
+    format: '[{item_key, ltc_module_key, type, question, options, why}]',
+    example: '[{item_key:"M02_opportunity::stage_model", ltc_module_key:"M02_opportunity", type:"single", question:"用哪种商机阶段模型?", options:[{value:"huawei_ltc", label:"华为 LTC 6 阶段"}, ..., {value:"__other__", is_other:true}, {value:"__na__", is_not_applicable:true}]}]',
+  },
+  {
+    key: 'markdown',
+    label: '可读 Markdown',
+    source: 'bundle.content_md',
+    format: 'Markdown 字符串(给 docx 下载用)',
+    example: '## 商机管理分卷\n### 1. 用哪种商机阶段模型?\n- 类型: single\n- 选项: A. 华为 LTC ...',
+  },
+  {
+    key: 'responses',
+    label: '顾问答案',
+    source: 'research_responses 表',
+    format: '{bundle_id, item_key, answer_value, scope_label, source}',
+    example: '{item_key:"M02_opportunity::stage_model", answer_value:"huawei_ltc", scope_label:"migrate", scope_label_source:"ai"}',
+  },
+  {
+    key: 'scope',
+    label: '范围分类',
+    source: 'research_responses.scope_label',
+    format: 'enum: new | digitize | migrate | out_of_scope',
+    example: 'new = 需新建 / digitize = 已有线下需数字化 / migrate = 已有需搬迁 / out_of_scope = 不纳入一期',
+  },
+]
+
+
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
-    <section className="max-w-4xl mx-auto px-6 py-8 border-t border-line">
+    <section className="max-w-[1500px] mx-auto px-8 sm:px-12 py-8 border-t border-line">
       <div className="flex items-center gap-3 mb-4">
         <div className="w-8 h-8 rounded-full text-white flex items-center justify-center text-sm font-bold shrink-0"
              style={{ background: BRAND_GRAD }}>
