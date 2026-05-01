@@ -17,8 +17,10 @@ from services.model_router import model_router
 logger = structlog.get_logger()
 
 
-# 7 维 rubric — 标准恒定,不要轻易改。每个维度有"判定标准 + 反例"。
-_RUBRIC_SPEC = """## 7 维质量挑战 Rubric (恒定标准)
+# 6 维 rubric — 标准恒定,不要轻易改。每个维度有"判定标准 + 反例"。
+# 注:timeliness(时效性)已被排除在挑战维度之外 — 项目刚交接 PM,大部分动作还没发生,
+# 时效性判断噪音大、误判多;留给后续 review 阶段人工把关,不让 challenger 介入。
+_RUBRIC_SPEC = """## 6 维质量挑战 Rubric (恒定标准)
 
 ### 1. specificity (具体性)
 - 主语 / 对象 / 条件 / 时间 是否明确?
@@ -30,27 +32,26 @@ _RUBRIC_SPEC = """## 7 维质量挑战 Rubric (恒定标准)
 - 缺引用的句子要么改成「建议在 Phase 1 第一周补充访谈以确认」要么删除
 - ❌ 严禁:「[访谈]」「[KB]」「[Brief]」这种泛化标签 — 必须用具体 ID
 
-### 3. timeliness (时效性)
-- 结论是否还能影响项目结果?(避免事后诸葛亮)
-- 风险 / 动作 是否有明确时间窗口?(本周 / 本月 / 季度内)
-
-### 4. next_step (下一步行动)
+### 3. next_step (下一步行动)
 - 每条结论是否配 Owner + deadline + 预期产出?
 - ❌ 严禁:「加强沟通」「持续关注」「进一步研究」「及时跟进」
 
-### 5. completeness (完整性)
+### 4. completeness (完整性)
 - 用户上传的关键文档(SOW / 合同 / 交接单)的关键信息是否在报告里?
 - 用户填的成功指标问卷答案是否被引用?
 - 干系人图谱里的关键决策人是否在报告里出现?
 
-### 6. consistency (一致性)
+### 5. consistency (一致性)
 - 同一干系人 / 数字 / 日期 在不同章节是否一致?
 - 总体 RAG 跟各维度子 RAG 是否矛盾?
 - 同一风险在 M3/M7 是否描述一致?
 
-### 7. jargon (黑话过滤)
+### 6. jargon (黑话过滤)
 - 是否含「赋能 / 抓手 / 闭环 / 链路 / 生态 / 打通 / 沉淀 / 触达 / 复盘 / 颗粒度」?
 - 有就改简体白话(用具体动词替代,如「打通系统」→「把 ERP 客户主数据同步到 CRM」)
+
+**注意**:不要再就「时效性 / timeliness / Deadline 早于今天 / 信息过期」给挑战意见 —
+该维度已不在评判范围内,看到也忽略。
 """
 
 CHALLENGER_SYSTEM = f"""你是 MBB 资深实施咨询合伙人,在审阅项目洞察报告。
@@ -99,7 +100,7 @@ verdict: minor_issues
 3. **问题清单**:用 `## 问题清单` 标题,后面跟若干 issue 列表项
 4. 每个 issue **必须 5 行,严格按以下顺序**:
    - `- 模块: <英文 module key,如 M3_health_radar 或 _global>`
-   - `  维度: <specificity / evidence / timeliness / next_step / completeness / consistency / jargon 七选一>`
+   - `  维度: <specificity / evidence / next_step / completeness / consistency / jargon 六选一>`
    - `  严重度: <blocker / major / minor 三选一>`
    - `  问题: <一句话描述问题>`
    - `  建议: <一句话给出具体修改方向>`
@@ -253,14 +254,17 @@ def _parse_critique_json(raw: str) -> tuple[dict, str | None]:
         sugg_m = re.search(r'建议\s*[::]\s*(.+?)' + next_field,      rest, re.DOTALL)
         # 维度 / 严重度 归一化
         dim_raw = (dim_m.group(1).strip() if dim_m else "specificity").lower()
-        valid_dims = {"specificity", "evidence", "timeliness", "next_step",
+        valid_dims = {"specificity", "evidence", "next_step",
                       "completeness", "consistency", "jargon"}
         if dim_raw not in valid_dims:
             # 中文容错:维度 LLM 可能写中文
-            dim_zh = {"具体性": "specificity", "证据": "evidence", "时效性": "timeliness",
+            dim_zh = {"具体性": "specificity", "证据": "evidence",
                       "下一步": "next_step", "完整性": "completeness",
                       "一致性": "consistency", "黑话": "jargon"}
             dim_raw = dim_zh.get(dim_raw.strip(), "specificity")
+        # 即使 LLM 仍然把 timeliness / 时效性 写出来,挑战流水线也直接丢弃 — 该维度已下线
+        if dim_raw in ("timeliness", "时效性") or "时效" in dim_raw:
+            continue
         sev_raw = (sev_m.group(1).strip() if sev_m else "minor").lower()
         if sev_raw not in {"blocker", "major", "minor"}:
             sev_zh = {"严重": "major", "重大": "major", "次要": "minor", "轻微": "minor",
@@ -356,16 +360,13 @@ async def challenge_report(*, full_md: str, model: str | None = None) -> tuple[d
     else:
         report_for_prompt = full_md
 
-    from datetime import date
-    today = date.today()
-    user_prompt = f"""请审阅以下项目洞察报告,按 system 给的 7 维 rubric 找问题。
+    user_prompt = f"""请审阅以下项目洞察报告,按 system 给的 6 维 rubric 找问题。
 
 按 system 里的 Markdown 格式输出(verdict 一行 + 总结 + 问题清单)。
 不用 JSON,不用关心引号 / 逗号 / 转义等格式细节。
 
-【今天日期】{today.isoformat()}(W{today.isocalendar().week:02d})
-判断 timeliness 维度(时效性 / Deadline 是否合理)时以这个日期为准 —
-如报告里"下一步建议"截止日期早于今天,直接判 major issue。
+注:**不要**就「时效性 / Deadline 是否合理 / 信息是否过期」提任何挑战意见 —
+该维度已被排除在挑战范围之外,看到也忽略。
 
 [项目洞察报告]:
 
