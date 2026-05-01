@@ -104,15 +104,17 @@ export default function InsightDemo() {
         <MockStageBar />
       </Step>
 
-      {/* Step 2 */}
-      <Step n={2} title="抽屉自动弹出,大半字段已经替你填好">
+      {/* Step 2 — v3 文档驱动:左栏文档清单 + 中栏 Hero */}
+      <Step n={2} title="确认交接资料齐不齐,补齐了点「开始生成」">
         <p className="text-sm text-ink-secondary mb-3">
-          系统会扫"项目元数据 + 已上传文档 + 之前的访谈记录",自动预填  新版 需要的字段。你只需要校对 + 补几个缺的。
+          进入项目洞察后是 <strong>三栏布局</strong>。左栏文档清单告诉你"必备 / 推荐"哪些文档已经上传、哪些缺;
+          中栏显示完成度大数字 + 大「开始生成」按钮。<strong>新版不需要填表</strong> — 系统直接从文档里抽,
+          你只要把交接资料补齐就行。
         </p>
-        <MockBriefDrawer />
+        <MockDocChecklist />
         <p className="text-xs text-ink-muted mt-3">
-          ↑ 上面 4 个字段中,前 2 个有黄色 <strong>已抽取</strong> 标(LLM 从文档里推出来的,可信度
-          medium/high),后 2 个空着等你补。点"保存并生成"就触发后台流程。
+          ↑ 必备 7 项里已上传 4 项(SOW / 集成方案 / 合同 / 交接单),还差 3 项推荐资料 + 2 项虚拟物问卷。
+          完成度 4/7 时仍可生成,但建议尽量补全提高画像质量。
         </p>
       </Step>
 
@@ -134,9 +136,11 @@ export default function InsightDemo() {
       </Step>
 
       {/* Step 5 — sample output */}
-      <Step n={5} title="拿到报告(摘录两段)">
+      <Step n={5} title="拿到 360° 项目画像 — 每段都能溯源">
         <p className="text-sm text-ink-secondary mb-3">
-          下面是友发钢管 新版报告的真实样式。每段结论都标了 <strong>来源</strong>,不带来源的"洞察"不许出现。
+          下面是友发钢管画像的真实样式。报告顶部是<strong>综合质量评审</strong>(整体可交付 / 细节待补 / 挑战通过几轮);
+          每段结论末尾的橙色徽章 <CitationBadge id="D1" />、<CitationBadge id="K3" /> 是 <strong>来源角标</strong>,
+          点开就能看原文档/原片段。<strong>不带来源的"洞察"绝不会出现</strong>。
         </p>
         <MockReportSnippet />
       </Step>
@@ -474,52 +478,104 @@ function MockStageBar() {
 
 // ── 样式预览:Brief 抽屉 ──────────────────────────────────────────────────────
 
-function MockBriefDrawer() {
-  const fields = [
-    { label: '项目态势(Situation)', value: '集团化多法人 CRM 实施,2024-09 启动,目前 UAT 前期,5 家子公司差异大,推广压力大', filled: true, conf: 'high' },
-    { label: '项目难点(Complication)', value: '集团 vs 子公司方案差异 + 销售推广阻力 + 数据迁移工作量大', filled: true, conf: 'medium' },
-    { label: '最大机会', value: '', filled: false, conf: null },
-    { label: '关键决策人', value: ['钟鼐(集团信息中心)', '徐广友(集团 PMO)'], filled: true, conf: 'high', isList: true },
-    { label: '当前阶段', value: 'UAT 前期', filled: true, conf: 'high' },
-    { label: '预算区间', value: '', filled: false, conf: null },
+function MockDocChecklist() {
+  const required = [
+    { label: 'SOW(项目范围说明书)', uploaded: true,  filename: '友发钢管 SOW.docx' },
+    { label: '系统集成方案',         uploaded: true,  filename: '友发钢管 集成方案.pdf' },
+    { label: '商务合同',             uploaded: true,  filename: '商务合同 v3.pdf' },
+    { label: '业务交接单',           uploaded: true,  filename: '友发钢管 交接单.docx' },
+    { label: '干系人组织架构',       uploaded: false, filename: null },
+    { label: '售前调研报告',         uploaded: false, filename: null },
+    { label: '售前方案 PPT',         uploaded: false, filename: null },
   ]
+  const virtuals = [
+    { label: '成功指标问卷',  filled: false },
+    { label: '风险预警清单',  filled: true },
+  ]
+  const reqDone = required.filter(r => r.uploaded).length
+  const reqTotal = required.length
+
   return (
-    <div className="bg-white border border-line rounded-lg overflow-hidden shadow-sm">
-      <div className="px-4 py-2.5 border-b border-line bg-slate-50 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-          <FileText size={13} /> 项目要点 · 项目洞察(新版) · 友发钢管集团
+    <div className="grid grid-cols-12 gap-3">
+      {/* 左栏:文档清单 */}
+      <div className="col-span-4 bg-white border border-line rounded-lg overflow-hidden shadow-sm">
+        <div className="px-3 py-2 border-b border-line bg-slate-50">
+          <div className="text-[11px] text-ink-muted">资料清单</div>
+          <div className="text-xs text-ink mt-0.5">必备 {reqDone} / {reqTotal} · 虚拟物 1 / 2</div>
         </div>
-        <span className="text-[11px] text-ink-muted">15 字段中 4 个待补</span>
-      </div>
-      <div className="p-4 space-y-3 text-xs">
-        {fields.map((f, i) => (
-          <div key={i} className="flex gap-3">
-            <div className="w-32 shrink-0 text-ink-muted">{f.label}</div>
-            <div className="flex-1 min-w-0">
-              {f.filled ? (
-                <>
-                  <div className="text-ink">
-                    {f.isList ? (
-                      <ul className="list-disc list-inside">{(f.value as string[]).map((v, j) => <li key={j}>{v}</li>)}</ul>
-                    ) : f.value}
-                  </div>
-                  <div className="mt-1 flex items-center gap-1.5">
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${f.conf === 'high' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                      已抽取 · {f.conf}
-                    </span>
-                    <span className="text-[10px] text-ink-muted">来自访谈记录 + 项目元数据</span>
-                  </div>
-                </>
+        <div className="p-2 space-y-1 text-xs">
+          <div className="text-[10px] text-ink-muted px-1 mt-1 mb-0.5">必备(系统读这些写画像)</div>
+          {required.map((r, i) => (
+            <div key={i} className={`flex items-center gap-2 px-2 py-1.5 rounded ${r.uploaded ? 'bg-emerald-50/60' : 'bg-slate-50/60'}`}>
+              {r.uploaded ? (
+                <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
               ) : (
-                <div className="text-ink-muted italic">— 待你补充 —</div>
+                <span className="w-3 h-3 rounded-full border-2 border-slate-300 shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className={`truncate ${r.uploaded ? 'text-ink' : 'text-ink-muted'}`}>{r.label}</div>
+                {r.uploaded && r.filename && (
+                  <div className="text-[10px] text-ink-muted truncate">{r.filename}</div>
+                )}
+              </div>
+              {!r.uploaded && (
+                <button className="text-[10px] text-orange-700 px-1.5 py-0.5 rounded border border-orange-200 hover:bg-orange-50 shrink-0">+ 上传</button>
               )}
             </div>
-          </div>
-        ))}
+          ))}
+          <div className="text-[10px] text-ink-muted px-1 mt-2 mb-0.5">虚拟物(一些问卷,顾问填)</div>
+          {virtuals.map((v, i) => (
+            <div key={i} className={`flex items-center gap-2 px-2 py-1.5 rounded ${v.filled ? 'bg-emerald-50/60' : 'bg-amber-50/60'}`}>
+              {v.filled ? (
+                <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
+              ) : (
+                <AlertCircle size={12} className="text-amber-600 shrink-0" />
+              )}
+              <span className={`flex-1 truncate ${v.filled ? 'text-ink' : 'text-ink-muted'}`}>{v.label}</span>
+              {!v.filled && (
+                <button className="text-[10px] text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 hover:bg-amber-50 shrink-0">填写</button>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="px-4 py-2.5 border-t border-line bg-slate-50 flex justify-end gap-2">
-        <button className="px-3 py-1.5 text-[11px] text-ink-secondary border border-line rounded">取消</button>
-        <button className="px-3 py-1.5 text-[11px] text-white font-semibold rounded" style={{ background: BRAND_GRAD }}>保存并生成 →</button>
+
+      {/* 中栏:Hero + 大按钮 */}
+      <div className="col-span-8 bg-white border border-line rounded-xl overflow-hidden shadow-sm">
+        <div className="px-6 py-5 flex items-start gap-4 border-b border-line"
+             style={{ background: 'linear-gradient(to right, #FFF7ED 0%, #FFFFFF 60%)' }}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+               style={{ background: BRAND_GRAD }}>
+            <Lightbulb size={20} className="text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base font-bold text-ink">项目洞察(新版)</h2>
+            <p className="text-xs text-ink-muted mt-1 leading-relaxed">
+              基于上传文档自动生成 360° 项目画像。<br/>
+              把左栏文档清单补齐,系统会从文档抽取信息并标注每段来源。
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <div className="text-2xl font-extrabold tabular-nums text-orange-600">
+              {reqDone}<span className="text-sm text-ink-muted font-normal"> / {reqTotal}</span>
+            </div>
+            <div className="text-[11px] text-ink-muted">必备资料</div>
+          </div>
+        </div>
+        <div className="px-6 py-4">
+          <div className="h-2 bg-slate-100 rounded-full overflow-hidden mb-3">
+            <div className="h-full rounded-full" style={{ width: `${reqDone / reqTotal * 100}%`, background: BRAND_GRAD }} />
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-ink-secondary flex-1">
+              还差 {reqTotal - reqDone} 项必备资料(左栏补齐),也可以直接点开始生成
+            </span>
+            <button className="flex items-center justify-center gap-2 px-5 py-2 text-white rounded-lg text-sm font-semibold"
+                    style={{ background: BRAND_GRAD }}>
+              <Sparkles size={13} /> 开始生成
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -615,9 +671,31 @@ function MockGenerationProgress() {
 
 // ── 样式预览:报告样本 ────────────────────────────────────────────────────────
 
+function CitationBadge({ id }: { id: string }) {
+  return (
+    <span className="inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded text-[10px] font-mono font-semibold bg-orange-100 text-orange-700 hover:bg-orange-200 cursor-pointer transition" title={`点击在右栏看 ${id} 的原文`}>
+      {id}
+    </span>
+  )
+}
+
 function MockReportSnippet() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
+      {/* 顶部:质量评审 banner(默认折叠样) */}
+      <div className="px-3 sm:px-4 py-2 border-b bg-sky-50 border-sky-200 rounded-lg">
+        <div className="flex items-center gap-2">
+          <ChevronRight size={12} className="text-sky-700 shrink-0" />
+          <ShieldAlert size={13} className="text-sky-700 shrink-0" />
+          <span className="text-xs font-semibold text-sky-700">整体可交付 · 4 项细节待补</span>
+          <span className="text-[10px] text-ink-muted ml-1">· 挑战 2 轮</span>
+          <span className="flex-1" />
+          <button className="shrink-0 flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-md border border-sky-300 text-sky-700 bg-white hover:bg-sky-100">
+            <Sparkles size={10} /> 重新生成
+          </button>
+        </div>
+      </div>
+
       {/* 模块 M1 */}
       <div className="bg-white border border-line rounded-lg p-5">
         <div className="text-[11px] text-ink-muted mb-2">M1 · 执行摘要</div>
@@ -625,9 +703,9 @@ function MockReportSnippet() {
           <p><strong className="text-red-700">总体健康度:黄</strong>。集团化 CRM 实施已进入 UAT 前期,
             <strong>方案设计阶段已完成,最大风险转移到推广阶段</strong>。</p>
           <ul className="list-disc list-inside space-y-1 text-ink-secondary">
-            <li>5 家子公司业务差异大,统一方案 + 差异化配置策略已经确认 <span className="text-[10px] text-ink-muted">[访谈]</span></li>
-            <li>奖惩制度刚性(配套 25 万实施奖金 + 奖一罚二),推广采纳率是头号变量 <span className="text-[10px] text-ink-muted">[访谈]</span></li>
-            <li>历史数据迁移工作量评估不足,可能影响上线节奏 <span className="text-[10px] text-ink-muted">[KB · 启动会纪要]</span></li>
+            <li>5 家子公司业务差异大,统一方案 + 差异化配置策略已经确认<CitationBadge id="D1" /><CitationBadge id="D4" /></li>
+            <li>奖惩制度刚性(配套 25 万实施奖金 + 奖一罚二),推广采纳率是头号变量<CitationBadge id="D2" /></li>
+            <li>历史数据迁移工作量评估不足,可能影响上线节奏<CitationBadge id="K3" /></li>
           </ul>
         </div>
       </div>
@@ -647,21 +725,21 @@ function MockReportSnippet() {
           </thead>
           <tbody className="divide-y divide-line">
             <tr>
-              <td className="p-2">范围蔓延:子公司提新需求,镀金风险</td>
+              <td className="p-2">范围蔓延:子公司提新需求,镀金风险<CitationBadge id="D1" /></td>
               <td className="p-2"><span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-100 text-red-700">高</span></td>
               <td className="p-2"><span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700">中</span></td>
               <td className="p-2 text-ink-secondary">变更走 PMO 评审,纳入二期 backlog</td>
               <td className="p-2 text-ink-muted">徐广友 / 钟鼐</td>
             </tr>
             <tr>
-              <td className="p-2">推广阻力:一线销售抵触新系统</td>
+              <td className="p-2">推广阻力:一线销售抵触新系统<CitationBadge id="D2" /><CitationBadge id="K2" /></td>
               <td className="p-2"><span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-100 text-red-700">高</span></td>
               <td className="p-2"><span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-100 text-red-700">高</span></td>
               <td className="p-2 text-ink-secondary">实施顾问驻场 2 周 + 商机更新及时率纳入考核</td>
               <td className="p-2 text-ink-muted">交付 PM</td>
             </tr>
             <tr>
-              <td className="p-2">数据迁移:历史数据口径不清</td>
+              <td className="p-2">数据迁移:历史数据口径不清<CitationBadge id="D4" /><CitationBadge id="K3" /></td>
               <td className="p-2"><span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700">中</span></td>
               <td className="p-2"><span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-100 text-red-700">高</span></td>
               <td className="p-2 text-ink-secondary">本周对齐迁移责任人 + 标准 + 时间表</td>
@@ -678,21 +756,21 @@ function MockReportSnippet() {
           <li className="flex gap-2">
             <CheckCircle2 size={14} className="text-emerald-600 mt-0.5 shrink-0" />
             <div>
-              <div className="font-medium">本周对齐数据迁移责任人 + 标准 + 时间表</div>
+              <div className="font-medium">本周对齐数据迁移责任人 + 标准 + 时间表<CitationBadge id="D4" /></div>
               <div className="text-[11px] text-ink-muted">Owner:客户 IT · Deadline:2026-05-02 · 预期产出:迁移启动会纪要 + 责任人清单</div>
             </div>
           </li>
           <li className="flex gap-2">
             <CheckCircle2 size={14} className="text-emerald-600 mt-0.5 shrink-0" />
             <div>
-              <div className="font-medium">UAT 前对齐 5 家子公司差异化配置点</div>
+              <div className="font-medium">UAT 前对齐 5 家子公司差异化配置点<CitationBadge id="D1" /></div>
               <div className="text-[11px] text-ink-muted">Owner:实施顾问 · Deadline:2026-05-09 · 预期产出:差异点清单 + 子公司确认书</div>
             </div>
           </li>
           <li className="flex gap-2">
             <CheckCircle2 size={14} className="text-emerald-600 mt-0.5 shrink-0" />
             <div>
-              <div className="font-medium">启动「商机更新及时率」纳入销售月度考核</div>
+              <div className="font-medium">启动「商机更新及时率」纳入销售月度考核<CitationBadge id="K1" /></div>
               <div className="text-[11px] text-ink-muted">Owner:集团信息中心 · Deadline:2026-05-15 · 预期产出:考核办法初稿</div>
             </div>
           </li>
