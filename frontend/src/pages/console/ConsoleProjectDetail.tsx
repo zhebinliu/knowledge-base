@@ -791,9 +791,11 @@ function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onR
         </button>
       </div>
 
-      {/* 详情区 — 默认收起,展开后包含【整体审核】+【细节待补】两节 */}
+      {/* 详情区 — 默认收起,展开后包含【整体审核】+【细节待补】两节
+          高度限制 + 内部滚动:挑战 3 轮 × 5 个 issues 内容很长,
+          不限会把整页撑爆,用户无法上滑看到下面的报告 */}
       {expanded && (
-        <div className="mt-2 ml-5 space-y-3">
+        <div className="mt-2 ml-5 space-y-3 max-h-[55vh] overflow-y-auto pr-2">
           {/* —— 整体审核(挑战详情) —— */}
           {hasChallenge && (
             <div>
