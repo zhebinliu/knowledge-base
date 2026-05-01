@@ -360,9 +360,26 @@ async def execute_insight_module(
 - 系统会自动把 [D1] 转成可点击的 footnote,前端能 hover 看原文。
 - 如果某段没素材支撑,写"信息缺失"或干脆别写;**绝不**裸输出无引用的事实。
 """
+    async def _call_once(attempt: int) -> str:
+        # max_tokens 8000 — 推理模型(GLM-5 / minimax-m2.7)<think> 块容易吃掉 3-5k tokens,
+        # 之前 3000 时 M6 经常空输出。和 challenger 对齐到 8000。
+        raw = await _llm_call(user_prompt, system=system, model=model,
+                              max_tokens=8000, timeout=240.0)
+        clean_len = len((raw or "").strip())
+        has_think = "<think>" in (raw or "").lower()
+        logger.info("insight_module_llm_returned",
+                    module=module.key, attempt=attempt,
+                    raw_len=len(raw or ""), clean_len=clean_len,
+                    has_think=has_think,
+                    head=(raw or "")[:120])
+        return raw or ""
+
     try:
-        raw_content = await _llm_call(user_prompt, system=system, model=model,
-                                      max_tokens=3000, timeout=180.0)
+        raw_content = await _call_once(attempt=1)
+        # 推理模型偶发:think 块吃光所有 token,正文为空。critical 模块再试一次。
+        if not raw_content.strip() and module.necessity == "critical":
+            logger.warning("insight_module_empty_retry", module=module.key)
+            raw_content = await _call_once(attempt=2)
         # 1. 剥重复标题(LLM 偶尔无视 system prompt 输出 ## 标题, runner 已注入)
         content_clean = _strip_redundant_title(raw_content.strip(), module.title)
         # 2. 引用 ID 后处理 [D1] → [D1](#cite-...)
