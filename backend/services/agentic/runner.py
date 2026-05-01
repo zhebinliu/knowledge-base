@@ -1558,98 +1558,130 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
             for g in plan.gap_actions if g.action == "ask_user"
         ]
 
-        # 拼装 markdown
+        # 拼装 markdown — 抽成闭包,挑战循环每轮重生成模块后会重新调用一次
         proj = ctx["project"]
         title_main = proj.name if proj else (ctx["industry"] or "—")
-        md_blocks = [f"# {title_main} · 调研大纲 v2 (agentic)\n"]
-        md_blocks.append(f"**生成日期**:{date.today().strftime('%Y年%m月%d日')}  ")
-        md_blocks.append(f"**客户**:{(proj.customer if proj else '—') or '—'}  ")
-        md_blocks.append(f"**行业**:{ctx['industry'] or '—'}  ")
-        md_blocks.append(f"**Validity**:{validity_status}\n")
-        md_blocks.append("\n本份大纲是「调研问卷」的上游交付物 — 先定调研场次和议题,再用「调研问卷」生成对应分卷给责任人。\n")
 
-        if validity_status == "invalid":
-            md_blocks.append("---\n")
-            md_blocks.append("> ⚠️ **本份大纲判定为「信息不足」(invalid)**\n>")
-            md_blocks.append("> 以下关键模块因关键字段缺失,未能完整生成:")
-            for ms in critical_bad:
-                missing = ", ".join(f["label"] for f in ms["missing_fields"]) or ms["reason"]
-                md_blocks.append(f"> - **{ms['title']}**:{missing}")
-            if ask_user_prompts:
-                md_blocks.append(">\n> **建议补充以下信息后重新生成:**")
-                for q in ask_user_prompts[:8]:
-                    md_blocks.append(f"> - {q['question']}")
-            md_blocks.append("\n---\n")
+        def _assemble_outline_md() -> str:
+            md_blocks = [f"# {title_main} · 调研大纲 v2 (agentic)\n"]
+            md_blocks.append(f"**生成日期**:{date.today().strftime('%Y年%m月%d日')}  ")
+            md_blocks.append(f"**客户**:{(proj.customer if proj else '—') or '—'}  ")
+            md_blocks.append(f"**行业**:{ctx['industry'] or '—'}  ")
+            md_blocks.append(f"**Validity**:{validity_status}\n")
+            md_blocks.append("\n本份大纲是「调研问卷」的上游交付物 — 先定调研场次和议题,再用「调研问卷」生成对应分卷给责任人。\n")
 
-        for spec in OUTLINE_MODULES:
-            ms = module_states.get(spec.key)
-            if not ms or ms["status"] == "skipped":
-                continue
-            md_blocks.append(f"\n## {spec.title}\n")
-            content = module_contents.get(spec.key)
-            if content:
-                md_blocks.append(content)
-            else:
-                if ms["status"] == "failed":
-                    md_blocks.append("> _本模块**执行失败**(可能是 LLM 超时 / 异常),建议重新生成_\n")
-                else:
-                    missing = ", ".join(f["label"] for f in ms["missing_fields"]) or ms["reason"] or "未知"
-                    md_blocks.append(f"> _本模块因信息不足未生成。缺失:{missing}_\n")
-            if ms.get("score") and ms["score"]["overall"] != "pass":
-                issues = ms["score"].get("issues", [])
-                if issues:
-                    md_blocks.append(f"\n> _Critic 提示:{'; '.join(issues[:3])}_\n")
-            md_blocks.append("\n---")
+            if validity_status == "invalid":
+                md_blocks.append("---\n")
+                md_blocks.append("> ⚠️ **本份大纲判定为「信息不足」(invalid)**\n>")
+                md_blocks.append("> 以下关键模块因关键字段缺失,未能完整生成:")
+                for ms_local in critical_bad:
+                    miss = ", ".join(f["label"] for f in ms_local["missing_fields"]) or ms_local["reason"]
+                    md_blocks.append(f"> - **{ms_local['title']}**:{miss}")
+                if ask_user_prompts:
+                    md_blocks.append(">\n> **建议补充以下信息后重新生成:**")
+                    for q in ask_user_prompts[:8]:
+                        md_blocks.append(f"> - {q['question']}")
+                md_blocks.append("\n---\n")
 
-        # ── 追加:按 LTC 流程组织的调研主题(research v1 增量) ──
-        if ltc_map_items:
-            md_blocks.append("\n## 附录 · 按 LTC 流程组织的调研主题\n")
-            md_blocks.append("_来源:SOW / 系统集成 / 售前材料 抽取 + 同义词归一_\n")
-            from .research.sow_mapper import aggregate_by_ltc_key
-            from .research.ltc_dictionary import get_module
-            agg = aggregate_by_ltc_key(ltc_map_items)
-            extras = agg.pop("__extra__", [])
-            md_blocks.append("\n| LTC 模块 | 客户原文称呼 | 标准节点 |")
-            md_blocks.append("|---|---|---|")
-            for ltc_key, terms in agg.items():
-                m = get_module(ltc_key)
-                if not m:
+            for spec_local in OUTLINE_MODULES:
+                ms_local = module_states.get(spec_local.key)
+                if not ms_local or ms_local["status"] == "skipped":
                     continue
-                terms_str = "、".join(terms[:5]) + (f" 等 {len(terms)} 项" if len(terms) > 5 else "")
-                nodes_str = " → ".join(m.standard_nodes[:5])
-                md_blocks.append(f"| {m.label} ({m.key}) | {terms_str} | {nodes_str} |")
-            if extras:
-                md_blocks.append("\n**SOW 中超出 LTC 字典的模块(待评估):** " +
-                                 "、".join(extras[:10]) +
-                                 (f" 等 {len(extras)} 项" if len(extras) > 10 else ""))
+                md_blocks.append(f"\n## {spec_local.title}\n")
+                content_local = module_contents.get(spec_local.key)
+                if content_local:
+                    md_blocks.append(content_local)
+                else:
+                    if ms_local["status"] == "failed":
+                        md_blocks.append("> _本模块**执行失败**(可能是 LLM 超时 / 异常),建议重新生成_\n")
+                    else:
+                        miss = ", ".join(f["label"] for f in ms_local["missing_fields"]) or ms_local["reason"] or "未知"
+                        md_blocks.append(f"> _本模块因信息不足未生成。缺失:{miss}_\n")
+                if ms_local.get("score") and ms_local["score"]["overall"] != "pass":
+                    issues_local = ms_local["score"].get("issues", [])
+                    if issues_local:
+                        md_blocks.append(f"\n> _Critic 提示:{'; '.join(issues_local[:3])}_\n")
+                md_blocks.append("\n---")
 
-        # research v1:展示 KB 召回的行业 knowhow(给顾问审视用)
-        if kb_candidates_dump:
-            high_score = [c for c in kb_candidates_dump if (c.get("ai_score") or 0) >= 7.0]
-            md_blocks.append("\n## 附录 · KB 召回的行业 knowhow\n")
-            md_blocks.append(f"_共召回 {len(kb_candidates_dump)} 条,高相关度(≥7分)注入 LLM prompt 共 {len(high_score)} 条。下个迭代支持顾问在右栏剔除。_\n")
-            md_blocks.append("\n| 评分 | 来源 | 章节 | 摘要 |")
-            md_blocks.append("|---|---|---|---|")
-            for c in sorted(kb_candidates_dump, key=lambda x: -(x.get("ai_score") or 0))[:8]:
-                snippet = (c.get("content") or "")[:80].replace("|", "·").replace("\n", " ")
-                md_blocks.append(
-                    f"| {c.get('ai_score', 0):.1f} | {c.get('filename', '—')} "
-                    f"| {c.get('source_section') or '—'} | {snippet}… |"
-                )
+            # ── 追加:按 LTC 流程组织的调研主题(research v1 增量) ──
+            if ltc_map_items:
+                md_blocks.append("\n## 附录 · 按 LTC 流程组织的调研主题\n")
+                md_blocks.append("_来源:SOW / 系统集成 / 售前材料 抽取 + 同义词归一_\n")
+                from .research.sow_mapper import aggregate_by_ltc_key
+                from .research.ltc_dictionary import get_module
+                agg = aggregate_by_ltc_key(ltc_map_items)
+                extras = agg.pop("__extra__", [])
+                md_blocks.append("\n| LTC 模块 | 客户原文称呼 | 标准节点 |")
+                md_blocks.append("|---|---|---|")
+                for ltc_key, terms in agg.items():
+                    m_local = get_module(ltc_key)
+                    if not m_local:
+                        continue
+                    terms_str = "、".join(terms[:5]) + (f" 等 {len(terms)} 项" if len(terms) > 5 else "")
+                    nodes_str = " → ".join(m_local.standard_nodes[:5])
+                    md_blocks.append(f"| {m_local.label} ({m_local.key}) | {terms_str} | {nodes_str} |")
+                if extras:
+                    md_blocks.append("\n**SOW 中超出 LTC 字典的模块(待评估):** " +
+                                     "、".join(extras[:10]) +
+                                     (f" 等 {len(extras)} 项" if len(extras) > 10 else ""))
 
-        md_blocks.append("\n## 附录 · 运行报告\n")
-        md_blocks.append(f"- 已生成模块:{len(module_contents)} / 总 {len(plan.modules)}")
-        md_blocks.append(f"- 待用户补充:{len(ask_user_prompts)} 项")
-        if ltc_map_items:
-            md_blocks.append(f"- LTC 模块映射:已识别 {len(ltc_map_items)} 项,其中 extra {sum(1 for r in ltc_map_items if r.get('is_extra'))} 项")
-        if kb_candidates_dump:
-            high_n = sum(1 for c in kb_candidates_dump if (c.get('ai_score') or 0) >= 7.0)
-            md_blocks.append(f"- KB 行业 knowhow:召回 {len(kb_candidates_dump)} 条,LLM 二次评分后注入 {high_n} 条(≥7 分)")
-        if pack:
-            md_blocks.append(f"- 行业包:{pack.industry} 已激活(注入 {len(pack.must_visit_departments)} 必访部门 + {len(pack.default_sessions)} 默认 sessions)")
-        full_md = "\n".join(md_blocks)
-        glossary = _build_glossary_appendix(full_md)
-        if glossary: full_md += "\n\n" + glossary
+            # research v1:展示 KB 召回的行业 knowhow(给顾问审视用)
+            if kb_candidates_dump:
+                high_score_local = [c for c in kb_candidates_dump if (c.get("ai_score") or 0) >= 7.0]
+                md_blocks.append("\n## 附录 · KB 召回的行业 knowhow\n")
+                md_blocks.append(f"_共召回 {len(kb_candidates_dump)} 条,高相关度(≥7分)注入 LLM prompt 共 {len(high_score_local)} 条。下个迭代支持顾问在右栏剔除。_\n")
+                md_blocks.append("\n| 评分 | 来源 | 章节 | 摘要 |")
+                md_blocks.append("|---|---|---|---|")
+                for c in sorted(kb_candidates_dump, key=lambda x: -(x.get("ai_score") or 0))[:8]:
+                    snippet = (c.get("content") or "")[:80].replace("|", "·").replace("\n", " ")
+                    md_blocks.append(
+                        f"| {c.get('ai_score', 0):.1f} | {c.get('filename', '—')} "
+                        f"| {c.get('source_section') or '—'} | {snippet}… |"
+                    )
+
+            md_blocks.append("\n## 附录 · 运行报告\n")
+            md_blocks.append(f"- 已生成模块:{len(module_contents)} / 总 {len(plan.modules)}")
+            md_blocks.append(f"- 待用户补充:{len(ask_user_prompts)} 项")
+            if ltc_map_items:
+                md_blocks.append(f"- LTC 模块映射:已识别 {len(ltc_map_items)} 项,其中 extra {sum(1 for r in ltc_map_items if r.get('is_extra'))} 项")
+            if kb_candidates_dump:
+                high_n = sum(1 for c in kb_candidates_dump if (c.get('ai_score') or 0) >= 7.0)
+                md_blocks.append(f"- KB 行业 knowhow:召回 {len(kb_candidates_dump)} 条,LLM 二次评分后注入 {high_n} 条(≥7 分)")
+            if pack:
+                md_blocks.append(f"- 行业包:{pack.industry} 已激活(注入 {len(pack.must_visit_departments)} 必访部门 + {len(pack.default_sessions)} 默认 sessions)")
+            full_local = "\n".join(md_blocks)
+            gloss_local = _build_glossary_appendix(full_local)
+            if gloss_local:
+                full_local += "\n\n" + gloss_local
+            return full_local
+
+        full_md = _assemble_outline_md()
+
+        # ── Phase 7: 挑战循环(最多 3 轮,invalid 报告不挑) ──
+        # 复用 insight 的 _run_challenge_loop:它内部硬编码 execute_insight_module,
+        # 而 outline 也用 execute_insight_module 跑模块,所以可以直接复用
+        challenge_summary = await _run_challenge_loop(
+            bundle_id=bundle_id,
+            full_md_initial=full_md,
+            module_contents=module_contents,
+            ready_pairs=ready_pairs,
+            ctx=ctx,
+            kb_refs=kb_refs,
+            m9_web_refs=[],                 # outline 不调 web search,留空
+            assemble_fn=_assemble_outline_md,
+            run_history=run_history,
+            skip_loop=(validity_status == "invalid"),
+        )
+        full_md = challenge_summary["final_md"]
+
+        # 挑战结果反向影响 validity:3 轮后仍 major_issues / parse_failed → 降为 partial
+        if validity_status == "valid":
+            fv = challenge_summary["final_verdict"]
+            if fv in ("major_issues", "parse_failed"):
+                validity_status = "partial"
+                logger.info("outline_validity_downgraded_by_challenge",
+                            bundle_id=bundle_id, final_verdict=fv,
+                            issues_remaining=challenge_summary["issues_remaining"])
 
         # 生成 docx(复用 v1 工具)
         docx_key: str | None = None
@@ -1671,11 +1703,18 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
             "agentic_version": "v2",
             "ltc_module_map": ltc_map_items,    # research v1 — 前端工作区消费
             "kb_candidates": kb_candidates_dump,  # research v1 — KB 召回 + 评分,前端右栏可剔除
+            "challenge_summary": {              # research v1 — 挑战循环结果给前端 ChallengeRoundsPanel 用
+                "rounds_total": challenge_summary["rounds_total"],
+                "final_verdict": challenge_summary["final_verdict"],
+                "issues_remaining": challenge_summary["issues_remaining"],
+            },
         })
         await _mark(bundle_id, "done", content_md=full_md, file_key=docx_key, extra=new_extra)
         await _mark_conv(bundle_id, "done")
         logger.info("outline_v2_generated", bundle_id=bundle_id, validity=validity_status,
-                    modules_n=len(module_contents))
+                    modules_n=len(module_contents),
+                    challenge_rounds=challenge_summary["rounds_total"],
+                    challenge_verdict=challenge_summary["final_verdict"])
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
