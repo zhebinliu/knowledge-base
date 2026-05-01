@@ -67,11 +67,18 @@ CRITIC_SYSTEM = """你是项目洞察报告的【质量评审 Critic】(资深 M
       "timeliness": 4,
       "next_step": 3,
       "overall": "needs_rework",
-      "issues": ["evidence: 风险一节未标注来源"]
+      "issues": ["证据:风险一节未标注来源"]
     },
     ...
   ]
 }
+
+【issues 写作规则】
+- 必须用简体中文,不要写英文术语,术语对照(必须替换):
+  Specificity → 具体性 / Evidence → 证据 / Timeliness → 时效性 / Next Step → 下一步
+  Owner → 责任人 / deadline → 截止日期 / completeness → 完整性
+- 引用 KB / 访谈 / Brief 来源时保留原始 ID 格式(K1, D1, [访谈] 等),不翻译
+- 每条 issue 一句话,15-30 字,顾问可直接 review 时按图索骥补漏
 """
 
 

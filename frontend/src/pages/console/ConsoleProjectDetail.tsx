@@ -23,6 +23,7 @@ import DocChecklist from '../../components/console/DocChecklist'
 import CenterWorkspace, { type CenterView } from '../../components/console/CenterWorkspace'
 import CitationsPanel from '../../components/console/CitationsPanel'
 import FloatingChat, { type FloatingChatState } from '../../components/console/FloatingChat'
+import ChallengeRoundsPanel from '../../components/console/ChallengeRoundsPanel'
 import ResearchV1Workspace from '../../components/console/research/ResearchV1Workspace'
 import QA from '../QA'
 import { useEffect } from 'react'
@@ -442,9 +443,12 @@ export default function ConsoleProjectDetail() {
         </div>
       </div>
 
-      {/* v2 partial validity banner — 仅 partial 时显示(invalid+short_circuited 走 V2GapFiller) */}
+      {/* v2 质量评审 panel —— 整合 critic 细节反馈 + challenger 整体挑战
+          所有 v2 done 报告都显示(valid 也展示挑战日志);
+          invalid+short_circuited 走 V2GapFiller(下方分支),这里跳过 */}
       {activeBundle?.agentic_version === 'v2'
-        && activeBundle.validity_status === 'partial'
+        && activeBundle.status === 'done'
+        && !(activeBundle.validity_status === 'invalid' && activeBundle.short_circuited)
         && (
           <V2ValidityBanner bundle={activeBundle} onReGenerate={startGeneration} />
         )}
@@ -659,29 +663,89 @@ function InsightV3Workspace({
   )
 }
 
+// ── i18n:critic LLM 偶尔输出英文术语,前端兜底翻译 ──────────────────────────
+const CRITIC_TERM_MAP: [RegExp, string][] = [
+  [/\bspecificity\b/gi, '具体性'],
+  [/\bevidence\b/gi, '证据'],
+  [/\btimeliness\b/gi, '时效性'],
+  [/\bnext_step\b/gi, '下一步'],
+  [/\bnext step\b/gi, '下一步'],
+  [/\bcompleteness\b/gi, '完整性'],
+  [/\bconsistency\b/gi, '一致性'],
+  [/\bjargon\b/gi, '黑话'],
+  [/\bOwner\b/g, '责任人'],
+  [/\bdeadline\b/gi, '截止日期'],
+]
+
+function localizeIssue(s: string): string {
+  let out = s
+  for (const [re, zh] of CRITIC_TERM_MAP) out = out.replace(re, zh)
+  return out
+}
+
 function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onReGenerate: () => void }) {
-  // 默认折叠 — 顶部 bar 已显示通过率 + 重生成按钮,详情按需展开
+  // 默认折叠 — 顶部 bar 已显示综合状态 + 重生成按钮,详情按需展开
   const [expanded, setExpanded] = useState(false)
   const isInvalid = bundle.validity_status === 'invalid'
   const askPrompts = bundle.ask_user_prompts || []
   const moduleStates = bundle.module_states || {}
   const all = Object.values(moduleStates).filter(Boolean) as NonNullable<typeof moduleStates[string]>[]
 
+  // critic 角度 — 模块细节状态
   const incompleteCritical = all.filter(m => m.necessity === 'critical' && (m.status === 'blocked' || m.status === 'insufficient' || m.status === 'failed'))
   const incompleteOptional = all.filter(m => m.necessity !== 'critical' && (m.status === 'blocked' || m.status === 'insufficient' || m.status === 'failed'))
   const warnCritical = all.filter(m => m.necessity === 'critical' && m.status === 'done_with_warnings')
   const warnOptional = all.filter(m => m.necessity !== 'critical' && m.status === 'done_with_warnings')
-  const allCriticalDone = all.filter(m => m.necessity === 'critical' && m.status === 'done').length
-  const totalCritical = all.filter(m => m.necessity === 'critical' && m.status !== 'skipped').length
 
-  const bg = isInvalid ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
-  const text = isInvalid ? 'text-red-700' : 'text-amber-700'
-  const textMuted = isInvalid ? 'text-red-700/80' : 'text-amber-700/80'
-  const label = isInvalid ? '信息不足' : '部分通过'
+  // 总待补项 = 未完成关键 + 关键有警告 + 未完成可选(可选警告权重低,不计入主信号)
+  const issuesCount = incompleteCritical.length + warnCritical.length + incompleteOptional.length
 
-  // 把模块 + critic issues 拼成 hint 行
+  // challenger 角度 — 整体审核
+  const cs = bundle.challenge_summary
+  const challengerVerdict = cs?.final_verdict
+  const challengerPassed = challengerVerdict === 'pass'
+  const challengerFailed = challengerVerdict === 'major_issues' || challengerVerdict === 'parse_failed'
+  const hasChallenge = !!cs && (cs.rounds_total ?? 0) > 0
+
+  // ── 综合主信号:优先级 invalid > challenger 失败 > critic 有问题 > 全通过 ──
+  let mainColor: 'red' | 'amber' | 'sky' | 'emerald'
+  let mainText: string
+  let mainIcon = ShieldAlert
+  if (isInvalid) {
+    mainColor = 'red'
+    mainText = '信息不足 — 关键字段缺失,补充后重新生成'
+  } else if (challengerFailed) {
+    mainColor = 'amber'
+    mainText = `挑战未通过${issuesCount > 0 ? ` · ${issuesCount} 项细节待补` : ''}`
+  } else if (challengerPassed && issuesCount === 0) {
+    mainColor = 'emerald'
+    mainText = '已通过整体审核'
+    mainIcon = CheckCircle2
+  } else if (challengerPassed) {
+    mainColor = 'sky'
+    mainText = `整体可交付 · ${issuesCount} 项细节待补`
+  } else if (issuesCount > 0) {
+    // 没跑挑战,只有 critic 信号
+    mainColor = 'amber'
+    mainText = `细节待补 ${issuesCount} 项`
+  } else {
+    mainColor = 'emerald'
+    mainText = '已通过质量评审'
+    mainIcon = CheckCircle2
+  }
+
+  const COLOR_MAP = {
+    red:     { bg: 'bg-red-50 border-red-200',         text: 'text-red-700',     btn: 'border-red-300 text-red-700 bg-white hover:bg-red-100' },
+    amber:   { bg: 'bg-amber-50 border-amber-200',     text: 'text-amber-700',   btn: 'border-amber-300 text-amber-700 bg-white hover:bg-amber-100' },
+    sky:     { bg: 'bg-sky-50 border-sky-200',         text: 'text-sky-700',     btn: 'border-sky-300 text-sky-700 bg-white hover:bg-sky-100' },
+    emerald: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', btn: 'border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-100' },
+  }[mainColor]
+
+  const MainIcon = mainIcon
+
+  // 把模块 + critic issues 拼成 hint 行(issues 经 localizeIssue 翻译英文术语)
   const renderModuleList = (mods: typeof all, cls: string) => mods.map((m, i) => {
-    const issues = m.score?.issues || []
+    const issues = (m.score?.issues || []).map(localizeIssue)
     return (
       <li key={i} className={cls}>
         <span className="font-medium">{m.title}</span>
@@ -692,11 +756,10 @@ function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onR
     )
   })
 
-  // 没任何明细可展示的兜底总结
-  const hasAnyDetail = incompleteCritical.length + incompleteOptional.length + warnCritical.length + warnOptional.length + askPrompts.length > 0
+  const hasAnyDetail = issuesCount + warnOptional.length + askPrompts.length + (hasChallenge ? 1 : 0) > 0
 
   return (
-    <div className={`flex-shrink-0 px-3 sm:px-4 py-2 border-b ${bg}`}>
+    <div className={`flex-shrink-0 px-3 sm:px-4 py-2 border-b ${COLOR_MAP.bg}`}>
       {/* 标题行 — 整行可点击展开/折叠 */}
       <div className="flex items-center gap-2">
         <button
@@ -704,82 +767,90 @@ function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onR
           className="flex items-center gap-1.5 min-w-0 flex-1 text-left hover:opacity-80"
           title={expanded ? '点击折叠详情' : '点击展开详情'}
         >
-          {expanded ? <ChevronDown size={12} className={`${text} shrink-0`} /> : <ChevronRight size={12} className={`${text} shrink-0`} />}
-          <ShieldAlert size={13} className={`${text} shrink-0`} />
-          <span className={`text-xs font-semibold ${text}`}>{label}</span>
-          {isInvalid && <span className="text-[11px] font-normal text-ink-secondary truncate">— 本份产物缺少关键信息,建议补充后重新生成</span>}
-          {!isInvalid && totalCritical > 0 && (
-            <span className="text-[11px] font-normal text-ink-secondary">
-              ({allCriticalDone}/{totalCritical} 关键模块完整通过)
+          {expanded ? <ChevronDown size={12} className={`${COLOR_MAP.text} shrink-0`} /> : <ChevronRight size={12} className={`${COLOR_MAP.text} shrink-0`} />}
+          <MainIcon size={13} className={`${COLOR_MAP.text} shrink-0`} />
+          <span className={`text-xs font-semibold ${COLOR_MAP.text}`}>{mainText}</span>
+          {hasChallenge && (
+            <span className="text-[10px] text-ink-muted ml-1">
+              · 挑战 {cs!.rounds_total} 轮
             </span>
           )}
         </button>
         <button
           onClick={onReGenerate}
-          className={`shrink-0 flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-md border ${
-            isInvalid ? 'border-red-300 text-red-700 bg-white hover:bg-red-100'
-                      : 'border-amber-300 text-amber-700 bg-white hover:bg-amber-100'
-          }`}
+          className={`shrink-0 flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-md border ${COLOR_MAP.btn}`}
         >
           <Sparkles size={10} /> {isInvalid ? '补充信息后重新生成' : '重新生成'}
         </button>
       </div>
 
-      {/* 详情区 — 默认收起 */}
+      {/* 详情区 — 默认收起,展开后包含【整体审核】+【细节待补】两节 */}
       {expanded && (
-        <div className="mt-1.5 ml-5">
-          {/* 关键模块未完成(blocked / insufficient / failed) */}
-          {incompleteCritical.length > 0 && (
-            <div className="mt-1 text-[11px] text-ink-secondary">
-              <span className="font-medium">未完成关键模块:</span>
-              <ul className="ml-4 mt-0.5 list-disc">{renderModuleList(incompleteCritical, '')}</ul>
+        <div className="mt-2 ml-5 space-y-3">
+          {/* —— 整体审核(挑战详情) —— */}
+          {hasChallenge && (
+            <div>
+              <div className={`text-[11px] font-semibold ${COLOR_MAP.text} mb-1`}>整体审核</div>
+              <ChallengeRoundsPanel bundleId={bundle.id} challengeSummary={cs} />
             </div>
           )}
 
-          {/* 关键模块质量不够(done_with_warnings) */}
-          {warnCritical.length > 0 && (
-            <div className="mt-1 text-[11px] text-ink-secondary">
-              <span className="font-medium">关键模块质量待提升:</span>
-              <ul className="ml-4 mt-0.5 list-disc">{renderModuleList(warnCritical, '')}</ul>
-              <div className="ml-4 mt-0.5 text-ink-muted/80">提示:补充更具体的证据 / 量化数据 / 责任人与截止日期,AI 评审会打更高分</div>
+          {/* —— 细节待补(critic) —— */}
+          {(issuesCount > 0 || warnOptional.length > 0 || askPrompts.length > 0) && (
+            <div>
+              <div className={`text-[11px] font-semibold ${COLOR_MAP.text} mb-1`}>
+                细节待补 — 由顾问 review 后补全(AI 评审给的提示)
+              </div>
+
+              {incompleteCritical.length > 0 && (
+                <div className="text-[11px] text-ink-secondary mt-1">
+                  <span className="font-medium">未完成关键模块:</span>
+                  <ul className="ml-4 mt-0.5 list-disc">{renderModuleList(incompleteCritical, '')}</ul>
+                </div>
+              )}
+
+              {warnCritical.length > 0 && (
+                <div className="text-[11px] text-ink-secondary mt-1">
+                  <span className="font-medium">关键模块质量待提升:</span>
+                  <ul className="ml-4 mt-0.5 list-disc">{renderModuleList(warnCritical, '')}</ul>
+                  <div className="ml-4 mt-0.5 text-ink-muted/80">提示:补充更具体的证据 / 量化数据 / 责任人与截止日期,AI 评审会打更高分</div>
+                </div>
+              )}
+
+              {incompleteOptional.length > 0 && (
+                <div className="text-[11px] text-ink-muted mt-1">
+                  <span className="font-medium">未完成可选模块:</span>
+                  <ul className="ml-4 mt-0.5 list-disc">{renderModuleList(incompleteOptional, '')}</ul>
+                  <div className="ml-4 mt-0.5">不影响整体合格性</div>
+                </div>
+              )}
+
+              {warnOptional.length > 0 && (
+                <details className="mt-1">
+                  <summary className="text-[11px] cursor-pointer text-ink-muted font-medium">
+                    可选模块质量提示({warnOptional.length} 个)
+                  </summary>
+                  <ul className="ml-4 mt-1 list-disc text-[11px] text-ink-muted">{renderModuleList(warnOptional, '')}</ul>
+                </details>
+              )}
+
+              {askPrompts.length > 0 && (
+                <details className="mt-1.5">
+                  <summary className={`text-[11px] cursor-pointer ${COLOR_MAP.text} font-medium`}>
+                    需要补充的信息({askPrompts.length} 项 — 点开展开)
+                  </summary>
+                  <ul className="mt-1.5 space-y-0.5 text-[11px] text-ink-secondary list-disc list-inside">
+                    {askPrompts.slice(0, 8).map((p, i) => <li key={i}>{p.question}</li>)}
+                  </ul>
+                </details>
+              )}
             </div>
           )}
 
-          {/* 可选模块未完成 */}
-          {incompleteOptional.length > 0 && (
-            <div className="mt-1 text-[11px] text-ink-muted">
-              <span className="font-medium">未完成可选模块:</span>
-              <ul className="ml-4 mt-0.5 list-disc">{renderModuleList(incompleteOptional, '')}</ul>
-              <div className="ml-4 mt-0.5">不影响整体洞察的合格性</div>
-            </div>
-          )}
-
-          {/* 可选模块质量提示(更弱信号,折叠) */}
-          {warnOptional.length > 0 && (
-            <details className="mt-1">
-              <summary className={`text-[11px] cursor-pointer ${textMuted} font-medium`}>
-                可选模块质量提示({warnOptional.length} 个)
-              </summary>
-              <ul className="ml-4 mt-1 list-disc text-[11px] text-ink-muted">{renderModuleList(warnOptional, '')}</ul>
-            </details>
-          )}
-
-          {/* 待补充字段(ask_user) */}
-          {askPrompts.length > 0 && (
-            <details className="mt-1.5">
-              <summary className={`text-[11px] cursor-pointer ${text} font-medium`}>
-                需要补充的信息({askPrompts.length} 项 — 点开展开)
-              </summary>
-              <ul className="mt-1.5 space-y-0.5 text-[11px] text-ink-secondary list-disc list-inside">
-                {askPrompts.slice(0, 8).map((p, i) => <li key={i}>{p.question}</li>)}
-              </ul>
-            </details>
-          )}
-
-          {/* 兜底:没明细 */}
+          {/* 兜底:都通过且没挑战 */}
           {!hasAnyDetail && (
-            <div className="mt-1 text-[11px] text-ink-muted italic">
-              没有具体的未完成项,可能是 AI 评审异常或模块状态丢失,建议重新生成。
+            <div className="text-[11px] text-ink-muted italic">
+              所有关键模块都通过质量评审,无需调整。
             </div>
           )}
         </div>

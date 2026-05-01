@@ -25,7 +25,6 @@ import V2GapFiller from '../V2GapFiller'
 import CitedReportView from './CitedReportView'
 import StakeholderCanvas from './StakeholderCanvas'
 import GenerationProgressCard from './GenerationProgressCard'
-import ChallengeRoundsPanel from './ChallengeRoundsPanel'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -383,18 +382,8 @@ function ReportView({
   return (
     <div className="h-full bg-canvas overflow-auto">
       <div className="max-w-[1200px] mx-auto px-5 py-5 space-y-4">
-        {/* v3.1 挑战回合面板(报告头部,默认折叠) */}
-        <ChallengeRoundsPanel bundleId={bundle.id} challengeSummary={bundle.challenge_summary} />
-
-        {validity && validity !== 'valid' && (
-          <div className={`px-3 py-2 rounded text-xs ${
-            validity === 'invalid' ? 'bg-red-50 text-red-800 border border-red-200' :
-                                     'bg-amber-50 text-amber-800 border border-amber-200'
-          }`}>
-            <AlertCircle size={11} className="inline mr-1" />
-            报告 validity:{validity === 'invalid' ? '信息不足' : '部分通过 — 挑战循环未完全通过'}
-          </div>
-        )}
+        {/* v3.6:挑战回合面板 + 单独的 validity 提示 已合并到 V2ValidityBanner(报告页顶部),
+            这里不再重复展示,避免双源头让用户混淆 */}
         {/* v3.4 M9 web 检索失败提示 — 不阻断阅读,只告诉用户 M9 章节质量可能下降 */}
         {bundle.web_search_status && !bundle.web_search_status.ok && (
           <div className="px-3 py-2 rounded text-xs bg-blue-50 text-blue-800 border border-blue-200">
