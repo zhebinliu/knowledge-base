@@ -185,19 +185,40 @@ def _parse_critique_json(raw: str) -> tuple[dict, str | None]:
 
     Returns: (parsed_dict, raw_kept_on_failure)
       - 成功:(parsed, None)
-      - 失败:(parse_failed_dict, raw_text_for_debug) — 罕见,只在完全没 verdict 也没 issues 时
+      - LLM 完全空输出(网络 / 超时 / 配额异常):视为 pass 不阻塞流程
+      - 极少见的格式异常:(parse_failed_dict, raw_text_for_debug)
 
     Markdown 容错性比 JSON 高,几乎不会失败 — LLM 只要照 example 写就行。
     """
-    original = raw
+    original = raw or ""
+
+    # 边界:LLM 直接返回空 content(网络 / 配额 / 超时),视为 pass 不阻塞业务
+    # 「无挑战意见」≈「报告通过」是更稳健的默认,挑战循环作为质量增强,
+    # 不应因 LLM 偶发问题让整个生成流程显示"未确认质量"。
+    if not (raw or "").strip():
+        logger.warning("challenger_empty_response_treated_as_pass",
+                       raw_len=len(original))
+        return {
+            "verdict": "pass",
+            "summary": "挑战器无返回内容,视为通过(可能是 LLM 超时 / 配额 / 网络异常)",
+            "issues": [],
+        }, None
+
     # 剥推理模型 think 块
     raw_clean = re.sub(r'<think>[\s\S]*?</think>', '', raw, flags=re.IGNORECASE).strip()
     # 截断未闭合的 think
     if '<think>' in raw_clean.lower():
         idx = raw_clean.lower().find('<think>')
         raw_clean = raw_clean[:idx].strip()
+    # think 剥光后空 → 用原文(可能 verdict 在 think 里)
     if not raw_clean:
-        raw_clean = raw  # 整段都在 think 里,fallback 用原文
+        raw_clean = raw
+
+    # 记录 raw 长度,便于诊断 LLM 输出形态
+    logger.info("challenger_raw_received",
+                raw_len=len(raw), clean_len=len(raw_clean),
+                has_think_block='<think>' in raw.lower(),
+                head=raw_clean[:120])
 
     # ── verdict ─────────────────────────────
     verdict_m = re.search(
