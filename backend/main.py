@@ -146,6 +146,10 @@ async def startup():
     # Seed agent configs from hardcoded defaults (idempotent)
     from services.config_service import config_service
     await config_service.seed_defaults()
+    # Seed atomic skills (idempotent — 已存在的 name 不覆盖,保留运营手改)
+    from services.agentic.skills_seed import seed_atomic_skills
+    skill_seed_result = await seed_atomic_skills()
+    logger.info("atomic_skills_seeded", **skill_seed_result)
     # Wire config service into model router
     from services.model_router import model_router
     model_router.set_config_service(config_service)
