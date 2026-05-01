@@ -24,6 +24,7 @@ import {
 } from '../../../api/client'
 import MarkdownView from '../../MarkdownView'
 import GenerationProgressCard from '../GenerationProgressCard'
+import ChallengeRoundsPanel from '../ChallengeRoundsPanel'
 import ResearchQuestionnaire from './ResearchQuestionnaire'
 
 type ResearchView = 'preparation' | 'outline' | 'questionnaire'
@@ -366,7 +367,8 @@ function ProductCard({
   )
 }
 
-/** 大纲 markdown 渲染 — list API 不返回 content_md,需单独 GET /api/outputs/{id} 拿详情。 */
+/** 大纲 markdown 渲染 — list API 不返回 content_md,需单独 GET /api/outputs/{id} 拿详情。
+ *  顶部插入 ChallengeRoundsPanel(跟 insight ReportView 对齐挑战回合展示)。 */
 function OutlineMarkdownView({ bundle }: { bundle: CuratedBundle }) {
   const { data, isLoading } = useQuery({
     queryKey: ['research-outline-detail', bundle.id],
@@ -381,7 +383,12 @@ function OutlineMarkdownView({ bundle }: { bundle: CuratedBundle }) {
   if (!md) {
     return <div className="text-sm text-ink-muted italic py-8 text-center">没有 markdown 内容</div>
   }
-  return <MarkdownView content={md} />
+  return (
+    <div className="space-y-3">
+      <ChallengeRoundsPanel bundleId={bundle.id} challengeSummary={bundle.challenge_summary} />
+      <MarkdownView content={md} />
+    </div>
+  )
 }
 
 function EmptyHint({ text }: { text: string }) {
