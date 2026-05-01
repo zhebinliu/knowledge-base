@@ -192,17 +192,17 @@ def _parse_critique_json(raw: str) -> tuple[dict, str | None]:
     """
     original = raw or ""
 
-    # 边界:LLM 直接返回空 content(网络 / 配额 / 超时),视为 pass 不阻塞业务
-    # 「无挑战意见」≈「报告通过」是更稳健的默认,挑战循环作为质量增强,
-    # 不应因 LLM 偶发问题让整个生成流程显示"未确认质量"。
+    # 边界:raw 完全空 — 标记原因供运维定位(常见:LLM 把所有 token 用在 think 上、
+    # API edge function 异常、max_tokens 用尽推理未输出 — 不是真"通过")
     if not (raw or "").strip():
-        logger.warning("challenger_empty_response_treated_as_pass",
-                       raw_len=len(original))
+        logger.warning("challenger_raw_empty",
+                       raw_len=len(original),
+                       hint="LLM 返回空 content,可能是 max_tokens 在 think 里用尽 / API 异常 / 网络超时")
         return {
-            "verdict": "pass",
-            "summary": "挑战器无返回内容,视为通过(可能是 LLM 超时 / 配额 / 网络异常)",
+            "verdict": "parse_failed",
+            "summary": "⚠ 挑战器返回空内容(可能 LLM 推理 token 在 <think> 块里用尽 / API 异常),建议查 celery 日志确认根因",
             "issues": [],
-        }, None
+        }, original[:4000]
 
     # 剥推理模型 think 块
     raw_clean = re.sub(r'<think>[\s\S]*?</think>', '', raw, flags=re.IGNORECASE).strip()
@@ -214,11 +214,13 @@ def _parse_critique_json(raw: str) -> tuple[dict, str | None]:
     if not raw_clean:
         raw_clean = raw
 
-    # 记录 raw 长度,便于诊断 LLM 输出形态
+    # 详细记录 raw 形态,便于诊断 LLM 行为模式
     logger.info("challenger_raw_received",
                 raw_len=len(raw), clean_len=len(raw_clean),
                 has_think_block='<think>' in raw.lower(),
-                head=raw_clean[:120])
+                think_unclosed='<think>' in raw.lower() and '</think>' not in raw.lower(),
+                raw_head=raw[:200],
+                raw_tail=raw[-200:] if len(raw) > 200 else "")
 
     # ── verdict ─────────────────────────────
     verdict_m = re.search(
@@ -384,13 +386,22 @@ async def challenge_report(*, full_md: str, model: str | None = None) -> tuple[d
                     {"role": "system", "content": CHALLENGER_SYSTEM},
                     {"role": "user", "content": cur_user_prompt},
                 ],
-                max_tokens=4000,
-                temperature=0.2 if attempt == 0 else 0.1,   # 重试时降温度,鼓励严格遵循 schema
+                max_tokens=8000,                            # 推理模型 think 块占用大,4000 容易跑光导致 content 空
+                temperature=0.2 if attempt == 0 else 0.1,
                 timeout=180.0,
                 strip_think=False,        # 关键:推理模型 GLM-5 可能把 JSON 也写在 <think>
                                             # 块里,默认剥光会变成空字符串。这里拿原始内容,
                                             # _parse_critique_json 用 _balanced_json_block 自己抓 JSON
             )
+            # 立即记录 LLM 返回的原始内容,定位"为什么空" — 是真没意见 / 推理跑光 / API 异常
+            _r = result or ""
+            logger.info("challenger_llm_returned",
+                        attempt=attempt + 1, model=used_model,
+                        len=len(_r),
+                        is_empty=not _r.strip(),
+                        has_think='<think>' in _r.lower(),
+                        think_unclosed='<think>' in _r.lower() and '</think>' not in _r.lower(),
+                        head=_r[:300], tail=_r[-200:] if len(_r) > 200 else "")
             critique, raw_on_fail = _parse_critique_json(result or "")
             if raw_on_fail is None:
                 # 解析成功
