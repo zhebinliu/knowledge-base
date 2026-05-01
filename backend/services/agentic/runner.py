@@ -1473,7 +1473,9 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
 
         async def _run_one(spec, assess):
             from .executor import execute_insight_module  # 模块化报告流程通用
-            content = await execute_insight_module(
+            # execute_insight_module 返回 dict {"content": str, "sources_index": dict},
+            # 必须抽出 content 字符串再传给 critic(critic 调 content[:3000] 切片需要 str)
+            result = await execute_insight_module(
                 module=spec, assessment=assess,
                 project=ctx["project"], industry=ctx["industry"],
                 transcript=ctx["transcript"], refs=ctx["refs_raw"],
@@ -1481,7 +1483,7 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
                 skill_text=ctx["skill_text"], agent_prompt=enhanced_agent_prompt,
                 model=ctx["agent_model"],
             )
-            return spec.key, content
+            return spec.key, (result.get("content") or "" if isinstance(result, dict) else result)
 
         results = await asyncio.gather(*(_run_one(s, a) for s, a in ready_pairs), return_exceptions=True)
         module_contents: dict[str, str] = {}
