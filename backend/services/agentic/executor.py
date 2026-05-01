@@ -387,6 +387,7 @@ async def execute_survey_subsection(
     model: str | None,
     ltc_module_key: str | None = None,   # research v1 — 用于 item_key 命名
     kb_inject_block: str = "",            # research v1 — KB 二次过滤后的高分参考(由调用方预先准备好)
+    customer_modules: list[str] | None = None,  # research v1 — SOW 中超出 LTC 字典的客户自定义模块
 ) -> dict:
     """生成单个 survey 分卷。
 
@@ -437,7 +438,30 @@ async def execute_survey_subsection(
     # research v1:item_key 前缀(顾问录入答案时按此 key 索引)
     item_key_prefix = ltc_module_key or subsection.key
 
+    # research v1:LTC 候选清单 — 让 LLM 知道每题该归到哪个 LTC 模块,
+    # 前端左栏按 LTC 字典 key 分组,题目必须打 LTC 字典内的 key 才会被命中
+    from .research.ltc_dictionary import ALL_LTC_MODULES, hints_for_subsection
+    candidate_ltc_keys = hints_for_subsection(subsection.key)
+    if not candidate_ltc_keys:
+        # 没有预置 hint(很少见)→ 给 LLM 全字典让它自由选
+        candidate_ltc_keys = [m.key for m in ALL_LTC_MODULES]
+    ltc_dict_block_lines = ["【LTC 流程模块字典 — ltc_module_key 必须从这些 key 中选】"]
+    for m in ALL_LTC_MODULES:
+        marker = "★" if m.key in candidate_ltc_keys else " "
+        ltc_dict_block_lines.append(f"  {marker} {m.key}: {m.label}")
+    # research v1:客户自定义模块(SOW 中超出 LTC 字典的项),也作为 ltc_module_key 候选
+    if customer_modules:
+        ltc_dict_block_lines.append("\n【本项目客户自定义模块 — SOW 中超出 LTC 字典的项,也是合法 ltc_module_key】")
+        for sow_term in customer_modules:
+            ltc_dict_block_lines.append(f"  ☆ {sow_term}")
+        ltc_dict_block_lines.append("如果题目内容跟 LTC 字典任何一项都不贴合,但跟某个 ☆ 客户自定义模块相关,可填客户自定义模块名作为 ltc_module_key。")
+    ltc_dict_block_lines.append(f"\n本分卷主要服务的 LTC 候选(★ 标记):{', '.join(candidate_ltc_keys[:8])}")
+    ltc_dict_block_lines.append("每题按其内容主旨,从 ★ 候选 / ☆ 客户自定义 / 全部 LTC 字典中选最贴合的 1 个填到 ltc_module_key 字段。")
+    ltc_dict_block = "\n".join(ltc_dict_block_lines)
+
     user_prompt = f"""请为本分卷生成一份**实施前调研问卷**。
+
+{ltc_dict_block}
 
 【分卷】{subsection.title}({subsection.layer})
 【目标受众】{target_roles_label}
@@ -478,6 +502,7 @@ async def execute_survey_subsection(
 [
   {{
     "item_key": "{item_key_prefix}::<英文小写下划线短标识,与本题问题语义一致>",
+    "ltc_module_key": "<必须从 LTC 字典中选 1 个 key,例 M02_opportunity>",
     "type": "single | multi | rating | number | text | node_pick",
     "question": "<同上方第 N 题的问题正文>",
     "why": "<同 *为什么问*>",
@@ -602,10 +627,14 @@ async def execute_survey_subsection(
     try:
         content = await _llm_call(user_prompt, system=system, model=model, max_tokens=6000, timeout=240.0)
         raw = content.strip()
-        # 拆 markdown / json
-        markdown, items = _split_markdown_and_questionnaire_json(raw, item_key_prefix=item_key_prefix,
-                                                                  ltc_module_key=ltc_module_key,
-                                                                  audience_roles=subsection.target_roles)
+        markdown, items = _split_markdown_and_questionnaire_json(
+            raw,
+            item_key_prefix=item_key_prefix,
+            ltc_module_key=ltc_module_key,
+            audience_roles=subsection.target_roles,
+            candidate_ltc_keys=candidate_ltc_keys,
+            customer_modules=customer_modules,
+        )
         return {"markdown": markdown, "questionnaire_items": items}
     except Exception as e:
         logger.warning("survey_executor_failed", subsection=subsection.key, error=str(e)[:200])
@@ -620,41 +649,42 @@ async def execute_survey_subsection(
 def _split_markdown_and_questionnaire_json(
     raw: str, *, item_key_prefix: str, ltc_module_key: str | None,
     audience_roles: list[str],
+    candidate_ltc_keys: list[str] | None = None,
+    customer_modules: list[str] | None = None,
 ) -> tuple[str, list[dict]]:
     """从 LLM 原始输出里拆分 Markdown 部分和 JSON 数组。
 
     LLM 应返回:<markdown> + ```json [...] ```。
-    解析失败时仅返回 markdown,questionnaire_items=[](前端会提示重新生成)。
+    解析失败时仅返回 markdown,questionnaire_items=[]。
 
     在 items 上做后处理:
-    - 注入 ltc_module_key / audience_roles
+    - 校验/兜底 ltc_module_key(必须在 LTC 字典 + customer_modules 内)
+    - audience_roles 注入
     - ensure_sentinels:single/multi/node_pick 必含"其他+不适用"
     - item_key 缺失时按前缀+序号兜底生成
     """
     import json
     import re
 
-    # 提取 ```json ... ``` 块(可能有多个,取最后一个 — LLM 可能在题干里也写了 json 围栏)
     fence_pattern = re.compile(r"```json\s*(\[[\s\S]*?\])\s*```", re.IGNORECASE)
     matches = fence_pattern.findall(raw)
     if not matches:
-        # 兜底:无围栏,直接找最后一个 [ ... ]
         i, j = raw.rfind("["), raw.rfind("]")
         if 0 <= i < j:
-            candidate = raw[i:j+1]
             try:
-                items_raw = json.loads(candidate)
+                items_raw = json.loads(raw[i:j+1])
                 markdown = raw[:i].rstrip()
                 return markdown, _post_process_items(items_raw,
                                                      item_key_prefix=item_key_prefix,
                                                      ltc_module_key=ltc_module_key,
-                                                     audience_roles=audience_roles)
+                                                     audience_roles=audience_roles,
+                                                     candidate_ltc_keys=candidate_ltc_keys,
+                                                     customer_modules=customer_modules)
             except Exception:
                 pass
         return raw, []
 
     json_text = matches[-1]
-    # markdown 是 json 围栏之前的内容
     fence_idx = raw.rfind("```json")
     markdown = raw[:fence_idx].rstrip() if fence_idx > 0 else raw
     try:
@@ -666,33 +696,48 @@ def _split_markdown_and_questionnaire_json(
     return markdown, _post_process_items(items_raw,
                                           item_key_prefix=item_key_prefix,
                                           ltc_module_key=ltc_module_key,
-                                          audience_roles=audience_roles)
+                                          audience_roles=audience_roles,
+                                          candidate_ltc_keys=candidate_ltc_keys,
+                                          customer_modules=customer_modules)
 
 
 def _post_process_items(
     items_raw: list, *, item_key_prefix: str, ltc_module_key: str | None,
     audience_roles: list[str],
+    candidate_ltc_keys: list[str] | None = None,
+    customer_modules: list[str] | None = None,
 ) -> list[dict]:
-    """规整结构化题目:补 sentinel 选项 / 注入 ltc / 兜底 item_key。"""
+    """规整结构化题目:校验 ltc_module_key / 补 sentinel / 兜底 item_key。"""
     from services.agentic.research.questionnaire_schema import (
         QuestionItem, OptionItem, ensure_sentinels,
     )
+    from services.agentic.research.ltc_dictionary import ALL_LTC_MODULES
+    valid_ltc_keys = {m.key for m in ALL_LTC_MODULES} | set(customer_modules or [])
+    fallback_ltc = ltc_module_key or (candidate_ltc_keys[0] if candidate_ltc_keys else None) or "_uncategorized"
+
     out: list[dict] = []
     for idx, raw in enumerate(items_raw, 1):
         if not isinstance(raw, dict):
             continue
         try:
-            # 强制注入 ltc_module_key + audience_roles(如果 LLM 没给或给错)
-            if ltc_module_key:
+            # 校验 ltc_module_key:必须在 LTC 字典 + 客户自定义模块集合内
+            llm_key = (raw.get("ltc_module_key") or "").strip()
+            if llm_key and llm_key in valid_ltc_keys:
+                # LLM 给的合法 key,采用
+                raw["ltc_module_key"] = llm_key
+            elif ltc_module_key:
+                # 调用方强制覆盖
                 raw["ltc_module_key"] = ltc_module_key
             else:
-                raw.setdefault("ltc_module_key", item_key_prefix)
+                # LLM 给的 key 不合法或没给 → 兜底用候选首项,避免落到 subsection.key 让前端找不到
+                logger.info("questionnaire_ltc_key_fallback",
+                            llm_gave=llm_key, fallback=fallback_ltc, item_idx=idx)
+                raw["ltc_module_key"] = fallback_ltc
+
             raw["audience_roles"] = list(audience_roles)
-            # item_key 兜底
             if not raw.get("item_key"):
                 raw["item_key"] = f"{item_key_prefix}::q{idx}"
 
-            # 补 sentinel
             t = raw.get("type")
             if t in ("single", "multi", "node_pick"):
                 opts_raw = raw.get("options") or []
@@ -702,7 +747,6 @@ def _post_process_items(
             else:
                 raw["options"] = []
 
-            # 跑一次 schema 序列化往返,过滤非法字段
             q = QuestionItem.from_dict(raw)
             out.append(q.to_dict())
         except Exception as e:

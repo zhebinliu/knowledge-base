@@ -321,3 +321,38 @@ def list_module_keys() -> list[str]:
 
 def modules_for_audience(role: AudienceRole) -> list[LTCModule]:
     return [m for m in ALL_LTC_MODULES if role in m.typical_audiences]
+
+
+# ── survey_modules.subsection.key → 候选 LTC key 列表 ────────────────────────
+# 让 LLM 在生成题目时知道该 subsection 主要服务哪些 LTC 流程,降低跨范围错配概率
+# 一个 subsection 可能跨多个 LTC,LLM 按题目内容选最贴合的一个
+SUBSECTION_TO_LTC_HINTS: dict[str, list[str]] = {
+    # L1 高管:跨多个,主要打到客户管理(战略层)
+    "L1_exec_alignment":  ["S01_customer", "M02_opportunity", "S05_integration"],
+    # 战略与目标
+    "biz_kpi":            ["M02_opportunity", "M07_ar", "S01_customer"],
+    # 组织与角色
+    "org_structure":      ["S01_customer", "S05_integration"],
+    "raci":               ["S05_integration"],
+    # 业务流程
+    "l2c":                ["M01_lead", "M02_opportunity", "M03_quote_bid", "M04_contract"],
+    "o2c":                ["M05_order", "M06_delivery", "M07_ar"],
+    "project_sales":      ["M02_opportunity", "M03_quote_bid", "M04_contract", "M06_delivery"],
+    "service":            ["M08_service"],
+    # 数据治理
+    "master_data":        ["S02_product", "S01_customer", "S05_integration"],
+    # 集成生态
+    "erp_integration":    ["S05_integration", "M07_ar"],
+    "other_systems":      ["S05_integration"],
+    # 合规与安全
+    "data_compliance":    ["S05_integration"],
+    # 资源与变革
+    "resource_plan":      ["S05_integration"],
+    "adoption":           ["S03_channel", "S04_marketing"],
+}
+
+
+def hints_for_subsection(sub_key: str) -> list[str]:
+    """返回某个 survey subsection 候选的 LTC keys。
+    若没在 mapping 里,回 [] 让 LLM 自由选。"""
+    return SUBSECTION_TO_LTC_HINTS.get(sub_key, [])

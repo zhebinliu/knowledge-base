@@ -116,12 +116,33 @@ export default function ResearchV1Workspace({
           ))}
           {(ltcMap?.items ?? []).filter(it => it.is_extra).length > 0 && (
             <div className="mt-2 pt-2 border-t border-line">
-              <div className="text-[10px] text-ink-muted px-1 mb-1">SOW 中超出字典</div>
-              {(ltcMap?.items ?? []).filter(it => it.is_extra).slice(0, 8).map(it => (
-                <div key={it.id} className="px-2 py-1 text-[11px] text-ink-muted truncate">
-                  · {it.sow_term}
-                </div>
-              ))}
+              <div className="text-[10px] text-ink-muted px-1 mb-1">SOW 客户自定义模块</div>
+              {Array.from(new Set((ltcMap?.items ?? []).filter(it => it.is_extra).map(it => it.sow_term)))
+                .slice(0, 12)
+                .map(sowTerm => {
+                  const selected = sowTerm === selectedLtcKey
+                  const answeredCount = questionnaireItems.filter(q => q.ltc_module_key === sowTerm).length
+                  return (
+                    <button
+                      key={sowTerm}
+                      onClick={() => {
+                        setSelectedLtcKey(sowTerm)
+                        if (surveyBundle) setView('questionnaire')
+                      }}
+                      className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-1.5 transition ${
+                        selected ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' : 'hover:bg-slate-50 text-ink-secondary'
+                      }`}
+                    >
+                      <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-purple-400" />
+                      <span className="truncate flex-1">{sowTerm}</span>
+                      {answeredCount > 0 && (
+                        <span className="text-[10px] text-ink-muted shrink-0 bg-slate-100 px-1 rounded">
+                          {answeredCount} 题
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
             </div>
           )}
         </div>
@@ -142,7 +163,7 @@ export default function ResearchV1Workspace({
           <div className="flex-1" />
           {selectedLtcKey && view === 'questionnaire' && (
             <span className="text-[11px] text-ink-muted">
-              当前模块:{ltcDict?.modules?.find(m => m.key === selectedLtcKey)?.label || '—'}
+              当前模块:{ltcDict?.modules?.find(m => m.key === selectedLtcKey)?.label || selectedLtcKey}
             </span>
           )}
         </div>

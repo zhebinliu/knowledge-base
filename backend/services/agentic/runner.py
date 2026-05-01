@@ -1130,6 +1130,33 @@ async def generate_survey_v2(bundle_id: str, project_id: str):
                        "brief_fields_n": len(ctx["brief_fields"])},
         })
 
+        # ── Phase 1.5: 拉 SOW → LTC 映射(outline 阶段已经写入,survey 阶段直接读) ──
+        # 含 is_extra=true 的项是客户自定义模块(超出 LTC 字典),survey 也要给它们生成题
+        from sqlalchemy import select
+        from models.research_ltc_module_map import ResearchLtcModuleMap
+        ltc_map_rows: list[dict] = []
+        try:
+            async with async_session_maker() as s:
+                rows = (await s.execute(
+                    select(ResearchLtcModuleMap)
+                    .where(ResearchLtcModuleMap.project_id == project_id)
+                )).scalars().all()
+            ltc_map_rows = [
+                {"sow_term": r.sow_term, "mapped_ltc_key": r.mapped_ltc_key,
+                 "confidence": r.confidence, "is_extra": r.is_extra}
+                for r in rows
+            ]
+        except Exception as e:
+            logger.warning("survey_load_ltc_map_failed", error=str(e)[:120])
+        # 客户自定义模块清单(去重)
+        customer_modules = sorted({
+            r["sow_term"] for r in ltc_map_rows if r.get("is_extra")
+        })
+        run_history.append({
+            "phase": "ltc_map_loaded", "ts": _ts(),
+            "detail": {"total": len(ltc_map_rows), "customer_modules": len(customer_modules)},
+        })
+
         # ── Plan ──
         plan = plan_survey(
             industry=ctx["industry"],
@@ -1157,8 +1184,9 @@ async def generate_survey_v2(bundle_id: str, project_id: str):
                 extra_seeds_from_pack=plan.extra_seeds_from_pack,
                 skill_text=ctx["skill_text"], agent_prompt=ctx["agent_prompt"],
                 model=ctx["agent_model"],
-                ltc_module_key=None,    # C.3 之后接入 sub→LTC 推断
-                kb_inject_block="",      # C.3 之后接入 KB 二次过滤
+                ltc_module_key=None,             # 由 LLM 在题目里自主打标(从 LTC 字典 + 客户自定义中选)
+                kb_inject_block="",
+                customer_modules=customer_modules,  # research v1:SOW 中超出字典的客户自定义模块
             )
             return sub_assessment.key, result
 
