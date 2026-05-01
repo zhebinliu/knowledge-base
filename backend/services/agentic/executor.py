@@ -496,18 +496,93 @@ async def execute_survey_subsection(
 ]
 ```
 
-【约束】
-- single/multi/node_pick 题的 options 必须包含「其他(请说明)」(value=__other__) 和「不适用」(value=__na__) 兜底
+【完整 few-shot 示例 — 严格按这个格式输出 markdown + JSON 配对】
+假设分卷是「商机管理」,生成 3 题(single / multi / rating 各一题),完整输出如下:
+
+---示例开始---
+
+本分卷面向**销售部门负责人 + 一线销售**,预计 5 分钟,梳理商机阶段定义和推进瓶颈。
+
+### 1. 你们目前用哪种商机阶段模型?
+- 类型: single
+- *为什么问:* 阶段模型决定 CRM 商机推进逻辑和赢率字段
+- *答案如何使用:* 落地到系统阶段配置 + 决定是否需要定制阶段
+- 选项: A. 华为 LTC 6 阶段 / B. MEDDIC / C. BANT / D. 自定义阶段 / E. 其他(请说明) / F. 不适用
+
+### 2. 商机推进的最大卡点是什么?(可多选)
+- 类型: multi
+- *为什么问:* 找到当前流程的核心痛点,决定 CRM 重点解决方向
+- *答案如何使用:* 蓝图设计阶段优先攻克的问题
+- 选项: A. 阶段定义模糊 / B. 决策链不清 / C. 缺少预警 / D. 赢率不准 / E. 战败无复盘 / F. 看板靠手工汇总 / G. 其他(请说明) / H. 不适用
+
+### 3. 当前商机数据完整度如何?
+- 类型: rating
+- *为什么问:* 数据基础决定 CRM 商机模块上线后的可用性
+- *答案如何使用:* 评估数据治理工作量
+
+```json
+[
+  {{
+    "item_key": "{item_key_prefix}::stage_model",
+    "type": "single",
+    "question": "你们目前用哪种商机阶段模型?",
+    "why": "阶段模型决定 CRM 商机推进逻辑和赢率字段",
+    "options": [
+      {{"value": "huawei_ltc", "label": "华为 LTC 6 阶段"}},
+      {{"value": "meddic", "label": "MEDDIC"}},
+      {{"value": "bant", "label": "BANT"}},
+      {{"value": "custom", "label": "自定义阶段"}},
+      {{"value": "__other__", "label": "其他(请说明)", "is_other": true}},
+      {{"value": "__na__", "label": "不适用", "is_not_applicable": true}}
+    ],
+    "required": true,
+    "hint": ""
+  }},
+  {{
+    "item_key": "{item_key_prefix}::推进卡点",
+    "type": "multi",
+    "question": "商机推进的最大卡点是什么?(可多选)",
+    "why": "找到当前流程的核心痛点,决定 CRM 重点解决方向",
+    "options": [
+      {{"value": "stage_unclear", "label": "阶段定义模糊"}},
+      {{"value": "decision_chain", "label": "决策链不清"}},
+      {{"value": "no_alert", "label": "缺少预警"}},
+      {{"value": "win_rate", "label": "赢率不准"}},
+      {{"value": "no_review", "label": "战败无复盘"}},
+      {{"value": "manual_dashboard", "label": "看板靠手工汇总"}},
+      {{"value": "__other__", "label": "其他(请说明)", "is_other": true}},
+      {{"value": "__na__", "label": "不适用", "is_not_applicable": true}}
+    ],
+    "required": true,
+    "hint": ""
+  }},
+  {{
+    "item_key": "{item_key_prefix}::data_completeness",
+    "type": "rating",
+    "question": "当前商机数据完整度如何?",
+    "why": "数据基础决定 CRM 商机模块上线后的可用性",
+    "options": [],
+    "rating_scale": 5,
+    "required": true,
+    "hint": "1=极差(基本字段都缺) / 5=完整(所有字段齐全)"
+  }}
+]
+```
+
+---示例结束---
+
+【硬性约束 — 严格遵守,否则解析会失败】
+- single/multi/node_pick 题的 options **必须**包含 __other__ 和 __na__ 兜底(参考示例)
 - text/number/rating 题的 options 数组留空 []
-- rating 题默认 rating_scale=5(1-5 分级)
-- item_key 全局唯一,稳定可复用(顾问录答案后再生成不要换 key)
-- JSON 必须可被 json.loads 解析,不要带注释
-- Markdown 与 JSON 的题目数量、顺序、内容必须一致
+- rating 题填 rating_scale=5,number 题填 number_unit
+- item_key 全局唯一(用 `{item_key_prefix}::` 前缀 + 简短英文小写下划线 / 中文都行,但**确保稳定**,顾问录答案后再生成时不要换 key)
+- JSON 必须可被 json.loads 解析:双引号、最后元素无逗号、不要写注释
+- Markdown 与 JSON 的题目数量、顺序、问题文本必须**一一对应**(自检一遍)
 - 每题问题颗粒度具体到可作答(不是"贵司销售流程如何?")
 - 已访谈过的话题不重复
 - 单分卷题量必须在 {qmin}-{qmax} 范围内
 - 不写黑话(赋能/抓手/闭环/链路/生态)
-- 用简体中文
+- 全部用简体中文
 """
     system = f"""你是 MBB 风格的资深 CRM 实施咨询顾问,擅长设计实施前调研问卷。
 你正在为分卷【{subsection.title}】生成问题,用于"顾问拿大纲口头问 + 系统选择题录入"的工作模式。
