@@ -147,9 +147,13 @@ async def startup():
     from services.config_service import config_service
     await config_service.seed_defaults()
     # Seed atomic skills (idempotent — 已存在的 name 不覆盖,保留运营手改)
-    from services.agentic.skills_seed import seed_atomic_skills
+    from services.agentic.skills_seed import seed_atomic_skills, seed_default_skill_associations
     skill_seed_result = await seed_atomic_skills()
     logger.info("atomic_skills_seeded", **skill_seed_result)
+    # Wire atomic skills 到 v3 三个 output kind 的默认 skill_ids
+    # idempotent:已配过 skill_ids 的 kind 不覆盖,空的填默认,不存在的创建
+    assoc_result = await seed_default_skill_associations()
+    logger.info("atomic_skills_associations_seeded", **assoc_result)
     # Wire config service into model router
     from services.model_router import model_router
     model_router.set_config_service(config_service)

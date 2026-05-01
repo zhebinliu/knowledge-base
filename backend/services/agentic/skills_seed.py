@@ -214,3 +214,103 @@ async def seed_atomic_skills() -> dict:
         if inserted > 0:
             await s.commit()
     return {"inserted": inserted, "skipped": skipped, "total": len(ATOMIC_SKILLS)}
+
+
+# ── 每个 output kind 默认应该启用的 atomic skill name 列表 ─────────────────
+# 反映"当前硬编码 prompt 已经隐含的方法论",首次部署时 idempotent 写入
+# agent_config.skill_ids;运营手动配过的(skill_ids 非空)不覆盖
+#
+# 注意:critic-rubric-sopact-4d / challenger-rubric-7d 不进任何 kind 的 skill_ids,
+# 因为它们是 critic.py / challenger.py 内部 system prompt 的内容,跟 output_agent
+# 的 skill_ids 不是同一注入点
+KIND_TO_ATOMIC_SKILLS: dict[str, list[str]] = {
+    "insight_v2": [
+        "output-style-mbb",
+        "output-anti-patterns-jargon",
+        "output-chinese-only",
+        "citation-d-k-w-format",
+        "output-no-h1-h2-titles",
+        "output-markdown-table-conventions",
+        "info-gap-handling",
+    ],
+    "survey_outline_v2": [
+        "output-style-mbb",
+        "output-anti-patterns-jargon",
+        "output-chinese-only",
+        "citation-d-k-w-format",
+        "output-no-h1-h2-titles",
+        "output-markdown-table-conventions",
+        "ltc-process-skeleton",
+        "info-gap-handling",
+    ],
+    "survey_v2": [
+        "output-chinese-only",
+        "survey-question-types-v1",
+        "output-json-strict",
+        "output-markdown-table-conventions",
+        "ltc-process-skeleton",
+        "output-anti-patterns-jargon",
+        "info-gap-handling",
+    ],
+}
+
+
+async def seed_default_skill_associations() -> dict:
+    """对 v3 三个 output kind 配置默认 skill_ids 关联,反映"已用方法论"。
+
+    规则(idempotent):
+    - agent_config(output_agent, kind) 不存在 → 创建,skill_ids = 默认列表
+    - 已存在但 skill_ids 为空 → 填默认列表
+    - 已存在且 skill_ids 非空 → **不动**(尊重运营手动配置)
+
+    返回 {"created": N, "updated_empty": N, "kept": N, "skipped_no_skill": N}
+    """
+    from sqlalchemy import select
+    from sqlalchemy.orm.attributes import flag_modified
+    from models import async_session_maker
+    from models.skill import Skill
+    from models.agent_config import AgentConfig
+
+    async with async_session_maker() as s:
+        rows = (await s.execute(select(Skill))).scalars().all()
+    skill_name_to_id = {r.name: r.id for r in rows}
+
+    counts = {"created": 0, "updated_empty": 0, "kept": 0, "skipped_no_skill": 0}
+
+    async with async_session_maker() as s:
+        for kind, skill_names in KIND_TO_ATOMIC_SKILLS.items():
+            wanted_ids = [skill_name_to_id[n] for n in skill_names if n in skill_name_to_id]
+            if not wanted_ids:
+                counts["skipped_no_skill"] += 1
+                continue
+
+            row = (await s.execute(
+                select(AgentConfig).where(
+                    AgentConfig.config_type == "output_agent",
+                    AgentConfig.config_key == kind,
+                )
+            )).scalar_one_or_none()
+
+            if row is None:
+                s.add(AgentConfig(
+                    config_type="output_agent",
+                    config_key=kind,
+                    config_value={"prompt": "", "skill_ids": wanted_ids, "model": None},
+                    description=f"Output agent for {kind}(atomic skills auto-seeded)",
+                ))
+                counts["created"] += 1
+                continue
+
+            cv = dict(row.config_value or {})
+            existing_skill_ids = cv.get("skill_ids") or []
+            if not existing_skill_ids:
+                cv["skill_ids"] = wanted_ids
+                cv.setdefault("prompt", "")
+                cv.setdefault("model", None)
+                row.config_value = cv
+                flag_modified(row, "config_value")
+                counts["updated_empty"] += 1
+            else:
+                counts["kept"] += 1
+        await s.commit()
+    return counts
