@@ -1,21 +1,42 @@
 """原子化 Skill 种子定义 — 把方法论 / 风格 / 规则 / rubric 拆成最小可复用单元。
 
 启动时 idempotent seed 到 skills 表(name 已存在则跳过,不覆盖运营手动改动)。
-运营在 /console/admin/skills 编辑后,通过 agent_config.skill_ids 关联到具体 output kind,
-生成时 _get_skill_snippets 会把启用的 skill 拼到 prompt 末尾。
+运营在 /system-config「技能库」编辑后,通过 agent_config.skill_ids 关联到具体 output
+kind,生成时 _get_skill_snippets 会把启用的 skill 拼到 prompt 末尾。
 
 设计原则:
 - 每条 skill 是**独立的最小单元**,不带 stage / kind 特定约束
-- skill 之间可自由组合:insight 用 [mbb-style + d-k-w-citation + chinese-only],
-  survey 用 [mbb-style + json-strict + chinese-only],等等
-- 命名按"主题-内容"小写连字符,name 唯一
+- skill 之间可自由组合:不同 output kind 选不同 skill 子集
+- name 用中文(运营友好),全局唯一
 """
+import structlog
+
+logger = structlog.get_logger()
+
+# 旧英文 name → 中文 name 迁移映射(防止 DB 里残留两套记录)
+# seed_atomic_skills 启动时先按这个 map 改 name,UUID 不变所以
+# agent_config.skill_ids 关联不会断
+LEGACY_NAME_MIGRATIONS: dict[str, str] = {
+    "output-style-mbb":                  "MBB 输出风格",
+    "output-anti-patterns-jargon":       "禁用黑话清单",
+    "output-chinese-only":               "强制中文输出",
+    "citation-d-k-w-format":             "D/K/W 引用 ID 规则",
+    "output-json-strict":                "严格 JSON 输出契约",
+    "output-no-h1-h2-titles":            "禁止 LLM 输出 H1/H2 标题",
+    "output-markdown-table-conventions": "Markdown 表格规范",
+    "critic-rubric-sopact-4d":           "Critic 4 维度 rubric",
+    "challenger-rubric-7d":              "Challenger 7 维度 rubric",
+    "survey-question-types-v1":          "调研问卷 6 题型规范",
+    "ltc-process-skeleton":              "LTC 流程骨架",
+    "info-gap-handling":                 "信息缺失处理规则",
+}
+
 
 ATOMIC_SKILLS: list[dict] = [
     # ── 风格类(全局通用)─────────────────────────────────────
     {
-        "name": "output-style-mbb",
-        "description": "MBB 输出风格(金字塔原理 + 表格优先 + 克制语气)",
+        "name": "MBB 输出风格",
+        "description": "金字塔原理 + 表格优先 + 克制语气",
         "prompt_snippet": """- MBB 风格(McKinsey/BCG/Bain),金字塔原理:**先抛结论,后给证据**
 - 表格优先于 bullet — 多个并列项首选 markdown 表格
 - 段落控制在 2-3 句,避免大段密文
@@ -23,8 +44,8 @@ ATOMIC_SKILLS: list[dict] = [
 - 关键概念用 **粗体** 强调,但不滥用""",
     },
     {
-        "name": "output-anti-patterns-jargon",
-        "description": "禁用 MBB 黑话清单 + 替换建议",
+        "name": "禁用黑话清单",
+        "description": "MBB 禁用黑话 + 替换建议",
         "prompt_snippet": """**禁用以下黑话**(立刻替换为具体动作):
 - 赋能 → 帮助 / 提供
 - 抓手 → 切入点 / 杠杆
@@ -37,7 +58,7 @@ ATOMIC_SKILLS: list[dict] = [
 写到这些词时,自检:能否用更具体的动作 / 工具 / 流程描述替换?""",
     },
     {
-        "name": "output-chinese-only",
+        "name": "强制中文输出",
         "description": "强制中文输出 + 英文术语对照表",
         "prompt_snippet": """**必须用简体中文**输出。常见英文术语强制替换:
 - Specificity → 具体性
@@ -54,8 +75,8 @@ ATOMIC_SKILLS: list[dict] = [
     },
     # ── 引用规则 ─────────────────────────────────────────
     {
-        "name": "citation-d-k-w-format",
-        "description": "[D1][K1][W1] 引用 ID 格式规则",
+        "name": "D/K/W 引用 ID 规则",
+        "description": "[D1][K1][W1] 引用 ID 格式约定",
         "prompt_snippet": """**每个事实陈述末尾必须用 ID 引用**,格式:
 - "陕西分公司 12/15 出现 2 次商机审批超时 [D2][K3]"
 - "行业典型周期 6-9 个月 [W1]"
@@ -73,8 +94,8 @@ ID 含义:
     },
     # ── 输出格式约束 ─────────────────────────────────────
     {
-        "name": "output-json-strict",
-        "description": "严格 JSON 输出契约 — 双引号、无尾逗号、无注释、无围栏",
+        "name": "严格 JSON 输出契约",
+        "description": "双引号 / 无尾逗号 / 无注释 / 无围栏",
         "prompt_snippet": """JSON 输出严格规则:
 1. 所有 key 用 **双引号** "key",不能用单引号
 2. 所有 string value 用 **双引号** "value",不能用单引号
@@ -86,8 +107,8 @@ ID 含义:
 8. **不要包 markdown 代码围栏**(``` 或 ```json)""",
     },
     {
-        "name": "output-no-h1-h2-titles",
-        "description": "禁止 LLM 输出 H1/H2 章节标题(系统会自动注入)",
+        "name": "禁止 LLM 输出 H1/H2 标题",
+        "description": "系统会自动注入章节标题",
         "prompt_snippet": """**禁止输出 H1 / H2 章节标题**(系统会自动注入模块标题)。
 - ❌ 不要写 `# 执行摘要` 或 `## 执行摘要`
 - ✅ 直接写正文内容
@@ -96,8 +117,8 @@ H3 (`###`) 及以下标题可正常使用,作为模块内部分节。""",
     },
     # ── Critic / Challenger rubric(评审类)─────────────
     {
-        "name": "critic-rubric-sopact-4d",
-        "description": "Critic 单模块 4 维度 Sopact rubric",
+        "name": "Critic 4 维度 rubric",
+        "description": "Sopact 单模块四要素打分标准",
         "prompt_snippet": """**Sopact 四要素打分**(0-4 分,Critic 单模块评审用):
 
 - **Specificity 具体性**:主语 / 对象 / 条件是否明确
@@ -113,8 +134,8 @@ H3 (`###`) 及以下标题可正常使用,作为模块内部分节。""",
 - 内容明显残缺(<200 字 或 全是占位符) → "insufficient" """,
     },
     {
-        "name": "challenger-rubric-7d",
-        "description": "Challenger 整文 7 维度对抗式审核",
+        "name": "Challenger 7 维度 rubric",
+        "description": "整文对抗式审核标准 — 包含一致性 / 完整性 / 黑话",
         "prompt_snippet": """**Challenger 7 维度**(整文挑战用,找问题导向):
 
 1. specificity 具体性
@@ -132,8 +153,8 @@ verdict 判定:
     },
     # ── 调研问卷设计 ──────────────────────────────────
     {
-        "name": "survey-question-types-v1",
-        "description": "调研问卷 6 题型规范(顾问勾选式录入)",
+        "name": "调研问卷 6 题型规范",
+        "description": "single/multi/rating/number/text/node_pick 六题型 + 顾问勾选式录入",
         "prompt_snippet": """**调研问卷 6 题型**(顾问拿大纲口头问 + 系统选择题录入):
 - 60% **single 单选** / **multi 多选** — 选项池预填,必含「其他(请说明)」+「不适用」
 - 15% **rating 分级** — 1-5 量表 / RAG 三色
@@ -147,8 +168,8 @@ verdict 判定:
 - 单分卷题量控制 8-15 题,5-10 分钟可填完""",
     },
     {
-        "name": "ltc-process-skeleton",
-        "description": "华为 LTC 标准流程骨架(8 主流程 + 5 横向支撑)",
+        "name": "LTC 流程骨架",
+        "description": "华为 LTC 端到端 — 8 主流程 + 5 横向支撑域",
         "prompt_snippet": """**LTC(Lead-to-Cash)标准流程骨架**:
 
 主流程(端到端):
@@ -164,8 +185,8 @@ verdict 判定:
     },
     # ── 信息缺失处理 ──────────────────────────────────
     {
-        "name": "info-gap-handling",
-        "description": "信息缺失处理 — 不编造,标记缺口,引导补访",
+        "name": "信息缺失处理规则",
+        "description": "不编造 / 标记缺口 / 引导补访",
         "prompt_snippet": """信息缺口处理规则:
 - 缺数据时**绝不编造** — 写"信息缺失,建议在 Phase 1 第一周补访"或"待客户提供"
 - 缺来源时**绝不裸输出无引用的事实** — 没素材支撑就别写
@@ -174,8 +195,8 @@ verdict 判定:
     },
     # ── 表格规范 ─────────────────────────────────────
     {
-        "name": "output-markdown-table-conventions",
-        "description": "Markdown 表格输出约定",
+        "name": "Markdown 表格规范",
+        "description": "列数 / 列宽 / 引用标注 / 数值列对齐",
         "prompt_snippet": """Markdown 表格规范:
 - 列标题用粗体或保持简短(不超过 6 个字)
 - 列数控制在 3-7 列(超过 7 列考虑改用 bullet / 嵌套)
@@ -190,7 +211,12 @@ verdict 判定:
 async def seed_atomic_skills() -> dict:
     """idempotent seed 原子 skills 到 skills 表。
 
-    返回 {"inserted": N, "skipped": N, "total": N}。
+    流程:
+    1. 先按 LEGACY_NAME_MIGRATIONS 把旧英文 name 改成中文 name(UUID 不变,
+       agent_config.skill_ids 关联保持有效)
+    2. 然后按 ATOMIC_SKILLS 列表 seed:已存在的中文 name 跳过,缺失的插入
+
+    返回 {"inserted": N, "skipped": N, "renamed": N, "total": N}。
     """
     from sqlalchemy import select
     from models import async_session_maker
@@ -198,9 +224,32 @@ async def seed_atomic_skills() -> dict:
 
     inserted = 0
     skipped = 0
+    renamed = 0
+
     async with async_session_maker() as s:
-        existing = (await s.execute(select(Skill.name))).scalars().all()
-        existing_names = set(existing)
+        # ── 1. 旧英文 name → 中文 name 迁移 ──
+        existing_rows = (await s.execute(select(Skill))).scalars().all()
+        existing_by_name = {r.name: r for r in existing_rows}
+        for old_name, new_name in LEGACY_NAME_MIGRATIONS.items():
+            old_row = existing_by_name.get(old_name)
+            new_row = existing_by_name.get(new_name)
+            if old_row and not new_row:
+                # 旧 name 存在,新 name 不存在 → 改名(保留 UUID)
+                old_row.name = new_name
+                renamed += 1
+            elif old_row and new_row:
+                # 都存在(异常,可能历史脏数据)→ 删旧的,保留新的
+                # agent_config.skill_ids 引用的是 ID,如果引用了旧 ID 这里会断
+                # 但实际上 LEGACY_NAME_MIGRATIONS 是单次迁移,正常不会有此分支
+                logger.warning("atomic_skills_legacy_dup",
+                               old=old_name, new=new_name,
+                               old_id=old_row.id, new_id=new_row.id)
+        if renamed > 0:
+            await s.commit()
+
+        # ── 2. seed 缺失的 skill ──
+        existing_rows = (await s.execute(select(Skill.name))).scalars().all()
+        existing_names = set(existing_rows)
         for sd in ATOMIC_SKILLS:
             if sd["name"] in existing_names:
                 skipped += 1
@@ -213,7 +262,9 @@ async def seed_atomic_skills() -> dict:
             inserted += 1
         if inserted > 0:
             await s.commit()
-    return {"inserted": inserted, "skipped": skipped, "total": len(ATOMIC_SKILLS)}
+
+    return {"inserted": inserted, "skipped": skipped,
+            "renamed": renamed, "total": len(ATOMIC_SKILLS)}
 
 
 # ── 每个 output kind 默认应该启用的 atomic skill name 列表 ─────────────────
@@ -225,32 +276,32 @@ async def seed_atomic_skills() -> dict:
 # 的 skill_ids 不是同一注入点
 KIND_TO_ATOMIC_SKILLS: dict[str, list[str]] = {
     "insight_v2": [
-        "output-style-mbb",
-        "output-anti-patterns-jargon",
-        "output-chinese-only",
-        "citation-d-k-w-format",
-        "output-no-h1-h2-titles",
-        "output-markdown-table-conventions",
-        "info-gap-handling",
+        "MBB 输出风格",
+        "禁用黑话清单",
+        "强制中文输出",
+        "D/K/W 引用 ID 规则",
+        "禁止 LLM 输出 H1/H2 标题",
+        "Markdown 表格规范",
+        "信息缺失处理规则",
     ],
     "survey_outline_v2": [
-        "output-style-mbb",
-        "output-anti-patterns-jargon",
-        "output-chinese-only",
-        "citation-d-k-w-format",
-        "output-no-h1-h2-titles",
-        "output-markdown-table-conventions",
-        "ltc-process-skeleton",
-        "info-gap-handling",
+        "MBB 输出风格",
+        "禁用黑话清单",
+        "强制中文输出",
+        "D/K/W 引用 ID 规则",
+        "禁止 LLM 输出 H1/H2 标题",
+        "Markdown 表格规范",
+        "LTC 流程骨架",
+        "信息缺失处理规则",
     ],
     "survey_v2": [
-        "output-chinese-only",
-        "survey-question-types-v1",
-        "output-json-strict",
-        "output-markdown-table-conventions",
-        "ltc-process-skeleton",
-        "output-anti-patterns-jargon",
-        "info-gap-handling",
+        "强制中文输出",
+        "调研问卷 6 题型规范",
+        "严格 JSON 输出契约",
+        "Markdown 表格规范",
+        "LTC 流程骨架",
+        "禁用黑话清单",
+        "信息缺失处理规则",
     ],
 }
 
