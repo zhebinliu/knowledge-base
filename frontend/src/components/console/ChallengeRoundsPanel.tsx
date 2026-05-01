@@ -50,11 +50,9 @@ const DIMENSION_LABEL: Record<string, string> = {
 }
 
 export default function ChallengeRoundsPanel({ bundleId, challengeSummary }: Props) {
-  // v3.4: final_verdict 不是 pass 时默认展开 — 让用户立刻看到具体问题,
-  // 不需要再点一下"展开"
-  const fv = challengeSummary?.final_verdict
-  const defaultOpen = !!fv && fv !== 'pass' && fv !== 'skipped' && fv !== 'skipped_invalid'
-  const [open, setOpen] = useState(defaultOpen)
+  // 一律默认折叠 — 顶部 bar 已显示轮数 + 最终 verdict,详情按需展开
+  // (原 v3.4 行为:not pass 时默认展开,实测太占位置)
+  const [open, setOpen] = useState(false)
   const { data, isLoading } = useQuery({
     queryKey: ['challenge-rounds', bundleId],
     queryFn: () => getChallengeRounds(bundleId),
