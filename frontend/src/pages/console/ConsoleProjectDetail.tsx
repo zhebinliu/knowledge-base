@@ -708,31 +708,39 @@ function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onR
   const challengerPassed = challengerVerdict === 'pass'
   const challengerHasIssues = challengerVerdict === 'major_issues'    // 挑战完成但有重大问题
   const challengerErrored = challengerVerdict === 'parse_failed'      // 挑战 LLM 输出格式异常,未完成审核
+  const issuesRemaining = cs?.issues_remaining ?? 0                    // 挑战循环结束后仍未解决的 major+ 数
   const hasChallenge = !!cs && (cs.rounds_total ?? 0) > 0
 
-  // ── 综合主信号:优先级 invalid > challenger 重大问题 > parse_failed > critic 有问题 > 全通过 ──
+  // ── 综合主信号:
+  //    优先级 invalid > 挑战循环跑完仍有 major+ > parse_failed > minor 但有 critic 待补
+  //    > 完全通过(pass + 0 issues + 0 remaining) > 整体可交付(有细节)
+  // ──
   let mainColor: 'red' | 'amber' | 'sky' | 'emerald'
   let mainText: string
   let mainIcon = ShieldAlert
   if (isInvalid) {
     mainColor = 'red'
     mainText = '信息不足 — 关键字段缺失,补充后重新生成'
-  } else if (challengerHasIssues) {
+  } else if (issuesRemaining > 0 || challengerHasIssues) {
+    // 挑战循环跑完后仍有 major+ 问题没解决(包括 verdict=major_issues 和
+    // verdict=minor_issues 但 issues_remaining > 0 的情况)
     mainColor = 'amber'
-    mainText = `挑战未通过${issuesCount > 0 ? ` · ${issuesCount} 项细节待补` : ''}`
+    mainText = `挑战 ${cs?.rounds_total ?? '?'} 轮后仍有 ${issuesRemaining} 项 major+ 问题未解决`
+      + (issuesCount > 0 ? ` · ${issuesCount} 项细节待补` : '')
   } else if (challengerErrored) {
-    // parse_failed 是 LLM 输出格式异常导致的解析失败,不是质量"未通过" — 措辞要分清
     mainColor = 'amber'
     mainText = `挑战未完成(LLM 输出解析异常)${issuesCount > 0 ? ` · ${issuesCount} 项细节待补` : ''}`
   } else if (challengerPassed && issuesCount === 0) {
     mainColor = 'emerald'
     mainText = '已通过整体审核'
     mainIcon = CheckCircle2
-  } else if (challengerPassed) {
+  } else if (challengerPassed || challengerVerdict === 'minor_issues') {
+    // 挑战 pass 或 minor_issues 且 issues_remaining=0(即跑完循环把 major+ 修干净了)
     mainColor = 'sky'
-    mainText = `整体可交付 · ${issuesCount} 项细节待补`
+    mainText = challengerVerdict === 'minor_issues'
+      ? `整体可交付 · ${issuesCount > 0 ? `${issuesCount} 项细节待补` : '剩余 minor 问题不阻塞发布'}`
+      : `整体可交付${issuesCount > 0 ? ` · ${issuesCount} 项细节待补` : ''}`
   } else if (issuesCount > 0) {
-    // 没跑挑战,只有 critic 信号
     mainColor = 'amber'
     mainText = `细节待补 ${issuesCount} 项`
   } else {
