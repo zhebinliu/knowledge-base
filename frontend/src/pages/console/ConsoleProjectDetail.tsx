@@ -10,6 +10,7 @@ import {
 import {
   getProject, updateProject, generateCustomerProfile, generateOutput,
   listProjectDocuments, getDocumentMarkdown, listOutputs, downloadOutputUrl, viewOutputUrl,
+  getOutput,
   getProjectMeta, TOKEN_STORAGE_KEY,
   getStageFlow,
   type CuratedBundle, type OutputKind, type Project, type ProjectDocument,
@@ -494,7 +495,10 @@ export default function ConsoleProjectDetail() {
           onSubmitted={() => refetchOutputs()}
         />
       ) : (
-        /* 主区:正常对话(其他非 insight_v2 stage) */
+        /* 主区(非 insight_v2 stage):
+           - 已生成 bundle (status=done) → 直接在工作区预览成果(HTML iframe / markdown / pptx 摘要)
+           - 否则走原对话生成 (ChatTabs + OutputChatPanel)
+           对话历史可通过 ChatTabs 顶部「对话生成」tab 切回查看 */}
         <div className="flex-1 min-h-0 flex flex-col bg-white">
           <ChatTabs
             mode={chatMode}
@@ -507,6 +511,8 @@ export default function ConsoleProjectDetail() {
               <div className="flex-1 min-h-0 h-full">
                 <QA lockedProjectId={id} />
               </div>
+            ) : activeBundle && activeBundle.status === 'done' && !activeInflight ? (
+              <BundleInlinePreview bundle={activeBundle} />
             ) : (
               <OutputChatPanel
                 key={`${chatMode.kind}-${id}`}
@@ -934,6 +940,71 @@ function BundlePreviewBtn({ b }: { b: CuratedBundle }) {
     >
       <ExternalLink size={11} /> 在线预览
     </button>
+  )
+}
+
+/** 工作区内联预览:已生成 bundle 直接展示成果。
+ *  - kickoff_html (单 HTML 文件 / .html 后缀):iframe 同源加载 viewOutputUrl + token query string
+ *  - 含 content_md(markdown 半结构化输出,如 PPT 脚本、insight v1):用 MarkdownView 渲染
+ *  - 仅有二进制文件无 markdown(如纯 .pptx):占位卡 + 下载提示
+ *  顶部不放重复操作 — 上面阶段条已经有「在线预览 / 下载 / 重新生成」按钮 */
+function BundleInlinePreview({ bundle }: { bundle: CuratedBundle }) {
+  const isHtmlFile = bundle.has_file && bundle.file_ext === 'html'
+  const token = isHtmlFile ? (localStorage.getItem(TOKEN_STORAGE_KEY) || '') : ''
+
+  // 非 HTML:拉完整 bundle 拿 content_md(列表接口为节省流量可能不返回 content_md)
+  const { data: full, isLoading } = useQuery({
+    queryKey: ['output-full', bundle.id],
+    queryFn: () => getOutput(bundle.id),
+    enabled: !isHtmlFile,
+    staleTime: 30 * 1000,
+  })
+
+  if (isHtmlFile) {
+    const url = `${viewOutputUrl(bundle.id)}?token=${encodeURIComponent(token)}`
+    return (
+      <iframe
+        key={bundle.id}
+        src={url}
+        title={bundle.title}
+        className="w-full h-full border-0 bg-white"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads"
+      />
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-ink-muted text-xs">
+        <Loader2 size={14} className="animate-spin mr-2" /> 加载交付物预览…
+      </div>
+    )
+  }
+
+  const md = full?.content_md || bundle.content_md || ''
+  if (md) {
+    return (
+      <div className="flex-1 min-h-0 overflow-auto px-6 py-5">
+        <MarkdownView content={md} size="base" toolbar={false} />
+      </div>
+    )
+  }
+
+  // 仅有二进制文件(常见为 .pptx)
+  return (
+    <div className="flex-1 flex items-center justify-center p-8">
+      <div className="max-w-md w-full rounded-2xl border border-line bg-canvas px-6 py-7 text-center">
+        <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-orange-100 flex items-center justify-center">
+          <FileText size={22} className="text-orange-700" />
+        </div>
+        <p className="text-sm text-ink mb-1">{bundle.title}</p>
+        <p className="text-xs text-ink-muted mb-4">
+          这份交付物为二进制文件{bundle.file_ext ? `(.${bundle.file_ext})` : ''},
+          浏览器无法内联预览。请下载到本地查看,或通过顶部「重新生成」开启新一轮对话。
+        </p>
+        <BundleDownloadBtn b={bundle} />
+      </div>
+    </div>
   )
 }
 
