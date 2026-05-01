@@ -344,36 +344,69 @@ async def challenge_report(*, full_md: str, model: str | None = None) -> tuple[d
 
 {report_for_prompt}
 """
-    try:
-        result, used_model = await model_router.chat_with_routing(
-            "conversion_refine",                        # 复用 glm-5 (review/judging best_for)
-            [
-                {"role": "system", "content": CHALLENGER_SYSTEM},
-                {"role": "user", "content": user_prompt},
-            ],
-            max_tokens=4000,
-            temperature=0.2,
-            timeout=180.0,
-            strip_think=False,        # 关键:推理模型 GLM-5 可能把 JSON 也写在 <think>
-                                        # 块里,默认剥光会变成空字符串。这里拿原始内容,
-                                        # _parse_critique_json 用 _balanced_json_block 自己抓 JSON
-        )
-        critique, raw_on_fail = _parse_critique_json(result or "")
-        logger.info(
-            "challenger_round_done",
-            verdict=critique["verdict"],
-            issues_n=len(critique["issues"]),
-            model=used_model,
-            parse_failed=raw_on_fail is not None,
-        )
-        return critique, used_model, raw_on_fail
-    except Exception as e:
-        logger.warning("challenger_failed", err=str(e)[:160])
-        return {
-            "verdict": "pass",
-            "summary": f"挑战器调用失败,跳过: {str(e)[:80]}",
-            "issues": [],
-        }, "", None
+    # 自动重试 1 次:LLM 偶发输出格式异常(non-strict JSON)→ 解析失败时再调用一次。
+    # 第二次 prompt 末尾追加"上次输出无法解析"的反馈,提高重试成功率。
+    MAX_RETRIES = 2
+    last_raw_on_fail: str | None = None
+    used_model: str = ""
+    for attempt in range(MAX_RETRIES):
+        cur_user_prompt = user_prompt
+        if attempt > 0 and last_raw_on_fail:
+            # 重试时把上次失败的输出作为反馈附在 prompt 末尾,让 LLM 知道哪里错了
+            cur_user_prompt += (
+                f"\n\n⚠ **上次你的输出无法被 json.loads 解析**,以下是无效片段(前 800 字),"
+                f"请严格按 system 的合法示例重新输出纯 JSON:\n\n"
+                f"```\n{last_raw_on_fail[:800]}\n```\n"
+            )
+        try:
+            result, used_model = await model_router.chat_with_routing(
+                "conversion_refine",                        # 复用 glm-5 (review/judging best_for)
+                [
+                    {"role": "system", "content": CHALLENGER_SYSTEM},
+                    {"role": "user", "content": cur_user_prompt},
+                ],
+                max_tokens=4000,
+                temperature=0.2 if attempt == 0 else 0.1,   # 重试时降温度,鼓励严格遵循 schema
+                timeout=180.0,
+                strip_think=False,        # 关键:推理模型 GLM-5 可能把 JSON 也写在 <think>
+                                            # 块里,默认剥光会变成空字符串。这里拿原始内容,
+                                            # _parse_critique_json 用 _balanced_json_block 自己抓 JSON
+            )
+            critique, raw_on_fail = _parse_critique_json(result or "")
+            if raw_on_fail is None:
+                # 解析成功
+                logger.info(
+                    "challenger_round_done",
+                    verdict=critique["verdict"],
+                    issues_n=len(critique["issues"]),
+                    model=used_model,
+                    attempt=attempt + 1,
+                )
+                return critique, used_model, None
+            # 解析失败 — 记下来准备重试
+            last_raw_on_fail = raw_on_fail
+            logger.warning(
+                "challenger_parse_failed_retrying",
+                attempt=attempt + 1, max_retries=MAX_RETRIES,
+                model=used_model, raw_head=raw_on_fail[:200],
+            )
+        except Exception as e:
+            logger.warning("challenger_call_exception", attempt=attempt + 1, err=str(e)[:160])
+            if attempt == MAX_RETRIES - 1:
+                # 最后一次还异常 → 走外层兜底
+                return {
+                    "verdict": "pass",
+                    "summary": f"挑战器调用异常,跳过: {str(e)[:80]}",
+                    "issues": [],
+                }, "", None
+
+    # 所有重试都解析失败 → 返回 parse_failed 状态
+    logger.warning("challenger_all_retries_parse_failed", retries=MAX_RETRIES)
+    return {
+        "verdict": "parse_failed",
+        "summary": f"挑战器输出 {MAX_RETRIES} 次都无法解析,跳过本轮审核",
+        "issues": [],
+    }, used_model, last_raw_on_fail
 
 
 REGEN_SYSTEM_SUFFIX = """
