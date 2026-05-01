@@ -162,7 +162,7 @@ export default function ResearchV1Workspace({
             />
           )}
           {view === 'outline' && (
-            <div className="p-6 max-w-4xl mx-auto">
+            <div className="p-5 max-w-[1200px] mx-auto">
               {outlineBundle ? (
                 <OutlineMarkdownView bundle={outlineBundle} />
               ) : (
@@ -422,12 +422,14 @@ function OutlineMarkdownView({ bundle }: { bundle: CuratedBundle }) {
   if (Object.keys(provenance).length === 0) {
     return <MarkdownView content={md} />
   }
+  // 不再额外包白卡 — 外层中栏已经是白底(ResearchV1Workspace),包白卡会双白叠加
+  // (insight 用白卡是因为它中栏外层是 bg-canvas 灰底)
   return (
-    <div className="bg-white rounded-xl border border-line shadow-sm overflow-hidden">
-      <div className="px-6 py-5 overflow-x-auto">
-        <CitedReportView content={md} provenance={provenance} onCitationClick={() => { /* outline 暂无右栏引用追溯,空操作 */ }} />
-      </div>
-    </div>
+    <CitedReportView
+      content={md}
+      provenance={provenance}
+      onCitationClick={() => { /* outline 暂无右栏引用追溯,空操作 */ }}
+    />
   )
 }
 

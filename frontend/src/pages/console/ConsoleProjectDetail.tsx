@@ -704,19 +704,24 @@ function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onR
   const cs = bundle.challenge_summary
   const challengerVerdict = cs?.final_verdict
   const challengerPassed = challengerVerdict === 'pass'
-  const challengerFailed = challengerVerdict === 'major_issues' || challengerVerdict === 'parse_failed'
+  const challengerHasIssues = challengerVerdict === 'major_issues'    // 挑战完成但有重大问题
+  const challengerErrored = challengerVerdict === 'parse_failed'      // 挑战 LLM 输出格式异常,未完成审核
   const hasChallenge = !!cs && (cs.rounds_total ?? 0) > 0
 
-  // ── 综合主信号:优先级 invalid > challenger 失败 > critic 有问题 > 全通过 ──
+  // ── 综合主信号:优先级 invalid > challenger 重大问题 > parse_failed > critic 有问题 > 全通过 ──
   let mainColor: 'red' | 'amber' | 'sky' | 'emerald'
   let mainText: string
   let mainIcon = ShieldAlert
   if (isInvalid) {
     mainColor = 'red'
     mainText = '信息不足 — 关键字段缺失,补充后重新生成'
-  } else if (challengerFailed) {
+  } else if (challengerHasIssues) {
     mainColor = 'amber'
     mainText = `挑战未通过${issuesCount > 0 ? ` · ${issuesCount} 项细节待补` : ''}`
+  } else if (challengerErrored) {
+    // parse_failed 是 LLM 输出格式异常导致的解析失败,不是质量"未通过" — 措辞要分清
+    mainColor = 'amber'
+    mainText = `挑战未完成(LLM 输出解析异常)${issuesCount > 0 ? ` · ${issuesCount} 项细节待补` : ''}`
   } else if (challengerPassed && issuesCount === 0) {
     mainColor = 'emerald'
     mainText = '已通过整体审核'
