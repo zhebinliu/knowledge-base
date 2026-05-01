@@ -1473,8 +1473,7 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
 
         async def _run_one(spec, assess):
             from .executor import execute_insight_module  # 模块化报告流程通用
-            # execute_insight_module 返回 dict {"content": str, "sources_index": dict},
-            # 必须抽出 content 字符串再传给 critic(critic 调 content[:3000] 切片需要 str)
+            # execute_insight_module 返回 dict {"content": str, "sources_index": dict}
             result = await execute_insight_module(
                 module=spec, assessment=assess,
                 project=ctx["project"], industry=ctx["industry"],
@@ -1482,17 +1481,23 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
                 extra_kb_refs=kb_refs,
                 skill_text=ctx["skill_text"], agent_prompt=enhanced_agent_prompt,
                 model=ctx["agent_model"],
+                docs_by_type=ctx.get("docs_by_type"),  # 让 executor 把 D 类源(项目文档)编入 sources_index
             )
-            return spec.key, (result.get("content") or "" if isinstance(result, dict) else result)
+            if isinstance(result, dict):
+                return spec.key, result.get("content", ""), result.get("sources_index", {})
+            return spec.key, (result or ""), {}
 
         results = await asyncio.gather(*(_run_one(s, a) for s, a in ready_pairs), return_exceptions=True)
         module_contents: dict[str, str] = {}
+        provenance: dict[str, dict] = {}      # research v1:{module_key: sources_index} — 跟 insight v3 对齐
         for r in results:
             if isinstance(r, Exception):
                 logger.warning("outline_executor_exception", error=str(r)[:200])
                 continue
-            mk, content = r
+            mk, content, sources_idx = r
             module_contents[mk] = content
+            if sources_idx:
+                provenance[mk] = sources_idx
         run_history.append({
             "phase": "executed", "ts": _ts(),
             "detail": {"completed": list(module_contents.keys())},
@@ -1703,6 +1708,7 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
             "agentic_version": "v2",
             "ltc_module_map": ltc_map_items,    # research v1 — 前端工作区消费
             "kb_candidates": kb_candidates_dump,  # research v1 — KB 召回 + 评分,前端右栏可剔除
+            "provenance": provenance,           # research v1 — 跟 insight v3 对齐,CitedReportView 渲染角标用
             "challenge_summary": {              # research v1 — 挑战循环结果给前端 ChallengeRoundsPanel 用
                 "rounds_total": challenge_summary["rounds_total"],
                 "final_verdict": challenge_summary["final_verdict"],

@@ -23,6 +23,7 @@ import {
   type OutputKind,
 } from '../../../api/client'
 import MarkdownView from '../../MarkdownView'
+import CitedReportView from '../CitedReportView'
 import GenerationProgressCard from '../GenerationProgressCard'
 import ResearchQuestionnaire from './ResearchQuestionnaire'
 
@@ -398,8 +399,9 @@ function ProductCard({
   )
 }
 
-/** 大纲 markdown 渲染 — list API 不返回 content_md,需单独 GET /api/outputs/{id} 拿详情。
- *  挑战回合 + 质量评审已合并到 ConsoleProjectDetail 顶部的 V2ValidityBanner,这里不重复。 */
+/** 大纲 markdown 渲染 — 复用 insight 同款 CitedReportView,把 [D1][K1][W1] 角标渲染成
+ *  可点击橙色徽章。bundle.provenance 由 generate_outline_v2 在 v3.7+ 写入。
+ *  list API 不返回 content_md / provenance,需单独 GET /api/outputs/{id} 拿详情。 */
 function OutlineMarkdownView({ bundle }: { bundle: CuratedBundle }) {
   const { data, isLoading } = useQuery({
     queryKey: ['research-outline-detail', bundle.id],
@@ -414,7 +416,19 @@ function OutlineMarkdownView({ bundle }: { bundle: CuratedBundle }) {
   if (!md) {
     return <div className="text-sm text-ink-muted italic py-8 text-center">没有 markdown 内容</div>
   }
-  return <MarkdownView content={md} />
+  // provenance 在 list 接口和 detail 接口都可能有,优先取 detail
+  const provenance = (data?.provenance ?? bundle.provenance) || {}
+  // 旧 bundle(没跑过 v3.7 的 outline)provenance 为空 → 退回 MarkdownView
+  if (Object.keys(provenance).length === 0) {
+    return <MarkdownView content={md} />
+  }
+  return (
+    <div className="bg-white rounded-xl border border-line shadow-sm overflow-hidden">
+      <div className="px-6 py-5 overflow-x-auto">
+        <CitedReportView content={md} provenance={provenance} onCitationClick={() => { /* outline 暂无右栏引用追溯,空操作 */ }} />
+      </div>
+    </div>
+  )
 }
 
 function EmptyHint({ text }: { text: string }) {
