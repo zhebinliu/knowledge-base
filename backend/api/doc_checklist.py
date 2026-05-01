@@ -140,16 +140,38 @@ async def get_doc_checklist(project_id: str, stage: str = "insight_v2"):
             "uploaded_at": r.created_at.isoformat() if r.created_at else None,
         })
 
+    # 4.5. 干系人画布 — 用户在前端画了组织架构图(写到 ProjectBrief.stakeholder_graph),
+    #      虽然不是上传文件,但也应该算 stakeholder_map 这个推荐资料"已完成"
+    stakeholder_canvas_filled = False
+    async with async_session_maker() as s:
+        from models.project_brief import ProjectBrief
+        sg_row = (await s.execute(
+            select(ProjectBrief).where(
+                ProjectBrief.project_id == project_id,
+                ProjectBrief.output_kind == "stakeholder_graph",
+            )
+        )).scalar_one_or_none()
+        if sg_row and sg_row.fields:
+            # 画布有节点 / 边就算填了
+            f = sg_row.fields
+            nodes = f.get("nodes") if isinstance(f, dict) else None
+            stakeholder_canvas_filled = bool(nodes) and len(nodes) > 0
+
     def _render_doc_slot(doc_type: str, necessity: str) -> dict:
         uploaded = docs_by_type.get(doc_type, [])
+        is_uploaded = len(uploaded) > 0
+        # 特殊处理:干系人画布(stakeholder_map)不仅看上传文件,也看前端画布是否填了
+        if doc_type == "stakeholder_map" and stakeholder_canvas_filled:
+            is_uploaded = True
         return {
             "doc_type": doc_type,
             "label": DOC_TYPE_LABELS.get(doc_type, doc_type),
             "necessity": necessity,                 # required | recommended
-            "uploaded": len(uploaded) > 0,
-            "uploaded_count": len(uploaded),
-            "documents": uploaded,                  # 可能多份
+            "uploaded": is_uploaded,
+            "uploaded_count": len(uploaded) + (1 if doc_type == "stakeholder_map" and stakeholder_canvas_filled else 0),
+            "documents": uploaded,                  # 可能多份(画布不在这里展示,前端通过专门的"画布"按钮入口看)
             "kind": "doc",
+            "has_canvas": doc_type == "stakeholder_map" and stakeholder_canvas_filled,
         }
 
     required_docs    = [_render_doc_slot(dt, "required")    for dt in req.get("required_docs",    [])]

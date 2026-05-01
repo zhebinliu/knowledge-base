@@ -445,8 +445,10 @@ export default function ConsoleProjectDetail() {
 
       {/* v2 质量评审 panel —— 整合 critic 细节反馈 + challenger 整体挑战
           所有 v2 done 报告都显示(valid 也展示挑战日志);
-          invalid+short_circuited 走 V2GapFiller(下方分支),这里跳过 */}
-      {activeBundle?.agentic_version === 'v2'
+          invalid+short_circuited 走 V2GapFiller(下方分支),这里跳过;
+          inflight 时隐藏 — 避免显示旧 bundle 的"已通过审核"误导用户 */}
+      {!activeInflight
+        && activeBundle?.agentic_version === 'v2'
         && activeBundle.status === 'done'
         && !(activeBundle.validity_status === 'invalid' && activeBundle.short_circuited)
         && (
