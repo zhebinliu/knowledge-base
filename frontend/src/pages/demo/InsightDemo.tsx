@@ -119,18 +119,23 @@ export default function InsightDemo() {
       </Step>
 
       {/* Step 3 */}
-      <Step n={3} title="后台先评估「信息够不够」,缺的去补">
+      <Step n={3} title="想知道生成会不会成功?点「先看体检」">
         <p className="text-sm text-ink-secondary mb-3">
-          后台不直接喂给 LLM 写报告。先做一遍体检:每个模块要哪些字段,有的标 ✓,缺的去 KB 检索 / 等你补。
-          这就是我们说的"agent 不再蒙头写"。
+          PreparationView 中栏顶部 Hero 卡片的 CTA 区,有个 <strong>「先看体检」</strong> 按钮(在「开始生成」旁边)。
+          点开能看到 <strong>每个章节的字段够不够、缺什么、能不能成功生成</strong>。
+          后台体检是规则化判断,<strong>不调 LLM 几秒钟出结果</strong>,让 PM 提前补缺,而不是等失败再补。
         </p>
         <MockEvidenceAssessment />
+        <p className="text-[11px] text-ink-muted mt-2">
+          ↑ 弹出的体检 Drawer 样式 — 顶部综合判定(够 / 不够),中间按章节展开看字段状态,底部列待补字段清单。
+        </p>
       </Step>
 
       {/* Step 4 */}
-      <Step n={4} title="并行生成 10 个模块的内容">
+      <Step n={4} title="点「开始生成」,等 1-3 分钟拿报告">
         <p className="text-sm text-ink-secondary mb-3">
-          每个模块都有自己的"该写什么、用什么证据、怎么算质量",10 个模块同时跑,大约 60-180 秒能拿到结果。
+          系统先并行生成 10 个章节,然后挑战员来挑刺,有重大问题的章节带反馈重生成,最多 3 轮。
+          整个过程 PM <strong>不需要任何操作</strong>,工作台显示阶段进度 + 当前在跑的章节。
         </p>
         <MockGenerationProgress />
       </Step>
@@ -629,41 +634,70 @@ function MockEvidenceAssessment() {
   )
 }
 
-// ── 样式预览:并行生成进度 ────────────────────────────────────────────────────
+// ── Mock 生成进度卡(跟工作台 GenerationProgressCard 1:1 视觉对齐) ──────
 
 function MockGenerationProgress() {
-  const items = [
-    { name: 'M1 执行摘要',         pct: 100, color: 'bg-emerald-500' },
-    { name: 'M2 项目快照',         pct: 100, color: 'bg-emerald-500' },
-    { name: 'M3 健康度雷达',       pct: 80,  color: 'bg-blue-500' },
-    { name: 'M4 干系人画像',       pct: 100, color: 'bg-emerald-500' },
-    { name: 'M5 行业上下文',       pct: 70,  color: 'bg-blue-500' },
-    { name: 'M6 关键发现',         pct: 60,  color: 'bg-blue-500' },
-    { name: 'M7 RAID 表',          pct: 100, color: 'bg-emerald-500' },
-    { name: 'M8 依赖与里程碑',     pct: 90,  color: 'bg-blue-500' },
-    { name: 'M9 行业最佳实践',     pct: 50,  color: 'bg-blue-500' },
-    { name: 'M10 下一步建议',      pct: 100, color: 'bg-emerald-500' },
+  const stages = [
+    { key: 'planning',    label: '规划',   color: '#3B82F6', done: true },
+    { key: 'executing',   label: '生成',   color: '#8B5CF6', done: true },
+    { key: 'critiquing',  label: '打分',   color: '#0EA5E9', done: true },
+    { key: 'challenging', label: '挑战',   color: '#D96400', current: true },
+    { key: 'regenerating',label: '重生成', color: '#F59E0B', done: false },
+    { key: 'finalizing',  label: '入库',   color: '#10B981', done: false },
   ]
   return (
-    <div className="bg-white border border-line rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <Loader2 size={13} className="text-blue-500 animate-spin" />
-        <span className="text-sm font-medium text-ink">10 个模块并行生成中…</span>
-        <span className="ml-auto text-[11px] text-ink-muted">大约还要 40 秒</span>
-      </div>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-        {items.map(it => (
-          <div key={it.name} className="flex items-center gap-2">
-            <span className="w-32 shrink-0 text-ink-muted truncate">{it.name}</span>
-            <div className="flex-1 h-1.5 bg-slate-100 rounded overflow-hidden">
-              <div className={`h-full ${it.color} transition-all`} style={{ width: `${it.pct}%` }} />
-            </div>
-            <span className="w-8 shrink-0 text-right tabular-nums text-ink-muted">{it.pct}%</span>
+    <div className="rounded-xl border border-line bg-white shadow-sm overflow-hidden">
+      {/* 顶部 Hero 区 */}
+      <div className="px-5 py-4 flex items-start gap-3"
+           style={{ background: 'linear-gradient(to right, #FFF7ED 0%, #FFFFFF 60%)' }}>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 relative"
+             style={{ background: BRAND_GRAD }}>
+          <ShieldAlert size={18} className="text-white" />
+          <Loader2 size={42} className="absolute inset-0 m-auto text-white/40 animate-spin" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <h2 className="text-base font-bold text-ink">正在生成项目洞察</h2>
+            <span className="px-1.5 py-0.5 text-[10px] rounded-full font-medium bg-orange-100 text-[#D96400]">挑战</span>
+            <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-purple-100 text-purple-700 font-medium">第 1/3 轮挑战</span>
           </div>
-        ))}
+          <div className="text-xs text-ink-secondary">第 1 轮:🚫 严重问题 · M3 健康度雷达和 M7 RAID 数据缺引用,正在重生成…</div>
+        </div>
       </div>
-      <div className="mt-3 pt-3 border-t border-line text-[11px] text-ink-muted">
-        每个模块完成后还会跑一遍质量评分,不达标的会标"需补充",不影响其他模块。
+
+      {/* 阶段进度条 */}
+      <div className="px-5 py-3 border-t border-line bg-slate-50/40">
+        <div className="flex items-center gap-1">
+          {stages.map((s, i) => (
+            <div key={s.key} className="flex items-center gap-1 flex-1">
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                s.done ? 'text-white' : s.current ? 'text-white ring-2 ring-orange-200' : 'bg-slate-100 text-ink-muted'
+              }`} style={{ background: s.done || s.current ? s.color : undefined }}>
+                {s.done ? '✓' : i + 1}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className={`text-[11px] font-medium truncate ${s.current ? 'text-ink' : s.done ? 'text-ink-secondary' : 'text-ink-muted'}`}>{s.label}</div>
+              </div>
+              {i < stages.length - 1 && <ChevronRight size={10} className="text-ink-muted shrink-0" />}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 重生成中的模块 chip */}
+      <div className="px-5 py-3 border-t border-line">
+        <div className="text-[11px] text-ink-muted mb-1.5">正在重生成的章节</div>
+        <div className="flex flex-wrap gap-1.5">
+          {['M3 健康度雷达', 'M7 RAID 表'].map(m => (
+            <span key={m} className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded bg-orange-50 text-orange-700 border border-orange-200">
+              <Loader2 size={9} className="animate-spin" /> {m}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="px-5 py-2 border-t border-line bg-slate-50/40 text-[11px] text-ink-muted">
+        典型耗时 1-3 分钟。挑战循环最多 3 轮,通过后入库。整个过程 PM 不需要操作,等通知就行。
       </div>
     </div>
   )

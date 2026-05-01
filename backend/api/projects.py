@@ -287,3 +287,112 @@ async def list_project_documents(project_id: str, session: AsyncSession = Depend
         }
         for d, username, full_name in rows
     ]
+
+
+# ── 项目洞察"先看体检"端点(规则化预 plan,不调 LLM) ─────────────────────────
+
+@router.post("/{project_id}/insight-checkup")
+async def insight_checkup(project_id: str, session: AsyncSession = Depends(get_session)):
+    """生成前体检 — 跑 plan_insight 看每模块字段够不够、缺什么。
+
+    100% 规则化,不调 LLM,响应 < 500ms。让 PM 在「开始生成」前知道
+    哪些模块会成功 / 哪些信息不够,提前补,避免试错式生成。
+    """
+    from models.project_brief import ProjectBrief
+    from services.agentic.planner import plan_insight
+
+    project = await session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "项目不存在")
+
+    # Brief 字段(若有)
+    brief_row = (await session.execute(
+        select(ProjectBrief).where(
+            ProjectBrief.project_id == project_id,
+            ProjectBrief.output_kind == "insight_v2",
+        )
+    )).scalar_one_or_none()
+    brief_fields = (brief_row.fields or {}) if brief_row else {}
+
+    # docs_by_type:已完成转换的项目文档
+    doc_rows = (await session.execute(
+        select(Document.id, Document.filename, Document.doc_type,
+               Document.summary, Document.markdown_content)
+        .where(Document.project_id == project_id)
+        .where(Document.conversion_status == "completed")
+    )).all()
+    docs_by_type: dict[str, list[dict]] = {}
+    for r in doc_rows:
+        if not r.doc_type:
+            continue
+        docs_by_type.setdefault(r.doc_type, []).append({
+            "doc_id": r.id, "filename": r.filename,
+            "summary": (r.summary or "")[:600],
+            "markdown": (r.markdown_content or ""),
+        })
+
+    # has_conversation 简化(影响 conversation source 字段是否可解析)
+    # 这里只看 OutputConversation 表是否有该项目的对话(粗略)
+    from models.output_conversation import OutputConversation
+    conv_count = (await session.execute(
+        select(func.count(OutputConversation.id)).where(
+            OutputConversation.project_id == project_id,
+        )
+    )).scalar() or 0
+    has_conversation = conv_count > 0
+
+    plan = plan_insight(
+        project=project, industry=project.industry,
+        brief_fields=brief_fields, has_conversation=has_conversation,
+        docs_by_type=docs_by_type,
+    )
+
+    # 简化输出 — 给前端易消费
+    docs_total = sum(len(v) for v in docs_by_type.values())
+    return {
+        "industry": plan.industry,
+        "sufficient_critical": plan.sufficient_critical,
+        "modules": [
+            {
+                "key": m.key,
+                "title": m.title,
+                "necessity": m.necessity,
+                "status": m.status,         # ready / blocked / skipped
+                "reason": m.reason,
+                "fields": [
+                    {
+                        "key": fk,
+                        "label": fs.label,
+                        "status": fs.status,        # available / deferred / missing
+                        "source": fs.source,
+                        "note": fs.note,
+                    }
+                    for fk, fs in m.fields.items()
+                ],
+            }
+            for m in plan.modules
+        ],
+        "gap_actions": [
+            {
+                "module_key": g.module_key,
+                "field_key": g.field_key,
+                "field_label": g.field_label,
+                "module_title": g.module_title,
+                "necessity": g.necessity,
+                "action": g.action,            # kb_search / web_search / ask_user / downgrade
+                "detail": g.detail,
+                "required": g.required,
+            }
+            for g in plan.gap_actions
+        ],
+        "stats": {
+            "ready_n": sum(1 for m in plan.modules if m.status == "ready"),
+            "blocked_n": sum(1 for m in plan.modules if m.status == "blocked"),
+            "skipped_n": sum(1 for m in plan.modules if m.status == "skipped"),
+            "ask_user_n": sum(1 for g in plan.gap_actions if g.action == "ask_user"),
+            "kb_search_n": sum(1 for g in plan.gap_actions if g.action == "kb_search"),
+            "docs_total": docs_total,
+            "brief_fields_n": len(brief_fields),
+            "has_conversation": has_conversation,
+        },
+    }

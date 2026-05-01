@@ -553,6 +553,56 @@ export const generateCustomerProfile = (id: string) =>
 export const listProjectDocuments = (id: string) =>
   api.get<ProjectDocument[]>(`/projects/${id}/documents`).then(r => r.data)
 
+// ── Insight 体检(生成前预 plan,规则化不调 LLM) ──────────────────────────
+
+export interface InsightCheckupField {
+  key: string
+  label: string
+  status: 'available' | 'deferred' | 'missing'
+  source: string | null
+  note: string
+}
+
+export interface InsightCheckupModule {
+  key: string
+  title: string
+  necessity: 'critical' | 'optional'
+  status: 'ready' | 'blocked' | 'skipped' | 'planned'
+  reason: string
+  fields: InsightCheckupField[]
+}
+
+export interface InsightCheckupGap {
+  module_key: string
+  field_key: string
+  field_label: string
+  module_title: string
+  necessity: string
+  action: 'kb_search' | 'web_search' | 'ask_user' | 'downgrade'
+  detail: string
+  required: boolean
+}
+
+export interface InsightCheckupResult {
+  industry: string | null
+  sufficient_critical: boolean
+  modules: InsightCheckupModule[]
+  gap_actions: InsightCheckupGap[]
+  stats: {
+    ready_n: number
+    blocked_n: number
+    skipped_n: number
+    ask_user_n: number
+    kb_search_n: number
+    docs_total: number
+    brief_fields_n: number
+    has_conversation: boolean
+  }
+}
+
+export const getInsightCheckup = (id: string) =>
+  api.post<InsightCheckupResult>(`/projects/${id}/insight-checkup`).then(r => r.data)
+
 // ── Challenge runs (history) ─────────────────────────────────────────────────
 
 export interface ChallengeRun {

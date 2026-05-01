@@ -11,13 +11,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   FileText, Sparkles, Loader2, ArrowLeft, AlertCircle, CheckCircle2,
-  Lightbulb, Eye, Download, RotateCw,
+  Lightbulb, Eye, Download, RotateCw, Search, X,
 } from 'lucide-react'
 import {
   getDocumentMarkdown, getDocChecklist,
   getVirtualArtifact, submitVirtualArtifact,
-  generateOutput,
-  type CuratedBundle, type V2GapPrompt,
+  generateOutput, getInsightCheckup,
+  type CuratedBundle, type V2GapPrompt, type InsightCheckupResult,
 } from '../../api/client'
 import { useState } from 'react'
 import MarkdownView from '../MarkdownView'
@@ -118,6 +118,7 @@ function PreparationView({
     queryFn: () => getDocChecklist(projectId, 'insight_v2'),
   })
   const [error, setError] = useState<string | null>(null)
+  const [checkupOpen, setCheckupOpen] = useState(false)
   const genMut = useMutation({
     mutationFn: () => generateOutput({ kind: 'insight_v2', project_id: projectId }),
     onSuccess: () => { onRefetch(); setError(null) },
@@ -197,6 +198,14 @@ function PreparationView({
                     ? '✅ 必备资料已齐,可以开始生成洞察'
                     : `还差 ${reqTotal - reqDone} 项必备资料(左栏 「+」 上传 / 「问卷」 填写)`}
                 </span>
+                {/* 先看体检 — 生成前预 plan,规则化不调 LLM,秒级出结果 */}
+                <button
+                  onClick={() => setCheckupOpen(true)}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2.5 border border-line rounded-lg text-xs text-ink-secondary hover:bg-canvas"
+                  title="生成前看每个章节的字段够不够,缺什么提前补"
+                >
+                  <Search size={12} /> 先看体检
+                </button>
                 {activeBundle ? (
                   <button
                     onClick={() => genMut.mutate()}
@@ -219,6 +228,9 @@ function PreparationView({
                 )}
               </div>
               {error && <div className="mt-2 text-xs text-red-600">{error}</div>}
+              {checkupOpen && (
+                <InsightCheckupDrawer projectId={projectId} onClose={() => setCheckupOpen(false)} />
+              )}
             </div>
           </div>
         )}
@@ -576,6 +588,179 @@ function PromptCard({ prompt, value, onChange }: {
             onChange={e => onChange(e.target.value)}
           />
         )
+      )}
+    </div>
+  )
+}
+
+// ── 体检报告 Drawer ──────────────────────────────────────────────────────────
+// 「先看体检」按钮点击触发,跑 plan_insight(规则化,不调 LLM)显示每模块字段状态。
+// 让 PM 在生成前知道哪些模块会成功 / 哪些缺信息,提前补,避免试错式生成。
+
+function InsightCheckupDrawer({
+  projectId, onClose,
+}: { projectId: string; onClose: () => void }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['insight-checkup', projectId],
+    queryFn: () => getInsightCheckup(projectId),
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+  })
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl border border-line shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col"
+           onClick={e => e.stopPropagation()}>
+        {/* 顶栏 */}
+        <div className="flex-shrink-0 px-5 py-3 border-b border-line bg-slate-50/50 flex items-center gap-2">
+          <Search size={14} className="text-orange-600" />
+          <h3 className="text-sm font-bold text-ink">体检报告 · 项目洞察(新版)</h3>
+          {data && (
+            <span className="ml-2 text-[11px] text-ink-muted">
+              · 共 {data.modules.length} 个章节 · 已就绪 {data.stats.ready_n} · 待补 {data.stats.blocked_n + data.stats.ask_user_n}
+            </span>
+          )}
+          <button onClick={onClose} className="ml-auto p-1 rounded hover:bg-slate-100 text-ink-muted">
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* 主体 */}
+        <div className="flex-1 min-h-0 overflow-auto p-5 space-y-3">
+          {isLoading && (
+            <div className="text-center py-8 text-xs text-ink-muted">
+              <Loader2 size={14} className="inline animate-spin mr-1.5" />
+              正在体检…(纯规则,不调 LLM)
+            </div>
+          )}
+          {error != null && (
+            <div className="text-xs text-red-600 p-3 bg-red-50 rounded">
+              体检失败:{(error as any)?.message || '未知错误'}
+            </div>
+          )}
+          {data && (
+            <>
+              {/* 综合状态 */}
+              <div className={`p-3 rounded-lg border text-sm ${
+                data.sufficient_critical
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  : 'bg-amber-50 border-amber-200 text-amber-800'
+              }`}>
+                <div className="flex items-center gap-2 font-semibold">
+                  {data.sufficient_critical ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                  {data.sufficient_critical
+                    ? '关键章节信息充足,可以开始生成'
+                    : '关键章节信息不足,建议补全后再生成(避免 invalid 短路)'}
+                </div>
+                <div className="mt-1 text-[11px] opacity-90">
+                  已上传文档 {data.stats.docs_total} 份 · Brief 字段 {data.stats.brief_fields_n} 个 · {data.stats.has_conversation ? '已有访谈' : '无访谈'}
+                </div>
+              </div>
+
+              {/* 模块状态表 */}
+              <div className="border border-line rounded-lg overflow-hidden">
+                <div className="px-3 py-2 bg-slate-50 text-[11px] text-ink-muted">
+                  按章节看 — 点击展开看每个字段的状态
+                </div>
+                <div className="divide-y divide-line">
+                  {data.modules.map(m => <CheckupModuleRow key={m.key} module={m} />)}
+                </div>
+              </div>
+
+              {/* 待补字段(ask_user) */}
+              {data.gap_actions.filter(g => g.action === 'ask_user').length > 0 && (
+                <div className="border border-amber-200 rounded-lg overflow-hidden bg-amber-50/30">
+                  <div className="px-3 py-2 bg-amber-50 text-xs font-semibold text-amber-800 flex items-center gap-2">
+                    <AlertCircle size={12} />
+                    需要你补充的字段({data.gap_actions.filter(g => g.action === 'ask_user').length} 项)
+                  </div>
+                  <ul className="p-3 space-y-1.5 text-xs">
+                    {data.gap_actions.filter(g => g.action === 'ask_user').map((g, i) => (
+                      <li key={i} className="flex gap-2">
+                        <span className="text-ink-muted shrink-0 w-32 truncate">{g.module_title}</span>
+                        <span className="text-ink-secondary flex-1">{g.detail}</span>
+                        {g.required && <span className="text-[10px] text-amber-700 shrink-0">必答</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* 底部操作 */}
+        <div className="flex-shrink-0 px-5 py-3 border-t border-line bg-slate-50/30 flex items-center gap-2">
+          <span className="text-[11px] text-ink-muted flex-1">
+            体检完了?可以去左栏补缺,或直接关闭体检窗口点「开始生成」
+          </span>
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 text-xs border border-line rounded text-ink-secondary hover:bg-slate-50"
+          >
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CheckupModuleRow({ module: m }: { module: InsightCheckupResult['modules'][number] }) {
+  const [open, setOpen] = useState(false)
+  const STATUS_META: Record<string, { label: string; color: string; dot: string }> = {
+    ready:   { label: '就绪',     color: 'text-emerald-700', dot: 'bg-emerald-500' },
+    blocked: { label: '关键缺失', color: 'text-red-700',     dot: 'bg-red-500' },
+    skipped: { label: '跳过',     color: 'text-ink-muted',   dot: 'bg-slate-300' },
+    planned: { label: '规划中',   color: 'text-blue-700',    dot: 'bg-blue-400' },
+  }
+  const meta = STATUS_META[m.status] || STATUS_META.planned
+  const missingN = m.fields.filter(f => f.status === 'missing').length
+  const necessityBadge = m.necessity === 'critical'
+    ? <span className="text-[9px] font-semibold text-red-700 bg-red-50 px-1 rounded">关键</span>
+    : <span className="text-[9px] font-semibold text-ink-muted bg-slate-100 px-1 rounded">可选</span>
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full px-3 py-2 flex items-center gap-2 text-xs hover:bg-slate-50 text-left"
+      >
+        <span className={`w-2 h-2 rounded-full shrink-0 ${meta.dot}`} />
+        <span className="font-medium text-ink shrink-0 w-32 truncate">{m.title}</span>
+        {necessityBadge}
+        <span className={`text-[11px] font-medium shrink-0 w-20 ${meta.color}`}>{meta.label}</span>
+        <span className="text-[11px] text-ink-muted truncate flex-1">
+          {missingN > 0 ? `${missingN} 个字段缺失` : `${m.fields.length} 个字段全有`}
+        </span>
+        <span className="text-[10px] text-ink-muted shrink-0">{open ? '收起' : '展开'}</span>
+      </button>
+      {open && (
+        <div className="px-3 pb-2.5 pt-0.5 bg-slate-50/40">
+          <table className="w-full text-[11px]">
+            <tbody className="divide-y divide-slate-200">
+              {m.fields.map(f => (
+                <tr key={f.key}>
+                  <td className="py-1.5 pr-2 w-32 text-ink truncate">{f.label}</td>
+                  <td className="py-1.5 pr-2 w-16">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                      f.status === 'available' ? 'bg-emerald-100 text-emerald-700' :
+                      f.status === 'deferred'  ? 'bg-blue-100 text-blue-700' :
+                                                  'bg-amber-100 text-amber-700'
+                    }`}>
+                      {f.status === 'available' ? '已有' : f.status === 'deferred' ? '推迟抽取' : '缺失'}
+                    </span>
+                  </td>
+                  <td className="py-1.5 pr-2 text-ink-muted truncate">
+                    {f.status === 'available' && f.source ? `来源:${f.source}` :
+                     f.status === 'deferred' && f.note ? f.note :
+                     f.note || '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )
