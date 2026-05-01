@@ -59,9 +59,17 @@ def _format_kb_refs(refs: list[dict], for_module_key: str | None = None) -> str:
 
 
 def _format_project_block(project) -> str:
+    from datetime import date
+    today = date.today()
+    # 今天日期放最上面 — LLM 生成"Deadline 2 周内 / 本月 / 季度"等内容时
+    # 必须基于真实当前日期,避免输出"2025-09-05"这种过期日期
+    lines = [
+        f"今天日期:{today.isoformat()}(W{today.isocalendar().week:02d}, 周{today.isoweekday()})",
+    ]
     if not project:
-        return "（无项目元数据）"
-    lines = [f"项目名:{project.name}"]
+        lines.append("（无项目元数据）")
+        return "\n".join(lines)
+    lines.append(f"项目名:{project.name}")
     if project.customer:
         lines.append(f"客户:{project.customer}")
     if project.industry:
@@ -69,7 +77,8 @@ def _format_project_block(project) -> str:
     if project.modules:
         lines.append(f"模块:{', '.join(project.modules)}")
     if project.kickoff_date:
-        lines.append(f"启动:{project.kickoff_date.isoformat()}")
+        delta_days = (today - project.kickoff_date).days
+        lines.append(f"启动:{project.kickoff_date.isoformat()}(距今 {delta_days} 天)")
     if project.description:
         lines.append(f"描述:{project.description[:200]}")
     return "\n".join(lines)

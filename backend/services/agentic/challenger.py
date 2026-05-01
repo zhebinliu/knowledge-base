@@ -356,10 +356,16 @@ async def challenge_report(*, full_md: str, model: str | None = None) -> tuple[d
     else:
         report_for_prompt = full_md
 
+    from datetime import date
+    today = date.today()
     user_prompt = f"""请审阅以下项目洞察报告,按 system 给的 7 维 rubric 找问题。
 
 按 system 里的 Markdown 格式输出(verdict 一行 + 总结 + 问题清单)。
 不用 JSON,不用关心引号 / 逗号 / 转义等格式细节。
+
+【今天日期】{today.isoformat()}(W{today.isocalendar().week:02d})
+判断 timeliness 维度(时效性 / Deadline 是否合理)时以这个日期为准 —
+如报告里"下一步建议"截止日期早于今天,直接判 major issue。
 
 [项目洞察报告]:
 
