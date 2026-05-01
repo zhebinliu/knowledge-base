@@ -43,17 +43,19 @@ export default function InsightDemo() {
           <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">新版 · 内测</span>
           <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-orange-100 text-[#D96400]">智能体</span>
         </div>
-        <h1 className="text-3xl font-extrabold text-ink tracking-tight">项目洞察 新版 — 一份给高管看的项目诊断报告</h1>
+        <h1 className="text-3xl font-extrabold text-ink tracking-tight">项目洞察 — 售前交接给 PM 后,快速摸清项目底盘的工具</h1>
         <p className="mt-3 text-ink-secondary text-base leading-relaxed">
-          顾问做对内汇报 / 内部对齐时,需要一份"项目现在怎么样、有什么风险、下一步做什么"的洞察报告。
-          新版跟旧版 最大的不同:<strong className="text-ink">不会编</strong>。信息够,生成完整报告;信息不够,直接告诉你缺什么、不出残缺品。
+          售前交付后,实施 PM 拿到一堆 SOW / 集成方案 / 售前调研 / 交接单,要快速对这个项目了如指掌 —
+          客户什么背景、项目要做什么、关键风险在哪、组织决策链怎么走、下一步怎么动。
+          系统读完所有交接资料,自动整理一份 360° 项目画像。
+          <strong className="text-ink"> 不会编。</strong> 资料够,出完整画像;资料不够,直接告诉 PM 缺什么、还需要找谁要。
         </p>
 
         <div className="mt-8 p-4 bg-orange-50 border-l-4 border-orange-400 rounded-r-lg">
-          <div className="text-sm font-semibold text-[#92400E] mb-1">下面我们用「友发钢管集团」这个真实项目走一遍</div>
+          <div className="text-sm font-semibold text-[#92400E] mb-1">下面用「友发钢管集团」这个真实项目走一遍</div>
           <div className="text-xs text-ink-secondary">
             背景:集团化制造业客户,5 家子公司 + 多个事业部,2024-09 启动 CRM,正在 UAT 前期。<br/>
-            行业:智能制造。已经有 6 份相关文档 + 一段访谈记录在系统里。
+            行业:智能制造。售前已经交接了 6 份文档 + 一段历史访谈记录。PM 上任第一件事就是用这个工具摸底。
           </div>
         </div>
       </div>
@@ -148,7 +150,7 @@ export default function InsightDemo() {
         <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900 leading-relaxed">
           <strong>这是设计,不是 bug。</strong>
           旧版 的策略是"宁可写也别空着",结果一堆空话和编造;新版改成"宁可不写也别糊弄",信息不够的章节就标"信息缺失"。
-          <br/>对顾问的实际意义:你拿这份报告对内汇报,不会被同事问"这数据哪里来的、你确定吗"。
+          <br/>对 PM 的实际意义:你拿这份画像内部对齐 / 跟客户复盘,不会被问"这数据哪里来的、你确定吗"。
         </div>
       </Step>
 
@@ -196,73 +198,73 @@ export default function InsightDemo() {
 const INSIGHT_PIPELINE: PipelineStage[] = [
   {
     key: 'ctx_load',
-    label: '加载上下文',
-    short: '读项目元信息 + 文档 + Brief + 干系人画布 + 历史访谈',
-    detail: '从 6 个来源拉数据归一成 ctx:Project 元信息(行业 / 规模)、按 doc_type 索引的项目文档(SOW / 集成方案 / 合同 / 交接单)、用户填的 Brief 字段、前端画的干系人 canvas、历史 OutputConversation 访谈记录、虚拟物问卷(成功指标 / 风险预警)。文档喂全文,单文档最多 30k chars。',
+    label: '收集资料',
+    short: '把跟项目相关的文档、记录、画布全部读一遍',
+    detail: '系统从 6 个地方收集资料:你上传的文档(SOW、集成方案、合同、交接单等)、项目基本信息(客户、行业、规模)、之前在表单里填过的字段、画好的干系人关系图、历史访谈记录、成功指标问卷。重要文档喂全文给 AI,不切片不漏关键条款。',
     color: 'blue',
     icon: <Database size={14} />,
   },
   {
     key: 'planner',
-    label: '规划体检',
-    short: '评估 10 模块的字段是否充分,缺则标 ask_user / kb_search',
-    detail: 'Planner 对每个模块的 fields 做规则化优先 + LLM 兜底评估:有数据→available,缺→missing+gap_action(kb_search 走 KB 检索 / ask_user 让用户补 / downgrade 降级跳过)。critical 模块缺关键字段 → sufficient_critical=False → 直接 short_circuit 拦截不跑 LLM。',
+    label: '体检',
+    short: '看看 10 个模块的资料够不够,缺什么标出来',
+    detail: 'AI 不会蒙头就写。先对每个章节(执行摘要、项目快照、健康度雷达 等 10 个)做体检 — 哪些字段有数据、哪些缺。关键章节缺核心字段时,直接停下来告诉你"还差什么",不出残缺品。',
     color: 'orange',
     icon: <Cog size={14} />,
   },
   {
     key: 'kb_fill',
-    label: '检索补缺',
-    short: 'gap=kb_search 的字段 → 项目内 + KB 检索 → embedding 召回',
-    detail: 'planner 标记 kb_search 的 gap actions 跑 fill_kb_gaps:embedding_service.embed(query) → vector_store.search(top_k=5,industry 过滤),命中的 chunks 作为 [K1][K2]... 编号引用。M9 行业最佳实践还会附加 web_search 结果 [W1][W2]。',
+    label: '查知识库',
+    short: '缺的资料去公司知识库 + 同行业案例库找',
+    detail: '体检发现缺的内容,系统会自动去知识库检索。比如"行业典型实施周期"→ 同行业历史项目里找,"政策合规要点"→ KB 里找。命中的内容编号成 K1、K2 等,后续报告里有据可查。',
     color: 'orange',
     icon: <FileSearch size={14} />,
   },
   {
     key: 'execute',
-    label: '并行生成',
-    short: '10 模块并行调 LLM 写 markdown + sources_index',
-    detail: 'execute_insight_module 并发跑 ready 模块。每模块 LLM prompt 含:fields 评估状态 / project 元信息 / sources_index(D/K/W 编号引用) / 行业包(M9) / agent_prompt + skill_text(运营在后台启用的 atomic skill)。LLM 必须每事实末尾标 [D1][K1] 等具体 ID,不能编。返回 dict {content, sources_index}。',
+    label: '并行写作',
+    short: '10 个章节同时让 AI 写,每段都标具体出处',
+    detail: '10 个章节同时开工,大约 1-2 分钟全部写完。AI 写每段时手边有项目文档(D1, D2…)、知识库片段(K1, K2…)、网搜结果(W1, W2…)。每个事实陈述末尾必须标具体出处,**编不出来的就标"信息缺失"**,绝不胡编。',
     color: 'purple',
     icon: <Workflow size={14} />,
   },
   {
     key: 'critic',
-    label: 'Critic 打分',
-    short: '每模块 4 维度 Sopact rubric 评分',
-    detail: 'critique_modules 一次给所有模块按 specificity / evidence / timeliness / next_step 4 维度打 0-4 分。任一维度 < 阈值 → needs_rework;全通过 → pass;<200 字 / 全占位符 → insufficient。结果写到 module_states[m].score。',
+    label: '逐章打分',
+    short: '4 个维度评每个章节:具体性、证据、时效性、下一步',
+    detail: '初稿写完,系统对每章打 4 个维度分(0-4 分):**具体性**(够不够具体到陕西分公司、12/15 这种)、**证据**(每个数字有没有出处)、**时效性**(结论现在还有用吗)、**下一步**(每条建议有责任人 + 截止日期吗)。任一维度低于 3 分,标"待返工"。',
     color: 'purple',
     icon: <CheckCircle2 size={14} />,
   },
   {
     key: 'challenge',
-    label: '挑战循环',
-    short: '整文 7 维度对抗审核,major issues 重生成,最多 3 轮',
-    detail: '_run_challenge_loop:challenge_report 让 LLM 看整文找问题,7 维度(critic 4 维 + completeness/consistency/jargon)。verdict={pass / minor / major / parse_failed}。affected modules 带 critique 反馈走 execute_insight_module 重生成,替换 module_contents。重复直到 pass 或 round=3。parse_failed 自动重试 1 次降温度 + 反馈失败片段。',
+    label: '对抗式审核',
+    short: '让另一个 AI 当挑战者,把整份报告挑刺,有重大问题重写',
+    detail: '挑战者 AI 用 7 个维度审整份报告,把"模糊 / 黑话 / 没引用 / 自相矛盾"等问题挑出来。有重大问题的章节,带着挑战意见重新生成。最多 3 轮。每轮通过率提升,直到挑战者说"通过"或 3 轮上限。',
     color: 'orange',
     icon: <ShieldAlert size={14} />,
   },
   {
     key: 'assemble',
-    label: '拼装 markdown',
-    short: '按 INSIGHT_MODULES 顺序拼,加附录 / 名词表 / 运行报告',
-    detail: '_assemble_full_md 闭包:按 M1-M10 顺序输出每模块标题 + content,挑战循环每轮重生成模块后会再调一次。失败/缺失模块写"信息缺失,建议补访"占位。结尾加 名词解释 / 挑战日志 / 运行报告 三个附录。',
+    label: '拼装报告',
+    short: '把 10 个章节按顺序拼成完整报告',
+    detail: '按"执行摘要 → 项目快照 → 健康度雷达 → 干系人画像 → … → 下一步建议"的顺序拼装,加上"名词解释"和"挑战记录"附录。失败的章节会写"信息缺失,建议补访"占位,而不是空着或胡编。',
     color: 'emerald',
     icon: <Layers size={14} />,
   },
   {
     key: 'docx',
-    label: '生成 docx',
-    short: 'markdown → docx 落 MinIO,前端可下载',
-    detail: '_build_docx 用 python-docx 把 markdown 转成 Word,MinIO put 到 outputs/{bundle_id}/insight_v2.docx。前端的「下载」按钮直接走 viewOutputUrl 拉文件。失败不阻断主流程(用户照常看到 markdown)。',
+    label: '生成 Word',
+    short: '一键下载格式好的 Word 文档,PM 可拿来归档 / 内部对齐',
+    detail: '系统把 Markdown 自动转成 Word(.docx),保留标题层级、表格、引用等格式。PM 点页面右上角「下载」就能拿到,不需要复制粘贴重排。可以发给项目组其他成员、归档到项目文件夹、或带去会议讨论。',
     color: 'emerald',
     icon: <FileText size={14} />,
   },
   {
     key: 'persist',
-    label: '入库',
-    short: 'CuratedBundle.content_md + extra(provenance / 挑战 / states)',
-    detail: '_mark(bundle_id, "done") 写 CuratedBundle:content_md(完整 markdown) + status=done + extra={validity_status / module_states / ask_user_prompts / provenance / challenge_summary / progress / web_search_status}。前端 polling 拉到 done → 渲染 CitedReportView + 质量评审面板。',
+    label: '入库展示',
+    short: '报告存档,前端立即显示带角标 + 质量评审',
+    detail: '报告写入数据库后,前端立即从"生成中"切换到"完成"。报告里的 [D1] [K1] 角标全部变成可点击的橙色徽章,点开能看到出处原文。顶部显示综合质量评审(整体可交付 / N 项细节待补)。',
     color: 'emerald',
     icon: <Boxes size={14} />,
   },
@@ -271,53 +273,53 @@ const INSIGHT_PIPELINE: PipelineStage[] = [
 const INSIGHT_ARCH_LAYERS: ArchLayer[] = [
   {
     key: 'input',
-    label: '输入层 — 多源数据归一',
+    label: '第一层 — 系统会读什么',
     color: 'blue',
     components: [
-      { name: '项目文档(全文)', description: '按 doc_type 索引(SOW / 集成方案 / 合同 / 交接单 / 售前调研...),单文档最多 30k chars 喂 LLM,不走切片' },
-      { name: '项目元信息', description: 'Project 表:name / customer / industry / modules / kickoff_date / customer_profile' },
-      { name: 'Brief 字段', description: '用户填的 M1-M10 字段(若有);v3 文档驱动模式可跳过填表' },
-      { name: '干系人画布', description: '前端 react-flow 画的部门 / 人员关系图,渲染成 markdown 喂 LLM' },
-      { name: '历史访谈', description: 'OutputConversation 表的对话记录,refs 包含已检索 KB chunks' },
-      { name: 'KB 知识库', description: 'qdrant 向量索引,embedding 召回,industry / ltc_stage 过滤' },
-      { name: '行业包', description: 'industry_packs(智能制造等)提供必访部门 / 默认 sessions / 客户准备材料模板' },
-      { name: 'Web 搜索(M9)', description: 'Bocha / Tavily,仅 M9 行业最佳实践模块用,可配置 API key' },
+      { name: '项目文档', description: 'SOW、系统集成方案、合同、交接单、售前调研、干系人图。重要文档喂全文给 AI,不切片漏条款。' },
+      { name: '项目基本信息', description: '客户名称、所属行业、项目规模、启动时间、客户画像。' },
+      { name: '已填表单', description: '顾问之前在表单里填过的字段(若有)。新版"文档驱动"模式下,可以跳过填表,系统自动从文档抽取。' },
+      { name: '干系人关系图', description: '在项目详情页画的部门 / 人员组织关系图。系统转成文字喂给 AI。' },
+      { name: '历史访谈记录', description: '之前跟客户的对话记录。系统会去重,避免在报告里重复问已聊过的话题。' },
+      { name: '公司知识库', description: '跨项目沉淀的最佳实践、行业 knowhow、典型流程。AI 缺资料时来这里查。' },
+      { name: '行业模板', description: '智能制造 / 金融 等行业的"必访部门 / 标准议题 / 客户准备材料"模板,自动注入到对应行业的项目。' },
+      { name: '网络搜索', description: '需要行业最新动态(政策 / 标杆案例 / 公开数据)时,系统去网上搜。仅"行业最佳实践"章节用。' },
     ],
   },
   {
     key: 'engine',
-    label: '引擎层 — 规划 / 生成 / 评审',
+    label: '第二层 — AI 引擎做什么',
     color: 'orange',
     components: [
-      { name: 'Planner', description: 'plan_insight 评估每模块字段,产 ExecutionPlan(modules / gap_actions / sufficient_critical)' },
-      { name: 'Executor', description: 'execute_insight_module 并行 10 模块,渲染 prompt + 调 LLM + 后处理引用 ID' },
-      { name: 'Critic', description: 'critique_modules 一次性 LLM 评分,Sopact 4 维度,产 ModuleScore' },
-      { name: 'Challenger', description: 'challenge_report + _run_challenge_loop 整文 7 维度对抗审核 + 最多 3 轮重生成' },
-      { name: 'KB Filler', description: 'fill_kb_gaps 跑 kb_search gap actions,embedding + 项目内/全库降级检索' },
-      { name: 'Provenance Builder', description: '_build_sources_index 统一编号 D/K/W ID,生成 evidence_block + sources_index' },
+      { name: '体检员', description: '生成前对每个章节做体检 — 哪些字段有数据、哪些缺。关键缺失直接停下来告诉你,不出残缺品。' },
+      { name: '写作员', description: '10 个章节并行交给 AI 写,每段都要标具体出处。约 1-2 分钟。' },
+      { name: '打分员', description: '初稿出来后,从 4 个维度(具体性 / 证据 / 时效性 / 下一步)给每章打分,找细节问题。' },
+      { name: '挑战员', description: '从 7 个维度审整份报告找重大问题,把"模糊 / 黑话 / 没引用"挑出来,触发重写,最多 3 轮。' },
+      { name: '检索员', description: '体检发现缺的资料,自动去知识库 / 同行业案例库找,找到的内容编号引用,有据可查。' },
+      { name: '出处管家', description: '统一管理 D(项目文档) / K(知识库) / W(网搜)三类来源的编号,确保每个引用都能溯源。' },
     ],
   },
   {
     key: 'config',
-    label: '配置层 — 运营可改',
+    label: '第三层 — 运营可改什么',
     color: 'purple',
     components: [
-      { name: 'Atomic Skills', description: '12 条原子技能(MBB 风格 / 引用规则 / Critic rubric 等),后台可编辑,通过 skill_ids 关联到 kind' },
-      { name: 'Output Agent Config', description: 'agent_config(output_agent, kind):prompt / skill_ids / model,运营在 /system-config「输出代理」编辑' },
-      { name: 'Stage Flow Config', description: 'stage_flow:全局阶段流程(insight_v2 / survey_v2 / ...),admin 配置' },
-      { name: 'Industry Packs', description: '智能制造 / 金融等行业模板,代码定义,运营可扩展' },
+      { name: '原子技能库', description: '12 条预置技能(MBB 风格、禁用黑话、中文输出、引用规则等),管理员可编辑,自由组合给不同场景。' },
+      { name: '输出代理配置', description: '每个产物(项目洞察 / 调研大纲 / 调研问卷)用什么 AI 模型 / 启用哪些技能 / 自定义 prompt,后台都可改。' },
+      { name: '阶段流程配置', description: '项目实施阶段(项目洞察 / 启动会 / 需求调研 / 蓝图设计 等)的顺序和启用状态,管理员可调。' },
+      { name: '行业模板', description: '智能制造 / 金融 / 零售 等行业的差异化模板。代码内置一份,运营可在此基础上扩展自定义。' },
     ],
   },
   {
     key: 'output',
-    label: '输出层 — 持久化 + 前端消费',
+    label: '第四层 — 你会拿到什么',
     color: 'emerald',
     components: [
-      { name: 'CuratedBundle', description: '主表:content_md(整份报告) + status + file_key(docx) + extra(JSON)' },
-      { name: 'extra.module_states', description: '每模块状态:status / score / missing_fields,驱动质量评审面板' },
-      { name: 'extra.provenance', description: '{module_key: {D1/K1/W1: meta}},驱动 CitedReportView 角标点击 + 引用追溯' },
-      { name: 'extra.challenge_summary', description: 'rounds_total / final_verdict / issues_remaining,驱动挑战回合面板' },
-      { name: 'docx 文件', description: 'MinIO 存储,outputs/{bundle_id}/insight_v2.docx' },
+      { name: '完整画像', description: '10 个章节 + 附录的完整 Markdown / Word 文档,PM 用来摸底 / 内部对齐 / 归档。' },
+      { name: '逐章质量评级', description: '每个章节的状态(通过 / 待提升 / 信息不足),以及具体哪几条 issue 顾问需要补。' },
+      { name: '出处溯源', description: '画像里每个 [D1] [K1] 都能点开看原文。同事 / 客户问"这个数字哪来的",一秒答上。' },
+      { name: '挑战记录', description: '挑战循环跑了几轮、每轮挑出什么问题、修了哪些章节,完整记录给顾问 review。' },
+      { name: 'Word 下载', description: '一键下载格式好的 Word 文档,标题 / 表格 / 引用全保留,不用重排版。' },
     ],
   },
 ]
@@ -326,96 +328,96 @@ const INSIGHT_INPUTS: IORow[] = [
   {
     key: 'docs',
     label: '项目文档',
-    source: 'documents 表',
-    format: 'doc_type 分类 + markdown_content 全文',
-    example: 'SOW / 系统集成方案 / 合同 / 交接单 / 售前调研报告 / 干系人图\n例: docs_by_type[\'sow\'] = [{filename: "友发钢管 SOW.docx", markdown: "本项目..."}]',
+    source: '顾问上传',
+    format: 'PDF / Word / Excel 自动转 Markdown',
+    example: '友发钢管 SOW.docx — 包含项目范围、目标、交付物清单 等\n友发钢管 集成方案.pdf — 现有 ERP / OA / MES 系统列表 + 集成需求\n友发钢管 业务交接单.docx — 上家服务商遗留的待办 + 已知风险',
   },
   {
     key: 'project_meta',
-    label: '项目元信息',
-    source: 'projects 表',
-    format: 'Project 字段',
-    example: '{name: "友发钢管 CRM", customer: "友发钢管集团", industry: "manufacturing", modules: ["客户管理","商机管理"], kickoff_date: "2024-09-01"}',
+    label: '项目基本信息',
+    source: '项目创建时填',
+    format: '客户 / 行业 / 模块 / 启动时间',
+    example: '客户:友发钢管集团\n行业:智能制造\n实施模块:客户管理 / 商机管理 / 订单管理 / 渠道管理\n启动时间:2024-09-01',
   },
   {
     key: 'brief',
-    label: 'Brief 字段',
-    source: 'project_briefs 表',
-    format: 'M1-M10 模块字段 dict',
-    example: '{situation: "...", complication: "...", success_metric_revenue: ["销售额增长","回款率"], risk_alert_data_quality: 3}',
+    label: '已填表单',
+    source: '顾问之前填过的(可选)',
+    format: '关键字段答案 + 来源标注',
+    example: '项目态势:大型集团 5 子公司,UAT 阶段卡在数据质量\n核心成功指标:销售周期缩短 20% / 回款及时率提升 15%',
   },
   {
     key: 'stakeholder',
-    label: '干系人画布',
-    source: 'project_briefs(output_kind=stakeholder_graph)',
-    format: 'react-flow nodes/edges JSON',
-    example: '{nodes: [{id:"1", data:{name:"张总", role:"CIO"}}, ...], edges: [{source:"1", target:"2", relation:"汇报"}]}',
+    label: '干系人关系图',
+    source: '在项目详情页手画',
+    format: '部门 / 人员节点 + 汇报关系连线',
+    example: '张总(CIO)→ 王经理(IT 项目)\n李总(销售 VP)→ 赵主管(数字化项目)\n标记决策链:张总 + 李总联合拍板',
   },
   {
     key: 'transcript',
-    label: '访谈记录',
-    source: 'output_conversations 表',
-    format: 'messages 数组(role / content / refs)',
-    example: '[{role:"assistant", content:"目前商机阶段如何定义?"}, {role:"user", content:"分5阶段..."}]',
+    label: '历史访谈记录',
+    source: '系统访谈机器人收集',
+    format: '问答对话(角色 / 内容)',
+    example: '顾问问:"目前商机阶段如何定义?"\n客户答:"分 5 阶段:线索 / 接触 / 方案 / 报价 / 签约,但实际推进多走 3 阶段就跳。"',
   },
   {
     key: 'kb',
-    label: 'KB 检索',
-    source: 'qdrant + chunks 表',
-    format: 'embedding 召回 + industry/ltc_stage 过滤',
-    example: 'plan.gap_actions[g].action="kb_search" → vector_store.search(qvec, top_k=5, industry="manufacturing")',
+    label: '公司知识库',
+    source: '跨项目沉淀',
+    format: '行业 knowhow + 实施案例片段',
+    example: '"智能制造行业 CRM 实施典型周期 6-9 个月" — 来自 2023 年 3 个同行业项目复盘\n"国央企集团客户必跑数据出境合规评估" — 来自 KB 制度库',
   },
 ]
 
 const INSIGHT_OUTPUTS: IORow[] = [
   {
     key: 'content_md',
-    label: '完整报告 markdown',
-    source: 'CuratedBundle.content_md',
-    format: 'Markdown 字符串(M1-M10 + 附录)',
-    example: '# 友发钢管 · 项目洞察报告\n## M1 执行摘要\n总体健康度 RAG=黄...\n## M2 项目快照\n...',
+    label: '完整报告',
+    source: '系统生成',
+    format: '10 章节 + 附录的可下载 Word/Markdown',
+    example: '# 友发钢管 · 项目洞察报告\n\n## 执行摘要\n总体健康度:黄 — UAT 阶段数据质量是最大隐患\n最大机会:打通国内/海外数据孤岛,LTC 全流程上线\n最大风险:8 个外部系统集成,接口延期会导致 LTC 闭不上 [D1]\n\n## 项目快照\n...',
   },
   {
     key: 'module_states',
-    label: '模块状态',
-    source: 'bundle.extra.module_states',
-    format: '{module_key: {status, score, issues, missing_fields}}',
-    example: '{M3_health_radar: {status:"done_with_warnings", score:{specificity:3, evidence:2, ..., overall:"needs_rework", issues:["证据:...未标来源"]}}}',
+    label: '逐章质量评级',
+    source: '打分员 + 挑战员',
+    format: '每章状态 + 4 维度分数 + 待补 issue',
+    example: '执行摘要:通过\n健康度雷达:待提升 — 证据维度只 2 分(缺数据来源)\n  · 待补: 6 维度 RAG 评分未引用具体访谈或文档\n  · 待补: 下一步建议无责任人 + 截止日期',
   },
   {
     key: 'provenance',
-    label: '引用索引',
-    source: 'bundle.extra.provenance',
-    format: '{module_key: {D1/K1/W1: {type, label, doc_id/chunk_id/url}}}',
-    example: '{M6_findings: {D1: {type:"doc", filename:"SOW.docx", doc_id:"abc"}, K1: {type:"kb", chunk_id:"xyz", section:"商机管理"}}}',
+    label: '出处溯源',
+    source: '出处管家',
+    format: '每个 D/K/W 角标对应的原文档 / 章节 / URL',
+    example: '[D1] = SOW.docx 第 3 章「实施范围」\n[D5] = 业务交接单.docx 「数据迁移待办」段落\n[K3] = 知识库「智能制造 CRM 典型实施周期」案例片段\n[W1] = 工信部 2024 年制造业数字化白皮书 P12',
   },
   {
     key: 'challenge_summary',
-    label: '挑战循环结果',
-    source: 'bundle.extra.challenge_summary',
-    format: '{rounds_total, final_verdict, issues_remaining}',
-    example: '{rounds_total: 2, final_verdict: "minor_issues", issues_remaining: 1}',
+    label: '挑战记录',
+    source: '挑战员',
+    format: '挑战轮数 + 最终评判 + 剩余 issue',
+    example: '共跑 2 轮挑战\n第 1 轮:发现 4 个重大问题(缺引用 / 自相矛盾各 2 个),重生成 3 章节\n第 2 轮:通过,只剩 1 个 minor issue(术语不统一)',
   },
   {
     key: 'ask_user',
-    label: '待用户补充',
-    source: 'bundle.extra.ask_user_prompts',
-    format: '[{module_key, field_key, question, options?}]',
-    example: '[{module_key:"M1_exec_summary", field_key:"situation", question:"项目当前态势?", options:["...A","...B"]}]',
+    label: '待你补充的信息',
+    source: '体检员',
+    format: '问题清单 + 选项',
+    example: '关键模块「执行摘要」需要补:\n  · 项目当前态势是?(单选)A. 大型集团扩张 B. 现有 CRM 替换 C. 多业态整合\n  · 您认为最大的难点是什么?(开放题)',
   },
   {
     key: 'validity',
     label: '整体合格性',
-    source: 'bundle.extra.validity_status',
-    format: 'enum: valid | partial | invalid',
-    example: '"valid" — 全部 critical 模块通过\n"partial" — 部分通过(挑战循环后仍有 minor issues)\n"invalid" — 信息不足拦截,未跑 LLM',
+    source: '体检员 + 挑战员综合',
+    format: '通过 / 部分通过 / 信息不足',
+    example: '通过 — 全部关键章节都通过质量审核,可直接交付\n部分通过 — 整体可交付,但有 N 项细节待顾问补全\n信息不足 — 关键资料缺失,系统未生成报告,需补充信息后重试',
   },
   {
     key: 'docx',
     label: 'Word 文档',
-    source: 'MinIO outputs/{id}/insight_v2.docx',
-    format: 'docx 二进制',
-    example: '前端 viewOutputUrl(bundle.id) 拉签名 URL,浏览器直接下载',
+    source: '系统自动生成',
+    format: '.docx 文件',
+    example: '点报告页面右上角「下载」 — 浏览器直接下载格式好的 Word 文件,标题 / 表格 / 引用全保留',
   },
 ]
 
