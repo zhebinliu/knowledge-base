@@ -783,12 +783,8 @@ function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onR
             </span>
           )}
         </button>
-        <button
-          onClick={onReGenerate}
-          className={`shrink-0 flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-md border ${COLOR_MAP.btn}`}
-        >
-          <Sparkles size={10} /> {isInvalid ? '补充信息后重新生成' : '重新生成'}
-        </button>
+        {/* 注:不再渲染"重新生成"按钮 — 上方阶段栏 action bar 已经有了一个,
+            放这里跟它重复;invalid 短路时走 V2GapFiller 单独的 CTA */}
       </div>
 
       {/* 详情区 — 默认收起,展开后包含【整体审核】+【细节待补】两节
