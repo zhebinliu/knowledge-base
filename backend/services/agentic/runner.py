@@ -1675,8 +1675,13 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
         logger.info("outline_v2_generated", bundle_id=bundle_id, validity=validity_status,
                     modules_n=len(module_contents))
     except Exception as e:
-        logger.error("outline_v2_failed", bundle_id=bundle_id, error=str(e)[:300])
-        run_history.append({"phase": "failed", "ts": _ts(), "detail": str(e)[:300]})
+        import traceback
+        tb = traceback.format_exc()
+        logger.error("outline_v2_failed", bundle_id=bundle_id, error=str(e)[:300],
+                     traceback=tb[:2000])
+        run_history.append({"phase": "failed", "ts": _ts(),
+                            "detail": str(e)[:300],
+                            "traceback": tb[:2000]})
         try:
             async with async_session_maker() as s:
                 b = await s.get(CuratedBundle, bundle_id)
