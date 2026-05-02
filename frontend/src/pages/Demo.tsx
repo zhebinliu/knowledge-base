@@ -416,7 +416,7 @@ export default function Demo() {
                 <div key={L.id} className={`flex items-stretch ${idx > 0 ? 'border-t border-line' : ''} ${L.bg}`}>
                   {/* Layer badge */}
                   <div className="flex-shrink-0 w-12 sm:w-20 flex flex-col items-center justify-center py-3 border-r border-line/60">
-                    <span className="text-[9px] sm:text-[10px] uppercase tracking-wider text-ink-muted leading-none">Layer</span>
+                    <span className="text-[9px] sm:text-[10px] uppercase tracking-wider text-ink-muted leading-none">层</span>
                     <span className="text-xl sm:text-2xl font-extrabold leading-tight" style={{ color: L.color }}>{L.id}</span>
                   </div>
 

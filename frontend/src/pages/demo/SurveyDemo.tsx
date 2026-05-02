@@ -632,7 +632,7 @@ function MockResearchWorkspace() {
             <div className="flex items-baseline gap-2 mb-1.5">
               <span className="w-5 h-5 rounded text-[10px] bg-slate-100 text-ink-muted flex items-center justify-center">1</span>
               <span className="text-sm text-ink flex-1">你们目前用哪种商机阶段模型?</span>
-              <span className="text-[10px] text-ink-muted">single</span>
+              <span className="text-[10px] text-ink-muted">单选</span>
             </div>
             <div className="ml-7 space-y-1">
               <label className="flex items-center gap-2 px-2 py-1 rounded text-xs">
@@ -653,7 +653,7 @@ function MockResearchWorkspace() {
             <div className="flex items-baseline gap-2 mb-1.5">
               <span className="w-5 h-5 rounded text-[10px] bg-slate-100 text-ink-muted flex items-center justify-center">2</span>
               <span className="text-sm text-ink flex-1">商机推进的最大卡点是什么?</span>
-              <span className="text-[10px] text-ink-muted">multi</span>
+              <span className="text-[10px] text-ink-muted">多选</span>
             </div>
             <div className="ml-7 flex flex-wrap gap-1.5">
               {['阶段定义模糊', '决策链不清', '缺少预警'].map(v => (
@@ -670,7 +670,7 @@ function MockResearchWorkspace() {
             <div className="flex items-baseline gap-2 mb-1.5">
               <span className="w-5 h-5 rounded text-[10px] bg-slate-100 text-ink-muted flex items-center justify-center">3</span>
               <span className="text-sm text-ink flex-1">当前商机数据完整度?</span>
-              <span className="text-[10px] text-ink-muted">rating</span>
+              <span className="text-[10px] text-ink-muted">评分</span>
             </div>
             <div className="ml-7 flex items-center gap-1.5">
               {[1, 2, 3, 4, 5].map(n => (

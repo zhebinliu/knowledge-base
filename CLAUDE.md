@@ -2,7 +2,14 @@
 
 纷享销客 CRM 知识库管理系统。
 
-> **每次开始工作前先扫一眼 [LEARNING.md](LEARNING.md)** — 沉淀的踩坑经验和项目专有约定。新踩坑也往那里追加。
+> **每次开始工作前必读两份**:
+>
+> 1. [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) — 架构 / 数据流 / 关键文件 / 决策依据(全景图)
+> 2. [LEARNING.md](LEARNING.md) — 累计踩坑经验和项目专有约定(具体陷阱)
+>
+> 新踩坑往 LEARNING.md 追加。架构 / 决策类的变更同步到 PROJECT_OVERVIEW.md。
+>
+> **语言约定**:本系统所有用户可见文案、代码注释、文档统一用中文。新代码 / 新页面避免出现英文 UI 文案(技术术语如 API / JWT / SQL / LLM 等保留原文)。详见 [LEARNING.md § 9 中文化原则](LEARNING.md)。
 
 ## 访问地址
 

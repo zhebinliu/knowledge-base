@@ -754,7 +754,7 @@ function MockReportSnippet() {
               <th className="text-left p-2 font-semibold w-16">影响</th>
               <th className="text-left p-2 font-semibold w-16">可能性</th>
               <th className="text-left p-2 font-semibold">应对</th>
-              <th className="text-left p-2 font-semibold w-20">Owner</th>
+              <th className="text-left p-2 font-semibold w-20">责任人</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">

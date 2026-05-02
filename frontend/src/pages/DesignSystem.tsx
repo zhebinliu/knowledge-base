@@ -301,7 +301,7 @@ export default function DesignSystem() {
             <BookOpen size={13} className="text-white" />
           </div>
           <div>
-            <p className="text-xs font-bold text-ink leading-none">Design System</p>
+            <p className="text-xs font-bold text-ink leading-none">设计规范</p>
             <p className="text-[10px] text-ink-muted leading-none mt-0.5">v1.1 · KB System</p>
           </div>
         </div>
@@ -1186,10 +1186,10 @@ const tabs = ['概览', '文档', '成员', '设置']
             </div>
             <p className="text-xs text-ink-muted mb-2">
               <strong>状态四态：</strong>
-              <span className="inline-flex items-center gap-1 mx-2"><span className="w-3 h-3 rounded-full bg-emerald-500"/>done</span>
-              <span className="inline-flex items-center gap-1 mx-2"><span className="w-3 h-3 rounded-full bg-blue-500"/>inflight</span>
-              <span className="inline-flex items-center gap-1 mx-2"><span className="w-3 h-3 rounded-full" style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}/>idle (active)</span>
-              <span className="inline-flex items-center gap-1 mx-2"><span className="w-3 h-3 rounded-full bg-gray-100 border border-dashed border-gray-400"/>locked</span>
+              <span className="inline-flex items-center gap-1 mx-2"><span className="w-3 h-3 rounded-full bg-emerald-500"/>已完成</span>
+              <span className="inline-flex items-center gap-1 mx-2"><span className="w-3 h-3 rounded-full bg-blue-500"/>进行中</span>
+              <span className="inline-flex items-center gap-1 mx-2"><span className="w-3 h-3 rounded-full" style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}/>当前(待开始)</span>
+              <span className="inline-flex items-center gap-1 mx-2"><span className="w-3 h-3 rounded-full bg-gray-100 border border-dashed border-gray-400"/>锁定</span>
             </p>
             <Code>{`type Status = 'done' | 'inflight' | 'idle' | 'locked'
 

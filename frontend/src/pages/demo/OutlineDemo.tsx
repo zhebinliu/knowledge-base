@@ -438,7 +438,7 @@ function MockMaterialList() {
           <tr>
             <th className="text-left p-2 font-semibold text-ink-secondary w-16">类别</th>
             <th className="text-left p-2 font-semibold text-ink-secondary">具体材料</th>
-            <th className="text-left p-2 font-semibold text-ink-secondary w-32">Owner</th>
+            <th className="text-left p-2 font-semibold text-ink-secondary w-32">责任人</th>
             <th className="text-left p-2 font-semibold text-ink-secondary w-24">截止日</th>
           </tr>
         </thead>

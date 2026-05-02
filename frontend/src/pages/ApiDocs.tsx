@@ -300,7 +300,7 @@ export default function ApiDocs() {
 
         {/* Base URL footer */}
         <div className="px-4 py-3 border-t border-line">
-          <p className="text-[10px] text-ink-muted mb-0.5">Base URL</p>
+          <p className="text-[10px] text-ink-muted mb-0.5">访问地址</p>
           <code className="text-[10px] font-mono" style={{ color: 'var(--accent)' }}>{BASE}</code>
         </div>
       </aside>
