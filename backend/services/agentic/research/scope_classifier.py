@@ -34,7 +34,7 @@ async def classify_scope_for_bundle(
     ltc_module_key: str | None = None,
     model: str | None = None,
 ) -> dict:
-    """对一个 survey_v2 bundle 的题目-答案做范围四分类。
+    """对一个 survey bundle 的题目-答案做范围四分类。
 
     ltc_module_key 不传 = 分类所有 LTC 模块。
 

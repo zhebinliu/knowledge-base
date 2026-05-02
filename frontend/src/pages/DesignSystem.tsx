@@ -1308,6 +1308,53 @@ const tabs = ['概览', '文档', '成员', '设置']
               </div>
             </div>
           </SubSection>
+
+          <SubSection title="V3 Composed Components · 三栏工作区组件">
+            <p className="text-xs text-ink-secondary mb-3">
+              v3 项目详情页的核心是 <strong>三栏工作区</strong>(左文档 / 中报告 / 右引用),由下面这些组合组件拼成。它们颗粒度较大,通常按"整块复用",不在 ds 里直接渲染 mock,而是说明定位和路径。
+            </p>
+            <div className="space-y-2.5">
+              {[
+                { name: 'CenterWorkspace', path: 'components/console/CenterWorkspace.tsx',
+                  desc: '中栏,6 种 view 形态:preparation(准备就绪)/preview(文档预览)/report(已生成报告)/gap_filler(信息缺口补全)/virtual(虚拟物列表)/canvas(干系人图谱画布)。由 ConsoleProjectDetail 的 centerView 状态驱动。' },
+                { name: 'CitationsPanel', path: 'components/console/CitationsPanel.tsx',
+                  desc: '右栏,展示报告里 [D1][K1][W1] 引用的源文档/切片/Web。点报告角标会高亮对应 ref。' },
+                { name: 'OutputChatPanel', path: 'components/OutputChatPanel.tsx',
+                  desc: '对话式生成面板(右栏 fallback),v3 后只用于 kickoff_pptx / kickoff_html 的对话式 PPT 生成;insight / survey / survey_outline 不走对话流程。' },
+                { name: 'BriefDrawer', path: 'components/BriefDrawer.tsx',
+                  desc: 'Brief 字段编辑抽屉,接 brief_service.BRIEF_SCHEMAS 里每个 kind 的字段 spec。支持 LLM 流式抽取草稿 + 用户编辑覆盖。' },
+                { name: 'GenerationProgressCard', path: 'components/console/GenerationProgressCard.tsx',
+                  desc: '生成中显示的进度卡:6 阶段(planning/executing/critiquing/challenging/regenerating/finalizing) + 模块级 in_flight 列表。bundle.progress 字段驱动。' },
+                { name: 'AgenticGapFiller', path: 'components/AgenticGapFiller.tsx',
+                  desc: 'agentic 报告 invalid 时的信息缺口问卷面板。拉 ask_user_prompts 列表,按 module 分组,用户作答后合并写回 brief。' },
+                { name: 'AgenticValidityBanner', path: 'pages/console/ConsoleProjectDetail.tsx',
+                  desc: '报告页顶部的 validity 状态条(pass / minor / major / invalid)+ 重新生成按钮。读 bundle.validity_status / challenge_summary。' },
+                { name: 'ChallengeRoundsPanel', path: 'components/console/ChallengeRoundsPanel.tsx',
+                  desc: '挑战回合卡片:展示每轮 challenger 找出的问题及 verdict。bundle.challenge_summary 字段驱动。' },
+                { name: 'StakeholderCanvas', path: 'components/console/StakeholderCanvas.tsx',
+                  desc: '干系人决策链画布(虚拟物 v_stakeholder_graph)。点节点编辑角色 / 决策权重 / 态度。' },
+                { name: 'DocChecklist', path: 'components/console/DocChecklist.tsx',
+                  desc: '文档清单(insight 阶段必传 / 推荐文档 + 虚拟物清单),展示已上传 / 缺失状态,点击触发上传。' },
+                { name: 'ResearchWorkspace', path: 'components/console/research/ResearchWorkspace.tsx',
+                  desc: 'survey stage 的工作区,与 InsightWorkspace 平级。承载调研大纲(LTC 模块映射) + 调研问卷(顾问勾选式录入)。' },
+                { name: 'FloatingChat', path: 'components/console/FloatingChat.tsx',
+                  desc: '浮动 PM 对话框(右下角)。closed/open/minimized/fullscreen 四态;内嵌 FloatingQA(项目级问答),不是输出对话引擎。' },
+              ].map(c => (
+                <div key={c.name} className="border border-line rounded-xl p-3 bg-surface flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+                    <code className="text-[10px] text-[#D96400]">{c.name.slice(0, 2)}</code>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <code className="text-xs font-semibold text-ink">{c.name}</code>
+                      <span className="text-[10px] text-ink-muted truncate">{c.path}</span>
+                    </div>
+                    <p className="text-xs text-ink-secondary leading-relaxed mt-1">{c.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SubSection>
         </Section>
 
         {/* ── Token Reference ────────────────────────────────────────────── */}

@@ -182,11 +182,6 @@ async def _web_research(proj, industry: str | None, kind: str) -> tuple[list[dic
         queries.append(f"{industry} 数字化转型 痛点")
         if kind in ("kickoff_pptx", "kickoff_html"):
             queries.append(f"{industry} 龙头企业 销售管理 流程")
-        elif kind == "insight":
-            queries.append(f"{industry} CRM 项目 失败原因")
-            queries.append(f"{industry} 客户管理 行业基准")
-        elif kind == "survey":
-            queries.append(f"{industry} 销售 调研 关键指标")
     if proj and proj.customer:
         queries.append(f"{proj.customer} 业务模式 数字化")
     queries = list(dict.fromkeys([q.strip() for q in queries if q.strip()]))[:5]
@@ -310,18 +305,6 @@ async def _generation_kb_search(proj, industry: str | None, kind: str, conv) -> 
                 f"{industry} 实施 风险 应对",
                 f"{industry} 团队 治理 RACI",
             ])
-        elif kind == "insight":
-            queries.extend([
-                f"{industry} CRM 项目 风险 量化 指标",
-                f"{industry} 干系人 决策点",
-                f"{industry} 实施成功要素 经验",
-            ])
-        elif kind == "survey":
-            queries.extend([
-                f"{industry} 业务流程 调研 关键问题",
-                f"{industry} 数据集成 接口 调研",
-                f"{industry} 角色权限 合规要求",
-            ])
 
     # 去重
     seen_q: set[str] = set()
@@ -372,176 +355,10 @@ def _merge_refs_text(existing_text: str, extra_refs: list[dict]) -> str:
     return "\n\n".join(blocks)
 
 
-# ── Survey ────────────────────────────────────────────────────────────────────
-
-SURVEY_SYSTEM = """你是 MBB 风格的资深 CRM 实施顾问（MECE 思维 / 金字塔原理）。
-你正在为客户设计一份【实施前调研问卷】，交付给客户的项目经理 + 业务负责人填答。
-
-【输出风格 — 严格遵守】
-- 咨询公司内部文档体例：编号清晰、可勾选、可批注
-- 不写"赋能/抓手/闭环/链路/生态"等黑话
-- 每个问题要具体到可作答的颗粒度（"贵司销售从线索到签单的平均周期是多少天？" 而不是"贵司的销售周期如何？"）
-- 区分【事实型】（一定有标准答案）/【判断型】（需主观评估）/【数据型】（需要从系统导出数据）
-- 每题后面用斜体注明：*为什么问 / 答案如何使用*
-
-【题量规模 — 至少要这么多，否则视为不合格】
-- 总计 ≥ 60 题
-- 7 个大类，每类 8–12 题：
-  1. 战略与目标
-  2. 组织与角色
-  3. 业务流程（线索→机会→合同→交付→回款）
-  4. 数据治理与主数据
-  5. 系统集成与接口
-  6. 合规、安全、权限
-  7. 资源、预算与进度
-
-【必须在问卷顶部加一段说明】
-> 本问卷用于 CRM 实施启动前的现状摸底。请由对应模块责任人填写。带 ★ 的题目为重点题，请务必填答。
-
-输出 Markdown 格式。"""
-
-
-async def generate_survey(bundle_id: str, project_id: str):
-    try:
-        await _mark_bundle(bundle_id, "generating")
-        ctx = await _gather_inputs(bundle_id, project_id, "survey")
-        proj = ctx["project"]
-        scope_line = f"项目：{proj.name}，客户：{proj.customer or '—'}" if proj else f"行业：{ctx['industry'] or '—'}"
-
-        prompt = f"""{scope_line}
-行业：{ctx['industry'] or '未填写'}
-
-【访谈记录（已知信息）】
-{ctx['transcript']}
-
-{f"【行业/客户研究 brief（模型自身知识）】{chr(10)}{ctx['industry_brief']}" if ctx.get('industry_brief') else ""}
-
-{f"【知识库佐证】{chr(10)}{ctx['refs_text']}" if ctx['refs_text'] else ""}
-
-{f"【联网检索结果】{chr(10)}{ctx['web_text']}" if ctx.get('web_text') else ""}
-
-{f"【方法论/风格要求】{chr(10)}{ctx['agent_prompt']}" if ctx['agent_prompt'] else ""}
-
-{f"【启用技能】{chr(10)}{ctx['skill_text']}" if ctx['skill_text'] else ""}
-
-请按系统提示要求，输出 ≥60 题的实施前调研问卷（7 个大类 × 8–12 题）。访谈已经有的信息**不要再问**，要根据已有信息**精准追问没覆盖的维度**。"""
-
-        md = await _llm_call(prompt, system=SURVEY_SYSTEM, model=ctx["agent_model"], max_tokens=8000)
-
-        docx_key: str | None = None
-        try:
-            title = f"调研问卷 · {proj.name if proj else (ctx['industry'] or '—')}"
-            docx_bytes = _build_docx(title, md)
-            docx_key = f"outputs/{bundle_id}/survey.docx"
-            _minio_put(docx_key, docx_bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-        except Exception as e:
-            logger.warning("survey_docx_failed", error=str(e)[:100])
-
-        await _mark_bundle(bundle_id, "done", content_md=md, file_key=docx_key)
-        await _mark_conversation(bundle_id, "done")
-        logger.info("survey_generated", bundle_id=bundle_id, project_id=project_id)
-    except Exception as e:
-        logger.error("survey_failed", bundle_id=bundle_id, error=str(e)[:200])
-        await _mark_bundle(bundle_id, "failed", error=str(e)[:500])
-        await _mark_conversation(bundle_id, "failed")
-
-
-# ── Insight ───────────────────────────────────────────────────────────────────
-
-INSIGHT_SYSTEM = """你是 MBB 风格的资深咨询顾问（McKinsey / BCG / Bain），现在为客户高管层撰写【项目洞察报告】。
-
-【风格 — 严格执行】
-1. **金字塔原理**：每节先给"Bottom line"结论（1 句话，加粗），再展开论据
-2. **Claim → Evidence → So what**：每个论点都要有数据支撑（行业 brief、知识库或访谈），并写出"对项目意味着什么"
-3. **表格优先于 bullet**：能用表格表达的不要用 bullet（风险矩阵、决策表、干系人画像、量化指标）
-4. **不写黑话**：禁止"赋能 / 抓手 / 闭环 / 链路 / 生态 / 数字化转型 / 一站式"
-5. **数字化**：每节至少一个量化指标（区间也可以，标"业界基准 / 行业典型"）
-6. **专业克制**：不要感叹号，不要营销话术，"我们认为"、"建议"用得克制
-7. **可信度标注**：信息源用 [访谈] / [知识库] / [行业 brief] / [Web] 四种标签清晰区分；模型推断的用 [推断] 并说明依据
-8. **不编造**：访谈和素材都没覆盖的，写"信息缺失，建议在 Phase 1 第一周补访"
-
-【格式】
-- 用 Markdown
-- 表格用 GFM 语法
-- 不要用 emoji
-- 章节之间用 `---` 分隔
-- 风险用「高/中/低」标签，不用 🔴🟡🟢
-
-【关键约束 — 段落级输出】
-- 你只负责输出**当前一节**的正文内容，不要再次输出整篇报告的标题、封面、元信息表（"客户名称 / 项目代号 / 报告日期 / 编写人 / 版本"等）
-- **禁止**输出 `# 项目洞察报告` / `## 执行摘要` / `## {章节名}` 这类 H1/H2 标题，章节标题已由系统注入
-- 直接从 Bottom line 加粗结论开始，需要更细粒度可用 H3 (`###`) 及以下
-"""
-
-INSIGHT_SECTIONS = [
-    ("执行摘要", "用 3–5 条 bullet 概括项目当前态势、最关键 1 个机会与最关键 1 个风险，给高管 30 秒就能读完。"),
-    ("项目概览", "基于访谈与知识库素材，梳理项目目标、范围、行业背景、当前阶段。要明确量化（用户数 / 模块数 / 预算 / 时间窗）。"),
-    ("干系人画像", "甲方 / 乙方 / 联合团队的关键角色、决策权重、对项目的态度（积极 / 观望 / 阻力）。可以用表格列出。"),
-    ("关键决策点", "梳理已做出的关键决策（含背景与影响）和待决策事项（含截止时间、Owner、潜在选项 A/B）。"),
-    ("风险矩阵", "识别 5–8 条主要风险（技术 / 业务 / 组织 / 进度 / 数据），用 Markdown 表格列出：风险 | 影响 | 可能性 | 应对策略 | Owner。影响和可能性使用高/中/低。"),
-    ("依赖与里程碑", "梳理关键交付物的依赖关系和里程碑节点，标出阻塞项。"),
-    ("行业最佳实践对照", "结合知识库中同行业 / 同模块的实施经验，给出本项目可借鉴的 2–3 条做法和 1–2 条要规避的反例。引用具体出处文件名。"),
-    ("下一步建议", "5–8 条可执行建议，每条注明 Owner、deadline、预期产出。区分 Quick Win（2 周内）与 Strategic（1–3 月）。"),
-]
-
-
-async def generate_insight(bundle_id: str, project_id: str):
-    try:
-        await _mark_bundle(bundle_id, "generating")
-        ctx = await _gather_inputs(bundle_id, project_id, "insight")
-        proj = ctx["project"]
-        scope_line = f"项目名称：{proj.name}，客户：{proj.customer or '—'}" if proj else f"行业：{ctx['industry'] or '—'}"
-
-        sections = []
-        for title, question in INSIGHT_SECTIONS:
-            prompt = f"""{scope_line}
-行业：{ctx['industry'] or '—'}
-
-【访谈记录】
-{ctx['transcript']}
-
-{f"【行业/客户研究 brief】{chr(10)}{ctx['industry_brief']}" if ctx.get('industry_brief') else ""}
-
-{f"【知识库佐证】{chr(10)}{ctx['refs_text']}" if ctx['refs_text'] else ""}
-
-{f"【联网检索】{chr(10)}{ctx['web_text']}" if ctx.get('web_text') else ""}
-
-{f"【方法论】{chr(10)}{ctx['agent_prompt']}" if ctx['agent_prompt'] else ""}
-
-{f"【启用技能】{chr(10)}{ctx['skill_text']}" if ctx['skill_text'] else ""}
-
-{f"【已确认的项目 Brief（最权威素材，请优先采信，不要绕过）】{chr(10)}{ctx['project_brief']}" if ctx.get('project_brief') else ""}
-
-本节主题：**{title}**
-本节任务：{question}
-
-【输出要求】
-- 第一行就是 Bottom line 结论（加粗一句话）
-- 必须用一张 Markdown 表格作为主要载体（除非"执行摘要"这种总览）
-- 每个数据点末尾用 [访谈]/[知识库]/[行业 brief]/[Web]/[推断] 标注来源
-- 字数 600–1200，禁止黑话
-- 信息缺口写"信息缺失，建议在 Phase 1 第一周补访"，不要编造"""
-            answer = await _llm_call(prompt, system=INSIGHT_SYSTEM, model=ctx["agent_model"], max_tokens=4000)
-            answer = _strip_section_preamble(answer, title)
-            sections.append(f"## {title}\n\n{answer}")
-
-        report_date = date.today().strftime("%Y年%m月%d日")
-        header_name = proj.name if proj else (ctx["industry"] or "—")
-        md = (
-            f"# {header_name} · 项目洞察报告\n\n"
-            f"**生成日期**：{report_date}  \n"
-            f"**客户**：{(proj.customer if proj else '—') or '—'}  \n"
-            f"**行业**：{ctx['industry'] or '—'}\n\n---\n\n"
-            + "\n\n---\n\n".join(sections)
-        )
-
-        await _mark_bundle(bundle_id, "done", content_md=md)
-        await _mark_conversation(bundle_id, "done")
-        logger.info("insight_generated", bundle_id=bundle_id, project_id=project_id)
-    except Exception as e:
-        logger.error("insight_failed", bundle_id=bundle_id, error=str(e)[:200])
-        await _mark_bundle(bundle_id, "failed", error=str(e)[:500])
-        await _mark_conversation(bundle_id, "failed")
+# ── 注 ────────────────────────────────────────────────────────────────────────
+# 旧的对话式 generate_survey() / generate_insight() 已下线;新版规则化生成走
+# services/agentic/runner.py 的 generate_survey / generate_insight /
+# generate_survey_outline。本文件仅保留 kickoff_pptx / kickoff_html 两条 PPT 管线。
 
 
 # ── Kickoff PPTX（HTML 交付物，Claude 风格） ─────────────────────────────────

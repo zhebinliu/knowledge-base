@@ -18,7 +18,7 @@ class IndustryPack:
     pain_points: list[str]                                   # 典型痛点
     cases: list[dict]                                        # [{name, pattern}, ...] 标杆案例
     extra_question_seeds: list[dict]                         # 给 survey planner 用的额外种子
-    # 调研大纲(survey_outline_v2)用 — 智能制造典型必访部门 + 行业默认 sessions
+    # 调研大纲(survey_outline)用 — 智能制造典型必访部门 + 行业默认 sessions
     must_visit_departments: list[str] = field(default_factory=list)
     default_sessions: list[dict] = field(default_factory=list)
     typical_customer_materials: list[dict] = field(default_factory=list)

@@ -28,15 +28,13 @@ router = APIRouter()
 # ── 默认流程(从原 ConsoleProjectDetail.tsx STAGES 抽出来)─────────────────────
 
 DEFAULT_STAGES: list[dict] = [
-    {"key": "insight",       "label": "项目洞察",          "kind": "insight",      "icon": "Lightbulb",     "active": True,  "beta": False, "sub_kinds": []},
+    {"key": "insight",       "label": "项目洞察",          "kind": "insight",      "icon": "Bot",           "active": True,  "beta": False, "sub_kinds": []},
     {"key": "kickoff",       "label": "启动会·PPT",        "kind": "kickoff_pptx", "icon": "FileText",      "active": True,  "beta": False, "sub_kinds": []},
     {"key": "kickoff_html",  "label": "启动会·HTML",       "kind": "kickoff_html", "icon": "FileText",      "active": True,  "beta": False, "sub_kinds": []},
-    {"key": "survey",        "label": "需求调研",          "kind": "survey",       "icon": "ClipboardList", "active": True,  "beta": False, "sub_kinds": []},
-    {"key": "insight_v2",    "label": "项目洞察(新版)",  "kind": "insight_v2",   "icon": "Bot",           "active": True,  "beta": True,  "sub_kinds": []},
-    {"key": "survey_v2",     "label": "需求调研(新版)",  "kind": None,           "icon": "Bot",           "active": True,  "beta": True,
+    {"key": "survey",        "label": "需求调研",          "kind": None,           "icon": "Bot",           "active": True,  "beta": False,
      "sub_kinds": [
-         {"kind": "survey_outline_v2", "label": "调研大纲"},
-         {"kind": "survey_v2",         "label": "调研问卷"},
+         {"kind": "survey_outline", "label": "调研大纲"},
+         {"kind": "survey",         "label": "调研问卷"},
      ]},
     {"key": "design",        "label": "方案设计",          "kind": None, "icon": "FileText", "active": False, "beta": False, "sub_kinds": []},
     {"key": "implement",     "label": "项目实施",          "kind": None, "icon": "FileText", "active": False, "beta": False, "sub_kinds": []},
@@ -53,8 +51,8 @@ ALLOWED_ICONS = {
 
 # 允许的 kind(对齐 backend/api/outputs.py KIND_TO_TASK)
 ALLOWED_KINDS = {
-    "kickoff_pptx", "kickoff_html", "survey", "insight",
-    "insight_v2", "survey_v2", "survey_outline_v2",
+    "kickoff_pptx", "kickoff_html",
+    "insight", "survey", "survey_outline",
 }
 
 CONFIG_TYPE = "stage_flow"
@@ -200,10 +198,8 @@ async def get_stage_flow_meta():
         "kind_titles": {
             "kickoff_pptx": "启动会 PPT",
             "kickoff_html": "启动会 HTML",
-            "survey": "调研问卷(旧版)",
-            "insight": "项目洞察(旧版)",
-            "insight_v2": "项目洞察(新版)",
-            "survey_v2": "调研问卷(新版)",
-            "survey_outline_v2": "调研大纲(新版)",
+            "insight": "项目洞察",
+            "survey": "调研问卷",
+            "survey_outline": "调研大纲",
         },
     }

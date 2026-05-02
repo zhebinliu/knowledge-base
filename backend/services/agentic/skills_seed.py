@@ -275,7 +275,7 @@ async def seed_atomic_skills() -> dict:
 # 因为它们是 critic.py / challenger.py 内部 system prompt 的内容,跟 output_agent
 # 的 skill_ids 不是同一注入点
 KIND_TO_ATOMIC_SKILLS: dict[str, list[str]] = {
-    "insight_v2": [
+    "insight": [
         "MBB 输出风格",
         "禁用黑话清单",
         "强制中文输出",
@@ -284,7 +284,7 @@ KIND_TO_ATOMIC_SKILLS: dict[str, list[str]] = {
         "Markdown 表格规范",
         "信息缺失处理规则",
     ],
-    "survey_outline_v2": [
+    "survey_outline": [
         "MBB 输出风格",
         "禁用黑话清单",
         "强制中文输出",
@@ -294,7 +294,7 @@ KIND_TO_ATOMIC_SKILLS: dict[str, list[str]] = {
         "LTC 流程骨架",
         "信息缺失处理规则",
     ],
-    "survey_v2": [
+    "survey": [
         "强制中文输出",
         "调研问卷 6 题型规范",
         "严格 JSON 输出契约",

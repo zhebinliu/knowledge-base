@@ -48,7 +48,7 @@ async def _virtual_status(project_id: str, vkey: str) -> dict:
     - filled = (filled_count >= total_count) — 必答全答完才算 done
     """
     if vkey == "v_guided_questionnaire":
-        return {"filled": False, "filled_count": 0, "total_count": 0, "kind": "insight_v2"}
+        return {"filled": False, "filled_count": 0, "total_count": 0, "kind": "insight"}
 
     # 拉对应虚拟物的 prompts 定义(权威清单)
     from api.virtual_artifacts import SUCCESS_METRICS_PROMPTS, _build_risk_prompts
@@ -60,14 +60,14 @@ async def _virtual_status(project_id: str, vkey: str) -> dict:
             proj = await s.get(Project, project_id)
         prompts = _build_risk_prompts(getattr(proj, "industry", None) if proj else None)
     else:
-        return {"filled": False, "filled_count": 0, "total_count": 0, "kind": "insight_v2"}
+        return {"filled": False, "filled_count": 0, "total_count": 0, "kind": "insight"}
 
-    # 读 insight_v2 的 brief 看相关字段
+    # 读 insight 的 brief 看相关字段
     async with async_session_maker() as s:
         row = (await s.execute(
             select(ProjectBrief).where(
                 ProjectBrief.project_id == project_id,
-                ProjectBrief.output_kind == "insight_v2",
+                ProjectBrief.output_kind == "insight",
             )
         )).scalar_one_or_none()
     fields = (row.fields if row else {}) or {}
@@ -84,16 +84,16 @@ async def _virtual_status(project_id: str, vkey: str) -> dict:
         "filled": total > 0 and answered >= total,        # 必答全答完才打勾
         "filled_count": answered,
         "total_count": total,
-        "kind": "insight_v2",
+        "kind": "insight",
     }
 
 
 @router.get("/{project_id}", dependencies=[Depends(get_current_user)])
-async def get_doc_checklist(project_id: str, stage: str = "insight_v2"):
+async def get_doc_checklist(project_id: str, stage: str = "insight"):
     """返回该项目在指定 stage 下的文档清单 + 已上传状态 + 虚拟物状态。
 
     Query 参数:
-        stage: 阶段 key(默认 insight_v2)
+        stage: 阶段 key(默认 insight)
     """
     # 1. 校验项目存在
     async with async_session_maker() as s:

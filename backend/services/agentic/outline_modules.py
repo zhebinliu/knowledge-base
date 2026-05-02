@@ -1,4 +1,4 @@
-"""调研大纲 v2 (survey_outline_v2) — 7 个模块的声明式定义。
+"""调研大纲 v2 (survey_outline) — 7 个模块的声明式定义。
 
 跟 insight_modules.py 共享 ModuleSpec / FieldSpec 数据结构(直接 import 复用)。
 

@@ -42,27 +42,9 @@ BRIEF_SCHEMAS: dict[str, list[dict]] = {
         {"key": "budget_resource",    "label": "预算与人天",         "hint": "项目预算区间、关键角色人天分布；不清楚写 [待确认]","group": "资源", "type": "text", "required": False},
         {"key": "next_steps",         "label": "本周/下周 Next Step","hint": "具体到 Owner 与 deadline 的 Action Items",       "group": "Next Step", "type": "list", "required": True},
     ],
-    "insight": [
-        # 项目快照
-        {"key": "exec_summary",       "label": "执行摘要要点",       "hint": "3–5 条 bullet：当前态势 + 1 大机会 + 1 大风险",  "group": "执行摘要", "type": "list", "required": True},
-        {"key": "project_overview",   "label": "项目概览（量化）",   "hint": "用户数 / 模块数 / 预算 / 时间窗",                "group": "项目概览", "type": "text", "required": True},
-        # 干系人
-        {"key": "stakeholder_map",    "label": "干系人画像",         "hint": "角色/决策权重/态度（积极/观望/阻力）",          "group": "干系人", "type": "list", "required": True},
-        # 决策
-        {"key": "decisions_made",     "label": "已做出的关键决策",   "hint": "决策内容 + 背景 + 影响",                          "group": "关键决策", "type": "list", "required": False},
-        {"key": "decisions_pending",  "label": "待决策事项",         "hint": "选项 A/B + Owner + 截止时间",                     "group": "关键决策", "type": "list", "required": True},
-        # 风险与依赖
-        {"key": "risks",              "label": "Top 5–8 风险",       "hint": "风险 / 影响 / 可能性 / 应对 / Owner",            "group": "风险与依赖", "type": "list", "required": True},
-        {"key": "dependencies",       "label": "关键依赖与里程碑",   "hint": "阻塞项与时间线",                                  "group": "风险与依赖", "type": "list", "required": True},
-        # 行业最佳实践
-        {"key": "best_practices",     "label": "可借鉴 / 应规避",    "hint": "2–3 条同行业可借鉴 + 1–2 条反例（标出处）",       "group": "行业最佳实践", "type": "list", "required": False},
-        # 行动
-        {"key": "next_actions",       "label": "下一步建议",         "hint": "5–8 条；区分 Quick Win / Strategic；含 Owner+deadline+预期产出", "group": "行动", "type": "list", "required": True},
-    ],
-    # ── v2 (agentic) — 旁路验证版本，与 insight/survey 并存 ──
-    # insight_v2: 对齐 INSIGHT_MODULES 中标 source_priority 含 "brief" 的关键字段，
+    # insight: 对齐 INSIGHT_MODULES 中标 source_priority 含 "brief" 的关键字段，
     # 让 BriefDrawer 可以一次性预抽取，再交给 Planner / Executor 用。
-    "insight_v2": [
+    "insight": [
         # M1 执行摘要
         {"key": "situation",          "label": "项目态势(Situation)", "hint": "一句话:规模/阶段/紧迫度",                        "group": "M1 执行摘要", "type": "text", "required": True},
         {"key": "complication",       "label": "项目难点(Complication)", "hint": "项目最大的卡点/困难",                          "group": "M1 执行摘要", "type": "text", "required": True},
@@ -90,9 +72,9 @@ BRIEF_SCHEMAS: dict[str, list[dict]] = {
         # M10 下一步
         {"key": "quick_wins_2w",      "label": "Quick Win(2周内)",    "hint": "2周内可见效的 3-4 条动作,含 Owner+deadline",       "group": "M10 下一步", "type": "list", "required": False},
     ],
-    # survey_outline_v2: L0 调研启动 brief — 给"调研大纲"skill 用
+    # survey_outline: L0 调研启动 brief — 给"调研大纲"skill 用
     # 大纲是问卷的上游(先定调研场次和议题,再拼对应分卷给责任人)
-    "survey_outline_v2": [
+    "survey_outline": [
         {"key": "discovery_purpose",     "label": "调研目的",          "hint": "本轮调研要解决什么(摸底现状 / 验证方案 / 收集需求 / 确认变更)", "group": "L0 目标", "type": "text", "required": True},
         {"key": "duration_weeks",        "label": "总周期",            "hint": "几周(2 / 3 / 4 周)",                                          "group": "L0 节奏", "type": "text", "required": True},
         {"key": "in_scope_departments",  "label": "涵盖部门",          "hint": "客户哪些部门参与本轮调研",                                       "group": "L0 范围", "type": "list", "required": True},
@@ -102,8 +84,8 @@ BRIEF_SCHEMAS: dict[str, list[dict]] = {
         {"key": "time_constraints",      "label": "时间窗约束",        "hint": "客户上班时间 / 节假日避开 / 关键人档期 / 材料到位时间",         "group": "L0 节奏", "type": "text", "required": False},
         {"key": "preferred_format",      "label": "偏好形式",          "hint": "集中 vs 分散;线上 vs 线下;集中工作坊 vs 一对一访谈",          "group": "L0 节奏", "type": "text", "required": False},
     ],
-    # survey_v2: L1 高管短卷 — 战略+痛点对齐(对齐 L1_EXEC_SUBSECTION must_cover)
-    "survey_v2": [
+    # survey: L1 高管短卷 — 战略+痛点对齐(对齐 L1_EXEC_SUBSECTION must_cover)
+    "survey": [
         {"key": "strategic_intent",   "label": "战略意图",            "hint": "为什么上 CRM(业务驱动 / 合规 / 数字化转型)",        "group": "L1 战略", "type": "text", "required": True},
         {"key": "success_metrics",    "label": "成功标准(3 个 SMART)", "hint": "可量化、可验证(例:商机赢率提升 X%)",                "group": "L1 战略", "type": "list", "required": True},
         {"key": "top_pain_points",    "label": "Top 3 痛点",          "hint": "按优先级排序",                                     "group": "L1 痛点", "type": "list", "required": True},
@@ -120,15 +102,6 @@ def get_schema(output_kind: str) -> list[dict]:
     # kickoff_html 与 kickoff_pptx 共用同一份 brief schema（两者输入素材一致，仅渲染形态不同）
     if output_kind == "kickoff_html":
         return BRIEF_SCHEMAS.get("kickoff_pptx", [])
-    return BRIEF_SCHEMAS.get(output_kind, [])
-
-
-def get_v2_paired_schema(output_kind: str) -> list[dict]:
-    """v2 输出辅助: insight_v2 / survey_v2 共用 v2 schema(用于 BriefDrawer 抽取)。
-
-    本期不区分 v2 与原版 schema 的 BriefDrawer 流;直接复用 BRIEF_SCHEMAS 注册即可。
-    保留此函数以便后续做 v1/v2 schema 镜像时统一入口。
-    """
     return BRIEF_SCHEMAS.get(output_kind, [])
 
 
@@ -158,7 +131,7 @@ def merge_extract_with_user_edits(existing: dict, draft: dict) -> dict:
 
 
 # ── 文档类型 → 优先抽取字段 + 抽取重点提示(差异化提取策略) ──
-# 用于 insight_v2 的文档驱动 brief extraction。每种文档类型擅长承载哪些字段,
+# 用于 insight 的文档驱动 brief extraction。每种文档类型擅长承载哪些字段,
 # 给 LLM 显式 must_extract / nice_to_have / why_focus 提示,而不是让它一锅炖。
 DOC_TYPE_EXTRACTION_HINTS: dict[str, dict] = {
     "sow": {

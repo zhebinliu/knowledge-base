@@ -1,11 +1,11 @@
 /**
- * CenterWorkspace — 项目详情页(insight_v2 stage)中栏
+ * CenterWorkspace — 项目详情页(insight stage)中栏
  *
  * 根据 centerView 切换:
  *  - 'preparation' (默认):「准备状态」卡片 — 完成度 + Brief 按钮 + 开始生成 CTA
  *  - 'preview':显示某文档的 markdown(用户从左栏点击)
  *  - 'report':显示已生成报告 markdown(带角标)
- *  - 'gap_filler':显示 V2GapFiller(bundle invalid+short_circuited)
+ *  - 'gap_filler':显示 AgenticGapFiller(bundle invalid+short_circuited)
  *  - 'virtual':显示虚拟物问卷(成功指标/风险预警)
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -17,11 +17,11 @@ import {
   getDocumentMarkdown, getDocChecklist,
   getVirtualArtifact, submitVirtualArtifact,
   generateOutput, getInsightCheckup,
-  type CuratedBundle, type V2GapPrompt, type InsightCheckupResult,
+  type CuratedBundle, type AgenticGapPrompt, type InsightCheckupResult,
 } from '../../api/client'
 import { useState } from 'react'
 import MarkdownView from '../MarkdownView'
-import V2GapFiller from '../V2GapFiller'
+import AgenticGapFiller from '../AgenticGapFiller'
 import CitedReportView from './CitedReportView'
 import StakeholderCanvas from './StakeholderCanvas'
 import GenerationProgressCard from './GenerationProgressCard'
@@ -80,10 +80,10 @@ export default function CenterWorkspace({
           <ReportView bundle={activeBundle} onCitationClick={onCitationClick} />
         )}
         {view.type === 'gap_filler' && activeBundle && (
-          <V2GapFiller
+          <AgenticGapFiller
             key={`gap-${activeBundle.id}`}
             bundle={activeBundle}
-            kind="insight_v2"
+            kind="insight"
             projectId={projectId}
             onSubmitted={() => { onRefetch(); setView({ type: 'preparation' }) }}
           />
@@ -114,13 +114,13 @@ function PreparationView({
   onRefetch: () => void
 }) {
   const { data: checklist } = useQuery({
-    queryKey: ['doc-checklist', projectId, 'insight_v2'],
-    queryFn: () => getDocChecklist(projectId, 'insight_v2'),
+    queryKey: ['doc-checklist', projectId, 'insight'],
+    queryFn: () => getDocChecklist(projectId, 'insight'),
   })
   const [error, setError] = useState<string | null>(null)
   const [checkupOpen, setCheckupOpen] = useState(false)
   const genMut = useMutation({
-    mutationFn: () => generateOutput({ kind: 'insight_v2', project_id: projectId }),
+    mutationFn: () => generateOutput({ kind: 'insight', project_id: projectId }),
     onSuccess: () => { onRefetch(); setError(null) },
     onError: (e: any) => setError(e?.response?.data?.detail || e?.message || '触发失败'),
   })
@@ -168,7 +168,7 @@ function PreparationView({
                 <Lightbulb size={20} className="text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <h2 className="text-lg font-bold text-ink">项目洞察(新版)</h2>
+                <h2 className="text-lg font-bold text-ink">项目洞察</h2>
                 <p className="text-xs text-ink-muted mt-1 leading-relaxed">
                   基于上传文档 + 引导问卷生成项目诊断报告。
                   <br/>把左侧文档清单补齐,系统会自动从文档抽取信息并标注每段来源。
@@ -394,7 +394,7 @@ function ReportView({
   return (
     <div className="h-full bg-canvas overflow-auto">
       <div className="max-w-[1200px] mx-auto px-5 py-5 space-y-4">
-        {/* v3.6:挑战回合面板 + 单独的 validity 提示 已合并到 V2ValidityBanner(报告页顶部),
+        {/* v3.6:挑战回合面板 + 单独的 validity 提示 已合并到 AgenticValidityBanner(报告页顶部),
             这里不再重复展示,避免双源头让用户混淆 */}
         {/* v3.4 M9 web 检索失败提示 — 不阻断阅读,只告诉用户 M9 章节质量可能下降 */}
         {bundle.web_search_status && !bundle.web_search_status.ok && (
@@ -478,7 +478,7 @@ function VirtualForm({ vkey, projectId, onDone }: {
   }
 
   // 当前值映射(用户没改之前显示已存)
-  const valueOf = (p: V2GapPrompt) => {
+  const valueOf = (p: AgenticGapPrompt) => {
     if (p.field_key in answers) return answers[p.field_key]
     const cell = data.current_values[p.field_key]
     return cell?.value
@@ -517,7 +517,7 @@ function VirtualForm({ vkey, projectId, onDone }: {
 }
 
 function PromptCard({ prompt, value, onChange }: {
-  prompt: V2GapPrompt
+  prompt: AgenticGapPrompt
   value: any
   onChange: (v: any) => void
 }) {
@@ -614,7 +614,7 @@ function InsightCheckupDrawer({
         {/* 顶栏 */}
         <div className="flex-shrink-0 px-5 py-3 border-b border-line bg-slate-50/50 flex items-center gap-2">
           <Search size={14} className="text-orange-600" />
-          <h3 className="text-sm font-bold text-ink">体检报告 · 项目洞察(新版)</h3>
+          <h3 className="text-sm font-bold text-ink">体检报告 · 项目洞察</h3>
           {data && (
             <span className="ml-2 text-[11px] text-ink-muted">
               · 共 {data.modules.length} 个章节 · 已就绪 {data.stats.ready_n} · 待补 {data.stats.blocked_n + data.stats.ask_user_n}

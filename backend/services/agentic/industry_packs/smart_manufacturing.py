@@ -82,7 +82,7 @@ SMART_MFG = IndustryPack(
         },
     ],
 
-    # 调研大纲(survey_outline_v2)用 — 智能制造典型必访部门 + 工业品 B2B 特有 sessions
+    # 调研大纲(survey_outline)用 — 智能制造典型必访部门 + 工业品 B2B 特有 sessions
     # 通过 IndustryPack 上的 extra_data 字段挂载;outline_modules 的 industry_pack source 会读取
     extra_question_seeds=[
         # 项目型销售

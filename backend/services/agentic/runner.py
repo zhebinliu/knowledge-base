@@ -1,8 +1,8 @@
-"""Runner — agentic v2 的主入口。
+"""Runner — agentic 主入口(规则化生成项目洞察 / 调研大纲 / 调研问卷)。
 
 提供两个 Celery-friendly async 函数:
-- generate_insight_v2(bundle_id, project_id)
-- generate_survey_v2(bundle_id, project_id)
+- generate_insight(bundle_id, project_id)
+- generate_survey(bundle_id, project_id)
 
 流程(insight):
 1. 读取 ctx(project / brief / conversation / agent_config)
@@ -698,7 +698,7 @@ async def _short_circuit_invalid(
     proj = ctx["project"]
     title_main = proj.name if proj else (ctx["industry"] or "—")
     md = (
-        f"# {title_main} · {kind_label} v2 (agentic)\n\n"
+        f"# {title_main} · {kind_label}\n\n"
         f"**生成日期**:{date.today().strftime('%Y年%m月%d日')}  \n"
         f"**Validity**:invalid · **拦截**(未跑 LLM)\n\n"
         f"---\n\n"
@@ -747,7 +747,7 @@ async def _short_circuit_invalid(
 
 # ── Insight v2 入口 ────────────────────────────────────────────────────────────
 
-async def generate_insight_v2(bundle_id: str, project_id: str):
+async def generate_insight(bundle_id: str, project_id: str):
     """v2 入口 — 三层 agentic 流程。失败时 status=failed,信息不足时 status=done + invalid。"""
     run_history: list[dict] = []
     try:
@@ -756,7 +756,7 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
         await _update_progress(bundle_id, stage="planning", message="加载项目上下文 + 生成方案规划中…")
 
         # ── Phase 1: 加载 ctx ──
-        ctx = await _load_ctx(bundle_id, project_id, "insight_v2")
+        ctx = await _load_ctx(bundle_id, project_id, "insight")
         run_history.append({
             "phase": "ctx_loaded", "ts": _ts(),
             "detail": {
@@ -790,14 +790,14 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
                 logger.info("v3_auto_extract_start",
                             project_id=project_id, docs_n=sum(len(v) for v in docs_by_type.values()),
                             brief_filled_pre=brief_filled_count)
-                draft = await extract_brief_draft(project_id, "insight_v2", model=ctx["agent_model"])
+                draft = await extract_brief_draft(project_id, "insight", model=ctx["agent_model"])
                 # 合并到现有 brief(用户已编辑的字段优先保留)
                 merged = merge_extract_with_user_edits(ctx["brief_fields"] or {}, draft)
                 async with async_session_maker() as s:
                     row = (await s.execute(
                         select(ProjectBrief).where(
                             ProjectBrief.project_id == project_id,
-                            ProjectBrief.output_kind == "insight_v2",
+                            ProjectBrief.output_kind == "insight",
                         )
                     )).scalar_one_or_none()
                     if row:
@@ -806,7 +806,7 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
                         flag_modified(row, "fields")
                     else:
                         s.add(ProjectBrief(project_id=project_id,
-                                           output_kind="insight_v2", fields=merged))
+                                           output_kind="insight", fields=merged))
                     await s.commit()
                 ctx["brief_fields"] = merged
                 post_real = sum(
@@ -1090,12 +1090,12 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
         })
         await _mark(bundle_id, "done", content_md=full_md, extra=new_extra)
         await _mark_conv(bundle_id, "done")
-        logger.info("insight_v2_generated", bundle_id=bundle_id, validity=validity_status,
+        logger.info("insight_generated", bundle_id=bundle_id, validity=validity_status,
                     modules_n=len(module_contents),
                     provenance_modules=len(provenance),
                     total_sources=sum(len(v) for v in provenance.values()))
     except Exception as e:
-        logger.error("insight_v2_failed", bundle_id=bundle_id, error=str(e)[:300])
+        logger.error("insight_failed", bundle_id=bundle_id, error=str(e)[:300])
         run_history.append({"phase": "failed", "ts": _ts(), "detail": str(e)[:300]})
         try:
             async with async_session_maker() as s:
@@ -1109,20 +1109,20 @@ async def generate_insight_v2(bundle_id: str, project_id: str):
                     b.error = str(e)[:500]
                     await s.commit()
         except Exception as e2:
-            logger.error("insight_v2_failed_writeback_failed", error=str(e2)[:200])
+            logger.error("insight_failed_writeback_failed", error=str(e2)[:200])
         await _mark_conv(bundle_id, "failed")
 
 
 # ── Survey v2 入口 ─────────────────────────────────────────────────────────────
 
-async def generate_survey_v2(bundle_id: str, project_id: str):
+async def generate_survey(bundle_id: str, project_id: str):
     """v2 入口 — 双层模块化问卷。"""
     run_history: list[dict] = []
     try:
         await _mark(bundle_id, "generating")
         run_history.append({"phase": "started", "ts": _ts()})
 
-        ctx = await _load_ctx(bundle_id, project_id, "survey_v2")
+        ctx = await _load_ctx(bundle_id, project_id, "survey")
         run_history.append({
             "phase": "ctx_loaded", "ts": _ts(),
             "detail": {"industry": ctx["industry"],
@@ -1262,7 +1262,7 @@ async def generate_survey_v2(bundle_id: str, project_id: str):
         # 拼 markdown
         proj = ctx["project"]
         title_main = proj.name if proj else (ctx["industry"] or "—")
-        md_blocks = [f"# {title_main} · 实施前调研问卷 v2 (agentic)\n"]
+        md_blocks = [f"# {title_main} · 实施前调研问卷\n"]
         md_blocks.append(f"**生成日期**:{date.today().strftime('%Y年%m月%d日')}  ")
         md_blocks.append(f"**客户**:{(proj.customer if proj else '—') or '—'}  ")
         md_blocks.append(f"**行业**:{ctx['industry'] or '—'}  ")
@@ -1315,11 +1315,11 @@ async def generate_survey_v2(bundle_id: str, project_id: str):
             from services.output_service import _build_docx, _minio_put
             title_doc = f"调研问卷 v2 · {title_main}"
             docx_bytes = _build_docx(title_doc, full_md)
-            docx_key = f"outputs/{bundle_id}/survey_v2.docx"
+            docx_key = f"outputs/{bundle_id}/survey.docx"
             _minio_put(docx_key, docx_bytes,
                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         except Exception as e:
-            logger.warning("survey_v2_docx_failed", error=str(e)[:120])
+            logger.warning("survey_docx_failed", error=str(e)[:120])
 
         new_extra = dict(ctx["bundle_extra"])
         new_extra.update({
@@ -1333,11 +1333,11 @@ async def generate_survey_v2(bundle_id: str, project_id: str):
         })
         await _mark(bundle_id, "done", content_md=full_md, file_key=docx_key, extra=new_extra)
         await _mark_conv(bundle_id, "done")
-        logger.info("survey_v2_generated", bundle_id=bundle_id, validity=validity_status,
+        logger.info("survey_generated", bundle_id=bundle_id, validity=validity_status,
                     subsections_n=len(sub_contents),
                     questionnaire_items_n=len(all_questionnaire_items))
     except Exception as e:
-        logger.error("survey_v2_failed", bundle_id=bundle_id, error=str(e)[:300])
+        logger.error("survey_failed", bundle_id=bundle_id, error=str(e)[:300])
         run_history.append({"phase": "failed", "ts": _ts(), "detail": str(e)[:300]})
         try:
             async with async_session_maker() as s:
@@ -1351,14 +1351,14 @@ async def generate_survey_v2(bundle_id: str, project_id: str):
                     b.error = str(e)[:500]
                     await s.commit()
         except Exception as e2:
-            logger.error("survey_v2_failed_writeback_failed", error=str(e2)[:200])
+            logger.error("survey_failed_writeback_failed", error=str(e2)[:200])
         await _mark_conv(bundle_id, "failed")
 
 
-# ── Outline v2 入口(survey_outline_v2)─────────────────────────────────────────
+# ── Outline v2 入口(survey_outline)─────────────────────────────────────────
 
-async def generate_outline_v2(bundle_id: str, project_id: str):
-    """调研大纲 v2 入口 — 与 insight_v2 同结构,只换模块清单。
+async def generate_survey_outline(bundle_id: str, project_id: str):
+    """调研大纲 v2 入口 — 与 insight 同结构,只换模块清单。
 
     7 个模块 (M1-M7),核心是 M3 调研日程表(9 列表格)。
     行业差异化通过 industry_pack.default_sessions / must_visit_departments / typical_customer_materials 注入。
@@ -1372,7 +1372,7 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
         run_history.append({"phase": "started", "ts": _ts()})
 
         # ── Phase 1: ctx ──
-        ctx = await _load_ctx(bundle_id, project_id, "survey_outline_v2")
+        ctx = await _load_ctx(bundle_id, project_id, "survey_outline")
         run_history.append({
             "phase": "ctx_loaded", "ts": _ts(),
             "detail": {
@@ -1596,7 +1596,7 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
         title_main = proj.name if proj else (ctx["industry"] or "—")
 
         def _assemble_outline_md() -> str:
-            md_blocks = [f"# {title_main} · 调研大纲 v2 (agentic)\n"]
+            md_blocks = [f"# {title_main} · 调研大纲\n"]
             md_blocks.append(f"**生成日期**:{date.today().strftime('%Y年%m月%d日')}  ")
             md_blocks.append(f"**客户**:{(proj.customer if proj else '—') or '—'}  ")
             md_blocks.append(f"**行业**:{ctx['industry'] or '—'}  ")
@@ -1721,11 +1721,11 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
         try:
             from services.output_service import _build_docx, _minio_put
             docx_bytes = _build_docx(f"调研大纲 v2 · {title_main}", full_md)
-            docx_key = f"outputs/{bundle_id}/survey_outline_v2.docx"
+            docx_key = f"outputs/{bundle_id}/survey_outline.docx"
             _minio_put(docx_key, docx_bytes,
                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         except Exception as e:
-            logger.warning("outline_v2_docx_failed", error=str(e)[:120])
+            logger.warning("survey_outline_docx_failed", error=str(e)[:120])
 
         new_extra = dict(ctx["bundle_extra"])
         new_extra.update({
@@ -1745,14 +1745,14 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
         })
         await _mark(bundle_id, "done", content_md=full_md, file_key=docx_key, extra=new_extra)
         await _mark_conv(bundle_id, "done")
-        logger.info("outline_v2_generated", bundle_id=bundle_id, validity=validity_status,
+        logger.info("survey_outline_generated", bundle_id=bundle_id, validity=validity_status,
                     modules_n=len(module_contents),
                     challenge_rounds=challenge_summary["rounds_total"],
                     challenge_verdict=challenge_summary["final_verdict"])
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
-        logger.error("outline_v2_failed", bundle_id=bundle_id, error=str(e)[:300],
+        logger.error("survey_outline_failed", bundle_id=bundle_id, error=str(e)[:300],
                      traceback=tb[:2000])
         run_history.append({"phase": "failed", "ts": _ts(),
                             "detail": str(e)[:300],
@@ -1769,5 +1769,5 @@ async def generate_outline_v2(bundle_id: str, project_id: str):
                     b.error = str(e)[:500]
                     await s.commit()
         except Exception as e2:
-            logger.error("outline_v2_failed_writeback_failed", error=str(e2)[:200])
+            logger.error("survey_outline_failed_writeback_failed", error=str(e2)[:200])
         await _mark_conv(bundle_id, "failed")

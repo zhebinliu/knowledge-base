@@ -21,9 +21,21 @@ from services.brief_service import (
 router = APIRouter()
 
 
+_LEGACY_V2_ALIAS = {
+    "insight_v2": "insight",
+    "survey_v2": "survey",
+    "survey_outline_v2": "survey_outline",
+}
+
+
 def _canonical_kind(kind: str) -> str:
-    """kickoff 阶段两套 PPT 管线（pptxgen / htmlppt）共用一份 brief：统一以 kickoff_pptx 落库。"""
-    return "kickoff_pptx" if kind == "kickoff_html" else kind
+    """前端 / 历史调用方传进来的 kind 归一化:
+    - kickoff_html → kickoff_pptx (两套 PPT 管线共用一份 brief)
+    - *_v2 → 无后缀 (v3 命名归一兼容,详见 scripts/migrate_v3_rename.py)
+    """
+    if kind == "kickoff_html":
+        return "kickoff_pptx"
+    return _LEGACY_V2_ALIAS.get(kind, kind)
 
 
 def _dto(brief: ProjectBrief | None, kind: str, project_id: str) -> dict:

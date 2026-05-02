@@ -70,7 +70,7 @@ VIRTUAL_ARTIFACT_DESCRIPTIONS = {
 # 各阶段(stage)需要的文档清单
 # key 跟 stage_flow.STAGES 的 key 对齐
 STAGE_DOC_REQUIREMENTS: dict[str, dict] = {
-    "insight_v2": {
+    "insight": {
         "required_docs":    ["sow", "system_integration", "contract", "handover"],
         "recommended_docs": ["stakeholder_map", "presales_solution", "presales_survey"],
         "virtual_required": ["v_success_metrics"],

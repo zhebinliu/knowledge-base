@@ -1,5 +1,5 @@
 /**
- * InsightDemo — 项目洞察 (新版) 走查页
+ * InsightDemo — 项目洞察 走查页
  * Route: /demo/insight (no auth required)
  *
  * 风格:以「友发钢管」一个真实项目为主线,逐步走查"你会看到什么、你会拿到什么"。
@@ -33,14 +33,14 @@ export default function InsightDemo() {
           <span className="text-ink-muted text-xs">/</span>
           <span className="text-sm text-ink-secondary">功能走查</span>
           <span className="text-ink-muted text-xs">/</span>
-          <span className="text-sm font-semibold text-ink">项目洞察(新版)</span>
+          <span className="text-sm font-semibold text-ink">项目洞察</span>
         </div>
       </div>
 
       {/* Hero */}
       <div className="max-w-[1500px] mx-auto px-8 sm:px-12 pt-12 pb-8">
         <div className="flex items-center gap-2 mb-4">
-          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">新版 · 内测</span>
+          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">内测</span>
           <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-orange-100 text-[#D96400]">智能体</span>
         </div>
         <h1 className="text-3xl font-extrabold text-ink tracking-tight">项目洞察 — 售前交接给 PM 后,快速摸清项目底盘的工具</h1>
@@ -97,7 +97,7 @@ export default function InsightDemo() {
       </div>
 
       {/* Step 1 */}
-      <Step n={1} title="点项目阶段栏的「项目洞察 (新版)」">
+      <Step n={1} title="点项目阶段栏的「项目洞察」">
         <p className="text-sm text-ink-secondary mb-3">
           进入友发钢管项目详情,顶部阶段栏现在多了 2 个内测阶段。点第一个橙色那个。
         </p>
@@ -108,7 +108,7 @@ export default function InsightDemo() {
       <Step n={2} title="确认交接资料齐不齐,补齐了点「开始生成」">
         <p className="text-sm text-ink-secondary mb-3">
           进入项目洞察后是 <strong>三栏布局</strong>。左栏文档清单告诉你"必备 / 推荐"哪些文档已经上传、哪些缺;
-          中栏显示完成度大数字 + 大「开始生成」按钮。<strong>新版不需要填表</strong> — 系统直接从文档里抽,
+          中栏显示完成度大数字 + 大「开始生成」按钮。<strong>项目洞察不需要填表</strong> — 系统直接从文档里抽,
           你只要把交接资料补齐就行。
         </p>
         <MockDocChecklist />
@@ -153,12 +153,12 @@ export default function InsightDemo() {
       {/* Step 6 — invalid */}
       <Step n={6} title="如果信息不够,你会看到红色 banner(而不是糊弄你的报告)">
         <p className="text-sm text-ink-secondary mb-3">
-          换个新建的空项目(没访谈、没文档、没 Brief)跑新版,系统不会强行编。它会标 invalid,把缺的清单列出来,等你补完再点重新生成。
+          换个新建的空项目(没访谈、没文档、没 Brief)跑,系统不会强行编。它会标 invalid,把缺的清单列出来,等你补完再点重新生成。
         </p>
         <MockInvalidBanner />
         <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900 leading-relaxed">
           <strong>这是设计,不是 bug。</strong>
-          旧版 的策略是"宁可写也别空着",结果一堆空话和编造;新版改成"宁可不写也别糊弄",信息不够的章节就标"信息缺失"。
+          项目洞察的策略是"宁可不写也别糊弄",信息不够的章节就标"信息缺失"。
           <br/>对 PM 的实际意义:你拿这份画像内部对齐 / 跟客户复盘,不会被问"这数据哪里来的、你确定吗"。
         </div>
       </Step>
@@ -169,14 +169,14 @@ export default function InsightDemo() {
           <h3 className="text-lg font-bold mb-1.5">现在去试一下</h3>
           <p className="text-sm opacity-90 mb-4">
             进任意 智能制造行业的项目(友发钢管 / 特变新能源 / 唐山天地矿业 / 百迈客生物科技 / 东方雨虹)
-            ,点橙色阶段「项目洞察 (新版)」体验。
+            ,点橙色阶段「项目洞察」体验。
           </p>
           <div className="flex gap-2">
             <Link to="/console/projects" className="px-4 py-2 bg-white text-[#D96400] rounded-lg text-sm font-semibold inline-flex items-center gap-1.5">
               <Sparkles size={13} /> 去项目列表
             </Link>
             <Link to="/demo/survey" className="px-4 py-2 bg-white/20 text-white border border-white/40 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5 hover:bg-white/30">
-              <ClipboardList size={13} /> 看 调研问卷(新版)走查 →
+              <ClipboardList size={13} /> 看 调研问卷走查 →
             </Link>
           </div>
         </div>
@@ -287,7 +287,7 @@ const INSIGHT_ARCH_LAYERS: ArchLayer[] = [
     components: [
       { name: '项目文档', description: 'SOW、系统集成方案、合同、交接单、售前调研、干系人图。重要文档喂全文给 AI,不切片漏条款。' },
       { name: '项目基本信息', description: '客户名称、所属行业、项目规模、启动时间、客户画像。' },
-      { name: '已填表单', description: '顾问之前在表单里填过的字段(若有)。新版"文档驱动"模式下,可以跳过填表,系统自动从文档抽取。' },
+      { name: '已填表单', description: '顾问之前在表单里填过的字段(若有)。「文档驱动」模式下,可以跳过填表,系统自动从文档抽取。' },
       { name: '干系人关系图', description: '在项目详情页画的部门 / 人员组织关系图。系统转成文字喂给 AI。' },
       { name: '历史访谈记录', description: '之前跟客户的对话记录。系统会去重,避免在报告里重复问已聊过的话题。' },
       { name: '公司知识库', description: '跨项目沉淀的最佳实践、行业 knowhow、典型流程。AI 缺资料时来这里查。' },
@@ -456,8 +456,8 @@ function MockStageBar() {
     { label: '启动会·PPT', state: 'idle', color: '#F8FAFC' },
     { label: '启动会·HTML', state: 'idle', color: '#F8FAFC' },
     { label: '需求调研', state: 'done', color: '#D1FAE5' },
-    { label: '项目洞察 (新版)', state: 'active', color: BRAND_GRAD },
-    { label: '需求调研 (新版)', state: 'idle', color: '#F8FAFC' },
+    { label: '项目洞察', state: 'active', color: BRAND_GRAD },
+    { label: '需求调研', state: 'idle', color: '#F8FAFC' },
   ]
   return (
     <div className="bg-white border border-line rounded-lg p-3">
@@ -554,7 +554,7 @@ function MockDocChecklist() {
             <Lightbulb size={20} className="text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-base font-bold text-ink">项目洞察(新版)</h2>
+            <h2 className="text-base font-bold text-ink">项目洞察</h2>
             <p className="text-xs text-ink-muted mt-1 leading-relaxed">
               基于上传文档自动生成 360° 项目画像。<br/>
               把左栏文档清单补齐,系统会从文档抽取信息并标注每段来源。

@@ -1,5 +1,5 @@
 /**
- * SurveyDemo — 调研问卷 (新版) 走查页
+ * SurveyDemo — 调研问卷 走查页
  * Route: /demo/survey (no auth required)
  *
  * 风格:跟 InsightDemo 一样,以「友发钢管」为主线逐步走查。
@@ -29,14 +29,14 @@ export default function SurveyDemo() {
           <span className="text-ink-muted text-xs">/</span>
           <span className="text-sm text-ink-secondary">功能走查</span>
           <span className="text-ink-muted text-xs">/</span>
-          <span className="text-sm font-semibold text-ink">调研问卷(新版)</span>
+          <span className="text-sm font-semibold text-ink">调研问卷</span>
         </div>
       </div>
 
       {/* Hero */}
       <div className="max-w-[1500px] mx-auto px-8 sm:px-12 pt-12 pb-8">
         <div className="flex items-center gap-2 mb-4">
-          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">新版 · 内测</span>
+          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">内测</span>
           <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-orange-100 text-[#D96400]">智能体</span>
         </div>
         <h1 className="text-3xl font-extrabold text-ink tracking-tight">需求调研 — 顾问拿大纲口头问、系统勾选录入的工作台</h1>
@@ -94,7 +94,7 @@ export default function SurveyDemo() {
       </div>
 
       {/* Step 1 — 进入工作台 */}
-      <Step n={1} title="进入项目,顶部阶段栏切到「需求调研(新版)」">
+      <Step n={1} title="进入项目,顶部阶段栏切到「需求调研」">
         <p className="text-sm text-ink-secondary mb-3">
           看到调研工作台是 <strong>三栏布局</strong>:左栏是 LTC 13 个模块清单(SOW 命中标橙点 / 客户自定义标紫点),
           中栏切换"准备 / 调研大纲 / 调研问卷(录入)"三个视图,右栏放参考资料(默认收起)。
@@ -147,7 +147,7 @@ export default function SurveyDemo() {
         <div className="rounded-xl p-6 text-white" style={{ background: BRAND_GRAD }}>
           <h3 className="text-lg font-bold mb-1.5">现在去试一下</h3>
           <p className="text-sm opacity-90 mb-4">
-            进任意 智能制造行业的项目,点橙色阶段「需求调研 (新版)」体验。
+            进任意 智能制造行业的项目,点橙色阶段「需求调研」体验。
             生成出来会同时有 markdown 预览 和 .docx 下载,可以直接发给客户。
           </p>
           <div className="flex gap-2">
@@ -155,7 +155,7 @@ export default function SurveyDemo() {
               <Sparkles size={13} /> 去项目列表
             </Link>
             <Link to="/demo/insight" className="px-4 py-2 bg-white/20 text-white border border-white/40 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5 hover:bg-white/30">
-              <Lightbulb size={13} /> 看 项目洞察(新版)走查 →
+              <Lightbulb size={13} /> 看 项目洞察走查 →
             </Link>
           </div>
         </div>
@@ -174,7 +174,7 @@ export default function SurveyDemo() {
             <p>去重:planner.py 里 <code className="bg-slate-100 px-1.5 rounded">plan_survey()</code> 用关键词扫描 transcript_text(组织架构/KPI/商机/线索/回款/BOM/经销商/ERP/Install Base/工单/合规/预算 etc),命中即标已覆盖,执行器 prompt 里告知 LLM 跳过。</p>
             <p>行业扩展题来自 <code className="bg-slate-100 px-1.5 rounded">industry_packs/smart_manufacturing.py</code> 的 extra_question_seeds(12 条),按 theme key 路由到对应分卷。</p>
             <p>评审 评分维度:type_diversity / no_jargon / actionable / no_duplicate(全 ≥3 通过)。</p>
-            <p>输出:Markdown 直显 + .docx(MinIO 存),前端 V2ValidityBanner 展示分卷状态。</p>
+            <p>输出:Markdown 直显 + .docx(MinIO 存),前端 AgenticValidityBanner 展示分卷状态。</p>
           </div>
         </details>
       </div>
@@ -397,8 +397,8 @@ function MockStageBar() {
     { label: '启动会·PPT', state: 'idle', color: '#F8FAFC' },
     { label: '启动会·HTML', state: 'idle', color: '#F8FAFC' },
     { label: '需求调研', state: 'done', color: '#D1FAE5' },
-    { label: '项目洞察 (新版)', state: 'idle', color: '#F8FAFC' },
-    { label: '需求调研 (新版)', state: 'active', color: BRAND_GRAD },
+    { label: '项目洞察', state: 'idle', color: '#F8FAFC' },
+    { label: '需求调研', state: 'active', color: BRAND_GRAD },
   ]
   return (
     <div className="bg-white border border-line rounded-lg p-3">

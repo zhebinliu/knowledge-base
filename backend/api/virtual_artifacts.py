@@ -237,7 +237,7 @@ async def get_virtual(vkey: str, project_id: str):
             row = (await s.execute(
                 select(ProjectBrief).where(
                     ProjectBrief.project_id == project_id,
-                    ProjectBrief.output_kind == "insight_v2",
+                    ProjectBrief.output_kind == "insight",
                 )
             )).scalar_one_or_none()
         if row and row.fields:
@@ -271,7 +271,7 @@ async def submit_virtual(vkey: str, project_id: str, body: SubmitVirtualBody):
         row = (await s.execute(
             select(ProjectBrief).where(
                 ProjectBrief.project_id == project_id,
-                ProjectBrief.output_kind == "insight_v2",
+                ProjectBrief.output_kind == "insight",
             )
         )).scalar_one_or_none()
         existing = (row.fields if row else {}) or {}
@@ -291,7 +291,7 @@ async def submit_virtual(vkey: str, project_id: str, body: SubmitVirtualBody):
             row.fields = merged
             flag_modified(row, "fields")
         else:
-            s.add(ProjectBrief(project_id=project_id, output_kind="insight_v2", fields=merged))
+            s.add(ProjectBrief(project_id=project_id, output_kind="insight", fields=merged))
         await s.commit()
 
     logger.info("virtual_submitted", vkey=vkey, project_id=project_id, fields_n=len(body.fields or {}))

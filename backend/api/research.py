@@ -1,8 +1,8 @@
 """需求调研 v1 API — 顾问录入答案 + 范围分类触发 + LTC 模块映射查询。
 
 注意:大纲 / 问卷的"生成"复用现有 outputs API(POST /api/outputs/generate
-        with kind=survey_outline_v2 / survey_v2),走 runner.generate_outline_v2
-        / generate_survey_v2 这条已有路径。本路由只负责:
+        with kind=survey_outline / survey),走 runner.generate_survey_outline
+        / generate_survey 这条已有路径。本路由只负责:
 - 顾问录入答案(upsert)
 - 拉取已答
 - 触发四分类

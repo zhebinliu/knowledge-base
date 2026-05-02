@@ -1,5 +1,5 @@
 /**
- * OutlineDemo — 调研大纲(新版) (survey_outline_v2) 走查页
+ * OutlineDemo — 调研大纲 (survey_outline) 走查页
  * Route: /demo/outline (no auth required)
  *
  * 风格:跟 InsightDemo / SurveyDemo 一样,以「友发钢管」为主线逐步走查。
@@ -24,21 +24,21 @@ export default function OutlineDemo() {
           <span className="text-ink-muted text-xs">/</span>
           <span className="text-sm text-ink-secondary">功能走查</span>
           <span className="text-ink-muted text-xs">/</span>
-          <span className="text-sm font-semibold text-ink">调研大纲(新版)</span>
+          <span className="text-sm font-semibold text-ink">调研大纲</span>
         </div>
       </div>
 
       {/* Hero */}
       <div className="max-w-4xl mx-auto px-6 pt-12 pb-8">
         <div className="flex items-center gap-2 mb-4">
-          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">新版 · 内测</span>
+          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">内测</span>
           <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-orange-100 text-[#D96400]">智能体</span>
         </div>
-        <h1 className="text-3xl font-extrabold text-ink tracking-tight">调研大纲 新版 — 一份能直接拿去开 Kickoff 的项目计划</h1>
+        <h1 className="text-3xl font-extrabold text-ink tracking-tight">调研大纲 — 一份能直接拿去开 Kickoff 的项目计划</h1>
         <p className="mt-3 text-ink-secondary text-base leading-relaxed">
           调研大纲是「调研问卷」的<strong className="text-ink">上游</strong>:先定接下来几周开几场访谈、谁参加、聊什么、要准备什么材料,
           再用「调研问卷」生成对应分卷,发给对应人填。
-          新版大纲的核心是一张 <strong className="text-ink">9 列日程表</strong>,可以直接打印出来过 Kickoff 会。
+          大纲的核心是一张 <strong className="text-ink">9 列日程表</strong>,可以直接打印出来过 Kickoff 会。
         </p>
 
         <div className="mt-8 p-4 bg-orange-50 border-l-4 border-orange-400 rounded-r-lg">
@@ -56,9 +56,9 @@ export default function OutlineDemo() {
       </div>
 
       {/* Step 1 */}
-      <Step n={1} title="进「需求调研 (新版)」阶段,选「调研大纲」按钮">
+      <Step n={1} title="进「需求调研」阶段,选「调研大纲」按钮">
         <p className="text-sm text-ink-secondary mb-3">
-           新版 把「需求调研」合到一个 stage 下,内部两个按钮 — 大纲 + 问卷。各自独立 Brief / 状态 / 产物。
+           把「需求调研」合到一个 stage 下,内部两个按钮 — 大纲 + 问卷。各自独立 Brief / 状态 / 产物。
         </p>
         <MockSubButtons />
       </Step>
@@ -110,7 +110,7 @@ export default function OutlineDemo() {
         <div className="rounded-xl p-6 text-white" style={{ background: BRAND_GRAD }}>
           <h3 className="text-lg font-bold mb-1.5">现在去试一下</h3>
           <p className="text-sm opacity-90 mb-4">
-            进任意 智能制造行业的项目,点橙色阶段「需求调研 (新版)」→ 选「调研大纲」按钮体验。
+            进任意 智能制造行业的项目,点橙色阶段「需求调研」→ 选「调研大纲」按钮体验。
             生成完点切换按钮看「调研问卷」,体验上下游联动。
           </p>
           <div className="flex gap-2">
@@ -118,10 +118,10 @@ export default function OutlineDemo() {
               <Sparkles size={13} /> 去项目列表
             </Link>
             <Link to="/demo/survey" className="px-4 py-2 bg-white/20 text-white border border-white/40 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5 hover:bg-white/30">
-              <ClipboardList size={13} /> 看 调研问卷(新版)走查 →
+              <ClipboardList size={13} /> 看 调研问卷走查 →
             </Link>
             <Link to="/demo/insight" className="px-4 py-2 bg-white/20 text-white border border-white/40 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5 hover:bg-white/30">
-              <Lightbulb size={13} /> 看 项目洞察(新版)走查 →
+              <Lightbulb size={13} /> 看 项目洞察走查 →
             </Link>
           </div>
         </div>
@@ -136,11 +136,11 @@ export default function OutlineDemo() {
             <ChevronRight size={14} className="ml-auto group-open:rotate-90 transition-transform" />
           </summary>
           <div className="px-4 pb-4 text-xs text-ink-secondary space-y-2 leading-relaxed">
-            <p>kind = <code className="bg-slate-100 px-1.5 rounded">survey_outline_v2</code>,与 <code className="bg-slate-100 px-1.5 rounded">survey_v2</code> 平级。</p>
+            <p>kind = <code className="bg-slate-100 px-1.5 rounded">survey_outline</code>,与 <code className="bg-slate-100 px-1.5 rounded">survey</code> 平级。</p>
             <p>7 个模块在 <code className="bg-slate-100 px-1.5 rounded">backend/services/agentic/outline_modules.py</code>(全部 critical 4 个 / optional 3 个)。</p>
             <p>复用 <code className="bg-slate-100 px-1.5 rounded">_plan_modules_generic()</code> + <code className="bg-slate-100 px-1.5 rounded">execute_insight_module()</code> + <code className="bg-slate-100 px-1.5 rounded">critique_modules()</code>(都是 module-based markdown 报告流程)。</p>
             <p>行业差异化:industry_pack 上扩展 <code className="bg-slate-100 px-1.5 rounded">must_visit_departments</code> / <code className="bg-slate-100 px-1.5 rounded">default_sessions</code> / <code className="bg-slate-100 px-1.5 rounded">typical_customer_materials</code>,runner 拼成"行业大纲补丁"注入 agent_prompt。</p>
-            <p>UI:STAGES 配置加 <code className="bg-slate-100 px-1.5 rounded">subKinds</code> 数组,「需求调研 (新版)」 stage 渲染 2 个按钮。activeKind 派生自 selectedSubKind。</p>
+            <p>UI:STAGES 配置加 <code className="bg-slate-100 px-1.5 rounded">subKinds</code> 数组,「需求调研」 stage 渲染 2 个按钮。activeKind 派生自 selectedSubKind。</p>
           </div>
         </details>
       </div>
@@ -182,7 +182,7 @@ function KeyPair({ icon: Icon, label, desc }: { icon: typeof Calendar; label: st
 function MockSubButtons() {
   return (
     <div className="bg-white border border-line rounded-lg p-3">
-      <div className="text-[11px] text-ink-muted mb-2">↓ 点完「需求调研 (新版)」 stage 后,本阶段下面的按钮组</div>
+      <div className="text-[11px] text-ink-muted mb-2">↓ 点完「需求调研」 stage 后,本阶段下面的按钮组</div>
       <div className="px-2 py-2 border border-dashed border-line rounded bg-slate-50 flex items-center gap-1">
         <span className="text-[11px] text-ink-muted mr-1">本阶段产物:</span>
         <button className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-[#D96400] bg-orange-50 text-[#D96400] font-semibold">
@@ -218,7 +218,7 @@ function MockOutlineBrief() {
     <div className="bg-white border border-line rounded-lg overflow-hidden shadow-sm">
       <div className="px-4 py-2.5 border-b border-line bg-slate-50 flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-          <FileText size={13} /> 项目要点 · 调研大纲(新版) · L0 启动 · 友发钢管集团
+          <FileText size={13} /> 项目要点 · 调研大纲 · L0 启动 · 友发钢管集团
         </div>
         <span className="text-[11px] text-ink-muted">8 字段中 1 个待补</span>
       </div>

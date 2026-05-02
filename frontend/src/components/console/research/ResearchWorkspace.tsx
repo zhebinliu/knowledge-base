@@ -1,10 +1,10 @@
 /**
- * ResearchV1Workspace —— survey_v2 stage 的三栏工作区(MVP)
+ * ResearchWorkspace —— survey stage 的三栏工作区(MVP)
  *
  * 布局:左 LTC 模块清单 + 中 切换视图(preparation / outline / questionnaire) + 右占位
  * 数据流:
- *   - outline bundle (kind=survey_outline_v2):承载 markdown 大纲 + bundle.extra.ltc_module_map
- *   - survey  bundle (kind=survey_v2)        :承载 markdown 题目 + bundle.extra.questionnaire_items[]
+ *   - outline bundle (kind=survey_outline):承载 markdown 大纲 + bundle.extra.ltc_module_map
+ *   - survey  bundle (kind=survey)        :承载 markdown 题目 + bundle.extra.questionnaire_items[]
  *   - 顾问录入答案走 /api/research/responses(upsert by bundle_id+item_key)
  */
 import { useEffect, useMemo, useState } from 'react'
@@ -40,7 +40,7 @@ interface Props {
   onRefetch: () => void
 }
 
-export default function ResearchV1Workspace({
+export default function ResearchWorkspace({
   projectId, outlineBundle, outlineInflight, surveyBundle, surveyInflight, activeKind, onRefetch,
 }: Props) {
   const [selectedLtcKey, setSelectedLtcKey] = useState<string | null>(null)
@@ -49,9 +49,9 @@ export default function ResearchV1Workspace({
 
   // activeKind 切换 → 切默认 view(顾问点顶部 sub-action 切换大纲/问卷)
   useEffect(() => {
-    if (activeKind === 'survey_outline_v2') {
+    if (activeKind === 'survey_outline') {
       setView(outlineBundle ? 'outline' : 'preparation')
-    } else if (activeKind === 'survey_v2') {
+    } else if (activeKind === 'survey') {
       setView(surveyBundle ? 'questionnaire' : 'preparation')
     }
   }, [activeKind, outlineBundle?.id, surveyBundle?.id])
@@ -349,8 +349,8 @@ function PreparationView({
         subtitle="顾问拿着上现场访谈用 — 9 列日程表 + 主题 + 客户准备材料"
         bundle={outlineBundle}
         inflight={outlineInflight}
-        triggering={trig === 'survey_outline_v2'}
-        onGenerate={() => trigger('survey_outline_v2')}
+        triggering={trig === 'survey_outline'}
+        onGenerate={() => trigger('survey_outline')}
       />
 
       {/* 调研问卷 */}
@@ -359,8 +359,8 @@ function PreparationView({
         subtitle="结构化题目(单选/多选/分级…) + 选项池预填,顾问勾选录入"
         bundle={surveyBundle}
         inflight={surveyInflight}
-        triggering={trig === 'survey_v2'}
-        onGenerate={() => trigger('survey_v2')}
+        triggering={trig === 'survey'}
+        onGenerate={() => trigger('survey')}
         extraInfo={surveyBundle ? `结构化题目 ${surveyBundle.questionnaire_items?.length ?? 0} 道` : null}
       />
     </div>
@@ -421,7 +421,7 @@ function ProductCard({
 }
 
 /** 大纲 markdown 渲染 — 复用 insight 同款 CitedReportView,把 [D1][K1][W1] 角标渲染成
- *  可点击橙色徽章。bundle.provenance 由 generate_outline_v2 在 v3.7+ 写入。
+ *  可点击橙色徽章。bundle.provenance 由 generate_survey_outline 在 v3.7+ 写入。
  *  list API 不返回 content_md / provenance,需单独 GET /api/outputs/{id} 拿详情。 */
 function OutlineMarkdownView({ bundle }: { bundle: CuratedBundle }) {
   const { data, isLoading } = useQuery({
@@ -443,7 +443,7 @@ function OutlineMarkdownView({ bundle }: { bundle: CuratedBundle }) {
   if (Object.keys(provenance).length === 0) {
     return <MarkdownView content={md} />
   }
-  // 不再额外包白卡 — 外层中栏已经是白底(ResearchV1Workspace),包白卡会双白叠加
+  // 不再额外包白卡 — 外层中栏已经是白底(ResearchWorkspace),包白卡会双白叠加
   // (insight 用白卡是因为它中栏外层是 bg-canvas 灰底)
   return (
     <CitedReportView

@@ -19,17 +19,17 @@ import {
 import OutputChatPanel from '../../components/OutputChatPanel'
 import BriefDrawer from '../../components/BriefDrawer'
 import MarkdownView from '../../components/MarkdownView'
-import V2GapFiller from '../../components/V2GapFiller'
+import AgenticGapFiller from '../../components/AgenticGapFiller'
 import DocChecklist from '../../components/console/DocChecklist'
 import CenterWorkspace, { type CenterView } from '../../components/console/CenterWorkspace'
 import CitationsPanel from '../../components/console/CitationsPanel'
 import FloatingChat, { type FloatingChatState } from '../../components/console/FloatingChat'
 import ChallengeRoundsPanel from '../../components/console/ChallengeRoundsPanel'
-import ResearchV1Workspace from '../../components/console/research/ResearchV1Workspace'
+import ResearchWorkspace from '../../components/console/research/ResearchWorkspace'
 import QA from '../QA'
 import { useEffect } from 'react'
 
-const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'insight_v2', 'survey_v2', 'survey_outline_v2']
+const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline']
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -71,21 +71,19 @@ function _mapStage(s: ApiStageDef): StageDef {
 
 // API 拉取失败时的默认 fallback(跟后端 DEFAULT_STAGES 同步)
 const DEFAULT_STAGES: StageDef[] = [
-  { key: 'insight',       label: '项目洞察',          kind: 'insight',      icon: Lightbulb,     active: true },
-  { key: 'kickoff',       label: '启动会·PPT',        kind: 'kickoff_pptx', icon: FileText,      active: true },
-  { key: 'kickoff_html',  label: '启动会·HTML',       kind: 'kickoff_html', icon: FileText,      active: true },
-  { key: 'survey',        label: '需求调研',          kind: 'survey',       icon: ClipboardList, active: true },
-  { key: 'insight_v2',    label: '项目洞察(新版)',   kind: 'insight_v2',   icon: Bot,           active: true, beta: true },
-  { key: 'survey_v2',     label: '需求调研(新版)',   kind: null,           icon: Bot,           active: true, beta: true,
+  { key: 'insight',      label: '项目洞察',     kind: 'insight',      icon: Bot,      active: true },
+  { key: 'kickoff',      label: '启动会·PPT',   kind: 'kickoff_pptx', icon: FileText, active: true },
+  { key: 'kickoff_html', label: '启动会·HTML',  kind: 'kickoff_html', icon: FileText, active: true },
+  { key: 'survey',       label: '需求调研',     kind: null,           icon: Bot,      active: true,
     subKinds: [
-      { kind: 'survey_outline_v2', label: '调研大纲' },
-      { kind: 'survey_v2',         label: '调研问卷' },
+      { kind: 'survey_outline', label: '调研大纲' },
+      { kind: 'survey',         label: '调研问卷' },
     ],
   },
-  { key: 'design',        label: '方案设计',          kind: null,           icon: FileText,      active: false },
-  { key: 'implement',     label: '项目实施',          kind: null,           icon: FileText,      active: false },
-  { key: 'test',          label: '上线测试',          kind: null,           icon: FileText,      active: false },
-  { key: 'acceptance',    label: '项目验收',          kind: null,           icon: FileText,      active: false },
+  { key: 'design',     label: '方案设计', kind: null, icon: FileText, active: false },
+  { key: 'implement',  label: '项目实施', kind: null, icon: FileText, active: false },
+  { key: 'test',       label: '上线测试', kind: null, icon: FileText, active: false },
+  { key: 'acceptance', label: '项目验收', kind: null, icon: FileText, active: false },
 ]
 
 type ChatMode = { type: 'pm' } | { type: 'output'; kind: OutputKind; label: string }
@@ -104,7 +102,7 @@ export default function ConsoleProjectDetail() {
   const [briefDrawer, setBriefDrawer] = useState<{ kind: OutputKind; label: string } | null>(null)
   // 当 active stage 有 subKinds 时,记当前选中的 sub-action(默认第一个)
   const [selectedSubKind, setSelectedSubKind] = useState<OutputKind | null>(null)
-  // v3 insight_v2 stage 的中栏 view(其他 stage 不用)
+  // v3 insight stage 的中栏 view(其他 stage 不用)
   const [centerView, setCenterView] = useState<CenterView>({ type: 'preparation' })
   // 右栏(引用面板)是否展开
   const [rightOpen, setRightOpen] = useState(false)
@@ -224,7 +222,7 @@ export default function ConsoleProjectDetail() {
 
   // v3:文档驱动的 kind — 不弹 brief,直接调 generateOutput 触发 v3 流程
   // (runner 会自动 auto_extract + planner 从 docs 兜底)
-  const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight_v2', 'survey_v2', 'survey_outline_v2']
+  const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline']
 
   const startGeneration = async () => {
     if (!activeStage.active || !activeKind) return
@@ -439,11 +437,13 @@ export default function ConsoleProjectDetail() {
             </span>
           ) : activeStage.active ? (
             <>
-              {activeKind && BRIEF_KINDS.includes(activeKind) && (
+              {/* 对话生成兜底:只对启动会 PPT 两套(对话式访谈才有意义);
+                  insight / survey / survey_outline 不走对话流程 */}
+              {activeKind && (activeKind === 'kickoff_pptx' || activeKind === 'kickoff_html') && (
                 <button
                   onClick={startChatFallback}
                   className="hidden sm:flex items-center gap-1 px-2.5 py-1 text-xs rounded-md text-ink-secondary hover:bg-white hover:text-ink"
-                  title="走旧版逐题问答流程"
+                  title="对话式访谈生成 PPT"
                 >
                   <MessageSquare size={11} /> 对话
                 </button>
@@ -467,19 +467,19 @@ export default function ConsoleProjectDetail() {
 
       {/* v2 质量评审 panel —— 整合 critic 细节反馈 + challenger 整体挑战
           所有 v2 done 报告都显示(valid 也展示挑战日志);
-          invalid+short_circuited 走 V2GapFiller(下方分支),这里跳过;
+          invalid+short_circuited 走 AgenticGapFiller(下方分支),这里跳过;
           inflight 时隐藏 — 避免显示旧 bundle 的"已通过审核"误导用户 */}
       {!activeInflight
         && activeBundle?.agentic_version === 'v2'
         && activeBundle.status === 'done'
         && !(activeBundle.validity_status === 'invalid' && activeBundle.short_circuited)
         && (
-          <V2ValidityBanner bundle={activeBundle} onReGenerate={startGeneration} />
+          <AgenticValidityBanner bundle={activeBundle} onReGenerate={startGeneration} />
         )}
 
-      {/* ── insight_v2 stage 用 v3 三栏布局 ── */}
-      {activeKind === 'insight_v2' ? (
-        <InsightV3Workspace
+      {/* ── insight stage 用 v3 三栏布局 ── */}
+      {activeKind === 'insight' ? (
+        <InsightWorkspace
           projectId={id}
           activeBundle={activeBundle}
           activeInflight={activeInflight}
@@ -491,14 +491,14 @@ export default function ConsoleProjectDetail() {
           setHighlightedRef={setHighlightedRef}
           onRefetch={refetchOutputs}
         />
-      ) : activeStageKey === 'survey_v2' ? (
-        /* survey_v2 stage 用 research v1 三栏 — 同一个工作区里同时承载 outline + survey 两个 sub-kind */
-        <ResearchV1Workspace
+      ) : activeStageKey === 'survey' ? (
+        /* survey stage 用 research v1 三栏 — 同一个工作区里同时承载 outline + survey 两个 sub-kind */
+        <ResearchWorkspace
           projectId={id}
-          outlineBundle={bundleByKind('survey_outline_v2')}
-          outlineInflight={inflightByKind('survey_outline_v2')}
-          surveyBundle={bundleByKind('survey_v2')}
-          surveyInflight={inflightByKind('survey_v2')}
+          outlineBundle={bundleByKind('survey_outline')}
+          outlineInflight={inflightByKind('survey_outline')}
+          surveyBundle={bundleByKind('survey')}
+          surveyInflight={inflightByKind('survey')}
           activeKind={activeKind}
           onRefetch={refetchOutputs}
         />
@@ -508,7 +508,7 @@ export default function ConsoleProjectDetail() {
         && activeKind
         && !activeInflight ? (
         /* 其他 stage 的 v2 invalid+short_circuited 仍用旧 GapFiller 占满 */
-        <V2GapFiller
+        <AgenticGapFiller
           key={`gap-${activeBundle.id}`}
           bundle={activeBundle}
           kind={activeKind}
@@ -516,7 +516,7 @@ export default function ConsoleProjectDetail() {
           onSubmitted={() => refetchOutputs()}
         />
       ) : (
-        /* 主区(非 insight_v2 stage):
+        /* 主区(非 insight stage):
            - 已生成 bundle (status=done) → 直接在工作区预览成果(HTML iframe / markdown / pptx 摘要)
            - 否则走原对话生成 (ChatTabs + OutputChatPanel)
            对话历史可通过 ChatTabs 顶部「对话生成」tab 切回查看 */
@@ -598,11 +598,11 @@ export default function ConsoleProjectDetail() {
 // ──────────────────────────────────────────────────────────────────────────────
 
 // ──────────────────────────────────────────────────────────────────────────────
-// InsightV3Workspace —— insight_v2 stage 的三栏工作区
+// InsightWorkspace —— insight stage 的三栏工作区
 // 左:DocChecklist 280px / 中:CenterWorkspace flex-1 / 右:可折叠 380px(QA)
 // ──────────────────────────────────────────────────────────────────────────────
 
-function InsightV3Workspace({
+function InsightWorkspace({
   projectId, activeBundle, activeInflight, centerView, setCenterView,
   rightOpen, setRightOpen, highlightedRef, setHighlightedRef, onRefetch,
 }: {
@@ -650,7 +650,7 @@ function InsightV3Workspace({
       <div className="w-[300px] flex-shrink-0">
         <DocChecklist
           projectId={projectId}
-          stage="insight_v2"
+          stage="insight"
           onOpenDocPreview={(docId) => setCenterView({ type: 'preview', docId })}
           onOpenVirtualForm={(vkey) => setCenterView({ type: 'virtual', vkey })}
           onOpenStakeholderCanvas={() => setCenterView({ type: 'canvas' })}
@@ -712,7 +712,7 @@ function localizeIssue(s: string): string {
   return out
 }
 
-function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onReGenerate: () => void }) {
+function AgenticValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onReGenerate: () => void }) {
   // 默认折叠 — 顶部 bar 已显示综合状态 + 重生成按钮,详情按需展开
   const [expanded, setExpanded] = useState(false)
   const isInvalid = bundle.validity_status === 'invalid'
@@ -819,7 +819,7 @@ function V2ValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle; onR
           )}
         </button>
         {/* 注:不再渲染"重新生成"按钮 — 上方阶段栏 action bar 已经有了一个,
-            放这里跟它重复;invalid 短路时走 V2GapFiller 单独的 CTA */}
+            放这里跟它重复;invalid 短路时走 AgenticGapFiller 单独的 CTA */}
       </div>
 
       {/* 详情区 — 默认收起,展开后包含【整体审核】+【细节待补】两节

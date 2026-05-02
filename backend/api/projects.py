@@ -309,7 +309,7 @@ async def insight_checkup(project_id: str, session: AsyncSession = Depends(get_s
     brief_row = (await session.execute(
         select(ProjectBrief).where(
             ProjectBrief.project_id == project_id,
-            ProjectBrief.output_kind == "insight_v2",
+            ProjectBrief.output_kind == "insight",
         )
     )).scalar_one_or_none()
     brief_fields = (brief_row.fields or {}) if brief_row else {}

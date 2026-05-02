@@ -26,7 +26,7 @@ import {
 
 interface Props {
   projectId: string
-  stage: string                    // 默认 insight_v2
+  stage: string                    // 默认 insight
   onOpenDocPreview: (docId: string) => void
   onOpenVirtualForm: (vkey: string) => void
   onOpenStakeholderCanvas?: () => void   // 干系人图谱 canvas 编辑入口

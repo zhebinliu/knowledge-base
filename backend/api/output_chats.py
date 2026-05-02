@@ -25,16 +25,13 @@ from agents.output_chat import (
 logger = structlog.get_logger()
 router = APIRouter()
 
-VALID_KINDS = ("kickoff_pptx", "kickoff_html", "survey", "insight", "insight_v2", "survey_v2", "survey_outline_v2")
+# 对话式生成只剩 kickoff_pptx / kickoff_html;insight / survey / survey_outline
+# 已切到 agentic 规则化生成,不在此对话流程内。
+VALID_KINDS = ("kickoff_pptx", "kickoff_html")
 
 KIND_TITLES = {
-    "kickoff_pptx": "启动会 PPT（pptxgen）",
-    "kickoff_html": "启动会 PPT（htmlppt）",
-    "survey": "实施调研问卷",
-    "insight": "项目洞察报告",
-    "insight_v2": "项目洞察报告 v2 (agentic)",
-    "survey_v2": "实施调研问卷 v2 (agentic)",
-    "survey_outline_v2": "调研大纲 v2 (agentic)",
+    "kickoff_pptx": "启动会 PPT(pptxgen)",
+    "kickoff_html": "启动会 PPT(htmlppt)",
 }
 
 
@@ -254,12 +251,10 @@ async def finalize_and_generate(
     conv.status = "generating"
     await session.commit()
 
-    from tasks.output_tasks import generate_kickoff_pptx, generate_kickoff_html, generate_survey, generate_insight
+    from tasks.output_tasks import generate_kickoff_pptx, generate_kickoff_html
     task_fn = {
         "kickoff_pptx": generate_kickoff_pptx,
         "kickoff_html": generate_kickoff_html,
-        "survey": generate_survey,
-        "insight": generate_insight,
     }[conv.kind]
     # 沿用旧签名 (bundle_id, project_id)；project_id 可能为 None（行业作用域）
     task_fn.delay(bundle.id, conv.project_id or "")

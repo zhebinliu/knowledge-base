@@ -33,13 +33,11 @@ interface Props {
 
 // 不同 kind 的产物名,用在"正在生成 XXX"标题
 const KIND_LABEL: Record<string, string> = {
-  insight_v2: '项目洞察',
-  survey_outline_v2: '调研大纲',
-  survey_v2: '调研问卷',
+  insight: '项目洞察',
+  survey_outline: '调研大纲',
+  survey: '调研问卷',
   kickoff_pptx: '启动会 PPT',
   kickoff_html: '启动会 HTML',
-  insight: '项目洞察',
-  survey: '调研问卷',
 }
 
 export default function GenerationProgressCard({ bundle }: Props) {

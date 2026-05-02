@@ -611,10 +611,10 @@ export default function Demo() {
         {/* ── Output Center highlight (最近上线) ───────────────────── */}
         <div className="mb-20">
           <div className="text-center mb-8">
-            <Tag>最近上线 · 对话式输出中心</Tag>
-            <h2 className="text-2xl font-bold text-ink mt-3 mb-2">从"生成文档"到"聊出一份可交付物"</h2>
+            <Tag>v3 阶段产物</Tag>
+            <h2 className="text-2xl font-bold text-ink mt-3 mb-2">三类核心产物，按阶段一键生成</h2>
             <p className="text-ink-secondary text-sm max-w-xl mx-auto">
-              三个输出智能体 + 动态知识库检索 + Claude 风格 HTML 幻灯片在线播放
+              项目洞察 / 启动会 PPT / 需求调研 — 三种产出方式各对应一种工作模式
             </p>
           </div>
 
@@ -623,13 +623,13 @@ export default function Demo() {
             <div className="rounded-2xl border border-line overflow-hidden bg-surface shadow-sm">
               <div className="px-5 py-3 bg-gradient-to-r from-orange-50 to-rose-50 border-b border-line flex items-center gap-2">
                 <Wand2 size={14} className="text-[#D96400]" />
-                <p className="text-sm font-semibold text-ink">三个输出智能体 · 可选具体项目或行业作用域</p>
+                <p className="text-sm font-semibold text-ink">三类产物 · 对应三种工作模式</p>
               </div>
               <div className="p-5 space-y-3 text-xs">
                 {[
-                  { icon: FileText, title: '启动会 PPT', color: '#D96400', bg: 'bg-orange-50', border: 'border-orange-100', desc: '11 页 Claude 风格 HTML（封面/议程/现状/目标/范围/LTC 阶段/甘特/RACI/风险/资源/下一步）' },
-                  { icon: ClipboardList, title: '实施调研问卷', color: '#2563EB', bg: 'bg-blue-50', border: 'border-blue-100', desc: '业务流程 / 角色权限 / 数据集成 / 风险约束 / 进度资源 五大维度题库' },
-                  { icon: Lightbulb, title: '项目洞察报告', color: '#7C3AED', bg: 'bg-purple-50', border: 'border-purple-100', desc: '项目概览 + 关键决策 + 风险矩阵 + 下一步建议 四段式报告' },
+                  { icon: Lightbulb, title: '项目洞察 (规则化)', color: '#7C3AED', bg: 'bg-purple-50', border: 'border-purple-100', desc: 'M1 执行摘要 / M3 健康雷达 / M7 RAID / M10 下一步 等 10 个模块,Critic + Challenger 评审闭环。文档驱动,无需填表。' },
+                  { icon: FileText, title: '启动会 PPT (对话式)', color: '#D96400', bg: 'bg-orange-50', border: 'border-orange-100', desc: '11 页 Claude 风格 HTML / pptxgen .pptx 双格式。顾问与智能体对话,几轮收集信息后生成。' },
+                  { icon: ClipboardList, title: '需求调研 (顾问勾选)', color: '#2563EB', bg: 'bg-blue-50', border: 'border-blue-100', desc: '系统按 LTC 流程自动出大纲 + 6 题型问卷,顾问当场口头问 + 屏上勾选,不用现场打字。' },
                 ].map(({ icon: Icon, title, color, bg, border, desc }) => (
                   <div key={title} className={`flex items-start gap-2.5 px-3 py-2.5 ${bg} rounded-lg border ${border}`}>
                     <div className="w-7 h-7 rounded bg-white flex items-center justify-center flex-shrink-0">

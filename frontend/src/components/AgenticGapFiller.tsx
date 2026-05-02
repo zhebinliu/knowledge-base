@@ -1,5 +1,5 @@
 /**
- * V2GapFiller — 信息不足时,让用户在前端补全 ask_user_prompts 的问卷面板。
+ * AgenticGapFiller — 信息不足时,让用户在前端补全 ask_user_prompts 的问卷面板。
  *
  * 触发时机:bundle.agentic_version='v2' && bundle.validity_status='invalid' &&
  *           bundle.short_circuited(Planner 拦截)。
@@ -16,7 +16,7 @@ import {
   Globe, ExternalLink, X,
 } from 'lucide-react'
 import {
-  type CuratedBundle, type V2GapPrompt, type BriefFieldCell, type OutputKind,
+  type CuratedBundle, type AgenticGapPrompt, type BriefFieldCell, type OutputKind,
   type WebSuggestCandidate,
   getBrief, putBrief, generateOutput, webSuggest,
 } from '../api/client'
@@ -38,11 +38,11 @@ type AnswerValue =
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
-export default function V2GapFiller({ bundle, kind, projectId, onSubmitted }: Props) {
+export default function AgenticGapFiller({ bundle, kind, projectId, onSubmitted }: Props) {
   const prompts = bundle.ask_user_prompts || []
   // 按 module 分组
   const grouped = useMemo(() => {
-    const m = new Map<string, { title: string; prompts: V2GapPrompt[] }>()
+    const m = new Map<string, { title: string; prompts: AgenticGapPrompt[] }>()
     for (const p of prompts) {
       const k = p.module_key
       if (!m.has(k)) m.set(k, { title: p.module_title || p.module_key, prompts: [] })
@@ -247,7 +247,7 @@ export default function V2GapFiller({ bundle, kind, projectId, onSubmitted }: Pr
 function QuestionItem({
   prompt, answer, onChange, projectId,
 }: {
-  prompt: V2GapPrompt
+  prompt: AgenticGapPrompt
   answer: AnswerValue | undefined
   onChange: (a: AnswerValue) => void
   projectId: string

@@ -50,22 +50,17 @@ router = APIRouter()
 KIND_TO_TASK = {
     "kickoff_pptx": "generate_kickoff_pptx",
     "kickoff_html": "generate_kickoff_html",
-    "survey": "generate_survey",
     "insight": "generate_insight",
-    # v2 (agentic) — 旁路验证
-    "insight_v2": "generate_insight_v2",
-    "survey_v2": "generate_survey_v2",
-    "survey_outline_v2": "generate_survey_outline_v2",
+    "survey": "generate_survey",
+    "survey_outline": "generate_survey_outline",
 }
 
 KIND_TITLES = {
     "kickoff_pptx": "启动会 PPT（pptxgen）",
     "kickoff_html": "启动会 PPT（htmlppt）",
-    "survey": "调研问卷",
     "insight": "项目洞察报告",
-    "insight_v2": "项目洞察报告 v2 (agentic)",
-    "survey_v2": "调研问卷 v2 (agentic)",
-    "survey_outline_v2": "调研大纲 v2 (agentic)",
+    "survey": "调研问卷",
+    "survey_outline": "调研大纲",
 }
 
 
@@ -93,7 +88,7 @@ def _bundle_dto(b: CuratedBundle) -> dict:
         "has_industry_brief": bool(extra.get("has_industry_brief")),
         "created_at": b.created_at,
         "updated_at": b.updated_at,
-        # v2 (agentic) — 旁路验证字段
+        # agentic — 生成器元数据(用于 GapFiller 触发等)
         "agentic_version": extra.get("agentic_version"),
         "validity_status": extra.get("validity_status"),
         "ask_user_prompts": extra.get("ask_user_prompts") or [],
@@ -103,7 +98,7 @@ def _bundle_dto(b: CuratedBundle) -> dict:
         "progress": extra.get("progress") or None,       # v3.1: 进度卡片 (生成中显示)
         "challenge_summary": extra.get("challenge_summary") or None,  # v3.1: 挑战循环结果摘要
         "web_search_status": extra.get("web_search_status") or None,  # v3.4: M9 web 检索结果状态
-        # research v1 — 需求调研工作区前端消费
+        # research — 需求调研工作区前端消费
         "questionnaire_items": extra.get("questionnaire_items") or [],
         "ltc_module_map": extra.get("ltc_module_map") or [],
     }
@@ -138,17 +133,15 @@ async def generate_output(
 
     # Fire Celery task
     from tasks.output_tasks import (
-        generate_kickoff_pptx, generate_kickoff_html, generate_survey, generate_insight,
-        generate_insight_v2, generate_survey_v2, generate_survey_outline_v2,
+        generate_kickoff_pptx, generate_kickoff_html,
+        generate_insight, generate_survey, generate_survey_outline,
     )
     task_fn = {
         "kickoff_pptx": generate_kickoff_pptx,
         "kickoff_html": generate_kickoff_html,
-        "survey": generate_survey,
         "insight": generate_insight,
-        "insight_v2": generate_insight_v2,
-        "survey_v2": generate_survey_v2,
-        "survey_outline_v2": generate_survey_outline_v2,
+        "survey": generate_survey,
+        "survey_outline": generate_survey_outline,
     }[body.kind]
     task_fn.delay(bundle.id, body.project_id)
 

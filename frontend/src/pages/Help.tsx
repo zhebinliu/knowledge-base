@@ -486,84 +486,114 @@ export default function Help() {
         </Section>
 
         {/* Outputs */}
-        <Section id="outputs" title="输出中心 · 对话式生成" icon={Sparkles}>
+        <Section id="outputs" title="输出中心 · 三类核心产物" icon={Sparkles}>
           <p className="text-sm text-ink-secondary mb-5 leading-relaxed">
-            输出中心通过<strong className="text-ink">多轮对话</strong>收集项目信息，实时调用知识库检索，最终一键生成启动会
-            PPT、实施调研问卷、项目洞察报告三种交付物。不再依赖固定问题模板——智能体会根据每个项目的实际情况动态追问。
+            v3 阶段输出中心提供 <strong className="text-ink">三类核心产物</strong>,每类对应一种工作模式 —
+            项目洞察(规则化生成)、启动会 PPT(对话式生成)、需求调研(顾问勾选式录入)。
+            进入项目详情页,顶部阶段栏切换 stage,中栏自动渲染对应工作区。
           </p>
 
-          <SubSection title="三个输出智能体">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          <SubSection title="三栏工作区(项目详情页)">
+            <p className="text-sm text-ink-secondary mb-3 leading-relaxed">
+              所有产物的入口都在项目详情页。布局:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
               {[
-                { icon: FileText, title: '启动会 PPT', desc: 'Claude 风格 11 页 HTML 幻灯片，含品牌色板 / chevron / 2×2 矩阵 / 甘特 / RACI 等视觉元件，浏览器打开即可播放', color: '#D96400' },
-                { icon: ClipboardList, title: '实施调研问卷', desc: '按业务流程 / 角色权限 / 数据集成 / 风险约束 / 进度资源五大类生成，导出 Markdown + Word', color: '#2563EB' },
-                { icon: Lightbulb, title: '项目洞察报告', desc: '面向高管的项目概览 / 关键决策 / 风险矩阵 / 下一步建议四段式报告', color: '#7C3AED' },
-              ].map(({ icon: Icon, title, desc, color }) => (
-                <div key={title} className="card p-4">
-                  <Icon size={18} style={{ color }} className="mb-2" />
-                  <p className="text-sm font-semibold text-ink mb-1">{title}</p>
+                { title: '左栏 · 文档清单', desc: '已上传的项目文档(SOW / 合同 / 集成方案 / 交接单等),点击可在中栏预览。下方有 DocChecklist 显示当前阶段必传 / 推荐文档及缺失提醒。' },
+                { title: '中栏 · 工作区', desc: '当前 stage 的核心交互区:报告查看 / 文档预览 / GapFiller 缺口补全 / 虚拟物画布。状态由 centerView 切换。' },
+                { title: '右栏 · 引用面板', desc: '展开时显示报告里 [D1][K1][W1] 引用对应的源(D=项目文档 / K=KB 切片 / W=Web)。点报告角标会高亮对应 ref。' },
+              ].map(({ title, desc }) => (
+                <div key={title} className="card p-3">
+                  <p className="text-xs font-semibold text-ink mb-1">{title}</p>
                   <p className="text-[11px] text-ink-secondary leading-relaxed">{desc}</p>
                 </div>
               ))}
             </div>
           </SubSection>
 
-          <SubSection title="使用流程">
+          <SubSection title="项目洞察 · 规则化生成">
+            <p className="text-sm text-ink-secondary mb-3 leading-relaxed">
+              <strong className="text-ink">不需要填表 / 不走对话</strong> — 系统自动从已上传文档抽取项目 brief,
+              交给 Planner 拆出 10 个模块(M1 执行摘要 / M2 项目快照 / M3 健康雷达 / M4 干系人 / M5 行业上下文 / M6 关键发现 /
+              M7 RAID / M8 里程碑依赖 / M9 行业基准 / M10 下一步),Executor 逐模块写正文,
+              然后 <strong>Critic 4 维度评审</strong>(具体性 / 证据 / 时效性 / 下一步)+ <strong>Challenger 6 维度对抗式审核</strong>
+              (具体性 / 证据 / 下一步 / 完整性 / 一致性 / 黑话)。verdict=needs_rework 自动重生成。
+            </p>
             <Steps items={[
-              { title: '进入输出中心', desc: '点击左侧导航「输出中心」' },
-              { title: '右侧配置面板', desc: '选择智能体（启动会 PPT / 问卷 / 洞察），选择作用域：具体项目（已创建）或行业（无项目）' },
-              { title: '开始对话', desc: '点击「开始对话」，智能体会做开场问候并抛出第一个问题。有选项时显示为可点击的橙色 chip，多选题显示「提交选择」按钮' },
-              { title: '按需检索知识库', desc: '智能体会在合适节点自动调用 search_kb 工具查询历史项目资产，检索痕迹（查询词）以小标签显示在消息上方' },
-              { title: '阶段性小结', desc: '每 3~4 轮对话智能体会复述收集到的要点，你可以校正或补充' },
-              { title: '生成文档', desc: '右侧「生成文档」按钮随页面滚动常驻。点击后触发 Celery 异步任务，下方「我的输出」列表显示生成进度' },
-              { title: '在线播放 / 下载', desc: '启动会 PPT 支持新窗口「在线播放」（按 PgDn 翻页，Cmd+P 可打印 PDF）；所有类型都可下载原始文件' },
+              { title: '上传文档', desc: 'SOW / 系统集成方案 / 合同 / 交接单 至少各 1 份' },
+              { title: '阶段栏点「项目洞察」', desc: '中栏显示 DocChecklist + 大「开始生成」按钮' },
+              { title: '点开始生成', desc: '后台 Celery 异步跑 plan → execute → critic → challenger 流程,典型 2-5 分钟' },
+              { title: '看报告', desc: '中栏切到 report view,markdown 直显,引用角标可点开右栏 CitationsPanel' },
+              { title: '若 invalid', desc: '系统标 validity=invalid 并展示 GapFiller 问卷,补完答案再触发重生成' },
             ]} />
             <Tip>
-              每个项目的对话内容都独立保存，可以多次开不同智能体的对话去收集不同类型的信息，最后分别生成对应的交付物。
+              空项目(没文档没 brief)跑 insight 不会强行编 — 系统会标 invalid,把缺的清单列出来等你补。
             </Tip>
           </SubSection>
 
-          <SubSection title="技能库">
+          <SubSection title="启动会 PPT · 对话式生成">
             <p className="text-sm text-ink-secondary mb-3 leading-relaxed">
-              技能库是一组可复用的<strong className="text-ink">提示词片段</strong>，可以挂在任意输出智能体上，作为生成时的方法论注入。例如给
-              「启动会 PPT」智能体挂上「PPT 生成方法论（pptgen）」技能，就会按 11 页骨架 + 色板 + 文案规范来产出 HTML。
+              启动会 PPT(<code>kickoff_pptx</code> / <code>kickoff_html</code>)走<strong className="text-ink">对话式生成</strong> —
+              点阶段栏的「对话」按钮,智能体逐题问关键信息(行业 / 范围 / 干系人 / 风险 …),收集完点「生成文档」即可。
             </p>
             <Steps items={[
-              { title: '进入系统设置', desc: '左侧「系统设置」→「技能库」Tab（仅管理员）' },
-              { title: '新增技能', desc: '填写技能名称、描述，在「提示词片段」中粘贴 Markdown（支持预览 / 编辑切换）' },
-              { title: '挂载到智能体', desc: '在「输出智能体」Tab 中勾选要启用的技能，保存后立即生效' },
+              { title: '阶段栏切「启动会·PPT」', desc: '可选 PPT(pptxgen .pptx) 或 HTML(浏览器播放)两种格式' },
+              { title: '点对话按钮', desc: '智能体开场问候并抛第一个问题,有选项的题以 chip 形式展示' },
+              { title: '勾选 / 简答', desc: '尽量用 chip 减少打字。智能体会按需调 search_kb 检索 KB' },
+              { title: '生成文档', desc: '右侧常驻「生成文档」按钮,触发 Celery 异步生成' },
+              { title: '在线播放', desc: 'HTML 版生成完会有「在线播放」按钮,新窗口打开,Cmd+P 可打印 PDF' },
             ]} />
-            <Note>系统已预置 pptgen、项目启动会准备、项目洞察访谈三个内置技能，按需复用或修改。</Note>
           </SubSection>
 
-          <SubSection title="在线播放启动会 PPT">
+          <SubSection title="需求调研 · 顾问勾选式录入">
             <p className="text-sm text-ink-secondary mb-3 leading-relaxed">
-              启动会 PPT 生成完后，「我的输出」列表会出现橙色的
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 mx-1 text-xs border border-orange-200 bg-orange-50 text-orange-600 rounded">
-                <ExternalLink size={10} /> 在线播放
-              </span>
-              按钮。点击后在新窗口直接打开 HTML 幻灯片，自带 1280×720 分页样式，浏览器
-              <Kbd>⌘P</Kbd> 「打印 → 另存为 PDF」即可导出咨询交付级 PDF。
+              需求调研不是发问卷给客户填,是 <strong className="text-ink">顾问主导引导式访谈 + 当场在系统里勾选答案</strong>。
+              系统按 LTC 流程(线索 / 商机 / 报价 / 合同 / 订单 / 履约 / 应收 / 服务)自动出大纲 + 6 题型问卷:
+              60% 单选/多选 + 15% 评分 + 10% 数值 + 10% 短文本 + 5% 流程节点勾选。每题预填好选项池,
+              顾问只需点选,不用现场打字。答完每模块,LLM 自动判定每条需求范围(范围内 / 范围外 / 待定 / 不适用)。
             </p>
-            <Warn>
-              HTML 幻灯片只有当前账号可访问（带 JWT 鉴权），分享给外部请先「下载」原始 .html 文件。
-            </Warn>
+            <Steps items={[
+              { title: '阶段栏切「需求调研」', desc: '该 stage 下两个按钮:调研大纲 + 调研问卷' },
+              { title: '先生成大纲', desc: '系统按 SOW 抽 LTC 模块映射,出 9 列日程表 — 可直接打印过 Kickoff 会' },
+              { title: '生成问卷', desc: '基于大纲 + 行业模板,系统出每个模块的题目,答完即可推进' },
+              { title: '现场访谈勾选', desc: 'ResearchWorkspace 三栏:左大纲 / 中题目 / 右候选答案池。访谈时顾问点选,answer 自动 debounce upsert' },
+              { title: '范围分类', desc: '答完一个模块,点「LLM 范围分类」,系统给每条需求打四象限标签' },
+            ]} />
           </SubSection>
 
-          <SubSection title="多选一 / 多选多 交互">
+          <SubSection title="技能库 · 复用方法论">
             <p className="text-sm text-ink-secondary mb-3 leading-relaxed">
-              智能体在系统提示词里被教会尽量用选项减少你的打字负担。常见的选项类型：
+              技能库是一组可复用的 <strong className="text-ink">原子方法论 prompt 片段</strong>,关联到 output kind 后,
+              生成时拼到 LLM prompt 末尾。系统预置 12 条原子 skill,按 6 大能力域分类(详见
+              <code className="text-[#D96400] mx-1">backend/services/agentic/skills_roadmap.md</code>):
+              业务洞察 / 领域知识 / 调研发现 / 输出表达 / 证据引用 / 质量评审。
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="card p-3">
-                <p className="text-xs font-semibold text-ink mb-1">单选 Chip</p>
-                <p className="text-[11px] text-ink-secondary">直接点击即发送，如「制造业 / SaaS / 快消 / 医疗」</p>
-              </div>
-              <div className="card p-3">
-                <p className="text-xs font-semibold text-ink mb-1">多选 Chip</p>
-                <p className="text-[11px] text-ink-secondary">勾选后点「提交选择」，如「销售管理 + 服务工单 + 合同」</p>
-              </div>
-            </div>
+            <Steps items={[
+              { title: '进入系统设置', desc: '左侧「系统设置」→「技能库」Tab(仅管理员)' },
+              { title: '编辑 skill', desc: '改 prompt_snippet 内容,保存后下次生成立即生效' },
+              { title: '关联到 kind', desc: '在「输出智能体」Tab 中勾选要启用的 skill 关联到 insight / survey / survey_outline / kickoff_pptx / kickoff_html' },
+            ]} />
+            <Note>
+              Critic / Challenger 的评审 rubric 不在 skill_ids 里 — 它们硬编码在 critic.py / challenger.py,
+              改逻辑要改代码 + 部署。
+            </Note>
+          </SubSection>
+
+          <SubSection title="阶段流程编辑(管理员)">
+            <p className="text-sm text-ink-secondary mb-3 leading-relaxed">
+              项目阶段栏的内容(顺序 / 启用状态 / 子产物)可由管理员通过 <code className="text-[#D96400]">/api/settings/stage-flow</code>
+              动态配置。前端 ConsoleProjectDetail 拉到新配置后立即生效,不需要改代码。
+            </p>
+            <Note>默认 8 个 stage:项目洞察 / 启动会·PPT / 启动会·HTML / 需求调研 / 方案设计 / 项目实施 / 上线测试 / 项目验收。后 4 个为占位,active=false。</Note>
+          </SubSection>
+
+          <SubSection title="信息缺口处理 · GapFiller">
+            <p className="text-sm text-ink-secondary mb-3 leading-relaxed">
+              agentic 生成器在 plan 阶段会评估"信息够不够写"。若关键模块缺信息,bundle 会标
+              <code className="text-[#D96400] mx-1">validity_status='invalid'</code>,
+              中栏自动渲染 <strong className="text-ink">AgenticGapFiller</strong> — 一个按 module 分组的问卷面板。
+              用户作答后系统合并写回 brief,再点「重新生成」触发新一轮。
+            </p>
           </SubSection>
         </Section>
 
@@ -743,6 +773,26 @@ export default function Help() {
               {
                 q: 'PM 模式的答案结构能自定义吗？',
                 a: '可以。在系统设置 → 提示词 Tab 中找到 PM_QA_PROMPT，直接编辑模板内容并保存，修改即时生效。',
+              },
+              {
+                q: '为什么项目洞察报告里有时模块为空 / 标"信息缺失"?',
+                a: 'agentic 生成器在 Plan 阶段会评估每个模块需要的字段是否能从 brief / 文档 / KB / Web 里凑齐。凑不齐时会:① 标"信息缺失,建议在 Phase 1 第一周补访",绝不编造;② 若多个关键模块都缺,bundle 会标 validity_status=invalid,中栏显示 GapFiller 让你补答案,再触发重生成。',
+              },
+              {
+                q: 'Critic 和 Challenger 是什么?为什么报告生成要这么久?',
+                a: '为了让 LLM 写的内容能扛检验,系统在生成完后跑两道评审:Critic(单模块 4 维度评分:具体性 / 证据 / 时效性 / 下一步,任一<3 分会触发当模块 needs_rework 重写),Challenger(整文 6 维度对抗式审核,找问题导向)。verdict=major 自动重新跑全文。一份典型 insight 报告 2-5 分钟,80% 时间花在评审 + 重写循环上,但产出的内容已通过同行评审。',
+              },
+              {
+                q: '需求调研要怎么用?是给客户填的吗?',
+                a: '不是。需求调研是顾问主导的引导式访谈:系统按 LTC 流程出大纲 + 6 题型问卷,顾问当场口头问客户、屏上勾选答案。关键设计是"选项池预填,顾问不现场打字"。每题预填好答案候选,只在必要时才输入文本。答完每模块系统会用 LLM 自动给每条需求打四象限标签(范围内/范围外/待定/不适用),减少蓝图阶段返工。',
+              },
+              {
+                q: '如何调整模型 / 提示词 / Skill?',
+                a: '管理员进系统设置:① 「输出智能体」Tab 改每个 kind 的 system prompt + 关联 skill;② 「技能库」Tab 编辑 12 条原子 skill 的 prompt_snippet;③ 「模型路由」Tab 改 LLM 选择策略(同一 kind 可路由到不同模型)。所有改动保存即时生效,下次生成立即应用。Critic / Challenger 的评审 rubric 是硬编码,要改逻辑得改代码。',
+              },
+              {
+                q: '阶段栏少了 / 多了某个 stage 怎么办?',
+                a: '阶段栏由后端动态配置(stage_flow)。管理员可以在 /api/settings/stage-flow 改启用 / 禁用 / 顺序 / 子产物。前端 ConsoleProjectDetail 会自动拉到最新配置。重置为内置默认:POST /api/settings/stage-flow/reset。',
               },
               {
                 q: '知识挑战的通过率很低，如何提升？',

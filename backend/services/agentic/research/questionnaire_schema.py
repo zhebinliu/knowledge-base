@@ -1,6 +1,6 @@
 """结构化调研问卷数据契约。
 
-存储位置:`CuratedBundle.extra.questionnaire_items[]`(survey_v2 kind 的 bundle)
+存储位置:`CuratedBundle.extra.questionnaire_items[]`(survey kind 的 bundle)
 顾问录入答案存到 `research_response` 表,按 (bundle_id, item_key) 找回。
 
 设计原则:

@@ -771,7 +771,7 @@ export interface DocChecklistDto {
 }
 
 
-export const getDocChecklist = (projectId: string, stage = 'insight_v2') =>
+export const getDocChecklist = (projectId: string, stage = 'insight') =>
   api.get<DocChecklistDto>(`/doc-checklist/${projectId}`, { params: { stage } }).then(r => r.data)
 
 // ── Virtual Artifacts (成功指标 / 风险预警 等问卷型虚拟物) ──────────────────
@@ -780,7 +780,7 @@ export interface VirtualArtifactDto {
   vkey: string
   title: string
   description: string
-  ask_user_prompts: V2GapPrompt[]              // 复用 GapFiller 类型
+  ask_user_prompts: AgenticGapPrompt[]              // 复用 GapFiller 类型
   current_values: Record<string, BriefFieldCell>
 }
 
@@ -885,9 +885,7 @@ export const getStageFlowMeta = () =>
 
 export type OutputKind =
   | 'kickoff_pptx' | 'kickoff_html'
-  | 'survey' | 'insight'
-  // v2 (agentic) — 旁路验证版本
-  | 'insight_v2' | 'survey_v2' | 'survey_outline_v2'
+  | 'insight' | 'survey' | 'survey_outline'
 
 export interface OutputChatMessage {
   role: 'user' | 'assistant'
@@ -970,7 +968,7 @@ export interface ProvenanceEntry {
 }
 
 // v2 agentic 用 — 一道"补充信息"问题(Planner 标记的 ask_user gap)
-export interface V2GapPrompt {
+export interface AgenticGapPrompt {
   module_key: string
   field_key: string
   question: string                       // 给用户看的问题
@@ -997,11 +995,11 @@ export interface CuratedBundle {
   created_at: string
   updated_at: string
   content_md?: string
-  // v2 (agentic) 字段(只在 kind ∈ {'insight_v2','survey_v2','survey_outline_v2'} 时有值)
+  // agentic 字段(只在 kind ∈ {'insight','survey','survey_outline'} 时有值)
   agentic_version?: 'v2' | null
   validity_status?: 'valid' | 'partial' | 'invalid' | null
   short_circuited?: boolean       // true=Planner 拦截,未跑 LLM
-  ask_user_prompts?: V2GapPrompt[]
+  ask_user_prompts?: AgenticGapPrompt[]
   // v3 文档驱动 — 引用追溯
   provenance?: Record<string, Record<string, ProvenanceEntry>>    // {module_key: {D1/K1/W1: entry}}
   module_states?: Record<string, {
@@ -1043,7 +1041,7 @@ export interface CuratedBundle {
     hits_n?: number
     error?: string
   } | null
-  // research v1 — 需求调研工作区(survey_outline_v2 / survey_v2 kind 才有值)
+  // research v1 — 需求调研工作区(survey_outline / survey kind 才有值)
   questionnaire_items?: ResearchQuestionItem[]
   ltc_module_map?: { sow_term: string; mapped_ltc_key: string | null; confidence: number; is_extra: boolean }[]
 }

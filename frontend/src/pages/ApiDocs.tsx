@@ -207,6 +207,10 @@ const NAV = [
   { id: 'documents',  label: '文档管理' },
   { id: 'chunks',     label: '知识切片' },
   { id: 'projects',   label: '项目管理' },
+  { id: 'outputs',    label: '产物生成' },
+  { id: 'briefs',     label: 'Brief 字段' },
+  { id: 'research',   label: '调研录入' },
+  { id: 'workspace',  label: '工作台辅助' },
   { id: 'mcp',        label: 'MCP 服务器' },
 ]
 
@@ -524,6 +528,102 @@ print(r.json()["answer"])`} />
           <Endpoint method="PATCH"  path="/api/projects/{project_id}"           desc="更新项目信息" />
           <Endpoint method="DELETE" path="/api/projects/{project_id}"           desc="删除项目（?cascade=true 同时解绑关联文档）" />
           <Endpoint method="GET"    path="/api/projects/{project_id}/documents" desc="获取项目下的所有文档" />
+          <Endpoint method="POST"   path="/api/projects/{project_id}/insight-checkup" desc="项目体检 — 评估 brief 完成度 / 文档充分度,返回是否可触发 insight 生成" />
+        </Section>
+
+        {/* Outputs Generation */}
+        <Section id="outputs" title="产物生成" icon={Zap}>
+          <p className="text-sm text-ink-secondary mb-4">
+            5 种产物类型(<code className="text-[#D96400]">kind</code>):
+            <code className="mx-1 text-[#D96400]">kickoff_pptx</code> /
+            <code className="mx-1 text-[#D96400]">kickoff_html</code> /
+            <code className="mx-1 text-[#D96400]">insight</code> /
+            <code className="mx-1 text-[#D96400]">survey</code> /
+            <code className="mx-1 text-[#D96400]">survey_outline</code>。
+            <strong>kickoff_*</strong> 走对话式生成(/api/output-chats);其他三种走 agentic 规则化生成,直接 POST /api/outputs/generate 即可。
+          </p>
+          <Endpoint
+            method="POST" path="/api/outputs/generate"
+            desc="触发指定 kind 的产物生成(异步,返回 bundle_id),前端 poll /api/outputs/{id}"
+            params={[
+              { name: 'kind',       type: 'OutputKind', req: true, desc: '产物类型(见上方 5 种)' },
+              { name: 'project_id', type: 'uuid',      req: true, desc: '关联的项目 ID' },
+            ]}
+          />
+          <Endpoint method="GET"  path="/api/outputs"             desc="列出 bundles(支持 ?project_id / ?kind 过滤 + 分页)" />
+          <Endpoint method="GET"  path="/api/outputs/{bundle_id}" desc="单个 bundle 详情(含 status / progress / challenge_summary / validity_status 等 agentic 字段)" />
+          <Endpoint method="GET"  path="/api/outputs/{bundle_id}/download" desc="下载 .docx / .pptx 文件(MinIO 直链)" />
+          <Endpoint method="GET"  path="/api/outputs/{bundle_id}/view"     desc="浏览器预览 .html 报告" />
+          <Endpoint method="POST" path="/api/output-chats"                 desc="创建对话式生成会话(仅限 kickoff_pptx / kickoff_html)" />
+          <Endpoint method="POST" path="/api/output-chats/{conv_id}/message" desc="对话续轮" />
+          <Endpoint method="POST" path="/api/output-chats/{conv_id}/generate" desc="对话结束 → 触发 bundle 生成" />
+        </Section>
+
+        {/* Briefs */}
+        <Section id="briefs" title="Brief 字段抽取" icon={FileText}>
+          <p className="text-sm text-ink-secondary mb-4">
+            BriefDrawer 用,先 LLM 自动抽取草稿、再用户编辑。Schema 按 kind 分:见 <code className="text-[#D96400]">backend/services/brief_service.BRIEF_SCHEMAS</code>。
+            kickoff_html 与 kickoff_pptx 共用同一份 schema(<code>_canonical_kind</code> 自动归一)。
+          </p>
+          <Endpoint method="GET"  path="/api/briefs/{kind}?project_id=..."         desc="读 brief 当前值(不存在返回空骨架)" />
+          <Endpoint method="PUT"  path="/api/briefs/{kind}?project_id=..."         desc="保存用户编辑的 brief 字段" />
+          <Endpoint method="POST" path="/api/briefs/{kind}/extract?project_id=..." desc="LLM 一次性抽取 brief 草稿(非流式)" />
+          <Endpoint method="POST" path="/api/briefs/{kind}/extract/stream?project_id=..." desc="SSE 流式抽取 brief(逐字段返回)" />
+        </Section>
+
+        {/* Research */}
+        <Section id="research" title="调研录入(Survey 答案 / LTC 字典)" icon={BookOpen}>
+          <p className="text-sm text-ink-secondary mb-4">
+            survey 阶段顾问勾选式录入用。答案存 <code className="text-[#D96400]">research_responses</code> 表(按 bundle_id + item_key 唯一)。
+          </p>
+          <Endpoint method="POST" path="/api/research/responses"                 desc="upsert 顾问答案(单条)" />
+          <Endpoint method="GET"  path="/api/research/responses?bundle_id=..."   desc="拉取 bundle 下所有答案" />
+          <Endpoint method="POST" path="/api/research/classify-scope"            desc="触发 LLM 范围四分类(范围内/外/待定/不适用)" />
+          <Endpoint method="GET"  path="/api/research/ltc-module-map?bundle_id=..." desc="拉取 SOW → LTC 字典模块映射结果" />
+          <Endpoint method="GET"  path="/api/research/ltc-dictionary"            desc="返回 LTC 字典全量(8 主流程 + 5 横向支撑域)" />
+        </Section>
+
+        {/* Workspace Auxiliary */}
+        <Section id="workspace" title="工作台辅助 API" icon={Box}>
+          <p className="text-sm text-ink-secondary mb-4">
+            前端 ConsoleProjectDetail 三栏工作区用的零散端点。
+          </p>
+
+          <h3 className="text-sm font-semibold text-ink mt-2 mb-2">阶段流程动态配置 / Stage Flow</h3>
+          <Endpoint method="GET"  path="/api/settings/stage-flow"       desc="读取项目阶段配置(默认或运营自定义)" />
+          <Endpoint method="PUT"  path="/api/settings/stage-flow"       desc="管理员保存自定义 stage flow(全量替换)" />
+          <Endpoint method="POST" path="/api/settings/stage-flow/reset" desc="管理员重置为内置默认" />
+          <Endpoint method="GET"  path="/api/settings/stage-flow/meta"  desc="返回元信息:可选 icon / kind 列表(下拉编辑器用)" />
+
+          <h3 className="text-sm font-semibold text-ink mt-6 mb-2">虚拟物 / Virtual Artifacts</h3>
+          <Endpoint method="GET"  path="/api/virtual/{vkey}?project_id=..."        desc="读单个虚拟物(干系人图谱 / 成功度量表 / 引导问卷)。vkey ∈ v_stakeholder_graph/v_success_metrics/v_guided_questionnaire" />
+          <Endpoint method="POST" path="/api/virtual/{vkey}/submit?project_id=..." desc="提交虚拟物答案(同时合并写回 brief 字段)" />
+
+          <h3 className="text-sm font-semibold text-ink mt-6 mb-2">文档清单 / Doc Checklist</h3>
+          <Endpoint method="GET" path="/api/doc-checklist/{project_id}?stage=insight"
+                    desc="按 stage(默认 insight)读必传 / 推荐文档清单 + 已上传状态 + 缺失项原因" />
+
+          <h3 className="text-sm font-semibold text-ink mt-6 mb-2">Web 检索建议 / Web Suggest</h3>
+          <Endpoint method="POST" path="/api/web-suggest" desc="GapFiller 用:让 LLM 联网建议补访候选问题" />
+
+          <h3 className="text-sm font-semibold text-ink mt-6 mb-2">Agent / Skill 配置(管理员)</h3>
+          <Endpoint method="GET"  path="/api/settings/models"            desc="LLM 模型清单(供路由 / 任务参数下拉)" />
+          <Endpoint method="GET"  path="/api/settings/routing"           desc="任务级模型路由表(每种任务用哪个 model)" />
+          <Endpoint method="PUT"  path="/api/settings/routing/{task}"    desc="更新单条路由" />
+          <Endpoint method="GET"  path="/api/settings/task-params"       desc="任务级 LLM 参数(temperature / max_tokens 等)" />
+          <Endpoint method="GET"  path="/api/settings/prompts"           desc="可编辑 prompt 模板列表(QA / PM / output_agent 等)" />
+          <Endpoint method="PUT"  path="/api/settings/prompts/{key}"     desc="更新单条 prompt 模板" />
+          <Endpoint method="GET"  path="/api/settings/skills"            desc="原子 skill 库(read-only,skill 内容定义在 skills_seed.py)" />
+          <Endpoint method="GET"  path="/api/settings/output-agents"     desc="按 kind 读 output_agent 配置(prompt / skill_ids / model)" />
+          <Endpoint method="PUT"  path="/api/settings/output-agents/{kind}" desc="更新 kind 的 agent 配置" />
+
+          <h3 className="text-sm font-semibold text-ink mt-6 mb-2">挑战(Challenge · KB 知识切片对抗式审核)</h3>
+          <Endpoint method="POST" path="/api/challenge/run-stream"            desc="触发挑战 run(SSE 流式返回每轮 verdict)" />
+          <Endpoint method="GET"  path="/api/challenge/runs"                  desc="列出最近挑战 run" />
+          <Endpoint method="GET"  path="/api/challenge/runs/{run_id}"         desc="查询单次 run 详情(每轮回合 + verdict)" />
+          <Endpoint method="GET"  path="/api/challenge/schedules"             desc="挑战定时任务列表" />
+          <Endpoint method="POST" path="/api/challenge/schedules"             desc="创建定时任务" />
+          <Endpoint method="GET"  path="/api/challenge/gaps"                  desc="列出从挑战中浮现的 KB 缺口(用作补文档输入)" />
         </Section>
 
         {/* MCP */}
