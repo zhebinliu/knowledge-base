@@ -24,6 +24,7 @@ import {
 } from '../../../api/client'
 import MarkdownView from '../../MarkdownView'
 import CitedReportView from '../CitedReportView'
+import CitationsPanel from '../CitationsPanel'
 import GenerationProgressCard from '../GenerationProgressCard'
 import ResearchQuestionnaire from './ResearchQuestionnaire'
 
@@ -45,7 +46,8 @@ export default function ResearchWorkspace({
 }: Props) {
   const [selectedLtcKey, setSelectedLtcKey] = useState<string | null>(null)
   const [view, setView] = useState<ResearchView>('preparation')
-  const [refsOpen, setRefsOpen] = useState(false)   // 右侧"参考资料"默认收起
+  const [refsOpen, setRefsOpen] = useState(false)   // 右侧"引用追溯"默认收起
+  const [highlightedRef, setHighlightedRef] = useState<string | null>(null)  // 报告角标点击 → 同步
 
   // activeKind 切换 → 切默认 view(顾问点顶部 sub-action 切换大纲/问卷)
   useEffect(() => {
@@ -189,7 +191,13 @@ export default function ResearchWorkspace({
                 {outlineBundle ? (
                   <div className="bg-white rounded-xl border border-line shadow-sm overflow-hidden">
                     <div className="px-8 py-7 overflow-x-auto">
-                      <OutlineMarkdownView bundle={outlineBundle} />
+                      <OutlineMarkdownView
+                        bundle={outlineBundle}
+                        onCitationClick={(moduleKey, refId) => {
+                          setRefsOpen(true)
+                          setHighlightedRef(`${moduleKey}:${refId}`)
+                        }}
+                      />
                     </div>
                   </div>
                 ) : (
@@ -213,32 +221,30 @@ export default function ResearchWorkspace({
         </div>
       </div>
 
-      {/* ── 右:参考资料侧栏(默认收起,需要时点右侧 tab 展开) ── */}
-      {refsOpen ? (
-        <div className="w-[260px] flex-shrink-0 border-l border-line bg-white p-3 relative">
-          <button
-            onClick={() => setRefsOpen(false)}
-            className="absolute right-2 top-2 p-1 rounded hover:bg-slate-50 text-ink-muted"
-            title="收起"
-          >
-            <ChevronRight size={12} />
-          </button>
-          <div className="text-[11px] text-ink-muted mb-2">参考资料</div>
-          <div className="text-[11px] text-ink-muted leading-relaxed">
-            下个迭代上线:行业 knowhow chunk 列表 + 引用追溯。
-            顾问可在此剔除质量不准的 KB 召回结果。
+      {/* ── 右:引用追溯(复用 InsightWorkspace 的 CitationsPanel) ──
+          只对 outline view 有意义 — 大纲 markdown 里有 [D1][K1][W1] 角标 + provenance
+          questionnaire / preparation view 时不展示 */}
+      {view === 'outline' && outlineBundle && Object.keys(outlineBundle.provenance || {}).length > 0 ? (
+        refsOpen ? (
+          <div className="w-[320px] flex-shrink-0 border-l border-line">
+            <CitationsPanel
+              bundle={outlineBundle}
+              highlightedRefId={highlightedRef}
+              onPreviewDoc={() => { /* ResearchWorkspace 暂无中栏文档预览,doc 引用打开新窗口在 CitationsPanel 内已处理 */ }}
+              onClose={() => setRefsOpen(false)}
+            />
           </div>
-        </div>
-      ) : (
-        <button
-          onClick={() => setRefsOpen(true)}
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1.5 px-2 py-3 bg-white border border-line rounded-l-md shadow text-xs text-ink-secondary hover:text-ink hover:border-orange-300"
-          style={{ writingMode: 'vertical-rl' as any }}
-          title="展开参考资料侧栏"
-        >
-          参考资料
-        </button>
-      )}
+        ) : (
+          <button
+            onClick={() => setRefsOpen(true)}
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1.5 px-2 py-3 bg-white border border-line rounded-l-md shadow text-xs text-ink-secondary hover:text-ink hover:border-orange-300"
+            style={{ writingMode: 'vertical-rl' as any }}
+            title="展开引用追溯面板"
+          >
+            引用追溯
+          </button>
+        )
+      ) : null}
     </div>
   )
 }
@@ -430,7 +436,12 @@ function ProductCard({
 /** 大纲 markdown 渲染 — 复用 insight 同款 CitedReportView,把 [D1][K1][W1] 角标渲染成
  *  可点击橙色徽章。bundle.provenance 由 generate_survey_outline 在 v3.7+ 写入。
  *  list API 不返回 content_md / provenance,需单独 GET /api/outputs/{id} 拿详情。 */
-function OutlineMarkdownView({ bundle }: { bundle: CuratedBundle }) {
+function OutlineMarkdownView({
+  bundle, onCitationClick,
+}: {
+  bundle: CuratedBundle
+  onCitationClick?: (moduleKey: string, refId: string) => void
+}) {
   const { data, isLoading } = useQuery({
     queryKey: ['research-outline-detail', bundle.id],
     queryFn: () => getOutput(bundle.id),
@@ -450,13 +461,11 @@ function OutlineMarkdownView({ bundle }: { bundle: CuratedBundle }) {
   if (Object.keys(provenance).length === 0) {
     return <MarkdownView content={md} />
   }
-  // 不再额外包白卡 — 外层中栏已经是白底(ResearchWorkspace),包白卡会双白叠加
-  // (insight 用白卡是因为它中栏外层是 bg-canvas 灰底)
   return (
     <CitedReportView
       content={md}
       provenance={provenance}
-      onCitationClick={() => { /* outline 暂无右栏引用追溯,空操作 */ }}
+      onCitationClick={onCitationClick || (() => {})}
     />
   )
 }
