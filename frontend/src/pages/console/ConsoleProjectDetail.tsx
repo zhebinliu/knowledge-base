@@ -269,7 +269,7 @@ export default function ConsoleProjectDetail() {
   }
 
   return (
-    <div className="-mx-4 sm:-mx-6 -my-6 min-h-[calc(100vh-56px)] flex flex-col bg-canvas overflow-y-auto">
+    <div className="min-h-[calc(100vh-56px)] flex flex-col bg-canvas overflow-y-auto">
       {/* 顶部信息条：返回 + 项目名 + 元信息 + 编辑 */}
       <div className="flex-shrink-0 px-4 sm:px-6 py-2.5 bg-white border-b border-line flex items-center gap-3">
         <button

@@ -144,7 +144,15 @@ export default function ConsoleLayout() {
         </nav>
       </header>
 
-      <main key={loc.pathname} className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      {/* 工作台(projects/:id)走全宽 + 零左右内边距;列表/首页保持 max-w-7xl 居中 */}
+      <main
+        key={loc.pathname}
+        className={
+          /^\/console\/projects\/[^/]+$/.test(loc.pathname)
+            ? 'w-full'
+            : 'max-w-7xl mx-auto px-4 sm:px-6 py-6'
+        }
+      >
         <Outlet />
       </main>
     </div>
