@@ -33,10 +33,11 @@ const VERDICT_META: Record<string, { label: string; color: string; bg: string }>
   skipped_invalid:{ label: '— 信息不足跳过', color: '#64748B', bg: 'bg-slate-50 border-slate-200' },
 }
 
+// 与 banner 文案统一:重大 / 小问题(顶部"仍有 N 项重大问题未解决"找下面对应的"重大"标签)
 const SEVERITY_META: Record<string, { color: string; bg: string; label: string }> = {
   blocker: { color: '#DC2626', bg: 'bg-red-100',    label: '🚫 阻断' },
-  major:   { color: '#D97706', bg: 'bg-amber-100',  label: '⚠ 严重' },
-  minor:   { color: '#0891B2', bg: 'bg-cyan-100',   label: '💡 优化' },
+  major:   { color: '#D97706', bg: 'bg-amber-100',  label: '⚠ 重大' },
+  minor:   { color: '#0891B2', bg: 'bg-cyan-100',   label: '💡 小问题' },
 }
 
 const DIMENSION_LABEL: Record<string, string> = {
