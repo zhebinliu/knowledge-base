@@ -195,7 +195,7 @@ export default function ResearchWorkspace({
               />
             ) : (
               <div className="bg-canvas min-h-full px-5 py-5">
-                <div className="max-w-[1200px] mx-auto">
+                <div className="max-w-[1600px] mx-auto">
                   {outlineBundle ? (
                     <div className="bg-white rounded-xl border border-line shadow-sm overflow-hidden">
                       <div className="flex items-center justify-end px-4 py-2 border-b border-line bg-slate-50/40">

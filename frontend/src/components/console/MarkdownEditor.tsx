@@ -177,7 +177,7 @@ export default function MarkdownEditor({ bundle, initialContent, onClose, onSave
 
       {/* 编辑区 — 在白卡内,跟读视图同款灰底环境 */}
       <div className="flex-1 min-h-0 overflow-auto bg-canvas px-5 py-5">
-        <div className="max-w-[1200px] mx-auto">
+        <div className="max-w-[1600px] mx-auto">
           <div className="bg-white rounded-xl border border-line shadow-sm overflow-hidden">
             <EditorContent editor={editor} />
           </div>

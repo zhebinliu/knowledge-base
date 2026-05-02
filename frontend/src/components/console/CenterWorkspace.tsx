@@ -442,7 +442,7 @@ function ReportReadView({
 
   return (
     <div className="h-full bg-canvas overflow-auto">
-      <div className="max-w-[1200px] mx-auto px-5 py-5 space-y-4">
+      <div className="max-w-[1600px] mx-auto px-5 py-5 space-y-4">
         {/* v3.6:挑战回合面板 + 单独的 validity 提示 已合并到 AgenticValidityBanner(报告页顶部),
             这里不再重复展示,避免双源头让用户混淆 */}
         {/* v3.4 M9 web 检索失败提示 — 不阻断阅读,只告诉用户 M9 章节质量可能下降 */}
