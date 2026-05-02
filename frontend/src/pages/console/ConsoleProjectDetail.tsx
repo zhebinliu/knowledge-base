@@ -155,10 +155,7 @@ export default function ConsoleProjectDetail() {
     : DEFAULT_STAGES
   const STAGES: StageDef[] = ALL_STAGES.filter(s => s.active)
 
-  if (!id) return null
-  if (isLoading) return <div className="text-center py-20 text-ink-muted text-sm">加载中…</div>
-  if (!project) return <div className="text-center py-20 text-ink-muted text-sm">项目不存在</div>
-
+  // ─ 派生状态 — 在 early return 之前计算,以便 useEffect 引用(React 规则:hook 必须在 return 之前) ─
   const bundles = outputs?.items ?? []
   const bundleByKind = (kind: OutputKind) => bundles.find(b => b.kind === kind && b.status === 'done')
   const inflightByKind = (kind: OutputKind) => bundles.find(b => b.kind === kind && (b.status === 'pending' || b.status === 'generating'))
@@ -173,34 +170,27 @@ export default function ConsoleProjectDetail() {
     return 'idle'
   }
 
-  // STAGES 已过滤为启用项;若全空(管理员配置不当)→ 提示而非崩溃
-  if (STAGES.length === 0) {
-    return (
-      <div className="text-center py-20 text-ink-muted text-sm">
-        当前没有启用任何阶段,请管理员到「系统配置 · 项目流程」启用至少一个阶段
-      </div>
-    )
-  }
-  const activeStage = STAGES.find(s => s.key === activeStageKey) ?? STAGES[0]
+  // STAGES 可能为空(项目还在加载或管理员禁用了所有 stage),activeStage 等用 ?: 兜底
+  const activeStage: StageDef | null = STAGES.length > 0
+    ? (STAGES.find(s => s.key === activeStageKey) ?? STAGES[0])
+    : null
   // 当 stage 有 subKinds,activeKind 取 selectedSubKind ?? 第一个 sub
-  const activeKind: OutputKind | null = activeStage.subKinds
+  const activeKind: OutputKind | null = activeStage?.subKinds
     ? (selectedSubKind && activeStage.subKinds.some(sk => sk.kind === selectedSubKind)
         ? selectedSubKind
         : activeStage.subKinds[0].kind)
-    : activeStage.kind
-  const activeKindLabel = activeStage.subKinds
+    : (activeStage?.kind ?? null)
+  const activeKindLabel = activeStage?.subKinds
     ? (activeStage.subKinds.find(sk => sk.kind === activeKind)?.label || activeStage.label)
-    : activeStage.label
+    : (activeStage?.label ?? '')
   const activeBundle = activeKind ? bundleByKind(activeKind) : undefined
   const activeInflight = activeKind ? inflightByKind(activeKind) : undefined
 
   // chatMode 跟随 activeKind 同步 — 解决两个问题:
   //  1. 用户切换阶段后,chatMode.kind 残留旧值会让 OutputChatPanel 显示上一阶段的标题
-  //     (截图里 HTML 阶段中央却显示「启动会·PPT · 对话生成」)
   //  2. 当前阶段已有 done bundle → 默认展示成果(预览),而不是 QA
-  // 关键:依赖只放 activeKind / activeBundle?.id,不依赖 chatMode 本身,
-  // 否则用户点了「项目问答」tab 切到 'pm' 后会被立刻强切回 'output' 死循环。
-  // → activeKind 变(stage 切换)或 bundle 从无到有,才重新评估默认 tab。
+  // ★ 此 useEffect 必须放在 early return 之前 — 否则首次 render 时早期 return 会跳过它,
+  //   第二次 render 时多调一个 hook → React error #310
   useEffect(() => {
     if (!activeKind) return
     if (activeBundle) {
@@ -214,6 +204,22 @@ export default function ConsoleProjectDetail() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeKind, activeKindLabel, activeBundle?.id])
+
+  // ─ 所有 hook 调用完毕后,可以安全 early return ─
+  if (!id) return null
+  if (isLoading) return <div className="text-center py-20 text-ink-muted text-sm">加载中…</div>
+  if (!project) return <div className="text-center py-20 text-ink-muted text-sm">项目不存在</div>
+  if (STAGES.length === 0) {
+    return (
+      <div className="text-center py-20 text-ink-muted text-sm">
+        当前没有启用任何阶段,请管理员到「系统配置 · 项目流程」启用至少一个阶段
+      </div>
+    )
+  }
+  if (!activeStage) {
+    // 理论上 STAGES.length > 0 时 activeStage 必非 null;此分支只是 TypeScript narrow
+    return <div className="text-center py-20 text-ink-muted text-sm">阶段配置异常</div>
+  }
 
   const industryLabel = (val: string | null) => {
     if (!val) return null
