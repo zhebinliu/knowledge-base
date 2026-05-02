@@ -144,10 +144,11 @@ export default function GenerationProgressCard({ bundle }: Props) {
 function ChallengeRoundLive({ round }: { round: import('../../api/client').ChallengeRound }) {
   const c = round.critique
   const verdict = c?.verdict ?? '?'
+  // 与 ChallengeRoundsPanel 的 VERDICT_META 保持一致 — 动作导向命名,跟单 issue 的 SEVERITY 区分
   const verdictMeta = {
     pass:          { label: '✓ 通过',   color: 'bg-emerald-100 text-emerald-700' },
-    minor_issues:  { label: '⚠ 小问题', color: 'bg-amber-100 text-amber-700' },
-    major_issues:  { label: '🚫 大问题', color: 'bg-red-100 text-red-700' },
+    minor_issues:  { label: '☑ 可放行', color: 'bg-amber-100 text-amber-700' },
+    major_issues:  { label: '🚫 需返工', color: 'bg-red-100 text-red-700' },
   }[verdict as 'pass' | 'minor_issues' | 'major_issues'] ?? { label: '处理中…', color: 'bg-slate-100 text-slate-600' }
 
   const issuesByModule: Record<string, number> = {}

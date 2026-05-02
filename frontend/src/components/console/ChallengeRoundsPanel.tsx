@@ -24,10 +24,14 @@ interface Props {
   } | null
 }
 
+// verdict = 整体判定(动作导向),与单 issue 的 SEVERITY 区分:
+//   - SEVERITY 是"单个问题有多严重"(阻断 / 重大 / 小问题)
+//   - VERDICT 是"这轮整体能不能放行"(规则:任何 blocker 或 ≥3 major → 需返工;0-2 major → 可放行)
+//   所以一轮里出现 1-2 个"重大"问题但 verdict 仍是"可放行"是符合规则的,不是矛盾。
 const VERDICT_META: Record<string, { label: string; color: string; bg: string }> = {
   pass:           { label: '✓ 通过',     color: '#059669', bg: 'bg-emerald-50 border-emerald-200' },
-  minor_issues:   { label: '⚠ 小问题',   color: '#D97706', bg: 'bg-amber-50 border-amber-200' },
-  major_issues:   { label: '🚫 大问题',  color: '#DC2626', bg: 'bg-red-50 border-red-200' },
+  minor_issues:   { label: '☑ 可放行',   color: '#D97706', bg: 'bg-amber-50 border-amber-200' },
+  major_issues:   { label: '🚫 需返工',  color: '#DC2626', bg: 'bg-red-50 border-red-200' },
   parse_failed:   { label: '⚠ 解析失败 · 未确认质量', color: '#B45309', bg: 'bg-amber-100 border-amber-300' },
   skipped:        { label: '— 跳过',     color: '#64748B', bg: 'bg-slate-50 border-slate-200' },
   skipped_invalid:{ label: '— 信息不足跳过', color: '#64748B', bg: 'bg-slate-50 border-slate-200' },
