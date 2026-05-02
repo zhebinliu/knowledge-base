@@ -476,6 +476,48 @@ async def view_output(
     raise HTTPException(400, "No previewable content")
 
 
+class UpdateContentBody(BaseModel):
+    content_md: str
+
+
+@router.put("/{bundle_id}/content")
+async def save_content_md(
+    bundle_id: str,
+    body: UpdateContentBody,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """编辑器内点保存:把 markdown 正文写回 bundle.content_md。
+
+    适用 kind:insight / survey_outline / survey(MD 类型 bundle)。
+    kickoff_pptx / kickoff_html 走 PUT /{id}/html(HTML 文件)。
+
+    权限:created_by 或 admin 可改 — 跟 HTML 编辑端点一致。
+    不维护 provenance — 用户改了角标后可能与原 provenance 对不上,
+    这是主动编辑代价,前端 CitationsPanel 仍按 bundle.provenance 渲染。
+    不存历史 — 覆盖式更新;想要旧版可重生成。
+    """
+    b = await session.get(CuratedBundle, bundle_id)
+    if not b:
+        raise HTTPException(404, "Bundle not found")
+    if not current_user.is_admin and b.created_by != current_user.id:
+        raise HTTPException(403, "无权编辑该产物")
+    if b.kind not in ("insight", "survey_outline", "survey"):
+        raise HTTPException(400, f"产物类型 {b.kind} 不支持 markdown 编辑")
+    if b.status != "done":
+        raise HTTPException(400, f"产物状态 {b.status} 不支持编辑(需先生成完成)")
+
+    md = (body.content_md or "").strip()
+    if not md:
+        raise HTTPException(400, "正文不能为空")
+    if len(md) > 4 * 1024 * 1024:
+        raise HTTPException(400, f"正文体积异常({len(md)} 字节,上限 4MB)")
+
+    b.content_md = md
+    await session.commit()
+    return {"ok": True, "bytes": len(md.encode("utf-8"))}
+
+
 @router.put("/{bundle_id}/html")
 async def save_html_output(
     bundle_id: str,

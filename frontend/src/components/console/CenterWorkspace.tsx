@@ -11,7 +11,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   FileText, Sparkles, Loader2, ArrowLeft, AlertCircle, CheckCircle2,
-  Lightbulb, Eye, Download, RotateCw, Search, X,
+  Lightbulb, Eye, Download, RotateCw, Search, X, Pencil,
 } from 'lucide-react'
 import {
   getDocumentMarkdown, getDocChecklist,
@@ -23,6 +23,7 @@ import { useState } from 'react'
 import MarkdownView from '../MarkdownView'
 import AgenticGapFiller from '../AgenticGapFiller'
 import CitedReportView from './CitedReportView'
+import MarkdownEditor from './MarkdownEditor'
 import StakeholderCanvas from './StakeholderCanvas'
 import GenerationProgressCard from './GenerationProgressCard'
 
@@ -390,6 +391,18 @@ function ReportView({
   const validity = bundle.validity_status
   // v3 provenance:from bundle.provenance(via dto)or full output detail(若 dto 没透出)
   const provenance = bundle.provenance || {}
+  const [editing, setEditing] = useState(false)
+
+  if (editing && data?.content_md) {
+    return (
+      <MarkdownEditor
+        bundle={bundle}
+        initialContent={data.content_md}
+        onClose={() => setEditing(false)}
+        onSaved={() => setEditing(false)}
+      />
+    )
+  }
 
   return (
     <div className="h-full bg-canvas overflow-auto">
@@ -411,6 +424,18 @@ function ReportView({
         )}
         {/* 报告正文白色卡片容器:border + shadow 让内容有清晰边界 */}
         <div className="bg-white rounded-xl border border-line shadow-sm overflow-hidden">
+          {/* 工具栏:编辑按钮 — 仅在已加载完成时显示 */}
+          {data?.content_md && (
+            <div className="flex items-center justify-end px-4 py-2 border-b border-line bg-slate-50/40">
+              <button
+                onClick={() => setEditing(true)}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md text-ink-secondary hover:bg-white hover:text-ink"
+                title="在线编辑 markdown 正文"
+              >
+                <Pencil size={11} /> 编辑
+              </button>
+            </div>
+          )}
           <div className="px-8 py-7 overflow-x-auto">
             {isLoading ? (
               <div className="text-center text-xs text-ink-muted py-8">

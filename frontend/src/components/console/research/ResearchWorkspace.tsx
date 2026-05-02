@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ClipboardList, Lightbulb, Sparkles, Loader2, Workflow,
-  CheckCircle2, ChevronRight,
+  CheckCircle2, ChevronRight, Pencil,
 } from 'lucide-react'
 import {
   generateOutput,
@@ -25,6 +25,7 @@ import {
 import MarkdownView from '../../MarkdownView'
 import CitedReportView from '../CitedReportView'
 import CitationsPanel from '../CitationsPanel'
+import MarkdownEditor from '../MarkdownEditor'
 import GenerationProgressCard from '../GenerationProgressCard'
 import ResearchQuestionnaire from './ResearchQuestionnaire'
 
@@ -48,6 +49,7 @@ export default function ResearchWorkspace({
   const [view, setView] = useState<ResearchView>('preparation')
   const [refsOpen, setRefsOpen] = useState(false)   // 右侧"引用追溯"默认收起
   const [highlightedRef, setHighlightedRef] = useState<string | null>(null)  // 报告角标点击 → 同步
+  const [outlineEditing, setOutlineEditing] = useState(false)  // 调研大纲在线编辑模式
 
   // activeKind 切换 → 切默认 view(顾问点顶部 sub-action 切换大纲/问卷)
   useEffect(() => {
@@ -185,26 +187,45 @@ export default function ResearchWorkspace({
             />
           )}
           {view === 'outline' && (
-            // 灰底 + 白卡 — 与项目洞察 ReportView 同款样式(CenterWorkspace.tsx:394)
-            <div className="bg-canvas min-h-full px-5 py-5">
-              <div className="max-w-[1200px] mx-auto">
-                {outlineBundle ? (
-                  <div className="bg-white rounded-xl border border-line shadow-sm overflow-hidden">
-                    <div className="px-8 py-7 overflow-x-auto">
-                      <OutlineMarkdownView
-                        bundle={outlineBundle}
-                        onCitationClick={(moduleKey, refId) => {
-                          setRefsOpen(true)
-                          setHighlightedRef(`${moduleKey}:${refId}`)
-                        }}
-                      />
+            // 编辑态:全屏 MarkdownEditor(占满中栏);非编辑态:灰底+白卡同 ReportView
+            outlineEditing && outlineBundle ? (
+              <OutlineMarkdownView
+                bundle={outlineBundle}
+                editing={true}
+                onEditDone={() => setOutlineEditing(false)}
+              />
+            ) : (
+              <div className="bg-canvas min-h-full px-5 py-5">
+                <div className="max-w-[1200px] mx-auto">
+                  {outlineBundle ? (
+                    <div className="bg-white rounded-xl border border-line shadow-sm overflow-hidden">
+                      <div className="flex items-center justify-end px-4 py-2 border-b border-line bg-slate-50/40">
+                        <button
+                          onClick={() => setOutlineEditing(true)}
+                          className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md text-ink-secondary hover:bg-white hover:text-ink"
+                          title="在线编辑 markdown 正文"
+                        >
+                          <Pencil size={11} /> 编辑
+                        </button>
+                      </div>
+                      <div className="px-8 py-7 overflow-x-auto">
+                        <OutlineMarkdownView
+                          bundle={outlineBundle}
+                          editing={false}
+                          onEditDone={() => setOutlineEditing(false)}
+                          onCitationClick={(moduleKey, refId) => {
+                            setRefsOpen(true)
+                            setHighlightedRef(`${moduleKey}:${refId}`)
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <EmptyHint text="尚未生成调研大纲。请到「调研大纲」sub-action 触发生成。" />
-                )}
+                  ) : (
+                    <EmptyHint text="尚未生成调研大纲。请到「调研大纲」sub-action 触发生成。" />
+                  )}
+                </div>
               </div>
-            </div>
+            )
           )}
           {view === 'questionnaire' && (
             surveyBundle ? (
@@ -437,10 +458,12 @@ function ProductCard({
  *  可点击橙色徽章。bundle.provenance 由 generate_survey_outline 在 v3.7+ 写入。
  *  list API 不返回 content_md / provenance,需单独 GET /api/outputs/{id} 拿详情。 */
 function OutlineMarkdownView({
-  bundle, onCitationClick,
+  bundle, onCitationClick, editing, onEditDone,
 }: {
   bundle: CuratedBundle
   onCitationClick?: (moduleKey: string, refId: string) => void
+  editing: boolean
+  onEditDone: () => void
 }) {
   const { data, isLoading } = useQuery({
     queryKey: ['research-outline-detail', bundle.id],
@@ -454,6 +477,16 @@ function OutlineMarkdownView({
   const md = data?.content_md
   if (!md) {
     return <div className="text-sm text-ink-muted italic py-8 text-center">没有 markdown 内容</div>
+  }
+  if (editing) {
+    return (
+      <MarkdownEditor
+        bundle={bundle}
+        initialContent={md}
+        onClose={onEditDone}
+        onSaved={onEditDone}
+      />
+    )
   }
   // provenance 在 list 接口和 detail 接口都可能有,优先取 detail
   const provenance = (data?.provenance ?? bundle.provenance) || {}

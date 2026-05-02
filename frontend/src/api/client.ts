@@ -1102,6 +1102,11 @@ export const getOutput = (id: string) =>
 export const downloadOutputUrl = (id: string) => `/api/outputs/${id}/download`
 export const viewOutputUrl = (id: string) => `/api/outputs/${id}/view`
 
+/** 在线编辑保存 — 适用 markdown 类产物(insight / survey_outline / survey)。
+ *  权限:created_by 或 admin。覆盖式更新,不存历史,不动 provenance。 */
+export const saveOutputContent = (id: string, content_md: string) =>
+  api.put<{ ok: boolean; bytes: number }>(`/outputs/${id}/content`, { content_md }).then(r => r.data)
+
 // ── Project Brief ────────────────────────────────────────────────────────────
 
 export type BriefConfidence = 'high' | 'medium' | 'low' | null
