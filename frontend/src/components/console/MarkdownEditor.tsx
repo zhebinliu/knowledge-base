@@ -15,7 +15,7 @@
  * - 不维护编辑历史(覆盖式)
  * - 不自动同步 provenance — 用户改了角标后,CitationsPanel 仍按原 provenance 渲染
  */
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -38,41 +38,36 @@ interface Props {
 }
 
 export default function MarkdownEditor({ bundle, initialContent, onClose, onSaved }: Props) {
+  // ─ 所有 hooks 在最顶部、固定顺序、无条件调用 — 防 React error #310 ─
   const [error, setError] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const qc = useQueryClient()
-
   const editor = useEditor({
     extensions: [
       StarterKit,
-      // GFM 表格 — markdown round-trip 需要
       Table.configure({ resizable: false }),
       TableRow,
       TableHeader,
       TableCell,
-      // markdown round-trip 核心 — 输入 markdown,输出 markdown
       Markdown.configure({
-        html: false,           // 不允许编辑器内嵌 HTML(防注入)
-        tightLists: true,      // 列表项不加空行
-        bulletListMarker: '-', // 与 KB 输出风格一致
+        html: false,
+        tightLists: true,
+        bulletListMarker: '-',
         linkify: true,
       }),
     ],
     content: initialContent,
+    // ★ 关键:Tiptap v3 + React 18 默认 immediatelyRender=true 会在 render 中同步创建 editor
+    //    并立即触发 onUpdate → setState,造成 React hook 计数不一致,引发 #310。
+    //    设 false 让 editor 在 useEffect 中异步创建,避开此问题。官方推荐写法。
+    immediatelyRender: false,
     editorProps: {
       attributes: {
-        // index.css 里的 .kb-editor — 自定义最小样式(没装 tailwind typography)
         class: 'kb-editor px-8 py-7 min-h-full',
       },
     },
     onUpdate: () => setDirty(true),
   })
-
-  // 卸载时销毁
-  useEffect(() => {
-    return () => { editor?.destroy() }
-  }, [editor])
-
   const mut = useMutation({
     mutationFn: async () => {
       if (!editor) throw new Error('编辑器未就绪')
