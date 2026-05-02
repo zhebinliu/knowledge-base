@@ -108,16 +108,38 @@ export default function ChallengeRoundsPanel({ bundleId, challengeSummary }: Pro
           {!isLoading && (data?.rounds ?? []).length === 0 && (
             <div className="p-4 text-center text-xs text-ink-muted">尚无挑战回合记录</div>
           )}
-          {(data?.rounds ?? []).map(r => (
-            <RoundCard key={r.id} round={r} />
-          ))}
+          {(() => {
+            // 跨轮比对:计算最后一轮的 issue 指纹(module + dimension + severity),
+            // 前面轮次的 issue 若指纹不在最后一轮里 → 视为"已修复"
+            const rounds = data?.rounds ?? []
+            const lastRound = rounds[rounds.length - 1]
+            const lastFingerprints = new Set<string>(
+              (lastRound?.critique?.issues ?? []).map(it =>
+                `${it.module_key}|${it.dimension}|${it.severity}`
+              )
+            )
+            return rounds.map((r, idx) => (
+              <RoundCard
+                key={r.id}
+                round={r}
+                isLastRound={idx === rounds.length - 1}
+                lastFingerprints={lastFingerprints}
+              />
+            ))
+          })()}
         </div>
       )}
     </div>
   )
 }
 
-function RoundCard({ round }: { round: import('../../api/client').ChallengeRound }) {
+function RoundCard({
+  round, isLastRound, lastFingerprints,
+}: {
+  round: import('../../api/client').ChallengeRound
+  isLastRound: boolean
+  lastFingerprints: Set<string>
+}) {
   const c = round.critique
   const verdict = c?.verdict ?? 'skipped'
   const meta = VERDICT_META[verdict] ?? VERDICT_META['skipped']
@@ -127,6 +149,14 @@ function RoundCard({ round }: { round: import('../../api/client').ChallengeRound
   for (const it of c?.issues ?? []) {
     if (!grouped.has(it.module_key)) grouped.set(it.module_key, [])
     grouped.get(it.module_key)!.push(it)
+  }
+
+  // 当前轮次 issue 是否在最后一轮已被修复:
+  // - 最后一轮自身的 issue 不算"已修复"(还存在)
+  // - 之前轮次的 issue 若(模块+维度+严重度)指纹不在最后一轮里 → 视为已修复
+  const isFixed = (it: ChallengeIssue): boolean => {
+    if (isLastRound) return false
+    return !lastFingerprints.has(`${it.module_key}|${it.dimension}|${it.severity}`)
   }
 
   return (
@@ -179,9 +209,9 @@ function RoundCard({ round }: { round: import('../../api/client').ChallengeRound
               const sev = SEVERITY_META[it.severity] ?? SEVERITY_META['minor']
               const SevIcon = it.severity === 'blocker' ? AlertCircle :
                               it.severity === 'major'   ? AlertTriangle : Lightbulb
-              const wasFixed = round.modules_regenerated.includes(mk) && it.severity !== 'minor'
+              const fixed = isFixed(it)
               return (
-                <div key={i} className="text-[11px] leading-snug">
+                <div key={i} className={`text-[11px] leading-snug ${fixed ? 'opacity-60' : ''}`}>
                   <div className="flex items-start gap-1.5">
                     <span className={`px-1 py-0.5 rounded text-[9px] font-medium ${sev.bg} shrink-0 mt-0.5`}
                           style={{ color: sev.color }}>
@@ -190,14 +220,17 @@ function RoundCard({ round }: { round: import('../../api/client').ChallengeRound
                     <span className="px-1 py-0.5 rounded bg-slate-100 text-slate-600 text-[9px] shrink-0 mt-0.5">
                       {DIMENSION_LABEL[it.dimension] || it.dimension}
                     </span>
-                    {wasFixed && (
-                      <span className="px-1 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[9px] shrink-0 mt-0.5">
-                        ✓ 已重生成
+                    {fixed && (
+                      <span className="px-1 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[9px] shrink-0 mt-0.5 font-medium"
+                            title="该问题在最后一轮挑战中未再出现,视为已修复">
+                        ✓ 已修复
                       </span>
                     )}
                   </div>
-                  <div className="mt-1 text-ink-secondary">{it.text}</div>
-                  {it.suggestion && (
+                  <div className={`mt-1 ${fixed ? 'text-ink-muted line-through decoration-emerald-300' : 'text-ink-secondary'}`}>
+                    {it.text}
+                  </div>
+                  {it.suggestion && !fixed && (
                     <div className="mt-0.5 pl-2 border-l-2 border-orange-200 text-ink-muted">
                       改写建议: {it.suggestion}
                     </div>
