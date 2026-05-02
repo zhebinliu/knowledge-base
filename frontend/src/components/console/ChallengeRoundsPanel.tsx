@@ -97,9 +97,9 @@ export default function ChallengeRoundsPanel({ bundleId, challengeSummary }: Pro
         <span className="ml-auto text-[10px] text-ink-muted">点击展开看每轮评语</span>
       </button>
 
-      {/* 展开:每轮详情 */}
+      {/* 展开:每轮详情 — 限制最大高度 + 内部滚动,避免挤掉下面的工作区 */}
       {open && (
-        <div className="border-t border-line">
+        <div className="border-t border-line max-h-[50vh] overflow-y-auto">
           {isLoading && (
             <div className="p-4 text-center text-xs text-ink-muted">
               <Loader2 size={14} className="inline animate-spin mr-1.5" />加载挑战回合详情…
