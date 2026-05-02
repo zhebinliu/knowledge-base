@@ -187,12 +187,11 @@ export default function ResearchWorkspace({
             />
           )}
           {view === 'outline' && (
-            // 编辑态:全屏 MarkdownEditor(占满中栏);非编辑态:灰底+白卡同 ReportView
+            // 编辑态:全屏 OutlineEditorView(独立 fiber tree);非编辑态:灰底+白卡同 ReportView
             outlineEditing && outlineBundle ? (
-              <OutlineMarkdownView
+              <OutlineEditorView
                 bundle={outlineBundle}
-                editing={true}
-                onEditDone={() => setOutlineEditing(false)}
+                onDone={() => setOutlineEditing(false)}
               />
             ) : (
               <div className="bg-canvas min-h-full px-5 py-5">
@@ -211,8 +210,6 @@ export default function ResearchWorkspace({
                       <div className="px-8 py-7 overflow-x-auto">
                         <OutlineMarkdownView
                           bundle={outlineBundle}
-                          editing={false}
-                          onEditDone={() => setOutlineEditing(false)}
                           onCitationClick={(moduleKey, refId) => {
                             setRefsOpen(true)
                             setHighlightedRef(`${moduleKey}:${refId}`)
@@ -456,14 +453,15 @@ function ProductCard({
 
 /** 大纲 markdown 渲染 — 复用 insight 同款 CitedReportView,把 [D1][K1][W1] 角标渲染成
  *  可点击橙色徽章。bundle.provenance 由 generate_survey_outline 在 v3.7+ 写入。
- *  list API 不返回 content_md / provenance,需单独 GET /api/outputs/{id} 拿详情。 */
+ *  list API 不返回 content_md / provenance,需单独 GET /api/outputs/{id} 拿详情。
+ *
+ *  注:本组件只做"读"。"编辑态"由父组件直接渲染 <MarkdownEditor /> — 不传 editing prop
+ *  让父子组件 hook 路径相互独立,避免 React error #310。 */
 function OutlineMarkdownView({
-  bundle, onCitationClick, editing, onEditDone,
+  bundle, onCitationClick,
 }: {
   bundle: CuratedBundle
   onCitationClick?: (moduleKey: string, refId: string) => void
-  editing: boolean
-  onEditDone: () => void
 }) {
   const { data, isLoading } = useQuery({
     queryKey: ['research-outline-detail', bundle.id],
@@ -478,16 +476,6 @@ function OutlineMarkdownView({
   if (!md) {
     return <div className="text-sm text-ink-muted italic py-8 text-center">没有 markdown 内容</div>
   }
-  if (editing) {
-    return (
-      <MarkdownEditor
-        bundle={bundle}
-        initialContent={md}
-        onClose={onEditDone}
-        onSaved={onEditDone}
-      />
-    )
-  }
   // provenance 在 list 接口和 detail 接口都可能有,优先取 detail
   const provenance = (data?.provenance ?? bundle.provenance) || {}
   // 旧 bundle(没跑过 v3.7 的 outline)provenance 为空 → 退回 MarkdownView
@@ -499,6 +487,37 @@ function OutlineMarkdownView({
       content={md}
       provenance={provenance}
       onCitationClick={onCitationClick || (() => {})}
+    />
+  )
+}
+
+/** 调研大纲编辑态:自己拉 content_md → 渲染 MarkdownEditor。
+ *  跟 OutlineMarkdownView 完全独立的 fiber tree,避免 hook 路径混乱。 */
+function OutlineEditorView({
+  bundle, onDone,
+}: {
+  bundle: CuratedBundle
+  onDone: () => void
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['research-outline-detail', bundle.id],
+    queryFn: () => getOutput(bundle.id),
+    enabled: !bundle.content_md,
+    initialData: bundle.content_md ? bundle as any : undefined,
+  })
+  if (isLoading || !data?.content_md) {
+    return (
+      <div className="h-full flex items-center justify-center text-xs text-ink-muted">
+        <Loader2 size={14} className="inline animate-spin mr-1" /> 加载大纲内容…
+      </div>
+    )
+  }
+  return (
+    <MarkdownEditor
+      bundle={bundle}
+      initialContent={data.content_md}
+      onClose={onDone}
+      onSaved={onDone}
     />
   )
 }

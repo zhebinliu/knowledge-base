@@ -380,6 +380,54 @@ function ReportView({
   bundle: CuratedBundle
   onCitationClick?: (moduleKey: string, refId: string) => void
 }) {
+  const [editing, setEditing] = useState(false)
+  // 编辑态走独立 fiber tree,避免 React error #310(hook 路径切换)
+  if (editing) {
+    return (
+      <ReportEditorView bundle={bundle} onDone={() => setEditing(false)} />
+    )
+  }
+  return (
+    <ReportReadView bundle={bundle} onEdit={() => setEditing(true)} onCitationClick={onCitationClick} />
+  )
+}
+
+function ReportEditorView({
+  bundle, onDone,
+}: {
+  bundle: CuratedBundle
+  onDone: () => void
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['output', bundle.id],
+    queryFn: () => import('../../api/client').then(m => m.getOutput(bundle.id)),
+    enabled: !bundle.content_md,
+    initialData: bundle.content_md ? bundle as any : undefined,
+  })
+  if (isLoading || !data?.content_md) {
+    return (
+      <div className="h-full flex items-center justify-center text-xs text-ink-muted">
+        <Loader2 size={14} className="inline animate-spin mr-1" /> 加载报告内容…
+      </div>
+    )
+  }
+  return (
+    <MarkdownEditor
+      bundle={bundle}
+      initialContent={data.content_md}
+      onClose={onDone}
+      onSaved={onDone}
+    />
+  )
+}
+
+function ReportReadView({
+  bundle, onEdit, onCitationClick,
+}: {
+  bundle: CuratedBundle
+  onEdit: () => void
+  onCitationClick?: (moduleKey: string, refId: string) => void
+}) {
   // v3.4: 如果 list 已经带了 content_md (大概率不带,因为 list 不返回 content_md),
   //       直接用,否则才发起 getOutput(bundle.id)
   const { data, isLoading } = useQuery({
@@ -391,18 +439,6 @@ function ReportView({
   const validity = bundle.validity_status
   // v3 provenance:from bundle.provenance(via dto)or full output detail(若 dto 没透出)
   const provenance = bundle.provenance || {}
-  const [editing, setEditing] = useState(false)
-
-  if (editing && data?.content_md) {
-    return (
-      <MarkdownEditor
-        bundle={bundle}
-        initialContent={data.content_md}
-        onClose={() => setEditing(false)}
-        onSaved={() => setEditing(false)}
-      />
-    )
-  }
 
   return (
     <div className="h-full bg-canvas overflow-auto">
@@ -428,7 +464,7 @@ function ReportView({
           {data?.content_md && (
             <div className="flex items-center justify-end px-4 py-2 border-b border-line bg-slate-50/40">
               <button
-                onClick={() => setEditing(true)}
+                onClick={onEdit}
                 className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md text-ink-secondary hover:bg-white hover:text-ink"
                 title="在线编辑 markdown 正文"
               >
