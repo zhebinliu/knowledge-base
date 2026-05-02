@@ -35,7 +35,7 @@ export default function ConsoleLayout() {
     <div className="min-h-screen bg-canvas">
       {/* Top bar */}
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-line">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+        <div className="w-full px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
           <Link to="/console" className="flex items-center gap-2.5 flex-shrink-0">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: BRAND_GRAD }}>
               <BookOpen size={13} className="text-white" />
