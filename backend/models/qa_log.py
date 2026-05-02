@@ -6,8 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from models import Base
 
 
-def _utcnow():
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+from services._time import utcnow_naive as _utcnow
 
 
 class Conversation(Base):

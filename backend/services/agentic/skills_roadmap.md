@@ -22,12 +22,12 @@
 | 6 | 禁止 LLM 输出 H1/H2 标题 | output_agent | insight, survey_outline |
 | 7 | Markdown 表格规范 | output_agent | insight, survey_outline, survey |
 | 8 | Critic 4 维度 rubric | critic_agent（内置） | （不在 skill_ids，硬编码在 [critic.py](critic.py)） |
-| 9 | Challenger 7 维度 rubric ⚠️ | challenger_agent（内置） | （同上，硬编码在 [challenger.py](challenger.py)） |
+| 9 | Challenger 6 维度 rubric | challenger_agent（内置） | （同上，硬编码在 [challenger.py](challenger.py)） |
 | 10 | 调研问卷 6 题型规范 | output_agent | survey |
 | 11 | LTC 流程骨架 | output_agent | survey_outline, survey |
 | 12 | 信息缺失处理规则 | output_agent | insight, survey_outline, survey |
 
-> ⚠️ **同步漂移**：`Challenger 7 维度 rubric` 的 name 和 prompt_snippet 仍是 7 维，但 [challenger.py:20](challenger.py) 已下线 `timeliness` 改为 **6 维**（commit `7ba8629`）。下次动 skills_seed 时一并修。
+> 注：原 `Challenger 7 维度 rubric` 在 2026-05 已改名为 6 维(下线 timeliness,见 commit `7ba8629`)。skills_seed.py 的 LEGACY_NAME_MIGRATIONS 会在启动时自动重命名 DB 旧记录。
 
 ---
 
@@ -144,7 +144,7 @@
 | 调研与发现 Discovery & Research | 调研问卷 6 题型规范、信息缺失处理规则 |
 | 输出与表达 Output Craft | MBB 输出风格、禁用黑话清单、强制中文输出、禁止 LLM 输出 H1/H2 标题、Markdown 表格规范 |
 | 证据与引用 Evidence Discipline | D/K/W 引用 ID 规则、严格 JSON 输出契约 |
-| 质量评审 Quality Assurance | Critic 4 维度 rubric、Challenger 7 维度 rubric（实际 6 维，名字待修） |
+| 质量评审 Quality Assurance | Critic 4 维度 rubric、Challenger 6 维度 rubric |
 
 **密度观察**：
 - 输出与表达 Output Craft 是当前最饱和的域（5 条），符合 LLM 输出治理是初期最重要场景的判断

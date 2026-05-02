@@ -339,7 +339,7 @@ export default function DesignSystem() {
       <main className="flex-1 px-12 py-10 max-w-5xl">
 
         {/* ── Intro ──────────────────────────────────────────────────────── */}
-        <Section id="intro" title="KB System Design System" subtitle="为纷享销客 CRM 知识库管理系统设计的视觉规范与组件库，可供其他内部项目直接复用">
+        <Section id="intro" title="设计规范 · KB System" subtitle="为纷享销客 CRM 知识库管理系统设计的视觉规范与组件库,可供其他内部项目直接复用">
           <div className="grid grid-cols-3 gap-4">
             {[
               { label: '设计原则', desc: '清晰 · 高效 · 一致。用橙色作为主品牌色，建立可信赖的企业级视觉语言。' },

@@ -26,8 +26,7 @@ from services.rate_limit import limiter
 router = APIRouter()
 
 
-def _utcnow_naive() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+from services._time import utcnow_naive as _utcnow_naive
 
 
 def _is_refusal(answer: str) -> bool:

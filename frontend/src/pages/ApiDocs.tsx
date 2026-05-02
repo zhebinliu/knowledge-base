@@ -313,7 +313,7 @@ export default function ApiDocs() {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-light border border-orange-200 text-[#D96400] text-xs mb-4">
             <Zap size={11} /> REST API + MCP 服务器
           </div>
-          <h1 className="text-3xl font-bold text-ink mb-2">KB System API</h1>
+          <h1 className="text-3xl font-bold text-ink mb-2">KB 系统 API 文档</h1>
           <p className="text-ink-secondary text-sm max-w-xl">
             纷享销客 CRM 实施知识库开放接口。支持标准 REST API 和 MCP（Model Context Protocol）协议，
             可与 Claude、Cursor、VS Code Copilot 等 AI 工具直接集成。

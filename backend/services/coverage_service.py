@@ -36,8 +36,7 @@ def _extract_keywords(text: str, limit: int = 5) -> list[str]:
     return seen
 
 
-def _utcnow():
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+from services._time import utcnow_naive as _utcnow
 
 
 async def upsert_gap(

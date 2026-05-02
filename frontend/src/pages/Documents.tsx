@@ -169,6 +169,7 @@ function EditMetaModal({
 }
 import MarkdownView from '../components/MarkdownView'
 import UploadOptionsModal from '../components/UploadOptionsModal'
+import StatusBadge from '../components/StatusBadge'
 import ProjectFormModal from '../components/ProjectFormModal'
 import { type DocumentFaqItem } from '../api/client'
 
@@ -209,12 +210,12 @@ function SummaryCard({ summary, faq }: { summary?: string | null; faq?: Document
 }
 
 const STATUS_BADGE: Record<string, JSX.Element> = {
-  pending:    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-yellow-50 text-yellow-700 whitespace-nowrap"><Clock size={11}/>等待处理</span>,
-  converting: <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-orange-50 text-orange-700 whitespace-nowrap"><Loader size={11} className="animate-spin"/>转换中</span>,
-  slicing:    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-50 text-purple-700 whitespace-nowrap"><Loader size={11} className="animate-spin"/>切片中</span>,
-  retrying:   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700 whitespace-nowrap"><Loader size={11} className="animate-spin"/>重试中</span>,
-  completed:  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700 whitespace-nowrap"><CheckCircle size={11}/>完成</span>,
-  failed:     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-700 whitespace-nowrap"><AlertCircle size={11}/>失败</span>,
+  pending:    <StatusBadge tone="pending"  label="等待处理" />,
+  converting: <StatusBadge tone="inflight" label="转换中" />,
+  slicing:    <StatusBadge tone="inflight" label="切片中" />,
+  retrying:   <StatusBadge tone="inflight" label="重试中" />,
+  completed:  <StatusBadge tone="done"     label="完成" />,
+  failed:     <StatusBadge tone="failed"   label="失败" />,
 }
 
 const REVIEW_BADGE: Record<string, string> = {
@@ -692,7 +693,7 @@ export default function Documents() {
                   drawerMode === 'markdown' ? 'text-white' : 'text-gray-600 hover:bg-gray-200'
                 }`}
                 style={drawerMode === 'markdown' ? { background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' } : {}}
-              ><Eye size={13}/> Markdown</button>
+              ><Eye size={13}/> 源码</button>
               <button
                 onClick={() => setDrawerMode('chunks')}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${

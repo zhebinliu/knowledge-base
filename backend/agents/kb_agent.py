@@ -24,8 +24,7 @@ RETRIEVAL_TOP_K = 20
 RERANK_TOP_K = 5
 
 
-def _utcnow():
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+from services._time import utcnow_naive as _utcnow
 
 
 async def _fetch_full_contents(chunk_ids: list[str]) -> dict[str, str]:

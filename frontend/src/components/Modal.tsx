@@ -68,7 +68,7 @@ export default function Modal({
             <button
               onClick={onClose}
               className="p-1 text-gray-400 hover:text-gray-600 rounded"
-              aria-label="Close"
+              aria-label="关闭"
             >
               <X size={16} />
             </button>

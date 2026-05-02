@@ -6,8 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from models import Base
 
 
-def _utcnow():
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+from services._time import utcnow_naive as _utcnow
 
 
 # 文档类型枚举（在代码层面收敛；DB 用 VARCHAR 不强约束以便后续扩展）

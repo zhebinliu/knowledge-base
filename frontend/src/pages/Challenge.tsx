@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../auth/AuthContext'
 import { Brain, Play, ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader, Square, HelpCircle, ThumbsUp, ThumbsDown, Plus, Clock, Trash2, Power, Cpu, History } from 'lucide-react'
 import MarkdownView from '../components/MarkdownView'
+import StatusBadge from '../components/StatusBadge'
 import ChallengeHistory from './ChallengeHistory'
 import { ltcLabel } from '../utils/labels'
 import { formatTime } from '../utils/datetime'
@@ -451,17 +452,17 @@ export default function Challenge() {
                         <div className="pt-3 border-t border-gray-100 flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-semibold text-gray-500">知识库</span>
                           {card.review_status === 'auto_approved' && (
-                            <span className="text-xs px-2 py-0.5 bg-green-50 text-green-700 rounded-full border border-green-100">已入库</span>
+                            <StatusBadge tone="done" label="已入库" icon={false} />
                           )}
                           {card.review_status === 'approved' && (
-                            <span className="text-xs px-2 py-0.5 bg-green-50 text-green-700 rounded-full border border-green-100">审核通过</span>
+                            <StatusBadge tone="done" label="审核通过" icon={false} />
                           )}
                           {card.review_status === 'rejected' && (
-                            <span className="text-xs px-2 py-0.5 bg-red-50 text-red-600 rounded-full border border-red-100">已拒绝</span>
+                            <StatusBadge tone="failed" label="已拒绝" icon={false} />
                           )}
                           {card.review_status === 'needs_review' && (
                             <>
-                              <span className="text-xs px-2 py-0.5 bg-orange-50 text-orange-700 rounded-full border border-orange-100">待审核</span>
+                              <StatusBadge tone="pending" label="待审核" icon={false} />
                               {card.review_id && (
                                 <div className="ml-auto flex gap-1.5">
                                   <button

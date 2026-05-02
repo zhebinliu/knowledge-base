@@ -17,6 +17,7 @@ logger = structlog.get_logger()
 # seed_atomic_skills 启动时先按这个 map 改 name,UUID 不变所以
 # agent_config.skill_ids 关联不会断
 LEGACY_NAME_MIGRATIONS: dict[str, str] = {
+    # 旧英文 → 中文(2024 年首次迁移,生产 DB 早已迁移过,但留作历史兜底)
     "output-style-mbb":                  "MBB 输出风格",
     "output-anti-patterns-jargon":       "禁用黑话清单",
     "output-chinese-only":               "强制中文输出",
@@ -25,10 +26,14 @@ LEGACY_NAME_MIGRATIONS: dict[str, str] = {
     "output-no-h1-h2-titles":            "禁止 LLM 输出 H1/H2 标题",
     "output-markdown-table-conventions": "Markdown 表格规范",
     "critic-rubric-sopact-4d":           "Critic 4 维度 rubric",
-    "challenger-rubric-7d":              "Challenger 7 维度 rubric",
+    "challenger-rubric-7d":              "Challenger 7 维度 rubric",  # 旧英文先归到中文 7 维,下面再串一跳到 6 维
     "survey-question-types-v1":          "调研问卷 6 题型规范",
     "ltc-process-skeleton":              "LTC 流程骨架",
     "info-gap-handling":                 "信息缺失处理规则",
+    # 中文 → 中文(2026-05 下线 timeliness 后改名)
+    # 注:本 dict 的 seed 流程逐条迁移,不会同名冲突 — "challenger-rubric-7d → Challenger 7 维度 rubric"
+    # 先跑,Challenger 7 维度 rubric 再跑改成 6 维。两步串联,任何 DB 状态都能收敛到 6 维。
+    "Challenger 7 维度 rubric":          "Challenger 6 维度 rubric",
 }
 
 
@@ -134,17 +139,19 @@ H3 (`###`) 及以下标题可正常使用,作为模块内部分节。""",
 - 内容明显残缺(<200 字 或 全是占位符) → "insufficient" """,
     },
     {
-        "name": "Challenger 7 维度 rubric",
-        "description": "整文对抗式审核标准 — 包含一致性 / 完整性 / 黑话",
-        "prompt_snippet": """**Challenger 7 维度**(整文挑战用,找问题导向):
+        "name": "Challenger 6 维度 rubric",
+        "description": "整文对抗式审核标准 — 包含一致性 / 完整性 / 黑话(2026-04 已下线时效性维度)",
+        "prompt_snippet": """**Challenger 6 维度**(整文挑战用,找问题导向):
 
 1. specificity 具体性
 2. evidence 证据
-3. timeliness 时效性
-4. next_step 下一步
-5. **completeness 完整性**:是否覆盖关键场景 / 干系人 / 风险
-6. **consistency 一致性**:模块之间是否自相矛盾(如 M3 健康度 RAG=red,但 M1 摘要写"整体健康")
-7. **jargon 黑话**:有无 MBB 黑话(参考 output-anti-patterns-jargon)
+3. next_step 下一步
+4. **completeness 完整性**:是否覆盖关键场景 / 干系人 / 风险
+5. **consistency 一致性**:模块之间是否自相矛盾(如 M3 健康度 RAG=red,但 M1 摘要写"整体健康")
+6. **jargon 黑话**:有无 MBB 黑话(参考"禁用黑话清单")
+
+注:**timeliness 时效性维度已下线** — 项目刚交接 PM,大部分动作还没发生,
+讨论"deadline 是否过期"没意义。看到 LLM 输出该维度也忽略。
 
 verdict 判定:
 - pass:0 blocker + 0 major + ≤ 2 minor

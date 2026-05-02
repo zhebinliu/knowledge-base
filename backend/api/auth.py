@@ -22,8 +22,7 @@ logger = structlog.get_logger()
 router = APIRouter()
 
 
-def _utcnow_naive():
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+from services._time import utcnow_naive as _utcnow_naive
 
 
 def _user_dto(u: User) -> dict:

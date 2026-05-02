@@ -214,19 +214,25 @@ def _format_web_items(items: list[dict]) -> str:
 
 
 async def _get_brief_block(project_id: str, kind: str) -> str:
-    """读取已确认 Brief，渲染为 markdown 块；没有就返回空串。"""
+    """读取已确认 Brief,渲染为 markdown 块;没有就返回空串。
+
+    kickoff_html 与 kickoff_pptx 共用一份 brief — 入库时 briefs.py:_canonical_kind
+    把 kickoff_html 归一成 kickoff_pptx,这里读取也要做同样归一,否则永远查不到。
+    """
     if not project_id:
         return ""
     from models.project_brief import ProjectBrief
     from services.brief_service import get_schema, render_brief_for_prompt
-    schema = get_schema(kind)
+    # 与 api/briefs.py:_canonical_kind 保持一致 — 两套 PPT 管线共用一份 brief
+    canonical_kind = "kickoff_pptx" if kind == "kickoff_html" else kind
+    schema = get_schema(canonical_kind)
     if not schema:
         return ""
     async with async_session_maker() as s:
         row = (await s.execute(
             select(ProjectBrief).where(
                 ProjectBrief.project_id == project_id,
-                ProjectBrief.output_kind == kind,
+                ProjectBrief.output_kind == canonical_kind,
             )
         )).scalar_one_or_none()
     if not row or not row.fields:
