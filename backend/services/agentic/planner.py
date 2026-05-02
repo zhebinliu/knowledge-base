@@ -132,7 +132,12 @@ def _metadata_value(project, key: str) -> Any:
     # 字段映射: insight_modules 字段 → Project 字段
     PROJECT_KEYS = {
         "module_list": ("modules", lambda v: v if v else None),
-        "industry_label": ("industry", lambda v: v),
+        "industry_label": ("industry", lambda v: {
+            "manufacturing":"制造业","retail":"零售业","finance":"金融业",
+            "healthcare":"医疗健康","education":"教育","real_estate":"房地产",
+            "technology":"高科技/互联网","logistics":"物流速运","energy":"能源",
+            "government":"政府","other":"其他",
+        }.get(v, v)),
         "customer_name": ("customer", lambda v: v),
         "kickoff_date_field": ("kickoff_date", lambda v: v.isoformat() if v else None),
         "project_description": ("description", lambda v: v),

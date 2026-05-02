@@ -45,6 +45,38 @@ from .challenger import (
 logger = structlog.get_logger()
 
 
+# ── 中文标签映射(给 markdown header 用,前端 utils/labels.ts 的后端镜像) ────
+INDUSTRY_LABEL_ZH = {
+    "manufacturing": "制造业",
+    "retail":        "零售业",
+    "finance":       "金融业",
+    "healthcare":    "医疗健康",
+    "education":     "教育",
+    "real_estate":   "房地产",
+    "technology":    "高科技/互联网",
+    "logistics":     "物流速运",
+    "energy":        "能源",
+    "government":    "政府",
+    "other":         "其他",
+}
+
+VALIDITY_LABEL_ZH = {
+    "valid":   "有效",
+    "partial": "部分有效",
+    "invalid": "信息不足",
+}
+
+def _industry_zh(v: str | None) -> str:
+    if not v:
+        return "—"
+    return INDUSTRY_LABEL_ZH.get(v, v)
+
+def _validity_zh(v: str | None) -> str:
+    if not v:
+        return "—"
+    return VALIDITY_LABEL_ZH.get(v, v)
+
+
 # ── 共享:加载 ctx ─────────────────────────────────────────────────────────────
 
 def _format_stakeholder_graph(fields: dict | None) -> str:
@@ -708,7 +740,7 @@ async def _short_circuit_invalid(
     md = (
         f"# {title_main} · {kind_label}\n\n"
         f"**生成日期**:{date.today().strftime('%Y年%m月%d日')}  \n"
-        f"**Validity**:invalid · **拦截**(未跑 LLM)\n\n"
+        f"**有效性**:信息不足 · **已拦截**(未跑 LLM)\n\n"
         f"---\n\n"
         f"> ⚠️ **本次未生成 — 关键信息不足**\n>\n"
         f"> 系统检测到 **{len(blocked)}** 个关键模块缺少必要信息,为避免输出无依据的洞察 / 浪费算力,\n"
@@ -999,7 +1031,7 @@ async def generate_insight(bundle_id: str, project_id: str):
                 f"# {title_local} · 项目洞察报告\n",
                 f"**生成日期**:{date.today().strftime('%Y年%m月%d日')}  ",
                 f"**客户**:{(proj_local.customer if proj_local else '—') or '—'}  ",
-                f"**行业**:{ctx['industry'] or '—'}\n",
+                f"**行业**:{_industry_zh(ctx['industry'])}\n",
             ]
             if validity_status == "invalid":
                 blocks.append("---\n")
@@ -1273,8 +1305,8 @@ async def generate_survey(bundle_id: str, project_id: str):
         md_blocks = [f"# {title_main} · 实施前调研问卷\n"]
         md_blocks.append(f"**生成日期**:{date.today().strftime('%Y年%m月%d日')}  ")
         md_blocks.append(f"**客户**:{(proj.customer if proj else '—') or '—'}  ")
-        md_blocks.append(f"**行业**:{ctx['industry'] or '—'}  ")
-        md_blocks.append(f"**Validity**:{validity_status}\n")
+        md_blocks.append(f"**行业**:{_industry_zh(ctx['industry'])}  ")
+        md_blocks.append(f"**有效性**:{_validity_zh(validity_status)}\n")
         md_blocks.append("\n本问卷采用 **双层结构**:")
         md_blocks.append("- **L1 — 高管短卷(≤10 分钟)**:战略与痛点对齐")
         md_blocks.append("- **L2 — 模块化分卷**:按业务模块拆分,各模块责任人分别填\n")
@@ -1607,8 +1639,8 @@ async def generate_survey_outline(bundle_id: str, project_id: str):
             md_blocks = [f"# {title_main} · 调研大纲\n"]
             md_blocks.append(f"**生成日期**:{date.today().strftime('%Y年%m月%d日')}  ")
             md_blocks.append(f"**客户**:{(proj.customer if proj else '—') or '—'}  ")
-            md_blocks.append(f"**行业**:{ctx['industry'] or '—'}  ")
-            md_blocks.append(f"**Validity**:{validity_status}\n")
+            md_blocks.append(f"**行业**:{_industry_zh(ctx['industry'])}  ")
+            md_blocks.append(f"**有效性**:{_validity_zh(validity_status)}\n")
             md_blocks.append("\n本份大纲是「调研问卷」的上游交付物 — 先定调研场次和议题,再用「调研问卷」生成对应分卷给责任人。\n")
 
             if validity_status == "invalid":
