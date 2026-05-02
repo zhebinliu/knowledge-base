@@ -142,6 +142,51 @@ export default function SurveyDemo() {
         <MockScopeClassify />
       </Step>
 
+      {/* Step 6 — AI + 人协作:顾问可校正 */}
+      <Step n={6} title="AI 不一定全对 — 顾问可点标签手改">
+        <p className="text-sm text-ink-secondary mb-3">
+          AI 给的范围标签是<strong>建议</strong>,不是命令。每条需求右下角的标签可以点开下拉切换,
+          顾问审过觉得 AI 判错(比如把"待定"压成"需新建")就改回去。
+          系统记录 <code className="text-[#D96400] bg-orange-50 px-1 rounded">scope_label_source</code>:
+          ai 表示 AI 判定 / manual 表示顾问手改 — 蓝图阶段拿到的是经过顾问校验的版本。
+        </p>
+        <ul className="text-xs text-ink-secondary space-y-1.5 leading-relaxed list-disc pl-4 mb-3">
+          <li>每改一次答案自动 debounce 600ms 后保存到 <code className="text-[#D96400]">research_responses</code> 表(关页面 / 断网都不丢)</li>
+          <li>左栏 LTC 模块清单实时显示"已答 X 题",一眼看出哪个模块还没碰</li>
+          <li>SOW 涉及的模块自动标橙色圆点,优先访谈</li>
+        </ul>
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900 leading-relaxed">
+          <strong>设计哲学:</strong>AI 帮顾问减少 80% 的打字 + 标签初判,顾问负责最后 20% 的判断校验。
+          不是替代专业判断,是把专业判断从抄写体力活里解放出来。
+        </div>
+      </Step>
+
+      {/* Step 7 — 三类产物的统一架构 */}
+      <Step n={7} title="调研问卷虽然形态不同,但跟其他产物用同一套架构">
+        <p className="text-sm text-ink-secondary mb-3">
+          调研问卷在用户层是<strong>结构化勾选录入</strong>(不是 markdown 报告),但底层 bundle 数据结构、
+          引用 provenance、模块 key 命名规则、生成流水线都跟项目洞察 / 调研大纲<strong>完全对齐</strong>。
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+          <div className="card p-3">
+            <p className="text-xs font-semibold text-ink mb-1">同一条 agentic 流水线</p>
+            <p className="text-[11px] text-ink-secondary">问卷生成走 Plan → Execute → Critic → Challenger 四步,跟洞察 / 大纲一致。问卷的"模块"是 LTC 流程节点(M01 线索 / M02 商机 ...)。</p>
+          </div>
+          <div className="card p-3">
+            <p className="text-xs font-semibold text-ink mb-1">同一套引用 + 挑战循环</p>
+            <p className="text-[11px] text-ink-secondary">问卷题目可以引用 [D1][K1] 做依据(如"基于 SOW 第 3 条本题问 X")。挑战者会复审题目质量、覆盖度、选项穷举度。</p>
+          </div>
+          <div className="card p-3">
+            <p className="text-xs font-semibold text-ink mb-1">同一套 MCP 接入</p>
+            <p className="text-[11px] text-ink-secondary">外部 AI 工具(Claude / Cursor)能用 <code className="text-[#D96400]">get_output</code> 拿问卷题目 + 顾问答案,做二次分析或起草蓝图建议。</p>
+          </div>
+        </div>
+        <div className="p-3 bg-sky-50 border border-sky-200 rounded-lg text-xs text-sky-900 leading-relaxed">
+          <strong>对顾问的实际价值:</strong>切换三类产物之间的认知成本极低 — 工作台看到的状态条 / 引用面板 /
+          挑战循环展示等组件全部复用,学一遍会全部。底层 API / MCP 也统一,工具链团队对接一次接全。
+        </div>
+      </Step>
+
       {/* CTA */}
       <div className="max-w-[1500px] mx-auto px-8 sm:px-12 py-12">
         <div className="rounded-xl p-6 text-white" style={{ background: BRAND_GRAD }}>
