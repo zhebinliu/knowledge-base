@@ -269,7 +269,7 @@ export default function ConsoleProjectDetail() {
   }
 
   return (
-    <div className="-mx-4 sm:-mx-6 -my-6 h-[calc(100vh-56px)] flex flex-col bg-canvas overflow-hidden">
+    <div className="-mx-4 sm:-mx-6 -my-6 min-h-[calc(100vh-56px)] flex flex-col bg-canvas overflow-y-auto">
       {/* 顶部信息条：返回 + 项目名 + 元信息 + 编辑 */}
       <div className="flex-shrink-0 px-4 sm:px-6 py-2.5 bg-white border-b border-line flex items-center gap-3">
         <button
@@ -514,19 +514,21 @@ export default function ConsoleProjectDetail() {
         && activeKind
         && !activeInflight ? (
         /* 其他 stage 的 v2 invalid+short_circuited 仍用旧 GapFiller 占满 */
-        <AgenticGapFiller
-          key={`gap-${activeBundle.id}`}
-          bundle={activeBundle}
-          kind={activeKind}
-          projectId={id}
-          onSubmitted={() => refetchOutputs()}
-        />
+        <div className="flex-shrink-0 h-[calc(100vh-56px)] flex flex-col bg-white">
+          <AgenticGapFiller
+            key={`gap-${activeBundle.id}`}
+            bundle={activeBundle}
+            kind={activeKind}
+            projectId={id}
+            onSubmitted={() => refetchOutputs()}
+          />
+        </div>
       ) : (
         /* 主区(非 insight stage):
            - 已生成 bundle (status=done) → 直接在工作区预览成果(HTML iframe / markdown / pptx 摘要)
            - 否则走原对话生成 (ChatTabs + OutputChatPanel)
            对话历史可通过 ChatTabs 顶部「对话生成」tab 切回查看 */
-        <div className="flex-1 min-h-0 flex flex-col bg-white">
+        <div className="flex-shrink-0 h-[calc(100vh-56px)] flex flex-col bg-white">
           <ChatTabs
             mode={chatMode}
             setMode={setChatMode}
@@ -651,7 +653,7 @@ function InsightWorkspace({
   }
 
   return (
-    <div className="flex-1 min-h-0 flex bg-canvas overflow-hidden">
+    <div className="flex-shrink-0 h-[calc(100vh-56px)] flex bg-canvas overflow-hidden">
       {/* 左:文档清单 */}
       <div className="w-[300px] flex-shrink-0">
         <DocChecklist

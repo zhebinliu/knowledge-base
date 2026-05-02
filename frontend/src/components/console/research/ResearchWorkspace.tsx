@@ -94,7 +94,7 @@ export default function ResearchWorkspace({
   }, [ltcDict, sowHitKeys, selectedLtcKey])
 
   return (
-    <div className="flex-1 min-h-0 flex bg-canvas overflow-hidden relative">
+    <div className="flex-shrink-0 h-[calc(100vh-56px)] flex bg-canvas overflow-hidden relative">
       {/* ── 左:LTC 模块清单 ── */}
       <div className="w-[280px] flex-shrink-0 border-r border-line bg-white flex flex-col">
         <div className="flex-shrink-0 px-3 py-2.5 border-b border-line">
