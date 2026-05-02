@@ -213,8 +213,11 @@ async def merge_agent_configs(session, dry_run: bool):
             # 然后删除 old
             old_id, old_value = old_row
             if not dry_run:
+                # config_value 是 JSON 列,asyncpg 默认把 string bindparam 推断为 VARCHAR,
+                # 必须用 CAST(... AS jsonb) 强制 PG 解析为 jsonb 类型,否则 DatatypeMismatchError。
+                # 注:不能用 PG 风格的 :v::jsonb,SQLAlchemy text() 解析器会把 :: 当作 cast 而忽略 :v 参数。
                 await session.execute(text("""
-                    UPDATE agent_configs SET config_value = :v
+                    UPDATE agent_configs SET config_value = CAST(:v AS jsonb)
                     WHERE config_type='output_agent' AND config_key = :k
                 """).bindparams(v=json.dumps(old_value or {}), k=new_key))
                 await session.execute(text("""
@@ -292,8 +295,9 @@ async def patch_stage_flow_config(session, dry_run: bool):
 
     if patched > 0 and not dry_run:
         cfg_value["stages"] = new_stages
+        # 同样需要 CAST(... AS jsonb) — config_value 是 JSON 列,直接绑 string 会被推断为 VARCHAR
         await session.execute(text("""
-            UPDATE agent_configs SET config_value = :cv WHERE id = :id
+            UPDATE agent_configs SET config_value = CAST(:cv AS jsonb) WHERE id = :id
         """).bindparams(cv=json.dumps(cfg_value), id=cfg_id))
 
     return {"stage_flow_patched_fields": patched}
