@@ -7,11 +7,18 @@ import { useAuth } from '../auth/AuthContext'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
-const NAV = [
+type NavItem = {
+  to: string
+  label: string
+  icon: typeof Home
+  end?: boolean
+  disabled?: boolean
+}
+const NAV: NavItem[] = [
   { to: '/console',          label: '工作台首页', icon: Home,          end: true },
   { to: '/console/qa',       label: '知识问答',   icon: MessageSquare },
   { to: '/console/projects', label: '项目管理',   icon: FolderKanban },
-  { to: '/console/meeting',  label: '会议纪要',   icon: Mic,            disabled: true },
+  { to: '/console/meeting',  label: '会议纪要',   icon: Mic },
 ]
 
 export default function ConsoleLayout() {
@@ -144,11 +151,12 @@ export default function ConsoleLayout() {
         </nav>
       </header>
 
-      {/* 工作台(projects/:id)走全宽 + 零左右内边距;列表/首页保持 max-w-7xl 居中 */}
+      {/* 工作台主区(projects/:id 和 meeting iframe)走全宽 + 零内边距;列表/首页保持 max-w-7xl 居中 */}
       <main
         key={loc.pathname}
         className={
-          /^\/console\/projects\/[^/]+$/.test(loc.pathname)
+          /^\/console\/projects\/[^/]+$/.test(loc.pathname) ||
+          loc.pathname === '/console/meeting'
             ? 'w-full'
             : 'max-w-7xl mx-auto px-4 sm:px-6 py-6'
         }
