@@ -380,11 +380,16 @@ async def _run_challenge_loop(
             bundle_id, stage="challenging", round_idx=round_idx,
             message=f"第 {round_idx + 1}/{CHALLENGE_MAX_ROUNDS} 轮挑战:挑战者审核报告中…",
         )
+        # 把当前报告的合法 module_key 列表传给 challenger,避免 LLM 编出 by_key 里没有的 key
+        # (历史 bug:LLM 从中文章节标题瞎编 M1_scope 等简写,导致 affected_modules 全被
+        #  filter 掉,modules_regenerated=[] 永远空,挑战循环白跑。)
+        module_keys_for_challenger = [(spec.key, spec.title) for spec, _ in by_key.values()]
         critique, challenger_model, critique_raw = await challenge_report(
             full_md=cur_md,
             model=ctx.get("agent_model"),
             # ★ 把上一轮 critique 喂给本轮挑战者,要求逐条复核 — 让用户看到挑战循环的真实修复进度
             prev_critique=last_critique,
+            module_keys=module_keys_for_challenger,
         )
         last_critique = critique
         run_history.append({

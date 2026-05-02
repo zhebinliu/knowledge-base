@@ -350,19 +350,19 @@ async def challenge_report(
     full_md: str,
     model: str | None = None,
     prev_critique: dict | None = None,
+    module_keys: list[tuple[str, str]] | None = None,
 ) -> tuple[dict, str, str | None]:
     """对完整 markdown 报告做一轮挑战。
 
     Args:
         full_md: 当前轮(已重生成)的报告 markdown
-        prev_critique: 上一轮的 critique 字典(含 verdict / summary / issues 列表)。
-            非 None 时,prompt 会前置"上一轮问题清单",要求 LLM 先逐条复核是否修复
-            (修了不再列;还在则继续列;再补本轮新发现)。这样:
-            - 用户看挑战面板能看到"上一轮 5 个问题,本轮还剩 2 个 → 修了 3 个"
-            - 前端(module+dimension+severity)指纹比对的"已修复"判定更可靠
+        prev_critique: 上一轮的 critique 字典 — 见下方"复核机制"
+        module_keys: 当前报告实际的 [(module_key, 中文标题)] 列表。
+            **必传**,否则 LLM 会从报告章节标题里编英文 key(如 M1_scope),
+            跟 runner 实际 module key (如 M1_outline_objective) 对不上,
+            导致 modules_regenerated 永远为空,挑战循环白跑。
 
     Returns: (critique_dict, model_used, raw_on_failure)
-      - raw_on_failure:解析失败时携带前 4000 字 LLM 原始输出供 debug;成功为 None
     """
     # 控制 prompt 体量(大报告截断,保留头/中/尾各 1/3,确保上下文够看)
     MAX_REPORT_CHARS = 50000
@@ -396,6 +396,20 @@ async def challenge_report(
 5. 总结里可以提一下"上一轮 N 个问题中已修复 M 个"作为进度参考
 """
 
+    # 当前报告的合法 module_key 清单 — 必须给 LLM,否则它会从中文标题里瞎编英文 key
+    module_keys_block = ""
+    if module_keys:
+        keys_lines = [f"- `{k}`: {label}" for k, label in module_keys]
+        module_keys_block = f"""
+[本报告合法的 module_key 清单 — 你的 issue 输出只能从下面这个列表里选,**不要自己编**]
+
+{chr(10).join(keys_lines)}
+- `_global`: 跨模块 / 全局问题(无法定位单模块时用)
+
+⚠ 严禁输出列表外的 key(如 M1_scope / M3_schedule 等简写),Runner 会因 key 对不上
+而无法重生成对应章节,挑战循环就白跑了。
+"""
+
     user_prompt = f"""请审阅以下项目洞察报告,按 system 给的 6 维 rubric 找问题。
 
 按 system 里的 Markdown 格式输出(verdict 一行 + 总结 + 问题清单)。
@@ -403,7 +417,7 @@ async def challenge_report(
 
 注:**不要**就「时效性 / Deadline 是否合理 / 信息是否过期」提任何挑战意见 —
 该维度已被排除在挑战范围之外,看到也忽略。
-{prev_issues_block}
+{module_keys_block}{prev_issues_block}
 [项目洞察报告]:
 
 {report_for_prompt}
