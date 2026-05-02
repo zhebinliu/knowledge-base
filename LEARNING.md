@@ -340,7 +340,20 @@ KB-System backend/scripts/ 已有 __init__.py(空文件),所以 `python -m scrip
 
 KB-System 实测:2026-05 把 Challenger 7 维 → 6 维改名 + 内容,name 通过 LEGACY_NAME_MIGRATIONS 自动改了,但 description / prompt_snippet 旧 7 维内容残留,要手动 UPDATE。
 
-### 6.10 SQL heredoc 嵌套 ssh+docker exec 容易丢字符
+### 6.10 纯文档改动已配置不触发 CI(2026-05)
+
+`.github/workflows/deploy.yml` 加了 `paths-ignore`,以下文件改动**不**触发 CI:
+- LEARNING.md / PROJECT_OVERVIEW.md / CLAUDE.md / CHANGELOG.md / task.md
+- backend/services/agentic/skills_roadmap.md
+- .gitignore
+
+理由:这些是纯人类阅读文档,跟生产代码无关,没必要跑 test + build + image push + deploy 全流程(每次 ~3 分钟 + ~1GB 磁盘开销)。
+
+**注**:`backend/prompts/**.md` 和 `frontend/public/ds.md` 不在 ignore 列表 — 它们是 LLM 提示词 / 给 AI 读的设计文档,改了影响生产,**必须**触发 deploy。
+
+需要新增"不触发 CI"的文档时,直接在 `paths-ignore` 列表加文件名。混合 commit(文档+代码同 push)仍会触发 — paths-ignore 的语义是"全部文件都在 ignore 列表才跳过"。
+
+### 6.11 SQL heredoc 嵌套 ssh+docker exec 容易丢字符
 
 ```bash
 # 这种容易因 shell 转义吃掉换行 / 引号:
