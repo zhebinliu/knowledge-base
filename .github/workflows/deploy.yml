@@ -3,8 +3,26 @@ name: CI/CD Workflow
 on:
   push:
     branches: [ "main" ]
+    # 纯文档改动不触发 CI(deploy 占盘 + 慢)
+    # 注:backend/prompts/**.md 是 LLM 提示词,改了影响生产,要触发,所以不在这里 ignore
+    paths-ignore:
+      - 'LEARNING.md'
+      - 'PROJECT_OVERVIEW.md'
+      - 'CLAUDE.md'
+      - 'CHANGELOG.md'
+      - 'task.md'
+      - 'backend/services/agentic/skills_roadmap.md'
+      - '.gitignore'
   pull_request:
     branches: [ "main" ]
+    paths-ignore:
+      - 'LEARNING.md'
+      - 'PROJECT_OVERVIEW.md'
+      - 'CLAUDE.md'
+      - 'CHANGELOG.md'
+      - 'task.md'
+      - 'backend/services/agentic/skills_roadmap.md'
+      - '.gitignore'
 
 env:
   REGISTRY: ghcr.io
