@@ -345,8 +345,21 @@ def should_continue(critique: dict, round_idx: int, max_rounds: int) -> bool:
     return True
 
 
-async def challenge_report(*, full_md: str, model: str | None = None) -> tuple[dict, str, str | None]:
+async def challenge_report(
+    *,
+    full_md: str,
+    model: str | None = None,
+    prev_critique: dict | None = None,
+) -> tuple[dict, str, str | None]:
     """对完整 markdown 报告做一轮挑战。
+
+    Args:
+        full_md: 当前轮(已重生成)的报告 markdown
+        prev_critique: 上一轮的 critique 字典(含 verdict / summary / issues 列表)。
+            非 None 时,prompt 会前置"上一轮问题清单",要求 LLM 先逐条复核是否修复
+            (修了不再列;还在则继续列;再补本轮新发现)。这样:
+            - 用户看挑战面板能看到"上一轮 5 个问题,本轮还剩 2 个 → 修了 3 个"
+            - 前端(module+dimension+severity)指纹比对的"已修复"判定更可靠
 
     Returns: (critique_dict, model_used, raw_on_failure)
       - raw_on_failure:解析失败时携带前 4000 字 LLM 原始输出供 debug;成功为 None
@@ -360,6 +373,29 @@ async def challenge_report(*, full_md: str, model: str | None = None) -> tuple[d
     else:
         report_for_prompt = full_md
 
+    # 上一轮的 issue 清单 — 让 LLM 有意识复核
+    prev_issues_block = ""
+    if prev_critique and prev_critique.get("issues"):
+        lines = []
+        for it in prev_critique["issues"][:20]:    # 最多列 20 条,避免 prompt 爆
+            mk = it.get("module_key") or "?"
+            dim = it.get("dimension") or "?"
+            sev = it.get("severity") or "minor"
+            txt = (it.get("text") or "").strip()[:200]
+            lines.append(f"- 模块={mk} / 维度={dim} / 严重度={sev}: {txt}")
+        prev_issues_block = f"""
+[上一轮挑战发现的问题清单](Runner 已根据这些问题重生成相关章节,本轮请复核)
+
+{chr(10).join(lines)}
+
+**复核要求**:
+1. **逐条复核上一轮的问题在当前报告里是否还存在**
+2. 已经修复的:**不要再列**(默默放过即可)
+3. 仍然存在或部分存在的:**继续列入本轮问题清单**(说明现在的具体问题)
+4. 然后再补充本轮**新发现**的问题(不在上一轮清单里的)
+5. 总结里可以提一下"上一轮 N 个问题中已修复 M 个"作为进度参考
+"""
+
     user_prompt = f"""请审阅以下项目洞察报告,按 system 给的 6 维 rubric 找问题。
 
 按 system 里的 Markdown 格式输出(verdict 一行 + 总结 + 问题清单)。
@@ -367,7 +403,7 @@ async def challenge_report(*, full_md: str, model: str | None = None) -> tuple[d
 
 注:**不要**就「时效性 / Deadline 是否合理 / 信息是否过期」提任何挑战意见 —
 该维度已被排除在挑战范围之外,看到也忽略。
-
+{prev_issues_block}
 [项目洞察报告]:
 
 {report_for_prompt}

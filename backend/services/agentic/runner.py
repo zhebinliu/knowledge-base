@@ -381,7 +381,10 @@ async def _run_challenge_loop(
             message=f"第 {round_idx + 1}/{CHALLENGE_MAX_ROUNDS} 轮挑战:挑战者审核报告中…",
         )
         critique, challenger_model, critique_raw = await challenge_report(
-            full_md=cur_md, model=ctx.get("agent_model"),
+            full_md=cur_md,
+            model=ctx.get("agent_model"),
+            # ★ 把上一轮 critique 喂给本轮挑战者,要求逐条复核 — 让用户看到挑战循环的真实修复进度
+            prev_critique=last_critique,
         )
         last_critique = critique
         run_history.append({
