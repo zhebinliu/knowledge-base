@@ -79,7 +79,7 @@ export default function ConsoleHome() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="w-full">
       {/* Hero */}
       <div className="mb-8">
         <p className="text-sm text-ink-muted mb-1">你好，{display} 👋</p>

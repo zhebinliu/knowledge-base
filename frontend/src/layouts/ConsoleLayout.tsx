@@ -151,14 +151,16 @@ export default function ConsoleLayout() {
         </nav>
       </header>
 
-      {/* 工作台主区(projects/:id 和 meeting iframe)走全宽 + 零内边距;列表/首页保持 max-w-7xl 居中 */}
+      {/* 工作台 main 一律全宽。
+          - 项目详情 / 会议 iframe: full-bleed,自带 padding
+          - 列表 / 首页 / 知识问答: w-full 但保留四边内边距 */}
       <main
         key={loc.pathname}
         className={
           /^\/console\/projects\/[^/]+$/.test(loc.pathname) ||
           loc.pathname === '/console/meeting'
             ? 'w-full'
-            : 'max-w-7xl mx-auto px-4 sm:px-6 py-6'
+            : 'w-full px-4 sm:px-6 py-6'
         }
       >
         <Outlet />
