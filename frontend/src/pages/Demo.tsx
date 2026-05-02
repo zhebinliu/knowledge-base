@@ -3,6 +3,7 @@
  * Route: /demo  (no auth required)
  */
 import { useState, useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Upload, MessageSquare, Layers, Folder, Award, Terminal,
   ChevronRight, CheckCircle, Zap, Brain, ArrowRight,
@@ -706,6 +707,62 @@ export default function Demo() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* ── 工作台增强 (最新) ─────────────────────────────────── */}
+        <div className="mb-20">
+          <div className="text-center mb-8">
+            <Tag>本月增强</Tag>
+            <h2 className="text-2xl font-bold text-ink mt-3 mb-2">挑战循环复核 + 在线编辑 + 引用追溯</h2>
+            <p className="text-ink-secondary text-sm max-w-xl mx-auto">
+              除了把报告"生出来",更在乎"质量稳得住"和"顾问能微调"
+            </p>
+          </div>
+
+          <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="card p-5">
+              <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center mb-3">
+                <Repeat size={18} className="text-purple-600" />
+              </div>
+              <p className="text-sm font-semibold text-ink mb-1.5">挑战循环复核机制</p>
+              <p className="text-[11px] text-ink-secondary leading-relaxed">
+                每轮挑战者拿到上一轮的问题清单逐条复核 — 修了的不再列、还在的继续列、
+                再补本轮新发现。前端"已修复"标签直接标识进度。
+                Verdict 改成动作导向(可放行 / 需返工)与 severity(重大 / 小问题)区分清楚。
+              </p>
+            </div>
+            <div className="card p-5">
+              <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center mb-3">
+                <FileText size={18} className="text-[#D96400]" />
+              </div>
+              <p className="text-sm font-semibold text-ink mb-1.5">所见即所得在线编辑</p>
+              <p className="text-[11px] text-ink-secondary leading-relaxed">
+                项目洞察 / 调研大纲 报告右上角「编辑」按钮 → Tiptap WYSIWYG 编辑器。
+                直接在渲染样式上点击修改,保存时自动反向序列化成 markdown。
+                顶部工具栏支持基础排版(标题 / 加粗 / 列表 / 表格 / 撤销-重做)。
+              </p>
+            </div>
+            <div className="card p-5">
+              <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center mb-3">
+                <Search size={18} className="text-blue-600" />
+              </div>
+              <p className="text-sm font-semibold text-ink mb-1.5">引用追溯面板复用</p>
+              <p className="text-[11px] text-ink-secondary leading-relaxed">
+                调研大纲跟项目洞察走同一条 agentic 流水线,引用追溯面板 (CitationsPanel) 完全复用 —
+                点报告里的 [D1][K1][W1] 角标 → 自动展开右栏 + 高亮对应来源 + 滚动定位。
+              </p>
+            </div>
+          </div>
+
+          <div className="max-w-4xl mx-auto mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 leading-relaxed">
+            <strong>MCP 工具范围扩到 8 个</strong>(全只读):新增 <code className="text-[#D96400] mx-0.5">get_project_status</code> /
+            <code className="text-[#D96400] mx-0.5">list_outputs</code> /
+            <code className="text-[#D96400] mx-0.5">get_output</code> /
+            <code className="text-[#D96400] mx-0.5">list_documents</code> /
+            <code className="text-[#D96400] mx-0.5">get_brief</code>。
+            外部 AI 工具(Claude Desktop / Cursor 等)能拿项目快照 / 产物全文 / Brief 字段做二次分析。
+            详见 <Link to="/api" className="text-[#D96400] underline">/api 文档 → MCP 服务器</Link>。
           </div>
         </div>
 

@@ -2,7 +2,7 @@
 
 跟单模块的 critic.py 不同:
 - critic 看每个 module 单独打分(一次性,主要走 rubric)
-- challenger 看整篇报告找问题,按固定 7 维 rubric 输出结构化 issues,
+- challenger 看整篇报告找问题,按固定 6 维 rubric 输出结构化 issues,
   Runner 拿到 issues 后按 module_key 回 executor 重生成相关模块,
   循环最多 N 轮(默认 3),直到 verdict='pass' 或者轮数用完。
 

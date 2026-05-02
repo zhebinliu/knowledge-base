@@ -105,6 +105,33 @@ export default function OutlineDemo() {
         <MockHandoffToSurvey />
       </Step>
 
+      {/* Step 7 — 引用追溯 + 在线编辑 */}
+      <Step n={7} title="跟项目洞察一样,大纲也有引用追溯 + 在线编辑">
+        <p className="text-sm text-ink-secondary mb-3">
+          调研大纲跟项目洞察走 <strong>同一套 agentic 流水线</strong>(Plan + Execute + Critic + Challenger),
+          因此功能特性也对齐:
+        </p>
+        <ul className="text-xs text-ink-secondary space-y-1.5 leading-relaxed list-disc pl-4 mb-3">
+          <li>
+            <strong>右栏「引用追溯」面板</strong>:大纲里的 <code className="text-[#D96400] bg-orange-50 px-1 rounded">[D1]</code>
+            <code className="text-blue-700 bg-blue-50 px-1 rounded mx-0.5">[K3]</code> 角标点开 → 自动展开右栏 +
+            高亮对应来源 + 滚动定位。数据来自 bundle.provenance(generate_survey_outline 写入)。
+          </li>
+          <li>
+            <strong>挑战循环</strong>:每轮挑战者拿到上一轮问题清单逐条复核;
+            "已修复"标签自动标识哪些问题被修了。
+          </li>
+          <li>
+            <strong>在线编辑</strong>:右上角「编辑」按钮 → Tiptap 所见即所得编辑器,
+            改完保存反向序列化成 markdown(适用 markdown 类产物:洞察 / 大纲 / 问卷)。
+          </li>
+        </ul>
+        <div className="p-3 bg-sky-50 border border-sky-200 rounded-lg text-xs text-sky-900 leading-relaxed">
+          <strong>对调研大纲的特别意义:</strong>大纲常被顾问反复改 — 比如客户突然加了个"集团审计"
+          的访谈对象,以前要重生成或手改 docx,现在直接在工作台编辑器里加一行就行。
+        </div>
+      </Step>
+
       {/* CTA */}
       <div className="max-w-4xl mx-auto px-6 py-12">
         <div className="rounded-xl p-6 text-white" style={{ background: BRAND_GRAD }}>

@@ -554,6 +554,10 @@ print(r.json()["answer"])`} />
           <Endpoint method="GET"  path="/api/outputs/{bundle_id}" desc="单个 bundle 详情(含 status / progress / challenge_summary / validity_status 等 agentic 字段)" />
           <Endpoint method="GET"  path="/api/outputs/{bundle_id}/download" desc="下载 .docx / .pptx 文件(MinIO 直链)" />
           <Endpoint method="GET"  path="/api/outputs/{bundle_id}/view"     desc="浏览器预览 .html 报告" />
+          <Endpoint method="PUT"  path="/api/outputs/{bundle_id}/content"
+                    desc="在线编辑保存 markdown 正文(仅 insight / survey_outline / survey;权限 created_by 或 admin)" />
+          <Endpoint method="PUT"  path="/api/outputs/{bundle_id}/html"
+                    desc="在线编辑保存 HTML(仅 kickoff_html;通过浏览器播放窗口编辑)" />
           <Endpoint method="POST" path="/api/output-chats"                 desc="创建对话式生成会话(仅限 kickoff_pptx / kickoff_html)" />
           <Endpoint method="POST" path="/api/output-chats/{conv_id}/message" desc="对话续轮" />
           <Endpoint method="POST" path="/api/output-chats/{conv_id}/generate" desc="对话结束 → 触发 bundle 生成" />
@@ -652,25 +656,86 @@ print(r.json()["answer"])`} />
           </div>
 
           {/* Tools */}
-          <h3 className="text-sm font-semibold text-ink mb-3">可用工具</h3>
+          <h3 className="text-sm font-semibold text-ink mb-3">可用工具(全只读 — 8 个)</h3>
+          <p className="text-xs text-ink-secondary mb-3">
+            所有 tool 均为只读,不会修改项目数据。触发产物生成等写操作请在 Web 工作台进行。
+          </p>
+
+          <h4 className="text-xs font-semibold text-ink-muted uppercase tracking-widest mt-4 mb-2">知识 / 检索类</h4>
           <McpTool
             name="ask_kb"
-            desc="向知识库提问，返回 RAG 答案 + 来源引用（推荐）"
+            desc="向知识库提问,返回 RAG 答案 + 来源引用。persona=pm + project 切换为项目 PM 视角"
             params={[
               { n: 'question',  t: 'string', req: true,  d: '要询问的问题' },
-              { n: 'ltc_stage', t: 'string', req: false, d: 'LTC 阶段过滤（线索/商机/报价/合同/回款/售后）' },
+              { n: 'persona',   t: 'string', req: false, d: 'general(默认) / pm(虚拟项目经理视角)' },
+              { n: 'project',   t: 'string', req: false, d: '项目 ID 或名称(persona=pm 时必填)' },
+              { n: 'ltc_stage', t: 'string', req: false, d: 'LTC 阶段过滤(线索/商机/报价/合同/回款/售后)' },
             ]}
-            example={{ question: '回款认领的最佳实践是什么？', ltc_stage: '回款' }}
+            example={{ question: '回款认领的最佳实践是什么?', ltc_stage: '回款' }}
           />
           <McpTool
             name="search_kb"
-            desc="语义检索，返回原始知识切片列表"
+            desc="语义检索,返回原始知识切片列表。可 project 过滤"
             params={[
               { n: 'query',     t: 'string',  req: true,  d: '检索查询语句' },
-              { n: 'top_k',     t: 'integer', req: false, d: '返回数量，默认 5，最大 20' },
+              { n: 'top_k',     t: 'integer', req: false, d: '返回数量,默认 5,最大 20' },
               { n: 'ltc_stage', t: 'string',  req: false, d: 'LTC 阶段过滤' },
+              { n: 'project',   t: 'string',  req: false, d: '可选:限定到特定项目的文档' },
             ]}
             example={{ query: '合同签署注意事项', top_k: 5 }}
+          />
+
+          <h4 className="text-xs font-semibold text-ink-muted uppercase tracking-widest mt-6 mb-2">项目 / 产物类</h4>
+          <McpTool
+            name="list_projects"
+            desc="列项目清单(ID / 名称 / 客户 / 行业 / 文档数)"
+            params={[
+              { n: 'query', t: 'string', req: false, d: '可选:按名称/客户模糊过滤' },
+            ]}
+            example={{ query: '特变' }}
+          />
+          <McpTool
+            name="get_project_status"
+            desc="单个项目全景快照:基本信息 + 文档数 + 各阶段(insight/survey/kickoff)产物状态 + 挑战循环结果"
+            params={[
+              { n: 'project', t: 'string', req: true, d: '项目 ID 或名称' },
+            ]}
+            example={{ project: '特变新能源' }}
+          />
+          <McpTool
+            name="list_outputs"
+            desc="列项目下所有产物(curated_bundles)。返回 ID / kind / 状态 / 标题 / 创建时间"
+            params={[
+              { n: 'project', t: 'string', req: true,  d: '项目 ID 或名称' },
+              { n: 'kind',    t: 'string', req: false, d: 'insight / survey_outline / survey / kickoff_pptx / kickoff_html' },
+              { n: 'status',  t: 'string', req: false, d: 'done / pending / generating / failed' },
+            ]}
+            example={{ project: '特变新能源', kind: 'insight', status: 'done' }}
+          />
+          <McpTool
+            name="get_output"
+            desc="拿单个产物的完整 markdown 内容 + 元数据(挑战循环 / validity / provenance)。需先用 list_outputs 拿 ID"
+            params={[
+              { n: 'bundle_id', t: 'string', req: true, d: '产物 ID' },
+            ]}
+            example={{ bundle_id: '3fc1f203-be61-4839-805b-af5fbc2a93c6' }}
+          />
+          <McpTool
+            name="list_documents"
+            desc="列项目下所有上传文档(filename / 类型 / 处理状态)"
+            params={[
+              { n: 'project', t: 'string', req: true, d: '项目 ID 或名称' },
+            ]}
+            example={{ project: '特变新能源' }}
+          />
+          <McpTool
+            name="get_brief"
+            desc="拿项目某 kind 的 Brief 字段(已抽取 + 已编辑的关键信息,带 confidence 标注)"
+            params={[
+              { n: 'project', t: 'string', req: true, d: '项目 ID 或名称' },
+              { n: 'kind',    t: 'string', req: true, d: 'insight / survey_outline / survey / kickoff_pptx' },
+            ]}
+            example={{ project: '特变新能源', kind: 'insight' }}
           />
 
           {/* Claude Desktop */}

@@ -18,7 +18,7 @@ import jwt
 import structlog
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import select, func as sa_func
 
 from agents.kb_agent import answer_question
 from config import settings
@@ -127,6 +127,108 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "get_project_status",
+        "description": (
+            "拿单个项目的全景快照：基本信息、文档清单概况、各阶段(insight/survey_outline/survey/"
+            "kickoff_pptx/kickoff_html)的产物状态(已生成 / 进行中 / 未开始)。\n"
+            "适用场景：AI 助手要回答\"这个项目现在到哪一步了\" / \"有哪些已生成的报告\" 时先调这个。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {
+                    "type": "string",
+                    "description": "项目 ID 或名称(同 ask_kb)",
+                },
+            },
+            "required": ["project"],
+        },
+    },
+    {
+        "name": "list_outputs",
+        "description": (
+            "列出项目下所有产物(curated_bundles)。返回每条产物的 ID / kind / 状态 / 标题 / 创建时间。\n"
+            "结合 get_output 可拿到具体内容。kind 可选过滤。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {
+                    "type": "string",
+                    "description": "项目 ID 或名称",
+                },
+                "kind": {
+                    "type": "string",
+                    "description": "可选：按产物类型过滤",
+                    "enum": ["insight", "survey_outline", "survey", "kickoff_pptx", "kickoff_html"],
+                },
+                "status": {
+                    "type": "string",
+                    "description": "可选：按状态过滤",
+                    "enum": ["done", "pending", "generating", "failed"],
+                },
+            },
+            "required": ["project"],
+        },
+    },
+    {
+        "name": "get_output",
+        "description": (
+            "拿某个具体产物的完整 markdown 内容 + 元数据(挑战循环结果、引用 provenance 等)。\n"
+            "用 list_outputs 拿到 ID 后再调这个。markdown 体积可能较大(单份洞察报告可达 1-2 万字)。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "bundle_id": {
+                    "type": "string",
+                    "description": "产物 ID(从 list_outputs 拿到)",
+                },
+            },
+            "required": ["bundle_id"],
+        },
+    },
+    {
+        "name": "list_documents",
+        "description": (
+            "列出项目下所有上传文档(filename / 文档类型 / 处理状态)。\n"
+            "适用场景:AI 要看项目有什么文档 / 哪些文档还在处理中 / 有没有补全 SOW / 合同等。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {
+                    "type": "string",
+                    "description": "项目 ID 或名称",
+                },
+            },
+            "required": ["project"],
+        },
+    },
+    {
+        "name": "get_brief",
+        "description": (
+            "拿项目某个 kind 的 Brief 字段(LLM 抽取 + 顾问编辑过的关键信息,如客户业务背景 / 范围 / 风险 / "
+            "里程碑 / Top 干系人 等)。返回每个字段的当前值 + confidence + 来源标注。\n"
+            "适用场景:AI 写文档前先了解项目的 brief 状态;判断哪些字段已有数据 / 哪些缺失。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {
+                    "type": "string",
+                    "description": "项目 ID 或名称",
+                },
+                "kind": {
+                    "type": "string",
+                    "description": "Brief 类型",
+                    "enum": ["insight", "survey_outline", "survey", "kickoff_pptx"],
+                },
+            },
+            "required": ["project", "kind"],
+        },
+    },
 ]
 
 
@@ -143,7 +245,6 @@ async def _resolve_project(ref: str) -> Project | None:
         if proj:
             return proj
         # 2) 名称精确匹配（大小写不敏感）
-        from sqlalchemy import func as sa_func
         proj = (await session.execute(
             select(Project).where(sa_func.lower(Project.name) == ref.lower())
         )).scalar_one_or_none()
@@ -250,7 +351,6 @@ async def _handle_search_kb(arguments: dict) -> str:
 
 async def _handle_list_projects(arguments: dict) -> str:
     q = (arguments.get("query") or "").strip().lower()
-    from sqlalchemy import func as sa_func
     async with async_session_maker() as session:
         stmt = select(
             Project.id, Project.name, Project.customer, Project.industry,
@@ -274,6 +374,215 @@ async def _handle_list_projects(arguments: dict) -> str:
         lines.append(
             f"- **{r.name}** · 客户: {customer} · 行业: {industry} · 文档数: {r.doc_count} · `id={r.id}`"
         )
+    return "\n".join(lines)
+
+
+async def _handle_get_project_status(arguments: dict) -> str:
+    project_ref = arguments["project"]
+    proj = await _resolve_project(project_ref)
+    if not proj:
+        return f"❌ 未找到项目「{project_ref}」。可先调 list_projects 查可用项目。"
+
+    from models.curated_bundle import CuratedBundle
+    KINDS = ["insight", "survey_outline", "survey", "kickoff_pptx", "kickoff_html"]
+    KIND_LABELS = {
+        "insight": "项目洞察", "survey_outline": "调研大纲", "survey": "调研问卷",
+        "kickoff_pptx": "启动会·PPT", "kickoff_html": "启动会·HTML",
+    }
+
+    async with async_session_maker() as session:
+        # 文档数
+        doc_count = await session.scalar(
+            select(sa_func.count(Document.id)).where(Document.project_id == proj.id)
+        )
+        # 各 kind 最新产物 status
+        bundles_by_kind: dict[str, list] = {k: [] for k in KINDS}
+        rows = (await session.execute(
+            select(CuratedBundle).where(CuratedBundle.project_id == proj.id).order_by(CuratedBundle.created_at.desc())
+        )).scalars().all()
+        for b in rows:
+            if b.kind in bundles_by_kind:
+                bundles_by_kind[b.kind].append(b)
+
+    lines = [f"# {proj.name}\n"]
+    if proj.customer:
+        lines.append(f"- **客户**: {proj.customer}")
+    if proj.industry:
+        lines.append(f"- **行业**: {proj.industry}")
+    lines.append(f"- **文档数**: {doc_count or 0}")
+    lines.append(f"- **项目 ID**: `{proj.id}`")
+    if proj.description:
+        lines.append(f"- **描述**: {proj.description[:200]}")
+
+    lines.append("\n## 各阶段产物状态\n")
+    for k in KINDS:
+        bs = bundles_by_kind[k]
+        label = KIND_LABELS[k]
+        if not bs:
+            lines.append(f"- **{label}** (`{k}`): 尚未生成")
+            continue
+        latest = bs[0]
+        ts = latest.created_at.strftime("%Y-%m-%d %H:%M") if latest.created_at else "—"
+        extra = ""
+        if latest.status == "done" and latest.kind in ("insight", "survey_outline"):
+            cs = (latest.extra or {}).get("challenge_summary") or {}
+            if cs:
+                extra = f" · 挑战 {cs.get('rounds_total', '?')} 轮 · 最终 {cs.get('final_verdict', '?')}"
+        lines.append(f"- **{label}** (`{k}`): {latest.status} · {ts}{extra} · `bundle_id={latest.id}`")
+        if len(bs) > 1:
+            lines.append(f"  历史版本 {len(bs) - 1} 份")
+
+    return "\n".join(lines)
+
+
+async def _handle_list_outputs(arguments: dict) -> str:
+    project_ref = arguments["project"]
+    proj = await _resolve_project(project_ref)
+    if not proj:
+        return f"❌ 未找到项目「{project_ref}」。"
+
+    from models.curated_bundle import CuratedBundle
+    kind_filter = arguments.get("kind")
+    status_filter = arguments.get("status")
+
+    async with async_session_maker() as session:
+        stmt = select(CuratedBundle).where(CuratedBundle.project_id == proj.id)
+        if kind_filter:
+            stmt = stmt.where(CuratedBundle.kind == kind_filter)
+        if status_filter:
+            stmt = stmt.where(CuratedBundle.status == status_filter)
+        stmt = stmt.order_by(CuratedBundle.created_at.desc()).limit(50)
+        rows = (await session.execute(stmt)).scalars().all()
+
+    if not rows:
+        return f"项目「{proj.name}」暂无{kind_filter or ''}产物。"
+
+    lines = [f"项目「{proj.name}」共 **{len(rows)}** 份产物{'(' + kind_filter + ')' if kind_filter else ''}:\n"]
+    for b in rows:
+        ts = b.created_at.strftime("%Y-%m-%d %H:%M") if b.created_at else "—"
+        lines.append(f"- **{b.title or b.kind}** · `{b.kind}` · {b.status} · {ts} · `id={b.id}`")
+    return "\n".join(lines)
+
+
+async def _handle_get_output(arguments: dict) -> str:
+    bundle_id = arguments["bundle_id"]
+    from models.curated_bundle import CuratedBundle
+    async with async_session_maker() as session:
+        b = await session.get(CuratedBundle, bundle_id)
+    if not b:
+        return f"❌ 未找到产物 ID `{bundle_id}`。"
+
+    if b.status != "done":
+        return (
+            f"产物「{b.title or b.kind}」当前状态: **{b.status}**(尚未完成)。\n"
+            f"- kind: `{b.kind}`\n- bundle_id: `{b.id}`\n"
+            f"完成后再调 get_output 拿正文。"
+        )
+
+    md = b.content_md or ""
+    extra = b.extra or {}
+    lines = [f"# {b.title or b.kind}\n"]
+    lines.append(f"- **kind**: `{b.kind}`")
+    lines.append(f"- **bundle_id**: `{b.id}`")
+    if b.created_at:
+        lines.append(f"- **生成时间**: {b.created_at.strftime('%Y-%m-%d %H:%M')}")
+
+    cs = extra.get("challenge_summary")
+    if cs:
+        lines.append(f"- **挑战循环**: {cs.get('rounds_total', '?')} 轮 · 最终 verdict={cs.get('final_verdict', '?')} · 仍剩 {cs.get('issues_remaining', 0)} 项重大问题")
+
+    validity = extra.get("validity_status")
+    if validity:
+        lines.append(f"- **完整性**: {validity}")
+
+    lines.append("\n---\n")
+    if md:
+        lines.append(md)
+    else:
+        lines.append("_(产物 markdown 为空)_")
+
+    return "\n".join(lines)
+
+
+async def _handle_list_documents(arguments: dict) -> str:
+    project_ref = arguments["project"]
+    proj = await _resolve_project(project_ref)
+    if not proj:
+        return f"❌ 未找到项目「{project_ref}」。"
+
+    async with async_session_maker() as session:
+        rows = (await session.execute(
+            select(Document).where(Document.project_id == proj.id).order_by(Document.created_at.desc())
+        )).scalars().all()
+
+    if not rows:
+        return f"项目「{proj.name}」暂无文档。"
+
+    lines = [f"项目「{proj.name}」共 **{len(rows)}** 份文档:\n"]
+    for d in rows:
+        ts = d.created_at.strftime("%Y-%m-%d") if d.created_at else "—"
+        doc_type = d.doc_type or "—"
+        # Document 字段名是 conversion_status,不是 status
+        lines.append(f"- **{d.filename}** · 类型: {doc_type} · 状态: {d.conversion_status} · {ts} · `id={d.id}`")
+    return "\n".join(lines)
+
+
+async def _handle_get_brief(arguments: dict) -> str:
+    project_ref = arguments["project"]
+    kind = arguments["kind"]
+    proj = await _resolve_project(project_ref)
+    if not proj:
+        return f"❌ 未找到项目「{project_ref}」。"
+
+    from models.project_brief import ProjectBrief
+    from services.brief_service import get_schema
+    # kickoff_html 与 kickoff_pptx 共用 brief
+    canon = "kickoff_pptx" if kind == "kickoff_html" else kind
+    schema = get_schema(canon)
+    if not schema:
+        return f"❌ 不支持的 kind: {kind}"
+
+    async with async_session_maker() as session:
+        row = (await session.execute(
+            select(ProjectBrief).where(
+                ProjectBrief.project_id == proj.id,
+                ProjectBrief.output_kind == canon,
+            )
+        )).scalar_one_or_none()
+
+    if not row or not row.fields:
+        return f"项目「{proj.name}」的 {kind} brief 尚未抽取(或为空)。可在前端 BriefDrawer 触发 LLM 抽取。"
+
+    lines = [f"# {proj.name} · {kind} Brief\n"]
+    fields = row.fields
+    for spec in schema:
+        key = spec["key"]
+        label = spec.get("label", key)
+        cell = fields.get(key) or {}
+        if isinstance(cell, dict):
+            value = cell.get("value")
+            confidence = cell.get("confidence")
+            edited = cell.get("edited_at")
+        else:
+            value = cell
+            confidence = None
+            edited = None
+        if value in (None, "", []):
+            lines.append(f"- **{label}** (`{key}`): _未填_")
+            continue
+        if isinstance(value, list):
+            value_str = "; ".join(str(v)[:120] for v in value[:5])
+            if len(value) > 5:
+                value_str += f" …({len(value) - 5} 项更多)"
+        else:
+            value_str = str(value)[:300]
+        meta = []
+        if confidence:
+            meta.append(f"confidence={confidence}")
+        if edited:
+            meta.append("已人工编辑")
+        meta_str = f" · {' · '.join(meta)}" if meta else ""
+        lines.append(f"- **{label}** (`{key}`): {value_str}{meta_str}")
     return "\n".join(lines)
 
 
@@ -376,11 +685,27 @@ async def mcp_endpoint(request: Request):
             "serverInfo":      SERVER_INFO,
             "instructions": (
                 "纷享销客 CRM 实施知识库 MCP 服务器。\n"
-                "• ask_kb       — 提问获取 RAG 答案（默认通用模式）\n"
-                "• ask_kb (pm)  — persona=pm + project=<ID或名称>，以项目 PM 视角回答（状态/下一步/风险）\n"
-                "• search_kb    — 检索原始知识切片（可 project 过滤）\n"
-                "• list_projects — 列出所有项目，提供给 pm 模式使用\n"
-                "典型流程：先 list_projects → 再 ask_kb(persona=pm, project=XX)"
+                "\n"
+                "## 知识 / 检索类(全只读)\n"
+                "• ask_kb              — 提问获取 RAG 答案(默认通用模式)\n"
+                "• ask_kb (persona=pm) — 项目 PM 视角回答,带状态/下一步/风险结构化分析\n"
+                "• search_kb           — 检索原始知识切片(可 project 过滤)\n"
+                "\n"
+                "## 项目 / 产物类(全只读)\n"
+                "• list_projects       — 列项目清单(ID / 名称 / 客户 / 行业 / 文档数)\n"
+                "• get_project_status  — 单个项目全景(基本信息 + 各 stage 产物状态 + 挑战结果)\n"
+                "• list_outputs        — 项目产物清单(insight / survey / kickoff PPT 等)\n"
+                "• get_output          — 拿单个产物的 markdown 全文 + 元数据\n"
+                "• list_documents      — 项目文档清单(filename / 类型 / 处理状态)\n"
+                "• get_brief           — 项目 brief 字段(已抽取 + 已编辑的关键信息)\n"
+                "\n"
+                "## 典型流程\n"
+                "- 通用问答:直接 ask_kb\n"
+                "- PM 模式:list_projects → ask_kb(persona=pm, project=XX)\n"
+                "- 项目分析:get_project_status → list_outputs → get_output(bundle_id)\n"
+                "- 文档摸底:list_documents → search_kb(project=XX)\n"
+                "\n"
+                "所有 tool 均为只读,不会修改项目数据。触发产物生成等写操作请在 Web 工作台进行。"
             ),
         })
 
@@ -406,6 +731,16 @@ async def mcp_endpoint(request: Request):
                 text = await _handle_search_kb(arguments)
             elif tool_name == "list_projects":
                 text = await _handle_list_projects(arguments)
+            elif tool_name == "get_project_status":
+                text = await _handle_get_project_status(arguments)
+            elif tool_name == "list_outputs":
+                text = await _handle_list_outputs(arguments)
+            elif tool_name == "get_output":
+                text = await _handle_get_output(arguments)
+            elif tool_name == "list_documents":
+                text = await _handle_list_documents(arguments)
+            elif tool_name == "get_brief":
+                text = await _handle_get_brief(arguments)
             else:
                 return _err(req_id, -32602, f"未知工具: {tool_name}")
 

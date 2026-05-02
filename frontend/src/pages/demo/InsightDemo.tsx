@@ -163,6 +163,43 @@ export default function InsightDemo() {
         </div>
       </Step>
 
+      {/* Step 7 — 挑战循环可视化 */}
+      <Step n={7} title="挑战循环 — 报告生成完不算完,挑战者会找问题让 Runner 重写">
+        <p className="text-sm text-ink-secondary mb-3">
+          报告写完后,系统跑 <strong>2-3 轮挑战循环</strong>:挑战者按 6 维 rubric (具体性 / 证据 /
+          下一步 / 完整性 / 一致性 / 黑话) 找问题 → Runner 重写被挑出的章节 →
+          下轮挑战者<strong>带着上一轮问题清单</strong>逐条复核。
+        </p>
+        <ul className="text-xs text-ink-secondary space-y-1.5 leading-relaxed list-disc pl-4 mb-3">
+          <li><strong>verdict 三档</strong>(整体判定):✓ 通过 / ☑ 可放行(瑕疵不阻塞) / 🚫 需返工(必须修)</li>
+          <li><strong>severity 三档</strong>(单 issue):🚫 阻断 / ⚠ 重大 / 💡 小问题</li>
+          <li><strong>"已修复"标签</strong>:前面轮次发现的问题,在最后一轮没再出现 → 自动标已修复(灰色 + 删除线)</li>
+          <li><strong>"仍有 N 项重大问题未解决"</strong>:挑战循环跑完后还残留的硬骨头,顶部 banner 提醒</li>
+        </ul>
+        <div className="p-3 bg-sky-50 border border-sky-200 rounded-lg text-xs text-sky-900 leading-relaxed">
+          <strong>这套机制对 PM 的意义:</strong>不仅"生成"报告,还把<strong>同行评审</strong>内化进系统。
+          你看到的最终报告是已经过 2-3 轮 LLM 自审的版本,质量稳定可预期 — 不会今天好明天差。
+        </div>
+      </Step>
+
+      {/* Step 8 — 在线编辑 */}
+      <Step n={8} title="不满意?报告右上角「编辑」按钮直接在线改">
+        <p className="text-sm text-ink-secondary mb-3">
+          顶部「编辑」按钮切换到 <strong>所见即所得</strong> 编辑器(基于 Tiptap)。
+          不需要懂 markdown 语法 — 直接在渲染好的报告样式上点击修改。
+        </p>
+        <ul className="text-xs text-ink-secondary space-y-1.5 leading-relaxed list-disc pl-4 mb-3">
+          <li>顶部工具栏:H2/H3 标题、加粗、斜体、行内代码、有序/无序列表、引用、撤销/重做</li>
+          <li>表格直接点单元格修改(行/列增删)</li>
+          <li>角标 [D1][K1][W1] 在编辑模式下显示成 plain text,保存后读视图依然渲染成可点击徽章</li>
+          <li>权限:产物的 created_by 或管理员可编辑,覆盖式保存(不存编辑历史,想要旧版就重新生成)</li>
+        </ul>
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 leading-relaxed">
+          <strong>caveat:</strong>用户改了角标后,右栏「引用追溯」面板仍按原 provenance 渲染 —
+          也就是说前端不会重算引用归属。如果改动幅度很大(比如把整段都换了),建议直接重新生成而不是手改。
+        </div>
+      </Step>
+
       {/* CTA */}
       <div className="max-w-[1500px] mx-auto px-8 sm:px-12 py-12">
         <div className="rounded-xl p-6 text-white" style={{ background: BRAND_GRAD }}>

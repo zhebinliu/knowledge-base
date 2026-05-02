@@ -595,6 +595,63 @@ export default function Help() {
               用户作答后系统合并写回 brief,再点「重新生成」触发新一轮。
             </p>
           </SubSection>
+
+          <SubSection title="挑战循环 · Critic + Challenger 复核">
+            <p className="text-sm text-ink-secondary mb-3 leading-relaxed">
+              报告写完后系统跑 <strong>2-3 轮挑战循环</strong>:挑战者按 6 维 rubric 找问题 →
+              Runner 重写被挑出的章节 → 下轮挑战者拿到上一轮问题清单<strong>逐条复核是否修复</strong>。
+              报告页顶部「挑战回合」面板可展开看每轮 verdict / 问题清单 / 修复情况。
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+              <div className="card p-3">
+                <p className="text-xs font-semibold text-ink mb-2">VERDICT(整体判定 · 动作导向)</p>
+                <ul className="text-[11px] text-ink-secondary space-y-1">
+                  <li>✓ <strong>通过</strong>:无重大问题</li>
+                  <li>☑ <strong>可放行</strong>:有瑕疵但允许放行(0-2 个 major 不阻塞)</li>
+                  <li>🚫 <strong>需返工</strong>:必须修(任何 blocker 或 ≥3 个 major)</li>
+                </ul>
+              </div>
+              <div className="card p-3">
+                <p className="text-xs font-semibold text-ink mb-2">SEVERITY(单 issue 严重度)</p>
+                <ul className="text-[11px] text-ink-secondary space-y-1">
+                  <li>🚫 <strong>阻断</strong>:这条不解决报告无法发布</li>
+                  <li>⚠ <strong>重大</strong>:影响可信度,Runner 会重生成</li>
+                  <li>💡 <strong>小问题</strong>:细节优化建议,不阻塞</li>
+                </ul>
+              </div>
+            </div>
+
+            <Note>
+              "可放行 + 重大 issue"不是矛盾 — verdict 是"这轮整体能不能放行"(允许 0-2 个 major),
+              severity 是"单个问题有多严重"。两个维度独立。
+            </Note>
+            <Tip>
+              <strong>"已修复"标签</strong>:前面轮次发现的问题,在最后一轮没再出现 → 系统自动标"✓ 已修复"
+              (灰色 + 删除线)。直观看出 LLM 修了哪些、还剩哪些。
+            </Tip>
+          </SubSection>
+
+          <SubSection title="在线编辑 · 所见即所得">
+            <p className="text-sm text-ink-secondary mb-3 leading-relaxed">
+              不满意自动生成的报告,顶部「编辑」按钮 → <strong>Tiptap WYSIWYG 编辑器</strong>。
+              在渲染样式上直接点击修改,保存时反向序列化成 markdown 写回。
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+              <div className="card p-3">
+                <p className="text-xs font-semibold text-ink mb-1">适用产物</p>
+                <p className="text-[11px] text-ink-secondary">项目洞察 / 调研大纲(中栏右上「编辑」按钮)。调研问卷已是结构化勾选录入,直接改答案。启动会 PPT 在播放窗口里有独立编辑入口。</p>
+              </div>
+              <div className="card p-3">
+                <p className="text-xs font-semibold text-ink mb-1">支持格式</p>
+                <p className="text-[11px] text-ink-secondary">标题、加粗、斜体、行内代码、有序/无序列表、引用块、GFM 表格、撤销/重做。</p>
+              </div>
+              <div className="card p-3">
+                <p className="text-xs font-semibold text-ink mb-1">权限 / 历史</p>
+                <p className="text-[11px] text-ink-secondary">created_by 或 admin 可编辑;不存编辑历史(覆盖式);角标改了 provenance 不联动。</p>
+              </div>
+            </div>
+          </SubSection>
         </Section>
 
         {/* Challenge */}
@@ -719,12 +776,16 @@ export default function Help() {
             </div>
           </SubSection>
 
-          <SubSection title="可用的 MCP 工具">
-            <div className="space-y-3">
+          <SubSection title="可用的 MCP 工具(全只读 · 8 个)">
+            <p className="text-sm text-ink-secondary mb-3">
+              所有 tool 均为只读,不会修改项目数据。触发产物生成等写操作请在 Web 工作台进行。
+            </p>
+
+            <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-widest mb-2">知识 / 检索类</p>
+            <div className="space-y-2 mb-4">
               {[
-                { name: 'ask_kb',       badge: '推荐', desc: 'RAG 问答，支持 persona=pm + project 参数以 PM 视角回答' },
-                { name: 'search_kb',    badge: '',     desc: '语义检索，返回原始切片列表，适合需要二次分析的场景' },
-                { name: 'list_projects', badge: '',    desc: '列出所有项目，获取 project ID 供 ask_kb 使用' },
+                { name: 'ask_kb',    badge: '推荐', desc: 'RAG 问答,支持 persona=pm + project 参数以 PM 视角回答(状态/下一步/风险结构化)' },
+                { name: 'search_kb', badge: '',     desc: '语义检索,返回原始切片列表,适合需要二次分析的场景。可 project 过滤' },
               ].map(({ name, badge, desc }) => (
                 <div key={name} className="card p-3 flex items-start gap-3">
                   <div className="w-7 h-7 rounded bg-brand-light flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -734,6 +795,31 @@ export default function Help() {
                     <div className="flex items-center gap-2 mb-0.5">
                       <code className="text-xs font-bold text-[#D96400]">{name}</code>
                       {badge && <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-50 text-green-700 border border-green-200">{badge}</span>}
+                    </div>
+                    <p className="text-xs text-ink-secondary">{desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-widest mb-2">项目 / 产物类</p>
+            <div className="space-y-2">
+              {[
+                { name: 'list_projects',      badge: '',     desc: '列项目清单(ID / 名称 / 客户 / 行业 / 文档数)' },
+                { name: 'get_project_status', badge: '新增', desc: '单个项目全景:基本信息 + 文档数 + 各阶段(insight/survey/kickoff)产物状态 + 挑战循环结果' },
+                { name: 'list_outputs',       badge: '新增', desc: '列项目下所有产物(ID / kind / 状态 / 标题 / 创建时间)。可按 kind / status 过滤' },
+                { name: 'get_output',         badge: '新增', desc: '拿单个产物的完整 markdown + 元数据(挑战循环 / validity / provenance)' },
+                { name: 'list_documents',     badge: '新增', desc: '列项目下所有上传文档(filename / 类型 / 处理状态)' },
+                { name: 'get_brief',          badge: '新增', desc: '拿项目某 kind 的 Brief 字段(已抽取 + 已编辑的关键信息,带 confidence 标注)' },
+              ].map(({ name, badge, desc }) => (
+                <div key={name} className="card p-3 flex items-start gap-3">
+                  <div className="w-7 h-7 rounded bg-brand-light flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Terminal size={12} style={{ color: 'var(--accent)' }} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <code className="text-xs font-bold text-[#D96400]">{name}</code>
+                      {badge && <span className="px-1.5 py-0.5 rounded text-[10px] bg-orange-50 text-orange-700 border border-orange-200">{badge}</span>}
                     </div>
                     <p className="text-xs text-ink-secondary">{desc}</p>
                   </div>
