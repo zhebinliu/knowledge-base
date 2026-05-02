@@ -758,7 +758,7 @@ function AgenticValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle
     // 挑战循环跑完后仍有 major+ 问题没解决(包括 verdict=major_issues 和
     // verdict=minor_issues 但 issues_remaining > 0 的情况)
     mainColor = 'amber'
-    mainText = `挑战 ${cs?.rounds_total ?? '?'} 轮后仍有 ${issuesRemaining} 项 major+ 问题未解决`
+    mainText = `挑战 ${cs?.rounds_total ?? '?'} 轮后仍有 ${issuesRemaining} 项重大问题未解决`
       + (issuesCount > 0 ? ` · ${issuesCount} 项细节待补` : '')
   } else if (challengerErrored) {
     mainColor = 'amber'
@@ -771,7 +771,7 @@ function AgenticValidityBanner({ bundle, onReGenerate }: { bundle: CuratedBundle
     // 挑战 pass 或 minor_issues 且 issues_remaining=0(即跑完循环把 major+ 修干净了)
     mainColor = 'sky'
     mainText = challengerVerdict === 'minor_issues'
-      ? `整体可交付 · ${issuesCount > 0 ? `${issuesCount} 项细节待补` : '剩余 minor 问题不阻塞发布'}`
+      ? `整体可交付 · ${issuesCount > 0 ? `${issuesCount} 项细节待补` : '剩余小问题不阻塞发布'}`
       : `整体可交付${issuesCount > 0 ? ` · ${issuesCount} 项细节待补` : ''}`
   } else if (issuesCount > 0) {
     mainColor = 'amber'

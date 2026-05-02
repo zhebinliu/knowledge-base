@@ -405,7 +405,7 @@ const INSIGHT_OUTPUTS: IORow[] = [
     label: '挑战记录',
     source: '挑战员',
     format: '挑战轮数 + 最终评判 + 剩余 issue',
-    example: '共跑 2 轮挑战\n第 1 轮:发现 4 个重大问题(缺引用 / 自相矛盾各 2 个),重生成 3 章节\n第 2 轮:通过,只剩 1 个 minor issue(术语不统一)',
+    example: '共跑 2 轮挑战\n第 1 轮:发现 4 个重大问题(缺引用 / 自相矛盾各 2 个),重生成 3 章节\n第 2 轮:通过,只剩 1 个小问题(术语不统一)',
   },
   {
     key: 'ask_user',

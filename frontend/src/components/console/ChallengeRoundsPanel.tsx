@@ -86,7 +86,7 @@ export default function ChallengeRoundsPanel({ bundleId, challengeSummary }: Pro
         </span>
         {challengeSummary.issues_remaining > 0 && (
           <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-700">
-            ⚠ 仍有 {challengeSummary.issues_remaining} 个 major+ 问题未解决
+            ⚠ 仍有 {challengeSummary.issues_remaining} 个重大问题未解决
           </span>
         )}
         <span className="ml-auto text-[10px] text-ink-muted">点击展开看每轮评语</span>
