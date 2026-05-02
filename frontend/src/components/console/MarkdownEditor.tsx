@@ -1,21 +1,34 @@
 /**
- * MarkdownEditor — 产物 markdown 在线编辑器
+ * MarkdownEditor — 产物所见即所得编辑器(基于 Tiptap)
  *
  * 适用 kind:insight / survey_outline / survey
- * 形态:左 textarea(可编辑)/ 右实时预览(MarkdownView)
- * 保存:PUT /outputs/{id}/content,覆盖 bundle.content_md
+ * 用户在渲染好的报告样式上直接编辑 → 保存时反向 serialize 成 markdown 写回。
+ *
+ * 核心:
+ * - Tiptap StarterKit:标题 / 段落 / 列表 / 加粗 / 斜体 / 行内代码 / 块代码 等
+ * - Table 扩展:GFM 表格(行 / 列 / 表头单元格)
+ * - tiptap-markdown:自动 markdown ↔ HTML 双向转换,保存时直接 (editor.storage as any).markdown.getMarkdown()
  *
  * 设计取舍:
- * - 简单 textarea + monospace 字体,不引入富文本编辑器(避免依赖 + bundle 体积)
- * - 实时预览方便用户看 markdown 效果,但保存时只传 markdown 文本
- * - 不维护编辑历史(覆盖式)— 想要旧版可重新生成
+ * - 角标 [D1][K1][W1] 在编辑器里显示成 plain text(用户看见 "[D1]")。这样不需要自定义 Citation node。
+ *   读视图(CitedReportView)依然把它渲染成漂亮的彩色徽章。
+ * - 不维护编辑历史(覆盖式)
  * - 不自动同步 provenance — 用户改了角标后,CitationsPanel 仍按原 provenance 渲染
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Save, X, AlertCircle, Loader2 } from 'lucide-react'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import { Table } from '@tiptap/extension-table'
+import { TableRow } from '@tiptap/extension-table-row'
+import { TableHeader } from '@tiptap/extension-table-header'
+import { TableCell } from '@tiptap/extension-table-cell'
+import { Markdown } from 'tiptap-markdown'
+import {
+  Save, X, AlertCircle, Loader2,
+  Bold, Italic, Code, List, ListOrdered, Quote, Heading2, Heading3, Undo, Redo,
+} from 'lucide-react'
 import { saveOutputContent, type CuratedBundle } from '../../api/client'
-import MarkdownView from '../MarkdownView'
 
 interface Props {
   bundle: CuratedBundle
@@ -25,16 +38,49 @@ interface Props {
 }
 
 export default function MarkdownEditor({ bundle, initialContent, onClose, onSaved }: Props) {
-  const [content, setContent] = useState(initialContent)
   const [error, setError] = useState<string | null>(null)
+  const [dirty, setDirty] = useState(false)
   const qc = useQueryClient()
 
-  const dirty = content !== initialContent
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      // GFM 表格 — markdown round-trip 需要
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      // markdown round-trip 核心 — 输入 markdown,输出 markdown
+      Markdown.configure({
+        html: false,           // 不允许编辑器内嵌 HTML(防注入)
+        tightLists: true,      // 列表项不加空行
+        bulletListMarker: '-', // 与 KB 输出风格一致
+        linkify: true,
+      }),
+    ],
+    content: initialContent,
+    editorProps: {
+      attributes: {
+        // index.css 里的 .kb-editor — 自定义最小样式(没装 tailwind typography)
+        class: 'kb-editor px-8 py-7 min-h-full',
+      },
+    },
+    onUpdate: () => setDirty(true),
+  })
+
+  // 卸载时销毁
+  useEffect(() => {
+    return () => { editor?.destroy() }
+  }, [editor])
 
   const mut = useMutation({
-    mutationFn: () => saveOutputContent(bundle.id, content),
+    mutationFn: async () => {
+      if (!editor) throw new Error('编辑器未就绪')
+      // tiptap-markdown 提供的 markdown serializer
+      const md = (editor.storage as any).markdown.getMarkdown() as string
+      return saveOutputContent(bundle.id, md)
+    },
     onSuccess: () => {
-      // 让 outline / report detail query 失效,触发重新拉取最新 content_md
       qc.invalidateQueries({ queryKey: ['output', bundle.id] })
       qc.invalidateQueries({ queryKey: ['research-outline-detail', bundle.id] })
       onSaved()
@@ -46,7 +92,9 @@ export default function MarkdownEditor({ bundle, initialContent, onClose, onSave
 
   const handleSave = () => {
     setError(null)
-    if (!content.trim()) {
+    if (!editor) return
+    const md = ((editor.storage as any).markdown.getMarkdown() as string).trim()
+    if (!md) {
       setError('正文不能为空')
       return
     }
@@ -86,6 +134,45 @@ export default function MarkdownEditor({ bundle, initialContent, onClose, onSave
         </div>
       </div>
 
+      {/* 工具栏 */}
+      {editor && (
+        <div className="flex-shrink-0 px-3 py-1.5 border-b border-line bg-slate-50/30 flex items-center gap-0.5 flex-wrap">
+          <ToolbarBtn active={editor.isActive('heading', { level: 2 })}
+                      onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                      title="二级标题"><Heading2 size={13} /></ToolbarBtn>
+          <ToolbarBtn active={editor.isActive('heading', { level: 3 })}
+                      onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                      title="三级标题"><Heading3 size={13} /></ToolbarBtn>
+          <ToolbarSep />
+          <ToolbarBtn active={editor.isActive('bold')}
+                      onClick={() => editor.chain().focus().toggleBold().run()}
+                      title="加粗 (Ctrl+B)"><Bold size={13} /></ToolbarBtn>
+          <ToolbarBtn active={editor.isActive('italic')}
+                      onClick={() => editor.chain().focus().toggleItalic().run()}
+                      title="斜体 (Ctrl+I)"><Italic size={13} /></ToolbarBtn>
+          <ToolbarBtn active={editor.isActive('code')}
+                      onClick={() => editor.chain().focus().toggleCode().run()}
+                      title="行内代码"><Code size={13} /></ToolbarBtn>
+          <ToolbarSep />
+          <ToolbarBtn active={editor.isActive('bulletList')}
+                      onClick={() => editor.chain().focus().toggleBulletList().run()}
+                      title="无序列表"><List size={13} /></ToolbarBtn>
+          <ToolbarBtn active={editor.isActive('orderedList')}
+                      onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                      title="有序列表"><ListOrdered size={13} /></ToolbarBtn>
+          <ToolbarBtn active={editor.isActive('blockquote')}
+                      onClick={() => editor.chain().focus().toggleBlockquote().run()}
+                      title="引用"><Quote size={13} /></ToolbarBtn>
+          <ToolbarSep />
+          <ToolbarBtn onClick={() => editor.chain().focus().undo().run()}
+                      disabled={!editor.can().undo()}
+                      title="撤销 (Ctrl+Z)"><Undo size={13} /></ToolbarBtn>
+          <ToolbarBtn onClick={() => editor.chain().focus().redo().run()}
+                      disabled={!editor.can().redo()}
+                      title="重做 (Ctrl+Y)"><Redo size={13} /></ToolbarBtn>
+        </div>
+      )}
+
       {/* 错误提示 */}
       {error && (
         <div className="flex-shrink-0 px-4 py-2 bg-red-50 border-b border-red-100 text-xs text-red-700 flex items-center gap-1.5">
@@ -93,32 +180,41 @@ export default function MarkdownEditor({ bundle, initialContent, onClose, onSave
         </div>
       )}
 
-      {/* 编辑 + 预览双栏 */}
-      <div className="flex-1 min-h-0 grid grid-cols-2 divide-x divide-line">
-        {/* 左:textarea */}
-        <div className="flex flex-col min-h-0">
-          <div className="flex-shrink-0 px-3 py-1.5 border-b border-line bg-slate-50/30 text-[11px] text-ink-muted">
-            Markdown 源码
-          </div>
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            spellCheck={false}
-            className="flex-1 min-h-0 w-full resize-none px-4 py-3 font-mono text-xs leading-relaxed text-ink bg-white outline-none border-0 focus:ring-0"
-            placeholder="# 标题…"
-          />
-        </div>
-
-        {/* 右:实时预览 */}
-        <div className="flex flex-col min-h-0">
-          <div className="flex-shrink-0 px-3 py-1.5 border-b border-line bg-slate-50/30 text-[11px] text-ink-muted">
-            实时预览
-          </div>
-          <div className="flex-1 min-h-0 overflow-auto px-6 py-4">
-            <MarkdownView content={content} />
+      {/* 编辑区 — 在白卡内,跟读视图同款灰底环境 */}
+      <div className="flex-1 min-h-0 overflow-auto bg-canvas px-5 py-5">
+        <div className="max-w-[1200px] mx-auto">
+          <div className="bg-white rounded-xl border border-line shadow-sm overflow-hidden">
+            <EditorContent editor={editor} />
           </div>
         </div>
       </div>
     </div>
   )
+}
+
+// ── 工具栏小组件 ────────────────────────────────────────────────────────────────
+
+function ToolbarBtn({ active, disabled, onClick, title, children }: {
+  active?: boolean
+  disabled?: boolean
+  onClick: () => void
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={`p-1.5 rounded transition-colors ${
+        active ? 'bg-orange-100 text-[#D96400]' : 'text-ink-secondary hover:bg-slate-100 hover:text-ink'
+      } disabled:opacity-30 disabled:cursor-not-allowed`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function ToolbarSep() {
+  return <span className="w-px h-4 bg-line mx-1" />
 }

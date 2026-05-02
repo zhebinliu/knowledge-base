@@ -624,3 +624,39 @@
     .auth-card { padding: 28px 22px; border-radius: 14px; }
   }
 }
+
+/* ── Tiptap WYSIWYG 编辑器最小样式 ─ MarkdownEditor 用 ── */
+.kb-editor {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #1F2937;
+  outline: none;
+}
+.kb-editor h1 { font-size: 24px; font-weight: 700; margin: 24px 0 12px; padding-bottom: 8px; border-bottom: 1px solid #E5E7EB; color: #1A1A1A; }
+.kb-editor h2 { font-size: 18px; font-weight: 700; margin: 22px 0 10px; padding-bottom: 6px; border-bottom: 1px solid #F3F4F6; color: #1A1A1A; }
+.kb-editor h3 { font-size: 15px; font-weight: 700; margin: 18px 0 8px; color: #1A1A1A; }
+.kb-editor p { margin: 10px 0; }
+.kb-editor strong { font-weight: 700; color: #1A1A1A; }
+.kb-editor em { font-style: italic; }
+.kb-editor code { background: #F3F4F6; padding: 1px 5px; border-radius: 3px; font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.kb-editor pre { background: #1F2937; color: #F9FAFB; padding: 12px 14px; border-radius: 6px; overflow-x: auto; margin: 12px 0; }
+.kb-editor pre code { background: transparent; color: inherit; padding: 0; }
+.kb-editor ul, .kb-editor ol { margin: 10px 0; padding-left: 26px; }
+.kb-editor ul { list-style: disc; }
+.kb-editor ol { list-style: decimal; }
+.kb-editor li { margin: 4px 0; }
+.kb-editor blockquote { border-left: 3px solid #FF8D1A; padding: 4px 12px; margin: 12px 0; color: #4B5563; background: #FFF7ED; }
+.kb-editor table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 13px; }
+.kb-editor th, .kb-editor td { border: 1px solid #E5E7EB; padding: 8px 12px; text-align: left; vertical-align: top; }
+.kb-editor th { background: #F9FAFB; font-weight: 600; }
+.kb-editor tr:nth-child(even) td { background: #FAFAFA; }
+.kb-editor a { color: #D96400; text-decoration: underline; }
+.kb-editor hr { border: 0; border-top: 1px solid #E5E7EB; margin: 18px 0; }
+/* 占位提示(空文档) */
+.kb-editor p.is-editor-empty:first-child::before {
+  content: '开始编辑…';
+  color: #9CA3AF;
+  pointer-events: none;
+  float: left;
+  height: 0;
+}

@@ -8,15 +8,22 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^6.26.0",
     "@tanstack/react-query": "^5.51.0",
-    "lucide-react": "^0.414.0",
+    "@tiptap/extension-table": "^3.22.5",
+    "@tiptap/extension-table-cell": "^3.22.5",
+    "@tiptap/extension-table-header": "^3.22.5",
+    "@tiptap/extension-table-row": "^3.22.5",
+    "@tiptap/react": "^3.22.5",
+    "@tiptap/starter-kit": "^3.22.5",
     "axios": "^1.7.3",
     "clsx": "^2.1.1",
+    "lucide-react": "^0.414.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-markdown": "^9.0.1",
-    "remark-gfm": "^4.0.0"
+    "react-router-dom": "^6.26.0",
+    "remark-gfm": "^4.0.0",
+    "tiptap-markdown": "^0.9.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
