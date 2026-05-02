@@ -183,12 +183,19 @@ export default function ResearchWorkspace({
             />
           )}
           {view === 'outline' && (
-            <div className="p-5 max-w-[1200px] mx-auto">
-              {outlineBundle ? (
-                <OutlineMarkdownView bundle={outlineBundle} />
-              ) : (
-                <EmptyHint text="尚未生成调研大纲。请到「调研大纲」sub-action 触发生成。" />
-              )}
+            // 灰底 + 白卡 — 与项目洞察 ReportView 同款样式(CenterWorkspace.tsx:394)
+            <div className="bg-canvas min-h-full px-5 py-5">
+              <div className="max-w-[1200px] mx-auto">
+                {outlineBundle ? (
+                  <div className="bg-white rounded-xl border border-line shadow-sm overflow-hidden">
+                    <div className="px-8 py-7 overflow-x-auto">
+                      <OutlineMarkdownView bundle={outlineBundle} />
+                    </div>
+                  </div>
+                ) : (
+                  <EmptyHint text="尚未生成调研大纲。请到「调研大纲」sub-action 触发生成。" />
+                )}
+              </div>
             </div>
           )}
           {view === 'questionnaire' && (
