@@ -5,8 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 
 def _content_disposition(filename: str) -> str:
-    ascii_fallback = filename.encode("ascii", "replace").decode("ascii").replace("?", "_")
-    return f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quote(filename)}"
+    """RFC 5987 filename*=UTF-8'' 单独使用 — 所有 2012 年后的浏览器都支持,
+    去掉 ASCII fallback 避免某些 Chrome 版本错误优先 fallback 把中文替换成 _。
+    quote 用 safe='' 把所有非 unreserved 字符都百分号编码,符合 RFC 5987 attr-char 限制。"""
+    return f"attachment; filename*=UTF-8''{quote(filename, safe='')}"
 
 
 from fastapi.responses import StreamingResponse
