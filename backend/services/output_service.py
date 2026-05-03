@@ -911,21 +911,104 @@ h1{{color:#D96400}} pre{{white-space:pre-wrap;background:#fff;padding:24px;borde
 
 
 
+_INLINE_RE = __import__("re").compile(r"(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)")
+_TABLE_SEP_RE = __import__("re").compile(r"^\s*\|?\s*[:\-]+\s*(\|\s*[:\-]+\s*)+\|?\s*$")
+
+
+def _add_inline_runs(p, text: str):
+    """把一行 markdown 文本拆成 runs,保留 **bold** / *italic* / `code`。"""
+    for piece in _INLINE_RE.split(text):
+        if not piece:
+            continue
+        if piece.startswith("**") and piece.endswith("**") and len(piece) >= 4:
+            r = p.add_run(piece[2:-2]); r.bold = True
+        elif piece.startswith("*") and piece.endswith("*") and len(piece) >= 2:
+            r = p.add_run(piece[1:-1]); r.italic = True
+        elif piece.startswith("`") and piece.endswith("`") and len(piece) >= 2:
+            r = p.add_run(piece[1:-1])
+            r.font.name = "Courier New"
+        else:
+            p.add_run(piece)
+
+
+def _split_table_row(line: str) -> list[str]:
+    """`| a | b | c |` → ['a','b','c'](支持首尾 | 可缺)。"""
+    s = line.strip()
+    if s.startswith("|"): s = s[1:]
+    if s.endswith("|"):   s = s[:-1]
+    return [c.strip() for c in s.split("|")]
+
+
 def _build_docx(title: str, md: str) -> bytes:
+    """Markdown → DOCX。
+    支持:H1/H2/H3 / 列表 / 表格 / 引用 / 分隔线 / 粗体 / 斜体 / 行内代码。
+    不在范围:嵌套列表 / 代码块 / 图片 / 链接(链接以纯文本展示)。
+    """
     from docx import Document as DocxDoc
 
     doc = DocxDoc()
     doc.add_heading(title, level=0)
-    for line in md.splitlines():
-        line = line.rstrip()
+
+    lines = md.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i].rstrip()
+        # 分隔线
+        if line.strip() in ("---", "***", "___"):
+            doc.add_paragraph()  # 空行近似
+            i += 1; continue
+        # 表格:连续两行,第二行是 |---|---|
+        if line.lstrip().startswith("|") and i + 1 < len(lines) and _TABLE_SEP_RE.match(lines[i + 1]):
+            header = _split_table_row(line)
+            j = i + 2
+            rows: list[list[str]] = []
+            while j < len(lines) and lines[j].lstrip().startswith("|"):
+                rows.append(_split_table_row(lines[j]))
+                j += 1
+            tbl = doc.add_table(rows=1 + len(rows), cols=len(header))
+            tbl.style = "Light Grid Accent 1"
+            for ci, h in enumerate(header):
+                cell = tbl.rows[0].cells[ci]
+                cell.paragraphs[0].clear()
+                p = cell.paragraphs[0]
+                _add_inline_runs(p, h)
+                for r in p.runs: r.bold = True
+            for ri, row in enumerate(rows):
+                for ci, val in enumerate(row[:len(header)]):
+                    cell = tbl.rows[1 + ri].cells[ci]
+                    cell.paragraphs[0].clear()
+                    _add_inline_runs(cell.paragraphs[0], val)
+            i = j; continue
+        # 标题
+        if line.startswith("### "):
+            doc.add_heading(line[4:], level=3); i += 1; continue
         if line.startswith("## "):
-            doc.add_heading(line[3:], level=2)
-        elif line.startswith("# "):
-            doc.add_heading(line[2:], level=1)
-        elif line.startswith("- "):
-            doc.add_paragraph(line[2:], style="List Bullet")
-        elif line:
-            doc.add_paragraph(line)
+            doc.add_heading(line[3:], level=2); i += 1; continue
+        if line.startswith("# "):
+            doc.add_heading(line[2:], level=1); i += 1; continue
+        # 引用块(单行连续)
+        if line.startswith(">"):
+            text = line[1:].lstrip()
+            p = doc.add_paragraph(style="Intense Quote")
+            _add_inline_runs(p, text)
+            i += 1; continue
+        # 列表
+        if line.startswith("- ") or line.startswith("* "):
+            p = doc.add_paragraph(style="List Bullet")
+            _add_inline_runs(p, line[2:])
+            i += 1; continue
+        if line.lstrip().startswith(("1. ", "2. ", "3. ", "4. ", "5. ", "6. ", "7. ", "8. ", "9. ")):
+            stripped = line.lstrip()
+            dot = stripped.index(". ")
+            p = doc.add_paragraph(style="List Number")
+            _add_inline_runs(p, stripped[dot + 2:])
+            i += 1; continue
+        # 普通段落(非空)
+        if line.strip():
+            p = doc.add_paragraph()
+            _add_inline_runs(p, line)
+        i += 1
+
     buf = io.BytesIO(); doc.save(buf)
     return buf.getvalue()
 

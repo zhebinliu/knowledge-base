@@ -236,9 +236,35 @@ async def list_challenge_rounds(
     }
 
 
+def _safe_filename(stem: str) -> str:
+    """文件名净化:把 Windows / Mac 都不喜欢的字符换掉,去掉前后空格。
+    保留中文,把 · / \\ : * ? " < > | 换成 -,合并连续空格 / 横线。
+    """
+    import re as _re
+    s = _re.sub(r"[·/\\:*?\"<>|]+", "-", stem)
+    s = _re.sub(r"\s+", " ", s).strip(" -")
+    return s or "download"
+
+
+async def _resolve_download_filename(b: CuratedBundle, session: AsyncSession, ext: str) -> str:
+    """统一的文件名:'{客户/项目名}-{产物中文名}-{YYYYMMDD}.{ext}'。"""
+    from datetime import datetime
+    from models.project import Project
+    proj_name = ""
+    if b.project_id:
+        proj = await session.get(Project, b.project_id)
+        if proj:
+            proj_name = proj.name or ""
+    kind_label = KIND_TITLES.get(b.kind, b.kind)
+    date_str = (b.updated_at or b.created_at or datetime.utcnow()).strftime("%Y%m%d")
+    parts = [p for p in [proj_name, kind_label, date_str] if p]
+    return f"{_safe_filename('-'.join(parts))}.{ext}"
+
+
 @router.get("/{bundle_id}/download")
 async def download_output(
     bundle_id: str,
+    format: str | None = Query(None, regex="^(md|docx)$"),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
@@ -250,7 +276,10 @@ async def download_output(
     if b.status != "done":
         raise HTTPException(400, f"Bundle not ready (status={b.status})")
 
-    if b.file_key:
+    # PPT / HTML 走 MinIO 原文件;docx 也走 MinIO 缓存(若已有)。
+    # 但 insight / outline / survey 即使有 file_key=docx,旧 _build_docx 没渲染表格,
+    # 所以默认强制重新生成,确保新版式生效;用户可显式 ?format=md 拿原始 markdown。
+    if b.file_key and b.file_key.endswith((".pptx", ".html")):
         from config import settings
         from minio import Minio
         mc = Minio(settings.minio_endpoint, access_key=settings.minio_user, secret_key=settings.minio_password, secure=False)
@@ -259,35 +288,37 @@ async def download_output(
             data = response.read()
         except Exception as e:
             raise HTTPException(500, f"Failed to fetch file: {e}")
-
         if b.file_key.endswith(".pptx"):
             media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            filename = f"{b.title}.pptx"
-        elif b.file_key.endswith(".docx"):
-            media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            filename = f"{b.title}.docx"
-        elif b.file_key.endswith(".html"):
-            media_type = "text/html; charset=utf-8"
-            filename = f"{b.title}.html"
+            ext = "pptx"
         else:
-            media_type = "application/octet-stream"
-            filename = b.title
+            media_type = "text/html; charset=utf-8"
+            ext = "html"
+        filename = await _resolve_download_filename(b, session, ext)
+        return StreamingResponse(io.BytesIO(data), media_type=media_type,
+                                 headers={"Content-Disposition": _content_disposition(filename)})
 
-        return StreamingResponse(
-            io.BytesIO(data),
-            media_type=media_type,
-            headers={"Content-Disposition": _content_disposition(filename)},
-        )
+    if not b.content_md:
+        raise HTTPException(400, "No downloadable content available")
 
-    elif b.content_md:
-        # Download as markdown
+    # 报告类(insight / survey / survey_outline):默认 docx,允许 ?format=md
+    if format == "md":
+        filename = await _resolve_download_filename(b, session, "md")
         return StreamingResponse(
             io.BytesIO(b.content_md.encode("utf-8")),
             media_type="text/markdown",
-            headers={"Content-Disposition": _content_disposition(f"{b.title}.md")},
+            headers={"Content-Disposition": _content_disposition(filename)},
         )
-    else:
-        raise HTTPException(400, "No downloadable content available")
+
+    # 默认:按需生成 docx(每次重新渲染,_build_docx 有更新会立即生效)
+    from services.output_service import _build_docx
+    docx_bytes = _build_docx(b.title or "导出", b.content_md)
+    filename = await _resolve_download_filename(b, session, "docx")
+    return StreamingResponse(
+        io.BytesIO(docx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": _content_disposition(filename)},
+    )
 
 
 _DECK_NAV_TEMPLATE = """
