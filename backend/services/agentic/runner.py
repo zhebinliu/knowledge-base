@@ -191,6 +191,81 @@ def _format_user_questionnaires(brief_fields: dict | None) -> str:
     return "\n".join(out).strip()
 
 
+# ── 上游 stage 依赖图 ──────────────────────────────────────────────────────────
+# 后一阶段的产物自动拿到前一阶段的 valid bundle 作为引用素材(P 类源)。
+# 当前阶段 → [上游阶段优先级降序]
+STAGE_PRIORS: dict[str, list[str]] = {
+    "kickoff_pptx":   ["insight"],
+    "kickoff_html":   ["insight"],
+    "survey_outline": ["insight", "kickoff_pptx"],
+    "survey":         ["insight", "kickoff_pptx", "survey_outline"],
+    # 未来扩展(stage 4-7):
+    # "blueprint":     ["insight", "kickoff_pptx", "survey_outline", "survey"],
+    # "field_spec":    ["blueprint"],
+    # "test_plan":     ["blueprint", "field_spec"],
+    # "acceptance":    ["blueprint", "test_plan"],
+}
+
+# stage kind → 中文 label(P 类源 chip / evidence_block 标题用)
+STAGE_KIND_LABEL_ZH: dict[str, str] = {
+    "insight":        "项目洞察",
+    "kickoff_pptx":   "启动会·PPT",
+    "kickoff_html":   "启动会·HTML",
+    "survey_outline": "调研大纲",
+    "survey":         "调研问卷",
+    "blueprint":      "方案蓝图",
+    "field_spec":     "字段清单",
+    "test_plan":      "测试方案",
+    "acceptance":     "验收报告",
+}
+
+
+async def _load_upstream_bundles(project_id: str, kind: str) -> list[dict]:
+    """按 STAGE_PRIORS 读项目下各上游 stage 的最新 done bundle,作为 P 类源素材。
+
+    Returns: list[{prior_kind, bundle_id, content_md, validity_status, stage_label, title}]
+        — 按 STAGE_PRIORS 顺序排,缺失的上游静默跳过(不阻塞当前 stage 生成)。
+        — 仅取 status='done' 的最新一份;extra.validity_status='invalid' 的也跳过。
+        — content_md 为空的(如 pptx 二进制 bundle)跳过。
+    """
+    if not project_id:
+        return []
+    prior_kinds = STAGE_PRIORS.get(kind, [])
+    if not prior_kinds:
+        return []
+
+    out: list[dict] = []
+    async with async_session_maker() as s:
+        for pk in prior_kinds:
+            rows = (await s.execute(
+                select(CuratedBundle)
+                .where(CuratedBundle.project_id == project_id)
+                .where(CuratedBundle.kind == pk)
+                .where(CuratedBundle.status == "done")
+                .order_by(CuratedBundle.created_at.desc())
+                .limit(1)
+            )).scalars().all()
+            if not rows:
+                continue
+            b = rows[0]
+            extra = b.extra or {}
+            validity = extra.get("validity_status")
+            if validity == "invalid":
+                continue
+            content = (b.content_md or "").strip()
+            if not content:
+                continue
+            out.append({
+                "prior_kind":      pk,
+                "bundle_id":       b.id,
+                "content_md":      content,
+                "validity_status": validity or "valid",
+                "stage_label":     STAGE_KIND_LABEL_ZH.get(pk, pk),
+                "title":           b.title or STAGE_KIND_LABEL_ZH.get(pk, pk),
+            })
+    return out
+
+
 async def _load_ctx(bundle_id: str, project_id: str, kind: str) -> dict:
     """读 bundle / project / brief / conversation / agent_config。
 
@@ -284,6 +359,10 @@ async def _load_ctx(bundle_id: str, project_id: str, kind: str) -> dict:
             "markdown": user_q_md,
         })
 
+    # v3.2 新增:加载上游 stage 的最新 valid bundle 作为 P 类源素材
+    # — 让"前一阶段产物自动喂给后一阶段",打破各 stage 独立生成的孤岛
+    prior_bundles = await _load_upstream_bundles(project_id, kind)
+
     return {
         "bundle_id": bundle_id,
         "bundle_extra": extra,
@@ -299,6 +378,8 @@ async def _load_ctx(bundle_id: str, project_id: str, kind: str) -> dict:
         "skill_text": skill_text,
         # v3 新增:按 doc_type 索引的项目文档(markdown 已转好)
         "docs_by_type": docs_by_type,
+        # v3.2 新增:上游 stage 的 valid bundle 列表(P 类源)
+        "prior_bundles": prior_bundles,
     }
 
 
@@ -482,6 +563,7 @@ async def _run_challenge_loop(
                     docs_by_type=ctx.get("docs_by_type"),
                     web_research_refs=m9_web_refs if spec.key == "M9_industry_benchmark" else None,
                     revision_suffix=suffix,
+                    prior_bundles=ctx.get("prior_bundles"),    # v3.2 上游 stage P 类源
                 )
                 return mk, result.get("content", "")
             except Exception as e:
@@ -930,6 +1012,7 @@ async def generate_insight(bundle_id: str, project_id: str):
                 model=ctx["agent_model"],
                 docs_by_type=ctx.get("docs_by_type"),                                # v3
                 web_research_refs=m9_web_refs if spec.key == "M9_industry_benchmark" else None,
+                prior_bundles=ctx.get("prior_bundles"),                              # v3.2 上游 stage P 类源
             )
             # result = {"content": str, "sources_index": dict}
             return spec.key, result.get("content", ""), result.get("sources_index", {})
@@ -1227,6 +1310,7 @@ async def generate_survey(bundle_id: str, project_id: str):
                 ltc_module_key=None,             # 由 LLM 在题目里自主打标(从 LTC 字典 + 客户自定义中选)
                 kb_inject_block="",
                 customer_modules=customer_modules,  # research v1:SOW 中超出字典的客户自定义模块
+                prior_bundles=ctx.get("prior_bundles"),   # v3.2: 上游 stage(insight / kickoff / outline)产物
             )
             return sub_assessment.key, result
 
@@ -1550,6 +1634,7 @@ async def generate_survey_outline(bundle_id: str, project_id: str):
                 skill_text=ctx["skill_text"], agent_prompt=enhanced_agent_prompt,
                 model=ctx["agent_model"],
                 docs_by_type=ctx.get("docs_by_type"),  # 让 executor 把 D 类源(项目文档)编入 sources_index
+                prior_bundles=ctx.get("prior_bundles"),   # v3.2: 上游 stage P 类源(insight / kickoff)
             )
             if isinstance(result, dict):
                 return spec.key, result.get("content", ""), result.get("sources_index", {})

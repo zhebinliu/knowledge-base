@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, FileText, ClipboardList, Lightbulb, MessageSquare, Sparkles,
@@ -92,12 +92,33 @@ type StageStatus = 'locked' | 'idle' | 'inflight' | 'done'
 export default function ConsoleProjectDetail() {
   const nav = useNavigate()
   const { id } = useParams<{ id: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
   const qc = useQueryClient()
 
   const [chatMode, setChatMode] = useState<ChatMode>({ type: 'pm' })
   const [editing, setEditing] = useState(false)
   const [previewDocId, setPreviewDocId] = useState<string | null>(null)
-  const [activeStageKey, setActiveStageKey] = useState<string>('insight')
+  // v3.2: stage 可以从 URL ?stage=insight 初始化(给 P 类引用 chip 跳转上游 stage 用)
+  const [activeStageKey, setActiveStageKey] = useState<string>(() => searchParams.get('stage') || 'insight')
+
+  // v3.2: URL ?stage= 变化时同步 activeStageKey(从其他页面 navigate 过来)
+  useEffect(() => {
+    const urlStage = searchParams.get('stage')
+    if (urlStage && urlStage !== activeStageKey) {
+      setActiveStageKey(urlStage)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
+  // v3.2: activeStageKey 切换时回写 URL(便于分享 / 后退)
+  useEffect(() => {
+    if (searchParams.get('stage') !== activeStageKey) {
+      const next = new URLSearchParams(searchParams)
+      next.set('stage', activeStageKey)
+      setSearchParams(next, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeStageKey])
   const [docsOpen, setDocsOpen] = useState(false)
   const [briefDrawer, setBriefDrawer] = useState<{ kind: OutputKind; label: string } | null>(null)
   // 当 active stage 有 subKinds 时,记当前选中的 sub-action(默认第一个)

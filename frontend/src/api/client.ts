@@ -953,7 +953,7 @@ export const listCallLogs = (page = 1, page_size = 50, call_type?: string) =>
 
 // v3:报告引用追溯 — 每个 module 的 sources_index 项
 export interface ProvenanceEntry {
-  type: 'doc' | 'kb' | 'web'
+  type: 'doc' | 'kb' | 'web' | 'prior'
   label: string
   snippet: string
   // doc/kb 字段
@@ -965,6 +965,10 @@ export interface ProvenanceEntry {
   // web 字段
   url?: string
   domain?: string
+  // prior 字段(v3.2 上游 stage 产物)
+  prior_kind?: string                // insight / kickoff_pptx / survey_outline / ...
+  prior_bundle_id?: string
+  stage_label?: string               // 中文 stage 标签(如 "项目洞察")
 }
 
 // v2 agentic 用 — 一道"补充信息"问题(Planner 标记的 ask_user gap)

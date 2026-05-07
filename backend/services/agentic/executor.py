@@ -94,6 +94,8 @@ def _build_sources_index(
     max_chars_per_doc: int = 30000,   # 项目洞察阶段:文档喂全文(不走切片召回);
                                        # 30000 字 ≈ 10-12k tokens / 文档,够覆盖 SOW / 方案 / 合同等长文。
                                        # 后续若改走 RAG 切片召回再降回小值。
+    prior_bundles: list[dict] | None = None,   # v3.2: 上游 stage 的 valid bundle 列表(P 类源)
+    max_chars_per_prior: int = 8000,            # 单份上游 bundle 注入字数上限
 ) -> tuple[dict, str]:
     """构建该模块的 sources_index(后端给每个 source 编号)+ 渲染的 evidence_block 文本。
 
@@ -116,6 +118,7 @@ def _build_sources_index(
     next_d = 1
     next_k = 1
     next_w = 1
+    next_p = 1
     seen_chunks: set = set()
 
     # 1. 项目上传文档
@@ -197,12 +200,40 @@ def _build_sources_index(
             }
             blocks.append(f"\n**[{src_id}] {title}** ({domain})\n{snippet}")
 
+    # 4. v3.2: 上游 stage 产物(P 类源)
+    # 当前 stage 的"前一阶段"已生成的 valid bundle 自动注入,作为强参考素材。
+    # 不同于 D 类(客户原始资料):P 类是 AI + critic 已认可的"半成品",
+    # 当前 stage 的结论应当呼应 P 类源的核心结论(若偏离需明确说明)。
+    if prior_bundles:
+        blocks.append("\n### 上游产物(已通过质量评审的前序阶段成果,引用用 [P1] [P2] 这种 ID;**当前章节结论应当与之呼应**):")
+        for pb in prior_bundles:
+            content = (pb.get("content_md") or "").strip()
+            if not content:
+                continue
+            src_id = f"P{next_p}"
+            next_p += 1
+            stage_label = pb.get("stage_label") or pb.get("prior_kind") or "上游产物"
+            title = pb.get("title") or stage_label
+            excerpt = content[:max_chars_per_prior]
+            if len(content) > max_chars_per_prior:
+                excerpt += f"\n…(余下 {len(content) - max_chars_per_prior} 字省略)"
+            sources_index[src_id] = {
+                "type":            "prior",
+                "label":           f"上游产物 · {stage_label}",
+                "prior_kind":      pb.get("prior_kind"),
+                "prior_bundle_id": pb.get("bundle_id"),
+                "stage_label":     stage_label,
+                "snippet":         (content[:300]),
+            }
+            blocks.append(f"\n**[{src_id}] 上游产物 · {stage_label}({title})**\n{excerpt}")
+
     return sources_index, "\n".join(blocks)
 
 
-# 后处理:把 LLM 输出的 [D1] [K1] [W1] 转成 markdown link `[D1](#cite-<module_key>-D1)`
+# 后处理:把 LLM 输出的 [D1] [K1] [W1] [P1] 转成 markdown link `[D1](#cite-<module_key>-D1)`
 # 前端 CitedReportView 自定义 a renderer 检测 #cite- 前缀,渲染为可点击角标 + 跳引用栏
-_INLINE_CITATION_RE = re.compile(r'\[([DKW]\d{1,3})\](?!\()')   # [D1] 但不是 [D1](url)
+# v3.2: 新增 P 类(上游 stage 产物)支持
+_INLINE_CITATION_RE = re.compile(r'\[([DKWP]\d{1,3})\](?!\()')   # [D1] [P1] 但不是 [D1](url)
 
 
 _PREAMBLE_PATTERNS = [
@@ -333,6 +364,7 @@ async def execute_insight_module(
     docs_by_type: dict | None = None,
     web_research_refs: list[dict] | None = None,    # v3 改:从 block 改成结构化 list
     revision_suffix: str = "",                       # v3.1 挑战循环:上轮挑战意见,追加到 user prompt 末
+    prior_bundles: list[dict] | None = None,         # v3.2: 上游 stage 的 valid bundle(P 类源)
 ) -> dict:
     """生成单个 insight 模块的内容 + provenance。
 
@@ -350,6 +382,7 @@ async def execute_insight_module(
         extra_kb_refs=extra_kb_refs,
         web_research_refs=web_research_refs if module.key == "M9_industry_benchmark" else None,
         module_key=module.key,
+        prior_bundles=prior_bundles,
     )
 
     # 行业包(只在该模块的 industry_filter 命中或 M9 开放)
@@ -390,12 +423,18 @@ async def execute_insight_module(
 - 缺信息时写"信息缺失,建议在 Phase 1 第一周补访";**绝不**编造数据或来源
 
 【信息源引用 — 强制执行】
-- evidence_block 里每个 source 都已经标了 ID:[D1][D2]... 是上传文档,
-  [K1][K2]... 是知识库证据,[W1][W2]... 是 Web 检索结果
+- evidence_block 里每个 source 都已经标了 ID:
+    [D1][D2]... 是项目上传文档(权威源)
+    [K1][K2]... 是知识库证据
+    [W1][W2]... 是 Web 检索结果
+    [P1][P2]... 是上游 stage 已通过质量评审的产物(项目洞察 / 启动会 / 调研大纲 等)
 - 本节可用的 ID:{ids_summary}
 - 你在正文里**每个事实陈述末尾**必须用 ID 引用,格式:
     "陕西分公司 12/15 出现 2 次商机审批超时 [D2][K3]"
     "行业典型周期 6-9 个月 [W1]"
+    "对应项目洞察识别的 Top 风险 R1,本章节进一步展开 [P1]"
+- **P 类源的特殊重要性**:P 类是上一阶段已认可的核心结论,本章节结论**必须呼应**,
+  若有偏离需明确写"基于 [P1] 的 X 结论,本阶段调研后调整为 Y,理由:Z";不允许沉默地与 P 类源冲突。
 - **不要**自己编新的 ID(如 [^1] [^2] 这种数字 footnote);只能用上面列出的 ID。
 - **不要**用"[访谈]"/"[KB]"/"[Brief]"这种泛化标签 — 必须用具体 ID。
 - 系统会自动把 [D1] 转成可点击的 footnote,前端能 hover 看原文。
@@ -457,6 +496,7 @@ async def execute_survey_subsection(
     ltc_module_key: str | None = None,   # research v1 — 用于 item_key 命名
     kb_inject_block: str = "",            # research v1 — KB 二次过滤后的高分参考(由调用方预先准备好)
     customer_modules: list[str] | None = None,  # research v1 — SOW 中超出 LTC 字典的客户自定义模块
+    prior_bundles: list[dict] | None = None,    # v3.2: 上游 stage 的 valid bundle(P 类源)
 ) -> dict:
     """生成单个 survey 分卷。
 
@@ -500,6 +540,17 @@ async def execute_survey_subsection(
 
     project_block = _format_project_block(project)
     industry_block = _format_industry_pack_block(industry) if subsection.industry_filter else ""
+
+    # v3.2: 上游 stage 产物作为问卷设计的呼应基准
+    # — 不参与 sources_index 编号(问卷题目本身不裸引 [P1])
+    # — 作为 prior_context_block 让 LLM 出题时围绕已识别的 Top 风险 / 关键决策 / 干系人 设计具体问题
+    prior_context_block = ""
+    if prior_bundles:
+        parts = ["【上游 stage 已生成的核心结论 — 本分卷出题时应当呼应这些关键点】"]
+        for pb in prior_bundles:
+            excerpt = (pb.get("content_md") or "")[:3000]
+            parts.append(f"\n--- {pb.get('stage_label', '上游')} · {pb.get('title', '')} ---\n{excerpt}")
+        prior_context_block = "\n".join(parts)
 
     target_roles_label = " / ".join(subsection.target_roles)
     qmin, qmax = subsection.question_count_target
@@ -550,7 +601,7 @@ async def execute_survey_subsection(
 【访谈记录(用于个性化题目)】
 {transcript or '（无访谈记录,按通用情形出题)'}
 
-{kb_inject_block + chr(10) + chr(10) if kb_inject_block else ''}{industry_block + chr(10) + chr(10) if industry_block else ''}{f"【方法论】{chr(10)}{agent_prompt}{chr(10)}{chr(10)}" if agent_prompt else ''}{f"【启用技能】{chr(10)}{skill_text}" if skill_text else ''}
+{prior_context_block + chr(10) + chr(10) if prior_context_block else ''}{kb_inject_block + chr(10) + chr(10) if kb_inject_block else ''}{industry_block + chr(10) + chr(10) if industry_block else ''}{f"【方法论】{chr(10)}{agent_prompt}{chr(10)}{chr(10)}" if agent_prompt else ''}{f"【启用技能】{chr(10)}{skill_text}" if skill_text else ''}
 
 【输出格式 — 严格两段式,顺序必须先 Markdown 后 JSON】
 

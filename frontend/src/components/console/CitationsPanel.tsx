@@ -6,12 +6,14 @@
  *  - doc:打开中栏 docId 预览
  *  - kb:暂时只展示信息(后期可深链到 KB)
  *  - web:新窗口打开 URL
+ *  - prior(v3.2 上游 stage 产物):跳转回上游 stage 详情
  *
  * 父组件传入 highlightedRefId(用户点报告角标时同步定位)。
  */
 import { useEffect, useRef } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
-  FileText, Globe, Database, ExternalLink, X,
+  FileText, Globe, Database, ExternalLink, X, GitBranch,
 } from 'lucide-react'
 import { type CuratedBundle, type ProvenanceEntry } from '../../api/client'
 
@@ -26,6 +28,7 @@ const TYPE_ICON = {
   doc: FileText,
   kb: Database,
   web: Globe,
+  prior: GitBranch,
 }
 
 export default function CitationsPanel({ bundle, highlightedRefId, onPreviewDoc, onClose }: Props) {
@@ -105,18 +108,26 @@ function CitationItem({
   highlighted: boolean
   onPreviewDoc: (docId: string) => void
 }) {
+  const navigate = useNavigate()
+  const { id: projectId } = useParams<{ id: string }>()
   const Icon = TYPE_ICON[entry.type] || Database
-  const typeColor = entry.type === 'doc' ? 'text-[#D96400]' :
-                    entry.type === 'kb'  ? 'text-blue-600' :
-                                            'text-purple-600'
+  const typeColor = entry.type === 'doc'   ? 'text-[#D96400]'  :
+                    entry.type === 'kb'    ? 'text-blue-600'   :
+                    entry.type === 'prior' ? 'text-emerald-600' :
+                                              'text-purple-600'
   const onClick = () => {
     if (entry.type === 'doc' && entry.doc_id) {
       onPreviewDoc(entry.doc_id)
     } else if (entry.type === 'web' && entry.url) {
       window.open(entry.url, '_blank', 'noopener,noreferrer')
+    } else if (entry.type === 'prior' && entry.prior_kind && projectId) {
+      // v3.2: 跳转回上游 stage 详情(同一项目,切换 stage)
+      navigate(`/console/projects/${projectId}?stage=${encodeURIComponent(entry.prior_kind)}`)
     }
   }
-  const clickable = (entry.type === 'doc' && entry.doc_id) || (entry.type === 'web' && entry.url)
+  const clickable = (entry.type === 'doc'   && !!entry.doc_id)
+                 || (entry.type === 'web'   && !!entry.url)
+                 || (entry.type === 'prior' && !!entry.prior_kind && !!projectId)
 
   return (
     <div
@@ -143,6 +154,11 @@ function CitationItem({
           {entry.type === 'web' && entry.url && (
             <div className="text-[10px] text-purple-600 mt-1 flex items-center gap-0.5">
               <ExternalLink size={9} /> {entry.domain}
+            </div>
+          )}
+          {entry.type === 'prior' && entry.stage_label && (
+            <div className="text-[10px] text-emerald-700 mt-1 flex items-center gap-0.5">
+              <GitBranch size={9} /> 跳转 · {entry.stage_label}
             </div>
           )}
         </div>
