@@ -12,11 +12,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Tag, Save, BookOpen, ChevronDown, ChevronRight,
-  Pencil, Trash2, Plus, X,
+  Pencil, Trash2, Plus, X, Sparkles, Loader2, CornerDownRight,
 } from 'lucide-react'
 import {
   listResearchResponses, upsertResearchResponse, classifyResearchScope,
-  upsertQuestionnaireItem, deleteQuestionnaireItem,
+  upsertQuestionnaireItem, deleteQuestionnaireItem, generateFollowUp,
   type CuratedBundle, type ResearchQuestionItem, type ResearchOptionItem,
   type ResearchResponseItem, type ResearchScopeLabel,
   type ResearchBestPracticeRef,
@@ -96,6 +96,16 @@ export default function ResearchQuestionnaire({
     if (selectedPhase === 'all') return axisItems
     return axisItems.filter(it => (it.phase || 'in_meeting') === selectedPhase)
   }, [axisItems, selectedPhase])
+
+  // 每个 item_key 已挂的追问计数(全局,不受当前筛选影响)
+  const followUpCount = useMemo(() => {
+    const m: Record<string, number> = {}
+    for (const it of allItems) {
+      const p = it.parent_item_key
+      if (p) m[p] = (m[p] || 0) + 1
+    }
+    return m
+  }, [allItems])
 
   const qc = useQueryClient()
   const { data: responses } = useQuery({
@@ -224,8 +234,10 @@ export default function ResearchQuestionnaire({
                 index={idx + 1}
                 response={responseByKey[it.item_key]}
                 bundle={bundle}
+                followUpCount={followUpCount[it.item_key] || 0}
                 onEdit={() => setEditing(it.item_key)}
                 onDeleted={() => refreshAll()}
+                onFollowUpGenerated={() => refreshAll()}
               />
             )
           ))}
@@ -260,14 +272,16 @@ export default function ResearchQuestionnaire({
 // ── 单题渲染 ─────────────────────────────────────────────────────────────────
 
 function QuestionRow({
-  item, index, response, bundle, onEdit, onDeleted,
+  item, index, response, bundle, followUpCount, onEdit, onDeleted, onFollowUpGenerated,
 }: {
   item: ResearchQuestionItem
   index: number
   response: ResearchResponseItem | undefined
   bundle: CuratedBundle
+  followUpCount?: number
   onEdit?: () => void
   onDeleted?: () => void
+  onFollowUpGenerated?: () => void
 }) {
   const qc = useQueryClient()
   const upsert = useMutation({
@@ -280,12 +294,29 @@ function QuestionRow({
     onSuccess: () => onDeleted?.(),
   })
 
+  const followUpMut = useMutation({
+    mutationFn: () => generateFollowUp({
+      bundle_id: bundle.id,
+      parent_item_key: item.item_key,
+      answer_value: response?.answer_value,
+    }),
+    onSuccess: (data) => {
+      if (data.items.length > 0) {
+        onFollowUpGenerated?.()
+      }
+    },
+  })
+
   const handleDelete = () => {
     const tail = item.source === 'ai' ? '\n(AI 自动生成,删除后下次重新生成可能再次出现。)' : ''
     if (window.confirm(`确认删除该题?\n「${item.question}」${tail}`)) {
       delMut.mutate()
     }
   }
+
+  const isFollowUp = !!item.parent_item_key
+  const isAnswered = response?.answer_value != null && response.answer_value !== ''
+  const canFollowUp = !isFollowUp && isAnswered && (followUpCount || 0) === 0
 
   const save = (answer_value: any, scope_label?: ResearchScopeLabel | null) => {
     upsert.mutate({
@@ -298,12 +329,27 @@ function QuestionRow({
   }
 
   return (
-    <div className="rounded-lg border border-line bg-white p-3.5 space-y-2.5">
+    <div
+      className={`rounded-lg border p-3.5 space-y-2.5 ${
+        isFollowUp
+          ? 'ml-6 border-emerald-200 bg-emerald-50/40 border-l-4 border-l-emerald-400'
+          : 'border-line bg-white'
+      }`}
+    >
       {/* 题干 */}
       <div className="flex items-start gap-2">
-        <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-[10px] bg-slate-100 text-ink-muted">
-          {index}
-        </span>
+        {isFollowUp ? (
+          <span
+            className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-emerald-700 bg-emerald-100"
+            title="动态追问 — 由 LLM 根据父题答案生成"
+          >
+            <CornerDownRight size={11} />
+          </span>
+        ) : (
+          <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-[10px] bg-slate-100 text-ink-muted">
+            {index}
+          </span>
+        )}
         <div className="flex-1 min-w-0">
           <div className="text-sm text-ink leading-relaxed">
             {item.question}
@@ -384,8 +430,8 @@ function QuestionRow({
         )}
       </div>
 
-      {/* 底部:scope badge */}
-      <div className="pl-7 pt-1 border-t border-slate-100 flex items-center gap-2">
+      {/* 底部:scope badge + 追问触发 */}
+      <div className="pl-7 pt-1 border-t border-slate-100 flex items-center gap-2 flex-wrap">
         <ScopeBadgeEditor
           value={response?.scope_label ?? null}
           source={response?.scope_label_source ?? null}
@@ -397,6 +443,38 @@ function QuestionRow({
         )}
         {upsert.isSuccess && !upsert.isPending && (
           <span className="text-[10px] text-emerald-600">已保存</span>
+        )}
+
+        <div className="flex-1" />
+
+        {/* 已挂的追问数 */}
+        {(followUpCount || 0) > 0 && (
+          <span className="text-[10px] text-emerald-700 inline-flex items-center gap-0.5">
+            <CornerDownRight size={10} /> {followUpCount} 道追问
+          </span>
+        )}
+
+        {/* 动态追问按钮:仅父题 + 已答 + 尚无追问时展示 */}
+        {canFollowUp && (
+          <button
+            onClick={() => followUpMut.mutate()}
+            disabled={followUpMut.isPending}
+            className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-emerald-300 text-emerald-700 bg-emerald-50/60 hover:bg-emerald-100 disabled:opacity-50"
+            title="基于客户回答,LLM 自动挖深 1-3 道追问题"
+          >
+            {followUpMut.isPending
+              ? <Loader2 size={10} className="animate-spin" />
+              : <Sparkles size={10} />}
+            {followUpMut.isPending ? '生成中…' : '生成追问'}
+          </button>
+        )}
+        {followUpMut.isSuccess && followUpMut.data?.items.length === 0 && (
+          <span className="text-[10px] text-ink-muted" title={followUpMut.data?.skipped_reason || ''}>
+            无需追问
+          </span>
+        )}
+        {followUpMut.isError && (
+          <span className="text-[10px] text-red-600">追问生成失败</span>
         )}
       </div>
     </div>

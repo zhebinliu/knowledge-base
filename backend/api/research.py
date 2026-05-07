@@ -266,6 +266,29 @@ async def upsert_questionnaire_item(body: QuestionnaireItemBody):
     return {"ok": True, "action": action, "item": new_item, "total": len(items)}
 
 
+class FollowUpBody(BaseModel):
+    bundle_id: str
+    parent_item_key: str
+    answer_value: Any = None
+    max_followups: int = Field(default=3, ge=1, le=5)
+
+
+@router.post("/follow-up", dependencies=[Depends(get_current_user)])
+async def generate_follow_up(body: FollowUpBody):
+    """根据父题答案动态生成追问(需求 6)。
+    LLM 阅读父题 + 回答,生成 0-3 道挂在 parent_item_key 下的子题,
+    parent_item_key 链路 + source='follow_up' 双重标记,前端可识别后做缩进展示。
+    """
+    from services.agentic.research.follow_up import generate_follow_ups
+    result = await generate_follow_ups(
+        bundle_id=body.bundle_id,
+        parent_item_key=body.parent_item_key,
+        answer_value=body.answer_value,
+        max_followups=body.max_followups,
+    )
+    return result
+
+
 @router.delete("/questionnaire-items", dependencies=[Depends(get_current_user)])
 async def delete_questionnaire_item(bundle_id: str, item_key: str):
     """删除一道题(以及它的所有动态追问子题)。

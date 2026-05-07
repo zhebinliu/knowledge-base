@@ -1312,3 +1312,19 @@ export const deleteQuestionnaireItem = (bundle_id: string, item_key: string) =>
   api.delete<{ ok: boolean; removed_keys: string[]; total: number }>(
     '/research/questionnaire-items', { params: { bundle_id, item_key } }
   ).then(r => r.data)
+
+// ── 动态追问(需求 6) ────────────────────────────────────────────────────────
+
+export interface FollowUpResult {
+  items: ResearchQuestionItem[]            // 新生成的子题
+  total: number
+  error?: string
+  skipped_reason?: string
+}
+
+export const generateFollowUp = (body: {
+  bundle_id: string
+  parent_item_key: string
+  answer_value: any
+  max_followups?: number
+}) => api.post<FollowUpResult>('/research/follow-up', body).then(r => r.data)
