@@ -1202,10 +1202,21 @@ export interface ResearchOptionItem {
   is_not_applicable?: boolean
 }
 
+export type ResearchAudienceRole = 'executive' | 'dept_head' | 'frontline' | 'it'
+export type ResearchQuestionPhase = 'pre_meeting' | 'in_meeting'
+export type ResearchQuestionSource = 'ai' | 'manual' | 'follow_up'
+
+export interface ResearchBestPracticeRef {
+  title: string
+  summary?: string
+  source?: string         // industry_pack / kb / ltc_dictionary / manual
+  source_id?: string
+}
+
 export interface ResearchQuestionItem {
   item_key: string
   ltc_module_key: string
-  audience_roles: string[]
+  audience_roles: string[]    // 严格情况下应为 ResearchAudienceRole[],老数据可能含其他值
   type: 'single' | 'multi' | 'rating' | 'number' | 'text' | 'node_pick'
   question: string
   why?: string
@@ -1218,6 +1229,10 @@ export interface ResearchQuestionItem {
   scope_label_source?: 'ai' | 'manual' | null
   sow_evidence?: string
   kb_refs?: any[]
+  phase?: ResearchQuestionPhase            // 默认 in_meeting
+  best_practice_refs?: ResearchBestPracticeRef[]
+  parent_item_key?: string | null          // 动态追问挂在哪个父问题下
+  source?: ResearchQuestionSource          // 默认 ai
 }
 
 export interface ResearchResponseItem {

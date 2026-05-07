@@ -1,6 +1,108 @@
 # 任务跟踪
 
-## 新迭代:项目洞察 v3 — 文档驱动重构(2026-04-29)
+## 新迭代:需求调研 v2 — 多维分卷 + 可编辑 + 动态追问(2026-05-07)
+
+### 背景
+当前 survey_v2 已能基于 LTC 字典 + SOW 映射生成结构化问卷,但实际顾问执行时存在 6 个痛点:
+1. 调研大纲重生成时不跳页,旧大纲覆盖前不可见
+2. 问卷只按 LTC 模块分组,执行调研时不便(顾问按"今天见谁"的角色维度更顺手)
+3. 没区分"会前发给客户"(自填型) vs "会议中 PM 用"(深挖型)两种使用场景
+4. 问卷不可编辑(顾问不能补漏 / 不能删冗余 / 不能改表达)
+5. 题目缺最佳实践参考(顾问问"贵司是否有线索管理"时无法当场展示行业最佳实践)
+6. 答题过程是静态的(答完一组题没有动态追问,顾问得自己想下一题)
+
+### 6 大需求映射
+| # | 需求 | 难度 | 依赖 | 优先级 |
+|---|------|------|------|--------|
+| 1 | 调研大纲重生成时跳回"准备"页 + 显示文档生成中 | 易 | 无 | P0 |
+| 2 | 问卷按调研角色(高管/部门负责人/一线/IT)分组(替代 LTC 模块为默认视图) | 中 | A.1 audience_roles 字段强约束 | P1 |
+| 3 | 区分"会前问卷"(客户自填) vs "会中问卷"(PM 深挖) | 中 | A.1 phase 字段 | P1 |
+| 4 | 问卷可编辑/增/删 | 中 | C.1 CRUD API + 持久化 | P2 |
+| 5 | 题目附最佳实践参考(展开看行业 case + KB 召回) | 易 | A.1 best_practice_refs 字段 | P1 |
+| 6 | 实时基于答案动态追问 | 大 | C.1(题目 CRUD)+ D.1(LLM 端点)| P2 |
+
+### Phase A: questionnaire_schema 升级(地基)
+- [ ] **A.1** `services/agentic/research/questionnaire_schema.py` QuestionItem 加字段:
+  - `phase: 'pre_meeting' | 'in_meeting'`(默认 in_meeting,客户能自答的标 pre_meeting)
+  - `audience_roles: list[str]`(已有,但要在 LLM prompt 强约束必填)
+  - `best_practice_refs: list[dict]`(每条 {industry_pack_case_name, snippet, source} 或 KB 引用)
+  - `parent_item_key: str | None`(动态追问的父题 key,根题为 None)
+  - `source: 'ai_generated' | 'human_added' | 'human_edited' | 'follow_up_generated'`
+- [ ] **A.2** `executor.execute_survey_subsection` 的 system prompt 强约束输出 phase / audience_roles / best_practice_refs
+- [ ] **A.3** `_post_process_items` 兜底:phase 缺失默认 in_meeting;audience_roles 缺失从 subsection.target_roles 兜底;best_practice_refs 缺失置 []
+
+### Phase B: 前端工作区改造(B1+B5 先做,B2+B3 一起做)
+
+#### B.1 — 需求 1:重生成跳准备页 + 文档生成中(P0)
+- [ ] B.1.1 `ResearchV1Workspace.tsx` 监听 outline / survey 的 inflight 状态
+- [ ] B.1.2 触发"重新生成"按钮 → 立即 setView('preparation')
+- [ ] B.1.3 preparation 视图下增加 GenerationProgressCard 显示当前生成中的产物(已有组件,接进来即可)
+
+#### B.5 — 需求 5:最佳实践参考折叠区(P1)
+- [ ] B.5.1 `ResearchQuestionnaire.tsx` 题目下方加"参考最佳实践"折叠按钮(default 收起)
+- [ ] B.5.2 展开显示 best_practice_refs 列表(每条:行业 case 名 + 简短摘要 + 出处 chip)
+- [ ] B.5.3 类型定义 `frontend/src/api/client.ts` QuestionItem 加 best_practice_refs 字段
+
+#### B.2 + B.3 — 需求 2 + 3:角色分组 + 会前/会中分卷(P1)
+- [ ] B.2.1 `ResearchV1Workspace.tsx` 左栏新增"按角色"视图模式,默认选中
+  - 角色清单从 outline 已识别的"分卷角色"取(高管 / 部门负责人 / 一线业务 / IT 四卷,4 卷模板已在 task.md 旧迭代里固定)
+  - 兜底:若 outline 未生成,从 outline_modules.must_visit_departments 取
+  - 保留"按 LTC 模块"视图作为切换备选(顶部 toggle)
+- [ ] B.2.2 题目按 audience_roles 分组(一条题可能在多角色下,允许重复出现 / 或在一个角色下展示并标注"也见于 X 角色")
+- [ ] B.3.1 每个角色视图内分两 tab:**会前问卷** / **会中问卷**(按 phase 字段过滤)
+- [ ] B.3.2 提供"导出会前问卷.docx" / "导出会中问卷.docx" 两个独立导出按钮
+- [ ] B.3.3 会前问卷的题目类型偏 single/multi/number(客户能快速勾选);会中问卷允许 text/node_pick(深度访谈)
+
+### Phase C: 需求 4 — 问卷 CRUD(P2)
+- [ ] **C.1** 后端 API:
+  - `POST /api/research/questionnaire-items` 增题(写入 bundle.extra.questionnaire_items)
+  - `PUT /api/research/questionnaire-items/{item_key}` 改题
+  - `DELETE /api/research/questionnaire-items/{item_key}` 删题
+  - 改 / 删触发 source 字段 → 'human_edited'
+- [ ] **C.2** 前端 `ResearchQuestionnaire.tsx`:
+  - 每题悬浮显示 编辑 / 删除 icon
+  - 编辑:inline edit 题干 + 选项池(选项可加可删可改 label)
+  - 删除:confirm 后调 DELETE
+  - 角色页签底部加"添加题目"按钮 → 弹层(类型 / 题干 / 选项 / why / phase / 受众角色多选)
+
+### Phase D: 需求 6 — 动态追问(P2)
+- [ ] **D.1** 后端 `services/agentic/research/follow_up.py`:
+  - 函数签名:`generate_follow_ups(parent_item, parent_answer, context: dict) → list[QuestionItem]`
+  - LLM prompt:基于父题 + 答案 + 该角色已答记录 + 行业包,生成 1-3 条追问
+  - 输出题的 `parent_item_key` 自动指向父题
+  - source = 'follow_up_generated'
+- [ ] **D.2** API:`POST /api/research/follow_up`
+  - body: `{bundle_id, parent_item_key, parent_answer}`
+  - 返回新追问列表(直接写入 bundle.extra.questionnaire_items)
+- [ ] **D.3** 前端:
+  - 答完一题,显示"建议追问 (N)"按钮(异步加载状态)
+  - 点击后插入到当前角色列表,父题下方,缩进显示
+  - 顾问可拒绝(调 DELETE 删掉追问)
+  - 限制:同一根题最多 5 条追问(前端 hard cap,避免无限套娃)
+
+### 部署节奏(每个 Block 完成 commit + push,等 GHA 部署)
+1. **Block 1:Phase A + B.1 + B.5**(地基 schema + 需求 1 + 5)
+2. **Block 2:B.2 + B.3**(需求 2 + 3 — 视图重构)
+3. **Block 3:Phase C**(需求 4 — CRUD)
+4. **Block 4:Phase D**(需求 6 — 动态追问)
+
+### 边界
+- 不动 outline 生成逻辑(outline 大纲本身已经按 LTC 流程组织,不需要改)
+- 不动 LTC 字典 / SOW mapper / KB filter / scope_classifier(已有的 5 个 research/ 资源)
+- 不动 critic / challenger 4 维度评分(survey 的 type_diversity 等)
+- 不动其他 stage(insight / kickoff / blueprint 占位)
+- 复用现有 CuratedBundle.extra.questionnaire_items 持久化路径,不另起 schema
+- 同一题可在多角色下出现(audience_roles 是 list);前端可在多视图都展示,以"题目编辑后所有视图同步"为契约
+- best_practice_refs 来源优先级:industry_pack.cases > industry_pack.pain_points > KB 切片召回(本期不接 Web)
+
+### 待确认问题(实施过程中可能浮现,逐项推进时再问)
+1. 角色分卷的具体清单是否固定 4 卷(高管 / 部门负责人 / 一线业务 / IT)?还是动态?
+2. 编辑题目时改的是 bundle.extra 还是另起一张 research_item 表?
+3. 动态追问追问的 LLM 模型是否独立选?是否计入 brief 的 token 预算?
+
+---
+
+## 旧迭代:项目洞察 v3 — 文档驱动重构(2026-04-29)
 
 ### 背景
 现状 v2 用「访谈 + 表单 brief」做输入,但实际项目实施场景下,顾问手里的核心资料是

@@ -60,6 +60,17 @@ export default function ResearchWorkspace({
     }
   }, [activeKind, outlineBundle?.id, surveyBundle?.id])
 
+  // 重新生成进行中 → 强制跳回准备页,展示 GenerationProgressCard
+  // 仅在 inflight 从无到有的瞬间触发(id 变化即识别为新任务)
+  const outlineInflightId = outlineInflight?.id
+  const surveyInflightId = surveyInflight?.id
+  useEffect(() => {
+    if (outlineInflightId || surveyInflightId) {
+      setView('preparation')
+      setOutlineEditing(false)
+    }
+  }, [outlineInflightId, surveyInflightId])
+
   // LTC 字典
   const { data: ltcDict } = useQuery({
     queryKey: ['research-ltc-dict'],
@@ -159,11 +170,19 @@ export default function ResearchWorkspace({
           <ViewTab active={view === 'preparation'} onClick={() => setView('preparation')}
                    icon={<Sparkles size={11} />} label="准备" />
           <ViewTab active={view === 'outline'} onClick={() => setView('outline')}
-                   icon={<ClipboardList size={11} />} label="调研大纲"
-                   muted={!outlineBundle} />
+                   icon={outlineInflight
+                          ? <Loader2 size={11} className="animate-spin" />
+                          : <ClipboardList size={11} />}
+                   label={outlineInflight ? '调研大纲(生成中…)' : '调研大纲'}
+                   muted={!outlineBundle || !!outlineInflight}
+                   disabled={!!outlineInflight} />
           <ViewTab active={view === 'questionnaire'} onClick={() => setView('questionnaire')}
-                   icon={<Workflow size={11} />} label="调研问卷(录入)"
-                   muted={!surveyBundle} />
+                   icon={surveyInflight
+                          ? <Loader2 size={11} className="animate-spin" />
+                          : <Workflow size={11} />}
+                   label={surveyInflight ? '调研问卷(生成中…)' : '调研问卷(录入)'}
+                   muted={!surveyBundle || !!surveyInflight}
+                   disabled={!!surveyInflight} />
           <div className="flex-1" />
           {selectedLtcKey && view === 'questionnaire' && (
             <span className="text-[11px] text-ink-muted">
@@ -300,24 +319,27 @@ function LtcModuleRow({
 }
 
 function ViewTab({
-  active, onClick, icon, label, muted,
+  active, onClick, icon, label, muted, disabled,
 }: {
   active: boolean
   onClick: () => void
   icon: React.ReactNode
   label: string
   muted?: boolean
+  disabled?: boolean
 }) {
   return (
     <button
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      title={disabled ? '正在重新生成,请稍候…' : undefined}
       className={`flex items-center gap-1 px-2 py-1 text-[11px] rounded transition ${
         active
           ? 'bg-white text-ink ring-1 ring-line shadow-sm'
           : muted
           ? 'text-ink-muted hover:text-ink hover:bg-white/60'
           : 'text-ink-secondary hover:text-ink hover:bg-white/60'
-      }`}
+      } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
     >
       {icon}
       <span>{label}</span>

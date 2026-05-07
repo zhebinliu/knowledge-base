@@ -10,12 +10,20 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Tag, Save } from 'lucide-react'
+import { Tag, Save, BookOpen, ChevronDown, ChevronRight } from 'lucide-react'
 import {
   listResearchResponses, upsertResearchResponse, classifyResearchScope,
   type CuratedBundle, type ResearchQuestionItem,
   type ResearchResponseItem, type ResearchScopeLabel,
+  type ResearchBestPracticeRef,
 } from '../../../api/client'
+
+const BEST_PRACTICE_SOURCE_LABELS: Record<string, string> = {
+  industry_pack:    '行业实践包',
+  kb:               '知识库',
+  ltc_dictionary:   'LTC 字典',
+  manual:           '人工录入',
+}
 
 interface Props {
   bundle: CuratedBundle
@@ -174,6 +182,11 @@ function QuestionRow({
         </span>
       </div>
 
+      {/* 最佳实践参考折叠区:有 best_practice_refs 时才展示 */}
+      {(item.best_practice_refs?.length ?? 0) > 0 && (
+        <BestPracticeRefsBlock refs={item.best_practice_refs!} />
+      )}
+
       {/* 输入控件(按 type 分发) */}
       <div className="pl-7">
         {item.type === 'single' && (
@@ -215,6 +228,53 @@ function QuestionRow({
           <span className="text-[10px] text-emerald-600">已保存</span>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── 最佳实践参考折叠区 ─────────────────────────────────────────────────────────
+
+function BestPracticeRefsBlock({ refs }: { refs: ResearchBestPracticeRef[] }) {
+  const [open, setOpen] = useState(false)
+  const n = refs.length
+  return (
+    <div className="pl-7">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-1.5 px-2 py-1 text-[11px] rounded text-emerald-700 bg-emerald-50/70 hover:bg-emerald-50 transition-colors"
+        title="展开参考的行业最佳实践,辅助顾问提问"
+      >
+        {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+        <BookOpen size={11} />
+        <span className="font-medium">最佳实践参考</span>
+        <span className="text-[10px] text-emerald-600/80">{n} 条</span>
+      </button>
+      {open && (
+        <div className="mt-1.5 ml-3 pl-2.5 border-l-2 border-emerald-200 space-y-1.5">
+          {refs.map((r, i) => (
+            <BestPracticeRefItem key={i} item={r} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BestPracticeRefItem({ item }: { item: ResearchBestPracticeRef }) {
+  const sourceLabel = BEST_PRACTICE_SOURCE_LABELS[item.source ?? ''] ?? item.source ?? ''
+  return (
+    <div className="text-[11px] leading-relaxed">
+      <div className="text-ink font-medium flex items-center gap-1.5 flex-wrap">
+        <span>{item.title}</span>
+        {sourceLabel && (
+          <span className="text-[10px] text-emerald-700/80 bg-white px-1 rounded ring-1 ring-emerald-100">
+            {sourceLabel}{item.source_id ? ` · ${item.source_id}` : ''}
+          </span>
+        )}
+      </div>
+      {item.summary && (
+        <div className="text-ink-secondary mt-0.5">{item.summary}</div>
+      )}
     </div>
   )
 }

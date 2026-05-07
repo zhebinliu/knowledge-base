@@ -34,6 +34,54 @@ ScopeLabel = Literal[
 ScopeLabelSource = Literal["ai", "manual"]
 
 
+# 调研阶段 — 区分会前自填问卷 vs 会中深挖问题
+QuestionPhase = Literal[
+    "pre_meeting",   # 会前发给客户自填(高频闭合题为主)
+    "in_meeting",    # 会中由 PM 主导(开放追问 / 节点勾选 / 复杂场景)
+]
+
+# 受访角色 — 严格枚举,保证「按角色分卷」正确分组
+AudienceRole = Literal[
+    "executive",     # 高管 / 决策者
+    "dept_head",     # 部门负责人 / 业务主管
+    "frontline",     # 一线执行者 / 操作者
+    "it",            # IT / 系统管理员
+]
+
+# 题目来源 — 用于区分 AI 生成、人工新增、动态追问
+QuestionSource = Literal[
+    "ai",            # 由 LLM 基于 SOW + LTC 字典生成
+    "manual",        # 顾问手动新增
+    "follow_up",     # 由「动态追问」根据答案实时生成
+]
+
+VALID_AUDIENCE_ROLES = ("executive", "dept_head", "frontline", "it")
+AUDIENCE_ROLE_LABELS = {
+    "executive": "高管",
+    "dept_head": "部门负责人",
+    "frontline": "一线",
+    "it": "IT",
+}
+
+
+@dataclass
+class BestPracticeRef:
+    """问题伴随的最佳实践参考 — 比如问「贵司是否有线索管理」时,展示行业内的标准做法。
+
+    title:摘要标题(列表态显示)
+    summary:一句话提炼(展开时主体内容)
+    source:来自哪里(industry_pack / kb / ltc_dictionary / manual)
+    source_id:对应 industry pack 名 / kb chunk_id 等(用于点击跳转)
+    """
+    title: str
+    summary: str = ""
+    source: str = "industry_pack"
+    source_id: str = ""
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
 @dataclass
 class OptionItem:
     """单个候选选项。
@@ -72,6 +120,10 @@ class QuestionItem:
     scope_label_source:ai 或 manual
     sow_evidence:从 SOW 解析得到的关联证据片段,提示顾问追问深度
     kb_refs:KB 二次过滤后注入的高分参考(顾问可剔除)
+    phase:会前自填 / 会中深挖(分卷依据,默认 in_meeting 兼容老数据)
+    best_practice_refs:伴随该问题展示的最佳实践参考(默认空)
+    parent_item_key:动态追问时挂在哪个父问题下(None 表示主干题目)
+    source:题目来源(ai/manual/follow_up,默认 ai 兼容老数据)
     """
     item_key: str
     ltc_module_key: str
@@ -88,16 +140,27 @@ class QuestionItem:
     scope_label_source: ScopeLabelSource | None = None
     sow_evidence: str = ""
     kb_refs: list[dict] = field(default_factory=list)
+    phase: QuestionPhase = "in_meeting"
+    best_practice_refs: list[BestPracticeRef] = field(default_factory=list)
+    parent_item_key: str | None = None
+    source: QuestionSource = "ai"
 
     def to_dict(self) -> dict:
         d = asdict(self)
         d["options"] = [o.to_dict() if hasattr(o, "to_dict") else o for o in self.options]
+        d["best_practice_refs"] = [
+            r.to_dict() if hasattr(r, "to_dict") else r for r in self.best_practice_refs
+        ]
         return d
 
     @classmethod
     def from_dict(cls, d: dict) -> "QuestionItem":
         opts_raw = d.get("options") or []
         opts = [OptionItem(**o) if isinstance(o, dict) else o for o in opts_raw]
+        bp_raw = d.get("best_practice_refs") or []
+        bp_refs = [
+            BestPracticeRef(**r) if isinstance(r, dict) else r for r in bp_raw
+        ]
         return cls(
             item_key=d["item_key"],
             ltc_module_key=d["ltc_module_key"],
@@ -114,6 +177,10 @@ class QuestionItem:
             scope_label_source=d.get("scope_label_source"),
             sow_evidence=d.get("sow_evidence", ""),
             kb_refs=list(d.get("kb_refs") or []),
+            phase=d.get("phase") or "in_meeting",
+            best_practice_refs=bp_refs,
+            parent_item_key=d.get("parent_item_key"),
+            source=d.get("source") or "ai",
         )
 
 
