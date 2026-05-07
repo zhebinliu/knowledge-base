@@ -36,6 +36,9 @@ class User(Base):
     # 管理员授权才可调用外部 API / MCP；默认关闭，管理员账号自动开启
     api_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # 注册时使用的邀请码(审计用,记录是哪个 invite_code 把这个账号引进来的)
+    signed_up_via_invite_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

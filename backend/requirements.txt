@@ -22,3 +22,5 @@ bcrypt==4.2.*
 pyjwt==2.10.*
 email-validator==2.2.*
 slowapi==0.1.*
+captcha==0.6.*
+Pillow==11.0.*

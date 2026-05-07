@@ -7,11 +7,27 @@ import {
   register as apiRegister,
 } from '../api/client'
 
+interface LoginArgs {
+  username: string
+  password: string
+  captcha_id?: string
+  captcha_answer?: string
+}
+interface RegisterArgs {
+  username: string
+  password: string
+  email?: string
+  full_name?: string
+  invite_code: string
+  captcha_id: string
+  captcha_answer: string
+}
+
 interface AuthState {
   user: AuthUser | null
   loading: boolean
-  login: (username: string, password: string) => Promise<AuthUser>
-  register: (body: { username: string; password: string; email?: string; full_name?: string }) => Promise<AuthUser>
+  login: (args: LoginArgs) => Promise<AuthUser>
+  register: (args: RegisterArgs) => Promise<AuthUser>
   logout: () => void
   refresh: () => Promise<void>
 }
@@ -44,15 +60,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refresh()
   }, [refresh])
 
-  const login = useCallback(async (username: string, password: string) => {
-    const res = await apiLogin(username, password)
+  const login = useCallback(async (args: LoginArgs) => {
+    const res = await apiLogin(args)
     localStorage.setItem(TOKEN_STORAGE_KEY, res.access_token)
     setUser(res.user)
     return res.user
   }, [])
 
-  const register = useCallback(async (body: { username: string; password: string; email?: string; full_name?: string }) => {
-    const res = await apiRegister(body)
+  const register = useCallback(async (args: RegisterArgs) => {
+    const res = await apiRegister(args)
     localStorage.setItem(TOKEN_STORAGE_KEY, res.access_token)
     setUser(res.user)
     return res.user

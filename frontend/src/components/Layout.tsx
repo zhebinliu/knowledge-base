@@ -40,6 +40,7 @@ const allNavGroups = [
     items: [
       { to: '/system-config', label: '系统配置', icon: Sliders, adminOnly: true },
       { to: '/settings',      label: '系统设置', icon: Settings, adminOnly: true },
+      { to: '/invite-codes',  label: '邀请码',   icon: Shield, adminOnly: true },
     ],
   },
 ]

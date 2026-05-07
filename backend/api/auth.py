@@ -1,4 +1,4 @@
-"""认证 API：register / login / me / change-password / SSO 占位。"""
+"""认证 API：register / login / me / change-password / SSO 占位 / captcha / invite-code。"""
 import secrets
 from datetime import datetime, timezone
 
@@ -17,6 +17,9 @@ from services.auth import (
     verify_password,
 )
 from services.rate_limit import limiter
+from services.security.password_policy import validate_password_strength
+from services.security.captcha import generate_captcha, verify_captcha
+from services.security.invite_code import validate_and_consume as consume_invite_code
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -47,55 +50,94 @@ def _user_dto(u: User) -> dict:
 
 class RegisterIn(BaseModel):
     username: str = Field(min_length=3, max_length=64)
-    password: str = Field(min_length=6, max_length=128)
+    password: str = Field(min_length=10, max_length=128)
     email: str | None = None
     full_name: str | None = None
-    # 可选角色；默认 console_user（对外工作台）。admin 角色只能由管理员后台手动创建
-    role: str | None = None
+    invite_code: str = Field(min_length=8, max_length=32, description="邀请码 — 必填")
+    captcha_id: str = Field(description="GET /api/auth/captcha 拿到的 id")
+    captcha_answer: str = Field(min_length=1, max_length=20, description="用户从图里看到的字符")
 
 
 class LoginIn(BaseModel):
     username: str
     password: str
+    captcha_id: str | None = None       # 兼容老前端先标 optional,前端发版后再硬要求
+    captcha_answer: str | None = None
 
 
 class ChangePasswordIn(BaseModel):
     old_password: str | None = None  # must_change_password=True 时可不填
-    new_password: str = Field(min_length=6, max_length=128)
+    new_password: str = Field(min_length=10, max_length=128)
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
+@router.get("/captcha")
+@limiter.limit("60/minute")
+async def get_captcha(request: Request, session: AsyncSession = Depends(get_session)):
+    """生成新的图形验证码挑战。返回 captcha_id + base64 PNG data URL。
+    前端展示 PNG,用户输入后跟 captcha_id 一起提交到 register / login。
+    """
+    captcha_id, image_b64 = await generate_captcha(session)
+    return {"captcha_id": captcha_id, "image_b64": image_b64}
+
+
 @router.post("/register")
 @limiter.limit("5/minute")
 async def register(request: Request, payload: RegisterIn, session: AsyncSession = Depends(get_session)):
+    # 1. 验证图形验证码(优先,挡住暴力试用户名 / 试邀请码的爬虫)
+    ok, err = await verify_captcha(session, payload.captcha_id, payload.captcha_answer)
+    if not ok:
+        raise HTTPException(400, err)
+
+    # 2. 验证密码强度
+    pw_ok, pw_err = validate_password_strength(payload.password, username=payload.username)
+    if not pw_ok:
+        raise HTTPException(400, pw_err)
+
+    # 3. 用户名冲突检查
     existing = await session.scalar(select(User).where(User.username == payload.username))
     if existing:
         raise HTTPException(409, "用户名已存在")
-    # 默认注册角色为 console_user；忽略客户端传入的 "admin" 以防越权（admin 只能后台手动建）
-    requested_role = (payload.role or "console_user").strip().lower()
-    role = requested_role if requested_role in ("console_user",) else "console_user"
+
+    # 4. 验证 + 消费邀请码(atomic 写库;失败不创建用户,但 captcha 已被消费,需重拉)
+    ic, ic_err = await consume_invite_code(session, payload.invite_code)
+    if ic_err or ic is None:
+        raise HTTPException(400, ic_err or "邀请码无效")
+
+    # 5. 创建账号 — role 由邀请码决定(管理员邀请码可注出 admin 账号)
+    role = ic.target_role if ic.target_role in ("console_user", "admin") else "console_user"
+    is_admin = (role == "admin")
     user = User(
         username=payload.username,
         email=payload.email,
         full_name=payload.full_name,
         password_hash=hash_password(payload.password),
-        is_admin=False,
+        is_admin=is_admin,
         role=role,
         is_active=True,
         must_change_password=False,
+        api_enabled=is_admin,
+        signed_up_via_invite_code=ic.code,
     )
     session.add(user)
     await session.commit()
     await session.refresh(user)
     token = create_access_token(user.id)
-    logger.info("user_registered", user_id=user.id, username=user.username)
+    logger.info("user_registered", user_id=user.id, username=user.username,
+                role=role, invite_code=ic.code)
     return {"access_token": token, "token_type": "bearer", "user": _user_dto(user)}
 
 
 @router.post("/login")
 @limiter.limit("5/minute")
 async def login(request: Request, payload: LoginIn, session: AsyncSession = Depends(get_session)):
+    # 验证图形验证码 — 部署过渡期:传了就验证,没传暂时允许;前端全量升级后改硬要求
+    if payload.captcha_id or payload.captcha_answer:
+        ok, err = await verify_captcha(session, payload.captcha_id or "", payload.captcha_answer or "")
+        if not ok:
+            raise HTTPException(400, err)
+
     user = await session.scalar(select(User).where(User.username == payload.username))
     if not user or not verify_password(payload.password, user.password_hash or ""):
         raise HTTPException(401, "用户名或密码错误")
@@ -125,6 +167,10 @@ async def change_password(
             raise HTTPException(400, "请输入当前密码")
         if not verify_password(payload.old_password, user.password_hash or ""):
             raise HTTPException(401, "当前密码错误")
+    # 新密码强度校验
+    pw_ok, pw_err = validate_password_strength(payload.new_password, username=user.username)
+    if not pw_ok:
+        raise HTTPException(400, pw_err)
     user.password_hash = hash_password(payload.new_password)
     user.must_change_password = False
     await session.commit()

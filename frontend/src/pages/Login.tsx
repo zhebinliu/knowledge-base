@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { BookOpen } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
+import CaptchaInput, { type CaptchaInputRef } from '../components/auth/CaptchaInput'
 
 export default function Login() {
   const { login } = useAuth()
@@ -12,6 +13,8 @@ export default function Login() {
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [captcha, setCaptcha] = useState({ captcha_id: '', captcha_answer: '' })
+  const captchaRef = useRef<CaptchaInputRef>(null)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -20,7 +23,12 @@ export default function Login() {
     setError(null)
     setSubmitting(true)
     try {
-      const u = await login(username.trim(), password)
+      const u = await login({
+        username: username.trim(),
+        password,
+        captcha_id: captcha.captcha_id,
+        captcha_answer: captcha.captcha_answer,
+      })
       if (u.must_change_password) {
         navigate('/change-password', { replace: true })
       } else if (next) {
@@ -32,6 +40,8 @@ export default function Login() {
     } catch (err: unknown) {
       const e = err as { response?: { data?: { detail?: string } } }
       setError(e?.response?.data?.detail ?? '登录失败')
+      // 失败后自动刷新 captcha — captcha 一次性消费,失败也用掉了
+      captchaRef.current?.refresh()
     } finally {
       setSubmitting(false)
     }
@@ -72,13 +82,15 @@ export default function Login() {
               placeholder="请输入密码"
             />
           </div>
+          <CaptchaInput ref={captchaRef} onChange={setCaptcha} />
           {error && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
               {error}
             </p>
           )}
           <button
-            type="submit" disabled={submitting || !username || !password}
+            type="submit"
+            disabled={submitting || !username || !password || !captcha.captcha_answer}
             className="auth-action-primary mt-2"
           >
             {submitting ? '登录中...' : '登录'}

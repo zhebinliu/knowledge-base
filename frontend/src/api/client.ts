@@ -116,11 +116,60 @@ export interface LoginResponse {
   user: AuthUser
 }
 
-export const login = (username: string, password: string) =>
-  api.post<LoginResponse>('/auth/login', { username, password }).then(r => r.data)
+export const login = (body: {
+  username: string
+  password: string
+  captcha_id?: string
+  captcha_answer?: string
+}) => api.post<LoginResponse>('/auth/login', body).then(r => r.data)
 
-export const register = (body: { username: string; password: string; email?: string; full_name?: string }) =>
-  api.post<LoginResponse>('/auth/register', body).then(r => r.data)
+export const register = (body: {
+  username: string
+  password: string
+  email?: string
+  full_name?: string
+  invite_code: string
+  captcha_id: string
+  captcha_answer: string
+}) => api.post<LoginResponse>('/auth/register', body).then(r => r.data)
+
+// 图形验证码:GET 拿一次,5 分钟有效 + 一次性消费;前端展示 PNG + 用户填答案
+export interface CaptchaChallenge {
+  captcha_id: string
+  image_b64: string   // data:image/png;base64,...
+}
+export const getCaptcha = () =>
+  api.get<CaptchaChallenge>('/auth/captcha').then(r => r.data)
+
+// ── 后台:邀请码管理 ─────────────────────────────────────────────────────────
+
+export interface InviteCode {
+  id: string
+  code: string
+  created_by: string | null
+  max_uses: number              // 0 = 无限
+  used_count: number
+  expires_at: string | null     // null = 永久
+  target_role: 'console_user' | 'admin'
+  revoked: boolean
+  note: string | null
+  status: 'active' | 'expired' | 'exhausted' | 'revoked'
+  created_at: string
+  updated_at: string
+}
+
+export const listInviteCodes = (limit = 100) =>
+  api.get<{ items: InviteCode[] }>('/admin/invite-codes', { params: { limit } }).then(r => r.data)
+
+export const createInviteCode = (body: {
+  max_uses: number
+  expires_in_days: number
+  target_role: 'console_user' | 'admin'
+  note?: string | null
+}) => api.post<InviteCode>('/admin/invite-codes', body).then(r => r.data)
+
+export const revokeInviteCode = (id: string) =>
+  api.post<InviteCode>(`/admin/invite-codes/${id}/revoke`).then(r => r.data)
 
 export const fetchMe = () =>
   api.get<AuthUser>('/auth/me').then(r => r.data)

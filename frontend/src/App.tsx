@@ -17,6 +17,7 @@ import Challenge from './pages/Challenge'
 import ChallengeHistory from './pages/ChallengeHistory'
 import Settings  from './pages/Settings'
 import SystemConfig from './pages/SystemConfig'
+import InviteCodes from './pages/InviteCodes'
 import Projects from './pages/Projects'
 import ProjectDetail from './pages/ProjectDetail'
 import Login     from './pages/Login'
@@ -71,6 +72,7 @@ export default function App() {
           <Route path="challenge/history" element={<ChallengeHistory />} />
           <Route path="settings"      element={<Settings />} />
           <Route path="system-config" element={<SystemConfig />} />
+          <Route path="invite-codes"  element={<InviteCodes />} />
         </Route>
       </Route>
     </Routes>

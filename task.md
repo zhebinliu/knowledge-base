@@ -1,6 +1,92 @@
 # 任务跟踪
 
-## 新迭代:需求调研 v2 — 多维分卷 + 可编辑 + 动态追问(2026-05-07)
+## 新迭代:登录安全加固 — 邀请码 + 强密码 + 图形验证码(2026-05-07)
+
+### 背景
+当前注册完全开放(任何人 username + 6 位密码 即可注册成 console_user),登录无验证码。
+需要把入口收紧到「凭邀请码注册 + 复杂密码 + 图形验证码防爬虫」。
+
+### 用户对齐的决策
+1. **邀请码**:新注册必须带邀请码;邀请码全套能力(有效期 / 次数 / 手动吊销 / 限定角色)
+2. **密码**:≥10 位 + 大小写 + 数字 + 特殊字符
+3. **验证码**:图形验证码(后端生成 PNG,登录 + 注册都要)
+
+### Phase A — DB schema + migration
+- [ ] **A.1** 新表 `invite_codes`:
+  - `id (uuid)`, `code (str, unique 16 chars)`, `created_by (user_id fk)`,
+    `max_uses (int, default 1, 0=无限)`, `used_count (int, default 0)`,
+    `expires_at (datetime nullable, null=永久)`,
+    `target_role (str, default 'console_user', 限 console_user/admin)`,
+    `revoked (bool, default false)`, `note (str nullable)`,
+    `created_at`, `updated_at`
+- [ ] **A.2** 新表 `captcha_challenges`(图形验证码挑战):
+  - `id (uuid)`, `code_hash (str, sha256)`, `expires_at (datetime, 5 分钟)`,
+    `used (bool default false)`, `created_at`
+  - 注:存 hash 不存明文,防 DB 泄漏
+- [ ] **A.3** User 加字段 `signed_up_via_invite_code (str nullable)`(审计用)
+- [ ] **A.4** alembic migration 文件
+
+### Phase B — 后端
+- [ ] **B.1** `services/security/password_policy.py` 新文件
+  - `validate_password_strength(pwd, username) → (ok, reason)`
+  - 规则:≥10 位 / 含大小写 / 含数字 / 含特殊字符 / 不等于 username
+- [ ] **B.2** `services/security/captcha.py` 新文件
+  - `generate_captcha() → (captcha_id, png_b64)` 用 captcha 库
+  - `verify_captcha(captcha_id, answer) → bool` 一次性消费,即时失效
+- [ ] **B.3** 新 endpoint `GET /api/auth/captcha`:
+  - 返回 `{captcha_id, image_b64}`,前端展示
+- [ ] **B.4** 改 `POST /api/auth/register`:
+  - 必填 `invite_code`, `captcha_id`, `captcha_answer`
+  - 验证 captcha → 验证 invite_code(存在 / 未吊销 / 未过期 / 未用尽)→ 校验密码强度
+  - 通过后:邀请码 used_count + 1 / captcha 标 used / user 创建,role 取邀请码 target_role
+  - 写 `signed_up_via_invite_code` 审计字段
+- [ ] **B.5** 改 `POST /api/auth/login`:
+  - 必填 `captcha_id`, `captcha_answer`
+  - 验证 captcha → 用户名密码原逻辑
+- [ ] **B.6** 改 `POST /api/auth/change-password`:
+  - 加密码强度校验
+- [ ] **B.7** 新 endpoints `/api/admin/invite-codes/`(需 is_admin)
+  - `POST /` 创建邀请码(body: max_uses / expires_in_days / target_role / note);返回完整 code
+  - `GET /` 列表(分页 + 筛选 active/expired/revoked/exhausted)
+  - `POST /{id}/revoke` 吊销
+  - 不允许删除(审计完整性)
+- [ ] **B.8** requirements.txt 加 `captcha`(轻量,~50 行 wrapper Pillow)
+
+### Phase C — 前端
+- [ ] **C.1** `pages/Login.tsx` 改:
+  - 加 captcha 控件:展示 PNG + answer 输入框 + 「换一张」刷新按钮
+  - 提交时带 captcha_id + captcha_answer
+  - 错误时自动刷新 captcha
+- [ ] **C.2** `pages/Register.tsx` 改:
+  - 加邀请码必填输入框
+  - 加 captcha 控件
+  - 加密码强度实时提示器(check 4 项 + 长度)
+- [ ] **C.3** 新 `pages/admin/InviteCodes.tsx`:
+  - 列表 table:code(支持复制) / 创建人 / 创建时间 / 过期时间 / 已用 / 限额 / 状态徽标 / 备注 / 操作(吊销)
+  - 「+ 创建邀请码」按钮 → 弹窗(max_uses / expires_in_days / target_role / note)
+  - 创建成功展示完整 code 一次,提示「保存好,关闭后不可再次查看完整 code」
+- [ ] **C.4** 在管理员后台菜单加「邀请码管理」入口
+- [ ] **C.5** `client.ts` 加 captcha / invite_codes API 函数
+
+### 验证
+- [ ] 老用户能正常登录(只是要填验证码)
+- [ ] 新注册必须带邀请码,无邀请码注册返回明确报错
+- [ ] 邀请码到期 / 用尽 / 被吊销时注册失败
+- [ ] 密码不达标时返回明确报错(说明少哪项)
+- [ ] 验证码错误返回 400 + 自动刷新
+- [ ] 管理员能创建 / 列表 / 吊销邀请码
+- [ ] 创建的邀请码可以注册成功一次,扣 used_count
+
+### 部署
+分两个 commit:
+1. **schema + 后端**:DB 迁移 + 新 endpoints + register/login 改造(老 frontend 无 captcha 字段会断,所以前端 push 必须紧跟)
+2. **前端**:captcha + 邀请码 + 后台管理页
+
+为避免老 frontend 临时断,**用 feature flag 兼容**:register/login 当前轮先**captcha + invite_code 可选**(不传则按老逻辑跑),给前端部署窗口期;前端上线 24 小时后再改成强制(下次部署)。
+
+---
+
+## 老迭代:需求调研 v2 — 多维分卷 + 可编辑 + 动态追问(2026-05-07)
 
 ### 背景
 当前 survey_v2 已能基于 LTC 字典 + SOW 映射生成结构化问卷,但实际顾问执行时存在 6 个痛点:

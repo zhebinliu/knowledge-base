@@ -5,7 +5,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, research
+from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, research, admin_invite_codes
 from services.rate_limit import limiter
 from services.vector_store import vector_store
 
@@ -38,6 +38,7 @@ app.include_router(review.router, prefix="/api/review", tags=["review"])
 app.include_router(export.router, prefix="/api/transfer", tags=["transfer"])
 app.include_router(agent_settings.router, prefix="/api/settings", tags=["settings"])
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(admin_invite_codes.router, prefix="/api/admin", tags=["admin"])
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(mcp.router,   prefix="/api/mcp",   tags=["mcp"])
@@ -79,6 +80,8 @@ async def startup():
     from models.challenge_round import ChallengeRound  # noqa: F401
     from models.research_response import ResearchResponse  # noqa: F401
     from models.research_ltc_module_map import ResearchLtcModuleMap  # noqa: F401
+    from models.invite_code import InviteCode  # noqa: F401
+    from models.captcha_challenge import CaptchaChallenge  # noqa: F401
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -137,6 +140,8 @@ async def startup():
             # Feature X · 废弃静态题库 → 对话式输出智能体
             "DROP TABLE IF EXISTS project_interview_answers",
             "ALTER TABLE skills DROP COLUMN IF EXISTS questions",
+            # 登录安全加固 · 邀请码 + 强密码 + 验证码
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS signed_up_via_invite_code VARCHAR(32)",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")
