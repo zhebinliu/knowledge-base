@@ -794,6 +794,23 @@ async def execute_survey_subsection(
             customer_modules=customer_modules,
             industry=industry,
         )
+        # 批量调 advisor LLM,给每题写一段贴合的「最佳实践建议」
+        # 失败 / 部分缺失 → 该题 advice 为空,前端折叠区不显示(不影响题目本身)
+        if items:
+            try:
+                from services.agentic.research.best_practice_advisor import generate_advice_for_items
+                project_name = getattr(project, "name", "") if project else ""
+                advice_map = await generate_advice_for_items(
+                    items, industry=industry, project_name=project_name, model=model,
+                )
+                if advice_map:
+                    for it in items:
+                        adv = advice_map.get(it.get("item_key", ""), "").strip()
+                        if adv:
+                            it["best_practice_advice"] = adv
+            except Exception as e:
+                logger.warning("advisor_call_failed_nonfatal",
+                               subsection=subsection.key, error=str(e)[:200])
         return {"markdown": markdown, "questionnaire_items": items}
     except Exception as e:
         logger.warning("survey_executor_failed", subsection=subsection.key, error=str(e)[:200])
@@ -926,18 +943,9 @@ def _post_process_items(
             else:
                 raw["options"] = []
 
-            # 注入 best_practice_refs(LLM 没给 / 给空时才注;给了认为是 LLM 自定义,不覆盖)
-            if not raw.get("best_practice_refs"):
-                from services.agentic.research.best_practices import get_best_practices_for
-                refs = get_best_practices_for(
-                    raw.get("ltc_module_key", ""),
-                    industry=industry,
-                    question_text=raw.get("question", ""),
-                    why_text=raw.get("why", ""),
-                    limit=3,
-                )
-                if refs:
-                    raw["best_practice_refs"] = refs
+            # best_practice_refs / best_practice_advice 不在这里注入;
+            # 等本批题全部规整完后,在批量出口处统一调 advisor LLM 一次性生成,
+            # 这样 advisor 看到的是 subsection 全题语境,出来的建议更连贯,且只调 1 次 LLM。
 
             q = QuestionItem.from_dict(raw)
             out.append(q.to_dict())

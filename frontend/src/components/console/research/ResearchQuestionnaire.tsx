@@ -402,10 +402,12 @@ function QuestionRow({
         </span>
       </div>
 
-      {/* 最佳实践参考折叠区:有 best_practice_refs 时才展示 */}
-      {(item.best_practice_refs?.length ?? 0) > 0 && (
+      {/* AI 实施建议折叠区:有 advice 时优先展示;否则若有旧版 refs 也兼容 */}
+      {(item.best_practice_advice && item.best_practice_advice.trim()) ? (
+        <BestPracticeAdviceBlock advice={item.best_practice_advice} refs={item.best_practice_refs || []} />
+      ) : (item.best_practice_refs?.length ?? 0) > 0 ? (
         <BestPracticeRefsBlock refs={item.best_practice_refs!} />
-      )}
+      ) : null}
 
       {/* 输入控件(按 type 分发) */}
       <div className="pl-7">
@@ -813,7 +815,64 @@ function OptionsEditor({
   )
 }
 
-// ── 最佳实践参考折叠区 ─────────────────────────────────────────────────────────
+// ── AI 实施建议折叠区(新版,主路径) ──────────────────────────────────────────
+
+function BestPracticeAdviceBlock({
+  advice, refs,
+}: {
+  advice: string
+  refs: ResearchBestPracticeRef[]
+}) {
+  const [open, setOpen] = useState(false)
+  const [refsOpen, setRefsOpen] = useState(false)
+
+  return (
+    <div className="pl-7">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-1.5 px-2 py-1 text-[11px] rounded text-emerald-700 bg-emerald-50/70 hover:bg-emerald-50 transition-colors"
+        title="基于跨项目实施最佳实践库,AI 针对本题给出的建议"
+      >
+        {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+        <BookOpen size={11} />
+        <span className="font-medium">AI 实施建议</span>
+      </button>
+      {open && (
+        <div className="mt-1.5 ml-3 pl-3 border-l-2 border-emerald-200">
+          {/* advice 文本主体:支持 markdown 风格的换行 / 列表(简单实现:按段拆) */}
+          <div className="text-[12px] text-ink leading-relaxed whitespace-pre-wrap">
+            {advice}
+          </div>
+          {/* 来源脚注 */}
+          {refs.length > 0 && (
+            <div className="mt-2 pt-1.5 border-t border-emerald-100/70">
+              <button
+                onClick={() => setRefsOpen(o => !o)}
+                className="text-[10px] text-emerald-700/80 hover:text-emerald-800 inline-flex items-center gap-0.5"
+              >
+                {refsOpen ? <ChevronDown size={9} /> : <ChevronRight size={9} />}
+                参考来源 · {refs.length} 条
+              </button>
+              {refsOpen && (
+                <div className="mt-1 space-y-0.5">
+                  {refs.map((r, i) => (
+                    <div key={i} className="text-[10.5px] text-ink-muted">
+                      · <span className="text-ink-secondary">{r.title}</span>
+                      {r.source_id && <span className="text-[10px] ml-1 opacity-70">({r.source_id})</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+// ── 最佳实践参考折叠区(旧版,advice 为空时回落) ──────────────────────────────
 
 function BestPracticeRefsBlock({ refs }: { refs: ResearchBestPracticeRef[] }) {
   const [open, setOpen] = useState(false)

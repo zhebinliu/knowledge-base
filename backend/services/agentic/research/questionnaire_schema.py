@@ -180,6 +180,7 @@ class QuestionItem:
     kb_refs: list[dict] = field(default_factory=list)
     phase: QuestionPhase = "in_meeting"
     best_practice_refs: list[BestPracticeRef] = field(default_factory=list)
+    best_practice_advice: str = ""           # AI 综合最佳实践库后,针对本题写的一段贴合建议
     parent_item_key: str | None = None
     source: QuestionSource = "ai"
 
@@ -217,6 +218,7 @@ class QuestionItem:
             kb_refs=list(d.get("kb_refs") or []),
             phase=d.get("phase") or "in_meeting",
             best_practice_refs=bp_refs,
+            best_practice_advice=d.get("best_practice_advice") or "",
             parent_item_key=d.get("parent_item_key"),
             source=d.get("source") or "ai",
         )
