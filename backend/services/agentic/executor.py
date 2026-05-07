@@ -650,6 +650,10 @@ async def execute_survey_subsection(
 ]
 ```
 
+注意:**不要**输出 `best_practice_refs` 字段。系统会基于题目的 ltc_module_key + 本项目行业,
+自动从内置的「跨项目实施最佳实践库」(2025 年沉淀的 13 个项目跨行业核心做法)注入这块内容。
+你只负责出题。
+
 【phase 判定原则 — 决定题目走「会前自填」还是「会中追问」】
 - **pre_meeting(会前)**:客观、闭合、低门槛,客户不需要顾问引导就能答 — 例如:
   - 当前是否有 X 流程(yes/no/部分)
@@ -779,6 +783,7 @@ async def execute_survey_subsection(
             audience_roles=subsection.target_roles,
             candidate_ltc_keys=candidate_ltc_keys,
             customer_modules=customer_modules,
+            industry=industry,
         )
         return {"markdown": markdown, "questionnaire_items": items}
     except Exception as e:
@@ -796,6 +801,7 @@ def _split_markdown_and_questionnaire_json(
     audience_roles: list[str],
     candidate_ltc_keys: list[str] | None = None,
     customer_modules: list[str] | None = None,
+    industry: str | None = None,
 ) -> tuple[str, list[dict]]:
     """从 LLM 原始输出里拆分 Markdown 部分和 JSON 数组。
 
@@ -807,6 +813,7 @@ def _split_markdown_and_questionnaire_json(
     - audience_roles 注入
     - ensure_sentinels:single/multi/node_pick 必含"其他+不适用"
     - item_key 缺失时按前缀+序号兜底生成
+    - 按 (ltc_module_key, industry, 题干) 注入 best_practice_refs
     """
     import json
     import re
@@ -824,7 +831,8 @@ def _split_markdown_and_questionnaire_json(
                                                      ltc_module_key=ltc_module_key,
                                                      audience_roles=audience_roles,
                                                      candidate_ltc_keys=candidate_ltc_keys,
-                                                     customer_modules=customer_modules)
+                                                     customer_modules=customer_modules,
+                                                     industry=industry)
             except Exception:
                 pass
         return raw, []
@@ -843,7 +851,8 @@ def _split_markdown_and_questionnaire_json(
                                           ltc_module_key=ltc_module_key,
                                           audience_roles=audience_roles,
                                           candidate_ltc_keys=candidate_ltc_keys,
-                                          customer_modules=customer_modules)
+                                          customer_modules=customer_modules,
+                                          industry=industry)
 
 
 def _post_process_items(
@@ -851,6 +860,7 @@ def _post_process_items(
     audience_roles: list[str],
     candidate_ltc_keys: list[str] | None = None,
     customer_modules: list[str] | None = None,
+    industry: str | None = None,
 ) -> list[dict]:
     """规整结构化题目:校验 ltc_module_key / 补 sentinel / 校验 phase + audience_roles / 兜底 item_key。"""
     from services.agentic.research.questionnaire_schema import (
@@ -906,6 +916,19 @@ def _post_process_items(
                 raw["options"] = [o.to_dict() for o in opts]
             else:
                 raw["options"] = []
+
+            # 注入 best_practice_refs(LLM 没给 / 给空时才注;给了认为是 LLM 自定义,不覆盖)
+            if not raw.get("best_practice_refs"):
+                from services.agentic.research.best_practices import get_best_practices_for
+                refs = get_best_practices_for(
+                    raw.get("ltc_module_key", ""),
+                    industry=industry,
+                    question_text=raw.get("question", ""),
+                    why_text=raw.get("why", ""),
+                    limit=3,
+                )
+                if refs:
+                    raw["best_practice_refs"] = refs
 
             q = QuestionItem.from_dict(raw)
             out.append(q.to_dict())
