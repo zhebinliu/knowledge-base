@@ -1282,3 +1282,33 @@ export const classifyResearchScope = (body: { bundle_id: string; ltc_module_key?
 
 export const listResearchLtcModuleMap = (project_id: string) =>
   api.get<{ items: ResearchLtcModuleMapItem[] }>('/research/ltc-module-map', { params: { project_id } }).then(r => r.data)
+
+// ── 问卷题目人工 CRUD(需求 4) ────────────────────────────────────────────────
+
+export interface QuestionnaireItemUpsertBody {
+  bundle_id: string
+  item_key?: string | null              // 不传 → 后端自动生成 manual_N key 视为新增
+  ltc_module_key: string
+  audience_roles: string[]
+  type: ResearchQuestionItem['type']
+  question: string
+  why?: string
+  options?: ResearchOptionItem[]
+  rating_scale?: number
+  number_unit?: string
+  required?: boolean
+  hint?: string
+  phase?: ResearchQuestionPhase
+  parent_item_key?: string | null
+  best_practice_refs?: ResearchBestPracticeRef[]
+}
+
+export const upsertQuestionnaireItem = (body: QuestionnaireItemUpsertBody) =>
+  api.post<{ ok: boolean; action: 'created' | 'updated'; item: ResearchQuestionItem; total: number }>(
+    '/research/questionnaire-items', body
+  ).then(r => r.data)
+
+export const deleteQuestionnaireItem = (bundle_id: string, item_key: string) =>
+  api.delete<{ ok: boolean; removed_keys: string[]; total: number }>(
+    '/research/questionnaire-items', { params: { bundle_id, item_key } }
+  ).then(r => r.data)

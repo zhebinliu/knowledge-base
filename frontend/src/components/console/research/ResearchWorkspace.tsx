@@ -344,6 +344,8 @@ export default function ResearchWorkspace({
                 selectedLtcKey={selectedLtcKey}
                 selectedPhase={selectedPhase}
                 onChangePhase={setSelectedPhase}
+                onRefetch={onRefetch}
+                ltcModules={ltcDict?.modules ?? []}
               />
             ) : (
               <div className="p-6">

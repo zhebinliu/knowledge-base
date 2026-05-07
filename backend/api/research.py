@@ -1,18 +1,20 @@
-"""需求调研 v1 API — 顾问录入答案 + 范围分类触发 + LTC 模块映射查询。
+"""需求调研 v1 API — 顾问录入答案 + 范围分类触发 + LTC 模块映射查询 + 问卷题目 CRUD。
 
 注意:大纲 / 问卷的"生成"复用现有 outputs API(POST /api/outputs/generate
         with kind=survey_outline / survey),走 runner.generate_survey_outline
-        / generate_survey 这条已有路径。本路由只负责:
+        / generate_survey 这条已有路径。本路由负责:
 - 顾问录入答案(upsert)
 - 拉取已答
 - 触发四分类
 - 拉取 SOW → LTC 映射结果
+- 问卷题目的「人工新增/编辑/删除」(写入 bundle.extra.questionnaire_items[])
 """
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from typing import Any
+from typing import Any, Literal
 from sqlalchemy import select
+from sqlalchemy.orm.attributes import flag_modified
 
 from models import async_session_maker
 from models.research_response import ResearchResponse
@@ -161,3 +163,144 @@ async def get_ltc_dictionary():
     return {
         "modules": [m.to_dict() for m in ALL_LTC_MODULES],
     }
+
+
+# ── 问卷题目 CRUD(写入 bundle.extra.questionnaire_items) ───────────────────
+
+class QuestionnaireItemBody(BaseModel):
+    """前端提交的题目主体。LLM 生成时也会出同样字段,本接口为人工编辑的入口。"""
+    bundle_id: str
+    item_key: str | None = Field(default=None, max_length=120)  # 编辑/新增时若不传,后端按规则生成
+    ltc_module_key: str = Field(min_length=1, max_length=80)
+    audience_roles: list[str] = Field(default_factory=list)
+    type: Literal["single", "multi", "rating", "number", "text", "node_pick"]
+    question: str = Field(min_length=1, max_length=500)
+    why: str = ""
+    options: list[dict] = Field(default_factory=list)
+    rating_scale: int = 5
+    number_unit: str = ""
+    required: bool = False
+    hint: str = ""
+    phase: Literal["pre_meeting", "in_meeting"] = "in_meeting"
+    parent_item_key: str | None = None
+    best_practice_refs: list[dict] = Field(default_factory=list)
+
+
+def _normalize_item(payload: dict, *, source: str) -> dict:
+    """统一过 questionnaire_schema 的清洗:角色收敛 + 选项 sentinel + 序列化。"""
+    from services.agentic.research.questionnaire_schema import (
+        QuestionItem, OptionItem, ensure_sentinels, coerce_audience_roles,
+    )
+    raw = dict(payload)
+    raw["audience_roles"] = coerce_audience_roles(raw.get("audience_roles")) or ["dept_head"]
+    raw.setdefault("source", source)
+
+    t = raw.get("type")
+    if t in ("single", "multi", "node_pick"):
+        opts = [OptionItem(**o) if isinstance(o, dict) else o for o in (raw.get("options") or [])]
+        opts = ensure_sentinels(opts)
+        raw["options"] = [o.to_dict() for o in opts]
+    else:
+        raw["options"] = []
+
+    return QuestionItem.from_dict(raw).to_dict()
+
+
+async def _load_bundle_for_edit(s, bundle_id: str) -> CuratedBundle:
+    b = await s.get(CuratedBundle, bundle_id)
+    if not b:
+        raise HTTPException(404, "bundle 不存在")
+    if b.kind != "survey":
+        raise HTTPException(400, f"只能编辑 kind=survey 的 bundle,当前 kind={b.kind}")
+    return b
+
+
+@router.post("/questionnaire-items", dependencies=[Depends(get_current_user)])
+async def upsert_questionnaire_item(body: QuestionnaireItemBody):
+    """新增或更新一道题。
+    - 不传 item_key → 视为新增,自动生成形如 `{ltc_module_key}::manual_{n}` 的稳定 key
+    - 传 item_key → 视为编辑,按 item_key 替换原题(保留 sow_evidence / kb_refs 等 LLM 注入字段)
+    返回写入后的完整题目对象 + 全 questionnaire_items 长度。
+    """
+    async with async_session_maker() as s:
+        b = await _load_bundle_for_edit(s, body.bundle_id)
+        extra = dict(b.extra or {})
+        items: list[dict] = list(extra.get("questionnaire_items") or [])
+
+        payload = body.model_dump(exclude={"bundle_id"})
+        existing_idx = -1
+        if body.item_key:
+            for i, it in enumerate(items):
+                if it.get("item_key") == body.item_key:
+                    existing_idx = i
+                    break
+
+        if existing_idx >= 0:
+            # 编辑:保留原 LLM 注入字段(sow_evidence / kb_refs / scope_label*),只覆盖人工可改部分
+            base = dict(items[existing_idx])
+            base.update({k: v for k, v in payload.items() if v is not None})
+            base["item_key"] = body.item_key  # 保持稳定
+            new_item = _normalize_item(base, source=base.get("source") or "manual")
+            items[existing_idx] = new_item
+            action = "updated"
+        else:
+            # 新增:自动生成 item_key
+            base_key = body.item_key
+            if not base_key:
+                # 找出该模块下已有的人工 manual 序号
+                taken = {it.get("item_key") for it in items}
+                n = 1
+                while f"{body.ltc_module_key}::manual_{n}" in taken:
+                    n += 1
+                base_key = f"{body.ltc_module_key}::manual_{n}"
+            payload["item_key"] = base_key
+            new_item = _normalize_item(payload, source="manual")
+            items.append(new_item)
+            action = "created"
+
+        extra["questionnaire_items"] = items
+        b.extra = extra
+        flag_modified(b, "extra")
+        await s.commit()
+
+    return {"ok": True, "action": action, "item": new_item, "total": len(items)}
+
+
+@router.delete("/questionnaire-items", dependencies=[Depends(get_current_user)])
+async def delete_questionnaire_item(bundle_id: str, item_key: str):
+    """删除一道题(以及它的所有动态追问子题)。
+    - 同时连带把 research_responses 里这些 item_key 的答案删掉(保持一致性)。
+    """
+    async with async_session_maker() as s:
+        b = await _load_bundle_for_edit(s, bundle_id)
+        extra = dict(b.extra or {})
+        items: list[dict] = list(extra.get("questionnaire_items") or [])
+
+        # 找到所有要删的 key:本题 + 所有挂在它下面的 follow_up
+        target_keys = {item_key}
+        for it in items:
+            if it.get("parent_item_key") == item_key:
+                target_keys.add(it.get("item_key"))
+
+        before = len(items)
+        items = [it for it in items if it.get("item_key") not in target_keys]
+        if len(items) == before:
+            raise HTTPException(404, f"item_key={item_key} 不存在于该 bundle")
+
+        extra["questionnaire_items"] = items
+        b.extra = extra
+        flag_modified(b, "extra")
+
+        # 连带清理已录入的答案
+        rows = (await s.execute(
+            select(ResearchResponse).where(
+                ResearchResponse.bundle_id == bundle_id,
+                ResearchResponse.item_key.in_(target_keys),
+            )
+        )).scalars().all()
+        for r in rows:
+            await s.delete(r)
+
+        await s.commit()
+
+    return {"ok": True, "removed_keys": list(target_keys), "total": len(items)}

@@ -10,14 +10,19 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Tag, Save, BookOpen, ChevronDown, ChevronRight } from 'lucide-react'
+import {
+  Tag, Save, BookOpen, ChevronDown, ChevronRight,
+  Pencil, Trash2, Plus, X,
+} from 'lucide-react'
 import {
   listResearchResponses, upsertResearchResponse, classifyResearchScope,
-  type CuratedBundle, type ResearchQuestionItem,
+  upsertQuestionnaireItem, deleteQuestionnaireItem,
+  type CuratedBundle, type ResearchQuestionItem, type ResearchOptionItem,
   type ResearchResponseItem, type ResearchScopeLabel,
   type ResearchBestPracticeRef,
   type ResearchAudienceRole,
   type ResearchQuestionPhase,
+  type ResearchLtcDictionaryEntry,
 } from '../../../api/client'
 
 const BEST_PRACTICE_SOURCE_LABELS: Record<string, string> = {
@@ -44,11 +49,23 @@ interface Props {
   /** 阶段筛选 — 会前 / 会中 / 全部 */
   selectedPhase: PhaseFilter
   onChangePhase: (p: PhaseFilter) => void
+  /** 写操作完成后让父刷新 outputs(拉新的 questionnaire_items) */
+  onRefetch?: () => void
+  /** LTC 字典 — 编辑题目时让用户在合法 ltc_module_key 中选 */
+  ltcModules: ResearchLtcDictionaryEntry[]
 }
 
 export default function ResearchQuestionnaire({
   bundle, groupBy, selectedRole, selectedLtcKey, selectedPhase, onChangePhase,
+  onRefetch, ltcModules,
 }: Props) {
+  // 编辑/新增态:'__new__' 表示新增,任意 item_key 表示编辑该题
+  const [editing, setEditing] = useState<string | null>(null)
+  const qc2 = useQueryClient()
+  const refreshAll = () => {
+    qc2.invalidateQueries({ queryKey: ['research-responses', bundle.id] })
+    onRefetch?.()
+  }
   const allItems: ResearchQuestionItem[] = useMemo(
     () => (bundle.questionnaire_items as ResearchQuestionItem[]) ?? [],
     [bundle.questionnaire_items]
@@ -182,7 +199,7 @@ export default function ResearchQuestionnaire({
       )}
 
       {/* 题目列表 */}
-      {items.length === 0 ? (
+      {items.length === 0 && editing !== '__new__' ? (
         <div className="text-sm text-ink-muted text-center py-12">
           {axisItems.length === 0
             ? '当前轴下没有匹配的题目。试试切换左栏其他角色 / 模块。'
@@ -191,15 +208,50 @@ export default function ResearchQuestionnaire({
       ) : (
         <div className="space-y-3">
           {items.map((it, idx) => (
-            <QuestionRow
-              key={it.item_key}
-              item={it}
-              index={idx + 1}
-              response={responseByKey[it.item_key]}
-              bundle={bundle}
-            />
+            editing === it.item_key ? (
+              <QuestionEditor
+                key={it.item_key}
+                bundleId={bundle.id}
+                ltcModules={ltcModules}
+                initial={it}
+                onCancel={() => setEditing(null)}
+                onSaved={() => { setEditing(null); refreshAll() }}
+              />
+            ) : (
+              <QuestionRow
+                key={it.item_key}
+                item={it}
+                index={idx + 1}
+                response={responseByKey[it.item_key]}
+                bundle={bundle}
+                onEdit={() => setEditing(it.item_key)}
+                onDeleted={() => refreshAll()}
+              />
+            )
           ))}
+          {editing === '__new__' && (
+            <QuestionEditor
+              bundleId={bundle.id}
+              ltcModules={ltcModules}
+              initial={{
+                ltc_module_key: groupBy === 'ltc' && selectedLtcKey ? selectedLtcKey : (axisItems[0]?.ltc_module_key || ltcModules[0]?.key || ''),
+                audience_roles: groupBy === 'role' && selectedRole ? [selectedRole] : ['dept_head'],
+                phase: selectedPhase === 'pre_meeting' ? 'pre_meeting' : 'in_meeting',
+              }}
+              onCancel={() => setEditing(null)}
+              onSaved={() => { setEditing(null); refreshAll() }}
+            />
+          )}
         </div>
+      )}
+
+      {editing !== '__new__' && (
+        <button
+          onClick={() => setEditing('__new__')}
+          className="mt-3 w-full flex items-center justify-center gap-1 px-3 py-2 text-xs rounded border border-dashed border-line text-ink-secondary hover:border-orange-300 hover:text-orange-700 hover:bg-orange-50/50"
+        >
+          <Plus size={12} /> 新增题目
+        </button>
       )}
     </div>
   )
@@ -208,18 +260,32 @@ export default function ResearchQuestionnaire({
 // ── 单题渲染 ─────────────────────────────────────────────────────────────────
 
 function QuestionRow({
-  item, index, response, bundle,
+  item, index, response, bundle, onEdit, onDeleted,
 }: {
   item: ResearchQuestionItem
   index: number
   response: ResearchResponseItem | undefined
   bundle: CuratedBundle
+  onEdit?: () => void
+  onDeleted?: () => void
 }) {
   const qc = useQueryClient()
   const upsert = useMutation({
     mutationFn: (body: Parameters<typeof upsertResearchResponse>[0]) => upsertResearchResponse(body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['research-responses', bundle.id] }),
   })
+
+  const delMut = useMutation({
+    mutationFn: () => deleteQuestionnaireItem(bundle.id, item.item_key),
+    onSuccess: () => onDeleted?.(),
+  })
+
+  const handleDelete = () => {
+    const tail = item.source === 'ai' ? '\n(AI 自动生成,删除后下次重新生成可能再次出现。)' : ''
+    if (window.confirm(`确认删除该题?\n「${item.question}」${tail}`)) {
+      delMut.mutate()
+    }
+  }
 
   const save = (answer_value: any, scope_label?: ResearchScopeLabel | null) => {
     upsert.mutate({
@@ -261,6 +327,26 @@ function QuestionRow({
           >
             {item.phase === 'pre_meeting' ? '会前' : '会中'}
           </span>
+        )}
+        {/* 编辑 / 删除 */}
+        {onEdit && (
+          <button
+            onClick={onEdit}
+            className="shrink-0 p-1 rounded text-ink-muted hover:text-orange-600 hover:bg-orange-50"
+            title="编辑该题"
+          >
+            <Pencil size={11} />
+          </button>
+        )}
+        {onDeleted && (
+          <button
+            onClick={handleDelete}
+            disabled={delMut.isPending}
+            className="shrink-0 p-1 rounded text-ink-muted hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
+            title="删除该题"
+          >
+            <Trash2 size={11} />
+          </button>
         )}
         <span className="shrink-0 text-[10px] text-ink-muted bg-slate-50 px-1.5 py-0.5 rounded">
           {item.type}
@@ -313,6 +399,335 @@ function QuestionRow({
           <span className="text-[10px] text-emerald-600">已保存</span>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── 题目编辑器(新增 / 编辑) ─────────────────────────────────────────────────
+
+const AUDIENCE_ROLES_FOR_EDITOR: { value: ResearchAudienceRole; label: string }[] = [
+  { value: 'executive', label: '高管' },
+  { value: 'dept_head', label: '部门负责人' },
+  { value: 'frontline', label: '一线' },
+  { value: 'it',        label: 'IT' },
+]
+
+const QUESTION_TYPES_FOR_EDITOR: { value: ResearchQuestionItem['type']; label: string }[] = [
+  { value: 'single', label: '单选' },
+  { value: 'multi',  label: '多选' },
+  { value: 'rating', label: '分级量表' },
+  { value: 'number', label: '数值' },
+  { value: 'text',   label: '短文本' },
+  { value: 'node_pick', label: '节点勾选' },
+]
+
+interface EditorInitial extends Partial<ResearchQuestionItem> {
+  ltc_module_key: string
+  audience_roles: string[]
+}
+
+function QuestionEditor({
+  bundleId, ltcModules, initial, onCancel, onSaved,
+}: {
+  bundleId: string
+  ltcModules: ResearchLtcDictionaryEntry[]
+  initial: EditorInitial
+  onCancel: () => void
+  onSaved: () => void
+}) {
+  const isEdit = !!initial.item_key
+  const [question, setQuestion] = useState(initial.question || '')
+  const [why, setWhy] = useState(initial.why || '')
+  const [hint, setHint] = useState(initial.hint || '')
+  const [type, setType] = useState<ResearchQuestionItem['type']>(initial.type || 'single')
+  const [ltcKey, setLtcKey] = useState(initial.ltc_module_key)
+  const [phase, setPhase] = useState<ResearchQuestionPhase>(initial.phase || 'in_meeting')
+  const [required, setRequired] = useState(!!initial.required)
+  const [roles, setRoles] = useState<ResearchAudienceRole[]>(
+    (initial.audience_roles?.filter(r => AUDIENCE_ROLES_FOR_EDITOR.some(a => a.value === r)) as ResearchAudienceRole[])
+    || ['dept_head']
+  )
+  const [options, setOptions] = useState<ResearchOptionItem[]>(
+    (initial.options || []).filter(o => !o.is_other && !o.is_not_applicable)
+  )
+  const [ratingScale, setRatingScale] = useState(initial.rating_scale || 5)
+  const [numberUnit, setNumberUnit] = useState(initial.number_unit || '')
+  const [error, setError] = useState<string | null>(null)
+
+  const needsOptions = type === 'single' || type === 'multi' || type === 'node_pick'
+
+  const saveMut = useMutation({
+    mutationFn: () => upsertQuestionnaireItem({
+      bundle_id: bundleId,
+      item_key: initial.item_key ?? null,
+      ltc_module_key: ltcKey,
+      audience_roles: roles,
+      type,
+      question: question.trim(),
+      why,
+      hint,
+      phase,
+      required,
+      options: needsOptions ? options : [],
+      rating_scale: ratingScale,
+      number_unit: numberUnit,
+      best_practice_refs: initial.best_practice_refs || [],
+      parent_item_key: initial.parent_item_key ?? null,
+    }),
+    onSuccess: () => onSaved(),
+    onError: (e: any) => setError(e?.response?.data?.detail || e?.message || '保存失败'),
+  })
+
+  const submit = () => {
+    setError(null)
+    if (!question.trim()) { setError('题干不能为空'); return }
+    if (!ltcKey) { setError('必须指定 LTC 模块'); return }
+    if (!roles.length) { setError('至少选择一个受访角色'); return }
+    if (needsOptions && options.length === 0) { setError('单选/多选/节点勾选必须至少 1 个候选选项(系统会自动追加「其他/不适用」)'); return }
+    saveMut.mutate()
+  }
+
+  return (
+    <div className="rounded-lg border border-orange-200 bg-orange-50/30 p-3.5 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-semibold text-ink">
+          {isEdit ? '编辑题目' : '新增题目'}
+        </div>
+        <button onClick={onCancel} className="p-1 text-ink-muted hover:text-ink" title="取消">
+          <X size={13} />
+        </button>
+      </div>
+
+      {/* 题干 */}
+      <Field label="题干" required>
+        <textarea
+          value={question}
+          onChange={e => setQuestion(e.target.value)}
+          rows={2}
+          placeholder="例:贵司目前是否有线索管理流程?"
+          className="w-full px-2 py-1.5 text-xs border border-line rounded focus:border-orange-300 outline-none resize-y"
+        />
+      </Field>
+
+      {/* 类型 + LTC + Phase 一行 */}
+      <div className="grid grid-cols-3 gap-2">
+        <Field label="题型" required>
+          <select
+            value={type}
+            onChange={e => setType(e.target.value as any)}
+            className="w-full px-2 py-1.5 text-xs border border-line rounded focus:border-orange-300 outline-none"
+          >
+            {QUESTION_TYPES_FOR_EDITOR.map(t =>
+              <option key={t.value} value={t.value}>{t.label}</option>
+            )}
+          </select>
+        </Field>
+        <Field label="LTC 模块" required>
+          <select
+            value={ltcKey}
+            onChange={e => setLtcKey(e.target.value)}
+            className="w-full px-2 py-1.5 text-xs border border-line rounded focus:border-orange-300 outline-none"
+          >
+            {ltcModules.map(m =>
+              <option key={m.key} value={m.key}>{m.label}</option>
+            )}
+          </select>
+        </Field>
+        <Field label="调研阶段">
+          <div className="flex gap-1 p-0.5 bg-slate-100 rounded">
+            <PhaseRadio active={phase === 'pre_meeting'} onClick={() => setPhase('pre_meeting')} label="会前" color="blue" />
+            <PhaseRadio active={phase === 'in_meeting'}  onClick={() => setPhase('in_meeting')}  label="会中" color="emerald" />
+          </div>
+        </Field>
+      </div>
+
+      {/* 受访角色 */}
+      <Field label="受访角色">
+        <div className="flex gap-2 flex-wrap">
+          {AUDIENCE_ROLES_FOR_EDITOR.map(r => {
+            const checked = roles.includes(r.value)
+            return (
+              <label
+                key={r.value}
+                className={`flex items-center gap-1 px-2 py-1 text-[11px] rounded border cursor-pointer ${
+                  checked ? 'border-orange-300 bg-orange-50 text-orange-700' : 'border-line text-ink-secondary hover:bg-slate-50'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => {
+                    setRoles(checked ? roles.filter(x => x !== r.value) : [...roles, r.value])
+                  }}
+                  className="accent-orange-500"
+                />
+                {r.label}
+              </label>
+            )
+          })}
+        </div>
+      </Field>
+
+      {/* 选项编辑(只在 single/multi/node_pick 下显示) */}
+      {needsOptions && (
+        <Field label="候选选项">
+          <OptionsEditor options={options} onChange={setOptions} />
+          <div className="text-[10px] text-ink-muted mt-1">
+            「其他(请说明)」与「不适用」会自动作为兜底选项添加,无需手动加。
+          </div>
+        </Field>
+      )}
+
+      {type === 'rating' && (
+        <Field label="量表上限">
+          <input
+            type="number" min={3} max={10}
+            value={ratingScale}
+            onChange={e => setRatingScale(parseInt(e.target.value) || 5)}
+            className="w-20 px-2 py-1 text-xs border border-line rounded focus:border-orange-300 outline-none"
+          />
+        </Field>
+      )}
+
+      {type === 'number' && (
+        <Field label="单位提示">
+          <input
+            type="text"
+            value={numberUnit}
+            onChange={e => setNumberUnit(e.target.value)}
+            placeholder="例:天 / 万元 / %"
+            className="w-32 px-2 py-1 text-xs border border-line rounded focus:border-orange-300 outline-none"
+          />
+        </Field>
+      )}
+
+      {/* why + hint */}
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="为什么问(给顾问看)">
+          <input
+            type="text" value={why} onChange={e => setWhy(e.target.value)}
+            placeholder="影响哪个 CRM 决策"
+            className="w-full px-2 py-1 text-xs border border-line rounded focus:border-orange-300 outline-none"
+          />
+        </Field>
+        <Field label="答题提示(显示给客户)">
+          <input
+            type="text" value={hint} onChange={e => setHint(e.target.value)}
+            placeholder="补充说明"
+            className="w-full px-2 py-1 text-xs border border-line rounded focus:border-orange-300 outline-none"
+          />
+        </Field>
+      </div>
+
+      <label className="flex items-center gap-1.5 text-xs text-ink-secondary cursor-pointer">
+        <input
+          type="checkbox" checked={required} onChange={e => setRequired(e.target.checked)}
+          className="accent-orange-500"
+        />
+        必答题
+      </label>
+
+      {error && (
+        <div className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">{error}</div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <button
+          onClick={submit}
+          disabled={saveMut.isPending}
+          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50"
+        >
+          <Save size={11} />
+          {saveMut.isPending ? '保存中…' : (isEdit ? '保存修改' : '新增题目')}
+        </button>
+        <button
+          onClick={onCancel}
+          className="px-3 py-1.5 text-xs rounded border border-line text-ink-secondary hover:bg-slate-50"
+        >
+          取消
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[11px] text-ink-secondary mb-1">
+        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function PhaseRadio({
+  active, onClick, label, color,
+}: {
+  active: boolean
+  onClick: () => void
+  label: string
+  color: 'blue' | 'emerald'
+}) {
+  const cls = active
+    ? color === 'blue'
+      ? 'bg-white text-blue-700 ring-1 ring-blue-200 shadow-sm'
+      : 'bg-white text-emerald-700 ring-1 ring-emerald-200 shadow-sm'
+    : 'text-ink-secondary hover:text-ink'
+  return (
+    <button onClick={onClick} className={`flex-1 px-2 py-1 text-[11px] rounded transition ${cls}`}>
+      {label}
+    </button>
+  )
+}
+
+function OptionsEditor({
+  options, onChange,
+}: {
+  options: ResearchOptionItem[]
+  onChange: (next: ResearchOptionItem[]) => void
+}) {
+  const update = (idx: number, patch: Partial<ResearchOptionItem>) => {
+    onChange(options.map((o, i) => i === idx ? { ...o, ...patch } : o))
+  }
+  const remove = (idx: number) => onChange(options.filter((_, i) => i !== idx))
+  const add = () => onChange([...options, { value: `opt_${options.length + 1}`, label: '' }])
+
+  return (
+    <div className="space-y-1">
+      {options.map((o, i) => (
+        <div key={i} className="flex items-center gap-1">
+          <span className="text-[10px] text-ink-muted w-5">{i + 1}.</span>
+          <input
+            type="text"
+            value={o.label}
+            onChange={e => update(i, { label: e.target.value })}
+            placeholder="选项中文文案"
+            className="flex-1 px-2 py-1 text-xs border border-line rounded focus:border-orange-300 outline-none"
+          />
+          <input
+            type="text"
+            value={o.value}
+            onChange={e => update(i, { value: e.target.value })}
+            placeholder="value (英文小写)"
+            className="w-32 px-2 py-1 text-[11px] text-ink-muted border border-line rounded focus:border-orange-300 outline-none"
+          />
+          <button
+            onClick={() => remove(i)}
+            className="p-1 text-ink-muted hover:text-red-600"
+            title="删除"
+          >
+            <Trash2 size={11} />
+          </button>
+        </div>
+      ))}
+      <button
+        onClick={add}
+        className="text-[11px] text-orange-700 hover:text-orange-800 flex items-center gap-1"
+      >
+        <Plus size={11} /> 新增选项
+      </button>
     </div>
   )
 }
