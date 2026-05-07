@@ -111,6 +111,46 @@ def _format_item_for_prompt(idx: int, item: dict) -> str:
     return "\n".join(parts)
 
 
+# ── 客户名脱敏 ──────────────────────────────────────────────────────────────
+# 维护一份显式的「已知客户名」黑名单 + 关键短名变体。LLM 即便没听 prompt 漏写
+# 真名,这里再过一道滤,统一替换成「某同行业客户」之类的脱敏词,绝不让真实
+# 客户名出现在 advice 里。
+_REDACT_REPLACEMENT = "某同行业客户"
+
+# 显式罗列(从 industry_packs/*.py 的 cases 收集 + 常见短名变体)
+_REDACT_PATTERNS: list[str] = [
+    # smart_manufacturing
+    "友发钢管集团", "友发钢管", "友发",
+    "特变新能源(特变电工)", "特变新能源", "特变电工", "特变",
+    "唐山天地矿业", "天地矿业",
+    # healthcare
+    "百迈客生物科技(基因检测)", "百迈客生物科技", "百迈客",
+    "三亚益本元(海南宜百年科技)", "三亚益本元", "海南宜百年科技", "益本元",
+    # energy(部分跟 manufacturing 重复)
+    "特变新能源(特变电工旗下)",
+    # technology
+    "北电数智(SaaS / AI 算力)", "北电数智",
+    "上海凯勇 NaaS", "上海凯勇",
+    "中电信人工智能(协同交付管理)", "中电信人工智能", "电信AI",
+    "小鸟科技(LTC 优化)", "小鸟科技", "小鸟LTC",
+    # 蓝盒外:其他知识库出现过的客户名
+    "蒂业技凯",
+]
+
+# 按长度倒序匹配,避免「友发钢管」被「友发」抢先替换造成短名残留
+_REDACT_PATTERNS.sort(key=len, reverse=True)
+
+
+def _redact_customer_names(text: str) -> str:
+    """把已知客户名替换为脱敏占位词。"""
+    if not text:
+        return text
+    for pat in _REDACT_PATTERNS:
+        if pat in text:
+            text = text.replace(pat, _REDACT_REPLACEMENT)
+    return text
+
+
 def _extract_json(raw: str) -> dict | None:
     """从 LLM 输出抠 JSON dict {item_key: advice}。"""
     fence = re.search(r"```json\s*(\{[\s\S]*?\})\s*```", raw, re.IGNORECASE)
@@ -170,7 +210,16 @@ async def generate_advice_for_items(
 4. **风格**:80-180 字,1-2 段。具体、可操作。可以引用具体数字 / 节点名 / 流程
    阶段。**不写**黑话(赋能 / 抓手 / 闭环 / 链路 / 生态)。
 5. **不引用最佳实践卡片的标题或代号** — 不要写「参考 [K3] 终态数据锁定 ...」
-   这种,直接说做法,出处由系统自动挂在脚注。""".format(project=project_label)
+   这种,直接说做法,出处由系统自动挂在脚注。
+6. **严禁提及任何具体企业名称(脱敏要求)** — 即使最佳实践库里写了真实客户名
+   (例:友发钢管、特变新能源、唐山天地矿业、北电数智、百迈客、上海凯勇、
+   蒂业技凯、中电信人工智能、小鸟科技、三亚益本元 等),advice 里**绝对不能**
+   出现这些名字。需要引用时统一脱敏成:
+   - 「某制造业头部客户」/「同行业头部客户」
+   - 「某 SaaS 服务商」/「某医疗器械企业」/「某能源企业」
+   - 「跨项目经验」/「行业内典型做法」
+   反例(违规):「参考特变新能源一期经验...」「友发钢管集团的高奖惩政策...」
+   正例(合规):「某制造业头部客户的一期经验是...」「行业内典型做法是先...」""".format(project=project_label)
 
     user_prompt = f"""【行业】{industry_label}
 
@@ -216,10 +265,15 @@ async def generate_advice_for_items(
         v = v.strip()
         if not v:
             continue
-        # 防御:LLM 偶尔会输出 [K3] 之类的代号,清理掉
-        v = re.sub(r"\[K\d+\]", "", v)
-        # 防御:LLM 偶尔会粘 ```json``` 残留
+        # 防御 1:清掉 LLM 偶尔输出的卡片代号引用 — 覆盖 [K3] / (K3) / (K3) 三种括号变体
+        v = re.sub(r"[\[（(]\s*K\s*\d+\s*[\]）)]", "", v)
+        # 防御 2:清掉前后的多余空格 / 标点(代号被抠掉后可能留下「,」「、」等悬挂)
+        v = re.sub(r"\s+([,，、。;;])", r"\1", v)  # 标点前的空格
+        v = re.sub(r"[,，、]\s*[,，、]", "、", v)   # 连续逗号合并
+        # 防御 3:LLM 偶尔会粘 ```json``` 残留
         v = re.sub(r"```\w*", "", v).strip()
+        # 防御 4:客户名脱敏 — LLM 即便没听 prompt 漏写真名,这里再过一道滤
+        v = _redact_customer_names(v)
         if v:
             out[k] = v
 

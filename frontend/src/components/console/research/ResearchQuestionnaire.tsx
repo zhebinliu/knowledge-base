@@ -397,9 +397,6 @@ function QuestionRow({
             <Trash2 size={11} />
           </button>
         )}
-        <span className="shrink-0 text-[10px] text-ink-muted bg-slate-50 px-1.5 py-0.5 rounded">
-          {item.type}
-        </span>
       </div>
 
       {/* AI 实施建议折叠区:有 advice 时优先展示;否则若有旧版 refs 也兼容 */}
@@ -435,14 +432,17 @@ function QuestionRow({
         )}
       </div>
 
-      {/* 底部:scope badge + 追问触发 */}
+      {/* 底部:scope badge + 追问触发 — 未答 + 无追问时整行不显示,避免空白底栏 */}
+      {(isAnswered || (followUpCount || 0) > 0) && (
       <div className="pl-7 pt-1 border-t border-slate-100 flex items-center gap-2 flex-wrap">
-        <ScopeBadgeEditor
-          value={response?.scope_label ?? null}
-          source={response?.scope_label_source ?? null}
-          disabled={response?.answer_value == null}
-          onChange={(v) => save(response?.answer_value ?? null, v)}
-        />
+        {isAnswered && (
+          <ScopeBadgeEditor
+            value={response?.scope_label ?? null}
+            source={response?.scope_label_source ?? null}
+            disabled={false}
+            onChange={(v) => save(response?.answer_value ?? null, v)}
+          />
+        )}
         {upsert.isPending && (
           <span className="text-[10px] text-ink-muted">保存中…</span>
         )}
@@ -482,6 +482,7 @@ function QuestionRow({
           <span className="text-[10px] text-red-600">追问生成失败</span>
         )}
       </div>
+      )}
     </div>
   )
 }
