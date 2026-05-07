@@ -388,7 +388,39 @@ function QuestionsMiniMap({
   items: ResearchQuestionItem[]
   responseByKey: Record<string, ResearchResponseItem>
 }) {
+  // viewport 中第一道题的 item_key,用于左侧 active 高亮
+  const [activeKey, setActiveKey] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (items.length === 0) return
+    // IntersectionObserver:任何题进入视窗 50%-上方 时记下来
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // 取最靠上的 intersecting entry
+        const visible = entries
+          .filter(e => e.isIntersecting)
+          .map(e => ({ key: e.target.id.replace('q-', ''), top: e.boundingClientRect.top }))
+          .sort((a, b) => a.top - b.top)
+        if (visible.length > 0) setActiveKey(visible[0].key)
+      },
+      { rootMargin: '-15% 0px -55% 0px', threshold: 0 }
+    )
+    for (const it of items) {
+      const el = document.getElementById(`q-${it.item_key}`)
+      if (el) observer.observe(el)
+    }
+    return () => observer.disconnect()
+  }, [items])
+
   if (items.length === 0) return null
+
+  // 已答数 / 总数(主干题)— 进度条用
+  const mains = items.filter(it => !it.parent_item_key)
+  const answeredMains = mains.filter(it =>
+    responseByKey[it.item_key]?.answer_value != null
+    && responseByKey[it.item_key]?.answer_value !== ''
+  ).length
+  const pct = mains.length === 0 ? 0 : Math.round(answeredMains / mains.length * 100)
 
   const jump = (item_key: string) => {
     const el = document.getElementById(`q-${item_key}`)
@@ -396,38 +428,80 @@ function QuestionsMiniMap({
   }
 
   return (
-    <aside className="hidden lg:block w-[64px] flex-shrink-0">
-      <div className="sticky top-2 max-h-[calc(100vh-140px)] overflow-y-auto py-1">
-        <div className="text-[9px] text-ink-muted text-center mb-1.5">题号</div>
-        <div className="grid grid-cols-2 gap-1">
+    <aside className="hidden lg:block w-[140px] flex-shrink-0">
+      <div className="sticky top-2 max-h-[calc(100vh-120px)] overflow-y-auto py-1 pr-1">
+        {/* 顶栏:进度 */}
+        <div className="px-2 py-1.5 mb-1">
+          <div className="flex items-baseline justify-between mb-1">
+            <span className="text-[10px] text-ink-muted font-medium tracking-wide">本卷进度</span>
+            <span className="text-[10px] tabular-nums text-ink-secondary">{answeredMains}/{mains.length}</span>
+          </div>
+          <div className="h-1 rounded-full bg-slate-100 overflow-hidden">
+            <div className="h-full bg-orange-500 transition-all" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+
+        {/* 题号大纲 */}
+        <div className="space-y-px">
           {items.map((it, idx) => {
             const answered = responseByKey[it.item_key]?.answer_value != null
                           && responseByKey[it.item_key]?.answer_value !== ''
             const isFollowUp = !!it.parent_item_key
             const phase = it.phase || 'in_meeting'
-            const cls = [
-              'inline-flex items-center justify-center text-[10px] tabular-nums rounded transition',
-              'h-6 cursor-pointer hover:scale-110',
-              answered
-                ? phase === 'pre_meeting'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-emerald-500 text-white'
-                : phase === 'pre_meeting'
-                  ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
-                  : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
-              isFollowUp ? 'opacity-70 text-[9px]' : '',
-            ].filter(Boolean).join(' ')
+            const isActive = activeKey === it.item_key
+
+            const phaseColor = phase === 'pre_meeting' ? 'bg-blue-400' : 'bg-emerald-400'
+
             return (
               <button
                 key={it.item_key}
                 onClick={() => jump(it.item_key)}
-                className={cls}
                 title={`#${idx + 1} · ${phase === 'pre_meeting' ? '会前' : '会中'} · ${answered ? '已答' : '未答'}\n${it.question}`}
+                className={`
+                  w-full flex items-center gap-1.5 pr-2 py-[3px] rounded-r text-left transition-colors
+                  border-l-2
+                  ${isActive
+                    ? 'bg-orange-50 border-orange-500'
+                    : 'border-transparent hover:bg-slate-50 hover:border-slate-200'}
+                  ${isFollowUp ? 'pl-5' : 'pl-2'}
+                `}
               >
-                {isFollowUp ? '·' : idx + 1}
+                {/* phase 色点 */}
+                <span className={`shrink-0 w-1 h-1 rounded-full ${phaseColor} ${
+                  answered ? '' : 'opacity-40'
+                }`} />
+
+                {/* 题号(follow-up 用「└ 追问」) */}
+                <span className={`flex-1 text-[10.5px] tabular-nums truncate ${
+                  isActive ? 'text-orange-700 font-semibold' :
+                  answered ? 'text-ink' : 'text-ink-muted'
+                }`}>
+                  {isFollowUp ? <span className="opacity-60">└ 追问</span> : `${idx + 1}`}
+                </span>
+
+                {/* 已答勾(克制款 — 仅小圆点填充) */}
+                {answered && !isFollowUp && (
+                  <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${
+                    phase === 'pre_meeting' ? 'bg-blue-500' : 'bg-emerald-500'
+                  }`} />
+                )}
               </button>
             )
           })}
+        </div>
+
+        {/* 图例(底部克制说明) */}
+        <div className="mt-3 px-2 pt-2 border-t border-line/60 space-y-0.5 text-[9.5px] text-ink-muted">
+          <div className="flex items-center gap-1.5">
+            <span className="w-1 h-1 rounded-full bg-blue-400" />
+            <span>会前</span>
+            <span className="w-1 h-1 rounded-full bg-emerald-400 ml-2" />
+            <span>会中</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+            <span>已答</span>
+          </div>
         </div>
       </div>
     </aside>
