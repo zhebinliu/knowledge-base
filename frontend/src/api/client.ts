@@ -1352,6 +1352,9 @@ export interface QuestionnaireItemUpsertBody {
   phase?: ResearchQuestionPhase
   parent_item_key?: string | null
   best_practice_refs?: ResearchBestPracticeRef[]
+  // 仅新增题(无 item_key)时生效:把新题插到这个 key 之后;
+  // ""(空字符串) = 插到最前;不传 / null = 追加到末尾(默认)
+  insert_after_item_key?: string | null
 }
 
 export const upsertQuestionnaireItem = (body: QuestionnaireItemUpsertBody) =>

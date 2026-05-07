@@ -188,6 +188,9 @@ class QuestionnaireItemBody(BaseModel):
     phase: Literal["pre_meeting", "in_meeting"] = "in_meeting"
     parent_item_key: str | None = None
     best_practice_refs: list[dict] = Field(default_factory=list)
+    # 仅新增题(无 item_key)时生效:把新题插到这个 key 之后;
+    # ""(空字符串)= 插到最前面;不传 / null = 追加到末尾(默认行为)
+    insert_after_item_key: str | None = Field(default=None, max_length=120)
 
 
 def _normalize_item(payload: dict, *, source: str) -> dict:
@@ -242,7 +245,10 @@ async def upsert_questionnaire_item(body: QuestionnaireItemBody):
         if existing_idx >= 0:
             # 编辑:保留原 LLM 注入字段(sow_evidence / kb_refs / scope_label*),只覆盖人工可改部分
             base = dict(items[existing_idx])
-            base.update({k: v for k, v in payload.items() if v is not None})
+            # insert_after_item_key 是仅新增时用的字段,编辑分支里清掉,不污染 base
+            payload_for_edit = {k: v for k, v in payload.items()
+                                if v is not None and k != "insert_after_item_key"}
+            base.update(payload_for_edit)
             base["item_key"] = body.item_key  # 保持稳定
             new_item = _normalize_item(base, source=base.get("source") or "manual")
             items[existing_idx] = new_item
@@ -257,9 +263,28 @@ async def upsert_questionnaire_item(body: QuestionnaireItemBody):
                 while f"{body.ltc_module_key}::manual_{n}" in taken:
                     n += 1
                 base_key = f"{body.ltc_module_key}::manual_{n}"
-            payload["item_key"] = base_key
-            new_item = _normalize_item(payload, source="manual")
-            items.append(new_item)
+            # 不要把 insert_after_item_key 字段写进题目本身
+            payload_for_create = {k: v for k, v in payload.items() if k != "insert_after_item_key"}
+            payload_for_create["item_key"] = base_key
+            new_item = _normalize_item(payload_for_create, source="manual")
+
+            # 按位置插入:""=插到最前;指定 key=插到该 key 之后;None/不传=追加末尾
+            insert_after = body.insert_after_item_key
+            if insert_after is None:
+                items.append(new_item)
+            elif insert_after == "":
+                items.insert(0, new_item)
+            else:
+                target_idx = -1
+                for i, it in enumerate(items):
+                    if it.get("item_key") == insert_after:
+                        target_idx = i
+                        break
+                if target_idx < 0:
+                    # 找不到锚点 — 兜底追加末尾(避免 404 让顾问体验断)
+                    items.append(new_item)
+                else:
+                    items.insert(target_idx + 1, new_item)
             action = "created"
 
         extra["questionnaire_items"] = items

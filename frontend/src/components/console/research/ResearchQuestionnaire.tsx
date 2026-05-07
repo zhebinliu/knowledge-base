@@ -56,12 +56,23 @@ interface Props {
   ltcModules: ResearchLtcDictionaryEntry[]
 }
 
+// 编辑态机:
+//   null                                            → 闲态
+//   { mode: 'edit', itemKey }                       → 替换该题为 editor
+//   { mode: 'new', insertAfter: string | null }     → 在 insertAfter 这道题之后插入 editor
+//                                                     ""(空字符串)= 插到最前
+//                                                     null = 追加到末尾(底部按钮触发)
+type EditingState =
+  | null
+  | { mode: 'edit'; itemKey: string }
+  | { mode: 'new'; insertAfter: string | null }
+
+
 export default function ResearchQuestionnaire({
   bundle, groupBy, selectedRole, selectedLtcKey, selectedPhase, onChangePhase,
   onRefetch, ltcModules,
 }: Props) {
-  // 编辑/新增态:'__new__' 表示新增,任意 item_key 表示编辑该题
-  const [editing, setEditing] = useState<string | null>(null)
+  const [editing, setEditing] = useState<EditingState>(null)
   const qc2 = useQueryClient()
   const refreshAll = () => {
     qc2.invalidateQueries({ queryKey: ['research-responses', bundle.id] })
@@ -212,18 +223,95 @@ export default function ResearchQuestionnaire({
       )}
 
       {/* 题目列表 */}
-      {items.length === 0 && editing !== '__new__' ? (
+      {items.length === 0 && (!editing || editing.mode !== 'new') ? (
         <div className="text-sm text-ink-muted text-center py-12">
           {axisItems.length === 0
             ? '当前轴下没有匹配的题目。试试切换左栏其他角色 / 模块。'
             : `当前「${PHASE_TAB_META[selectedPhase].label}」筛选下没有题目。试试切「全部」或另一个阶段。`}
         </div>
       ) : (
-        <div className="space-y-3">
-          {items.map((it, idx) => (
-            editing === it.item_key ? (
+        <QuestionsList
+          items={items}
+          bundle={bundle}
+          ltcModules={ltcModules}
+          editing={editing}
+          setEditing={setEditing}
+          responseByKey={responseByKey}
+          followUpCount={followUpCount}
+          refreshAll={refreshAll}
+          editorDefaults={{
+            ltc_module_key: groupBy === 'ltc' && selectedLtcKey
+              ? selectedLtcKey
+              : (axisItems[0]?.ltc_module_key || ltcModules[0]?.key || ''),
+            audience_roles: groupBy === 'role' && selectedRole ? [selectedRole] : ['dept_head'],
+            phase: selectedPhase === 'pre_meeting' ? 'pre_meeting' : 'in_meeting',
+          }}
+        />
+      )}
+
+      {(!editing || editing.mode !== 'new') && items.length > 0 && (
+        <button
+          onClick={() => setEditing({ mode: 'new', insertAfter: null })}
+          className="mt-3 w-full flex items-center justify-center gap-1 px-3 py-2 text-xs rounded border border-dashed border-line text-ink-secondary hover:border-orange-300 hover:text-orange-700 hover:bg-orange-50/50"
+          title="在末尾追加一道题(在题间 hover 也可以「+」插入)"
+        >
+          <Plus size={12} /> 新增题目(末尾)
+        </button>
+      )}
+    </div>
+  )
+}
+
+
+// ── 题目列表(含 hover 插槽 + 编辑/新建 editor 内联展开 + 右侧题号 minimap) ──
+
+interface EditorDefaults {
+  ltc_module_key: string
+  audience_roles: string[]
+  phase: ResearchQuestionPhase
+}
+
+function QuestionsList({
+  items, bundle, ltcModules, editing, setEditing,
+  responseByKey, followUpCount, refreshAll, editorDefaults,
+}: {
+  items: ResearchQuestionItem[]
+  bundle: CuratedBundle
+  ltcModules: ResearchLtcDictionaryEntry[]
+  editing: EditingState
+  setEditing: (s: EditingState) => void
+  responseByKey: Record<string, ResearchResponseItem>
+  followUpCount: Record<string, number>
+  refreshAll: () => void
+  editorDefaults: EditorDefaults
+}) {
+  const isNewAt = (insertAfter: string | null): boolean =>
+    !!editing && editing.mode === 'new' && editing.insertAfter === insertAfter
+
+  const renderEditor = (insertAfter: string | null) => (
+    <QuestionEditor
+      bundleId={bundle.id}
+      ltcModules={ltcModules}
+      initial={editorDefaults}
+      insertAfterItemKey={insertAfter}
+      onCancel={() => setEditing(null)}
+      onSaved={() => { setEditing(null); refreshAll() }}
+    />
+  )
+
+  return (
+    <div className="flex gap-3">
+      {/* 主区:题目列表 */}
+      <div className="flex-1 min-w-0 space-y-3">
+        {/* 顶部插槽(insertAfter = ""即插到最前) */}
+        {isNewAt('') ? renderEditor('') : (
+          <InsertSlot onClick={() => setEditing({ mode: 'new', insertAfter: '' })}
+                      hint="在最前插入" />
+        )}
+        {items.map((it, idx) => (
+          <div key={it.item_key} className="space-y-3">
+            {editing && editing.mode === 'edit' && editing.itemKey === it.item_key ? (
               <QuestionEditor
-                key={it.item_key}
                 bundleId={bundle.id}
                 ltcModules={ltcModules}
                 initial={it}
@@ -231,44 +319,118 @@ export default function ResearchQuestionnaire({
                 onSaved={() => { setEditing(null); refreshAll() }}
               />
             ) : (
-              <QuestionRow
-                key={it.item_key}
-                item={it}
-                index={idx + 1}
-                response={responseByKey[it.item_key]}
-                bundle={bundle}
-                followUpCount={followUpCount[it.item_key] || 0}
-                onEdit={() => setEditing(it.item_key)}
-                onDeleted={() => refreshAll()}
-                onFollowUpGenerated={() => refreshAll()}
-              />
-            )
-          ))}
-          {editing === '__new__' && (
-            <QuestionEditor
-              bundleId={bundle.id}
-              ltcModules={ltcModules}
-              initial={{
-                ltc_module_key: groupBy === 'ltc' && selectedLtcKey ? selectedLtcKey : (axisItems[0]?.ltc_module_key || ltcModules[0]?.key || ''),
-                audience_roles: groupBy === 'role' && selectedRole ? [selectedRole] : ['dept_head'],
-                phase: selectedPhase === 'pre_meeting' ? 'pre_meeting' : 'in_meeting',
-              }}
-              onCancel={() => setEditing(null)}
-              onSaved={() => { setEditing(null); refreshAll() }}
-            />
-          )}
-        </div>
-      )}
+              <div id={`q-${it.item_key}`} className="scroll-mt-20">
+                <QuestionRow
+                  item={it}
+                  index={idx + 1}
+                  response={responseByKey[it.item_key]}
+                  bundle={bundle}
+                  followUpCount={followUpCount[it.item_key] || 0}
+                  onEdit={() => setEditing({ mode: 'edit', itemKey: it.item_key })}
+                  onDeleted={() => refreshAll()}
+                  onFollowUpGenerated={() => refreshAll()}
+                />
+              </div>
+            )}
+            {/* 题后插槽 */}
+            {isNewAt(it.item_key) ? renderEditor(it.item_key) : (
+              <InsertSlot onClick={() => setEditing({ mode: 'new', insertAfter: it.item_key })} />
+            )}
+          </div>
+        ))}
+      </div>
 
-      {editing !== '__new__' && (
-        <button
-          onClick={() => setEditing('__new__')}
-          className="mt-3 w-full flex items-center justify-center gap-1 px-3 py-2 text-xs rounded border border-dashed border-line text-ink-secondary hover:border-orange-300 hover:text-orange-700 hover:bg-orange-50/50"
-        >
-          <Plus size={12} /> 新增题目
-        </button>
-      )}
+      {/* 右侧题号 minimap — sticky 浮在右边 */}
+      <QuestionsMiniMap items={items} responseByKey={responseByKey} />
     </div>
+  )
+}
+
+
+// ── 题间 hover 插槽 ─────────────────────────────────────────────────────────
+
+function InsertSlot({
+  onClick, hint,
+}: {
+  onClick: () => void
+  hint?: string
+}) {
+  return (
+    <div
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick() }}
+      className="group h-3 -my-1 flex items-center justify-center cursor-pointer relative"
+      title={hint || '在此处插入新题'}
+    >
+      {/* 平时只占 3px 高度;hover 显示一条橙色细线 + 中央 + 按钮 */}
+      <div className="w-full h-px bg-transparent group-hover:bg-orange-200 transition-colors" />
+      <button
+        type="button"
+        tabIndex={-1}
+        onClick={(e) => { e.stopPropagation(); onClick() }}
+        className="absolute opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-orange-600 text-white shadow"
+      >
+        <Plus size={10} />
+        <span>{hint || '插入'}</span>
+      </button>
+    </div>
+  )
+}
+
+
+// ── 题号 minimap(sticky 右侧) ───────────────────────────────────────────────
+
+function QuestionsMiniMap({
+  items, responseByKey,
+}: {
+  items: ResearchQuestionItem[]
+  responseByKey: Record<string, ResearchResponseItem>
+}) {
+  if (items.length === 0) return null
+
+  const jump = (item_key: string) => {
+    const el = document.getElementById(`q-${item_key}`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  return (
+    <aside className="hidden lg:block w-[64px] flex-shrink-0">
+      <div className="sticky top-2 max-h-[calc(100vh-140px)] overflow-y-auto py-1">
+        <div className="text-[9px] text-ink-muted text-center mb-1.5">题号</div>
+        <div className="grid grid-cols-2 gap-1">
+          {items.map((it, idx) => {
+            const answered = responseByKey[it.item_key]?.answer_value != null
+                          && responseByKey[it.item_key]?.answer_value !== ''
+            const isFollowUp = !!it.parent_item_key
+            const phase = it.phase || 'in_meeting'
+            const cls = [
+              'inline-flex items-center justify-center text-[10px] tabular-nums rounded transition',
+              'h-6 cursor-pointer hover:scale-110',
+              answered
+                ? phase === 'pre_meeting'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-emerald-500 text-white'
+                : phase === 'pre_meeting'
+                  ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
+                  : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+              isFollowUp ? 'opacity-70 text-[9px]' : '',
+            ].filter(Boolean).join(' ')
+            return (
+              <button
+                key={it.item_key}
+                onClick={() => jump(it.item_key)}
+                className={cls}
+                title={`#${idx + 1} · ${phase === 'pre_meeting' ? '会前' : '会中'} · ${answered ? '已答' : '未答'}\n${it.question}`}
+              >
+                {isFollowUp ? '·' : idx + 1}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </aside>
   )
 }
 
@@ -512,13 +674,15 @@ interface EditorInitial extends Partial<ResearchQuestionItem> {
 }
 
 function QuestionEditor({
-  bundleId, ltcModules, initial, onCancel, onSaved,
+  bundleId, ltcModules, initial, onCancel, onSaved, insertAfterItemKey,
 }: {
   bundleId: string
   ltcModules: ResearchLtcDictionaryEntry[]
   initial: EditorInitial
   onCancel: () => void
   onSaved: () => void
+  /** 仅新建态生效:把新题插入到该 item_key 后面;""=插到最前;null/undef=追加末尾 */
+  insertAfterItemKey?: string | null
 }) {
   const isEdit = !!initial.item_key
   const [question, setQuestion] = useState(initial.question || '')
@@ -558,6 +722,8 @@ function QuestionEditor({
       number_unit: numberUnit,
       best_practice_refs: initial.best_practice_refs || [],
       parent_item_key: initial.parent_item_key ?? null,
+      // 仅新建生效:后端按这个 key 之后的位置插入,而不是默认追加末尾
+      insert_after_item_key: initial.item_key ? null : (insertAfterItemKey ?? null),
     }),
     onSuccess: () => onSaved(),
     onError: (e: any) => setError(e?.response?.data?.detail || e?.message || '保存失败'),
