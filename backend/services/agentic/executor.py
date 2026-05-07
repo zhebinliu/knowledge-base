@@ -931,6 +931,14 @@ def _post_process_items(
             # source:LLM 生成的题统一标 ai
             raw.setdefault("source", "ai")
 
+            # needs_scope:战略 / 价值 / KPI / 决策链 / 干系人类的题不需要范围四分类,
+            # 因为这些题问的是"想做成什么"而不是"哪些流程要新建/搬迁"。当前判断:
+            # ltc_module_key == "L1_exec_alignment" → False。其他题默认 True。
+            if raw.get("ltc_module_key") == "L1_exec_alignment":
+                raw["needs_scope"] = False
+            else:
+                raw.setdefault("needs_scope", True)
+
             if not raw.get("item_key"):
                 raw["item_key"] = f"{item_key_prefix}::q{idx}"
 

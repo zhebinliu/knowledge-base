@@ -1232,6 +1232,7 @@ export interface ResearchQuestionItem {
   phase?: ResearchQuestionPhase            // 默认 in_meeting
   best_practice_refs?: ResearchBestPracticeRef[]
   best_practice_advice?: string            // AI 综合最佳实践库后,针对本题写的一段贴合建议
+  needs_scope?: boolean                    // 答完后是否标范围四分类(战略/价值/KPI 类题为 false)
   parent_item_key?: string | null          // 动态追问挂在哪个父问题下
   source?: ResearchQuestionSource          // 默认 ai
 }

@@ -132,7 +132,7 @@ export default function ResearchQuestionnaire({
 
   if (allItems.length === 0) {
     return (
-      <div className="p-6 max-w-3xl mx-auto">
+      <div className="p-6 max-w-6xl mx-auto">
         <div className="rounded border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
           ⚠️ 当前 bundle 没有结构化题目数据(<code>extra.questionnaire_items</code> 为空)。
           可能 LLM 输出格式异常,建议重新生成。
@@ -150,7 +150,7 @@ export default function ResearchQuestionnaire({
   const answeredN = items.filter(it => responseByKey[it.item_key]?.answer_value != null).length
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-3">
+    <div className="p-6 max-w-6xl mx-auto space-y-3">
       {/* 工具栏 */}
       <div className="flex items-center gap-3 sticky top-0 bg-white z-10 py-2 -mt-2 border-b border-line">
         <div className="text-sm font-semibold text-ink">
@@ -435,7 +435,8 @@ function QuestionRow({
       {/* 底部:scope badge + 追问触发 — 未答 + 无追问时整行不显示,避免空白底栏 */}
       {(isAnswered || (followUpCount || 0) > 0) && (
       <div className="pl-7 pt-1 border-t border-slate-100 flex items-center gap-2 flex-wrap">
-        {isAnswered && (
+        {/* scope badge 只在(已答 + 该题需要分类)时显示 — 战略 / 价值 / KPI 类题 needs_scope=false */}
+        {isAnswered && item.needs_scope !== false && (
           <ScopeBadgeEditor
             value={response?.scope_label ?? null}
             source={response?.scope_label_source ?? null}
@@ -1070,72 +1071,74 @@ function ScopeBadgeEditor({
   onChange: (v: ResearchScopeLabel | null) => void
 }) {
   const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
 
-  if (!value) {
-    return (
+  // 全局 mousedown 监听,点 menu 之外即关闭(取代旧 backdrop div,避免嵌套 button + 事件冒泡问题)
+  useEffect(() => {
+    if (!open) return
+    const onMouseDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [open])
+
+  const pick = (v: ResearchScopeLabel | null) => {
+    onChange(v)
+    setOpen(false)
+  }
+
+  const meta = value ? SCOPE_LABELS[value] : null
+
+  return (
+    <div className="relative inline-block" ref={ref}>
       <button
         onClick={() => !disabled && setOpen(o => !o)}
         disabled={disabled}
-        className="text-[10px] px-1.5 py-0.5 rounded border border-dashed border-slate-300 text-ink-muted hover:bg-slate-50 disabled:opacity-50 relative"
-        title={disabled ? '请先答题' : '设置范围分类'}
+        className={
+          meta
+            ? `text-[10px] px-1.5 py-0.5 rounded ring-1 ${meta.color}`
+            : "text-[10px] px-1.5 py-0.5 rounded border border-dashed border-slate-300 text-ink-muted hover:bg-slate-50 disabled:opacity-50"
+        }
+        title={
+          disabled ? '请先答题'
+            : meta ? `点击修改 · 来源:${source === 'ai' ? 'AI 自动' : '顾问手改'}`
+            : '设置范围分类(新建 / 已有数字化 / 搬迁 / 不纳入一期)'
+        }
       >
         <Tag size={9} className="inline mr-0.5" />
-        待分类
-        {open && <ScopeMenu onPick={v => { onChange(v); setOpen(false) }} onClose={() => setOpen(false)} />}
-      </button>
-    )
-  }
-
-  const meta = SCOPE_LABELS[value]
-  return (
-    <button
-      onClick={() => setOpen(o => !o)}
-      className={`text-[10px] px-1.5 py-0.5 rounded ring-1 relative ${meta.color}`}
-      title={`点击修改 · 来源:${source === 'ai' ? 'AI 自动' : '顾问手改'}`}
-    >
-      <Tag size={9} className="inline mr-0.5" />
-      {meta.label}
-      <span className="opacity-50 ml-1">({source === 'ai' ? 'AI' : '手'})</span>
-      {open && <ScopeMenu current={value} onPick={v => { onChange(v); setOpen(false) }} onClose={() => setOpen(false)} />}
-    </button>
-  )
-}
-
-function ScopeMenu({
-  current, onPick, onClose,
-}: {
-  current?: ResearchScopeLabel
-  onPick: (v: ResearchScopeLabel | null) => void
-  onClose: () => void
-}) {
-  return (
-    <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute z-50 left-0 top-full mt-1 bg-white border border-line rounded shadow-lg py-1 min-w-[160px]">
-        {(Object.entries(SCOPE_LABELS) as [ResearchScopeLabel, typeof SCOPE_LABELS[ResearchScopeLabel]][])
-          .map(([k, m]) => (
-            <button
-              key={k}
-              onClick={(e) => { e.stopPropagation(); onPick(k) }}
-              className={`w-full text-left px-2 py-1 text-[11px] hover:bg-slate-50 ${
-                current === k ? 'font-semibold text-orange-700' : 'text-ink'
-              }`}
-            >
-              {m.label}
-            </button>
-          ))}
-        {current && (
-          <>
-            <div className="border-t border-line my-0.5" />
-            <button
-              onClick={(e) => { e.stopPropagation(); onPick(null) }}
-              className="w-full text-left px-2 py-1 text-[11px] text-ink-muted hover:bg-slate-50"
-            >
-              清除分类
-            </button>
-          </>
+        {meta ? meta.label : '待分类'}
+        {meta && (
+          <span className="opacity-50 ml-1">({source === 'ai' ? 'AI' : '手'})</span>
         )}
-      </div>
-    </>
+      </button>
+      {open && (
+        <div className="absolute z-50 left-0 top-full mt-1 bg-white border border-line rounded shadow-lg py-1 min-w-[160px]">
+          {(Object.entries(SCOPE_LABELS) as [ResearchScopeLabel, typeof SCOPE_LABELS[ResearchScopeLabel]][])
+            .map(([k, m]) => (
+              <button
+                key={k}
+                onClick={() => pick(k)}
+                className={`w-full text-left px-2 py-1 text-[11px] hover:bg-slate-50 ${
+                  value === k ? 'font-semibold text-orange-700' : 'text-ink'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          {value && (
+            <>
+              <div className="border-t border-line my-0.5" />
+              <button
+                onClick={() => pick(null)}
+                className="w-full text-left px-2 py-1 text-[11px] text-ink-muted hover:bg-slate-50"
+              >
+                清除分类
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

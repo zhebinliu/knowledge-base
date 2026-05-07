@@ -181,6 +181,7 @@ class QuestionItem:
     phase: QuestionPhase = "in_meeting"
     best_practice_refs: list[BestPracticeRef] = field(default_factory=list)
     best_practice_advice: str = ""           # AI 综合最佳实践库后,针对本题写的一段贴合建议
+    needs_scope: bool = True                 # 答完后是否需要标范围四分类(战略/价值/KPI 类题不需要)
     parent_item_key: str | None = None
     source: QuestionSource = "ai"
 
@@ -219,6 +220,7 @@ class QuestionItem:
             phase=d.get("phase") or "in_meeting",
             best_practice_refs=bp_refs,
             best_practice_advice=d.get("best_practice_advice") or "",
+            needs_scope=d.get("needs_scope") if d.get("needs_scope") is not None else True,
             parent_item_key=d.get("parent_item_key"),
             source=d.get("source") or "ai",
         )
