@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ClipboardList, Lightbulb, Sparkles, Loader2, Workflow,
-  CheckCircle2, ChevronRight, Pencil,
+  CheckCircle2, ChevronRight, Pencil, Users, Briefcase,
 } from 'lucide-react'
 import {
   generateOutput,
@@ -21,7 +21,26 @@ import {
   type CuratedBundle,
   type ResearchLtcDictionaryEntry,
   type OutputKind,
+  type ResearchAudienceRole,
+  type ResearchQuestionPhase,
 } from '../../../api/client'
+
+// 受访角色的固定顺序与中文标签 — 与 backend AUDIENCE_ROLE_LABELS 保持一致
+const AUDIENCE_ROLE_ORDER: ResearchAudienceRole[] = ['executive', 'dept_head', 'frontline', 'it']
+const AUDIENCE_ROLE_LABELS: Record<ResearchAudienceRole, string> = {
+  executive: '高管',
+  dept_head: '部门负责人',
+  frontline: '一线',
+  it: 'IT',
+}
+const AUDIENCE_ROLE_DESC: Record<ResearchAudienceRole, string> = {
+  executive: '战略 / 决策诉求',
+  dept_head: '业务流程 / 协同规则',
+  frontline: '日常操作 / 痛点',
+  it: '集成 / 数据 / 权限',
+}
+
+type GroupBy = 'role' | 'ltc'
 import MarkdownView from '../../MarkdownView'
 import CitedReportView from '../CitedReportView'
 import CitationsPanel from '../CitationsPanel'
@@ -46,6 +65,9 @@ export default function ResearchWorkspace({
   projectId, outlineBundle, outlineInflight, surveyBundle, surveyInflight, activeKind, onRefetch,
 }: Props) {
   const [selectedLtcKey, setSelectedLtcKey] = useState<string | null>(null)
+  const [groupBy, setGroupBy] = useState<GroupBy>('role')                       // 默认按角色分组
+  const [selectedRole, setSelectedRole] = useState<ResearchAudienceRole | null>(null)
+  const [selectedPhase, setSelectedPhase] = useState<ResearchQuestionPhase | 'all'>('all')
   const [view, setView] = useState<ResearchView>('preparation')
   const [refsOpen, setRefsOpen] = useState(false)   // 右侧"引用追溯"默认收起
   const [highlightedRef, setHighlightedRef] = useState<string | null>(null)  // 报告角标点击 → 同步
@@ -97,68 +119,136 @@ export default function ResearchWorkspace({
   // 问卷 items(后端 _bundle_dto 已经 flat 出来)
   const questionnaireItems = useMemo(() => surveyBundle?.questionnaire_items ?? [], [surveyBundle])
 
-  // 第一次进来,如果 sow 命中了模块,自动选第一个
+  // 按角色统计题数(全卷 / 会前 / 会中 三档)
+  const roleCounts = useMemo(() => {
+    const out: Record<ResearchAudienceRole, { total: number; pre: number; meeting: number }> = {
+      executive: { total: 0, pre: 0, meeting: 0 },
+      dept_head: { total: 0, pre: 0, meeting: 0 },
+      frontline: { total: 0, pre: 0, meeting: 0 },
+      it:        { total: 0, pre: 0, meeting: 0 },
+    }
+    for (const q of questionnaireItems) {
+      const phase = q.phase || 'in_meeting'
+      for (const r of (q.audience_roles || [])) {
+        const role = r as ResearchAudienceRole
+        if (!(role in out)) continue
+        out[role].total += 1
+        if (phase === 'pre_meeting') out[role].pre += 1
+        else out[role].meeting += 1
+      }
+    }
+    return out
+  }, [questionnaireItems])
+
+  // 第一次进来:按角色模式默认选第一个有题的角色;按 LTC 模式默认选 SOW 命中的第一个模块
   useEffect(() => {
+    if (groupBy === 'role') {
+      if (selectedRole) return
+      const firstWithItems = AUDIENCE_ROLE_ORDER.find(r => roleCounts[r].total > 0)
+      setSelectedRole(firstWithItems ?? AUDIENCE_ROLE_ORDER[0])
+      return
+    }
     if (selectedLtcKey || !ltcDict?.modules?.length) return
     const firstHit = ltcDict.modules.find(m => sowHitKeys.has(m.key))
     setSelectedLtcKey(firstHit?.key ?? ltcDict.modules[0].key)
-  }, [ltcDict, sowHitKeys, selectedLtcKey])
+  }, [groupBy, ltcDict, sowHitKeys, selectedLtcKey, selectedRole, roleCounts])
 
   return (
     <div className="flex-shrink-0 h-[calc(100vh-56px)] flex bg-canvas overflow-hidden relative">
-      {/* ── 左:LTC 模块清单 ── */}
+      {/* ── 左:分组面板 ── */}
       <div className="w-[280px] flex-shrink-0 border-r border-line bg-white flex flex-col">
-        <div className="flex-shrink-0 px-3 py-2.5 border-b border-line">
-          <div className="text-[11px] text-ink-muted">LTC 流程模块</div>
-          <div className="text-xs text-ink mt-0.5">
-            共 {ltcDict?.modules?.length ?? 0} 个 ·
-            <span className="text-orange-600 ml-1">SOW 涉及 {sowHitKeys.size} 个</span>
+        {/* 分组方式切换 */}
+        <div className="flex-shrink-0 px-2.5 pt-2.5 pb-2 border-b border-line">
+          <div className="text-[11px] text-ink-muted mb-1.5">问卷分组方式</div>
+          <div className="flex gap-1 p-0.5 bg-slate-100 rounded">
+            <GroupTabBtn
+              active={groupBy === 'role'}
+              onClick={() => setGroupBy('role')}
+              icon={<Users size={11} />}
+              label="按角色"
+            />
+            <GroupTabBtn
+              active={groupBy === 'ltc'}
+              onClick={() => setGroupBy('ltc')}
+              icon={<Briefcase size={11} />}
+              label="按 LTC 模块"
+            />
           </div>
         </div>
+
+        {/* 列表主体 */}
         <div className="flex-1 min-h-0 overflow-auto p-2 space-y-1">
-          {(ltcDict?.modules ?? []).map(m => (
-            <LtcModuleRow
-              key={m.key}
-              module={m}
-              selected={m.key === selectedLtcKey}
-              hit={sowHitKeys.has(m.key)}
-              answeredCount={questionnaireItems.filter(q => q.ltc_module_key === m.key).length}
-              onClick={() => {
-                setSelectedLtcKey(m.key)
-                if (surveyBundle) setView('questionnaire')
-              }}
-            />
-          ))}
-          {(ltcMap?.items ?? []).filter(it => it.is_extra).length > 0 && (
-            <div className="mt-2 pt-2 border-t border-line">
-              <div className="text-[10px] text-ink-muted px-1 mb-1">SOW 客户自定义模块</div>
-              {Array.from(new Set((ltcMap?.items ?? []).filter(it => it.is_extra).map(it => it.sow_term)))
-                .slice(0, 12)
-                .map(sowTerm => {
-                  const selected = sowTerm === selectedLtcKey
-                  const answeredCount = questionnaireItems.filter(q => q.ltc_module_key === sowTerm).length
-                  return (
-                    <button
-                      key={sowTerm}
-                      onClick={() => {
-                        setSelectedLtcKey(sowTerm)
-                        if (surveyBundle) setView('questionnaire')
-                      }}
-                      className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-1.5 transition ${
-                        selected ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' : 'hover:bg-slate-50 text-ink-secondary'
-                      }`}
-                    >
-                      <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-purple-400" />
-                      <span className="truncate flex-1">{sowTerm}</span>
-                      {answeredCount > 0 && (
-                        <span className="text-[10px] text-ink-muted shrink-0 bg-slate-100 px-1 rounded">
-                          {answeredCount} 题
-                        </span>
-                      )}
-                    </button>
-                  )
-                })}
-            </div>
+          {groupBy === 'role' ? (
+            <>
+              <div className="text-[10px] text-ink-muted px-1 mb-1">
+                来自调研大纲的不同访谈人群
+              </div>
+              {AUDIENCE_ROLE_ORDER.map(role => (
+                <AudienceRoleRow
+                  key={role}
+                  role={role}
+                  selected={role === selectedRole}
+                  total={roleCounts[role].total}
+                  pre={roleCounts[role].pre}
+                  meeting={roleCounts[role].meeting}
+                  onClick={() => {
+                    setSelectedRole(role)
+                    if (surveyBundle) setView('questionnaire')
+                  }}
+                />
+              ))}
+            </>
+          ) : (
+            <>
+              <div className="text-[10px] text-ink-muted px-1 mb-1">
+                共 {ltcDict?.modules?.length ?? 0} 个 ·
+                <span className="text-orange-600 ml-1">SOW 涉及 {sowHitKeys.size} 个</span>
+              </div>
+              {(ltcDict?.modules ?? []).map(m => (
+                <LtcModuleRow
+                  key={m.key}
+                  module={m}
+                  selected={m.key === selectedLtcKey}
+                  hit={sowHitKeys.has(m.key)}
+                  answeredCount={questionnaireItems.filter(q => q.ltc_module_key === m.key).length}
+                  onClick={() => {
+                    setSelectedLtcKey(m.key)
+                    if (surveyBundle) setView('questionnaire')
+                  }}
+                />
+              ))}
+              {(ltcMap?.items ?? []).filter(it => it.is_extra).length > 0 && (
+                <div className="mt-2 pt-2 border-t border-line">
+                  <div className="text-[10px] text-ink-muted px-1 mb-1">SOW 客户自定义模块</div>
+                  {Array.from(new Set((ltcMap?.items ?? []).filter(it => it.is_extra).map(it => it.sow_term)))
+                    .slice(0, 12)
+                    .map(sowTerm => {
+                      const selected = sowTerm === selectedLtcKey
+                      const answeredCount = questionnaireItems.filter(q => q.ltc_module_key === sowTerm).length
+                      return (
+                        <button
+                          key={sowTerm}
+                          onClick={() => {
+                            setSelectedLtcKey(sowTerm)
+                            if (surveyBundle) setView('questionnaire')
+                          }}
+                          className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-1.5 transition ${
+                            selected ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' : 'hover:bg-slate-50 text-ink-secondary'
+                          }`}
+                        >
+                          <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-purple-400" />
+                          <span className="truncate flex-1">{sowTerm}</span>
+                          {answeredCount > 0 && (
+                            <span className="text-[10px] text-ink-muted shrink-0 bg-slate-100 px-1 rounded">
+                              {answeredCount} 题
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -184,9 +274,11 @@ export default function ResearchWorkspace({
                    muted={!surveyBundle || !!surveyInflight}
                    disabled={!!surveyInflight} />
           <div className="flex-1" />
-          {selectedLtcKey && view === 'questionnaire' && (
+          {view === 'questionnaire' && (
             <span className="text-[11px] text-ink-muted">
-              当前模块:{ltcDict?.modules?.find(m => m.key === selectedLtcKey)?.label || selectedLtcKey}
+              {groupBy === 'role'
+                ? (selectedRole ? `当前角色:${AUDIENCE_ROLE_LABELS[selectedRole]}` : '请选择左侧角色')
+                : (selectedLtcKey ? `当前模块:${ltcDict?.modules?.find(m => m.key === selectedLtcKey)?.label || selectedLtcKey}` : '请选择左侧模块')}
             </span>
           )}
         </div>
@@ -247,7 +339,11 @@ export default function ResearchWorkspace({
             surveyBundle ? (
               <ResearchQuestionnaire
                 bundle={surveyBundle}
+                groupBy={groupBy}
+                selectedRole={selectedRole}
                 selectedLtcKey={selectedLtcKey}
+                selectedPhase={selectedPhase}
+                onChangePhase={setSelectedPhase}
               />
             ) : (
               <div className="p-6">
@@ -287,6 +383,71 @@ export default function ResearchWorkspace({
 }
 
 // ── 子组件 ────────────────────────────────────────────────────────────────────
+
+function GroupTabBtn({
+  active, onClick, icon, label,
+}: {
+  active: boolean
+  onClick: () => void
+  icon: React.ReactNode
+  label: string
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 flex items-center justify-center gap-1 px-1.5 py-1 text-[11px] rounded transition ${
+        active
+          ? 'bg-white text-ink shadow-sm font-medium'
+          : 'text-ink-secondary hover:text-ink'
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  )
+}
+
+function AudienceRoleRow({
+  role, selected, total, pre, meeting, onClick,
+}: {
+  role: ResearchAudienceRole
+  selected: boolean
+  total: number
+  pre: number
+  meeting: number
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left px-2 py-2 rounded text-xs transition ${
+        selected
+          ? 'bg-orange-50 ring-1 ring-orange-200 text-orange-800'
+          : 'hover:bg-slate-50 text-ink'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-semibold truncate">{AUDIENCE_ROLE_LABELS[role]}</span>
+        {total > 0 ? (
+          <span className="shrink-0 text-[10px] text-ink-muted bg-slate-100 px-1 rounded">
+            {total} 题
+          </span>
+        ) : (
+          <span className="shrink-0 text-[10px] text-ink-muted">—</span>
+        )}
+      </div>
+      <div className="mt-0.5 text-[10px] text-ink-muted truncate">
+        {AUDIENCE_ROLE_DESC[role]}
+      </div>
+      {total > 0 && (
+        <div className="mt-1 flex items-center gap-2 text-[10px]">
+          <span className="text-blue-600">会前 {pre}</span>
+          <span className="text-emerald-700">会中 {meeting}</span>
+        </div>
+      )}
+    </button>
+  )
+}
 
 function LtcModuleRow({
   module: m, selected, hit, answeredCount, onClick,

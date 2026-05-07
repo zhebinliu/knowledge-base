@@ -63,6 +63,44 @@ AUDIENCE_ROLE_LABELS = {
     "it": "IT",
 }
 
+# 老 LTC 字典的 9 种角色 → 严格 4 角色的映射
+# (老角色仍保留在 ltc_dictionary 里供其他用途;问卷分卷统一收敛到 4 选)
+LEGACY_AUDIENCE_ROLE_MAP: dict[str, str] = {
+    "c_level":         "executive",
+    "biz_owner":       "dept_head",
+    "frontline_sales": "frontline",
+    "frontline_ops":   "frontline",
+    "service":         "frontline",
+    "finance":         "dept_head",
+    "channel_mgr":     "dept_head",
+    "marketing":       "dept_head",
+    "it":              "it",
+}
+
+
+def coerce_audience_roles(roles: list[str] | None) -> list[str]:
+    """把任意来源(LLM / LTC 字典)的角色列表收敛到严格 4 角色。
+    - 已经合法的直接保留
+    - 老角色(c_level / biz_owner ...)走 LEGACY_AUDIENCE_ROLE_MAP
+    - 其他完全不识别的丢弃
+    - 去重保序
+    """
+    valid = set(VALID_AUDIENCE_ROLES)
+    out: list[str] = []
+    seen: set[str] = set()
+    for r in (roles or []):
+        if not isinstance(r, str):
+            continue
+        target: str | None = None
+        if r in valid:
+            target = r
+        elif r in LEGACY_AUDIENCE_ROLE_MAP:
+            target = LEGACY_AUDIENCE_ROLE_MAP[r]
+        if target and target not in seen:
+            out.append(target)
+            seen.add(target)
+    return out
+
 
 @dataclass
 class BestPracticeRef:

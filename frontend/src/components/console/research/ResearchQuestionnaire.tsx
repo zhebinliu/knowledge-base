@@ -16,6 +16,8 @@ import {
   type CuratedBundle, type ResearchQuestionItem,
   type ResearchResponseItem, type ResearchScopeLabel,
   type ResearchBestPracticeRef,
+  type ResearchAudienceRole,
+  type ResearchQuestionPhase,
 } from '../../../api/client'
 
 const BEST_PRACTICE_SOURCE_LABELS: Record<string, string> = {
@@ -25,21 +27,58 @@ const BEST_PRACTICE_SOURCE_LABELS: Record<string, string> = {
   manual:           '人工录入',
 }
 
-interface Props {
-  bundle: CuratedBundle
-  selectedLtcKey: string | null
+type PhaseFilter = ResearchQuestionPhase | 'all'
+
+const PHASE_TAB_META: Record<PhaseFilter, { label: string; hint: string }> = {
+  all:         { label: '全部',  hint: '当前角色 / 模块的全部题目' },
+  pre_meeting: { label: '会前',  hint: '会前发给客户自填 — 客观、闭合、低门槛' },
+  in_meeting:  { label: '会中',  hint: '会中由 PM 主导追问 — 开放、深入、需要顾问引导' },
 }
 
-export default function ResearchQuestionnaire({ bundle, selectedLtcKey }: Props) {
+interface Props {
+  bundle: CuratedBundle
+  /** 分组方式 — 决定主筛选轴(role 还是 ltc_module_key) */
+  groupBy: 'role' | 'ltc'
+  selectedRole: ResearchAudienceRole | null
+  selectedLtcKey: string | null
+  /** 阶段筛选 — 会前 / 会中 / 全部 */
+  selectedPhase: PhaseFilter
+  onChangePhase: (p: PhaseFilter) => void
+}
+
+export default function ResearchQuestionnaire({
+  bundle, groupBy, selectedRole, selectedLtcKey, selectedPhase, onChangePhase,
+}: Props) {
   const allItems: ResearchQuestionItem[] = useMemo(
     () => (bundle.questionnaire_items as ResearchQuestionItem[]) ?? [],
     [bundle.questionnaire_items]
   )
 
-  const items = useMemo(() => {
+  // 主轴筛选(角色或 LTC 模块)
+  const axisItems = useMemo(() => {
+    if (groupBy === 'role') {
+      if (!selectedRole) return allItems
+      return allItems.filter(it => (it.audience_roles || []).includes(selectedRole))
+    }
     if (!selectedLtcKey) return allItems
     return allItems.filter(it => it.ltc_module_key === selectedLtcKey)
-  }, [allItems, selectedLtcKey])
+  }, [allItems, groupBy, selectedRole, selectedLtcKey])
+
+  // 阶段计数(基于主轴筛选后的子集,phase tab 上显示)
+  const phaseCounts = useMemo(() => {
+    let pre = 0, meeting = 0
+    for (const q of axisItems) {
+      if ((q.phase || 'in_meeting') === 'pre_meeting') pre += 1
+      else meeting += 1
+    }
+    return { all: axisItems.length, pre_meeting: pre, in_meeting: meeting }
+  }, [axisItems])
+
+  // 阶段二次筛选
+  const items = useMemo(() => {
+    if (selectedPhase === 'all') return axisItems
+    return axisItems.filter(it => (it.phase || 'in_meeting') === selectedPhase)
+  }, [axisItems, selectedPhase])
 
   const qc = useQueryClient()
   const { data: responses } = useQuery({
@@ -74,15 +113,11 @@ export default function ResearchQuestionnaire({ bundle, selectedLtcKey }: Props)
     )
   }
 
-  if (items.length === 0) {
-    return (
-      <div className="p-6 max-w-3xl mx-auto">
-        <div className="text-sm text-ink-muted text-center py-12">
-          当前 LTC 模块下没有匹配的题目。试试切换左栏其他模块,或选「全部模块」。
-        </div>
-      </div>
-    )
-  }
+  const axisLabel = groupBy === 'role'
+    ? (selectedRole ? `角色 · ${({
+        executive: '高管', dept_head: '部门负责人', frontline: '一线', it: 'IT',
+      } as Record<ResearchAudienceRole, string>)[selectedRole]}` : '请选择左侧角色')
+    : (selectedLtcKey ? `模块 · ${selectedLtcKey}` : '请选择左侧模块')
 
   const answeredN = items.filter(it => responseByKey[it.item_key]?.answer_value != null).length
 
@@ -91,7 +126,7 @@ export default function ResearchQuestionnaire({ bundle, selectedLtcKey }: Props)
       {/* 工具栏 */}
       <div className="flex items-center gap-3 sticky top-0 bg-white z-10 py-2 -mt-2 border-b border-line">
         <div className="text-sm font-semibold text-ink">
-          调研问卷 · {selectedLtcKey ?? '全部'}
+          调研问卷 · {axisLabel}
         </div>
         <div className="text-xs text-ink-muted">
           已答 {answeredN} / {items.length}
@@ -107,6 +142,36 @@ export default function ResearchQuestionnaire({ bundle, selectedLtcKey }: Props)
         </button>
       </div>
 
+      {/* 阶段筛选(会前 / 会中 / 全部) */}
+      <div className="flex items-center gap-1 bg-slate-50 p-0.5 rounded w-fit">
+        {(['all', 'pre_meeting', 'in_meeting'] as const).map(p => {
+          const meta = PHASE_TAB_META[p]
+          const count = p === 'all' ? phaseCounts.all : (p === 'pre_meeting' ? phaseCounts.pre_meeting : phaseCounts.in_meeting)
+          const active = selectedPhase === p
+          return (
+            <button
+              key={p}
+              onClick={() => onChangePhase(p)}
+              title={meta.hint}
+              className={`px-2.5 py-1 text-[11px] rounded transition flex items-center gap-1 ${
+                active
+                  ? p === 'pre_meeting'
+                    ? 'bg-white text-blue-700 ring-1 ring-blue-200 shadow-sm'
+                    : p === 'in_meeting'
+                      ? 'bg-white text-emerald-700 ring-1 ring-emerald-200 shadow-sm'
+                      : 'bg-white text-ink ring-1 ring-line shadow-sm'
+                  : 'text-ink-secondary hover:text-ink'
+              }`}
+            >
+              <span>{meta.label}</span>
+              <span className={`text-[10px] px-1 rounded ${active ? 'bg-slate-100 text-ink-muted' : 'text-ink-muted'}`}>
+                {count}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
       {classifyMut.isError && (
         <div className="text-xs text-red-600">分类失败:{(classifyMut.error as any)?.message}</div>
       )}
@@ -117,17 +182,25 @@ export default function ResearchQuestionnaire({ bundle, selectedLtcKey }: Props)
       )}
 
       {/* 题目列表 */}
-      <div className="space-y-3">
-        {items.map((it, idx) => (
-          <QuestionRow
-            key={it.item_key}
-            item={it}
-            index={idx + 1}
-            response={responseByKey[it.item_key]}
-            bundle={bundle}
-          />
-        ))}
-      </div>
+      {items.length === 0 ? (
+        <div className="text-sm text-ink-muted text-center py-12">
+          {axisItems.length === 0
+            ? '当前轴下没有匹配的题目。试试切换左栏其他角色 / 模块。'
+            : `当前「${PHASE_TAB_META[selectedPhase].label}」筛选下没有题目。试试切「全部」或另一个阶段。`}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {items.map((it, idx) => (
+            <QuestionRow
+              key={it.item_key}
+              item={it}
+              index={idx + 1}
+              response={responseByKey[it.item_key]}
+              bundle={bundle}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -177,6 +250,18 @@ function QuestionRow({
             <div className="text-[11px] text-orange-600 mt-0.5">{item.hint}</div>
           )}
         </div>
+        {item.phase && (
+          <span
+            className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ring-1 ${
+              item.phase === 'pre_meeting'
+                ? 'bg-blue-50 text-blue-700 ring-blue-200'
+                : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+            }`}
+            title={item.phase === 'pre_meeting' ? '会前自填题' : '会中追问题'}
+          >
+            {item.phase === 'pre_meeting' ? '会前' : '会中'}
+          </span>
+        )}
         <span className="shrink-0 text-[10px] text-ink-muted bg-slate-50 px-1.5 py-0.5 rounded">
           {item.type}
         </span>

@@ -552,7 +552,14 @@ async def execute_survey_subsection(
             parts.append(f"\n--- {pb.get('stage_label', '上游')} · {pb.get('title', '')} ---\n{excerpt}")
         prior_context_block = "\n".join(parts)
 
-    target_roles_label = " / ".join(subsection.target_roles)
+    # 把分卷原始 target_roles(可能是 LTC 字典的 c_level/biz_owner...)收敛到严格 4 角色,
+    # 让 LLM 直接看到本分卷应该覆盖的「严格 4 选 N」角色
+    from services.agentic.research.questionnaire_schema import (
+        coerce_audience_roles, AUDIENCE_ROLE_LABELS,
+    )
+    strict_target_roles = coerce_audience_roles(subsection.target_roles) or ["dept_head"]
+    strict_label = " / ".join(f"{r}({AUDIENCE_ROLE_LABELS[r]})" for r in strict_target_roles)
+    target_roles_label = f"{' / '.join(subsection.target_roles)}  → 严格 4 角色映射: {strict_label}"
     qmin, qmax = subsection.question_count_target
 
     # research v1:item_key 前缀(顾问录入答案时按此 key 索引)
@@ -623,6 +630,8 @@ async def execute_survey_subsection(
   {{
     "item_key": "{item_key_prefix}::<英文小写下划线短标识,与本题问题语义一致>",
     "ltc_module_key": "<必须从 LTC 字典中选 1 个 key,例 M02_opportunity>",
+    "audience_roles": ["<从 executive / dept_head / frontline / it 中选 1-2 个,与本分卷目标人群一致>"],
+    "phase": "<pre_meeting 或 in_meeting,见下方判定原则>",
     "type": "single | multi | rating | number | text | node_pick",
     "question": "<同上方第 N 题的问题正文>",
     "why": "<同 *为什么问*>",
@@ -640,6 +649,22 @@ async def execute_survey_subsection(
   ...
 ]
 ```
+
+【phase 判定原则 — 决定题目走「会前自填」还是「会中追问」】
+- **pre_meeting(会前)**:客观、闭合、低门槛,客户不需要顾问引导就能答 — 例如:
+  - 当前是否有 X 流程(yes/no/部分)
+  - 角色 / 数量 / 现有系统 / 数据条数(数值或多选)
+  - 标准化的清单选择(产品线 / 客户分级 / 已用系统)
+- **in_meeting(会中)**:开放、深入、需要顾问对话引导才能高质量回答 — 例如:
+  - 流程卡点 / 痛点 / 业务异常处理
+  - 决策链 / 协同规则 / 分歧场景的具体做法
+  - 跨部门协作的灰色地带、未明文规定的"潜规则"
+  - 需要现场画图 / 拉通多方才能定义清楚的内容
+- 同分卷内 pre_meeting 与 in_meeting 都要有,**比例建议 30-50% 会前 + 50-70% 会中**(具体看分卷性质;高管类分卷会中比例可更高)。
+
+【audience_roles 取值约束 — 严格 4 选 N】
+- 只能从 `executive`(高管/决策者)/ `dept_head`(部门负责人/业务主管)/ `frontline`(一线/操作者)/ `it`(IT / 系统管理员) 中选,**不要写其他值**。
+- 单题通常 1 个角色;少数跨角色题最多 2 个。如果分卷的 target_roles 给了多个,按本题最相关的人填。
 
 【完整 few-shot 示例 — 严格按这个格式输出 markdown + JSON 配对】
 假设分卷是「商机管理」,生成 3 题(single / multi / rating 各一题),完整输出如下:
@@ -827,13 +852,18 @@ def _post_process_items(
     candidate_ltc_keys: list[str] | None = None,
     customer_modules: list[str] | None = None,
 ) -> list[dict]:
-    """规整结构化题目:校验 ltc_module_key / 补 sentinel / 兜底 item_key。"""
+    """规整结构化题目:校验 ltc_module_key / 补 sentinel / 校验 phase + audience_roles / 兜底 item_key。"""
     from services.agentic.research.questionnaire_schema import (
-        QuestionItem, OptionItem, ensure_sentinels,
+        QuestionItem, OptionItem, ensure_sentinels, coerce_audience_roles,
     )
     from services.agentic.research.ltc_dictionary import ALL_LTC_MODULES
     valid_ltc_keys = {m.key for m in ALL_LTC_MODULES} | set(customer_modules or [])
     fallback_ltc = ltc_module_key or (candidate_ltc_keys[0] if candidate_ltc_keys else None) or "_uncategorized"
+
+    # 调用方传入的 audience_roles(可能是 LTC 字典的老角色)收敛到严格 4 角色,作为兜底默认值
+    fallback_roles = coerce_audience_roles(audience_roles)
+    if not fallback_roles:
+        fallback_roles = ["dept_head"]  # 兜底:大多数 CRM 调研主体是部门负责人
 
     out: list[dict] = []
     for idx, raw in enumerate(items_raw, 1):
@@ -854,7 +884,17 @@ def _post_process_items(
                             llm_gave=llm_key, fallback=fallback_ltc, item_idx=idx)
                 raw["ltc_module_key"] = fallback_ltc
 
-            raw["audience_roles"] = list(audience_roles)
+            # audience_roles:严格 4 选 N,过滤非法值(同时把老角色映射成新角色);为空则用调用方兜底
+            cleaned_roles = coerce_audience_roles(raw.get("audience_roles"))
+            raw["audience_roles"] = cleaned_roles or list(fallback_roles)
+
+            # phase:pre_meeting / in_meeting,默认 in_meeting(老兼容)
+            llm_phase = (raw.get("phase") or "").strip()
+            raw["phase"] = llm_phase if llm_phase in ("pre_meeting", "in_meeting") else "in_meeting"
+
+            # source:LLM 生成的题统一标 ai
+            raw.setdefault("source", "ai")
+
             if not raw.get("item_key"):
                 raw["item_key"] = f"{item_key_prefix}::q{idx}"
 
