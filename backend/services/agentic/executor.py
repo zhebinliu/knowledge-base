@@ -205,6 +205,47 @@ def _build_sources_index(
 _INLINE_CITATION_RE = re.compile(r'\[([DKW]\d{1,3})\](?!\()')   # [D1] 但不是 [D1](url)
 
 
+_PREAMBLE_PATTERNS = [
+    # "根据项目上传文档(D1-D8)和知识库切片(K1-K5)，以下是【关键发现】章节的5条..."
+    r'^根据.{0,80}(以下是|如下).*[:：。]\s*$',
+    # "基于上述资料，整理如下..."
+    r'^基于.{0,80}(以下|如下|下面).*[:：。]\s*$',
+    # "以下是 N 条 ..."
+    r'^以下是.{0,80}[:：。]\s*$',
+    # "我将 / 接下来 / 现在为您 ..."
+    r'^(我将|接下来|现在为您|请允许我).{0,80}[:：。]\s*$',
+    # "下面 / 下方 ..." (开头过渡句)
+    r'^(下面|下方).{0,80}[:：。]\s*$',
+]
+_PREAMBLE_RE = [re.compile(p) for p in _PREAMBLE_PATTERNS]
+
+
+def _strip_preamble(content: str) -> str:
+    """剥掉 LLM 输出开头的前导句 / 元描述(LLM 复述上下文的过渡话)。
+
+    例:
+      "根据项目上传文档(D1-D8)和知识库切片(K1-K5),以下是【关键发现】章节的5条关键发现:"
+      "基于上述资料,整理如下:"
+
+    扫前 5 个非空行,匹配上述任一 pattern 的整行 → 删除。
+    保守策略:只删完全是过渡句的行,不动含数据/具体信息的行。
+    """
+    if not content:
+        return content
+    lines = content.split("\n")
+    cleaned = []
+    seen_non_blank = 0
+    for line in lines:
+        stripped = line.strip()
+        if seen_non_blank < 5 and stripped:
+            seen_non_blank += 1
+            # 长度过滤:超过 120 字的行通常含真实信息,保留
+            if len(stripped) <= 120 and any(p.match(stripped) for p in _PREAMBLE_RE):
+                continue   # 删除这一行
+        cleaned.append(line)
+    return "\n".join(cleaned).lstrip("\n")
+
+
 def _strip_redundant_title(content: str, module_title: str) -> str:
     """剥掉 LLM 输出开头跟 module.title 重复的 H1/H2 行(runner 已经注入 ## title,
     LLM 偶尔无视 system prompt 的"禁止输出标题"约束,造成 # title 出现两次)。
@@ -382,6 +423,8 @@ async def execute_insight_module(
             raw_content = await _call_once(attempt=2)
         # 1. 剥重复标题(LLM 偶尔无视 system prompt 输出 ## 标题, runner 已注入)
         content_clean = _strip_redundant_title(raw_content.strip(), module.title)
+        # 1.5 剥前导句 / 元描述(LLM 复述上下文的过渡话,如"根据 XXX,以下是 N 条...")
+        content_clean = _strip_preamble(content_clean)
         # 2. 引用 ID 后处理 [D1] → [D1](#cite-...)
         content_processed, used_sources = _post_process_citations(
             content_clean, sources_index, module.key,
