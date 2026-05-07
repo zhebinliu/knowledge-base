@@ -546,21 +546,25 @@ function VirtualForm({ vkey, projectId, onDone }: {
   }
 
   return (
-    <div className="h-full bg-white overflow-auto">
-      <div className="max-w-[1100px] mx-auto px-6 py-6 pb-20">
-        <div className="mb-5 pb-4 border-b border-line">
-          <h2 className="text-lg font-bold text-ink">{data.title}</h2>
-          <p className="text-xs text-ink-muted mt-1">{data.description}</p>
-        </div>
-        <div className="space-y-4">
-          {data.ask_user_prompts.map(p => (
-            <PromptCard key={p.field_key} prompt={p} value={valueOf(p)}
-                        onChange={v => setAnswer(p.field_key, v)} />
-          ))}
+    // flex column 布局:滚动区 flex-1 自适应,底部操作栏 flex-shrink-0 永远在底
+    // 修了之前 absolute bottom-0 找不到 relative 祖先 → 漂到视口底导致跟内容重叠的 bug
+    <div className="h-full bg-white flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-auto">
+        <div className="max-w-[1100px] mx-auto px-6 py-6">
+          <div className="mb-5 pb-4 border-b border-line">
+            <h2 className="text-lg font-bold text-ink">{data.title}</h2>
+            <p className="text-xs text-ink-muted mt-1">{data.description}</p>
+          </div>
+          <div className="space-y-4">
+            {data.ask_user_prompts.map(p => (
+              <PromptCard key={p.field_key} prompt={p} value={valueOf(p)}
+                          onChange={v => setAnswer(p.field_key, v)} />
+            ))}
+          </div>
         </div>
       </div>
-      {/* 底部固定操作栏(白底 + 顶分割线) */}
-      <div className="absolute bottom-0 left-0 right-0 px-6 py-3 bg-white border-t border-line flex items-center gap-3 shadow-[0_-2px_4px_rgba(0,0,0,0.03)]">
+      {/* 底部操作栏 — flex-shrink-0 在 flex column 末尾 */}
+      <div className="flex-shrink-0 px-6 py-3 bg-white border-t border-line flex items-center gap-3 shadow-[0_-2px_4px_rgba(0,0,0,0.03)]">
         {error && <span className="text-xs text-red-600">{error}</span>}
         <span className="ml-auto text-[11px] text-ink-muted">保存后会自动写入项目要点</span>
         <button
