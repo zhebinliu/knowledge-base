@@ -43,3 +43,6 @@ def list_packs() -> list[IndustryPack]:
 
 # 注册默认 packs(import 时自动)
 from . import smart_manufacturing  # noqa: E402,F401
+from . import technology  # noqa: E402,F401
+from . import healthcare  # noqa: E402,F401
+from . import energy  # noqa: E402,F401
