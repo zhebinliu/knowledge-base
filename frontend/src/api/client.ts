@@ -1385,9 +1385,44 @@ export const generateFollowUp = (body: {
 export type ExportRole = ResearchAudienceRole | 'all'
 export type ExportFormat = 'docx' | 'xlsx' | 'html'
 
-/** 触发下载 docx / xlsx,或在新窗口打开 html(供用户 window.print() 转 PDF)。
- *  返回服务端真实 url,前端用 <a href> 或 window.open。 */
-export const exportPreMeetingUrl = (bundle_id: string, role: ExportRole, fmt: ExportFormat) => {
-  const params = new URLSearchParams({ bundle_id, role, fmt })
-  return `/api/research/questionnaire/export-pre-meeting?${params.toString()}`
+/** 通过 axios 拉 blob 触发下载 / 打开 — 自动带 Bearer token。
+ *  - docx / xlsx:走浏览器原生「另存为」
+ *  - html:用 blob URL 在新窗口打开,用户点「另存为 PDF」按钮转 PDF
+ */
+export async function exportPreMeeting(
+  bundle_id: string,
+  role: ExportRole,
+  fmt: ExportFormat,
+): Promise<void> {
+  const response = await api.get('/research/questionnaire/export-pre-meeting', {
+    params: { bundle_id, role, fmt },
+    responseType: fmt === 'html' ? 'text' : 'blob',
+  })
+
+  if (fmt === 'html') {
+    const blob = new Blob([response.data as string], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener,noreferrer')
+    // 新窗口加载完后释放(给点缓冲)
+    setTimeout(() => URL.revokeObjectURL(url), 60 * 1000)
+    return
+  }
+
+  // 二进制下载:从 Content-Disposition 拿文件名(后端用 RFC 5987 UTF-8 编码)
+  const cd = (response.headers['content-disposition'] || '') as string
+  let filename = `会前调研问卷.${fmt}`
+  const m = cd.match(/filename\*=UTF-8''([^;]+)/i) || cd.match(/filename="?([^";]+)"?/i)
+  if (m) {
+    try { filename = decodeURIComponent(m[1]) } catch { filename = m[1] }
+  }
+  const contentType = (response.headers['content-type'] || 'application/octet-stream') as string
+  const blob = new Blob([response.data as Blob], { type: contentType })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }

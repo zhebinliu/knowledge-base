@@ -9,7 +9,7 @@
  */
 import { useState, useRef, useEffect } from 'react'
 import { Download, FileText, FileSpreadsheet, Printer, Loader2 } from 'lucide-react'
-import { exportPreMeetingUrl, type ExportRole, type ExportFormat } from '../../../api/client'
+import { exportPreMeeting, type ExportRole, type ExportFormat } from '../../../api/client'
 
 const ROLES: { value: ExportRole; label: string; desc: string }[] = [
   { value: 'all',       label: '全部角色', desc: '会前所有题目合订(给客户内部传阅一份)' },
@@ -40,24 +40,18 @@ export default function ExportPreMeetingButton({ bundleId, compact }: Props) {
     return () => document.removeEventListener('mousedown', onClick)
   }, [open])
 
-  const trigger = (role: ExportRole, fmt: ExportFormat) => {
+  const [error, setError] = useState<string | null>(null)
+  const trigger = async (role: ExportRole, fmt: ExportFormat) => {
     setBusy(true)
-    const url = exportPreMeetingUrl(bundleId, role, fmt)
-    if (fmt === 'html') {
-      // 打印模式:新窗口打开,浏览器自带「另存为 PDF」
-      window.open(url, '_blank', 'noopener,noreferrer')
-    } else {
-      // 直接下载:用 <a download> 触发
-      const a = document.createElement('a')
-      a.href = url
-      a.target = '_blank'
-      a.rel = 'noopener'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
+    setError(null)
+    try {
+      await exportPreMeeting(bundleId, role, fmt)
+      setOpen(false)
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || e?.message || '导出失败')
+    } finally {
+      setBusy(false)
     }
-    // 短暂去 busy 状态;请求是浏览器层面的下载,无法精确感知完成
-    setTimeout(() => { setBusy(false); setOpen(false) }, 600)
   }
 
   const sz = compact ? 11 : 12
@@ -103,6 +97,11 @@ export default function ExportPreMeetingButton({ bundleId, compact }: Props) {
               </div>
             ))}
           </div>
+          {error && (
+            <div className="px-3 py-2 border-t border-line bg-red-50 text-[11px] text-red-600">
+              {error}
+            </div>
+          )}
         </div>
       )}
     </div>
