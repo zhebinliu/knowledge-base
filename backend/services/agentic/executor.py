@@ -584,6 +584,15 @@ async def execute_survey_subsection(
         ltc_dict_block_lines.append("如果题目内容跟 LTC 字典任何一项都不贴合,但跟某个 ☆ 客户自定义模块相关,可填客户自定义模块名作为 ltc_module_key。")
     ltc_dict_block_lines.append(f"\n本分卷主要服务的 LTC 候选(★ 标记):{', '.join(candidate_ltc_keys[:8])}")
     ltc_dict_block_lines.append("每题按其内容主旨,从 ★ 候选 / ☆ 客户自定义 / 全部 LTC 字典中选最贴合的 1 个填到 ltc_module_key 字段。")
+    ltc_dict_block_lines.append(
+        "\n【常见挂错纠正 — 选 key 时按「问题问的本质」而不是「字面关键词」】\n"
+        "- 题干含「集成 / 接口 / 双写 / 同步 / 主数据 / 数据存储 / ERP / OA / MES / PLM / 字段映射 / 数据归属 / 权限 / 数据隔离」"
+        "→ 选 **S05_integration**(即使题干提到「客户」「产品」「订单」字眼,但本质讨论的是系统对接)\n"
+        "- 题干含「客户档案 / 建档 / 查重 / 客户分级 / 客户审批 / 客户跟进」→ 选 **S01_customer**\n"
+        "- 题干含「BOM / 产品价格 / 价目表 / SKU / 阶梯价」→ 选 **S02_product**\n"
+        "- 题干含「经销商 / 分销 / 渠道商机报备 / 防串货」→ 选 **S03_channel**\n"
+        "- 反例(常错):「客户主数据存哪个系统?」**不是** S01_customer,而是 **S05_integration**(因为本质是数据归属 / 集成话题)"
+    )
     ltc_dict_block = "\n".join(ltc_dict_block_lines)
 
     user_prompt = f"""请为本分卷生成一份**实施前调研问卷**。

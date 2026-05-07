@@ -338,6 +338,48 @@ S03_CHANNEL = [
 ]
 
 
+# ── S05 集成 / 数据 / 权限 ───────────────────────────────────────────────────
+
+S05_INTEGRATION = [
+    BestPractice(
+        title="主数据来源唯一性(SOT)",
+        summary="每个核心对象(客户 / 产品 / 价格 / 员工)只指定一个 Source of Truth — 客户档案归 CRM,BOM 归 ERP/PLM,价格归价目表,员工归 HR。其他系统读不写,避免双写打架。",
+        source_id="客户管理 / 链路IO + 集成最佳实践",
+        triggers=["主数据", "唯一性", "归属", "存储", "源", "SOT", "MDM", "集成", "数据治理"],
+    ),
+    BestPractice(
+        title="CRM ↔ ERP 主从双写 + 关联号",
+        summary="CRM 主导客户 / 商机 / 合同 / 订单,推送至 ERP 落库;ERP 主导发货 / 出库 / 开票,回写至 CRM 显示。两边各持唯一关联号,出错可对账。",
+        source_id="合同管理 / 链路IO + 智能制造行业包",
+        triggers=["双写", "推送", "回写", "ERP", "集成", "对接", "同步", "接口", "对账"],
+    ),
+    BestPractice(
+        title="同步失败重试 + 死信告警",
+        summary="集成接口必须有 3 级保险:同步失败自动重试 3 次 → 仍失败入死信队列 → 死信触发钉钉/企微告警。否则数据断点出现时业务方一脸懵。",
+        source_id="集成最佳实践 + 智能制造行业包",
+        triggers=["失败", "重试", "异常", "告警", "死信", "断点", "同步"],
+    ),
+    BestPractice(
+        title="字段映射手册化 + 版本化",
+        summary="字段映射(CRM 字段 ↔ ERP 字段 ↔ MDM 字段)写成业务可读的对照表,而不是埋在代码里。每次字段变更升版本号,IT + 业务双签。",
+        source_id="集成最佳实践 + 蒂业技凯项目档案",
+        triggers=["字段映射", "数据映射", "mapping", "对照表", "字段对应"],
+    ),
+    BestPractice(
+        title="主数据治理委员会",
+        summary="跨部门(IT + 业务 + 财务)主数据治理小组每月一次评议:新增字段 / 字段口径变化 / 主数据冲突案例,决议落实到映射表。避免「业务说一套,IT 写另一套」。",
+        source_id="集成最佳实践 + 友发钢管 / 北电数智项目",
+        triggers=["治理", "委员会", "口径", "标准化", "数据规范"],
+    ),
+    BestPractice(
+        title="权限模型 + 数据隔离 (PBAC + RBAC)",
+        summary="权限两层:RBAC 决定能不能用功能,PBAC 决定能看到哪些数据(自己 / 团队 / 大区 / 全公司)。集成时 ERP / BI 用单独的服务账号,不沿用业务用户的可见范围。",
+        source_id="客户管理 / 标准流程 §4.6 System Key 重算 + 集成最佳实践",
+        triggers=["权限", "数据隔离", "可见范围", "RBAC", "PBAC", "隔离", "合规"],
+    ),
+]
+
+
 # ── 总入口字典 ────────────────────────────────────────────────────────────────
 
 LTC_BEST_PRACTICES: dict[str, list[BestPractice]] = {
@@ -351,6 +393,7 @@ LTC_BEST_PRACTICES: dict[str, list[BestPractice]] = {
     "S01_customer":     S01_CUSTOMER,
     "S02_product":      S02_PRODUCT,
     "S03_channel":      S03_CHANNEL,
+    "S05_integration":  S05_INTEGRATION,
 }
 
 
@@ -380,16 +423,21 @@ def get_best_practices_for(
     out: list[dict] = []
 
     # ── 主源:LTC_BEST_PRACTICES ──
+    # 严格 score > 0 才推:即题干 / why 至少命中一个 trigger 关键词。
+    # 若桶内所有卡片 score 都为 0 → 返回空(让前端折叠区不展示),
+    # 避免推不相关内容(经验:用户对"客户主数据存哪个系统"被推到"工商联想"
+    # 这类弱相关结果非常敏感,宁缺勿滥)。
     bucket = LTC_BEST_PRACTICES.get(ltc_module_key) or []
-    candidates: list[tuple[int, BestPractice]] = []
+    scored: list[tuple[int, BestPractice]] = []
     for bp in bucket:
         if bp.industries and industry and industry not in bp.industries:
             continue
         score = sum(10 for trig in bp.triggers if trig.lower() in text)
-        candidates.append((score, bp))
-    candidates.sort(key=lambda x: -x[0])
+        if score > 0:
+            scored.append((score, bp))
+    scored.sort(key=lambda x: -x[0])
 
-    for _, bp in candidates[: max(0, limit - 1) if industry else limit]:
+    for _, bp in scored[: max(0, limit - 1) if industry else limit]:
         out.append({
             "title": bp.title,
             "summary": bp.summary,
@@ -398,7 +446,9 @@ def get_best_practices_for(
         })
 
     # ── 辅源:行业标杆案例(industry_pack.cases)─ 至多 1 条 ──
-    if industry and len(out) < limit:
+    # 主源没出任何卡片(说明 ltc_module_key 跟题干完全不沾边)时也跳过辅源,
+    # 一致维持「无相关 → 不显示」的体感。
+    if industry and out and len(out) < limit:
         case = _pick_industry_case(industry, text)
         if case is not None:
             out.append(case)
