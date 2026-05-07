@@ -24,6 +24,7 @@ import {
   type ResearchQuestionPhase,
   type ResearchLtcDictionaryEntry,
 } from '../../../api/client'
+import ExportPreMeetingButton from './ExportPreMeetingButton'
 
 const BEST_PRACTICE_SOURCE_LABELS: Record<string, string> = {
   industry_pack:    '行业实践包',
@@ -159,6 +160,8 @@ export default function ResearchQuestionnaire({
           已答 {answeredN} / {items.length}
         </div>
         <div className="flex-1" />
+        {/* 会前问卷按角色导出 — 任何 phase 视图下都可用,因为导出固定只取 pre_meeting */}
+        <ExportPreMeetingButton bundleId={bundle.id} compact />
         <button
           disabled={answeredN === 0 || classifyMut.isPending}
           onClick={() => classifyMut.mutate()}

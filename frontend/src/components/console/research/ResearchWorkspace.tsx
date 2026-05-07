@@ -47,6 +47,7 @@ import CitationsPanel from '../CitationsPanel'
 import MarkdownEditor from '../MarkdownEditor'
 import GenerationProgressCard from '../GenerationProgressCard'
 import ResearchQuestionnaire from './ResearchQuestionnaire'
+import ExportPreMeetingButton from './ExportPreMeetingButton'
 
 type ResearchView = 'preparation' | 'outline' | 'questionnaire'
 
@@ -578,13 +579,18 @@ function PreparationView({
         triggering={trig === 'survey'}
         onGenerate={() => trigger('survey')}
         extraInfo={surveyBundle ? `结构化题目 ${surveyBundle.questionnaire_items?.length ?? 0} 道` : null}
+        footerSlot={
+          surveyBundle?.status === 'done' && (surveyBundle.questionnaire_items?.length ?? 0) > 0
+            ? <ExportPreMeetingButton bundleId={surveyBundle.id} />
+            : null
+        }
       />
     </div>
   )
 }
 
 function ProductCard({
-  title, subtitle, bundle, inflight, triggering, onGenerate, extraInfo,
+  title, subtitle, bundle, inflight, triggering, onGenerate, extraInfo, footerSlot,
 }: {
   title: string
   subtitle: string
@@ -593,6 +599,7 @@ function ProductCard({
   triggering: boolean
   onGenerate: () => void
   extraInfo?: string | null
+  footerSlot?: React.ReactNode
 }) {
   const isDone = bundle?.status === 'done'
   const updatedAt = bundle?.updated_at ? new Date(bundle.updated_at) : null
@@ -631,6 +638,12 @@ function ProductCard({
       </div>
       {inflight && (
         <GenerationProgressCard bundle={inflight} />
+      )}
+      {footerSlot && (
+        <div className="pt-2 border-t border-line/60 flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] text-ink-muted">导出 / 分发:</span>
+          {footerSlot}
+        </div>
       )}
     </div>
   )

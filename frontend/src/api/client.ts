@@ -1328,3 +1328,15 @@ export const generateFollowUp = (body: {
   answer_value: any
   max_followups?: number
 }) => api.post<FollowUpResult>('/research/follow-up', body).then(r => r.data)
+
+// ── 会前问卷按角色导出 ────────────────────────────────────────────────────────
+
+export type ExportRole = ResearchAudienceRole | 'all'
+export type ExportFormat = 'docx' | 'xlsx' | 'html'
+
+/** 触发下载 docx / xlsx,或在新窗口打开 html(供用户 window.print() 转 PDF)。
+ *  返回服务端真实 url,前端用 <a href> 或 window.open。 */
+export const exportPreMeetingUrl = (bundle_id: string, role: ExportRole, fmt: ExportFormat) => {
+  const params = new URLSearchParams({ bundle_id, role, fmt })
+  return `/api/research/questionnaire/export-pre-meeting?${params.toString()}`
+}

@@ -1,4 +1,4 @@
-"""需求调研 v1 API — 顾问录入答案 + 范围分类触发 + LTC 模块映射查询 + 问卷题目 CRUD。
+"""需求调研 v1 API — 顾问录入答案 + 范围分类触发 + LTC 模块映射查询 + 问卷题目 CRUD + 会前导出。
 
 注意:大纲 / 问卷的"生成"复用现有 outputs API(POST /api/outputs/generate
         with kind=survey_outline / survey),走 runner.generate_survey_outline
@@ -8,9 +8,12 @@
 - 触发四分类
 - 拉取 SOW → LTC 映射结果
 - 问卷题目的「人工新增/编辑/删除」(写入 bundle.extra.questionnaire_items[])
+- 会前问卷按角色导出 docx / xlsx / html(打印转 PDF)
 """
+import urllib.parse
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response, HTMLResponse
 from pydantic import BaseModel, Field
 from typing import Any, Literal
 from sqlalchemy import select
@@ -20,6 +23,7 @@ from models import async_session_maker
 from models.research_response import ResearchResponse
 from models.research_ltc_module_map import ResearchLtcModuleMap
 from models.curated_bundle import CuratedBundle
+from models.project import Project
 from services.auth import get_current_user
 
 logger = structlog.get_logger()
@@ -327,3 +331,76 @@ async def delete_questionnaire_item(bundle_id: str, item_key: str):
         await s.commit()
 
     return {"ok": True, "removed_keys": list(target_keys), "total": len(items)}
+
+
+# ── 会前问卷按角色导出 ──────────────────────────────────────────────────────
+
+EXPORT_FORMATS = {
+    "docx": ("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"),
+    "xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"),
+    "html": ("text/html; charset=utf-8", "html"),
+}
+
+
+@router.get("/questionnaire/export-pre-meeting", dependencies=[Depends(get_current_user)])
+async def export_pre_meeting_questionnaire(
+    bundle_id: str = Query(...),
+    role: str = Query("all", description="executive / dept_head / frontline / it / all"),
+    fmt: str = Query("docx", description="docx / xlsx / html"),
+):
+    """按角色导出会前调研问卷(纯空白模板,客户拿到从零填)。
+
+    - phase 固定 pre_meeting(会中题不外发)
+    - role='all' 导全部会前题;否则按 audience_roles 过滤
+    - fmt='html' 返回可直接打开后 window.print() 转 PDF 的 HTML
+    """
+    from services.agentic.research.questionnaire_export import (
+        export_docx, export_xlsx, export_html, filter_items, export_filename, ROLE_ALL,
+    )
+    from services.agentic.research.questionnaire_schema import VALID_AUDIENCE_ROLES
+    from services.agentic.research.ltc_dictionary import ALL_LTC_MODULES
+
+    if fmt not in EXPORT_FORMATS:
+        raise HTTPException(400, f"不支持的格式 {fmt},允许:docx / xlsx / html")
+    if role != ROLE_ALL and role not in VALID_AUDIENCE_ROLES:
+        raise HTTPException(400, f"非法角色 {role},允许:{VALID_AUDIENCE_ROLES} 或 all")
+
+    async with async_session_maker() as s:
+        b = await s.get(CuratedBundle, bundle_id)
+        if not b:
+            raise HTTPException(404, "bundle 不存在")
+        if b.kind != "survey":
+            raise HTTPException(400, f"只能导出 survey 类 bundle,当前 kind={b.kind}")
+        items_all = list((b.extra or {}).get("questionnaire_items") or [])
+        # 拿项目名做文件名前缀
+        project_name = ""
+        if b.project_id:
+            p = await s.get(Project, b.project_id)
+            project_name = p.name if p else ""
+
+    items = filter_items(items_all, role)
+    ltc_label_lookup = {m.key: m.label for m in ALL_LTC_MODULES}
+
+    if fmt == "docx":
+        data = export_docx(project_name=project_name, role=role, items=items, ltc_label_lookup=ltc_label_lookup)
+        media, ext = EXPORT_FORMATS["docx"]
+        filename = export_filename(project_name, role, "docx")
+        encoded = urllib.parse.quote(filename)
+        return Response(
+            content=data,
+            media_type=media,
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
+        )
+    if fmt == "xlsx":
+        data = export_xlsx(project_name=project_name, role=role, items=items, ltc_label_lookup=ltc_label_lookup)
+        media, ext = EXPORT_FORMATS["xlsx"]
+        filename = export_filename(project_name, role, "xlsx")
+        encoded = urllib.parse.quote(filename)
+        return Response(
+            content=data,
+            media_type=media,
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
+        )
+    # html: 直接渲染,前端在新窗口打开 → 用户点「打印 / 另存为 PDF」
+    html = export_html(project_name=project_name, role=role, items=items, ltc_label_lookup=ltc_label_lookup)
+    return HTMLResponse(content=html)
