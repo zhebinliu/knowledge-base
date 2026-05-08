@@ -651,6 +651,10 @@ export const removeCollaborator = (project_id: string, user_id: string) =>
 export const searchUsersForCollab = (q: string, limit = 10) =>
   api.get<UserSearchResult[]>('/projects/_/users/search', { params: { q, limit } }).then(r => r.data)
 
+/** 转让项目所有权 — 旧 owner 自动转成 read_write 协作者,新 owner 若是协作者会被自动移除协作者记录 */
+export const transferProjectOwner = (project_id: string, new_owner_user_id: string) =>
+  api.post<Project>(`/projects/${project_id}/transfer-owner`, { new_owner_user_id }).then(r => r.data)
+
 
 export const listProjectDocuments = (id: string) =>
   api.get<ProjectDocument[]>(`/projects/${id}/documents`).then(r => r.data)

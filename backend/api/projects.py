@@ -260,6 +260,87 @@ async def delete_project(
     return {"ok": True, "unlinked_documents": cnt}
 
 
+# ── 转让所有者 ──────────────────────────────────────────────────────────────
+
+class TransferOwnerBody(BaseModel):
+    new_owner_user_id: str = Field(min_length=1, max_length=36)
+
+
+@router.post("/{project_id}/transfer-owner")
+async def transfer_owner(
+    project_id: str,
+    body: TransferOwnerBody,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_project_access("owner_only")),
+):
+    """把项目所有者转让给另一个用户。
+
+    规则:
+    - 仅当前 owner / admin 可调
+    - 接手人必须是活跃用户(is_active=true)
+    - 接手人不能是当前 owner(自己转给自己无意义)
+    - 转让后:project.created_by = new_owner_user_id;原 owner 自动加为 read_write 协作者;
+      若新 owner 已是协作者,删除其协作者记录(避免身份重叠)
+    """
+    # 不能由 admin 跳过 owner_only 时把自己变成新 owner — 因为 owner_only 已校,
+    # admin 也是合法触发者(代客户做运维场景)。
+    p = await session.get(Project, project_id)
+    if not p:
+        raise HTTPException(404, "项目不存在")
+
+    new_owner = await session.get(User, body.new_owner_user_id)
+    if not new_owner:
+        raise HTTPException(404, "目标用户不存在")
+    if not new_owner.is_active:
+        raise HTTPException(400, "目标用户已禁用,不能接手")
+    if p.created_by and new_owner.id == p.created_by:
+        raise HTTPException(400, "该用户已是项目所有者")
+
+    old_owner_id = p.created_by
+
+    # 1. 如果新 owner 当前是协作者,先把它从 collaborator 表删掉(避免唯一约束冲突 + 身份重叠)
+    new_owner_coll = (await session.execute(
+        select(ProjectCollaborator).where(
+            ProjectCollaborator.project_id == project_id,
+            ProjectCollaborator.user_id == new_owner.id,
+        )
+    )).scalar_one_or_none()
+    if new_owner_coll:
+        await session.delete(new_owner_coll)
+
+    # 2. 切换 owner
+    p.created_by = new_owner.id
+
+    # 3. 把旧 owner 加为 read_write 协作者(除非旧 owner 是 None — 历史脏数据)
+    if old_owner_id and old_owner_id != new_owner.id:
+        existing = (await session.execute(
+            select(ProjectCollaborator).where(
+                ProjectCollaborator.project_id == project_id,
+                ProjectCollaborator.user_id == old_owner_id,
+            )
+        )).scalar_one_or_none()
+        if not existing:
+            session.add(ProjectCollaborator(
+                project_id=project_id,
+                user_id=old_owner_id,
+                role="read_write",
+                created_by=user.id,
+            ))
+
+    await session.commit()
+    await session.refresh(p)
+    logger.info("project_owner_transferred",
+                project_id=project_id,
+                from_user=old_owner_id,
+                to_user=new_owner.id,
+                by=user.username)
+    cnt = await session.scalar(
+        select(func.count(Document.id)).where(Document.project_id == project_id)
+    )
+    role = await _resolve_my_role(user, p)
+    return _project_dto(p, doc_count=cnt or 0, my_role=role)
+
+
 # ── Documents under project ─────────────────────────────────────────────────
 
 @router.post("/{project_id}/generate_profile")

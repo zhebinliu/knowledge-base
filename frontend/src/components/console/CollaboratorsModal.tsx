@@ -13,11 +13,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   X, Plus, Search, Loader2, Crown, Shield, Eye,
-  Check, AlertTriangle, UserMinus, ChevronDown,
+  Check, AlertTriangle, UserMinus, ChevronDown, ArrowRightLeft,
 } from 'lucide-react'
 import {
   listCollaborators, addCollaborator, updateCollaboratorRole, removeCollaborator,
-  searchUsersForCollab,
+  searchUsersForCollab, transferProjectOwner,
   type CollaboratorRole, type ProjectCollaborator, type UserSearchResult,
 } from '../../api/client'
 
@@ -44,6 +44,10 @@ export default function CollaboratorsModal({ open, projectId, myRole, onClose }:
     queryFn: () => listCollaborators(projectId),
     enabled: open,
   })
+
+  // 转让所有者:owner / admin 才能开;打开后展示一个二选弹窗(选谁接手)
+  const [transferOpen, setTransferOpen] = useState(false)
+  const canTransferOwner = myRole === 'owner' || myRole === 'admin'
 
   // 搜索 + 添加
   const [query, setQuery] = useState('')
@@ -99,6 +103,18 @@ export default function CollaboratorsModal({ open, projectId, myRole, onClose }:
     onSuccess: () => qc.invalidateQueries({ queryKey: ['project-collaborators', projectId] }),
   })
 
+  const transferMut = useMutation({
+    mutationFn: (new_owner_user_id: string) => transferProjectOwner(projectId, new_owner_user_id),
+    onSuccess: () => {
+      setTransferOpen(false)
+      // 同时让外面项目详情 / 列表刷一下(my_role 变了)
+      qc.invalidateQueries({ queryKey: ['project-collaborators', projectId] })
+      qc.invalidateQueries({ queryKey: ['project', projectId] })
+      qc.invalidateQueries({ queryKey: ['projects'] })
+    },
+    onError: (e: any) => setError(e?.response?.data?.detail || e?.message || '转让失败'),
+  })
+
   if (!open) return null
 
   const owner = data?.owner
@@ -148,6 +164,16 @@ export default function CollaboratorsModal({ open, projectId, myRole, onClose }:
                 <span className="text-[10.5px] px-1.5 py-0.5 rounded ring-1 bg-amber-50 text-amber-700 ring-amber-200">
                   Owner
                 </span>
+                {canTransferOwner && (
+                  <button
+                    onClick={() => setTransferOpen(true)}
+                    className="text-[10.5px] inline-flex items-center gap-1 px-2 py-1 rounded border border-amber-300 text-amber-700 hover:bg-amber-100"
+                    title="转让所有权 — 旧 owner 自动降为读写协作者"
+                  >
+                    <ArrowRightLeft size={10} />
+                    转让
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -258,6 +284,211 @@ export default function CollaboratorsModal({ open, projectId, myRole, onClose }:
           </span>
         </div>
       </div>
+
+      {/* 转让所有者子弹窗 */}
+      {transferOpen && (
+        <TransferOwnerSubModal
+          owner={owner}
+          collaborators={collabs}
+          onClose={() => setTransferOpen(false)}
+          onConfirm={(uid) => transferMut.mutate(uid)}
+          busy={transferMut.isPending}
+          error={transferMut.isError ? (transferMut.error as any)?.response?.data?.detail || '转让失败' : null}
+        />
+      )}
+    </>
+  )
+}
+
+
+function TransferOwnerSubModal({
+  owner, collaborators, onClose, onConfirm, busy, error,
+}: {
+  owner?: { user_id: string | null; username: string | null; full_name: string | null } | null
+  collaborators: ProjectCollaborator[]
+  onClose: () => void
+  onConfirm: (new_owner_user_id: string) => void
+  busy: boolean
+  error: string | null
+}) {
+  const [pickedId, setPickedId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([])
+  const [searching, setSearching] = useState(false)
+  const debRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!searchQuery.trim()) { setSearchResults([]); return }
+    if (debRef.current) window.clearTimeout(debRef.current)
+    debRef.current = window.setTimeout(async () => {
+      setSearching(true)
+      try { setSearchResults(await searchUsersForCollab(searchQuery.trim())) }
+      catch { setSearchResults([]) }
+      finally { setSearching(false) }
+    }, 240)
+    return () => { if (debRef.current) window.clearTimeout(debRef.current) }
+  }, [searchQuery])
+
+  const picked = pickedId
+    ? collaborators.find(c => c.user_id === pickedId)
+        || searchResults.find(u => u.id === pickedId)
+    : null
+  const pickedLabel = picked
+    ? ('full_name' in picked ? (picked.full_name || picked.username) : '')
+    : ''
+
+  return (
+    <>
+      <div className="fixed inset-0 z-[60] bg-black/40" onClick={busy ? undefined : onClose} />
+      <div
+        role="dialog"
+        className="fixed left-1/2 top-1/2 z-[61] -translate-x-1/2 -translate-y-1/2 w-[520px] max-h-[80vh] bg-white rounded-xl shadow-2xl border border-line flex flex-col"
+      >
+        <div className="px-5 py-3 border-b border-line flex items-center gap-2">
+          <ArrowRightLeft size={14} className="text-amber-600" />
+          <h2 className="text-sm font-semibold text-ink flex-1">转让项目所有权</h2>
+          <button onClick={onClose} disabled={busy}
+                  className="p-1 rounded text-ink-muted hover:text-ink hover:bg-slate-50 disabled:opacity-50">
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3 space-y-3">
+          {/* 警告 */}
+          <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-[12px] text-amber-800 leading-relaxed">
+            <div className="flex items-start gap-1.5">
+              <AlertTriangle size={12} className="mt-0.5 flex-shrink-0" />
+              <div>
+                <div className="font-medium mb-0.5">转让后会发生什么</div>
+                <ul className="list-disc list-inside space-y-0.5 text-[11.5px]">
+                  <li>新所有者获得项目全部权限(包括删除)</li>
+                  <li>当前所有者自动降为「读写」协作者(不丢权限,但失去删项目能力)</li>
+                  <li>新所有者若已是协作者,自动从协作者列表移除(避免身份重叠)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* 当前 owner → 新 owner 候选区 */}
+          {collaborators.length > 0 && (
+            <div>
+              <div className="text-[11px] text-ink-muted mb-1.5">从当前协作者中选一位接手</div>
+              <div className="space-y-1">
+                {collaborators.map(c => {
+                  const sel = pickedId === c.user_id
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setPickedId(c.user_id)}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border text-left transition-colors ${
+                        sel ? 'border-amber-400 bg-amber-50' : 'border-line hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-ink-secondary text-[11px]">
+                        {(c.full_name || c.username || '?').slice(0, 1).toUpperCase()}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-ink truncate">{c.full_name || c.username}</div>
+                        <div className="text-[10.5px] text-ink-muted truncate">
+                          {c.username}{c.email ? ` · ${c.email}` : ''} · 当前角色 {c.role === 'read_write' ? '读写' : '只读'}
+                        </div>
+                      </div>
+                      {sel && <Check size={14} className="text-amber-600" />}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 也支持搜任意活跃用户(即便不是协作者) */}
+          <div>
+            <div className="text-[11px] text-ink-muted mb-1.5">或搜其他用户(必须已是系统用户)</div>
+            <div className="relative">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted" />
+              <input
+                type="text"
+                placeholder="搜用户名 / 邮箱 / 姓名"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full text-xs pl-7 pr-2 py-1.5 border border-line rounded-md focus:outline-none focus:border-amber-300"
+              />
+            </div>
+            {searching && (
+              <div className="mt-1.5 text-[10.5px] text-ink-muted inline-flex items-center gap-1">
+                <Loader2 size={10} className="animate-spin" /> 搜索中…
+              </div>
+            )}
+            {searchResults.length > 0 && (
+              <div className="mt-1.5 border border-line rounded-md divide-y divide-line/60 max-h-[140px] overflow-y-auto">
+                {searchResults.map(u => {
+                  const isOwner = owner?.user_id === u.id
+                  const sel = pickedId === u.id
+                  return (
+                    <button
+                      key={u.id}
+                      disabled={isOwner}
+                      onClick={() => setPickedId(u.id)}
+                      className={`w-full text-left px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 ${
+                        sel ? 'bg-amber-50' : ''
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-ink truncate">{u.full_name || u.username}</div>
+                        <div className="text-[10.5px] text-ink-muted truncate">
+                          {u.username}{u.email ? ` · ${u.email}` : ''}
+                        </div>
+                      </div>
+                      {isOwner ? (
+                        <span className="text-[10px] text-amber-700">当前 Owner</span>
+                      ) : sel ? (
+                        <Check size={12} className="text-amber-600" />
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {error && (
+            <div className="text-[11px] text-red-600 bg-red-50 px-2 py-1 rounded inline-flex items-center gap-1">
+              <AlertTriangle size={11} /> {error}
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 py-3 border-t border-line flex items-center justify-between gap-2">
+          <span className="text-[11px] text-ink-muted">
+            {pickedId ? (
+              <>将转让给:<strong className="text-ink">{pickedLabel}</strong></>
+            ) : '请选择接手人'}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              disabled={busy}
+              className="text-xs px-3 py-1.5 rounded border border-line text-ink-secondary hover:bg-slate-50 disabled:opacity-50"
+            >
+              取消
+            </button>
+            <button
+              onClick={() => {
+                if (!pickedId) return
+                if (window.confirm('确认转让所有权?这一步不可撤销(需要新 owner 再转回来)。')) {
+                  onConfirm(pickedId)
+                }
+              }}
+              disabled={!pickedId || busy}
+              className="text-xs inline-flex items-center gap-1 px-3 py-1.5 rounded font-medium text-white border border-amber-700 disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg, #F59E0B, #D97706)' }}
+            >
+              {busy ? <Loader2 size={11} className="animate-spin" /> : <ArrowRightLeft size={11} />}
+              {busy ? '转让中…' : '确认转让'}
+            </button>
+          </div>
+        </div>
+      </div>
     </>
   )
 }
@@ -335,7 +566,8 @@ function RoleSelect({
         <ChevronDown size={9} className="opacity-70" />
       </button>
       {open && (
-        <div className="absolute z-50 right-0 top-full mt-1 bg-white border border-line rounded shadow-lg py-1 min-w-[100px]">
+        // dropup:向上展开 — 避免被 modal overflow-y-auto 裁切(modal 底部时下拉看不见)
+        <div className="absolute z-50 right-0 bottom-full mb-1 bg-white border border-line rounded shadow-lg py-1 min-w-[100px]">
           {(['read', 'read_write'] as const).map(r => (
             <button
               key={r}
