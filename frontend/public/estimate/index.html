@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI产品交付工作量与报价评估矩阵</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // ==========================================
+        // 🌟 核心配置与版本区 🌟
+        // ==========================================
+        const CURRENT_APP_VERSION = "v1.0.1"; // 当前 HTML 页面的硬编码版本号
+        const EXTERNAL_CONFIG_URL = "https://api.npoint.io/55204e148286137c43d0"; 
+        const CONFIG_CACHE_KEY = "ai_product_matrix_config_cache"; // 本地缓存的键名
+
+        // 默认兜底配置 (包含版本信息与更新日志)
+        const fallbackConfig = {
+            "dataVersion": "v2024.05.24",
+            "latestAppVersion": "v1.0.0",
+            "updateLog": "更新了销售记录的N2逻辑",
+            "impactDimensions": [
+                { "id": "integration", "name": "三方集成深度", "desc": "含腾讯会议、呼叫中心、IM客服、外部系统API等第三方对接，对接越多、集成越深，系数越高", "min": 1.0, "max": 1.5, "step": 0.1, "default": 1.3 },
+                { "id": "language", "name": "多语言支持需求", "desc": "需支持实时多语言翻译、多语言话术/提示词、多语言转写，语言种类越多，系数越高", "min": 1.0, "max": 1.4, "step": 0.1, "default": 1.0 },
+                { "id": "customization", "name": "个性化模板定制", "desc": "含自定义提示词、专属SOP、个性化布局、定制化程度越高，系数越高", "min": 1.0, "max": 1.6, "step": 0.1, "default": 1.3 },
+                { "id": "industry", "name": "复杂行业定制深度", "desc": "行业专属术语库、行业化洞察逻辑、垂直业务场景适配，行业复杂度越高，系数越高", "min": 1.1, "max": 1.8, "step": 0.1, "default": 1.2 },
+                { "id": "organization", "name": "客户组织", "desc": "用户数量、部门数量、权限体系复杂度，组织规模越大、权限越精细，系数越高", "min": 1.0, "max": 2.0, "step": 0.1, "default": 1.5 }
+            ],
+            "phases": [
+                { 
+                    "id": "p1", "name": "1.需求确认与方案设计", "icon": "FileSearch", "iconColor": "text-blue-500",
+                    "subTasks": [
+                        { "id": "p1_1", "name": "需求调研明确场景范围" },
+                        { "id": "p1_2", "name": "验收标准对齐" },
+                        { "id": "p1_3", "name": "交付方案设计及确认" }
+                    ]
+                },
+                { 
+                    "id": "p2", "name": "2.系统环境与基础配置", "icon": "Wrench", "iconColor": "text-orange-500",
+                    "subTasks": [
+                        { "id": "p2_1", "name": "环境核查与权限策略配置" },
+                        { "id": "p2_2", "name": "基础功能与通用模板开通" }
+                    ]
+                },
+                { 
+                    "id": "p3", "name": "3.高阶配置与AI调优", "icon": "Bot", "iconColor": "text-purple-500",
+                    "subTasks": [
+                        { "id": "p3_1", "name": "复杂场景配置 (Flow/API/ 自定义)" },
+                        { "id": "p3_2", "name": "提示词优化与AI识别准确率调优" },
+                        { "id": "p3_3", "name": "三方集成对接 (按接口数量)", "isDynamicApi": true }
+                    ]
+                },
+                { 
+                    "id": "p4", "name": "4.功能测试与问题处理", "icon": "TestTube2", "iconColor": "text-teal-500",
+                    "subTasks": [
+                        { "id": "p4_1", "name": "全流程SIT功能调试与验证" },
+                        { "id": "p4_2", "name": "组织用户UAT测试与问题处理" }
+                    ]
+                },
+                { 
+                    "id": "p5", "name": "5.用户培训与上线推广", "icon": "GraduationCap", "iconColor": "text-green-500",
+                    "subTasks": [
+                        { "id": "p5_1", "name": "培训资料准备及培训", "cap": 2 },
+                        { "id": "p5_2", "name": "试运行支持" }
+                    ]
+                },
+                { 
+                    "id": "p6", "name": "6.项目验收与成果交付", "icon": "BadgeCheck", "iconColor": "text-red-500",
+                    "subTasks": [
+                        { "id": "p6_1", "name": "验收准备及成果确认（按验收标准）", "cap": 2 },
+                        { "id": "p6_2", "name": "文档移交、确认验收", "cap": 1 }
+                    ]
+                }
+            ],
+            "products": [
+                {
+                    "id": "meeting", "name": "内部会议", "desc": "会议转译、纪要生成与CRM业务闭环",
+                    "workloads": { "p1_1": 1, "p1_2": 0.5, "p1_3": 1, "p2_1": 0.5, "p2_2": 0.5, "p3_1": 1, "p3_2": 2, "p4_1": 0.5, "p4_2": 2, "p5_1": 0.5, "p5_2": 0.5, "p6_1": 0.5, "p6_2": 0.5 }
+                },
+                {
+                    "id": "sales", "name": "销售记录", "desc": "多模态语音录入、记录生成与AI质检",
+                    "workloads": { "p1_1": "2 * N2", "p1_2": 0.5, "p1_3": 0.5, "p2_1": 0.5, "p2_2": 0.5, "p3_1": "1 * N2", "p3_2": 1, "p4_1": 1, "p4_2": 1, "p5_1": 0.5, "p5_2": 0.5, "p6_1": 0.5, "p6_2": 0.5 }
+                },
+                {
+                    "id": "intelligence", "name": "情报助理", "desc": "工商/风险/财报查询与详情页AI洞察",
+                    "workloads": { "p1_1": 0.5, "p1_2": 1, "p1_3": 1, "p2_1": 0.5, "p2_2": 0.5, "p3_1": 3, "p3_2": 3, "p4_1": 1, "p4_2": 1, "p5_1": 1, "p5_2": 1, "p6_1": 1, "p6_2": 0.5 }
+                },
+                {
+                    "id": "kb", "name": "知识库", "desc": "企业知识沉淀、智能问答与全渠道触达",
+                    "workloads": { "p1_1": 1, "p1_2": 0.5, "p1_3": 1, "p2_1": 1, "p2_2": 1, "p3_1": 2, "p3_2": 3, "p4_1": 1, "p4_2": 2, "p5_1": 1, "p5_2": 0.5, "p6_1": 0.5, "p6_2": 0.5 }
+                },
+                {
+                    "id": "insight", "name": "业务洞察", "desc": "线索/客户/商机量化监控与业务健康度画像",
+                    "workloads": { "p1_1": "3 * N1", "p1_2": 0.5, "p1_3": 1, "p2_1": 1, "p2_2": 2, "p3_1": "3 * N1", "p3_2": "2 * N1", "p4_1": 2, "p4_2": 3, "p5_1": 1, "p5_2": 0.5, "p6_1": 0.5, "p6_2": 0.5 }
+                },
+                {
+                    "id": "interaction", "name": "客户互动", "desc": "全渠道沟通沉淀、实时话术指引与SOP自动推进",
+                    "workloads": { "p1_1": 1, "p1_2": 0.5, "p1_3": 1, "p2_1": 0.5, "p2_2": 0.5, "p3_1": 2, "p3_2": 3, "p4_1": 1, "p4_2": 2, "p5_1": 1, "p5_2": 0.5, "p6_1": 0.5, "p6_2": 0.5 }
+                }
+            ]
+        };
+
+        // --- 静态图标资源池 ---
+        const ICONS = {
+            FileSearch: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M4.268 21a2 2 0 0 0 1.727 1H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v3"/><path d="m9 18-1.5-1.5"/><circle cx="5" cy="14" r="3"/></svg>,
+            Wrench: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>,
+            Bot: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>,
+            TestTube2: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 7 6.82 21.18a2.83 2.83 0 0 1-3.99-.01v0a2.83 2.83 0 0 1 0-4L17 3"/><path d="m16 2 6 6"/><path d="M12 16H4"/></svg>,
+            GraduationCap: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21.42 10.922a2 2 0 0 0-.019-3.838L12.83 4.3a2 2 0 0 0-1.66 0L2.6 7.08a2 2 0 0 0 0 3.84l8.57 3.649a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg>,
+            BadgeCheck: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>,
+            Calculator: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16.01" y1="10" y2="10"/><line x1="12" x2="12.01" y1="10" y2="10"/><line x1="8" x2="8.01" y1="10" y2="10"/><line x1="16" x2="16.01" y1="14" y2="14"/><line x1="12" x2="12.01" y1="14" y2="14"/><line x1="8" x2="8.01" y1="14" y2="14"/><line x1="16" x2="16.01" y1="18" y2="18"/><line x1="12" x2="12.01" y1="18" y2="18"/><line x1="8" x2="8.01" y1="18" y2="18"/></svg>,
+            CheckSquare: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>,
+            Square: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="18" height="18" x="3" y="3" rx="2"/></svg>,
+            Settings2: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>,
+            DollarSign: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+            ChevronRight: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m9 18 6-6-6-6"/></svg>,
+            ChevronDown: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m6 9 6 6 6-6"/></svg>,
+            ChevronsUpDown: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>,
+            Database: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>,
+            Info: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>,
+            Download: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
+            SlidersIcon: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="2" x2="6" y1="14" y2="14"/><line x1="10" x2="14" y1="8" y2="8"/><line x1="18" x2="22" y1="16" y2="16"/></svg>,
+            AlertCircle: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
+            AlertTriangle: (props) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+        };
+
+        const IconRenderer = ({ name, className }) => {
+            const Icon = ICONS[name];
+            return Icon ? <Icon className={className} /> : null;
+        };
+
+        // --- 公式解析引擎 ---
+        const calculateWorkload = (formula, N1, N2) => {
+            if (typeof formula === 'number') return formula;
+            if (!formula) return 0;
+            if (typeof formula === 'string') {
+                try {
+                    let expr = formula.replace(/N1/g, N1).replace(/N2/g, N2);
+                    return new Function(`"use strict"; return (${expr});`)();
+                } catch (e) {
+                    console.error("公式解析错误:", formula, e);
+                    return 0;
+                }
+            }
+            return 0;
+        };
+
+        function App() {
+            const [isLoading, setIsLoading] = useState(true);
+            const [config, setConfig] = useState(null);
+            
+            // 记录当前数据的来源状态: 'online' | 'cached' | 'fallback'
+            const [dataSourceStatus, setDataSourceStatus] = useState('online');
+
+            // 用户操作状态
+            const [selectedProductIds, setSelectedProductIds] = useState(['insight', 'sales']);
+            const [dailyRate, setDailyRate] = useState(3500); 
+            const [objectCountN1, setObjectCountN1] = useState(3); 
+            const [objectCountN2, setObjectCountN2] = useState(1); 
+            const [apiCounts, setApiCounts] = useState({});
+            const [expandedPhases, setExpandedPhases] = useState([]);
+            const [isImpactExpanded, setIsImpactExpanded] = useState(false); 
+            const [impactVars, setImpactVars] = useState({});
+            const [activeTooltip, setActiveTooltip] = useState(null);
+
+            // ==========================================
+            // 数据拉取与多级降级逻辑
+            // ==========================================
+            useEffect(() => {
+                const fetchConfig = async () => {
+                    let data = fallbackConfig;
+                    
+                    if (EXTERNAL_CONFIG_URL) {
+                        try {
+                            const urlWithTimestamp = `${EXTERNAL_CONFIG_URL}?t=${new Date().getTime()}`;
+                            const response = await fetch(urlWithTimestamp, { cache: 'no-store' });
+                            
+                            if (response.ok) {
+                                data = await response.json();
+                                // 拉取成功，保存到 localStorage 作为备用缓存
+                                localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify(data));
+                                setDataSourceStatus('online');
+                            } else {
+                                throw new Error(`HTTP Error: ${response.status}`);
+                            }
+                        } catch (error) {
+                            console.warn("网络拉取外部配置失败，准备尝试读取本地缓存...", error);
+                            
+                            // 尝试从 localStorage 提取缓存
+                            const cachedData = localStorage.getItem(CONFIG_CACHE_KEY);
+                            if (cachedData) {
+                                try {
+                                    data = JSON.parse(cachedData);
+                                    setDataSourceStatus('cached'); 
+                                    console.log("已成功加载本地缓存数据。");
+                                } catch (parseError) {
+                                    console.error("缓存数据解析失败，退回默认配置。", parseError);
+                                    setDataSourceStatus('fallback');
+                                }
+                            } else {
+                                console.warn("无可用本地缓存，已退回内置预设配置。");
+                                setDataSourceStatus('fallback');
+                            }
+                        }
+                    } else {
+                        setDataSourceStatus('fallback');
+                    }
+                    
+                    setConfig(data);
+                    
+                    // 初始化变量
+                    const initialImpacts = {};
+                    if(data.impactDimensions) {
+                        data.impactDimensions.forEach(dim => initialImpacts[dim.id] = dim.default);
+                    }
+                    setImpactVars(initialImpacts);
+                    
+                    // 默认展开所有阶段
+                    if(data.phases) {
+                        setExpandedPhases(data.phases.map(p => p.id));
+                    }
+                    setIsLoading(false);
+                };
+
+                fetchConfig();
+            }, []);
+
+            const toggleProduct = (id) => setSelectedProductIds(prev => prev.includes(id) ? prev.filter(pid => pid !== id) : [...prev, id]);
+            const togglePhase = (phaseId) => setExpandedPhases(prev => prev.includes(phaseId) ? prev.filter(id => id !== phaseId) : [...prev, phaseId]);
+            const toggleAllPhases = () => {
+                if (!config || !config.phases) return;
+                if (expandedPhases.length === config.phases.length) setExpandedPhases([]); 
+                else setExpandedPhases(config.phases.map(p => p.id)); 
+            };
+            const toggleTooltip = (id) => setActiveTooltip(prev => prev === id ? null : id);
+
+            // 获取选中的产品列表
+            const selectedProducts = useMemo(() => {
+                if (!config || !config.products) return [];
+                return config.products.filter(p => selectedProductIds.includes(p.id));
+            }, [selectedProductIds, config]);
+
+            // --- 核心计算逻辑 ---
+            const totalImpactMultiplier = useMemo(() => {
+                return Object.values(impactVars).reduce((acc, val) => acc * val, 1);
+            }, [impactVars]);
+            
+            const finalComplexity = totalImpactMultiplier;
+
+            // 计算矩阵数据
+            const { matrixData, hasCappedTriggered } = useMemo(() => {
+                if (!config || !config.phases) return { matrixData: [], hasCappedTriggered: false };
+
+                const safeN1 = isNaN(objectCountN1) || objectCountN1 < 1 ? 1 : objectCountN1;
+                const safeN2 = isNaN(objectCountN2) || objectCountN2 < 1 ? 1 : objectCountN2;
+                let anyCapped = false;
+
+                const data = config.phases.map(phase => {
+                    let phaseRowTotal = 0;
+                    const productPhaseTotals = selectedProducts.map(p => ({ id: p.id, days: 0 }));
+
+                    const processedSubTasks = phase.subTasks.map(sub => {
+                        let subRowTotalBase = 0;
+                        const productValues = selectedProducts.map((product, pIdx) => {
+                            let days = 0;
+                            if (sub.isDynamicApi) {
+                                days = (apiCounts[product.id] || 0) * 3;
+                            } else {
+                                days = calculateWorkload(product.workloads[sub.id], safeN1, safeN2);
+                            }
+                            subRowTotalBase += days;
+                            productPhaseTotals[pIdx].days += days; 
+                            
+                            return { 
+                                productId: product.id, 
+                                baseDays: days,
+                                days: days * finalComplexity
+                            };
+                        });
+                        
+                        let originalRowTotal = subRowTotalBase * finalComplexity;
+                        let finalRowTotal = originalRowTotal;
+                        let isCapped = false;
+                        
+                        if (sub.cap && originalRowTotal > sub.cap) {
+                            finalRowTotal = sub.cap;
+                            isCapped = true;
+                            anyCapped = true;
+                        }
+
+                        phaseRowTotal += finalRowTotal; 
+                        
+                        return {
+                            ...sub,
+                            productValues,
+                            originalRowTotal, 
+                            isCapped,
+                            rowTotal: finalRowTotal 
+                        };
+                    });
+
+                    return {
+                        ...phase,
+                        subTasks: processedSubTasks,
+                        productTotals: productPhaseTotals.map(pt => ({ 
+                            productId: pt.id, 
+                            days: pt.days * finalComplexity 
+                        })),
+                        rowTotal: phaseRowTotal
+                    };
+                });
+
+                return { matrixData: data, hasCappedTriggered: anyCapped };
+            }, [selectedProducts, finalComplexity, objectCountN1, objectCountN2, apiCounts, config]); 
+
+            const totalDays = useMemo(() => matrixData.reduce((sum, phase) => sum + phase.rowTotal, 0), [matrixData]);
+            const totalPrice = totalDays * dailyRate;
+
+            // 导出带有样式的 Excel
+            const handleExportExcel = () => {
+                const escapeHTML = (str) => String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><style>table { border-collapse: collapse; width: 100%; font-family: 'Microsoft YaHei', sans-serif; } th, td { border: 1px solid #d1d5db; padding: 10px 12px; font-size: 14px; } .title { font-size: 22px; font-weight: bold; text-align: center; padding: 20px; background-color: #ffffff; border: none; color: #1e293b; } .header { background-color: #f1f5f9; font-weight: bold; text-align: center; color: #334155; } .phase-row { background-color: #e2e8f0; font-weight: bold; color: #0f172a; } .sub-row { background-color: #ffffff; color: #475569; } .capped-cell { color: #b91c1c; font-weight: bold; } .footer-row { background-color: #1e293b; color: #ffffff; font-weight: bold; font-size: 16px; } .total-days { color: #fde047; font-size: 20px; font-weight: 900; } .text-center { text-align: center; } .text-right { text-align: right; } .note { font-size: 12px; color: #64748b; font-style: italic; }</style></head><body><table>`;
+
+                const colsCount = 2 + selectedProducts.length;
+                html += `<tr><th colspan="${colsCount}" class="title">AI产品交付工作量评估矩阵</th></tr>`;
+                html += `<tr><th class="header">任务阶段与细分执行项</th>`;
+                selectedProducts.forEach(p => { html += `<th class="header">${escapeHTML(p.name)}</th>`; });
+                html += `<th class="header">阶段小计(人天)</th></tr>`;
+
+                matrixData.forEach(phase => {
+                    html += `<tr class="phase-row"><td>${escapeHTML(phase.name)}</td>${phase.productTotals.map(pt => `<td class="text-center">${pt.days > 0 ? pt.days.toFixed(1) : '-'}</td>`).join('')}<td class="text-right">${phase.rowTotal.toFixed(1)}</td></tr>`;
+                    phase.subTasks.forEach(sub => {
+                        let nameSuffix = '';
+                        if (sub.isDynamicApi) nameSuffix = ' <span class="note">(按填写接口数计算)</span>';
+                        if (sub.isCapped) nameSuffix += ` <span class="note">(已触发合并上限封顶 ${sub.cap} 人天)</span>`;
+                        html += `<tr class="sub-row"><td style="padding-left: 30px;">- ${escapeHTML(sub.name)}${nameSuffix}</td>${sub.productValues.map(pv => `<td class="text-center">${pv.days > 0 ? pv.days.toFixed(1) : '-'}</td>`).join('')}<td class="text-right ${sub.isCapped ? 'capped-cell' : ''}">${sub.rowTotal.toFixed(1)}</td></tr>`;
+                    });
+                });
+
+                html += `<tr class="footer-row"><td style="text-align: right; padding-right: 20px;">产品各自累计及封顶后总计</td>`;
+                selectedProducts.forEach(product => {
+                    const ptDays = matrixData.reduce((acc, ph) => acc + (ph.productTotals.find(p => p.productId === product.id)?.days || 0), 0);
+                    html += `<td class="text-center">${ptDays.toFixed(1)}</td>`;
+                });
+                html += `<td class="text-right total-days">${totalDays.toFixed(1)}</td></tr>`;
+                
+                if (hasCappedTriggered) {
+                    html += `<tr><td colspan="${colsCount}" style="color: #b91c1c; font-size: 12px; border: none; padding-top: 10px;">* 注：因多产品组合交付，培训及验收相关任务已触发合并人天封顶规则，已为您减免超出部分的工作量。</td></tr>`;
+                }
+
+                html += `</table></body></html>`;
+
+                const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', `AI产品交付工作量评估矩阵_${new Date().toISOString().slice(0,10)}.xls`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            if (isLoading || !config) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+                        <div className="flex flex-col items-center">
+                            <svg className="animate-spin h-10 w-10 text-blue-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span className="text-slate-500 font-medium">正在加载交付矩阵元数据...</span>
+                        </div>
+                    </div>
+                );
+            }
+
+            // 检查是否需要更新系统 (当前的 HTML 版本 < 云端配置的最低要求版本)
+            const needsAppUpgrade = config.latestAppVersion && CURRENT_APP_VERSION !== config.latestAppVersion;
+
+            return (
+                <div className="min-h-screen bg-slate-50 p-6 font-sans text-slate-800">
+                    <div className="max-w-[1400px] mx-auto space-y-6">
+                        
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex items-center justify-between">
+                            <div className="flex flex-col w-full">
+                                <div className="flex items-center justify-between flex-wrap gap-4 w-full">
+                                    <h1 className="text-2xl font-bold text-slate-900 flex items-center flex-wrap gap-3">
+                                        <IconRenderer name="Calculator" className="w-6 h-6 text-blue-600" />
+                                        <span>AI产品交付工作量与报价评估矩阵</span>
+                                        
+                                        {/* 版本展示 Badge */}
+                                        <div className="flex items-center space-x-1.5 ml-2 mt-1 sm:mt-0">
+                                            <span className="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200 font-mono tracking-tight" title="当前 HTML 系统版本">
+                                                App {CURRENT_APP_VERSION}
+                                            </span>
+                                            {config.dataVersion && (
+                                                <span 
+                                                    className="text-[11px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-200 font-mono tracking-tight cursor-help" 
+                                                    title={`当前云端数据版本\n${config.dataVersion ? `\n更新说明: ${config.updateLog}` : ''}`}
+                                                >
+                                                    Data {config.dataVersion}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </h1>
+
+                                    {/* 动态显示数据来源状态 */}
+                                    <div className="flex items-center">
+                                        {dataSourceStatus === 'cached' && (
+                                            <span className="text-xs bg-orange-100 text-orange-600 px-2.5 py-1 rounded border border-orange-200 flex items-center font-medium">
+                                                <IconRenderer name="AlertCircle" className="w-3.5 h-3.5 mr-1" />
+                                                网络受限: 已启用离线缓存
+                                            </span>
+                                        )}
+                                        {dataSourceStatus === 'fallback' && (
+                                            <span className="text-xs bg-slate-100 text-slate-500 px-2.5 py-1 rounded border border-slate-200 flex items-center font-medium">
+                                                <IconRenderer name="Info" className="w-3.5 h-3.5 mr-1" />
+                                                未连接网络: 已启用内置预设数据
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <p className="text-sm text-slate-500 mt-2">
+                                    支持多产品组合动态合并计算，自动应用多产品合并减免与复杂系数规则。已接入动态配置。
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* --- 新增：强制升级提示横幅 --- */}
+                        {needsAppUpgrade && (
+                            <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start shadow-sm animate-pulse">
+                                <IconRenderer name="AlertTriangle" className="w-5 h-5 text-red-600 mr-3 flex-shrink-0 mt-0.5" />
+                                <div>
+                                    <h4 className="text-sm font-bold text-red-800 tracking-wide">检测到新版本系统！</h4>
+                                    <p className="text-[13px] text-red-700 mt-1 leading-relaxed">
+                                        您当前使用的计算器网页版本为 <strong className="font-mono text-red-900">{CURRENT_APP_VERSION}</strong>，但云端数据已配套发布最新的 <strong className="font-mono text-red-900">{config.latestAppVersion}</strong> 版本 HTML 系统。<br/>
+                                        继续使用旧版网页可能导致某些最新计算规则或产品特性无法正常运行。<strong>请及时联系管理员获取最新的 HTML 文件以确保报价精准！</strong>
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+                            
+                            {/* 左侧控制面板 */}
+                            <div className="lg:col-span-1 space-y-6 sticky top-6">
+                                {/* 1. 产品选择 */}
+                                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                                    <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider mb-4 flex items-center">
+                                        <IconRenderer name="Settings2" className="w-4 h-4 mr-2" /> 1. 选择交付产品
+                                    </h2>
+                                    <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 pb-2 scrollbar-thin">
+                                        {config.products && config.products.map(product => (
+                                            <div 
+                                                key={product.id}
+                                                onClick={() => toggleProduct(product.id)}
+                                                className={`cursor-pointer border rounded-xl p-3 transition-all duration-200 ${
+                                                    selectedProductIds.includes(product.id) 
+                                                        ? 'bg-blue-50 border-blue-300 shadow-inner' 
+                                                        : 'bg-white border-slate-200 hover:border-blue-200 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <div className="flex items-start">
+                                                    {selectedProductIds.includes(product.id) ? (
+                                                        <IconRenderer name="CheckSquare" className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
+                                                    ) : (
+                                                        <IconRenderer name="Square" className="w-5 h-5 text-slate-300 mt-0.5 mr-3 flex-shrink-0" />
+                                                    )}
+                                                    <div>
+                                                        <div className={`font-medium ${selectedProductIds.includes(product.id) ? 'text-blue-900' : 'text-slate-700'}`}>
+                                                            {product.name}
+                                                        </div>
+                                                        <div className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                                                            {product.desc}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* 2. 项目影响维度区域 */}
+                                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                                    <div 
+                                        className="flex items-center justify-between cursor-pointer select-none"
+                                        onClick={() => setIsImpactExpanded(!isImpactExpanded)}
+                                    >
+                                        <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider flex items-center">
+                                            <IconRenderer name="SlidersIcon" className="w-4 h-4 mr-2" /> 2. 项目复杂度参数
+                                        </h2>
+                                        {isImpactExpanded ? <IconRenderer name="ChevronDown" className="w-4 h-4 text-slate-400" /> : <IconRenderer name="ChevronRight" className="w-4 h-4 text-slate-400" />}
+                                    </div>
+                                    
+                                    {isImpactExpanded && config.impactDimensions && (
+                                        <div className="space-y-4 mt-4 pt-4 border-t border-slate-100">
+                                            {config.impactDimensions.map(dim => (
+                                                <div key={dim.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <div className="flex items-center space-x-1">
+                                                            <span className="text-[13px] font-medium text-slate-800">{dim.name}</span>
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); toggleTooltip(dim.id); }} 
+                                                                className={`focus:outline-none transition-colors ${activeTooltip === dim.id ? 'text-blue-600' : 'text-slate-400 hover:text-blue-500'}`}
+                                                            >
+                                                                <IconRenderer name="Info" className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                        <span className="text-xs font-bold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">{impactVars[dim.id]}x</span>
+                                                    </div>
+                                                    
+                                                    {activeTooltip === dim.id && (
+                                                        <div className="text-[11px] text-slate-600 bg-blue-50 border border-blue-100 p-2 rounded-md mb-3 leading-relaxed">
+                                                            {dim.desc}
+                                                        </div>
+                                                    )}
+
+                                                    <input 
+                                                        type="range" 
+                                                        min={dim.min} max={dim.max} step={dim.step} 
+                                                        value={impactVars[dim.id] || dim.default}
+                                                        onChange={(e) => setImpactVars({...impactVars, [dim.id]: parseFloat(e.target.value)})}
+                                                        className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                                    />
+                                                    <div className="flex justify-between text-[10px] text-slate-400 mt-1 font-mono">
+                                                        <span>{dim.min.toFixed(1)}</span>
+                                                        <span>{dim.max.toFixed(1)}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
+                                                <span className="text-xs text-slate-500">变量相乘总影响:</span>
+                                                <span className="text-sm font-bold text-slate-700">{totalImpactMultiplier.toFixed(3)}x</span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {!isImpactExpanded && (
+                                        <div className="mt-3 text-[13px] text-slate-500 flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-100">
+                                            <span>当前综合复杂度系数:</span>
+                                            <span className="font-bold text-blue-600">{totalImpactMultiplier.toFixed(2)}x</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* 3. 基础业务参数 */}
+                                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                                    <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider mb-4 flex items-center">
+                                        <IconRenderer name="Database" className="w-4 h-4 mr-2" /> 3. 基础业务参数
+                                    </h2>
+                                    <div className="space-y-4">
+                                        
+                                        <div className={`p-3 rounded-lg border transition-colors ${selectedProductIds.includes('insight') ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 border-slate-200 opacity-50 grayscale'}`}>
+                                            <label className="block text-sm font-medium text-slate-800 mb-1 flex items-center justify-between">
+                                                <span>业务对象数量 (N1)</span>
+                                                <span className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-mono">业务洞察</span>
+                                            </label>
+                                            <div className="relative">
+                                                <input 
+                                                    type="number" min="1"
+                                                    disabled={!selectedProductIds.includes('insight')}
+                                                    value={objectCountN1}
+                                                    onChange={(e) => setObjectCountN1(parseInt(e.target.value) || 1)}
+                                                    className={`w-full text-sm rounded-lg block p-2 outline-none border ${selectedProductIds.includes('insight') ? 'bg-white border-indigo-300 focus:ring-2 focus:ring-indigo-500' : 'bg-slate-100 border-slate-200 text-slate-400'}`} 
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className={`p-3 rounded-lg border transition-colors ${selectedProductIds.includes('sales') ? 'bg-teal-50 border-teal-200' : 'bg-slate-50 border-slate-200 opacity-50 grayscale'}`}>
+                                            <label className="block text-sm font-medium text-slate-800 mb-1 flex items-center justify-between">
+                                                <span>场景数量设定 (N2)</span>
+                                                <span className="text-xs bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded font-mono">销售记录</span>
+                                            </label>
+                                            <div className="relative">
+                                                <input 
+                                                    type="number" min="1"
+                                                    disabled={!selectedProductIds.includes('sales')}
+                                                    value={objectCountN2}
+                                                    onChange={(e) => setObjectCountN2(parseInt(e.target.value) || 1)}
+                                                    className={`w-full text-sm rounded-lg block p-2 outline-none border ${selectedProductIds.includes('sales') ? 'bg-white border-teal-300 focus:ring-2 focus:ring-teal-500' : 'bg-slate-100 border-slate-200 text-slate-400'}`} 
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-3 border-t border-slate-100">
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">交付人天单价 (元/人天)</label>
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                                    <IconRenderer name="DollarSign" className="w-4 h-4 text-slate-400" />
+                                                </div>
+                                                <input 
+                                                    type="number" 
+                                                    value={dailyRate}
+                                                    onChange={(e) => setDailyRate(Number(e.target.value))}
+                                                    className="bg-slate-50 border border-slate-300 text-slate-900 text-[15px] font-semibold rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-9 p-2.5 outline-none shadow-inner" 
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 右侧主矩阵与报价单 */}
+                            <div className="lg:col-span-3 space-y-6">
+                                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                                    <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center flex-wrap gap-3">
+                                        <h3 className="text-[17px] font-bold text-slate-800">AGENT交付工作量明细表 <span className="text-sm font-normal text-slate-500 ml-1">(单位:人天)</span></h3>
+                                        <div className="flex items-center space-x-2">
+                                            <span className="text-sm font-medium text-blue-700 bg-blue-100 px-3 py-1.5 rounded-full border border-blue-200 shadow-sm mr-2 flex items-center">
+                                                <IconRenderer name="SlidersIcon" className="w-3.5 h-3.5 mr-1.5" />
+                                                已乘复杂系数: {finalComplexity.toFixed(2)}x
+                                            </span>
+                                            
+                                            <div className="h-5 w-px bg-slate-300 mx-1"></div>
+                                            
+                                            <button 
+                                                onClick={toggleAllPhases}
+                                                className="text-sm flex items-center text-slate-600 hover:text-blue-600 transition-colors px-2 py-1.5 rounded bg-white border border-slate-200 shadow-sm"
+                                            >
+                                                <IconRenderer name="ChevronsUpDown" className="w-4 h-4 mr-1" />
+                                                {config && config.phases && expandedPhases.length === config.phases.length ? '全部收起' : '全部展开'}
+                                            </button>
+
+                                            <button 
+                                                onClick={handleExportExcel}
+                                                className="text-sm flex items-center text-white bg-[#107c41] hover:bg-[#0c5e31] transition-colors px-4 py-1.5 rounded shadow-sm font-medium ml-2 border border-[#0c5e31]"
+                                            >
+                                                <IconRenderer name="Download" className="w-4 h-4 mr-1.5" />
+                                                导出 Excel
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm text-left text-slate-600 select-none">
+                                            <thead className="text-[13px] text-slate-700 bg-slate-100/80 border-b border-slate-200">
+                                                <tr>
+                                                    <th scope="col" className="px-6 py-4 font-bold w-[35%] tracking-wide">
+                                                        任务阶段与细分执行项
+                                                    </th>
+                                                    {selectedProducts.map(product => (
+                                                        <th key={product.id} scope="col" className="px-4 py-4 font-bold text-center whitespace-nowrap min-w-[110px]">
+                                                            {product.name}
+                                                        </th>
+                                                    ))}
+                                                    <th scope="col" className="px-6 py-4 font-extrabold text-slate-900 text-right bg-blue-50 whitespace-nowrap border-l border-blue-100">
+                                                        折算后小计
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {selectedProducts.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={8} className="px-6 py-16 text-center">
+                                                            <div className="flex flex-col items-center justify-center text-slate-400">
+                                                                <IconRenderer name="FileSearch" className="w-12 h-12 mb-3 text-slate-300" />
+                                                                <p className="text-base font-medium">请在左侧选择至少一款交付产品</p>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    matrixData.map((phase) => {
+                                                        const isExpanded = expandedPhases.includes(phase.id);
+                                                        return (
+                                                            <React.Fragment key={phase.id}>
+                                                                <tr 
+                                                                    onClick={() => togglePhase(phase.id)}
+                                                                    className={`cursor-pointer hover:bg-slate-100 transition-colors ${isExpanded ? 'bg-slate-50' : 'border-b border-slate-200'}`}
+                                                                >
+                                                                    <td className="px-6 py-3.5 font-bold text-slate-800 flex items-center">
+                                                                        <span className="mr-2 text-slate-400">
+                                                                            {isExpanded ? <IconRenderer name="ChevronDown" className="w-4 h-4" /> : <IconRenderer name="ChevronRight" className="w-4 h-4" />}
+                                                                        </span>
+                                                                        <IconRenderer name={phase.icon} className={`w-4 h-4 mr-2 ${phase.iconColor || 'text-slate-500'}`} />
+                                                                        {phase.name}
+                                                                    </td>
+                                                                    {phase.productTotals.map((val, vIdx) => (
+                                                                        <td key={vIdx} className="px-4 py-3.5 text-center font-semibold text-slate-700">
+                                                                            {val.days > 0 ? val.days.toFixed(1) : '-'}
+                                                                        </td>
+                                                                    ))}
+                                                                    <td className="px-6 py-3.5 text-right font-extrabold text-blue-900 bg-blue-50 border-l border-blue-100">
+                                                                        {phase.rowTotal.toFixed(1)}
+                                                                    </td>
+                                                                </tr>
+
+                                                                {isExpanded && phase.subTasks.map((sub, sIdx) => (
+                                                                    <tr 
+                                                                        key={sub.id} 
+                                                                        className={`bg-white hover:bg-yellow-50/30 transition-colors ${sIdx === phase.subTasks.length - 1 ? 'border-b border-slate-200' : 'border-b border-slate-50'}`}
+                                                                    >
+                                                                        <td className="px-6 py-3 pl-14 flex flex-col justify-center relative min-h-[48px]">
+                                                                            <div className="absolute left-[38px] top-0 bottom-0 w-px bg-slate-200"></div>
+                                                                            <div className="absolute left-[38px] top-1/2 w-3 h-px bg-slate-200"></div>
+                                                                            <span className="text-[13px] text-slate-600 leading-snug">{sub.name}</span>
+                                                                            
+                                                                            {sub.isDynamicApi && (
+                                                                                <span className="text-[10px] text-orange-500 font-medium mt-0.5">请在对应单元格内填写接口数 (单接口按3天计)</span>
+                                                                            )}
+                                                                            {sub.isCapped && (
+                                                                                <span className="text-[10px] text-red-500 font-medium mt-0.5">已触发封顶机制 (原计 {sub.originalRowTotal.toFixed(1)} 天 → 现计 {sub.cap} 天)</span>
+                                                                            )}
+                                                                        </td>
+                                                                        {sub.productValues.map((val, vIdx) => (
+                                                                            <td key={vIdx} className="px-4 py-3 text-center text-xs align-middle">
+                                                                                {sub.isDynamicApi ? (
+                                                                                    <div className="flex justify-center items-center">
+                                                                                        <input 
+                                                                                            type="number" min="0" max="99" placeholder="0"
+                                                                                            value={apiCounts[val.productId] || ''}
+                                                                                            onChange={(e) => {
+                                                                                                const v = parseInt(e.target.value);
+                                                                                                setApiCounts(prev => ({...prev, [val.productId]: isNaN(v) ? undefined : v}));
+                                                                                            }}
+                                                                                            onClick={(e) => e.stopPropagation()}
+                                                                                            className="w-12 h-7 text-center font-mono border border-slate-300 rounded focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none text-orange-700 bg-orange-50/50"
+                                                                                        />
+                                                                                        <span className="text-[10px] ml-1 text-slate-400">个</span>
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    val.days > 0 ? (
+                                                                                        <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100/80 text-slate-600 font-medium min-w-[2.5rem]">
+                                                                                            {val.days.toFixed(1)}
+                                                                                        </span>
+                                                                                    ) : (
+                                                                                        <span className="text-slate-300">-</span>
+                                                                                    )
+                                                                                )}
+                                                                            </td>
+                                                                        ))}
+                                                                        <td className={`px-6 py-3 text-right font-semibold text-xs border-l border-blue-50 align-middle ${sub.isCapped ? 'bg-red-50/30' : 'text-slate-700 bg-slate-50/30'}`}>
+                                                                            {sub.isCapped ? (
+                                                                                <div className="flex flex-col items-end">
+                                                                                    <span className="text-slate-400 line-through decoration-slate-400 text-[10px] mb-0.5" title="原计算合计">{sub.originalRowTotal.toFixed(1)}</span>
+                                                                                    <span className="text-red-600 text-sm">{sub.rowTotal.toFixed(1)}</span>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <span className="text-slate-700">{sub.rowTotal.toFixed(1)}</span>
+                                                                            )}
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </React.Fragment>
+                                                        );
+                                                    })
+                                                )}
+                                            </tbody>
+                                            {selectedProducts.length > 0 && (
+                                                <tfoot className="bg-[#1e293b] text-white font-semibold shadow-inner">
+                                                    <tr>
+                                                        <td className="px-6 py-5 flex items-center pl-12 text-[13px]">
+                                                            产品专列合计 (含变量)
+                                                        </td>
+                                                        {selectedProducts.map(product => {
+                                                            const colTotal = matrixData.reduce((acc, ph) => acc + (ph.productTotals.find(p => p.productId === product.id)?.days || 0), 0);
+                                                            return (
+                                                                <td key={`total-${product.id}`} className="px-4 py-5 text-center text-blue-200 border-t border-slate-700">
+                                                                    {colTotal.toFixed(1)}
+                                                                </td>
+                                                            )
+                                                        })}
+                                                        <td className="px-6 py-5 text-right border-l border-slate-700 bg-slate-800">
+                                                            <div className="text-[11px] text-slate-400 font-normal mb-1">合并折算总人天</div>
+                                                            <div className="text-2xl text-[#fde047] font-black">{totalDays.toFixed(1)}</div>
+                                                        </td>
+                                                    </tr>
+                                                </tfoot>
+                                            )}
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* 报价总结卡片 */}
+                                <div className={`relative overflow-hidden rounded-2xl shadow-lg p-8 text-white transition-all duration-300 ${hasCappedTriggered ? 'bg-gradient-to-br from-indigo-800 via-purple-800 to-indigo-900 border border-purple-500/30' : 'bg-gradient-to-br from-blue-700 to-indigo-800'}`}>
+                                    <div className="absolute top-0 right-0 -mt-10 -mr-10 opacity-10 pointer-events-none">
+                                        <IconRenderer name="Calculator" className="w-64 h-64" />
+                                    </div>
+                                    
+                                    <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
+                                        <div className="md:col-span-2">
+                                            <h3 className="text-indigo-100 font-medium uppercase tracking-wider text-sm mb-2">项目预估总报价 (RMB)</h3>
+                                            <div className="text-5xl font-extrabold tracking-tight mb-4 flex items-baseline">
+                                                <span className="text-3xl mr-2 font-medium opacity-80">¥</span>
+                                                <span className={hasCappedTriggered ? "text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-yellow-500" : ""}>
+                                                    {totalPrice.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
+                                            </div>
+                                            <div className="text-blue-100/90 text-sm leading-relaxed space-y-1">
+                                                <p>当前包含 <strong className="text-white">{selectedProducts.length}</strong> 款 AI 产品。</p>
+                                                {selectedProducts.length > 0 && (
+                                                    <p className="text-[12px] opacity-80 mt-1">
+                                                        当前综合难度系数: {finalComplexity.toFixed(2)}x 
+                                                        {selectedProductIds.includes('insight') ? ` | 业务洞察N1: ${objectCountN1}` : ''}
+                                                        {selectedProductIds.includes('sales') ? ` | 销售记录N2: ${objectCountN2}` : ''}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            
+                                            {hasCappedTriggered && (
+                                                <div className="mt-5 bg-white/10 backdrop-blur-md border border-red-300/30 rounded-lg p-3 flex items-start shadow-inner">
+                                                    <IconRenderer name="AlertCircle" className="w-5 h-5 text-red-300 mr-2 flex-shrink-0 mt-0.5" />
+                                                    <div className="text-[12.5px] text-red-100 leading-snug font-medium">
+                                                        系统检测到多产品组合交付，培训及验收相关任务已触发<strong className="text-white">合并人天封顶规则</strong>。报价已自动为您减免超出上限部分的工作量，实现效益最大化。
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        
+                                        <div className="bg-black/20 rounded-xl p-5 backdrop-blur-sm border border-white/10 shadow-inner">
+                                            <div className="space-y-4">
+                                                <div className="flex justify-between items-center pb-4 border-b border-white/10">
+                                                    <span className="text-indigo-100 text-[13px] uppercase tracking-wide">总工作量</span>
+                                                    <span className="font-bold text-2xl">{totalDays.toFixed(1)} <span className="text-sm font-normal opacity-80">天</span></span>
+                                                </div>
+                                                <div className="flex justify-between items-center pt-1">
+                                                    <span className="text-indigo-100 text-[13px] uppercase tracking-wide">当前单价</span>
+                                                    <span className="font-semibold text-xl">¥{dailyRate} <span className="text-[11px] font-normal opacity-80 uppercase">/Day</span></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
