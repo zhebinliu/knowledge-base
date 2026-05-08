@@ -32,6 +32,7 @@ class ProjectIn(BaseModel):
     kickoff_date: date | None = None
     description: str | None = None
     customer_profile: str | None = None
+    aliases: list[str] | None = None  # 客户名 / 项目名变体表 — 用于文档脱敏
 
 
 class ProjectPatch(BaseModel):
@@ -42,6 +43,7 @@ class ProjectPatch(BaseModel):
     kickoff_date: date | None = None
     description: str | None = None
     customer_profile: str | None = None
+    aliases: list[str] | None = None
 
 
 def _project_dto(
@@ -56,6 +58,7 @@ def _project_dto(
         "kickoff_date": p.kickoff_date.isoformat() if p.kickoff_date else None,
         "description": p.description,
         "customer_profile": p.customer_profile,
+        "aliases": p.aliases or [],          # 文档脱敏用的别名表
         "created_by": p.created_by,
         "created_at": p.created_at,
         "updated_at": p.updated_at,
@@ -64,6 +67,26 @@ def _project_dto(
         # 前端用于控制可写按钮 / 协作者管理入口
         "my_role": my_role,
     }
+
+
+def _normalize_aliases(aliases: list[str] | None) -> list[str] | None:
+    """清洗 alias 列表:strip / 去空 / 去重(保序)/ 长度限制(单条 <= 100,总数 <= 30)。"""
+    if aliases is None:
+        return None
+    seen, out = set(), []
+    for a in aliases:
+        if not isinstance(a, str):
+            continue
+        s = a.strip()
+        if not s or len(s) > 100:
+            continue
+        if s in seen:
+            continue
+        seen.add(s)
+        out.append(s)
+        if len(out) >= 30:
+            break
+    return out
 
 
 async def _resolve_my_role(user: User, p: Project) -> str:
@@ -174,13 +197,14 @@ async def create_project(
         kickoff_date=body.kickoff_date,
         description=body.description,
         customer_profile=body.customer_profile,
+        aliases=_normalize_aliases(body.aliases),
         created_by=user.id,
     )
     session.add(p)
     await session.commit()
     await session.refresh(p)
     logger.info("project_created", id=p.id, name=p.name, by=user.username)
-    return _project_dto(p, doc_count=0)
+    return _project_dto(p, doc_count=0, my_role="owner")
 
 
 @router.get("/{project_id}")
@@ -223,6 +247,8 @@ async def update_project(
         p.description = body.description
     if body.customer_profile is not None:
         p.customer_profile = body.customer_profile
+    if "aliases" in body.model_fields_set:
+        p.aliases = _normalize_aliases(body.aliases)
     await session.commit()
     await session.refresh(p)
     cnt = await session.scalar(

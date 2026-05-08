@@ -15,6 +15,9 @@ class Document(Base):
     filename: Mapped[str] = mapped_column(String(500), nullable=False)
     original_format: Mapped[str] = mapped_column(String(20), nullable=False)
     markdown_content: Mapped[str | None] = mapped_column(Text)
+    # 脱敏前的原始 markdown(仅项目下文档保留)— 用于追溯 / 调试 / 必要时回溯
+    # 公共 KB 文档(project_id=None)此字段为空,markdown_content 即原文
+    markdown_content_raw: Mapped[str | None] = mapped_column(Text, nullable=True)
     file_path: Mapped[str | None] = mapped_column(String(1000))
     conversion_status: Mapped[str] = mapped_column(String(20), default="pending")
     conversion_quality_score: Mapped[float | None] = mapped_column(Float)

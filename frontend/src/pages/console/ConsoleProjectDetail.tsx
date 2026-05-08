@@ -1204,6 +1204,8 @@ function ProjectEditPanel({ project, onClose, onSaved }: {
   const [industry, setIndustry] = useState(project.industry || '')
   const [kickoffDate, setKickoffDate] = useState(project.kickoff_date || '')
   const [profile, setProfile] = useState(project.customer_profile || '')
+  // 客户名 / 项目名变体 — 文档脱敏用。textarea 编辑,提交时按行/逗号 split
+  const [aliasesRaw, setAliasesRaw] = useState((project.aliases || []).join('\n'))
   const [err, setErr] = useState('')
 
   const saveMut = useMutation({
@@ -1212,6 +1214,7 @@ function ProjectEditPanel({ project, onClose, onSaved }: {
       industry: industry || null,
       kickoff_date: kickoffDate || null,
       customer_profile: profile.trim() || null,
+      aliases: aliasesRaw.split(/[\n、,;,;]/).map(s => s.trim()).filter(Boolean),
     }),
     onSuccess: () => { onSaved(); onClose() },
     onError: (e: any) => setErr(e?.response?.data?.detail || '保存失败'),
@@ -1293,6 +1296,26 @@ function ProjectEditPanel({ project, onClose, onSaved }: {
               </div>
             </details>
           )}
+        </div>
+
+        {/* 脱敏别名表 — 文档转写时把这些变体名都替换成客户拼音首字母 */}
+        <div>
+          <label className="text-[11px] text-ink-muted font-medium mb-1.5 block">
+            脱敏别名表
+            <span className="text-[10px] text-ink-muted/80 font-normal ml-2">
+              一行一个 / 或用顿号、逗号分隔。文档转写时,这些变体会被替换成客户拼音首字母(如「中国电信」→「ZGDX」)。
+              {customer.trim() && (
+                <span className="ml-1">当前客户「{customer.trim()}」会自动加入,无需重复填写。</span>
+              )}
+            </span>
+          </label>
+          <textarea
+            value={aliasesRaw}
+            onChange={e => setAliasesRaw(e.target.value)}
+            rows={3}
+            placeholder="电信&#10;中电信&#10;China Telecom"
+            className="w-full border border-line rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-1 focus:ring-orange-300"
+          />
         </div>
 
         {err && (

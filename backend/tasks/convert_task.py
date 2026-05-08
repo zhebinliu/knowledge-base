@@ -368,7 +368,39 @@ async def _process_document_async(doc_id: str):
                 heartbeat=_heartbeat,             # 让 converter 内部分段时也能写心跳
             )
             _convert_elapsed = time.time() - _t_convert_start
-            doc.markdown_content = markdown
+
+            # ── 脱敏 ────────────────────────────────────────────────────────
+            # 仅项目下文档执行脱敏(KB 公共文档保留原文)
+            # 双字段:markdown_content_raw 存原文,markdown_content 存脱敏后
+            redact_stats: dict | None = None
+            if doc.project_id:
+                from models.project import Project
+                proj = await session.get(Project, doc.project_id)
+                if proj and (proj.customer or proj.name or (proj.aliases or [])):
+                    await _heartbeat("脱敏中(项目名 / 客户名 / 金额)…")
+                    try:
+                        from services.redactor import redact_markdown
+                        redacted_md, redact_stats = await redact_markdown(
+                            markdown,
+                            project_name=proj.name,
+                            customer=proj.customer,
+                            aliases=proj.aliases or [],
+                        )
+                        doc.markdown_content_raw = markdown        # 原文留底
+                        doc.markdown_content = redacted_md         # 脱敏后供下游消费
+                        logger.info("doc_redacted", doc_id=doc_id, **redact_stats)
+                    except Exception as e:
+                        # 脱敏失败不阻塞主流程,降级保存原文
+                        logger.warning("redact_failed_fallback_raw",
+                                       doc_id=doc_id, error=str(e)[:200])
+                        doc.markdown_content = markdown
+                else:
+                    # project 没设客户名 / 别名 — 没东西可脱,直接保存原文
+                    doc.markdown_content = markdown
+            else:
+                # 公共 KB 文档 — 不脱敏
+                doc.markdown_content = markdown
+
             doc.conversion_status = "slicing"
             doc.convert_duration_s = round(_convert_elapsed, 2)
             logger.info(
@@ -377,6 +409,7 @@ async def _process_document_async(doc_id: str):
                 model=convert_model,
                 chars=len(markdown or ""),
                 duration_s=round(_convert_elapsed, 2),
+                redact_stats=redact_stats,
             )
 
             # 3b. 自动推断文档类型（仅在用户未手动设置时）

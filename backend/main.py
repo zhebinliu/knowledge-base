@@ -143,6 +143,9 @@ async def startup():
             "ALTER TABLE skills DROP COLUMN IF EXISTS questions",
             # 登录安全加固 · 邀请码 + 强密码 + 验证码
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS signed_up_via_invite_code VARCHAR(32)",
+            # 文档脱敏:Document.markdown_content_raw + Project.aliases
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS markdown_content_raw TEXT",
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS aliases JSON",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")

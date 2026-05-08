@@ -92,6 +92,9 @@ class Project(Base):
     kickoff_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     customer_profile: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 脱敏别名表 — 用于文档转写时把同一客户的多个变体名(中国电信 / 电信 / China Telecom 等)
+    # 都替换成 customer 的拼音首字母大写。JSON list of string,用户在项目设置里手动维护。
+    aliases: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_by: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)

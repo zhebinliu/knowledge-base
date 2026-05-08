@@ -551,6 +551,7 @@ export interface Project {
   kickoff_date: string | null  // YYYY-MM-DD
   description: string | null
   customer_profile: string | null
+  aliases?: string[]            // 客户名 / 项目名变体 — 文档脱敏用
   created_by: string | null
   created_at: string
   updated_at: string
@@ -567,6 +568,7 @@ export interface ProjectInput {
   kickoff_date?: string | null
   description?: string | null
   customer_profile?: string | null
+  aliases?: string[] | null
 }
 
 export interface ProjectDocument {
