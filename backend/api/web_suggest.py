@@ -15,6 +15,7 @@ from sqlalchemy import select
 from models import async_session_maker
 from models.project import Project
 from services.auth import get_current_user
+from services.project_acl import assert_project_access
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -35,13 +36,16 @@ class WebSuggestCandidate(BaseModel):
     source_domain: str
 
 
-@router.post("", dependencies=[Depends(get_current_user)])
-async def suggest_from_web(body: WebSuggestBody):
+@router.post("")
+async def suggest_from_web(body: WebSuggestBody, user=Depends(get_current_user)):
     """跑 Web 搜索,返回 1-3 条候选答案给用户裁决。"""
     from services.web_search_service import web_search, has_web_search_provider
 
     if not await has_web_search_provider():
         raise HTTPException(503, "未配置 Web search API key,请联系管理员到「系统设置 · API 密钥」配置 bocha_api_key 或 tavily_api_key")
+
+    if body.project_id:
+        await assert_project_access(user, body.project_id, "read")
 
     async with async_session_maker() as s:
         proj = await s.get(Project, body.project_id) if body.project_id else None

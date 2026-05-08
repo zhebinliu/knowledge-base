@@ -56,7 +56,7 @@ class ClassifyScopeBody(BaseModel):
 
 # ── 答案录入 ────────────────────────────────────────────────────────────────
 
-@router.post("/responses", dependencies=[Depends(get_current_user)])
+@router.post("/responses")
 async def upsert_response(body: ResponseUpsertBody, user=Depends(get_current_user)):
     """顾问录入或更新一个答案。按 (bundle_id, item_key) upsert。"""
     async with async_session_maker() as s:
@@ -64,6 +64,9 @@ async def upsert_response(body: ResponseUpsertBody, user=Depends(get_current_use
         b = await s.get(CuratedBundle, body.bundle_id)
         if not b:
             raise HTTPException(404, "bundle 不存在")
+        if b.project_id:
+            from services.project_acl import assert_project_access
+            await assert_project_access(user, b.project_id, "write")
 
         existing = (await s.execute(
             select(ResearchResponse).where(
@@ -94,10 +97,16 @@ async def upsert_response(body: ResponseUpsertBody, user=Depends(get_current_use
     return {"ok": True}
 
 
-@router.get("/responses", dependencies=[Depends(get_current_user)])
-async def list_responses(bundle_id: str):
+@router.get("/responses")
+async def list_responses(bundle_id: str, user=Depends(get_current_user)):
     """拉取一个 bundle 下所有顾问答案,按 item_key 索引返回。"""
     async with async_session_maker() as s:
+        b = await s.get(CuratedBundle, bundle_id)
+        if not b:
+            raise HTTPException(404, "bundle 不存在")
+        if b.project_id:
+            from services.project_acl import assert_project_access
+            await assert_project_access(user, b.project_id, "read")
         rows = (await s.execute(
             select(ResearchResponse).where(ResearchResponse.bundle_id == bundle_id)
         )).scalars().all()
@@ -117,8 +126,15 @@ async def list_responses(bundle_id: str):
 
 # ── 范围四分类触发 ────────────────────────────────────────────────────────
 
-@router.post("/classify-scope", dependencies=[Depends(get_current_user)])
-async def classify_scope(body: ClassifyScopeBody):
+@router.post("/classify-scope")
+async def classify_scope(body: ClassifyScopeBody, user=Depends(get_current_user)):
+    async with async_session_maker() as s:
+        b = await s.get(CuratedBundle, body.bundle_id)
+        if not b:
+            raise HTTPException(404, "bundle 不存在")
+        if b.project_id:
+            from services.project_acl import assert_project_access
+            await assert_project_access(user, b.project_id, "write")
     """触发某个 bundle(可指定 LTC 模块)的范围四分类。
 
     依赖 bundle.extra.questionnaire_items 已生成 + research_responses 已有顾问答案。
@@ -135,9 +151,11 @@ async def classify_scope(body: ClassifyScopeBody):
 
 # ── LTC 模块映射查询 ────────────────────────────────────────────────────────
 
-@router.get("/ltc-module-map", dependencies=[Depends(get_current_user)])
-async def list_ltc_module_map(project_id: str):
+@router.get("/ltc-module-map")
+async def list_ltc_module_map(project_id: str, user=Depends(get_current_user)):
     """返回项目的 SOW → LTC 字典映射结果。前端工作区显示用。"""
+    from services.project_acl import assert_project_access
+    await assert_project_access(user, project_id, "read")
     async with async_session_maker() as s:
         rows = (await s.execute(
             select(ResearchLtcModuleMap)
@@ -213,24 +231,27 @@ def _normalize_item(payload: dict, *, source: str) -> dict:
     return QuestionItem.from_dict(raw).to_dict()
 
 
-async def _load_bundle_for_edit(s, bundle_id: str) -> CuratedBundle:
+async def _load_bundle_for_edit(s, bundle_id: str, user=None, level: str = "write") -> CuratedBundle:
     b = await s.get(CuratedBundle, bundle_id)
     if not b:
         raise HTTPException(404, "bundle 不存在")
     if b.kind != "survey":
         raise HTTPException(400, f"只能编辑 kind=survey 的 bundle,当前 kind={b.kind}")
+    if user and b.project_id:
+        from services.project_acl import assert_project_access
+        await assert_project_access(user, b.project_id, level)
     return b
 
 
-@router.post("/questionnaire-items", dependencies=[Depends(get_current_user)])
-async def upsert_questionnaire_item(body: QuestionnaireItemBody):
+@router.post("/questionnaire-items")
+async def upsert_questionnaire_item(body: QuestionnaireItemBody, user=Depends(get_current_user)):
     """新增或更新一道题。
     - 不传 item_key → 视为新增,自动生成形如 `{ltc_module_key}::manual_{n}` 的稳定 key
     - 传 item_key → 视为编辑,按 item_key 替换原题(保留 sow_evidence / kb_refs 等 LLM 注入字段)
     返回写入后的完整题目对象 + 全 questionnaire_items 长度。
     """
     async with async_session_maker() as s:
-        b = await _load_bundle_for_edit(s, body.bundle_id)
+        b = await _load_bundle_for_edit(s, body.bundle_id, user, "write")
         extra = dict(b.extra or {})
         items: list[dict] = list(extra.get("questionnaire_items") or [])
 
@@ -302,12 +323,19 @@ class FollowUpBody(BaseModel):
     max_followups: int = Field(default=3, ge=1, le=5)
 
 
-@router.post("/follow-up", dependencies=[Depends(get_current_user)])
-async def generate_follow_up(body: FollowUpBody):
+@router.post("/follow-up")
+async def generate_follow_up(body: FollowUpBody, user=Depends(get_current_user)):
     """根据父题答案动态生成追问(需求 6)。
     LLM 阅读父题 + 回答,生成 0-3 道挂在 parent_item_key 下的子题,
     parent_item_key 链路 + source='follow_up' 双重标记,前端可识别后做缩进展示。
     """
+    async with async_session_maker() as s:
+        b = await s.get(CuratedBundle, body.bundle_id)
+        if not b:
+            raise HTTPException(404, "bundle 不存在")
+        if b.project_id:
+            from services.project_acl import assert_project_access
+            await assert_project_access(user, b.project_id, "write")
     from services.agentic.research.follow_up import generate_follow_ups
     result = await generate_follow_ups(
         bundle_id=body.bundle_id,
@@ -318,13 +346,13 @@ async def generate_follow_up(body: FollowUpBody):
     return result
 
 
-@router.delete("/questionnaire-items", dependencies=[Depends(get_current_user)])
-async def delete_questionnaire_item(bundle_id: str, item_key: str):
+@router.delete("/questionnaire-items")
+async def delete_questionnaire_item(bundle_id: str, item_key: str, user=Depends(get_current_user)):
     """删除一道题(以及它的所有动态追问子题)。
     - 同时连带把 research_responses 里这些 item_key 的答案删掉(保持一致性)。
     """
     async with async_session_maker() as s:
-        b = await _load_bundle_for_edit(s, bundle_id)
+        b = await _load_bundle_for_edit(s, bundle_id, user, "write")
         extra = dict(b.extra or {})
         items: list[dict] = list(extra.get("questionnaire_items") or [])
 
@@ -367,11 +395,12 @@ EXPORT_FORMATS = {
 }
 
 
-@router.get("/questionnaire/export-pre-meeting", dependencies=[Depends(get_current_user)])
+@router.get("/questionnaire/export-pre-meeting")
 async def export_pre_meeting_questionnaire(
     bundle_id: str = Query(...),
     role: str = Query("all", description="executive / dept_head / frontline / it / all"),
     fmt: str = Query("docx", description="docx / xlsx / html"),
+    user=Depends(get_current_user),
 ):
     """按角色导出会前调研问卷(纯空白模板,客户拿到从零填)。
 
@@ -396,6 +425,9 @@ async def export_pre_meeting_questionnaire(
             raise HTTPException(404, "bundle 不存在")
         if b.kind != "survey":
             raise HTTPException(400, f"只能导出 survey 类 bundle,当前 kind={b.kind}")
+        if b.project_id:
+            from services.project_acl import assert_project_access
+            await assert_project_access(user, b.project_id, "read")
         items_all = list((b.extra or {}).get("questionnaire_items") or [])
         # 拿项目名做文件名前缀
         project_name = ""

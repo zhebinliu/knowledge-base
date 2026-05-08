@@ -115,6 +115,9 @@ async def generate_output(
     if body.kind not in KIND_TO_TASK:
         raise HTTPException(400, f"Invalid kind. Must be one of: {list(KIND_TO_TASK)}")
 
+    from services.project_acl import assert_project_access
+    await assert_project_access(current_user, body.project_id, "write")
+
     from models.project import Project
     proj = await session.get(Project, body.project_id)
     if not proj:
@@ -162,12 +165,23 @@ async def list_outputs(
     stmt = select(CuratedBundle)
     count_stmt = select(func.count()).select_from(CuratedBundle)
 
-    # Non-admins see only their own outputs
+    # 权限隔离改为按项目级权限:
+    # - admin 看所有
+    # - 非 admin 看自己有权限的项目的所有 bundle(不再按 bundle.created_by 过滤,
+    #   这样协作者能看到队友创的 bundle)
     if not current_user.is_admin:
-        stmt = stmt.where(CuratedBundle.created_by == current_user.id)
-        count_stmt = count_stmt.where(CuratedBundle.created_by == current_user.id)
+        from services.project_acl import list_accessible_project_ids
+        accessible_ids = await list_accessible_project_ids(current_user)
+        if not accessible_ids:
+            return {"total": 0, "page": page, "page_size": page_size, "items": []}
+        stmt = stmt.where(CuratedBundle.project_id.in_(accessible_ids))
+        count_stmt = count_stmt.where(CuratedBundle.project_id.in_(accessible_ids))
 
     if project_id:
+        # 即便上面已经过滤,显式 project_id 也再校一次(返回 404 比 200+空列表更清晰)
+        if not current_user.is_admin:
+            from services.project_acl import assert_project_access
+            await assert_project_access(current_user, project_id, "read")
         stmt = stmt.where(CuratedBundle.project_id == project_id)
         count_stmt = count_stmt.where(CuratedBundle.project_id == project_id)
     if kind:
@@ -193,8 +207,10 @@ async def get_output(
     b = await session.get(CuratedBundle, bundle_id)
     if not b:
         raise HTTPException(404, "Bundle not found")
-    if not current_user.is_admin and b.created_by != current_user.id:
-        raise HTTPException(403, "Access denied")
+    # 权限改为项目级 — bundle 所属 project 必须可访问
+    if b.project_id and not current_user.is_admin:
+        from services.project_acl import assert_project_access
+        await assert_project_access(current_user, b.project_id, "read")
     dto = _bundle_dto(b)
     dto["content_md"] = b.content_md
     return dto
@@ -210,8 +226,9 @@ async def list_challenge_rounds(
     b = await session.get(CuratedBundle, bundle_id)
     if not b:
         raise HTTPException(404, "Bundle not found")
-    if not current_user.is_admin and b.created_by != current_user.id:
-        raise HTTPException(403, "Access denied")
+    if b.project_id and not current_user.is_admin:
+        from services.project_acl import assert_project_access
+        await assert_project_access(current_user, b.project_id, "read")
     rows = (await session.execute(
         select(ChallengeRound)
         .where(ChallengeRound.bundle_id == bundle_id)
@@ -273,7 +290,10 @@ async def download_output(
     b = await session.get(CuratedBundle, bundle_id)
     if not b:
         raise HTTPException(404, "Bundle not found")
-    if not current_user.is_admin and b.created_by != current_user.id:
+    if b.project_id and not current_user.is_admin:
+        from services.project_acl import assert_project_access
+        await assert_project_access(current_user, b.project_id, "read")
+    if False:  # legacy guard removed
         raise HTTPException(403, "Access denied")
     if b.status != "done":
         raise HTTPException(400, f"Bundle not ready (status={b.status})")
@@ -469,7 +489,10 @@ async def view_output(
     b = await session.get(CuratedBundle, bundle_id)
     if not b:
         raise HTTPException(404, "Bundle not found")
-    if not current_user.is_admin and b.created_by != current_user.id:
+    if b.project_id and not current_user.is_admin:
+        from services.project_acl import assert_project_access
+        await assert_project_access(current_user, b.project_id, "read")
+    if False:  # legacy guard removed
         raise HTTPException(403, "Access denied")
     if b.status != "done":
         raise HTTPException(400, f"Bundle not ready (status={b.status})")
@@ -533,7 +556,10 @@ async def save_content_md(
     b = await session.get(CuratedBundle, bundle_id)
     if not b:
         raise HTTPException(404, "Bundle not found")
-    if not current_user.is_admin and b.created_by != current_user.id:
+    if b.project_id and not current_user.is_admin:
+        from services.project_acl import assert_project_access
+        await assert_project_access(current_user, b.project_id, "read")
+    if False:  # legacy guard removed
         raise HTTPException(403, "无权编辑该产物")
     if b.kind not in ("insight", "survey_outline", "survey"):
         raise HTTPException(400, f"产物类型 {b.kind} 不支持 markdown 编辑")
@@ -563,7 +589,10 @@ async def save_html_output(
     b = await session.get(CuratedBundle, bundle_id)
     if not b:
         raise HTTPException(404, "Bundle not found")
-    if not current_user.is_admin and b.created_by != current_user.id:
+    if b.project_id and not current_user.is_admin:
+        from services.project_acl import assert_project_access
+        await assert_project_access(current_user, b.project_id, "read")
+    if False:  # legacy guard removed
         raise HTTPException(403, "Access denied")
     if not b.file_key or not b.file_key.endswith(".html"):
         raise HTTPException(400, "仅 HTML 类型 bundle 支持就地编辑")

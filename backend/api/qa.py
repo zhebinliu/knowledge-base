@@ -21,6 +21,7 @@ from models.qa_log import Conversation, QuestionLog, AnswerFeedback
 from models.review_queue import ReviewQueue
 from models.user import User
 from services.auth import get_current_user, get_current_user_optional
+from services.project_acl import assert_project_access
 from services.rate_limit import limiter
 
 router = APIRouter()
@@ -115,6 +116,10 @@ async def ask_question(
     user: User | None = Depends(get_current_user_optional),
 ):
     t0 = time.time()
+    if req.project_id:
+        if not user:
+            raise HTTPException(401, "项目作用域问答需要登录")
+        await assert_project_access(user, req.project_id, "read")
     history = [h.dict() for h in (req.history or [])]
     result = await answer_question(
         req.question,
@@ -148,6 +153,10 @@ async def ask_question_stream_endpoint(
 
     Extra final event: {"question_log_id": "..."} so client can bind feedback.
     """
+    if req.project_id:
+        if not user:
+            raise HTTPException(401, "项目作用域问答需要登录")
+        await assert_project_access(user, req.project_id, "read")
     history = [h.dict() for h in (req.history or [])]
     user_id = user.id if user else None
 

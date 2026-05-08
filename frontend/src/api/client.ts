@@ -540,6 +540,8 @@ export interface ProjectMeta {
   industries: { value: string; label: string }[]
 }
 
+export type ProjectRole = 'owner' | 'read_write' | 'read' | 'admin' | 'none'
+
 export interface Project {
   id: string
   name: string
@@ -553,6 +555,8 @@ export interface Project {
   created_at: string
   updated_at: string
   document_count: number
+  /** 当前用户对该项目的角色(后端按权限计算)— 用于前端控制按钮 disable */
+  my_role?: ProjectRole
 }
 
 export interface ProjectInput {
@@ -598,6 +602,55 @@ export const deleteProject = (id: string, cascade = false) =>
 
 export const generateCustomerProfile = (id: string) =>
   api.post<{ profile: string }>(`/projects/${id}/generate_profile`).then(r => r.data)
+
+// ── 协作者(项目权限) ───────────────────────────────────────────────────────
+
+export type CollaboratorRole = 'read' | 'read_write'
+
+export interface ProjectOwner {
+  user_id: string | null
+  username: string | null
+  full_name: string | null
+  email: string | null
+}
+
+export interface ProjectCollaborator {
+  id: string
+  project_id: string
+  user_id: string
+  username: string | null
+  full_name: string | null
+  email: string | null
+  role: CollaboratorRole
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface UserSearchResult {
+  id: string
+  username: string
+  full_name: string | null
+  email: string | null
+}
+
+export const listCollaborators = (project_id: string) =>
+  api.get<{ owner: ProjectOwner | null; collaborators: ProjectCollaborator[] }>(
+    `/projects/${project_id}/collaborators`,
+  ).then(r => r.data)
+
+export const addCollaborator = (project_id: string, user_id: string, role: CollaboratorRole = 'read') =>
+  api.post<ProjectCollaborator>(`/projects/${project_id}/collaborators`, { user_id, role }).then(r => r.data)
+
+export const updateCollaboratorRole = (project_id: string, user_id: string, role: CollaboratorRole) =>
+  api.patch<ProjectCollaborator>(`/projects/${project_id}/collaborators/${user_id}`, { role }).then(r => r.data)
+
+export const removeCollaborator = (project_id: string, user_id: string) =>
+  api.delete<{ ok: boolean }>(`/projects/${project_id}/collaborators/${user_id}`).then(r => r.data)
+
+export const searchUsersForCollab = (q: string, limit = 10) =>
+  api.get<UserSearchResult[]>('/projects/_/users/search', { params: { q, limit } }).then(r => r.data)
+
 
 export const listProjectDocuments = (id: string) =>
   api.get<ProjectDocument[]>(`/projects/${id}/documents`).then(r => r.data)

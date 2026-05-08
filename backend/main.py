@@ -82,6 +82,7 @@ async def startup():
     from models.research_ltc_module_map import ResearchLtcModuleMap  # noqa: F401
     from models.invite_code import InviteCode  # noqa: F401
     from models.captcha_challenge import CaptchaChallenge  # noqa: F401
+    from models.project_collaborator import ProjectCollaborator  # noqa: F401
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

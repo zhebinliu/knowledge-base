@@ -37,6 +37,7 @@ from models import async_session_maker
 from models.project import Project
 from models.project_brief import ProjectBrief
 from services.auth import get_current_user
+from services.project_acl import require_project_access
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -66,7 +67,7 @@ class GraphPayload(BaseModel):
     edges: list[GraphEdge] = []
 
 
-@router.get("/{project_id}", dependencies=[Depends(get_current_user)])
+@router.get("/{project_id}", dependencies=[Depends(require_project_access("read"))])
 async def get_stakeholder_graph(project_id: str):
     """读取项目的干系人图谱,空项目返回空结构。"""
     async with async_session_maker() as db:
@@ -92,7 +93,7 @@ async def get_stakeholder_graph(project_id: str):
         }
 
 
-@router.put("/{project_id}", dependencies=[Depends(get_current_user)])
+@router.put("/{project_id}", dependencies=[Depends(require_project_access("write"))])
 async def upsert_stakeholder_graph(
     project_id: str,
     payload: GraphPayload,

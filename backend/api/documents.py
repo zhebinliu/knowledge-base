@@ -8,6 +8,7 @@ from models.document import Document
 from models.project import DOC_TYPES, DOC_TYPE_LABELS, Project
 from models.user import User
 from services.auth import get_current_user, get_current_user_optional
+from services.project_acl import assert_project_access, list_accessible_project_ids
 from services.rate_limit import limiter
 
 logger = structlog.get_logger()
@@ -37,6 +38,9 @@ async def upload_document(
     doc_type = (doc_type or "").strip() or None
     doc_industry = None
     if project_id:
+        # 上传到指定项目 → 必须有写权限
+        if current_user:
+            await assert_project_access(current_user, project_id, "write")
         proj = await session.get(Project, project_id)
         if not proj:
             raise HTTPException(400, f"项目不存在: {project_id}")
@@ -93,13 +97,31 @@ async def list_documents(
     limit: int = Query(default=20, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
-    # Build base filter conditions
+    # 权限隔离:
+    # - admin 看所有
+    # - project_id 指定且非 'none' → assert_project_access(read)
+    # - project_id 未指定 / 'none' → 限定为 user 能访问项目的文档(none 时单独处理)
     conditions = []
-    if project_id == "none":
-        conditions.append(Document.project_id.is_(None))
-    elif project_id:
-        conditions.append(Document.project_id == project_id)
+    if not current_user.is_admin:
+        accessible_ids = await list_accessible_project_ids(current_user)
+        if project_id == "none":
+            # "none" = 无项目的文档:不在权限范围内,普通用户不返回
+            return {"total": 0, "items": []}
+        if project_id:
+            await assert_project_access(current_user, project_id, "read")
+            conditions.append(Document.project_id == project_id)
+        else:
+            if not accessible_ids:
+                return {"total": 0, "items": []}
+            conditions.append(Document.project_id.in_(accessible_ids))
+    else:
+        # admin 走原逻辑
+        if project_id == "none":
+            conditions.append(Document.project_id.is_(None))
+        elif project_id:
+            conditions.append(Document.project_id == project_id)
     if doc_type:
         conditions.append(Document.doc_type == doc_type)
 
@@ -147,11 +169,28 @@ async def list_documents(
     return {"total": total, "items": items}
 
 
+async def _doc_access_check(doc, current_user: User, level: str = "read") -> None:
+    """文档访问校验:挂在项目下的走项目权限,没挂项目的(KB 公共文档)仅 admin 可写,可读。"""
+    if current_user.is_admin:
+        return
+    if doc.project_id:
+        await assert_project_access(current_user, doc.project_id, level)
+    else:
+        # 没挂项目的文档:read 任何登录用户都能看(KB 共享);write/delete 仅 admin
+        if level != "read":
+            raise HTTPException(403, "无项目归属的文档,仅管理员可写/删")
+
+
 @router.get("/{doc_id}")
-async def get_document(doc_id: str, session: AsyncSession = Depends(get_session)):
+async def get_document(
+    doc_id: str,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     doc = await session.get(Document, doc_id)
     if not doc:
         raise HTTPException(404, "文档不存在")
+    await _doc_access_check(doc, current_user, "read")
     return {
         "id": doc.id,
         "filename": doc.filename,
@@ -166,12 +205,17 @@ async def get_document(doc_id: str, session: AsyncSession = Depends(get_session)
 
 
 @router.get("/{doc_id}/status")
-async def get_document_status(doc_id: str, session: AsyncSession = Depends(get_session)):
+async def get_document_status(
+    doc_id: str,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     from models.chunk import Chunk
     from sqlalchemy import func
     doc = await session.get(Document, doc_id)
     if not doc:
         raise HTTPException(404, "文档不存在")
+    await _doc_access_check(doc, current_user, "read")
     chunk_count = await session.scalar(select(func.count()).select_from(Chunk).where(Chunk.document_id == doc_id))
     return {
         "id": doc.id,
@@ -182,11 +226,16 @@ async def get_document_status(doc_id: str, session: AsyncSession = Depends(get_s
 
 
 @router.get("/{doc_id}/chunks")
-async def get_document_chunks(doc_id: str, session: AsyncSession = Depends(get_session)):
+async def get_document_chunks(
+    doc_id: str,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     from models.chunk import Chunk
     doc = await session.get(Document, doc_id)
     if not doc:
         raise HTTPException(404, "文档不存在")
+    await _doc_access_check(doc, current_user, "read")
     result = await session.execute(
         select(Chunk).where(Chunk.document_id == doc_id).order_by(Chunk.chunk_index)
     )
@@ -213,7 +262,7 @@ async def update_document(
     doc_id: str,
     body: dict,
     session: AsyncSession = Depends(get_session),
-    _user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """更新文档的项目归属和/或文档类型。
     body: { project_id?: string | null, doc_type?: string | null }
@@ -221,10 +270,14 @@ async def update_document(
     doc = await session.get(Document, doc_id)
     if not doc:
         raise HTTPException(404, "文档不存在")
+    # 当前文档的写权限
+    await _doc_access_check(doc, current_user, "write")
 
     if "project_id" in body:
         pid = body["project_id"] or None
         if pid:
+            # 改归属到新项目 → 新项目也要有写权限
+            await assert_project_access(current_user, pid, "write")
             proj = await session.get(Project, pid)
             if not proj:
                 raise HTTPException(400, "项目不存在")
@@ -266,7 +319,7 @@ async def update_document(
 async def delete_document(
     doc_id: str,
     session: AsyncSession = Depends(get_session),
-    _user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     from models.chunk import Chunk
     from services.vector_store import vector_store
@@ -276,6 +329,7 @@ async def delete_document(
     doc = await session.get(Document, doc_id)
     if not doc:
         raise HTTPException(404, "文档不存在")
+    await _doc_access_check(doc, current_user, "write")
 
     chunks = (await session.execute(
         select(Chunk).where(Chunk.document_id == doc_id)

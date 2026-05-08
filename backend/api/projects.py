@@ -10,9 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models import get_session
 from models.document import Document
 from models.project import DOC_TYPE_LABELS, DOC_TYPES, Project
+from models.project_collaborator import ProjectCollaborator
 from models.user import User
 from prompts.ltc_taxonomy import MODULE_TAGS, INDUSTRIES
 from services.auth import get_current_user
+from services.project_acl import (
+    require_project_access, list_accessible_project_ids,
+)
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -40,7 +44,9 @@ class ProjectPatch(BaseModel):
     customer_profile: str | None = None
 
 
-def _project_dto(p: Project, doc_count: int = 0) -> dict:
+def _project_dto(
+    p: Project, doc_count: int = 0, my_role: str | None = None,
+) -> dict:
     return {
         "id": p.id,
         "name": p.name,
@@ -54,7 +60,21 @@ def _project_dto(p: Project, doc_count: int = 0) -> dict:
         "created_at": p.created_at,
         "updated_at": p.updated_at,
         "document_count": doc_count,
+        # 当前用户对该项目的角色:owner / read_write / read / admin
+        # 前端用于控制可写按钮 / 协作者管理入口
+        "my_role": my_role,
     }
+
+
+async def _resolve_my_role(user: User, p: Project) -> str:
+    """返回当前用户对该项目的角色 — owner / read_write / read / admin / none。"""
+    if getattr(user, "is_admin", False):
+        return "admin"
+    if p.created_by == user.id:
+        return "owner"
+    from services.project_acl import get_user_project_access
+    access = await get_user_project_access(user, p.id)
+    return access or "none"
 
 
 def _validate_modules(modules: list[str] | None) -> list[str] | None:
@@ -95,16 +115,47 @@ async def project_meta():
 # ── CRUD ─────────────────────────────────────────────────────────────────────
 
 @router.get("")
-async def list_projects(session: AsyncSession = Depends(get_session)):
-    # 一次拉项目 + 各项目文档数（LEFT JOIN GROUP BY）
+async def list_projects(
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    # 权限隔离:
+    # - admin → 看到所有项目
+    # - 普通用户 → 自己 owned 的 + 被加为协作者的(通过 list_accessible_project_ids 取并集)
+    accessible_ids = await list_accessible_project_ids(user)  # None = 全部(admin)
+
     stmt = (
         select(Project, func.count(Document.id))
         .outerjoin(Document, Document.project_id == Project.id)
         .group_by(Project.id)
         .order_by(Project.created_at.desc())
     )
+    if accessible_ids is not None:
+        if not accessible_ids:
+            # 普通用户 + 一个项目都没权限 → 直接返回空,免一次 SQL
+            return []
+        stmt = stmt.where(Project.id.in_(accessible_ids))
+
     rows = (await session.execute(stmt)).all()
-    return [_project_dto(p, doc_count=cnt or 0) for p, cnt in rows]
+    # admin 全部 my_role='admin';owner 直接判断;其他批量查 collaborator
+    if user.is_admin:
+        return [_project_dto(p, doc_count=cnt or 0, my_role="admin") for p, cnt in rows]
+    # owner / collaborator 双源:批量取一次 collaborator 表,避免 N+1
+    own_ids = {p.id for p, _ in rows if p.created_by == user.id}
+    coll_role: dict[str, str] = {}
+    if rows:
+        coll_rows = (await session.execute(
+            select(ProjectCollaborator.project_id, ProjectCollaborator.role)
+            .where(ProjectCollaborator.user_id == user.id)
+            .where(ProjectCollaborator.project_id.in_([p.id for p, _ in rows]))
+        )).all()
+        for pid, role in coll_rows:
+            coll_role[pid] = role
+    out = []
+    for p, cnt in rows:
+        my = "owner" if p.id in own_ids else coll_role.get(p.id, "none")
+        out.append(_project_dto(p, doc_count=cnt or 0, my_role=my))
+    return out
 
 
 @router.post("", status_code=201)
@@ -133,14 +184,19 @@ async def create_project(
 
 
 @router.get("/{project_id}")
-async def get_project(project_id: str, session: AsyncSession = Depends(get_session)):
+async def get_project(
+    project_id: str,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_project_access("read")),
+):
     p = await session.get(Project, project_id)
     if not p:
         raise HTTPException(404, "项目不存在")
     cnt = await session.scalar(
         select(func.count(Document.id)).where(Document.project_id == project_id)
     )
-    return _project_dto(p, doc_count=cnt or 0)
+    role = await _resolve_my_role(user, p)
+    return _project_dto(p, doc_count=cnt or 0, my_role=role)
 
 
 @router.patch("/{project_id}")
@@ -148,7 +204,7 @@ async def update_project(
     project_id: str,
     body: ProjectPatch,
     session: AsyncSession = Depends(get_session),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(require_project_access("write")),
 ):
     p = await session.get(Project, project_id)
     if not p:
@@ -180,7 +236,7 @@ async def delete_project(
     project_id: str,
     cascade: bool = Query(False, description="true 时一并解除关联文档的 project_id（不删文档本身）"),
     session: AsyncSession = Depends(get_session),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(require_project_access("owner_only")),
 ):
     p = await session.get(Project, project_id)
     if not p:
@@ -210,7 +266,7 @@ async def delete_project(
 async def generate_customer_profile(
     project_id: str,
     session: AsyncSession = Depends(get_session),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(require_project_access("write")),
 ):
     """LLM 一次成稿生成客户画像草稿（不入库，返回字符串，前端确认后再 PATCH 写回）。"""
     p = await session.get(Project, project_id)
@@ -262,7 +318,11 @@ async def generate_customer_profile(
 
 
 @router.get("/{project_id}/documents")
-async def list_project_documents(project_id: str, session: AsyncSession = Depends(get_session)):
+async def list_project_documents(
+    project_id: str,
+    session: AsyncSession = Depends(get_session),
+    _user: User = Depends(require_project_access("read")),
+):
     p = await session.get(Project, project_id)
     if not p:
         raise HTTPException(404, "项目不存在")
@@ -292,7 +352,11 @@ async def list_project_documents(project_id: str, session: AsyncSession = Depend
 # ── 项目洞察"先看体检"端点(规则化预 plan,不调 LLM) ─────────────────────────
 
 @router.post("/{project_id}/insight-checkup")
-async def insight_checkup(project_id: str, session: AsyncSession = Depends(get_session)):
+async def insight_checkup(
+    project_id: str,
+    session: AsyncSession = Depends(get_session),
+    _user: User = Depends(require_project_access("read")),
+):
     """生成前体检 — 跑 plan_insight 看每模块字段够不够、缺什么。
 
     100% 规则化,不调 LLM,响应 < 500ms。让 PM 在「开始生成」前知道
@@ -396,3 +460,192 @@ async def insight_checkup(project_id: str, session: AsyncSession = Depends(get_s
             "has_conversation": has_conversation,
         },
     }
+
+
+# ── 协作者 CRUD ──────────────────────────────────────────────────────────────
+# Owner / read_write 协作者 / admin 可加/移除/改角色;read 协作者只能列。
+# 不允许把 owner 自己加为协作者(owner 关系由 Project.created_by 表达)。
+
+from models.project_collaborator import ProjectCollaborator, VALID_ROLES, ROLE_READ_WRITE  # noqa: E402
+
+
+class CollaboratorAddBody(BaseModel):
+    user_id: str = Field(min_length=1, max_length=36)
+    role: str = Field(default="read", pattern="^(read|read_write)$")
+
+
+class CollaboratorPatchBody(BaseModel):
+    role: str = Field(pattern="^(read|read_write)$")
+
+
+def _collaborator_dto(c: ProjectCollaborator, u: User | None) -> dict:
+    return {
+        "id": c.id,
+        "project_id": c.project_id,
+        "user_id": c.user_id,
+        "username": u.username if u else None,
+        "full_name": u.full_name if u else None,
+        "email": u.email if u else None,
+        "role": c.role,
+        "created_by": c.created_by,
+        "created_at": c.created_at,
+        "updated_at": c.updated_at,
+    }
+
+
+@router.get("/{project_id}/collaborators")
+async def list_collaborators(
+    project_id: str,
+    session: AsyncSession = Depends(get_session),
+    _user: User = Depends(require_project_access("read")),
+):
+    """返回 owner + 全部协作者(便于前端显示一张「成员」表)。"""
+    project = await session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "项目不存在")
+
+    owner_user = None
+    if project.created_by:
+        owner_user = await session.get(User, project.created_by)
+
+    rows = (await session.execute(
+        select(ProjectCollaborator, User)
+        .outerjoin(User, ProjectCollaborator.user_id == User.id)
+        .where(ProjectCollaborator.project_id == project_id)
+        .order_by(ProjectCollaborator.created_at.asc())
+    )).all()
+
+    return {
+        "owner": {
+            "user_id": project.created_by,
+            "username": owner_user.username if owner_user else None,
+            "full_name": owner_user.full_name if owner_user else None,
+            "email": owner_user.email if owner_user else None,
+        } if project.created_by else None,
+        "collaborators": [_collaborator_dto(c, u) for c, u in rows],
+    }
+
+
+@router.post("/{project_id}/collaborators", status_code=201)
+async def add_collaborator(
+    project_id: str,
+    body: CollaboratorAddBody,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_project_access("write")),
+):
+    project = await session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "项目不存在")
+
+    target = await session.get(User, body.user_id)
+    if not target:
+        raise HTTPException(404, "目标用户不存在")
+    if not target.is_active:
+        raise HTTPException(400, "目标用户已禁用,不能加为协作者")
+
+    # 不能把 owner 自己加进 collaborators
+    if project.created_by and target.id == project.created_by:
+        raise HTTPException(400, "项目所有者不能加为协作者")
+
+    # 已存在 → 直接返回(幂等)或 409?这里返回 409 让前端提示「该用户已是协作者」
+    existing = (await session.execute(
+        select(ProjectCollaborator).where(
+            ProjectCollaborator.project_id == project_id,
+            ProjectCollaborator.user_id == body.user_id,
+        )
+    )).scalar_one_or_none()
+    if existing:
+        raise HTTPException(409, "该用户已经是项目协作者(可改角色,不需要重新添加)")
+
+    coll = ProjectCollaborator(
+        project_id=project_id,
+        user_id=body.user_id,
+        role=body.role if body.role in VALID_ROLES else "read",
+        created_by=user.id,
+    )
+    session.add(coll)
+    await session.commit()
+    await session.refresh(coll)
+    logger.info("collaborator_added", project_id=project_id,
+                user_id=body.user_id, role=coll.role, by=user.username)
+    return _collaborator_dto(coll, target)
+
+
+@router.patch("/{project_id}/collaborators/{user_id}")
+async def update_collaborator_role(
+    project_id: str,
+    user_id: str,
+    body: CollaboratorPatchBody,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_project_access("write")),
+):
+    coll = (await session.execute(
+        select(ProjectCollaborator).where(
+            ProjectCollaborator.project_id == project_id,
+            ProjectCollaborator.user_id == user_id,
+        )
+    )).scalar_one_or_none()
+    if not coll:
+        raise HTTPException(404, "协作者不存在")
+    if body.role not in VALID_ROLES:
+        raise HTTPException(400, f"非法角色 {body.role}")
+    coll.role = body.role
+    await session.commit()
+    await session.refresh(coll)
+    target = await session.get(User, user_id)
+    logger.info("collaborator_role_changed", project_id=project_id,
+                user_id=user_id, role=coll.role, by=user.username)
+    return _collaborator_dto(coll, target)
+
+
+@router.delete("/{project_id}/collaborators/{user_id}")
+async def remove_collaborator(
+    project_id: str,
+    user_id: str,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_project_access("write")),
+):
+    coll = (await session.execute(
+        select(ProjectCollaborator).where(
+            ProjectCollaborator.project_id == project_id,
+            ProjectCollaborator.user_id == user_id,
+        )
+    )).scalar_one_or_none()
+    if not coll:
+        raise HTTPException(404, "协作者不存在")
+    await session.delete(coll)
+    await session.commit()
+    logger.info("collaborator_removed", project_id=project_id,
+                user_id=user_id, by=user.username)
+    return {"ok": True}
+
+
+# ── 用户搜索(供「加协作者」下拉) — 任何登录用户可调,但只返回必要字段 ────────
+
+@router.get("/_/users/search")
+async def search_users(
+    q: str = Query(..., min_length=1, max_length=64),
+    limit: int = Query(default=10, ge=1, le=30),
+    session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_user),
+):
+    """按 username / email / full_name 模糊搜活跃用户,只返回 id+username+full_name+email。"""
+    from sqlalchemy import or_ as sa_or
+    pattern = f"%{q.strip()}%"
+    rows = (await session.execute(
+        select(User)
+        .where(User.is_active == True)  # noqa: E712
+        .where(sa_or(
+            User.username.ilike(pattern),
+            User.email.ilike(pattern),
+            User.full_name.ilike(pattern),
+        ))
+        .order_by(User.username.asc())
+        .limit(limit)
+    )).scalars().all()
+    return [
+        {
+            "id": u.id, "username": u.username,
+            "full_name": u.full_name, "email": u.email,
+        } for u in rows
+    ]

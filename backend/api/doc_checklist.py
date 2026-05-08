@@ -24,6 +24,7 @@ from models.project import (
 from models.document import Document
 from models.project_brief import ProjectBrief
 from services.auth import get_current_user
+from services.project_acl import require_project_access
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -88,8 +89,12 @@ async def _virtual_status(project_id: str, vkey: str) -> dict:
     }
 
 
-@router.get("/{project_id}", dependencies=[Depends(get_current_user)])
-async def get_doc_checklist(project_id: str, stage: str = "insight"):
+@router.get("/{project_id}")
+async def get_doc_checklist(
+    project_id: str,
+    stage: str = "insight",
+    _user=Depends(require_project_access("read")),
+):
     """返回该项目在指定 stage 下的文档清单 + 已上传状态 + 虚拟物状态。
 
     Query 参数:

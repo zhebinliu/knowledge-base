@@ -17,6 +17,7 @@ from models import async_session_maker
 from models.project import Project
 from models.project_brief import ProjectBrief
 from services.auth import get_current_user, require_admin
+from services.project_acl import assert_project_access
 from services.agentic.industry_packs import get_pack
 
 logger = structlog.get_logger()
@@ -197,9 +198,11 @@ class SubmitVirtualBody(BaseModel):
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
-@router.get("/{vkey}", dependencies=[Depends(get_current_user)])
-async def get_virtual(vkey: str, project_id: str):
+@router.get("/{vkey}")
+async def get_virtual(vkey: str, project_id: str, current_user=Depends(get_current_user)):
     """返回虚拟物的「问题清单 + 当前已填值」。前端用 V2GapFiller 渲染。"""
+    if project_id:
+        await assert_project_access(current_user, project_id, "read")
     proj = None
     if project_id:
         async with async_session_maker() as s:
@@ -255,13 +258,17 @@ async def get_virtual(vkey: str, project_id: str):
     }
 
 
-@router.post("/{vkey}/submit", dependencies=[Depends(get_current_user)])
-async def submit_virtual(vkey: str, project_id: str, body: SubmitVirtualBody):
+@router.post("/{vkey}/submit")
+async def submit_virtual(
+    vkey: str, project_id: str, body: SubmitVirtualBody,
+    current_user=Depends(get_current_user),
+):
     """合并答案到 brief.fields。不触发生成,只入库。"""
     if vkey not in ("v_success_metrics", "v_risk_alert", "v_guided_questionnaire"):
         raise HTTPException(404, f"未知虚拟物:{vkey}")
     if not project_id:
         raise HTTPException(400, "缺 project_id")
+    await assert_project_access(current_user, project_id, "write")
 
     from datetime import datetime, timezone
     now_iso = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()

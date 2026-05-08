@@ -12,6 +12,7 @@ from models.project import Project
 from models.project_brief import ProjectBrief
 from models.user import User
 from services.auth import get_current_user
+from services.project_acl import assert_project_access
 from services.brief_service import (
     BRIEF_SCHEMAS, get_schema, empty_brief,
     merge_extract_with_user_edits, extract_brief_draft,
@@ -70,9 +71,7 @@ async def get_brief(
     canon = _canonical_kind(kind)
     if canon not in BRIEF_SCHEMAS:
         raise HTTPException(404, f"Unsupported output_kind: {kind}")
-    proj = await session.get(Project, project_id)
-    if not proj:
-        raise HTTPException(404, "Project not found")
+    await assert_project_access(current_user, project_id, "read")
     brief = (await session.execute(
         select(ProjectBrief).where(
             ProjectBrief.project_id == project_id,
@@ -93,9 +92,7 @@ async def extract_brief(
     canon = _canonical_kind(kind)
     if canon not in BRIEF_SCHEMAS:
         raise HTTPException(404, f"Unsupported output_kind: {kind}")
-    proj = await session.get(Project, project_id)
-    if not proj:
-        raise HTTPException(404, "Project not found")
+    await assert_project_access(current_user, project_id, "write")
 
     existing = (await session.execute(
         select(ProjectBrief).where(
@@ -124,6 +121,7 @@ async def extract_brief_stream(
     canon = _canonical_kind(kind)
     if canon not in BRIEF_SCHEMAS:
         raise HTTPException(404, f"Unsupported output_kind: {kind}")
+    await assert_project_access(current_user, project_id, "write")
 
     async def gen():
         existing_fields: dict = {}
@@ -200,9 +198,7 @@ async def put_brief(
     canon = _canonical_kind(kind)
     if canon not in BRIEF_SCHEMAS:
         raise HTTPException(404, f"Unsupported output_kind: {kind}")
-    proj = await session.get(Project, project_id)
-    if not proj:
-        raise HTTPException(404, "Project not found")
+    await assert_project_access(current_user, project_id, "write")
 
     brief = (await session.execute(
         select(ProjectBrief).where(

@@ -11,6 +11,7 @@ from models.project import Project
 from models.curated_bundle import CuratedBundle
 from models.user import User
 from services.auth import get_current_user
+from services.project_acl import assert_project_access, list_accessible_project_ids
 from agents.output_chat import (
     get_output_agent_config,
     load_skill_snippets,
@@ -90,6 +91,7 @@ async def create_chat(
     # 构建作用域
     document_ids: list[str] | None = None
     if body.project_id:
+        await assert_project_access(current_user, body.project_id, "write")
         scope_desc, document_ids, _meta = await _project_scope(body.project_id)
         if not scope_desc:
             raise HTTPException(404, "项目不存在")
@@ -149,7 +151,11 @@ async def send_message(
     conv = await session.get(OutputConversation, conv_id)
     if not conv:
         raise HTTPException(404, "对话不存在")
-    if not current_user.is_admin and conv.created_by != current_user.id:
+    # 权限改为项目级:对话挂在某项目下时,该项目的写权限即可继续(协作者可继续会话)
+    if conv.project_id and not current_user.is_admin:
+        await assert_project_access(current_user, conv.project_id, "write")
+    elif not conv.project_id and not current_user.is_admin and conv.created_by != current_user.id:
+        # 没挂项目的会话(纯 industry 模式) → 仍按创建者隔离
         raise HTTPException(403, "无权访问")
     if conv.status not in ("active",):
         raise HTTPException(400, f"当前状态 {conv.status} 不能继续对话")
@@ -202,7 +208,9 @@ async def get_chat(
     conv = await session.get(OutputConversation, conv_id)
     if not conv:
         raise HTTPException(404, "对话不存在")
-    if not current_user.is_admin and conv.created_by != current_user.id:
+    if conv.project_id and not current_user.is_admin:
+        await assert_project_access(current_user, conv.project_id, "read")
+    elif not conv.project_id and not current_user.is_admin and conv.created_by != current_user.id:
         raise HTTPException(403, "无权访问")
     return _dto(conv)
 
@@ -216,7 +224,9 @@ async def finalize_and_generate(
     conv = await session.get(OutputConversation, conv_id)
     if not conv:
         raise HTTPException(404, "对话不存在")
-    if not current_user.is_admin and conv.created_by != current_user.id:
+    if conv.project_id and not current_user.is_admin:
+        await assert_project_access(current_user, conv.project_id, "read")
+    elif not conv.project_id and not current_user.is_admin and conv.created_by != current_user.id:
         raise HTTPException(403, "无权访问")
     if conv.bundle_id:
         # 重复点击保护：已经在生成或已完成
@@ -270,11 +280,22 @@ async def list_chats(
     session: AsyncSession = Depends(get_session),
 ):
     stmt = select(OutputConversation).order_by(desc(OutputConversation.updated_at)).limit(min(max(limit, 1), 100))
+    # 项目级权限:挂在用户有权限项目的会话 + 自己创建的纯 industry 会话
     if not current_user.is_admin:
-        stmt = stmt.where(OutputConversation.created_by == current_user.id)
+        accessible_ids = await list_accessible_project_ids(current_user)
+        from sqlalchemy import or_ as sa_or
+        stmt = stmt.where(sa_or(
+            OutputConversation.project_id.in_(accessible_ids or []),
+            sa_or(
+                OutputConversation.project_id.is_(None),
+                OutputConversation.project_id == "",
+            ).self_group() & (OutputConversation.created_by == current_user.id),
+        ))
     if kind:
         stmt = stmt.where(OutputConversation.kind == kind)
     if project_id:
+        if not current_user.is_admin:
+            await assert_project_access(current_user, project_id, "read")
         stmt = stmt.where(OutputConversation.project_id == project_id)
     rows = (await session.execute(stmt)).scalars().all()
     return [_dto(c, include_messages=False) for c in rows]

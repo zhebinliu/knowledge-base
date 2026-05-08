@@ -5,8 +5,9 @@ import {
   ArrowLeft, FileText, ClipboardList, Lightbulb, MessageSquare, Sparkles,
   CheckCircle2, Loader2, Lock, Download, ExternalLink,
   Save, X, Wand2, AlertCircle, Pencil, Home, Files, Search,
-  Bot, ShieldAlert, ChevronDown, ChevronRight,
+  Bot, ShieldAlert, ChevronDown, ChevronRight, Users, Eye,
 } from 'lucide-react'
+import CollaboratorsModal from '../../components/console/CollaboratorsModal'
 import {
   getProject, updateProject, generateCustomerProfile, generateOutput,
   listProjectDocuments, getDocumentMarkdown, listOutputs, downloadOutputUrl, viewOutputUrl,
@@ -97,6 +98,7 @@ export default function ConsoleProjectDetail() {
 
   const [chatMode, setChatMode] = useState<ChatMode>({ type: 'pm' })
   const [editing, setEditing] = useState(false)
+  const [collabOpen, setCollabOpen] = useState(false)
   const [previewDocId, setPreviewDocId] = useState<string | null>(null)
   // v3.2: stage 可以从 URL ?stage=insight 初始化(给 P 类引用 chip 跳转上游 stage 用)
   const [activeStageKey, setActiveStageKey] = useState<string>(() => searchParams.get('stage') || 'insight')
@@ -310,6 +312,21 @@ export default function ConsoleProjectDetail() {
             <span className="shrink-0">{project.document_count} 份文档</span>
           </div>
         </div>
+        {/* 当前用户角色徽标(仅 read 时提醒) */}
+        {project.my_role === 'read' && (
+          <span className="shrink-0 inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded ring-1 bg-slate-50 text-ink-secondary ring-line"
+                title="您对本项目仅有只读权限,无法修改内容">
+            <Eye size={11} /> 只读
+          </span>
+        )}
+        <button
+          onClick={() => setCollabOpen(true)}
+          className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-line text-ink-secondary hover:bg-canvas transition-colors"
+          title="项目成员 / 协作者"
+        >
+          <Users size={11} />
+          <span className="hidden sm:inline">成员</span>
+        </button>
         <button
           onClick={() => setEditing(v => !v)}
           className={`shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
@@ -321,6 +338,14 @@ export default function ConsoleProjectDetail() {
           <span className="hidden sm:inline">项目信息</span>
         </button>
       </div>
+
+      {/* 协作者管理弹窗 */}
+      <CollaboratorsModal
+        open={collabOpen}
+        projectId={project.id}
+        myRole={(project.my_role === 'none' ? 'read' : (project.my_role || 'read'))}
+        onClose={() => setCollabOpen(false)}
+      />
 
       {editing && (
         <ProjectEditPanel
