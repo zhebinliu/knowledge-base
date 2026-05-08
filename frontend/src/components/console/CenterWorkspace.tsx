@@ -591,6 +591,26 @@ function PromptCard({ prompt, value, onChange }: {
   const arr: string[] = Array.isArray(value) ? value : (value ? [String(value)] : [])
   const single: string = !Array.isArray(value) && value != null ? String(value) : ''
 
+  // 多选 + 自填 textarea 用 local draft state — 用户在里面正常打字编辑,
+  // 失焦或按 Enter 才把内容 split 追加到 arr。原实现 value 永远 ''
+  // 导致每按一键 React 把 textarea 重置为空,显示像"打不进字",
+  // 但实际上每个字符都被独立追加成列表项(脏数据)。
+  const [draft, setDraft] = useState('')
+  const optsSet = new Set(prompt.options || [])
+  // arr 里凡是不在 options 池里的,就是已追加的「其他自填」项,可以删
+  const customs = arr.filter(x => !optsSet.has(x))
+  const commitDraft = () => {
+    const lines = draft.split(/[\n、;;,,]/).map(s => s.trim()).filter(Boolean)
+    if (lines.length === 0) return
+    // 去重 + 追加
+    const merged = Array.from(new Set([...arr, ...lines]))
+    onChange(merged)
+    setDraft('')
+  }
+  const removeCustom = (item: string) => {
+    onChange(arr.filter(x => x !== item))
+  }
+
   return (
     <div className="bg-white border border-line rounded-lg p-4">
       <div className="flex items-baseline gap-2 mb-1">
@@ -627,23 +647,58 @@ function PromptCard({ prompt, value, onChange }: {
         </div>
       )}
 
+      {/* 已追加的自填项 — 翠绿胶囊,可点 × 删除 */}
+      {isMulti && customs.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {customs.map(item => (
+            <span
+              key={item}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-emerald-300 bg-emerald-50 text-emerald-700"
+            >
+              <span>{item}</span>
+              <button
+                type="button"
+                onClick={() => removeCustom(item)}
+                className="text-emerald-600/70 hover:text-emerald-800 leading-none"
+                title="删除该自填项"
+              >×</button>
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* 自填(无选项 / 多选追加) */}
       {(!hasOpts || isMulti) && (
         prompt.field_type === 'list' ? (
-          <textarea
-            className="w-full px-3 py-2 text-sm border border-line rounded-md focus:outline-none focus:border-[#D96400] mt-1"
-            rows={2}
-            placeholder={isMulti ? '其他自填(逗号/换行 分隔)' : '每行一条 / 或顿号分隔'}
-            value={isMulti ? '' : (Array.isArray(value) ? value.join('\n') : '')}
-            onChange={e => {
-              const lines = e.target.value.split(/[\n、;;,]/).map(s => s.trim()).filter(Boolean)
-              if (isMulti) {
-                onChange([...arr, ...lines])
-              } else {
+          isMulti ? (
+            // 多选场景:本地 draft + Enter / 失焦 commit
+            <textarea
+              className="w-full px-3 py-2 text-sm border border-line rounded-md focus:outline-none focus:border-[#D96400] mt-1"
+              rows={2}
+              placeholder="其他自填(用逗号/换行/顿号分隔多项,失焦或按 Enter 追加)"
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onBlur={commitDraft}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  commitDraft()
+                }
+              }}
+            />
+          ) : (
+            // 单题列表场景:value 直接是 list,textarea 显示 join('\n'),改完直接覆盖 — 不会丢
+            <textarea
+              className="w-full px-3 py-2 text-sm border border-line rounded-md focus:outline-none focus:border-[#D96400] mt-1"
+              rows={2}
+              placeholder="每行一条 / 或顿号分隔"
+              value={Array.isArray(value) ? value.join('\n') : ''}
+              onChange={e => {
+                const lines = e.target.value.split(/[\n、;;,,]/).map(s => s.trim()).filter(Boolean)
                 onChange(lines)
-              }
-            }}
-          />
+              }}
+            />
+          )
         ) : (
           <textarea
             className="w-full px-3 py-2 text-sm border border-line rounded-md focus:outline-none focus:border-[#D96400] mt-1"
