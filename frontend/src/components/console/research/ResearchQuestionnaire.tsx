@@ -83,17 +83,19 @@ export default function ResearchQuestionnaire({
     [bundle.questionnaire_items]
   )
 
-  // 主轴筛选(角色或 LTC 模块)
+  // 主轴筛选(角色或 LTC 模块)— 只对**主干题**(无 parent_item_key)应用过滤;
+  // 子题(follow-up)永远跟着它的父题走,不参与 axis / phase 过滤,避免「父题在子题不在」的割裂体验。
   const axisItems = useMemo(() => {
+    const mains = allItems.filter(it => !it.parent_item_key)
     if (groupBy === 'role') {
-      if (!selectedRole) return allItems
-      return allItems.filter(it => (it.audience_roles || []).includes(selectedRole))
+      if (!selectedRole) return mains
+      return mains.filter(it => (it.audience_roles || []).includes(selectedRole))
     }
-    if (!selectedLtcKey) return allItems
-    return allItems.filter(it => it.ltc_module_key === selectedLtcKey)
+    if (!selectedLtcKey) return mains
+    return mains.filter(it => it.ltc_module_key === selectedLtcKey)
   }, [allItems, groupBy, selectedRole, selectedLtcKey])
 
-  // 阶段计数(基于主轴筛选后的子集,phase tab 上显示)
+  // 阶段计数(只数主干题)
   const phaseCounts = useMemo(() => {
     let pre = 0, meeting = 0
     for (const q of axisItems) {
@@ -103,11 +105,33 @@ export default function ResearchQuestionnaire({
     return { all: axisItems.length, pre_meeting: pre, in_meeting: meeting }
   }, [axisItems])
 
-  // 阶段二次筛选
+  // item_key → 它的所有 follow-up 子题(保持原顺序)
+  const followUpsByParent = useMemo(() => {
+    const m: Record<string, ResearchQuestionItem[]> = {}
+    for (const it of allItems) {
+      const p = it.parent_item_key
+      if (!p) continue
+      if (!m[p]) m[p] = []
+      m[p].push(it)
+    }
+    return m
+  }, [allItems])
+
+  // 阶段二次筛选 + 挂载子题:
+  //   先对主干题应用 phase 过滤,然后把每道主干题挂的所有 follow-up 子题紧跟其后插入。
+  //   子题不参与 phase 过滤,父在子在。
   const items = useMemo(() => {
-    if (selectedPhase === 'all') return axisItems
-    return axisItems.filter(it => (it.phase || 'in_meeting') === selectedPhase)
-  }, [axisItems, selectedPhase])
+    const mainsAfterPhase = selectedPhase === 'all'
+      ? axisItems
+      : axisItems.filter(it => (it.phase || 'in_meeting') === selectedPhase)
+    const result: ResearchQuestionItem[] = []
+    for (const it of mainsAfterPhase) {
+      result.push(it)
+      const followUps = followUpsByParent[it.item_key] || []
+      for (const fu of followUps) result.push(fu)
+    }
+    return result
+  }, [axisItems, selectedPhase, followUpsByParent])
 
   // 每个 item_key 已挂的追问计数(全局,不受当前筛选影响)
   const followUpCount = useMemo(() => {
