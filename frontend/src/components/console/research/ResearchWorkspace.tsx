@@ -275,6 +275,25 @@ export default function ResearchWorkspace({
                    muted={!surveyBundle || !!surveyInflight}
                    disabled={!!surveyInflight} />
           <div className="flex-1" />
+          {/* 大纲已生成 + 问卷未生成 时,提供「生成调研问卷」快速按钮(无需切回准备页) */}
+          {outlineBundle?.status === 'done' && !surveyBundle && !surveyInflight && (
+            <button
+              onClick={async () => {
+                try {
+                  await generateOutput({ kind: 'survey', project_id: projectId })
+                  onRefetch()
+                } catch (e: any) {
+                  alert(e?.response?.data?.detail || e?.message || '生成失败')
+                }
+              }}
+              className="text-[11px] inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium text-white border border-orange-700"
+              style={{ background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' }}
+              title="基于调研大纲一键生成结构化问卷"
+            >
+              <Sparkles size={11} />
+              生成调研问卷
+            </button>
+          )}
           {view === 'questionnaire' && (
             <span className="text-[11px] text-ink-muted">
               {groupBy === 'role'

@@ -1,6 +1,110 @@
 # 任务跟踪
 
-## 新迭代:登录安全加固 — 邀请码 + 强密码 + 图形验证码(2026-05-07)
+## 新迭代:4 个用户反馈点(2026-05-08)
+
+来自一次反馈回合,4 件事独立性高,工作量差异大,做之前先排优先级。
+
+### 现状速览(自动审计结果)
+
+| # | 主题 | 现状 | 复杂度 |
+|---|---|---|---|
+| 1 | 文档转写脱敏(项目名/客户名/合同金额 → 拼音首字母) | `tasks/convert_task.py:371` 无脱敏 hook;`requirements.txt` 没 pypinyin | **大** |
+| 2 | 调研大纲 tab 行右边加「生成调研问卷」快速按钮 | `ResearchWorkspace.tsx:277` 已有 `flex-1` 占位空间 | **小**(~30 分钟) |
+| 3 | 项目洞察体检不响应文档变化 | `CenterWorkspace.tsx:724` query key=`['insight-checkup',pid]`,但 `DocChecklist.onUploaded` 没 invalidate 这个 key | **小**(几行代码) |
+| 4 | PDF 图片型组织架构图 → 自动写入 stakeholder_graph | 视觉 OCR 已有(`converter_agent.py:227` 走小米 MiMo),但只产 markdown,不解析成 node/edge | **大** |
+
+---
+
+### Topic 1 · 文档转写脱敏
+
+**用户原话**:转写时去除项目名 / 客户名 / 合同金额,客户名换成中文拼音首字母大写(中国电信 → ZGDX)
+
+**实施步骤**(若做):
+1. `pip install pypinyin` 加进 backend/requirements.txt
+2. `services/redactor.py` 新建:
+   - `_initials_pinyin(name)`:中文 → 拼音首字母大写(过滤标点 / 空格)
+   - `redact_markdown(md, project)`:扫文本,把 project.name / project.customer 全部替换为占位符,客户名替换为拼音简写
+   - 合同金额:用 regex 匹配「¥xxx 元」/「人民币 xxx 万」/「金额 xxx」类模式 → 替换为「[金额已脱敏]」
+3. `tasks/convert_task.py:371` 之后插一步:若 doc 挂在项目下,跑脱敏后再写入 `markdown_content`
+4. 验证:上传含「中国电信项目」「合同金额 ¥350 万」的文档 → 检查 markdown 里都被替换
+
+**风险**:
+- 客户名变体识别(「中国电信」/「电信」/「China Telecom」/「中电信」都是同一家)— 单纯 string replace 漏太多。可能需要 LLM 一次解析或维护「客户别名表」字段
+- 合同金额 regex 容易过度匹配(误伤普通数字)
+- 脱敏后影响后续 LLM 生成质量(LLM 看不到真名 / 真金额做行业对比时少了关键信息)
+- 是否要保留原文?推荐:`Document.markdown_content_raw`(原文) + `Document.markdown_content`(脱敏版),后续生成用脱敏版
+- **范围决策**:只对项目下文档脱敏?KB 共享文档不脱?
+
+---
+
+### Topic 2 · 调研大纲完成后加「生成调研问卷」快速按钮
+
+**用户原话**:调研大纲生成完成后,可以在图例处增加一个生成调研问题的按钮以增加用户友好性
+
+**实施步骤**:
+1. `ResearchWorkspace.tsx:260-276` 三个 ViewTab 之后,`<div className="flex-1" />` 之前,插一个 conditional 按钮:
+   - 条件:`outlineBundle?.status === 'done' && !surveyBundle && !surveyInflight`
+   - 文案:「✨ 生成调研问卷」
+   - 点击:复用现成 `trigger('survey')` 逻辑(已经在 PreparationView 里)
+   - 视觉:跟「重新生成」按钮一致的橙色渐变 small 按钮
+2. 已经在生成中:换成「生成中… 」disable 状态
+3. 已生成:不显示按钮(或者改文案「重新生成调研问卷」)
+
+**工作量**:30 分钟
+
+---
+
+### Topic 3 · 体检功能不动态更新
+
+**用户原话**:项目洞察的体检功能好像不会根据最新上传的文档而动态检查
+
+**根因**:
+- `InsightCheckupDrawer` 用 `useQuery({ queryKey: ['insight-checkup', projectId], staleTime: 0 })`
+- `staleTime=0` 让数据**视为已过期**,但因为 `refetchOnWindowFocus=false`,不会自动重拉
+- `DocChecklist` 上传新文档后只 `invalidate(['project-docs', projectId])`,**没有 invalidate `['insight-checkup', projectId]`**
+
+**实施步骤**:
+1. `DocChecklist.tsx:71` 同时 invalidate `['insight-checkup', projectId]`
+2. 文档删除 / 重传 / 类型变更 同样 invalidate
+3. 或者更广义:用一个 utility `invalidateProjectQueries(projectId)` 把所有项目相关 query key 一起 invalidate(`project-docs` / `insight-checkup` / `outputs` 等)
+4. 测试:上传一份新文档 → 立刻关 / 重开「先看体检」抽屉 → 看到新结果
+
+**工作量**:15 分钟
+
+---
+
+### Topic 4 · PDF 图片型组织架构图 → 自动写入 stakeholder_graph
+
+**用户原话**:对于 pdf 里图片类型的组织架构图,上传后无法识别并添加组织架构
+
+**根因**:
+- 现有视觉 OCR(`converter_agent.py:227`)只把扫描 PDF 转成 markdown 文本,产物是「销售部 | 销售总监」这种表格
+- `stakeholder_graph` 是手动画的画布,没有任何「自动从文档识别 → 写入 nodes/edges」的链路
+- 即便视觉 OCR 把组织图识别出来了,也没有 pipeline 把树状结构 → graph 节点 / 边
+
+**实施步骤**(若做):
+1. **视觉解析 prompt**:加一个针对组织架构图的 prompt — 让视觉 LLM 输出 JSON `{nodes: [{id, name, role, parent_id}], edges: [{src, dst, type}]}`
+2. **触发条件**:文档处理完后,如果 doc_type=「组织架构图」(或文件名含「组织」/「架构」),跑这个解析
+3. **写入**:把 nodes / edges 合并到 `ProjectBrief.fields[stakeholder_graph]` 里(避免覆盖人工编辑过的;用户视角是「文档解析结果作为草稿,人工再调」)
+4. **UI 反馈**:解析完成后给个气泡「✨ 已从《XXX.pdf》自动识别 12 个角色 + 组织关系,点这里查看 → 手动校正后保存」
+5. **失败兜底**:LLM 解析失败 / 图片无法读懂时,只 log 不写入,不阻塞文档转写主流程
+
+**风险**:
+- 视觉 LLM 对中文组织图识别的准确率波动大(尤其手写 / 模糊图片)
+- 组织图位置:可能在 PDF 第 3 页中间,需要先定位「这页有组织架构」再解析
+- 已有手工 stakeholder_graph 不能被覆盖
+- 中英文 + 多套组织图(集团 / 子公司 / 部门)的合并策略
+
+**工作量**:大,3-5 小时,且效果不可控(视觉 LLM 输出稳定性)
+
+---
+
+## 推荐节奏
+
+按「价值/成本」比:**先做 #2 + #3**(总计 1 小时,体感改善大),作为 Block 1 部署。
+**#1 + #4** 单独评估排期,每件至少需要单次完整对齐 + 试错,不建议跟其他任务混在一起做。
+
+
 
 ### 背景
 当前注册完全开放(任何人 username + 6 位密码 即可注册成 console_user),登录无验证码。

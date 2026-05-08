@@ -69,6 +69,10 @@ export default function DocChecklist({ projectId, stage, onOpenDocPreview, onOpe
   const onRefresh = () => {
     refetch()
     qc.invalidateQueries({ queryKey: ['project-docs', projectId] })
+    // 体检结果跟文档强相关 — 上传 / 删除文档后立刻让 InsightCheckupDrawer 重拉
+    qc.invalidateQueries({ queryKey: ['insight-checkup', projectId] })
+    // 项目详情(my_role / document_count)也跟文档相关
+    qc.invalidateQueries({ queryKey: ['project', projectId] })
   }
 
   return (
