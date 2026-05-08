@@ -275,10 +275,16 @@ export default function ResearchWorkspace({
                    muted={!surveyBundle || !!surveyInflight}
                    disabled={!!surveyInflight} />
           <div className="flex-1" />
-          {/* 大纲已生成 + 问卷未生成 时,提供「生成调研问卷」快速按钮(无需切回准备页) */}
-          {outlineBundle?.status === 'done' && !surveyBundle && !surveyInflight && (
+          {/* 大纲已生成 + 不在生成中 → 顶栏常驻「生成 / 重新生成调研问卷」按钮(无需切回准备页) */}
+          {outlineBundle?.status === 'done' && !surveyInflight && (
             <button
               onClick={async () => {
+                if (surveyBundle) {
+                  const ok = window.confirm(
+                    '将基于当前调研大纲生成新一版调研问卷。\n\n注意:旧问卷答案与新问卷不互通,如已录入答案请先导出。是否继续?'
+                  )
+                  if (!ok) return
+                }
                 try {
                   await generateOutput({ kind: 'survey', project_id: projectId })
                   onRefetch()
@@ -288,10 +294,10 @@ export default function ResearchWorkspace({
               }}
               className="text-[11px] inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium text-white border border-orange-700"
               style={{ background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' }}
-              title="基于调研大纲一键生成结构化问卷"
+              title={surveyBundle ? '基于当前大纲重新生成问卷(旧答案不会迁移)' : '基于调研大纲一键生成结构化问卷'}
             >
               <Sparkles size={11} />
-              生成调研问卷
+              {surveyBundle ? '重新生成调研问卷' : '生成调研问卷'}
             </button>
           )}
           {view === 'questionnaire' && (
