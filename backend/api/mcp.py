@@ -598,9 +598,20 @@ def _err(req_id, code: int, message: str):
 # ── Main endpoint ─────────────────────────────────────────────────────────────
 
 def _extract_token(request: Request) -> str | None:
-    auth = request.headers.get("Authorization", "")
+    """支持三种 header 形式(MCP 客户端配置时容易漏 Bearer 前缀,这里宽容):
+      Authorization: Bearer mcp_xxx     # 标准
+      Authorization: mcp_xxx            # 裸 MCP key (常见误配)
+      Authorization: Bearer eyJ...      # JWT
+      Authorization: eyJ...             # 裸 JWT
+    """
+    auth = request.headers.get("Authorization", "").strip()
+    if not auth:
+        return None
     if auth.lower().startswith("bearer "):
         return auth.split(" ", 1)[1].strip() or None
+    # 没 Bearer 前缀:看起来像 token 就直接当 token
+    if auth.startswith("mcp_") or auth.startswith("eyJ"):
+        return auth
     return None
 
 
