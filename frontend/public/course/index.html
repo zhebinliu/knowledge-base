@@ -276,6 +276,28 @@
     border-color: #555;
     color: #fff;
   }
+  .lesson-btn.play {
+    background: linear-gradient(135deg, #b8b6ff 0%, #7877c6 100%);
+    color: #0a0a0a;
+    font-weight: 600;
+    position: relative;
+    box-shadow: 0 8px 20px -10px rgba(120, 119, 198, 0.6);
+  }
+  .lesson-btn.play:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 24px -10px rgba(120, 119, 198, 0.8);
+  }
+  .lesson-btn.play .badge-new {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 6px;
+    background: #ff6b35;
+    color: #fff;
+    border-radius: 100px;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    vertical-align: 1px;
+  }
   
   /* 章节色系 */
   .lesson-card.s1 { --accent: #d9b366; --accent-hover: #e9c376; }
@@ -518,6 +540,7 @@
         <div class="lesson-title">AI到底是什么</div>
         <div class="lesson-desc">从规则到学习——AI不是一个新东西，是软件范式的一次根本转变。三种AI、四种学习方式、为什么2022年是分水岭。</div>
         <div class="lesson-actions">
+          <a href="lesson01/player.html?v=20260511" target="_blank" class="lesson-btn play" onclick="event.stopPropagation()">▶ 播放<span class="badge-new">NEW</span></a>
           <a href="lesson01/demo.html?v=20260511" target="_blank" class="lesson-btn demo" onclick="event.stopPropagation()">演示 →</a>
           <a href="script.html?lesson=01&v=20260511" target="_blank" class="lesson-btn script" onclick="event.stopPropagation()">讲稿</a>
         </div>
