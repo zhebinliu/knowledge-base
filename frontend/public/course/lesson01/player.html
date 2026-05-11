@@ -597,12 +597,272 @@
     letter-spacing: 0.1em;
   }
 
+  /* 通用 chip / row */
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px;
+    background: rgba(120, 119, 198, 0.1);
+    border: 1px solid rgba(120, 119, 198, 0.25);
+    color: #b8b6ff;
+    border-radius: 100px;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.1em;
+  }
+
+  /* course-map 关键词 */
+  .v-cmap .kw {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #999;
+    margin-top: 6px;
+    letter-spacing: 0.06em;
+    line-height: 1.5;
+  }
+  .v-cmap .row.hl .kw { color: #d0d0d0; }
+  .v-cmap .row-inner { flex: 1; }
+  .v-cmap .row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .v-cmap .row .head-row {
+    display: flex; width: 100%; align-items: baseline; gap: 14px;
+  }
+
+  /* quote-with-rows */
+  .v-qr { padding: 30px 0; max-width: 760px; margin: 0 auto; }
+  .v-qr .main {
+    text-align: center; font-size: 48px; font-weight: 700;
+    color: #fff; line-height: 1.2; margin-bottom: 16px; letter-spacing: -0.02em;
+  }
+  .v-qr .sub {
+    text-align: center; font-size: 18px; color: #888;
+    margin-bottom: 36px; line-height: 1.7;
+  }
+  .v-qr .row {
+    display: flex; align-items: flex-start; gap: 18px;
+    padding: 16px 20px;
+    background: #131313;
+    border-left: 3px solid #b8b6ff;
+    border-radius: 6px;
+    margin-bottom: 10px;
+  }
+  .v-qr .row .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: #b8b6ff;
+    letter-spacing: 0.15em;
+    padding: 4px 10px;
+    background: rgba(120, 119, 198, 0.12);
+    border-radius: 100px;
+    flex-shrink: 0;
+  }
+  .v-qr .row .body { font-size: 16px; color: #d4d4d4; line-height: 1.6; padding-top: 2px; }
+
+  /* thesis keywords */
+  .v-thesis .keywords {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    max-width: 720px; margin: 30px auto 0;
+  }
+  .v-thesis .kw-card {
+    padding: 16px 18px;
+    background: #131313;
+    border: 1px solid #1f1f1f;
+    border-radius: 8px;
+    text-align: center;
+  }
+  .v-thesis .kw-card .k {
+    color: #b8b6ff;
+    font-weight: 600;
+    margin-bottom: 6px;
+    font-size: 15px;
+  }
+  .v-thesis .kw-card .vv { color: #888; font-size: 13px; }
+
+  /* question paths */
+  .v-q .paths {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    max-width: 600px; margin: 30px auto 0;
+  }
+  .v-q .path {
+    padding: 18px 20px;
+    background: #131313;
+    border-radius: 8px;
+    border-top: 3px solid #b8b6ff;
+    text-align: left;
+  }
+  .v-q .path .pn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: #b8b6ff;
+    letter-spacing: 0.2em; margin-bottom: 6px;
+  }
+  .v-q .path .pname { font-size: 22px; font-weight: 600; color: #fff; margin-bottom: 6px; }
+  .v-q .path .powner { font-size: 12px; color: #888; }
+
+  /* rules subtitle + footnote */
+  .v-rules .subtitle {
+    text-align: center; font-size: 14px; color: #888;
+    margin-bottom: 24px; letter-spacing: 0.05em;
+  }
+  .v-rules .footnote {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 14px; color: #888;
+    font-style: italic;
+  }
+
+  /* compare-rules: why + history */
+  .v-cmp .row { grid-template-columns: 120px 1fr 1fr 80px; gap: 14px; }
+  .v-cmp .why { font-size: 13px; color: #888; }
+  .v-cmp .history {
+    margin-top: 16px;
+    padding: 14px 22px;
+    background: rgba(255, 184, 77, 0.06);
+    border-left: 3px solid #d9b366;
+    border-radius: 0 6px 6px 0;
+    font-size: 14px;
+    color: #d9b366;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.03em;
+    line-height: 1.7;
+  }
+
+  /* sliders diff */
+  .v-sld .diff {
+    margin-top: 24px;
+    display: grid; gap: 10px;
+  }
+  .v-sld .diff-row {
+    display: flex; align-items: baseline; gap: 18px;
+    padding: 12px 20px;
+    background: #131313;
+    border-left: 3px solid #00d4ff;
+    border-radius: 0 6px 6px 0;
+  }
+  .v-sld .diff-row .k {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: #00d4ff;
+    letter-spacing: 0.1em; min-width: 140px;
+  }
+  .v-sld .diff-row .vv { color: #d4d4d4; font-size: 14px; }
+
+  /* three-points example */
+  .v-3p .ex {
+    margin-top: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; color: #b8b6ff;
+    background: rgba(120, 119, 198, 0.06);
+    padding: 8px 12px;
+    border-radius: 4px;
+    line-height: 1.7;
+  }
+
+  /* quote-big compare */
+  .v-qb .compare {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    max-width: 720px; margin: 30px auto 0;
+    text-align: left;
+  }
+  .v-qb .side {
+    padding: 20px;
+    background: #131313;
+    border-radius: 8px;
+    border-top: 3px solid #b8b6ff;
+  }
+  .v-qb .side .head {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: #b8b6ff;
+    letter-spacing: 0.2em; margin-bottom: 12px;
+  }
+  .v-qb .side .li {
+    font-size: 14px; color: #d4d4d4;
+    padding: 6px 0;
+    border-bottom: 1px solid #1a1a1a;
+  }
+  .v-qb .side .li:last-child { border: none; }
+
+  /* school era + in_crm */
+  .v-sch .era {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: #888;
+    margin-left: auto;
+    letter-spacing: 0.1em;
+  }
+  .v-sch .head { flex-wrap: wrap; }
+  .v-sch .in-crm {
+    margin-top: 20px;
+    padding: 14px 18px;
+    background: rgba(120, 119, 198, 0.06);
+    border-left: 3px solid #b8b6ff;
+    border-radius: 0 6px 6px 0;
+    font-size: 14px;
+    color: #c0c0c0;
+    line-height: 1.7;
+  }
+
+  /* fusion techs */
+  .v-fus .techs {
+    margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #888;
+    line-height: 1.6;
+    letter-spacing: 0.03em;
+  }
+
+  /* formula negate */
+  .v-form .negate {
+    margin-top: 22px;
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
+  }
+  .v-form .neg-item {
+    padding: 10px 18px;
+    background: rgba(255, 122, 122, 0.05);
+    border: 1px solid rgba(255, 122, 122, 0.25);
+    color: #ff9999;
+    border-radius: 100px;
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.05em;
+  }
+
+  /* three-questions example */
+  .v-3q .ex {
+    margin-top: 8px; padding: 10px 14px;
+    background: rgba(120, 119, 198, 0.06);
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #b8b6ff;
+    line-height: 1.7;
+  }
+
+  /* recap next keywords */
+  .v-rec .next-kw {
+    margin-top: 14px;
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
+  }
+  .v-rec .next-kw .kk {
+    padding: 8px 16px;
+    background: rgba(120, 119, 198, 0.12);
+    border: 1px solid rgba(120, 119, 198, 0.3);
+    color: #b8b6ff;
+    border-radius: 100px;
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.05em;
+  }
+
   /* 分步揭示 — 元素跟着音频进度依次浮现 */
+  :root { --anim-dur: 0.3s; }
   .step {
     opacity: 0.18;
     filter: blur(0.5px);
     transform: translateY(6px);
-    transition: opacity 0.45s ease, filter 0.45s ease, transform 0.45s ease, box-shadow 0.3s;
+    transition:
+      opacity var(--anim-dur) ease,
+      filter var(--anim-dur) ease,
+      transform var(--anim-dur) ease,
+      box-shadow calc(var(--anim-dur) * 0.7);
   }
   .step.on {
     opacity: 1;
@@ -757,8 +1017,13 @@
           <h2 class="step" data-step="0">${esc(p.title)} · 23 讲全景</h2>
           ${v.parts.map((part, i) => `
             <div class="row ${i === v.highlight ? 'hl' : ''} step" data-step="${i + 1}" style="--c: ${part.color}">
-              <div class="n">${esc(part.name)}</div>
-              <div class="rng">${esc(part.range)}</div>
+              <div class="row-inner">
+                <div class="head-row">
+                  <div class="n">${esc(part.name)}</div>
+                  <div class="rng">${esc(part.range)}</div>
+                </div>
+                ${part.kw ? `<div class="kw">${esc(part.kw)}</div>` : ''}
+              </div>
             </div>`).join('')}
         </div>`;
     } else if (t === 'quote') {
@@ -767,30 +1032,60 @@
           <div class="main step" data-step="0">${esc(v.main)}</div>
           <div class="sub step" data-step="1">${esc(v.sub)}</div>
         </div>`;
+    } else if (t === 'quote-with-rows') {
+      html = `
+        <div class="v-qr">
+          <div class="main step" data-step="0">${esc(v.main)}</div>
+          <div class="sub step" data-step="0">${esc(v.sub)}</div>
+          ${(v.rows || []).map((r, i) => `
+            <div class="row step" data-step="${i + 1}">
+              <div class="tag">${esc(r.tag)}</div>
+              <div class="body">${esc(r.body)}</div>
+            </div>`).join('')}
+        </div>`;
     } else if (t === 'thesis') {
       html = `
         <div class="v-thesis">
           <div class="label step" data-step="0">${esc(v.label)}</div>
           <div class="quote step" data-step="1">${v.quote}</div>
           <div class="footer step" data-step="2">${esc(v.footer)}</div>
+          ${(v.keywords || []).length ? `<div class="keywords">
+            ${v.keywords.map((kw, i) => `
+              <div class="kw-card step" data-step="${i + 3}">
+                <div class="k">${esc(kw.k)}</div>
+                <div class="vv">${esc(kw.v)}</div>
+              </div>`).join('')}
+          </div>` : ''}
         </div>`;
     } else if (t === 'question') {
+      const optCount = v.options.length;
       html = `
         <div class="v-q">
           <div class="q step" data-step="0">${esc(v.q)}</div>
           <div class="opts">
             ${v.options.map((o, i) => `<div class="opt step" data-step="${i + 1}">${esc(o)}</div>`).join('')}
           </div>
-          <div class="tail step" data-step="${v.options.length + 1}">${esc(v.tail)}</div>
+          <div class="tail step" data-step="${optCount + 1}">${esc(v.tail)}</div>
+          ${(v.paths || []).length ? `<div class="paths">
+            ${v.paths.map((path, i) => `
+              <div class="path step" data-step="${optCount + 2 + i}">
+                <div class="pn">${esc(path.n)}</div>
+                <div class="pname">${esc(path.name)}</div>
+                <div class="powner">${esc(path.owner)}</div>
+              </div>`).join('')}
+          </div>` : ''}
         </div>`;
     } else if (t === 'rules') {
       html = `
         <div class="v-rules">
           <h2 class="step" data-step="0">${esc(v.title)}</h2>
+          ${v.subtitle ? `<div class="subtitle step" data-step="0">${esc(v.subtitle)}</div>` : ''}
           ${v.rules.map((r, i) => `<div class="rule step" data-step="${i + 1}">${esc(r)}</div>`).join('')}
           <div class="verdict step" data-step="${v.rules.length + 1}">${esc(v.verdict)}</div>
+          ${v.footnote ? `<div class="footnote step" data-step="${v.rules.length + 2}">${esc(v.footnote)}</div>` : ''}
         </div>`;
     } else if (t === 'compare-rules') {
+      const baseStep = v.cases.length + 1;
       html = `
         <div class="v-cmp">
           <h2 class="step" data-step="0">挨个试一下</h2>
@@ -798,11 +1093,14 @@
             <div class="row ${c.ok ? 'ok' : 'bad'} step" data-step="${i + 1}">
               <div class="input">${esc(c.input)}</div>
               <div class="verdict">${esc(c.verdict)}</div>
+              <div class="why">${esc(c.why || '')}</div>
               <div class="tag">${c.ok ? '✓ 正确' : '✗ 错'}</div>
             </div>`).join('')}
-          <div class="lesson step" data-step="${v.cases.length + 1}">${esc(v.lesson)}</div>
+          <div class="lesson step" data-step="${baseStep}">${esc(v.lesson)}</div>
+          ${v.history ? `<div class="history step" data-step="${baseStep + 1}">${esc(v.history)}</div>` : ''}
         </div>`;
     } else if (t === 'sliders') {
+      const baseStep = v.features.length + 1;
       html = `
         <div class="v-sld">
           <h2 class="step" data-step="0">${esc(v.title)}</h2>
@@ -813,10 +1111,17 @@
               <div class="bar"><div class="bar-fill" style="width:${f.value}%"></div></div>
               <div class="val">${f.value}</div>
             </div>`).join('')}
-          <div class="score-box step" data-step="${v.features.length + 1}">
+          <div class="score-box step" data-step="${baseStep}">
             <div class="score">${v.score}</div>
             <div class="score-label">${esc(v.verdict)}</div>
           </div>
+          ${(v.diff || []).length ? `<div class="diff">
+            ${v.diff.map((d, i) => `
+              <div class="diff-row step" data-step="${baseStep + 1 + i}">
+                <div class="k">${esc(d.k)}</div>
+                <div class="vv">${esc(d.v)}</div>
+              </div>`).join('')}
+          </div>` : ''}
         </div>`;
     } else if (t === 'three-points') {
       html = `
@@ -824,9 +1129,10 @@
           ${v.points.map((pt, i) => `
             <div class="pt step" data-step="${i}">
               <div class="n">${esc(pt.n)}</div>
-              <div>
+              <div style="flex:1">
                 <div class="head">${esc(pt.head)}</div>
                 <div class="body">${esc(pt.body)}</div>
+                ${pt.ex ? `<div class="ex">${esc(pt.ex)}</div>` : ''}
               </div>
             </div>`).join('')}
         </div>`;
@@ -836,6 +1142,13 @@
           <div class="before step" data-step="0">${esc(v.before)}</div>
           <div class="quote step" data-step="1">${esc(v.quote)}</div>
           <div class="after step" data-step="2">${esc(v.after)}</div>
+          ${(v.compare || []).length ? `<div class="compare">
+            ${v.compare.map((s, i) => `
+              <div class="side step" data-step="${3 + i}">
+                <div class="head">${esc(s.side)}</div>
+                ${(s.rows || []).map(r => `<div class="li">${esc(r)}</div>`).join('')}
+              </div>`).join('')}
+          </div>` : ''}
         </div>`;
     } else if (t === 'school') {
       html = `
@@ -844,11 +1157,13 @@
             <div class="n">${esc(v.n)}</div>
             <div class="name">${esc(v.name)}</div>
             <div class="en">${esc(v.en)}</div>
+            ${v.era ? `<div class="era">${esc(v.era)}</div>` : ''}
           </div>
           <div class="row step" data-step="1"><div class="lab">核心信念</div><div class="val">${esc(v.belief)}</div></div>
           <div class="row step" data-step="2"><div class="lab">代表</div><div class="val">${esc(v.rep)}</div></div>
           <div class="row step" data-step="3"><div class="lab">困境</div><div class="val">${esc(v.trouble)}</div></div>
           <div class="row step" data-step="4"><div class="lab">在今天</div><div class="val">${esc(v.today)}</div></div>
+          ${v.in_crm ? `<div class="in-crm step" data-step="5">${esc(v.in_crm)}</div>` : ''}
         </div>`;
     } else if (t === 'fusion') {
       html = `
@@ -861,10 +1176,12 @@
                 <div class="n">${esc(part.n)}</div>
                 <div class="nm">${esc(part.name)}</div>
                 <div class="dt">${esc(part.detail)}</div>
+                ${part.techs ? `<div class="techs">${esc(part.techs)}</div>` : ''}
               </div>`).join('')}
           </div>
         </div>`;
     } else if (t === 'formula') {
+      const baseStep = v.examples.length + 2;
       html = `
         <div class="v-form">
           <div class="label step" data-step="0">${esc(v.label)}</div>
@@ -872,13 +1189,20 @@
           <div class="examples">
             ${v.examples.map((e, i) => `<div class="ex step" data-step="${i + 2}"><strong>${esc(e.from)}</strong> → ${esc(e.to)}</div>`).join('')}
           </div>
-          <div class="scale step" data-step="${v.examples.length + 2}">${esc(v.scale)}</div>
+          <div class="scale step" data-step="${baseStep}">${esc(v.scale)}</div>
+          ${(v.negate || []).length ? `<div class="negate">
+            ${v.negate.map((n, i) => `<div class="neg-item step" data-step="${baseStep + 1 + i}">${esc(n)}</div>`).join('')}
+          </div>` : ''}
         </div>`;
     } else if (t === 'three-questions') {
       html = `
         <div class="v-3q">
           <div class="intro step" data-step="0">${esc(v.intro)}</div>
-          ${v.questions.map((q, i) => `<div class="q step" data-step="${i + 1}">${esc(q)}</div>`).join('')}
+          ${v.questions.map((q, i) => {
+            const text = typeof q === 'string' ? q : q.q;
+            const ex = typeof q === 'object' ? q.ex : '';
+            return `<div class="q step" data-step="${i + 1}">${esc(text)}${ex ? `<div class="ex">${esc(ex)}</div>` : ''}</div>`;
+          }).join('')}
           <div class="tail step" data-step="${v.questions.length + 1}">${esc(v.tail)}</div>
         </div>`;
     } else if (t === 'recap') {
@@ -886,7 +1210,11 @@
         <div class="v-rec">
           <h2 class="step" data-step="0">${esc(v.title)}</h2>
           ${v.points.map((pt, i) => `<div class="pt step" data-step="${i + 1}">${esc(pt)}</div>`).join('')}
-          <div class="next step" data-step="${v.points.length + 1}">${esc(v.next)}</div>
+          <div class="next step" data-step="${v.points.length + 1}">${esc(v.next)}
+            ${(v.next_kw || []).length ? `<div class="next-kw">
+              ${v.next_kw.map(k => `<span class="kk">${esc(k)}</span>`).join('')}
+            </div>` : ''}
+          </div>
         </div>`;
     } else {
       html = `<div style="color:#888">未知 visual type: ${esc(t)}</div>`;
@@ -1013,12 +1341,18 @@
     toggleDot.classList.toggle('on', state.autoNext);
     localStorage.setItem('player-auto', state.autoNext ? '1' : '0');
   });
+  function applyRate(rate) {
+    state.rate = rate;
+    audio.playbackRate = rate;
+    // 动画时长跟着速度走:1x = 0.45s, 1.5x = 0.3s, 2x = 0.225s
+    const dur = (0.45 / rate).toFixed(3);
+    document.documentElement.style.setProperty('--anim-dur', dur + 's');
+  }
   document.getElementById('speedOpts').addEventListener('click', e => {
     const btn = e.target.closest('.speed-opt');
     if (!btn) return;
     const rate = parseFloat(btn.dataset.rate);
-    state.rate = rate;
-    audio.playbackRate = rate;
+    applyRate(rate);
     document.querySelectorAll('.speed-opt').forEach(b => b.classList.toggle('active', b === btn));
     localStorage.setItem('player-rate', String(rate));
   });
@@ -1050,7 +1384,7 @@
       // 恢复速度偏好(默认 1.5)
       const savedRate = parseFloat(localStorage.getItem('player-rate') || '1.5');
       if (savedRate && !isNaN(savedRate)) {
-        state.rate = savedRate;
+        applyRate(savedRate);
         document.querySelectorAll('.speed-opt').forEach(b => {
           b.classList.toggle('active', parseFloat(b.dataset.rate) === savedRate);
         });
