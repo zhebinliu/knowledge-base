@@ -147,6 +147,35 @@
   }
   .controls .spacer { flex: 1; }
 
+  /* 速度选择 */
+  .speed-wrap {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .speed-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: #888; letter-spacing: 0.12em;
+  }
+  .speed-opts {
+    display: flex; gap: 4px;
+    padding: 3px; background: #161616; border-radius: 100px;
+    border: 1px solid #1f1f1f;
+  }
+  .speed-opt {
+    padding: 5px 10px;
+    background: transparent; border: none;
+    color: #888;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    border-radius: 100px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .speed-opt:hover { color: #fff; }
+  .speed-opt.active {
+    background: linear-gradient(135deg, #7877c6 0%, #b8b6ff 100%);
+    color: #0a0a0a; font-weight: 600;
+  }
+
   /* 连续播放开关 */
   .toggle-wrap {
     display: flex; align-items: center; gap: 10px;
@@ -627,6 +656,17 @@
     <button class="ctl" id="btnPrev">← 上一页</button>
     <button class="ctl primary" id="btnPlay">▶ 播放</button>
     <button class="ctl" id="btnNext">下一页 →</button>
+    <div class="speed-wrap" title="播放速度">
+      <span class="speed-label">速度</span>
+      <div class="speed-opts" id="speedOpts">
+        <button class="speed-opt" data-rate="0.75">0.75</button>
+        <button class="speed-opt" data-rate="1">1.0</button>
+        <button class="speed-opt" data-rate="1.25">1.25</button>
+        <button class="speed-opt active" data-rate="1.5">1.5</button>
+        <button class="speed-opt" data-rate="1.75">1.75</button>
+        <button class="speed-opt" data-rate="2">2.0</button>
+      </div>
+    </div>
     <label class="toggle-wrap" id="toggleAuto">
       <div class="toggle" id="toggleDot"></div>
       <span>连续播放</span>
@@ -644,6 +684,7 @@
     pages: [],
     idx: 0,
     autoNext: false,
+    rate: 1.5,
     hasInteracted: false  // 浏览器要求首次播放必须用户交互
   };
 
@@ -834,6 +875,7 @@
     audio.pause();
     audio.currentTime = 0;
     audio.src = `audio/${p.id}.wav`;
+    audio.playbackRate = state.rate;
     progressFill.style.width = '0%';
     bubble.classList.remove('on');
     if (p.interact) bubble.textContent = '音频播完 · ' + p.interact;
@@ -903,6 +945,15 @@
     toggleDot.classList.toggle('on', state.autoNext);
     localStorage.setItem('player-auto', state.autoNext ? '1' : '0');
   });
+  document.getElementById('speedOpts').addEventListener('click', e => {
+    const btn = e.target.closest('.speed-opt');
+    if (!btn) return;
+    const rate = parseFloat(btn.dataset.rate);
+    state.rate = rate;
+    audio.playbackRate = rate;
+    document.querySelectorAll('.speed-opt').forEach(b => b.classList.toggle('active', b === btn));
+    localStorage.setItem('player-rate', String(rate));
+  });
   progressBar.addEventListener('click', e => {
     if (!audio.duration) return;
     const rect = progressBar.getBoundingClientRect();
@@ -928,6 +979,14 @@
       // 恢复连续播放偏好
       const a = localStorage.getItem('player-auto');
       if (a === '1') { state.autoNext = true; toggleDot.classList.add('on'); }
+      // 恢复速度偏好(默认 1.5)
+      const savedRate = parseFloat(localStorage.getItem('player-rate') || '1.5');
+      if (savedRate && !isNaN(savedRate)) {
+        state.rate = savedRate;
+        document.querySelectorAll('.speed-opt').forEach(b => {
+          b.classList.toggle('active', parseFloat(b.dataset.rate) === savedRate);
+        });
+      }
       loadPage(0, false);
     })
     .catch(e => {
