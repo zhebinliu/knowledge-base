@@ -30,6 +30,8 @@ import ConsoleQA from './pages/console/ConsoleQA'
 import ConsoleProjects from './pages/console/ConsoleProjects'
 import ConsoleProjectDetail from './pages/console/ConsoleProjectDetail'
 import ConsoleMeeting from './pages/console/ConsoleMeeting'
+import ConsoleMeetingDetail from './pages/console/ConsoleMeetingDetail'
+import ConsoleMeetingNew from './pages/console/ConsoleMeetingNew'
 
 export default function App() {
   return (
@@ -54,7 +56,9 @@ export default function App() {
           <Route path="qa"           element={<ConsoleQA />} />
           <Route path="projects"     element={<ConsoleProjects />} />
           <Route path="projects/:id" element={<ConsoleProjectDetail />} />
-          <Route path="meeting"      element={<ConsoleMeeting />} />
+          <Route path="meeting"          element={<ConsoleMeeting />} />
+          <Route path="meeting/new"      element={<ConsoleMeetingNew />} />
+          <Route path="meeting/:id"      element={<ConsoleMeetingDetail />} />
         </Route>
       </Route>
 

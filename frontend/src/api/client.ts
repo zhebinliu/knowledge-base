@@ -1488,3 +1488,251 @@ export async function exportPreMeeting(
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
+
+
+// ─────────────────────────────────────────────────────────────────────────
+// 会议纪要(meeting-ai 整合,2026-05-11)
+// 前缀 /api/meeting,见 backend/api/meeting.py
+// ─────────────────────────────────────────────────────────────────────────
+
+export type MeetingStatus = 'recording' | 'processing' | 'completed' | 'failed'
+
+export interface MeetingMinutes {
+  meeting_title?: string
+  summary?: string
+  attendees?: string[]
+  key_points?: Array<{ topic: string; content: string }>
+  decisions?: Array<{ content: string; owner?: string }>
+  action_items?: Array<{
+    task: string
+    owner?: string
+    deadline?: string
+    priority?: 'high' | 'medium' | 'low'
+  }>
+  unresolved?: Array<{ issue: string; reason?: string }>
+}
+
+export interface StakeholderItem {
+  name: string
+  aliases?: string[]
+  role?: string
+  organization?: string
+  side?: 'internal' | 'customer' | 'vendor' | 'unknown'
+  contact?: string
+  key_points?: string[]
+  responsibilities?: string[]
+}
+
+export interface StakeholderRelation {
+  from: string
+  to: string
+  type?: string
+  description?: string
+}
+
+export interface StakeholderMap {
+  stakeholders?: StakeholderItem[]
+  relations?: StakeholderRelation[]
+  version?: number
+}
+
+export interface MeetingRequirement {
+  id: number
+  meeting_id: number
+  req_id: string
+  module: string
+  description: string
+  priority: 'P0' | 'P1' | 'P2' | 'P3' | string
+  source: string | null
+  speaker: string | null
+  status: string
+  created_at: string
+}
+
+export interface Meeting {
+  id: number
+  title: string
+  owner_id: string
+  project_id: string | null
+  project_name: string | null
+  start_time: string
+  end_time: string | null
+  created_at: string
+  raw_transcript: string
+  polished_transcript: string
+  meeting_minutes: MeetingMinutes | null
+  status: MeetingStatus
+  asr_engine: string | null
+  total_chunks: number
+  done_chunks: number
+  audio_object_key: string | null
+  feishu_url: string | null
+  bitable_app_token: string | null
+  kb_doc_id: string | null
+  kb_url: string | null
+  kb_synced_at: string | null
+  stakeholder_map: StakeholderMap | null
+  stakeholder_kb_doc_id: string | null
+  stakeholder_kb_url: string | null
+  stakeholder_kb_synced_at: string | null
+  // 详情接口含
+  requirements?: MeetingRequirement[]
+}
+
+export type MeetingAction = 'polish' | 'summarize' | 'extract_requirements' | 'extract_stakeholders'
+
+// ── CRUD ─────────────────────────────────────────────────────────────────
+
+export const listMeetings = async (): Promise<Meeting[]> => {
+  const { data } = await api.get<Meeting[]>('/meeting')
+  return data
+}
+
+export const getMeeting = async (id: number): Promise<Meeting> => {
+  const { data } = await api.get<Meeting>(`/meeting/${id}`)
+  return data
+}
+
+export const createBlankMeeting = async (body: {
+  title?: string
+  project_id?: string | null
+}): Promise<Meeting> => {
+  const { data } = await api.post<Meeting>('/meeting', body)
+  return data
+}
+
+export const createMeetingFromText = async (body: {
+  title: string
+  transcript: string
+  project_id?: string | null
+}): Promise<Meeting> => {
+  const { data } = await api.post<Meeting>('/meeting/from-text', body)
+  return data
+}
+
+export const patchMeeting = async (
+  id: number,
+  body: Partial<{
+    title: string
+    end_time: string
+    raw_transcript: string
+    polished_transcript: string
+    meeting_minutes: MeetingMinutes
+    status: MeetingStatus
+  }>,
+): Promise<Meeting> => {
+  const { data } = await api.patch<Meeting>(`/meeting/${id}`, body)
+  return data
+}
+
+export const deleteMeeting = async (id: number): Promise<{ status: string }> => {
+  const { data } = await api.delete<{ status: string }>(`/meeting/${id}`)
+  return data
+}
+
+export const listMeetingRequirements = async (id: number): Promise<MeetingRequirement[]> => {
+  const { data } = await api.get<MeetingRequirement[]>(`/meeting/${id}/requirements`)
+  return data
+}
+
+export const linkMeetingProject = async (id: number, projectId: string | null): Promise<Meeting> => {
+  const { data } = await api.put<Meeting>(`/meeting/${id}/project`, { project_id: projectId })
+  return data
+}
+
+export const putMeetingStakeholderMap = async (
+  id: number,
+  stakeholderMap: StakeholderMap,
+): Promise<Meeting> => {
+  const { data } = await api.put<Meeting>(`/meeting/${id}/stakeholder-map`, {
+    stakeholder_map: stakeholderMap,
+  })
+  return data
+}
+
+// ── 上传 + 流水线触发 ────────────────────────────────────────────────────
+
+export const uploadMeetingAudio = async (
+  file: File,
+  opts: { title?: string; project_id?: string | null } = {},
+): Promise<{ meeting_id: number; status: string; object_key: string }> => {
+  const fd = new FormData()
+  fd.append('file', file)
+  if (opts.title) fd.append('title', opts.title)
+  if (opts.project_id) fd.append('project_id', opts.project_id)
+  const { data } = await api.post('/meeting/upload', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+
+export const processMeeting = async (id: number): Promise<{ status: string; meeting_id: number }> => {
+  const { data } = await api.post(`/meeting/${id}/process`)
+  return data
+}
+
+export const runMeetingAction = async (id: number, action: MeetingAction): Promise<unknown> => {
+  const { data } = await api.post(`/meeting/${id}/actions/${action}`)
+  return data
+}
+
+// ── KB / 飞书同步 ────────────────────────────────────────────────────────
+
+export const syncMeetingToKB = async (id: number) => {
+  const { data } = await api.post<{ status: string; kb_doc_id: string; kb_url: string }>(
+    `/meeting/${id}/sync-kb`,
+  )
+  return data
+}
+
+export const syncMeetingStakeholdersToKB = async (id: number) => {
+  const { data } = await api.post<{ status: string; kb_doc_id: string; kb_url: string }>(
+    `/meeting/${id}/sync-stakeholder-map-kb`,
+  )
+  return data
+}
+
+export const exportMeetingToFeishu = async (id: number) => {
+  const { data } = await api.post<{ status: string; url: string; document_id: string }>(
+    `/meeting/${id}/export-feishu`,
+  )
+  return data
+}
+
+export const syncMeetingRequirementsToBitable = async (
+  id: number,
+  body: { bitable_app_token: string; table_id: string },
+) => {
+  const { data } = await api.post<{ status: string; url: string; rows: number }>(
+    `/meeting/${id}/sync-requirements`,
+    body,
+  )
+  return data
+}
+
+// ── 用户级飞书凭证 ───────────────────────────────────────────────────────
+
+export interface FeishuCredentialsStatus {
+  configured: boolean
+  app_id: string | null
+}
+
+export const getFeishuCredentials = async (): Promise<FeishuCredentialsStatus> => {
+  const { data } = await api.get<FeishuCredentialsStatus>('/meeting/feishu-credentials')
+  return data
+}
+
+export const putFeishuCredentials = async (body: { app_id: string; app_secret: string }) => {
+  const { data } = await api.put<{ status: string; configured: boolean; app_id: string }>(
+    '/meeting/feishu-credentials',
+    body,
+  )
+  return data
+}
+
+export const deleteFeishuCredentials = async () => {
+  const { data } = await api.delete<{ status: string; configured: boolean }>(
+    '/meeting/feishu-credentials',
+  )
+  return data
+}
