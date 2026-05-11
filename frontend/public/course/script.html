@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>讲稿 · AI 系列课程</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;700&family=Noto+Serif+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Noto Sans SC', 'Inter', sans-serif;
+    background: #0a0a0a;
+    color: #e8e8e8;
+    line-height: 1.85;
+    min-height: 100vh;
+  }
+
+  /* 顶部导航 */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(10, 10, 10, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid #1f1f1f;
+  }
+  .topbar-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 14px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .nav-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    color: #b8b6ff;
+    text-decoration: none;
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+    border: 1px solid rgba(120, 119, 198, 0.3);
+    background: rgba(120, 119, 198, 0.08);
+    border-radius: 100px;
+    transition: all 0.15s;
+  }
+  .nav-btn:hover {
+    background: rgba(120, 119, 198, 0.18);
+    border-color: rgba(120, 119, 198, 0.5);
+  }
+  .nav-btn.demo {
+    color: #ffb86c;
+    border-color: rgba(255, 184, 108, 0.3);
+    background: rgba(255, 184, 108, 0.08);
+  }
+  .nav-btn.demo:hover {
+    background: rgba(255, 184, 108, 0.18);
+    border-color: rgba(255, 184, 108, 0.5);
+  }
+  .topbar-title {
+    flex: 1;
+    text-align: center;
+    font-size: 13px;
+    color: #888;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.1em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 文章容器 */
+  article {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 64px 32px 120px;
+    font-size: 17px;
+  }
+
+  article h1 {
+    font-family: 'Inter', 'Noto Sans SC', sans-serif;
+    font-size: 42px;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    margin: 0 0 36px;
+    background: linear-gradient(135deg, #fff 0%, #b8b6ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  article h2 {
+    font-family: 'Inter', 'Noto Sans SC', sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    color: #fff;
+    margin: 56px 0 20px;
+    padding-top: 16px;
+    border-top: 1px solid #1f1f1f;
+    letter-spacing: -0.01em;
+  }
+  article h3 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #b8b6ff;
+    margin: 32px 0 14px;
+  }
+  article h4 {
+    font-size: 17px;
+    font-weight: 600;
+    color: #fff;
+    margin: 24px 0 10px;
+  }
+
+  article p {
+    margin: 0 0 18px;
+    color: #d4d4d4;
+  }
+  article strong {
+    color: #fff;
+    font-weight: 600;
+  }
+  article em {
+    color: #b8b6ff;
+    font-style: normal;
+    background: rgba(120, 119, 198, 0.1);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  article ul, article ol {
+    margin: 0 0 18px;
+    padding-left: 28px;
+    color: #d4d4d4;
+  }
+  article li {
+    margin: 6px 0;
+  }
+  article li > p { margin: 4px 0; }
+
+  article blockquote {
+    margin: 24px 0;
+    padding: 16px 22px;
+    background: rgba(120, 119, 198, 0.06);
+    border-left: 3px solid #b8b6ff;
+    border-radius: 0 8px 8px 0;
+    color: #c8c8c8;
+  }
+  article blockquote p:last-child { margin-bottom: 0; }
+
+  article hr {
+    margin: 56px 0;
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #2a2a2a 30%, #2a2a2a 70%, transparent);
+  }
+
+  article code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.92em;
+    padding: 2px 6px;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 4px;
+    color: #ffb86c;
+  }
+  article pre {
+    margin: 20px 0;
+    padding: 20px 24px;
+    background: #0f0f0f;
+    border: 1px solid #1f1f1f;
+    border-radius: 8px;
+    overflow-x: auto;
+    line-height: 1.6;
+  }
+  article pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    color: #e8e8e8;
+    font-size: 14px;
+  }
+
+  article a {
+    color: #b8b6ff;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(184, 182, 255, 0.4);
+    transition: all 0.15s;
+  }
+  article a:hover {
+    border-bottom-color: #b8b6ff;
+  }
+
+  article table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 24px 0;
+    font-size: 15px;
+  }
+  article th, article td {
+    border: 1px solid #2a2a2a;
+    padding: 10px 14px;
+    text-align: left;
+  }
+  article th {
+    background: #141414;
+    color: #fff;
+    font-weight: 600;
+  }
+  article tr:nth-child(2n) td {
+    background: rgba(255, 255, 255, 0.015);
+  }
+
+  /* 加载 / 错误状态 */
+  .status {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 120px 32px;
+    text-align: center;
+    color: #666;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+  }
+  .status.error { color: #ff7a7a; }
+
+  /* 移动端 */
+  @media (max-width: 640px) {
+    article { padding: 40px 20px 80px; font-size: 16px; }
+    article h1 { font-size: 32px; }
+    article h2 { font-size: 22px; margin: 40px 0 16px; }
+    article h3 { font-size: 18px; }
+    .topbar-inner { padding: 12px 16px; gap: 8px; }
+    .nav-btn { padding: 7px 12px; font-size: 12px; }
+    .topbar-title { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <div class="topbar-inner">
+    <a href="index.html" class="nav-btn">← 课程总览</a>
+    <div class="topbar-title" id="lesson-label">LESSON</div>
+    <a href="#" class="nav-btn demo" id="demo-link" target="_blank" rel="noopener">演示 ↗</a>
+  </div>
+</nav>
+
+<div id="content"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  const lessonParam = params.get('lesson') || '';
+  const m = lessonParam.match(/^\d{1,2}$/);
+  const container = document.getElementById('content');
+
+  function fail(msg) {
+    container.innerHTML = '<div class="status error">' + msg + '</div>';
+  }
+
+  if (!m) {
+    fail('参数错误:请通过课程总览页打开讲稿。');
+    return;
+  }
+
+  const lessonNum = lessonParam.padStart(2, '0');
+  const lessonDir = 'lesson' + lessonNum;
+  const mdUrl = lessonDir + '/' + encodeURIComponent('讲稿') + '.md';
+
+  document.getElementById('lesson-label').textContent = 'LESSON · ' + lessonNum;
+  document.getElementById('demo-link').href = lessonDir + '/demo.html';
+
+  container.innerHTML = '<div class="status">加载讲稿中…</div>';
+
+  fetch(mdUrl, { cache: 'no-cache' })
+    .then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .then(function (md) {
+      // marked 12 默认 GFM,自带 XSS 防护取决于 use:DOMPurify;
+      // 讲稿是受信内容(我们自己的静态文件),且站点 CSP 无关键风险,直接渲染
+      marked.setOptions({ gfm: true, breaks: false });
+      const html = marked.parse(md);
+      container.innerHTML = '<article>' + html + '</article>';
+      const h1 = container.querySelector('article h1');
+      if (h1) document.title = h1.textContent.trim() + ' · 讲稿';
+    })
+    .catch(function (e) {
+      fail('讲稿加载失败:' + e.message);
+    });
+})();
+</script>
+
+</body>
+</html>
