@@ -71,7 +71,7 @@
   .subtitle {
     margin-top: 22px;
     font-size: 16px;
-    color: #a8a49d;
+    color: #d4d4d4;
     line-height: 1.85;
     max-width: 720px;
     position: relative;
@@ -125,7 +125,7 @@
     max-width: 800px;
     color: #5a5650;
   }
-  .section.dark .section-lead { color: #b8b4ad; }
+  .section.dark .section-lead { color: #d4d4d4; }
 
   /* 第一节：Tool Use → Agent */
   .evolution {
@@ -178,13 +178,13 @@
   .evo-card .feature-list li {
     padding: 8px 0 8px 22px;
     position: relative;
-    font-size: 13px;
+    font-size: 14px;
     color: #5a5650;
     line-height: 1.7;
     border-bottom: 1px solid #e8e0d0;
   }
   .evo-card.right .feature-list li {
-    color: #c4c0b8;
+    color: #d4d4d4;
     border-bottom-color: #2a2823;
   }
   .evo-card .feature-list li:last-child { border-bottom: none; }
@@ -256,6 +256,7 @@
     background: #ff6600;
     color: #1f1d1a;
     font-weight: 700;
+    border-left: 3px solid #1f1d1a;
   }
 
   .loop-diagram {
@@ -295,7 +296,7 @@
   }
   .stage-desc {
     font-size: 11px;
-    color: #b8b4ad;
+    color: #d4d4d4;
     line-height: 1.6;
   }
   
@@ -348,14 +349,14 @@
     grid-template-columns: 80px 1fr;
     gap: 14px;
     padding: 8px 0;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.7;
   }
   .iter-step-label {
     font-family: 'JetBrains Mono', monospace;
     font-size: 10px;
     letter-spacing: 0.15em;
-    color: #888;
+    color: #c0c0c0;
     text-transform: uppercase;
     padding-top: 2px;
   }
@@ -363,14 +364,14 @@
   .iter-step.action .iter-step-label { color: #6c8aff; }
   .iter-step.observation .iter-step-label { color: #ad6cff; }
   .iter-step-text {
-    color: #d4d0c8;
+    color: #d4d4d4;
   }
   .iter-step-text code {
     font-family: 'JetBrains Mono', monospace;
     background: #1a1815;
     color: #ff6600;
     padding: 2px 6px;
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .final-answer {
@@ -430,7 +431,7 @@
     margin-bottom: 14px;
   }
   .comp-desc {
-    font-size: 13px;
+    font-size: 14px;
     color: #5a5650;
     line-height: 1.85;
     margin-bottom: 14px;
@@ -439,7 +440,7 @@
     background: #fff;
     border-left: 2px solid #ff6600;
     padding: 12px 16px;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.7;
     color: #1f1d1a;
   }
@@ -503,7 +504,7 @@
   }
   .spec-level.active .spec-num { color: #ff6600; }
   .spec-level.active .spec-name { color: #f6f3ee; }
-  .spec-level.active .spec-desc { color: #b8b4ad; }
+  .spec-level.active .spec-desc { color: #d4d4d4; }
   
   .spec-num {
     font-family: 'JetBrains Mono', monospace;
@@ -541,7 +542,7 @@
   .spec-detail p {
     font-size: 14px;
     line-height: 1.9;
-    color: #d4d0c8;
+    color: #d4d4d4;
     margin-bottom: 10px;
   }
   .spec-detail p strong { color: #ff6600; }
@@ -549,8 +550,8 @@
     margin-top: 12px;
     padding: 12px 16px;
     background: #2a2823;
-    font-size: 13px;
-    color: #b8b4ad;
+    font-size: 14px;
+    color: #d4d4d4;
     line-height: 1.8;
   }
   .spec-detail .examples strong { color: #f6f3ee; }
@@ -593,7 +594,7 @@
     margin-bottom: 6px;
   }
   .agent-card .role-content p {
-    font-size: 13px;
+    font-size: 14px;
     color: #5a5650;
     line-height: 1.8;
     margin-bottom: 10px;
@@ -641,8 +642,8 @@
     margin-bottom: 6px;
   }
   .lim-content p {
-    font-size: 13px;
-    color: #b8b4ad;
+    font-size: 14px;
+    color: #d4d4d4;
     line-height: 1.85;
   }
   .lim-content p strong { color: #ff6600; }
@@ -683,7 +684,7 @@
     font-size: 15px;
     line-height: 1.95;
     margin-bottom: 14px;
-    color: #d4d0c8;
+    color: #d4d4d4;
     position: relative;
   }
   .summary p strong { color: #ff6600; font-weight: 600; }
@@ -879,7 +880,7 @@
       <div class="evo-card">
         <div class="evo-tag">LEVEL 1 · 上一讲</div>
         <h4>Tool Use<br><em>单轮交互</em></h4>
-        <p style="font-size: 13px; color: #5a5650; line-height: 1.85;">
+        <p style="font-size: 14px; color: #5a5650; line-height: 1.85;">
           模型每次<strong>响应一个用户请求</strong>。它可能调用1-3次工具，但本质上是"被动执行"。
           流程结束时，结果交还给用户。
         </p>
@@ -897,7 +898,7 @@
       <div class="evo-card right">
         <div class="evo-tag">LEVEL 2 · 今天</div>
         <h4>Agent<br><em>自主任务</em></h4>
-        <p style="font-size: 13px; color: #c4c0b8; line-height: 1.85;">
+        <p style="font-size: 14px; color: #d4d4d4; line-height: 1.85;">
           给它一个<strong>高层目标</strong>，它自己拆解成子任务，依次执行，
           中途检查进展、调整策略，直到完成或确认无法完成。
         </p>

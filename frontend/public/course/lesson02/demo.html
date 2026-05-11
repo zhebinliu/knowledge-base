@@ -47,7 +47,7 @@
   .subtitle {
     margin-top: 16px;
     font-size: 16px;
-    color: #8a8478;
+    color: #c0c0c0;
     max-width: 700px;
     line-height: 1.7;
   }
@@ -62,7 +62,7 @@
     padding: 12px 24px;
     background: transparent;
     border: 1px solid #3a3f4a;
-    color: #8a8478;
+    color: #c0c0c0;
     font-family: 'IBM Plex Sans SC', sans-serif;
     font-size: 14px;
     cursor: pointer;
@@ -112,8 +112,8 @@
   }
   .p-en {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 13px;
-    color: #8a8478;
+    font-size: 14px;
+    color: #c0c0c0;
     margin-top: 4px;
     letter-spacing: 0.1em;
   }
@@ -160,7 +160,7 @@
   }
   .card-desc {
     font-size: 14px;
-    color: #8a8478;
+    color: #c0c0c0;
     line-height: 1.7;
     margin-bottom: 24px;
   }
@@ -177,7 +177,7 @@
     background: #1a2028;
     border-left: 3px solid #3a3f4a;
     margin-bottom: 6px;
-    font-size: 13px;
+    font-size: 14px;
     transition: all 0.3s;
   }
   .email-row.spam { border-left-color: #c84a4a; }
@@ -232,7 +232,7 @@
     border: 1px solid #3a3f4a;
     color: #e8e3d8;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 13px;
+    font-size: 14px;
   }
   .test-input-row button {
     padding: 10px 20px;
@@ -240,7 +240,7 @@
     border: none;
     color: #0a0e14;
     font-family: 'IBM Plex Sans SC', sans-serif;
-    font-size: 13px;
+    font-size: 14px;
     cursor: pointer;
     font-weight: 600;
   }
@@ -259,7 +259,7 @@
     position: absolute;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
-    color: #5a5a5a;
+    color: #aaa;
     letter-spacing: 0.1em;
   }
   .axis-x { bottom: 4px; right: 16px; }
@@ -282,16 +282,16 @@
     min-width: 40px;
   }
   .k-label {
-    font-size: 13px;
-    color: #8a8478;
+    font-size: 14px;
+    color: #c0c0c0;
   }
-  
+
   .cluster-readout {
     margin-top: 12px;
     padding: 12px 16px;
     background: #1a2028;
     border-left: 3px solid #e8b45a;
-    font-size: 13px;
+    font-size: 14px;
     color: #c4bfb3;
     line-height: 1.7;
     font-family: 'IBM Plex Mono', monospace;
@@ -319,7 +319,7 @@
     justify-content: center;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
-    color: #5a5a5a;
+    color: #aaa;
     position: relative;
     transition: all 0.2s;
   }
@@ -353,7 +353,7 @@
     border: 1px solid #3a3f4a;
     color: #c4bfb3;
     font-family: 'IBM Plex Sans SC', sans-serif;
-    font-size: 12px;
+    font-size: 14px;
     cursor: pointer;
     transition: all 0.2s;
   }
@@ -376,10 +376,10 @@
     padding: 10px;
     background: #1a2028;
     border-left: 2px solid #e8b45a;
-    font-size: 12px;
+    font-size: 14px;
   }
   .stat-label {
-    color: #8a8478;
+    color: #c0c0c0;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
     letter-spacing: 0.1em;
@@ -431,7 +431,7 @@
     font-style: italic;
   }
   .compare-desc {
-    color: #8a8478;
+    color: #c0c0c0;
     margin-bottom: 32px;
     font-size: 15px;
   }
@@ -475,8 +475,8 @@
     margin-top: 80px;
     padding-top: 32px;
     border-top: 1px solid #3a3f4a;
-    font-size: 12px;
-    color: #5a5a5a;
+    font-size: 14px;
+    color: #aaa;
     font-family: 'IBM Plex Mono', monospace;
     letter-spacing: 0.2em;
   }
@@ -689,7 +689,7 @@
         <button class="train-btn" id="trainBtn">点击训练模型 →</button>
         
         <div class="test-section" id="testSection" style="display:none;">
-          <div style="font-size:12px; color:#e8b45a; margin-bottom:12px; font-family:'IBM Plex Mono', monospace;">模型已训练完成 · 输入新邮件测试</div>
+          <div style="font-size:14px; color:#e8b45a; margin-bottom:12px; font-family:'IBM Plex Mono', monospace;">模型已训练完成 · 输入新邮件测试</div>
           <div class="test-input-row">
             <select id="emailSelect">
               <option value="您的快递已到 请尽快取件">您的快递已到 请尽快取件</option>
@@ -711,13 +711,13 @@
     <div class="insight">
       <div class="insight-label">关键</div>
       <div class="insight-text">
-        监督学习的命门是<em>标注成本</em>。
+        <strong>监督学习的命门</strong>是<em>标注成本</em>。
         每一条训练数据都需要人工告诉模型"正确答案是什么"。
         我们日常做的需求分类、合同审核、字段提取，
         本质都是在用人力标注数据，然后让模型去拟合"输入→标签"的映射。
         <br><br>
         这也是为什么<em>"标注数据是新石油"</em>——
-        在大模型出现之前，谁有更多更干净的标注数据，谁就能训练出更好的模型。
+        在大模型出现之前，<strong>谁有更多更干净的标注数据，谁就能训练出更好的模型</strong>。
       </div>
     </div>
   </div>
@@ -774,11 +774,11 @@
     <div class="insight">
       <div class="insight-label">关键</div>
       <div class="insight-text">
-        无监督学习不需要标签，但代价是<em>结果需要人来解读</em>。
+        <strong>无监督学习不需要标签</strong>，但代价是<em>结果需要人来解读</em>。
         它能告诉你"这120个客户分成3群"，但不能告诉你哪一群是VIP、哪一群是流失风险。
         <br><br>
         在我们做CRM的实际场景里，无监督学习常用于：客户分群、异常检测、用户画像、文档主题挖掘。
-        最近大家熟悉的<em>Embedding</em>和<em>向量检索</em>，本质也是无监督学习的思想——
+        最近大家熟悉的<em>Embedding</em>和<em>向量检索</em>，<strong>本质也是无监督学习的思想</strong>——
         让模型自己发现"语义相近的文本应该在向量空间靠得近"，没有任何人工标注。
       </div>
     </div>
@@ -828,7 +828,7 @@
             </div>
           </div>
           
-          <div style="margin-top:16px; font-size:13px; color:#8a8478; line-height:1.7; max-width:600px; text-align:center;">
+          <div style="margin-top:16px; font-size:14px; color:#c0c0c0; line-height:1.7; max-width:600px; text-align:center;">
             橙色方块是智能体，从蓝色起点出发，目标是到达绿色终点。
             未训练时它会乱撞，训练后会学到一条接近最优的路径。
             <span style="color:#e8b45a;">这就是AlphaGo的思想——只是棋盘比迷宫复杂得多。</span>
@@ -840,15 +840,15 @@
     <div class="insight">
       <div class="insight-label">关键</div>
       <div class="insight-text">
-        强化学习的精髓是<em>奖励工程</em>——你不告诉它怎么做，只告诉它什么是好结果。
-        AlphaGo不背棋谱，它只知道"赢=+1，输=-1"，自己跟自己下了几千万盘学出来的。
+        <strong>强化学习的精髓</strong>是<em>奖励工程</em>——你不告诉它怎么做，只告诉它什么是好结果。
+        AlphaGo不背棋谱，它只知道"赢=+1，输=-1"，<strong>自己跟自己下了几千万盘学出来的</strong>。
         <br><br>
         今天大家用ChatGPT觉得它"懂礼貌、会拒绝、不胡说"，背后就是<em>RLHF</em>——
         Reinforcement Learning from Human Feedback。
         OpenAI让人对模型回答打分，再用强化学习把模型调整到更符合人类偏好。
         <br><br>
         所以GPT-3已经"会了很多"，但它不像ChatGPT那样"好用"——
-        差的就是这一层强化学习对齐。
+        <strong>差的就是这一层强化学习对齐</strong>。
       </div>
     </div>
   </div>

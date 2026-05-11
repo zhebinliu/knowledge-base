@@ -119,7 +119,7 @@
     width: 40px;
     text-align: right;
     font-family: 'Fira Code', monospace;
-    font-size: 13px;
+    font-size: 14px;
     color: #8b6f47;
   }
 
@@ -129,7 +129,7 @@
     padding: 20px 24px;
     margin: 20px 0;
     font-family: 'Fira Code', monospace;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.8;
     overflow-x: auto;
   }
@@ -166,7 +166,7 @@
     line-height: 1;
   }
   .output-fire {
-    font-size: 13px;
+    font-size: 14px;
     margin-top: 8px;
     font-style: italic;
   }
@@ -194,7 +194,7 @@
     background: transparent;
     border: none;
     font-family: 'Source Han Serif SC', serif;
-    font-size: 13px;
+    font-size: 14px;
     cursor: pointer;
     border-right: 1px solid #1a1a1a;
   }
@@ -260,7 +260,7 @@
   }
   .gd-info {
     font-family: 'Fira Code', monospace;
-    font-size: 11px;
+    font-size: 13px;
     color: #8b6f47;
     margin-top: 8px;
     line-height: 1.6;
@@ -270,14 +270,14 @@
   .gd-control-row { margin-bottom: 16px; }
   .gd-control-row label {
     display: block;
-    font-size: 13px;
+    font-size: 14px;
     margin-bottom: 6px;
     color: #5a5246;
   }
   .gd-control-row input[type="range"] { width: 100%; accent-color: #c69a5b; }
   .gd-control-row .val-display {
     font-family: 'Fira Code', monospace;
-    font-size: 12px;
+    font-size: 13px;
     color: #c69a5b;
     margin-top: 2px;
   }
@@ -289,7 +289,7 @@
     background: transparent;
     border: 1.5px solid #1a1a1a;
     font-family: 'Source Han Serif SC', serif;
-    font-size: 13px;
+    font-size: 14px;
     cursor: pointer;
     transition: all 0.2s;
   }
@@ -307,7 +307,7 @@
     justify-content: space-between;
     margin-bottom: 8px;
     font-family: 'Fira Code', monospace;
-    font-size: 12px;
+    font-size: 13px;
   }
   .gd-stat:last-child { margin-bottom: 0; }
   .gd-stat .k { color: #c69a5b; }
@@ -354,7 +354,7 @@
     margin-top: 80px;
     padding-top: 32px;
     border-top: 1px solid #e5d5b8;
-    font-size: 12px;
+    font-size: 14px;
     color: #8b6f47;
     font-family: 'Fira Code', monospace;
     letter-spacing: 0.2em;
@@ -517,7 +517,7 @@
     <div class="neuron-demo">
       <div class="neuron-controls">
         <h3>三个决策因素</h3>
-        <p style="font-size:13px; color:#5a5246; margin-bottom:20px; line-height:1.6;">
+        <p style="font-size:14px; color:#5a5246; margin-bottom:20px; line-height:1.6;">
           想象一个决定"今晚吃不吃火锅"的神经元，它考虑三个因素，每个因素的权重不同。
         </p>
 
@@ -540,7 +540,7 @@
         </div>
 
         <h3 style="margin-top:24px;">权重（神经元学到的）</h3>
-        <p style="font-size:13px; color:#5a5246; margin-bottom:20px; line-height:1.6;">
+        <p style="font-size:14px; color:#5a5246; margin-bottom:20px; line-height:1.6;">
           每个因素对结果的影响程度。这些权重是模型从历史数据里学出来的，不是写死的。
         </p>
 
@@ -669,13 +669,13 @@
     <div class="insight-block">
       <h4>这就是特征工程的终结</h4>
       <p>
-        2012年之前，做图像识别要靠人工写特征：边缘检测、HOG、SIFT，几十个博士搞几年。
+        2012年之前，做图像识别要靠人工写特征：边缘检测、HOG、SIFT，<strong>几十个博士搞几年</strong>。
         <span class="hl">深度学习的革命就是把特征工程自动化了</span>，
         不用人想该提取什么特征，让网络自己分层学。
         浅层学边缘和颜色，中层学纹理和形状，深层学物体和场景。
         <br><br>
         从神经网络到Transformer，从CNN到GPT，<span class="hl">"分层抽象"这个核心思想从未改变</span>。
-        变化的只是怎么把层堆得更高、更宽、更聪明。
+        变化的只是<strong>怎么把层堆得更高、更宽、更聪明</strong>。
       </p>
     </div>
   </div>
@@ -745,7 +745,7 @@
             </div>
           </div>
 
-          <div style="margin-top:16px; font-size:12px; color:#5a5246; line-height:1.7;">
+          <div style="margin-top:16px; font-size:14px; color:#5a5246; line-height:1.7;">
             梯度告诉你"往哪个方向走、走多陡"。
             权重更新公式：<span style="font-family:'Fira Code', monospace; color:#c69a5b;">w = w - lr × gradient</span>
           </div>
@@ -757,14 +757,14 @@
       <h4>这就是大模型的训练全过程</h4>
       <p>
         训练GPT-4本质上就是在做这件事，<span class="hl">只不过权重不是1个，是1.7万亿个</span>；
-        损失曲线不是2D的山谷，是1.7万亿维空间里的一个超复杂曲面。
+        损失曲线不是2D的山谷，是<strong>1.7万亿维空间</strong>里的一个超复杂曲面。
         <br><br>
-        但核心机制完全一样：随机初始化所有权重，喂给模型一批数据，
+        但<strong>核心机制完全一样</strong>：随机初始化所有权重，喂给模型一批数据，
         计算它的预测和真实答案之间的损失，再反向计算每个权重该怎么调，调一点点。
         几百万次重复之后，模型就学好了。
         <br><br>
         <span class="hl">学习率太大模型炸掉，太小模型学不动</span>，
-        现实里有更复杂的优化器（Adam、AdamW）和学习率调度策略，但底层思想就是这个滑块。
+        现实里有更复杂的优化器（Adam、AdamW）和学习率调度策略，但<strong>底层思想就是这个滑块</strong>。
       </p>
     </div>
 

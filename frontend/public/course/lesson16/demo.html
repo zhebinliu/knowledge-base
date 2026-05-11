@@ -61,19 +61,19 @@
     z-index: 1;
   }
   h1 .accent { color: #00e676; }
-  h1 .light { font-weight: 300; color: #888; }
+  h1 .light { font-weight: 300; color: #c0c0c0; }
   .h1-cn {
     font-size: 26px;
     font-weight: 600;
     margin-top: 12px;
-    color: #c0c0c0;
+    color: #d4d4d4;
     position: relative;
     z-index: 1;
   }
   .subtitle {
     margin-top: 22px;
     font-size: 16px;
-    color: #888;
+    color: #c0c0c0;
     line-height: 1.85;
     max-width: 760px;
     position: relative;
@@ -99,7 +99,7 @@
 
   .section-marker {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     color: #00aa55;
     letter-spacing: 0.3em;
     margin-bottom: 8px;
@@ -116,7 +116,7 @@
   }
   .section-title .accent { color: #00aa55; }
   .section.dark .section-title .accent { color: #00e676; }
-  .section-title .light { font-weight: 300; color: #888; }
+  .section-title .light { font-weight: 300; color: #aaa; }
 
   .section-cn {
     font-size: 22px;
@@ -130,7 +130,7 @@
     max-width: 820px;
     color: #555;
   }
-  .section.dark .section-lead { color: #a0a0a0; }
+  .section.dark .section-lead { color: #d4d4d4; }
 
   /* ----------- 第一节：Agent vs Harness 分界 ----------- */
   .compare-table {
@@ -150,15 +150,15 @@
     color: #fafafa;
   }
   .compare-cell {
-    padding: 16px 20px;
-    font-size: 13px;
-    line-height: 1.7;
+    padding: 18px 22px;
+    font-size: 14px;
+    line-height: 1.75;
     border-right: 1px solid #e8e8e8;
   }
   .compare-cell:last-child { border-right: none; }
   .compare-row.header .compare-cell {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     letter-spacing: 0.2em;
     color: #00e676;
     border-right-color: #1f1f1f;
@@ -172,6 +172,94 @@
   .compare-cell.agent strong { color: #4d8eff; }
   .compare-cell.harness { color: #555; background: #f0fff5; }
   .compare-cell.harness strong { color: #00aa55; }
+
+  /* 通用 insight-box(取代第一节的 inline-style 块) */
+  .insight-box {
+    margin-top: 28px;
+    padding: 24px 28px;
+    background: #0f0f0f;
+    color: #fafafa;
+    border-left: 3px solid #00e676;
+  }
+  .insight-box p {
+    font-size: 15px;
+    line-height: 1.9;
+    color: #d4d4d4;
+  }
+  .insight-box p strong { color: #00e676; }
+
+  /* 第八节 trade-off 卡(取代 inline-style) */
+  .tradeoff-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-top: 32px;
+  }
+  .tradeoff-card {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    padding: 28px;
+    border-top: 3px solid #00aa55;
+  }
+  .tradeoff-card.t2 { border-top-color: #4d8eff; }
+  .tradeoff-card.t3 { border-top-color: #ff9933; }
+  .tradeoff-card.t4 { border-top-color: #aa55cc; }
+  .tradeoff-card .to-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: #00aa55;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .tradeoff-card.t2 .to-num { color: #4d8eff; }
+  .tradeoff-card.t3 .to-num { color: #ff9933; }
+  .tradeoff-card.t4 .to-num { color: #aa55cc; }
+  .tradeoff-card .to-name {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .tradeoff-card .to-en {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 14px;
+    letter-spacing: 0.15em;
+  }
+  .tradeoff-card .to-body {
+    font-size: 15px;
+    line-height: 1.85;
+    color: #333;
+  }
+  .tradeoff-card .to-body strong { color: #0f0f0f; }
+  .tradeoff-card .to-summary {
+    margin-top: 14px;
+    padding: 14px 18px;
+    background: #f8f8f8;
+    border-left: 3px solid #00aa55;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: #0f0f0f;
+    line-height: 1.75;
+  }
+  .tradeoff-card.t2 .to-summary { border-left-color: #4d8eff; }
+  .tradeoff-card.t3 .to-summary { border-left-color: #ff9933; }
+  .tradeoff-card.t4 .to-summary { border-left-color: #aa55cc; }
+
+  /* 第七节 mvp-note(取代 inline-style) */
+  .mvp-note {
+    margin-top: 24px;
+    padding: 24px 28px;
+    background: rgba(0, 230, 118, 0.06);
+    border-left: 3px solid #00e676;
+    color: #d4d4d4;
+  }
+  .mvp-note p {
+    font-size: 14px;
+    line-height: 1.9;
+  }
+  .mvp-note strong { color: #00e676; }
 
   /* ----------- 演示一：六边形组件全景图 ----------- */
   .harness-clock {
@@ -193,10 +281,13 @@
     background: #0f0f0f;
     color: #fafafa;
   }
-  .hc-cell.active { border-left-color: #00e676; }
+  .hc-cell.active {
+    border-left: 3px solid #00e676;
+    box-shadow: 0 0 0 1px #00e676 inset;
+  }
   .hc-cell .hc-num {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     color: #00aa55;
     letter-spacing: 0.2em;
     margin-bottom: 6px;
@@ -210,70 +301,98 @@
   }
   .hc-cell .hc-en {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     color: #888;
     margin-bottom: 10px;
     letter-spacing: 0.1em;
   }
+  .hc-cell:hover .hc-en, .hc-cell.active .hc-en { color: #c0c0c0; }
   .hc-cell .hc-tag {
-    font-size: 12px;
-    color: #555;
-    line-height: 1.65;
+    font-size: 14px;
+    color: #b0b0b0;
+    line-height: 1.7;
   }
-  .hc-cell:hover .hc-tag, .hc-cell.active .hc-tag { color: #c0c0c0; }
+  .hc-cell:hover .hc-tag, .hc-cell.active .hc-tag { color: #d4d4d4; }
 
   .hc-detail {
     margin-top: 24px;
     background: #0f0f0f;
     color: #fafafa;
-    padding: 28px 32px;
-    min-height: 240px;
-    border-left: 4px solid #00e676;
+    padding: 32px 36px;
+    min-height: 260px;
+    border-left: 3px solid #00e676;
   }
   .hc-detail h4 {
-    font-size: 22px;
+    font-size: 24px;
     font-weight: 700;
     color: #00e676;
     margin-bottom: 14px;
   }
-  .hc-detail .hc-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 18px;
-    margin-top: 12px;
+  /* 子标签条:6 个 tag 切换,一次只显示 1 个 */
+  .hc-detail .hc-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 18px;
+    margin-bottom: 18px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #1f1f1f;
+  }
+  .hc-detail .hc-tab {
+    padding: 8px 14px;
+    background: transparent;
+    border: 1px solid #1f1f1f;
+    color: #b0b0b0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .hc-detail .hc-tab:hover { border-color: #00e676; color: #00e676; }
+  .hc-detail .hc-tab.active {
+    background: #00e676;
+    color: #0f0f0f;
+    border-color: #00e676;
+    font-weight: 600;
+  }
+  .hc-detail .hc-tab.warn.active {
+    background: #ff5555;
+    border-color: #ff5555;
+    color: #0f0f0f;
   }
   .hc-detail .hc-cell-d {
-    padding: 14px 18px;
+    padding: 20px 24px;
     background: #1a1a1a;
-    border-left: 2px solid #00e676;
+    border-left: 3px solid #00e676;
   }
   .hc-detail .hc-cell-d.warn {
     border-left-color: #ff5555;
   }
   .hc-detail .hc-cell-d h5 {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
+    font-size: 11px;
     letter-spacing: 0.2em;
     color: #00e676;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
   .hc-detail .hc-cell-d.warn h5 { color: #ff5555; }
   .hc-detail .hc-cell-d p {
-    font-size: 13px;
-    line-height: 1.75;
-    color: #c0c0c0;
+    font-size: 14px;
+    line-height: 1.85;
+    color: #d4d4d4;
   }
   .hc-detail .hc-cell-d code {
     font-family: 'IBM Plex Mono', monospace;
     background: #0a0a0a;
     color: #00e676;
     padding: 2px 6px;
-    font-size: 11px;
+    font-size: 13px;
   }
   .hc-detail .hc-lead {
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.85;
-    color: #c0c0c0;
+    color: #d4d4d4;
   }
   .hc-detail .hc-lead strong { color: #00e676; }
 
@@ -294,9 +413,9 @@
     padding: 10px 16px;
     background: transparent;
     border: 1px solid #1f1f1f;
-    color: #888;
+    color: #c0c0c0;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     letter-spacing: 0.15em;
     cursor: pointer;
   }
@@ -320,16 +439,16 @@
   }
   .gate-pool h5 {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     letter-spacing: 0.2em;
-    color: #888;
+    color: #b0b0b0;
     margin-bottom: 14px;
   }
   .gate-pool .pool-count {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 28px;
     font-weight: 700;
-    color: #888;
+    color: #b0b0b0;
     margin-bottom: 14px;
   }
   .gate-pool.active .pool-count { color: #00e676; }
@@ -342,12 +461,12 @@
     overflow-y: auto;
   }
   .tool-item {
-    padding: 8px 12px;
+    padding: 10px 14px;
     background: #0f0f0f;
     border-left: 2px solid #333;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 12px;
-    color: #666;
+    font-size: 13px;
+    color: #b0b0b0;
     transition: all 0.15s;
   }
   .tool-item.exposed {
@@ -356,14 +475,14 @@
     background: rgba(0, 230, 118, 0.06);
   }
   .tool-item.gated {
-    color: #444;
+    color: #777;
     text-decoration: line-through;
   }
   .tool-item .tool-tag {
     display: inline-block;
-    padding: 1px 6px;
+    padding: 2px 7px;
     margin-left: 8px;
-    font-size: 9px;
+    font-size: 11px;
     letter-spacing: 0.1em;
     background: rgba(0, 230, 118, 0.15);
     color: #00e676;
@@ -371,12 +490,12 @@
 
   .gate-note {
     margin-top: 18px;
-    padding: 16px 20px;
+    padding: 18px 22px;
     background: rgba(0, 230, 118, 0.06);
     border-left: 3px solid #00e676;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.85;
-    color: #c0c0c0;
+    color: #d4d4d4;
   }
   .gate-note strong { color: #00e676; }
 
@@ -400,25 +519,26 @@
   }
   .timeline-id {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 13px;
     color: #00e676;
   }
   .timeline-meta {
     display: flex;
     gap: 16px;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    color: #888;
+    font-size: 13px;
+    color: #c0c0c0;
     flex-wrap: wrap;
   }
   .timeline-meta span strong { color: #00e676; }
 
   .timeline-bar {
-    margin-top: 24px;
+    margin-top: 36px;
     position: relative;
     background: #1a1a1a;
     border: 1px solid #2a2a2a;
-    height: 80px;
+    height: 96px;
+    padding: 0 12px;
     overflow: visible;
   }
   .timeline-progress {
@@ -500,38 +620,60 @@
 
   .timeline-label {
     position: absolute;
-    top: -22px;
+    top: -26px;
     left: 50%;
     transform: translateX(-50%);
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 9px;
-    color: #555;
-    letter-spacing: 0.1em;
+    font-size: 12px;
+    color: #aaa;
+    letter-spacing: 0.08em;
     white-space: nowrap;
+    pointer-events: none;
+    transition: color 0.15s;
   }
+  .timeline-label-full {
+    position: absolute;
+    top: -50px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #00e676;
+    background: #0f0f0f;
+    border: 1px solid #00e676;
+    padding: 4px 10px;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 5;
+  }
+  .timeline-node:hover .timeline-label-full { opacity: 1; }
+  .timeline-node:hover .timeline-label { color: #00e676; }
 
   .timeline-axis {
-    margin-top: 12px;
+    margin-top: 14px;
     display: flex;
     justify-content: space-between;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #555;
+    font-size: 13px;
+    color: #b0b0b0;
   }
 
   .timeline-legend {
-    margin-top: 20px;
+    margin-top: 22px;
     display: flex;
-    gap: 18px;
+    gap: 22px;
     flex-wrap: wrap;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 13px;
   }
   .legend-item {
     display: flex;
     align-items: center;
-    gap: 6px;
-    color: #888;
+    gap: 8px;
+    color: #c0c0c0;
   }
   .legend-dot {
     width: 12px;
@@ -555,10 +697,10 @@
   .timeline-detail.hidden { display: none; }
   .timeline-detail h5 {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     color: #00e676;
     letter-spacing: 0.2em;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
   }
   .timeline-detail .td-grid {
     display: grid;
@@ -568,14 +710,14 @@
   }
   .timeline-detail .td-cell .td-l {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #888;
+    font-size: 11px;
+    color: #b0b0b0;
     letter-spacing: 0.15em;
     margin-bottom: 4px;
   }
   .timeline-detail .td-cell .td-v {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 700;
     color: #00e676;
   }
@@ -583,9 +725,9 @@
   .timeline-detail .td-cell .td-v.user { color: #4d8eff; }
   .timeline-detail .td-cell .td-v.err { color: #ff5555; }
   .timeline-detail p {
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.85;
-    color: #c0c0c0;
+    color: #d4d4d4;
     margin-bottom: 10px;
   }
   .timeline-detail .td-actions {
@@ -598,9 +740,9 @@
     padding: 8px 14px;
     background: transparent;
     border: 1px solid #2a2a2a;
-    color: #888;
+    color: #c0c0c0;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
+    font-size: 11px;
     letter-spacing: 0.15em;
     cursor: pointer;
   }
@@ -619,22 +761,22 @@
   .matrix-table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 900px;
+    min-width: 760px;
   }
   .matrix-table th, .matrix-table td {
-    padding: 14px 14px;
+    padding: 16px 16px;
     text-align: left;
     border-right: 1px solid #e8e8e8;
     border-bottom: 1px solid #e8e8e8;
-    font-size: 12px;
-    line-height: 1.6;
+    font-size: 14px;
+    line-height: 1.65;
   }
   .matrix-table th {
     background: #0f0f0f;
     color: #00e676;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.2em;
+    font-size: 12px;
+    letter-spacing: 0.18em;
     font-weight: 500;
     border-right-color: #1f1f1f;
     cursor: pointer;
@@ -649,20 +791,34 @@
   .matrix-table th.sorted.asc::after {
     content: ' ▴';
   }
+  /* 第一列固定(横向滚动时锚定) */
+  .matrix-table th.col-name,
+  .matrix-table td.name {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #fff;
+  }
+  .matrix-table th.col-name {
+    background: #0f0f0f;
+    z-index: 3;
+  }
+  .matrix-table tr.harness-row:hover td.name { background: #f8f8f8; }
   .matrix-table tr.harness-row { cursor: pointer; }
   .matrix-table tr.harness-row:hover td { background: #f8f8f8; }
   .matrix-table td.name {
     font-family: 'IBM Plex Sans', sans-serif;
     font-weight: 700;
-    font-size: 14px;
+    font-size: 15px;
     color: #0f0f0f;
+    box-shadow: 1px 0 0 #e8e8e8;
   }
   .matrix-table td.name .sub {
     display: block;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
+    font-size: 11px;
     color: #888;
-    margin-top: 2px;
+    margin-top: 3px;
     font-weight: 400;
   }
   .matrix-table td.dot {
@@ -671,12 +827,12 @@
   }
   .badge {
     display: inline-block;
-    padding: 3px 8px;
+    padding: 4px 10px;
     background: rgba(0, 170, 85, 0.12);
     color: #00aa55;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.1em;
+    font-size: 13px;
+    letter-spacing: 0.08em;
     border-radius: 2px;
   }
   .badge.warn { background: rgba(255, 153, 51, 0.15); color: #cc7700; }
@@ -694,22 +850,22 @@
   .matrix-detail.show { display: block; }
   .matrix-detail h5 {
     font-family: 'IBM Plex Sans', sans-serif;
-    font-size: 20px;
+    font-size: 22px;
     font-weight: 700;
     color: #00e676;
     margin-bottom: 6px;
   }
   .matrix-detail .md-sub {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    color: #888;
+    font-size: 12px;
+    color: #b0b0b0;
     letter-spacing: 0.15em;
     margin-bottom: 14px;
   }
   .matrix-detail p {
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.85;
-    color: #c0c0c0;
+    color: #d4d4d4;
     margin-bottom: 8px;
   }
   .matrix-detail p strong { color: #00e676; }
@@ -721,18 +877,18 @@
   }
   .matrix-detail .md-cell {
     background: #1a1a1a;
-    padding: 12px 14px;
-    border-left: 2px solid #00e676;
+    padding: 14px 16px;
+    border-left: 3px solid #00e676;
   }
   .matrix-detail .md-cell .l {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #888;
+    font-size: 11px;
+    color: #b0b0b0;
     letter-spacing: 0.15em;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
   }
   .matrix-detail .md-cell .v {
-    font-size: 13px;
+    font-size: 14px;
     color: #fafafa;
   }
 
@@ -754,7 +910,7 @@
   .fail-card.l4 { border-top-color: #4d8eff; }
   .fail-num {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     color: #ff5555;
     letter-spacing: 0.2em;
     margin-bottom: 6px;
@@ -770,13 +926,13 @@
   }
   .fail-en {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     color: #888;
     letter-spacing: 0.15em;
     margin-bottom: 14px;
   }
   .fail-card p {
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.85;
     color: #555;
     margin-bottom: 10px;
@@ -784,33 +940,30 @@
   .fail-card p strong { color: #0f0f0f; }
   .fail-fix {
     margin-top: 12px;
-    padding: 12px 16px;
+    padding: 14px 18px;
     background: #f8f8f8;
-    border-left: 2px solid #00aa55;
-    font-size: 12px;
-    line-height: 1.7;
+    border-left: 3px solid #00aa55;
+    font-size: 13px;
+    line-height: 1.75;
     color: #0f0f0f;
   }
   .fail-fix strong { color: #00aa55; }
 
-  /* ----------- 80行最小harness ----------- */
+  /* ----------- 30行最小harness ----------- */
   .code-block {
     margin-top: 28px;
     background: #0a0a0a;
     border: 1px solid #1f1f1f;
     padding: 28px 32px;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 12px;
-    line-height: 1.7;
-    color: #c0c0c0;
+    font-size: 14px;
+    line-height: 1.75;
+    color: #d4d4d4;
     overflow-x: auto;
+    white-space: pre;
   }
-  .code-block .kw { color: #ff5599; }
-  .code-block .fn { color: #00e676; }
-  .code-block .str { color: #ffaa66; }
-  .code-block .cmt { color: #555; font-style: italic; }
-  .code-block .num { color: #4d8eff; }
-  .code-block .var { color: #88ccff; }
+  .code-block .kw { color: #00e676; font-weight: 600; }
+  .code-block .cmt { color: #888; font-style: italic; }
 
   /* 总结 */
   .summary {
@@ -846,7 +999,7 @@
     font-size: 15px;
     line-height: 1.9;
     margin-bottom: 14px;
-    color: #c0c0c0;
+    color: #d4d4d4;
     position: relative;
   }
   .summary p strong { color: #00e676; }
@@ -869,8 +1022,8 @@
     margin-top: 36px;
     padding: 22px;
     background: #0f0f0f;
-    color: #555;
-    font-size: 11px;
+    color: #c0c0c0;
+    font-size: 12px;
     font-family: 'IBM Plex Mono', monospace;
     letter-spacing: 0.2em;
     border: 1px solid #1f1f1f;
@@ -880,7 +1033,7 @@
     h1 { font-size: 56px; }
     .section, .summary { padding: 28px 22px; }
     .compare-row { grid-template-columns: 1fr; }
-    .harness-clock, .fail-grid, .gate-grid { grid-template-columns: 1fr; }
+    .harness-clock, .fail-grid, .gate-grid, .tradeoff-grid { grid-template-columns: 1fr; }
     .matrix-detail .md-grid { grid-template-columns: 1fr; }
     .timeline-detail .td-grid { grid-template-columns: repeat(2, 1fr); }
   }
@@ -1077,13 +1230,13 @@
       </div>
     </div>
 
-    <div style="margin-top: 28px; padding: 22px 26px; background: #0f0f0f; color: #fafafa; border-left: 4px solid #00e676;">
-      <p style="font-size: 14px; line-height: 1.85;">
-        <strong style="color: #00e676;">2025 年的核心认知转变</strong>：以前大家盯着"换更好的模型"，
+    <div class="insight-box">
+      <p>
+        <strong>2025 年的核心认知转变</strong>：以前大家盯着"换更好的模型"，
         以为模型够强 agent 就能稳。但 Claude Sonnet 4.5 / Opus 4.7 已经强到很难再换的程度了——
-        <strong style="color: #00e676;">瓶颈不在策略，而在骨架</strong>。
+        <strong>瓶颈不在策略，而在骨架</strong>。
         Anthropic Boris Cherny / Cognition Walden Yan 的一系列工程笔记说的就是这件事——
-        <strong style="color: #00e676;">"模型能力决定 Agent 上限的 80%，Harness 决定能不能稳定到这个上限"</strong>。
+        <strong>"模型能力决定 Agent 上限的 80%，Harness 决定能不能稳定到这个上限"</strong>。
       </p>
     </div>
   </div>
@@ -1236,14 +1389,12 @@
       <table class="matrix-table" id="matrixTable">
         <thead>
           <tr>
-            <th data-key="name" class="sorted">Harness</th>
+            <th data-key="name" class="sorted col-name">Harness</th>
             <th data-key="autonomy" data-num="1">自主程度</th>
             <th data-key="review" data-num="1">用户审核</th>
             <th data-key="multifile" data-num="1">多文件编辑</th>
             <th data-key="git" data-num="1">Git 集成</th>
             <th data-key="ctx" data-num="1">Context 管理</th>
-            <th data-key="subagent" data-num="1">Subagent</th>
-            <th data-key="hooks" data-num="1">Hooks</th>
             <th data-key="oss" data-num="1">开源</th>
           </tr>
         </thead>
@@ -1328,89 +1479,55 @@
     </div>
   </div>
 
-  <!-- 第七节：80 行最小 harness -->
+  <!-- 第七节：30 行最小 harness -->
   <div class="section dark">
     <div class="section-marker">CHAPTER · 07</div>
     <div class="section-title" style="color: #fafafa;">MINIMUM VIABLE <span class="accent">HARNESS</span></div>
-    <div class="section-cn" style="color: #fafafa;">从 80 行 Python 开始造自己的 harness</div>
+    <div class="section-cn" style="color: #fafafa;">从 30 行 Python 开始造自己的 harness</div>
     <div class="section-lead">
-      Harness 听起来工程量大，其实<strong>最简版本 80 行就能跑</strong>。
-      下面是一个包含主循环 + tool registry + checkpoint + 中断处理的极简实现，
-      已经能稳定跑通 30 步以上的多轮 agent 任务。看清楚之后，你就能在自己的项目里搭起来。
+      Harness 听起来工程量大,其实<strong>核心骨架 30 行就能跑</strong>。
+      下面是一个 MVP 主循环——保留 6 大组件最核心步骤,删去 import / setup / error handling 装饰代码。
+      看清楚之后,你就能在自己的项目里搭起来。
     </div>
 
-    <div class="code-block">
-<span class="cmt"># minimal_harness.py · MVP harness · ~80 行</span>
-<span class="kw">import</span> json, signal, time, pickle
-<span class="kw">from</span> anthropic <span class="kw">import</span> Anthropic
+    <div class="code-block"><span class="cmt"># minimal_harness.py · MVP harness 核心骨架</span>
+def run(task, max_iter=100, gate=None):
+    state = load_ckpt() or {"messages":[{"role":"user","content":task}], "step":0}
+    interrupted = [False]
+    signal.signal(signal.SIGINT, lambda *a: interrupted.__setitem__(0, True))
 
-<span class="var">client</span> = <span class="fn">Anthropic</span>()
-<span class="var">TOOLS</span> = {}              <span class="cmt"># 注册表：name -&gt; (schema, fn)</span>
-<span class="var">CKPT_FILE</span> = <span class="str">".harness_state.pkl"</span>
+    <span class="kw">while</span> state["step"] &lt; max_iter:
+        <span class="cmt"># ① Interruption: Ctrl+C 时存盘退出</span>
+        <span class="kw">if</span> interrupted[0]:
+            save_ckpt(state); return
 
-<span class="kw">def</span> <span class="fn">tool</span>(name, schema):
-    <span class="kw">def</span> <span class="fn">wrap</span>(fn): <span class="var">TOOLS</span>[name] = (schema, fn); <span class="kw">return</span> fn
-    <span class="kw">return</span> wrap
+        <span class="cmt"># ② Tool Gating: 按场景过滤 subset</span>
+        exposed = [s for n,(s,_) in TOOLS.items() if not gate or gate(n,state)]
 
-<span class="cmt"># ① Loop Control + ② Tool Registry + ③ Interruption + ④ Checkpoint</span>
-<span class="kw">def</span> <span class="fn">run</span>(task: str, max_iter=<span class="num">100</span>, gate=<span class="kw">None</span>):
-    <span class="var">state</span> = <span class="fn">load_ckpt</span>() <span class="kw">or</span> {<span class="str">"messages"</span>: [{<span class="str">"role"</span>:<span class="str">"user"</span>,<span class="str">"content"</span>:task}], <span class="str">"step"</span>: <span class="num">0</span>}
-    <span class="var">interrupted</span> = [<span class="kw">False</span>]
-    signal.<span class="fn">signal</span>(signal.SIGINT, <span class="kw">lambda</span> *a: interrupted.<span class="fn">__setitem__</span>(<span class="num">0</span>, <span class="kw">True</span>))
+        <span class="cmt"># ③ Auto-Compact: ctx 接近爆时 summarize</span>
+        <span class="kw">if</span> estimate_tokens(state["messages"]) &gt; 150_000:
+            state["messages"] = compact(state["messages"])
 
-    <span class="kw">while</span> state[<span class="str">"step"</span>] &lt; max_iter:
-        <span class="kw">if</span> interrupted[<span class="num">0</span>]:
-            <span class="fn">save_ckpt</span>(state); <span class="fn">print</span>(<span class="str">"⏸ saved. resume with run()."</span>); <span class="kw">return</span>
+        <span class="cmt"># ④ Error Recovery: retry with backoff</span>
+        resp = call_with_retry(exposed, state["messages"])
+        state["messages"].append({"role":"assistant","content":resp.content})
 
-        <span class="cmt"># ⑤ Tool Gating: 只暴露当前场景需要的 subset</span>
-        <span class="var">exposed</span> = [t <span class="kw">for</span> n,(s,_) <span class="kw">in</span> <span class="var">TOOLS</span>.<span class="fn">items</span>() <span class="kw">if</span> <span class="fn">gate</span>(n,state) <span class="kw">if</span> gate <span class="kw">else</span> <span class="kw">True</span> <span class="kw">for</span> t <span class="kw">in</span> [s]]
+        <span class="kw">if</span> resp.stop_reason == "end_turn":
+            clear_ckpt(); return resp.content
 
-        <span class="cmt"># ⑥ Auto-Compact: context 接近爆时 summarize</span>
-        <span class="kw">if</span> <span class="fn">estimate_tokens</span>(state[<span class="str">"messages"</span>]) &gt; <span class="num">150_000</span>:
-            state[<span class="str">"messages"</span>] = <span class="fn">compact</span>(state[<span class="str">"messages"</span>])
+        <span class="cmt"># ⑤ Tool 调用 + ⑥ Checkpoint(每步都存)</span>
+        results = [run_tool(b) for b in resp.content if b.type == "tool_use"]
+        state["messages"].append({"role":"user","content":results})
+        state["step"] += 1
+        save_ckpt(state)</div>
 
-        <span class="cmt"># ⑦ Error Recovery: retry with backoff</span>
-        <span class="kw">for</span> attempt <span class="kw">in</span> <span class="fn">range</span>(<span class="num">3</span>):
-            <span class="kw">try</span>:
-                <span class="var">resp</span> = client.messages.<span class="fn">create</span>(model=<span class="str">"claude-opus-4-7"</span>, max_tokens=<span class="num">4096</span>,
-                    tools=exposed, messages=state[<span class="str">"messages"</span>])
-                <span class="kw">break</span>
-            <span class="kw">except</span> <span class="kw">Exception</span> <span class="kw">as</span> e:
-                <span class="kw">if</span> attempt == <span class="num">2</span>: <span class="fn">save_ckpt</span>(state); <span class="kw">raise</span>
-                time.<span class="fn">sleep</span>(<span class="num">2</span> ** attempt)
-
-        state[<span class="str">"messages"</span>].<span class="fn">append</span>({<span class="str">"role"</span>:<span class="str">"assistant"</span>,<span class="str">"content"</span>:resp.content})
-
-        <span class="kw">if</span> resp.stop_reason == <span class="str">"end_turn"</span>:
-            <span class="fn">clear_ckpt</span>(); <span class="kw">return</span> resp.content      <span class="cmt"># 任务完成</span>
-
-        <span class="cmt"># 执行 tool 调用</span>
-        <span class="var">results</span> = []
-        <span class="kw">for</span> block <span class="kw">in</span> resp.content:
-            <span class="kw">if</span> block.type == <span class="str">"tool_use"</span>:
-                _, fn = <span class="var">TOOLS</span>[block.name]
-                <span class="kw">try</span>: out = <span class="fn">fn</span>(**block.input)
-                <span class="kw">except</span> <span class="kw">Exception</span> <span class="kw">as</span> e: out = f<span class="str">"ERROR: {e}"</span>
-                results.<span class="fn">append</span>({<span class="str">"type"</span>:<span class="str">"tool_result"</span>,<span class="str">"tool_use_id"</span>:block.id,<span class="str">"content"</span>:<span class="fn">str</span>(out)})
-
-        state[<span class="str">"messages"</span>].<span class="fn">append</span>({<span class="str">"role"</span>:<span class="str">"user"</span>,<span class="str">"content"</span>:results})
-        state[<span class="str">"step"</span>] += <span class="num">1</span>
-        <span class="fn">save_ckpt</span>(state)               <span class="cmt"># 每步都存——崩了能续</span>
-
-<span class="kw">def</span> <span class="fn">save_ckpt</span>(s): <span class="fn">open</span>(<span class="var">CKPT_FILE</span>,<span class="str">"wb"</span>).<span class="fn">write</span>(pickle.<span class="fn">dumps</span>(s))
-<span class="kw">def</span> <span class="fn">load_ckpt</span>():
-    <span class="kw">try</span>: <span class="kw">return</span> pickle.<span class="fn">loads</span>(<span class="fn">open</span>(<span class="var">CKPT_FILE</span>,<span class="str">"rb"</span>).<span class="fn">read</span>())
-    <span class="kw">except</span>: <span class="kw">return</span> <span class="kw">None</span>
-<span class="kw">def</span> <span class="fn">clear_ckpt</span>(): <span class="kw">import</span> os; os.<span class="fn">remove</span>(<span class="var">CKPT_FILE</span>)
-    </div>
-
-    <div style="margin-top: 24px; padding: 22px 26px; background: rgba(0, 230, 118, 0.06); border-left: 4px solid #00e676; color: #c0c0c0;">
-      <p style="font-size: 13px; line-height: 1.85;">
-        <strong style="color: #00e676;">这 80 行已经覆盖了 6 大组件的 5 个</strong>——
-        Loop Control（while 主循环 + max_iter）、Tool Registration &amp; Gating（gate 函数）、
-        Interruption（SIGINT handler + save_ckpt）、Checkpointing（pickle 每步存）、
-        Error Recovery（retry with backoff）、Auto-Compact（context 阈值触发 summarize）。
-        <strong style="color: #00e676;">这就是 Claude Code 早期原型的样子</strong>——
+    <div class="mvp-note">
+      <p>
+        <strong>这 30 行已经覆盖了 6 大组件的核心骨架</strong>——
+        Loop Control(while 主循环 + max_iter)、Tool Gating(gate 过滤)、
+        Interruption(SIGINT flag)、Checkpointing(pickle 每步存)、
+        Error Recovery(retry backoff)、Auto-Compact(阈值触发)。
+        <strong>这就是 Claude Code 早期原型的样子</strong>——
         然后才一点点加 subagent、hooks、permissions、IDE 集成等周边能力。
       </p>
     </div>
@@ -1426,65 +1543,49 @@
       不同的 harness 在以下 4 个维度上做了截然不同的选择。
     </div>
 
-    <div class="metrics-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 32px;">
-      <div style="background: #fff; border: 1px solid #e0e0e0; padding: 28px; border-top: 3px solid #00aa55;">
-        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #00aa55; letter-spacing: 0.2em; margin-bottom: 6px;">TRADE-OFF · 01</div>
-        <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 4px;">自主 vs 可控</div>
-        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #888; margin-bottom: 14px; letter-spacing: 0.15em;">AUTONOMY vs STEERABILITY</div>
-        <p style="font-size: 13px; line-height: 1.85; color: #555;">
-          光谱两端：<strong style="color: #0f0f0f;">Devin / Cognition</strong>——全自主，跑完才给你看；
-          <strong style="color: #0f0f0f;">Cline / Aider</strong>——每步都要用户 approval。
-          中间是 <strong style="color: #0f0f0f;">Claude Code / Cursor</strong>——默认信任，关键 action（写文件 / 跑命令）才停下来。
+    <div class="tradeoff-grid">
+      <div class="tradeoff-card">
+        <div class="to-num">TRADE-OFF · 01</div>
+        <div class="to-name">自主 vs 可控</div>
+        <div class="to-en">AUTONOMY vs STEERABILITY</div>
+        <p class="to-body">
+          光谱两端：<strong>Devin</strong> 全自主跑完才给看；<strong>Cline / Aider</strong> 每步要 approval。
+          中间是 <strong>Claude Code / Cursor</strong>——默认信任,关键 action 才停。
         </p>
-        <div style="margin-top: 12px; padding: 12px 16px; background: #f8f8f8; border-left: 2px solid #00aa55; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #0f0f0f; line-height: 1.7;">
-          权衡：自主→速度快但容易跑偏；可控→慢但用户安心
-        </div>
+        <div class="to-summary">自主→快但易跑偏；可控→慢但安心</div>
       </div>
 
-      <div style="background: #fff; border: 1px solid #e0e0e0; padding: 28px; border-top: 3px solid #4d8eff;">
-        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #4d8eff; letter-spacing: 0.2em; margin-bottom: 6px;">TRADE-OFF · 02</div>
-        <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 4px;">多 Agent vs 单 Agent + Subagent</div>
-        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #888; margin-bottom: 14px; letter-spacing: 0.15em;">MULTI vs SINGLE+SUBAGENTS</div>
-        <p style="font-size: 13px; line-height: 1.85; color: #555;">
-          Cognition 那篇 "<strong style="color: #0f0f0f;">Don't Build Multi-Agents</strong>" 主张：
-          多 agent 间共享 context 太难，信息会衰减。
-          Anthropic 的 Claude Code Subagents 走的是另一条路——
-          <strong style="color: #0f0f0f;">single agent 主导 + 临时 subagent 隔离上下文</strong>。
+      <div class="tradeoff-card t2">
+        <div class="to-num">TRADE-OFF · 02</div>
+        <div class="to-name">多 Agent vs 单 Agent + Subagent</div>
+        <div class="to-en">MULTI vs SINGLE+SUBAGENTS</div>
+        <p class="to-body">
+          Cognition <strong>"Don't Build Multi-Agents"</strong>:多 agent 共享 context 难、信息衰减。
+          Anthropic 走另一条路——<strong>single agent 主导 + 临时 subagent 隔离上下文</strong>。
         </p>
-        <div style="margin-top: 12px; padding: 12px 16px; background: #f8f8f8; border-left: 2px solid #4d8eff; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #0f0f0f; line-height: 1.7;">
-          多 agent 适合"并行可分解任务"；单 agent + subagent 适合"复杂连续任务"
-        </div>
+        <div class="to-summary">多 agent 适合并行可分解;单 + subagent 适合复杂连续</div>
       </div>
 
-      <div style="background: #fff; border: 1px solid #e0e0e0; padding: 28px; border-top: 3px solid #ff9933;">
-        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #ff9933; letter-spacing: 0.2em; margin-bottom: 6px;">TRADE-OFF · 03</div>
-        <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 4px;">动态选 tool vs 固定 tool set</div>
-        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #888; margin-bottom: 14px; letter-spacing: 0.15em;">IN-CONTEXT vs PRE-DEFINED</div>
-        <p style="font-size: 13px; line-height: 1.85; color: #555;">
-          固定 tool set：可预测、可缓存，但场景切换时 tool 选错率高。
-          动态 gating：每个场景只暴露相关 tool，模型选择负担小。
-          <strong style="color: #0f0f0f;">Claude Code 走动态路线（skills 机制）</strong>，
-          Aider 走固定路线（diff / edit / shell 三件套）。
+      <div class="tradeoff-card t3">
+        <div class="to-num">TRADE-OFF · 03</div>
+        <div class="to-name">动态选 tool vs 固定 tool set</div>
+        <div class="to-en">IN-CONTEXT vs PRE-DEFINED</div>
+        <p class="to-body">
+          固定:可预测可缓存,但场景切换 tool 选错率高。
+          <strong>Claude Code 走动态(skills)</strong>,Aider 走固定(diff/edit/shell 三件套)。
         </p>
-        <div style="margin-top: 12px; padding: 12px 16px; background: #f8f8f8; border-left: 2px solid #ff9933; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #0f0f0f; line-height: 1.7;">
-          动态 gating 需要"场景识别"——多一层判断逻辑
-        </div>
+        <div class="to-summary">动态 gating 需要场景识别——多一层判断逻辑</div>
       </div>
 
-      <div style="background: #fff; border: 1px solid #e0e0e0; padding: 28px; border-top: 3px solid #aa55cc;">
-        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #aa55cc; letter-spacing: 0.2em; margin-bottom: 6px;">TRADE-OFF · 04</div>
-        <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 4px;">同步 vs 异步执行</div>
-        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #888; margin-bottom: 14px; letter-spacing: 0.15em;">SYNC vs ASYNC</div>
-        <p style="font-size: 13px; line-height: 1.85; color: #555;">
-          同步：用户对面坐着等，体验直接。
-          异步：用户提交后离开，半小时回来看结果——
-          <strong style="color: #0f0f0f;">Devin / Codex Web 走异步路线</strong>，
-          适合 long-running &gt; 30 分钟的任务。
-          异步需要更强的 checkpoint + 通知机制。
+      <div class="tradeoff-card t4">
+        <div class="to-num">TRADE-OFF · 04</div>
+        <div class="to-name">同步 vs 异步执行</div>
+        <div class="to-en">SYNC vs ASYNC</div>
+        <p class="to-body">
+          同步:用户坐着等,体验直接。异步:提交后离开半小时回来看——
+          <strong>Devin / Codex Web 走异步</strong>,适合 long-running &gt; 30 分钟。
         </p>
-        <div style="margin-top: 12px; padding: 12px 16px; background: #f8f8f8; border-left: 2px solid #aa55cc; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #0f0f0f; line-height: 1.7;">
-          同步 harness 简单；异步 harness 是分布式系统问题
-        </div>
+        <div class="to-summary">同步简单;异步是分布式系统问题</div>
       </div>
     </div>
   </div>
@@ -1618,23 +1719,34 @@ document.querySelectorAll('.hc-cell').forEach(cell => {
   cell.addEventListener('click', () => {
     document.querySelectorAll('.hc-cell').forEach(c => c.classList.remove('active'));
     cell.classList.add('active');
-    renderHc(+cell.dataset.comp);
+    renderHc(+cell.dataset.comp, 0);
   });
 });
 
-function renderHc(idx) {
+let hcCurrentIdx = 0;
+let hcCurrentTab = 0;
+
+function renderHc(idx, tabIdx) {
+  hcCurrentIdx = idx;
+  hcCurrentTab = tabIdx ?? 0;
   const d = hcDetails[idx];
-  let cells = d.cells.map(c => `
-    <div class="hc-cell-d ${c.warn ? 'warn' : ''}">
-      <h5>${c.tag}</h5>
-      <p>${c.body}</p>
-    </div>
+  const cur = d.cells[hcCurrentTab];
+  const tabs = d.cells.map((c, i) => `
+    <button class="hc-tab ${i === hcCurrentTab ? 'active' : ''} ${c.warn ? 'warn' : ''}"
+            data-tab="${i}">${c.tag}</button>
   `).join('');
   document.getElementById('hcDetail').innerHTML = `
     <h4>${d.title}</h4>
     <p class="hc-lead">${d.lead}</p>
-    <div class="hc-grid">${cells}</div>
+    <div class="hc-tabs">${tabs}</div>
+    <div class="hc-cell-d ${cur.warn ? 'warn' : ''}">
+      <h5>${cur.tag}</h5>
+      <p>${cur.body}</p>
+    </div>
   `;
+  document.querySelectorAll('#hcDetail .hc-tab').forEach(btn => {
+    btn.addEventListener('click', () => renderHc(hcCurrentIdx, +btn.dataset.tab));
+  });
 }
 renderHc(0);
 
@@ -1729,78 +1841,64 @@ document.querySelectorAll('.gate-btn').forEach(btn => {
 });
 renderGate('edit');
 
-// ========== 演示三：长任务时间线 ==========
+// ========== 演示三：长任务时间线(7 个关键 checkpoint,稀疏化) ==========
 const timelineNodes = [
   // x: 0-100 percent
-  { x: 4, type: 'checkpoint', label: 'CKPT-01',
+  { x: 6, type: 'checkpoint', label: 'T+0',
     title: '初始 checkpoint',
     ctx: '8k', cost: '$0.12', time: '00:08',
-    desc: '任务启动 8 分钟。Agent 完成 codebase 调研，识别出 nest.js 模块的 12 个 controller、8 个 service。<strong>checkpoint 写入</strong>：messages + 文件清单 + 重构计划草案。如果这一步用户中断，下次能直接拿到计划继续，不用重读代码。'
+    desc: '任务启动 8 分钟。Agent 完成 codebase 调研,识别出 nest.js 模块的 12 个 controller、8 个 service。<strong>checkpoint 写入</strong>:messages + 文件清单 + 重构计划草案。如果用户中断,下次能直接拿到计划继续。'
   },
-  { x: 12, type: 'checkpoint', label: 'CKPT-02',
-    title: '第一批文件迁移完成',
-    ctx: '24k', cost: '$0.38', time: '00:58',
-    desc: 'Agent 完成 4 个 controller 的迁移（auth / user / company / dept）。每个 controller 都过了对应的单测。<strong>checkpoint 包含</strong>：4 个新文件 diff、原文件 backup、测试结果。这是第一个"可以放心回滚到这里"的时点。'
-  },
-  { x: 22, type: 'error', label: 'ERR',
+  { x: 22, type: 'error', label: 'T+1h',
     title: 'Tool 失败 · 重试 2 次后降级',
     ctx: '38k', cost: '$0.91', time: '01:46',
-    desc: '<strong>run_test 工具超时</strong>——nest.js 旧测试和新 fastify 框架不兼容。Harness 执行：① 第一次 retry（2s 后）失败 ② 第二次 retry（4s）失败 ③ 不再 retry，把 ERROR 返回给模型 ④ 模型自决：跳过该测试，标记为 "tech-debt"，继续推进。<strong>正确的错误处理——不放大不假装</strong>。'
+    desc: '<strong>run_test 工具超时</strong>——nest.js 旧测试和新 fastify 框架不兼容。Harness 执行:① retry(2s)失败 ② retry(4s)失败 ③ 不再 retry,把 ERROR 返回给模型 ④ 模型自决:跳过测试,标记 tech-debt,继续推进。<strong>正确的错误处理——不放大不假装</strong>。'
   },
-  { x: 31, type: 'compact', label: 'COMPACT',
+  { x: 32, type: 'compact', label: 'T+2h',
     title: 'Context 自动压缩',
     ctx: '152k → 78k', cost: '$1.42', time: '02:28',
-    desc: 'Context 接近 200k，触发 auto-compact。<strong>压缩前</strong>：152k tokens（前 30 步 tool history 占了 110k）。<strong>压缩后</strong>：78k tokens——前 25 步压成 summary（包含已完成的迁移清单、关键决策、tech-debt 项），保留最近 5 步原文 + system prompt + 用户原始任务。<strong>注意</strong>：prompt-cache 在这里失效，下一轮成本会临时上升。'
+    desc: 'Context 接近 200k,触发 auto-compact。<strong>压缩前</strong>:152k tokens(前 30 步 tool history 占了 110k)。<strong>压缩后</strong>:78k tokens——前 25 步压成 summary(包含已完成的迁移清单、关键决策、tech-debt 项),保留最近 5 步原文 + system prompt + 用户原始任务。'
   },
-  { x: 38, type: 'user-intervene', label: 'USER',
+  { x: 42, type: 'user-intervene', label: 'T+3h',
     title: '用户介入 · 修正路线',
     ctx: '92k', cost: '$2.14', time: '03:02',
-    desc: '用户回来 review 进度，发现 agent 把 <code>auth/jwt.ts</code> 改坏了——用了不兼容的 fastify-jwt 写法。<strong>用户操作</strong>：① 暂停 agent ② 给一条 instruction "auth 模块全部保留原 nest 实现，先不迁" ③ 点击 "resume from CKPT-02 + new instruction"。Agent 从 CKPT-02 重新出发，跳过 auth。<strong>这就是 harness 给"人在环里"的价值</strong>。'
+    desc: '用户 review 进度,发现 agent 把 <code>auth/jwt.ts</code> 改坏了。<strong>用户操作</strong>:① 暂停 agent ② 给 instruction "auth 模块保留原 nest,先不迁" ③ "resume + new instruction"。Agent 从上一个 checkpoint 重新出发,跳过 auth。<strong>harness 给"人在环里"的价值</strong>。'
   },
-  { x: 49, type: 'checkpoint', label: 'CKPT-03',
-    title: '第二批迁移完成',
+  { x: 56, type: 'checkpoint', label: 'T+4h',
+    title: '核心模块迁移完成',
     ctx: '108k', cost: '$3.31', time: '03:55',
-    desc: 'Skip auth 后，agent 完成 product / order / payment 三个核心模块迁移。这一批最复杂——涉及数据库连接池、事务管理。<strong>checkpoint 写入</strong>：增量 diff、测试通过列表（21/23 个测试通过）、2 个失败测试的详细原因。'
+    desc: 'Skip auth 后,agent 完成 product / order / payment 三个核心模块迁移。这一批最复杂——涉及数据库连接池、事务管理。<strong>checkpoint 写入</strong>:增量 diff、测试通过列表(21/23 通过)、2 个失败测试的详细原因。'
   },
-  { x: 58, type: 'error', label: 'ERR-2',
-    title: 'API 429 · 自动 backoff',
-    ctx: '124k', cost: '$4.18', time: '04:38',
-    desc: 'Anthropic API 返回 429 rate limit。Harness 自动 backoff（2s / 4s / 8s 指数退避），<strong>无需任何代码改动 agent 继续</strong>。这种瞬时错误 harness 应该完全吸收，不要让模型"看见"——否则模型会困惑。'
-  },
-  { x: 67, type: 'compact', label: 'COMPACT-2',
+  { x: 72, type: 'compact', label: 'T+6h',
     title: '第二次 auto-compact',
     ctx: '178k → 84k', cost: '$5.06', time: '05:21',
-    desc: '第二次 compact。<strong>关键认知</strong>：long-running 任务每 2-3 小时就会触发一次 compact，所以 compact 必须做得"无损"——前几次 compact 的 summary 在这次会被进一步压缩，关键信息（约束 / 已完成项 / tech-debt）一定要在 summary 里保留。'
+    desc: '第二次 compact。<strong>关键认知</strong>:long-running 任务每 2-3 小时就会触发一次 compact,所以 compact 必须做得"无损"——前几次 compact 的 summary 在这次会被进一步压缩,关键信息(约束 / 已完成项 / tech-debt)一定要在 summary 里保留。'
   },
-  { x: 78, type: 'checkpoint', label: 'CKPT-04',
-    title: '第三批 + 集成测试',
-    ctx: '118k', cost: '$6.94', time: '06:14',
-    desc: '剩余 5 个模块迁移完成。Agent 主动跑了集成测试套件——<strong>34 个测试，30 通过，4 失败</strong>。失败的都和 auth 模块有关（在 CKPT-02 用户决定保留 nest 版本）。Agent 决策：在文档里标注这 4 个失败为已知问题，不修。'
-  },
-  { x: 88, type: 'user-intervene', label: 'USER-2',
-    title: '用户介入 · 部署 approve',
-    ctx: '136k', cost: '$8.21', time: '07:02',
-    desc: 'Agent 准备调用 <code>git_commit</code> + <code>rsync_deploy</code>。<strong>这两个 tool 在 harness 里标记为 danger</strong>——必须用户 approve。Harness 暂停，弹出 diff summary（21 个文件 / +1840 / -1620 行）+ 部署目标。用户 review 后点 approve。'
-  },
-  { x: 95, type: 'checkpoint', label: 'CKPT-FINAL',
-    title: '任务完成 checkpoint',
+  { x: 92, type: 'checkpoint', label: 'T+7.5h',
+    title: '任务完成 · 最终 checkpoint',
     ctx: '142k', cost: '$8.74', time: '07:28',
-    desc: '<strong>任务完成</strong>。最终 checkpoint 包含：完整 diff、commit hash、deploy log、tech-debt 清单（5 项）、cost breakdown。整个 8 小时任务实际跑了 7 小时 28 分钟，<strong>消耗 $8.74</strong>——其中 60% 是 Opus 推理、25% 是被 compact 优化掉的中间 tool history、15% 是 retry / backoff 开销。'
+    desc: '<strong>任务完成</strong>。最终 checkpoint 包含:完整 diff、commit hash、deploy log、tech-debt 清单(5 项)、cost breakdown。整个 8 小时任务实际跑了 7 小时 28 分钟,<strong>消耗 $8.74</strong>——60% Opus 推理、25% compact 优化掉的中间 tool history、15% retry / backoff。'
   }
 ];
 
 function renderTimeline() {
   const bar = document.getElementById('timelineBar');
-  bar.innerHTML = '<div class="timeline-progress" style="width: 90%;"></div>';
+  bar.innerHTML = '<div class="timeline-progress" style="width: 92%;"></div>';
   timelineNodes.forEach((n, i) => {
     const node = document.createElement('div');
     node.className = `timeline-node ${n.type}`;
     node.style.left = n.x + '%';
     node.dataset.idx = i;
+    // 默认显示简标签 T+xh
     const lbl = document.createElement('div');
     lbl.className = 'timeline-label';
     lbl.textContent = n.label;
     node.appendChild(lbl);
+    // hover 时显示完整 title
+    const lblFull = document.createElement('div');
+    lblFull.className = 'timeline-label-full';
+    lblFull.textContent = n.title;
+    node.appendChild(lblFull);
     node.addEventListener('click', () => showTlDetail(i));
     bar.appendChild(node);
   });
@@ -1934,6 +2032,15 @@ const matrixColumns = [
   { key: 'multifile', label: '多文件编辑' },
   { key: 'git', label: 'Git 集成' },
   { key: 'ctx', label: 'Context 管理' },
+  { key: 'oss', label: '开源' }
+];
+// 详细展开仍保留 subagent / hooks 字段(在 detail md-grid 里全展示)
+const matrixDetailColumns = [
+  { key: 'autonomy', label: '自主程度' },
+  { key: 'review', label: '用户审核' },
+  { key: 'multifile', label: '多文件编辑' },
+  { key: 'git', label: 'Git 集成' },
+  { key: 'ctx', label: 'Context 管理' },
   { key: 'subagent', label: 'Subagent' },
   { key: 'hooks', label: 'Hooks' },
   { key: 'oss', label: '开源' }
@@ -1982,7 +2089,7 @@ function renderMatrix() {
         <div class="md-sub">${h.sub}</div>
         <p>${h.detail}</p>
         <div class="md-grid">
-          ${matrixColumns.map(c => `
+          ${matrixDetailColumns.map(c => `
             <div class="md-cell">
               <div class="l">${c.label}</div>
               <div class="v">${h[c.key+'Txt']}</div>

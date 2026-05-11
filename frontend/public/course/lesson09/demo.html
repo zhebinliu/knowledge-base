@@ -122,7 +122,7 @@
     max-width: 800px;
     color: #555;
   }
-  .section.dark .section-lead { color: #bbb; }
+  .section.dark .section-lead { color: #d4d4d4; }
   .section.accent .section-lead { color: #1a1a1a; }
 
   /* 第一节：错误认知对比 */
@@ -210,9 +210,9 @@
     padding: 10px 16px;
     background: #1a1a1a;
     border: 1px solid #2a2a2a;
-    color: #aaa;
+    color: #d4d4d4;
     font-family: 'Noto Sans SC', sans-serif;
-    font-size: 13px;
+    font-size: 14px;
     cursor: pointer;
     white-space: nowrap;
     transition: all 0.2s;
@@ -223,6 +223,7 @@
     color: #0a0a0a;
     border-color: #d4ff4d;
     font-weight: 600;
+    border-left: 3px solid #0a0a0a;
   }
   
   .lab-grid {
@@ -253,7 +254,7 @@
     background: #0a0a0a;
     padding: 14px;
     font-family: 'DM Mono', monospace;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.7;
     color: #d4ff4d;
     margin-bottom: 16px;
@@ -268,7 +269,7 @@
   .lab-output-label {
     font-family: 'DM Mono', monospace;
     font-size: 10px;
-    color: #888;
+    color: #c0c0c0;
     letter-spacing: 0.2em;
     margin-bottom: 8px;
   }
@@ -281,13 +282,13 @@
     flex: 1;
     border-left: 2px solid #2a2a2a;
   }
-  
+
   .lab-explain {
     margin-top: 20px;
     padding: 16px 20px;
     background: rgba(212, 255, 77, 0.06);
     border-left: 3px solid #d4ff4d;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.8;
     color: #ddd;
   }
@@ -336,7 +337,7 @@
     margin-bottom: 12px;
   }
   .p-desc {
-    font-size: 13px;
+    font-size: 14px;
     color: #555;
     line-height: 1.7;
   }
@@ -370,7 +371,7 @@
   }
   .template-card pre {
     font-family: 'DM Mono', monospace;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.8;
     color: #ddd;
     white-space: pre-wrap;
@@ -378,7 +379,7 @@
   }
   .template-card pre .key { color: #d4ff4d; }
   .template-card pre .var { color: #ffaa6c; }
-  .template-card pre .comment { color: #666; }
+  .template-card pre .comment { color: #b0b0b0; }
 
   /* 第五节：常见陷阱 */
   .pitfalls {
@@ -410,7 +411,7 @@
     margin-bottom: 6px;
   }
   .pitfall-content p {
-    font-size: 13px;
+    font-size: 14px;
     color: #555;
     line-height: 1.7;
   }
@@ -420,7 +421,7 @@
     padding: 10px 14px;
     background: #d4ff4d;
     color: #0a0a0a;
-    font-size: 13px;
+    font-size: 14px;
     border-left: 3px solid #0a0a0a;
   }
   .pitfall-content .fix strong { color: #0a0a0a; }
@@ -722,7 +723,7 @@
     <div class="prompt-lab">
       <div class="lab-header">
         <h4>PROMPT LAB · 实时对比</h4>
-        <div class="lab-status">▼ 切换场景查看差异</div>
+        <div class="lab-status">▼ 切换场景查看差异（点击下方标签 →）</div>
       </div>
 
       <div class="lab-tabs" id="labTabs">

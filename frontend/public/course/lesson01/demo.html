@@ -212,7 +212,7 @@
   }
   .slider-label {
     width: 100px;
-    font-size: 13px;
+    font-size: 14px;
     font-family: 'JetBrains Mono', monospace;
   }
   .slider-row input[type="range"] {
@@ -223,7 +223,7 @@
     width: 40px;
     text-align: right;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 13px;
+    font-size: 14px;
     color: #8b6f47;
   }
   
@@ -307,7 +307,7 @@
   }
   .path-en {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
+    font-size: 14px;
     color: #5a5a5a;
     margin-bottom: 16px;
   }
@@ -320,7 +320,7 @@
     margin-top: 16px;
     padding-top: 16px;
     border-top: 1px dashed #d4c5a0;
-    font-size: 12px;
+    font-size: 14px;
     color: #5a5a5a;
   }
   
@@ -329,7 +329,7 @@
     margin-top: 64px;
     padding-top: 32px;
     border-top: 1px solid #d4c5a0;
-    font-size: 13px;
+    font-size: 14px;
     color: #8a8a8a;
     font-family: 'JetBrains Mono', monospace;
   }
@@ -521,7 +521,7 @@
         <div class="panel">
           <div class="panel-label">训练集 · 给它看10个带标签的样本</div>
           <div class="training-grid" id="training-grid"></div>
-          <div style="font-size:12px; color:#5a5a5a; margin-top:8px; line-height:1.6;">
+          <div style="font-size:14px; color:#5a5a5a; margin-top:8px; line-height:1.6;">
             橙色=猫的特征空间，蓝色=非猫。模型从这些样本里学到一条分界线。
           </div>
         </div>
@@ -550,7 +550,7 @@
             </div>
           </div>
           <div class="verdict" id="learning-verdict">拖动滑块开始</div>
-          <div style="font-size:12px; color:#5a5a5a; margin-top:12px; line-height:1.6;" id="learning-explain">
+          <div style="font-size:14px; color:#5a5a5a; margin-top:12px; line-height:1.6;" id="learning-explain">
             模型不背规则，它学的是一个连续的"猫味"评分函数。
           </div>
         </div>
@@ -560,10 +560,10 @@
 
   <div class="key-insight">
     <p>
-      规则系统的极限：<span class="highlight">老虎也满足"有毛+四条腿+尖耳朵"</span>，会被判断成猫。
+      <strong>规则系统的极限</strong>：<span class="highlight">老虎也满足"有毛+四条腿+尖耳朵"</span>，会被判断成猫。
       你可以一直加规则——"体重要&lt;10kg"——但现实中的概念边界<span class="highlight">永远比你能写出的规则多一条</span>。
       <br><br>
-      学习系统的妙处：它从来不"理解"什么叫猫，<span class="highlight">它只是在拟合一条边界</span>。
+      <strong>学习系统的妙处</strong>：它从来不"理解"什么叫猫，<span class="highlight">它只是在拟合一条边界</span>。
       给它越多样本，这条边界画得越准。这就是机器学习时代<span class="highlight">数据=石油</span>的本质。
     </p>
   </div>
@@ -622,13 +622,13 @@
 
   <div class="key-insight" style="margin-top:32px;">
     <p>
-      今天的大语言模型，<span class="highlight">本质是连接主义的胜利</span>，但融合了另外两派的精华：
+      <strong>今天的大语言模型</strong>，<span class="highlight">本质是连接主义的胜利</span>，但融合了另外两派的精华：
       用海量文本训练神经网络（连接主义），
       让它学会调用工具和符号推理（符号主义），
       再用人类反馈强化学习对齐（行为主义）。
       <br><br>
       理解了这一层，你就理解了为什么<span class="highlight">"AI不是魔法，而是函数拟合"</span>——
-      只是这个函数大到了7000亿参数。
+      只是这个函数大到了<strong>7000亿参数</strong>。
     </p>
   </div>
 

@@ -61,7 +61,7 @@
     z-index: 1;
   }
   h1 .accent { color: #00e676; }
-  h1 .light { font-weight: 300; color: #888; }
+  h1 .light { font-weight: 300; color: #aaa; }
   .h1-cn {
     font-size: 26px;
     font-weight: 600;
@@ -73,7 +73,7 @@
   .subtitle {
     margin-top: 22px;
     font-size: 16px;
-    color: #888;
+    color: #c0c0c0;
     line-height: 1.85;
     max-width: 760px;
     position: relative;
@@ -116,7 +116,7 @@
   }
   .section-title .accent { color: #00aa55; }
   .section.dark .section-title .accent { color: #00e676; }
-  .section-title .light { font-weight: 300; color: #888; }
+  .section-title .light { font-weight: 300; color: #aaa; }
 
   .section-cn {
     font-size: 22px;
@@ -128,9 +128,9 @@
     font-size: 15px;
     line-height: 1.85;
     max-width: 820px;
-    color: #555;
+    color: #444;
   }
-  .section.dark .section-lead { color: #a0a0a0; }
+  .section.dark .section-lead { color: #d4d4d4; }
 
   /* 范式对比表 */
   .compare-table {
@@ -151,14 +151,14 @@
   }
   .compare-cell {
     padding: 16px 20px;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.7;
     border-right: 1px solid #e8e8e8;
   }
   .compare-cell:last-child { border-right: none; }
   .compare-row.header .compare-cell {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     letter-spacing: 0.2em;
     color: #00e676;
     border-right-color: #1f1f1f;
@@ -168,9 +168,9 @@
     font-weight: 600;
     color: #0f0f0f;
   }
-  .compare-cell.old { color: #555; }
+  .compare-cell.old { color: #444; }
   .compare-cell.old strong { color: #cc4444; }
-  .compare-cell.new { color: #555; background: #f0fff5; }
+  .compare-cell.new { color: #444; background: #f0fff5; }
   .compare-cell.new strong { color: #00aa55; }
 
   /* 引用墙 */
@@ -188,23 +188,24 @@
     padding: 22px 24px;
   }
   .quote-card blockquote {
-    font-size: 13px;
-    line-height: 1.8;
-    color: #d0d0d0;
-    font-style: italic;
-    margin-bottom: 14px;
+    font-size: 15px;
+    line-height: 1.75;
+    color: #d4d4d4;
+    margin-bottom: 16px;
+    font-weight: 400;
   }
   .quote-card .quote-source {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #00e676;
+    font-size: 11px;
+    color: #b8b6ff;
     letter-spacing: 0.18em;
+    font-weight: 500;
   }
   .quote-card .quote-name {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     color: #fafafa;
-    margin-top: 4px;
+    margin-top: 6px;
   }
 
   /* 演示一：7块组成可视化 */
@@ -238,9 +239,9 @@
   }
   .ctx-slider-row label {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     letter-spacing: 0.18em;
-    color: #888;
+    color: #c0c0c0;
   }
   .ctx-slider-row input[type=range] {
     flex: 1;
@@ -257,7 +258,7 @@
 
   .ctx-bar {
     display: flex;
-    height: 72px;
+    height: 96px;
     border: 1px solid #2a2a2a;
     margin-bottom: 18px;
     overflow: hidden;
@@ -266,24 +267,42 @@
     cursor: pointer;
     transition: filter 0.15s, transform 0.15s;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 4px;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.12em;
-    color: rgba(0,0,0,0.55);
-    font-weight: 600;
-    border-right: 1px solid rgba(0,0,0,0.18);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    color: #0f0f0f;
+    font-weight: 700;
+    border-right: 2px solid rgba(255,255,255,0.35);
     text-align: center;
-    padding: 0 4px;
+    padding: 4px 6px;
     overflow: hidden;
     white-space: nowrap;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.35);
   }
   .ctx-bar-cell:last-child { border-right: none; }
   .ctx-bar-cell:hover { filter: brightness(1.1); }
   .ctx-bar-cell.active {
     box-shadow: inset 0 0 0 3px #fafafa;
   }
+  .ctx-bar-cell .cbc-name {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: rgba(15,15,15,0.85);
+    line-height: 1;
+  }
+  .ctx-bar-cell .cbc-pct {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    line-height: 1;
+  }
+  .ctx-bar-cell.narrow .cbc-name { display: none; }
+  .ctx-bar-cell.narrow .cbc-pct { font-size: 12px; }
 
   .ctx-legend {
     display: grid;
@@ -295,11 +314,11 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 10px;
+    padding: 10px 12px;
     background: #1a1a1a;
     border: 1px solid #2a2a2a;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 13px;
   }
   .ctx-legend-swatch {
     width: 14px;
@@ -307,14 +326,14 @@
     flex-shrink: 0;
   }
   .ctx-legend-name {
-    color: #c0c0c0;
+    color: #e4e4e4;
     font-weight: 500;
   }
   .ctx-legend-tokens {
     margin-left: auto;
     font-family: 'IBM Plex Mono', monospace;
-    color: #888;
-    font-size: 10px;
+    color: #b0b0b0;
+    font-size: 11px;
   }
 
   .ctx-detail {
@@ -330,25 +349,25 @@
   }
   .ctx-detail .ctx-detail-meta {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    color: #888;
+    font-size: 12px;
+    color: #b0b0b0;
     margin-bottom: 12px;
     letter-spacing: 0.12em;
   }
   .ctx-detail p {
-    font-size: 13px;
-    color: #c0c0c0;
+    font-size: 14px;
+    color: #d4d4d4;
     line-height: 1.85;
     margin-bottom: 8px;
   }
   .ctx-detail p strong { color: #00e676; }
   .ctx-detail .ctx-detail-warn {
     margin-top: 10px;
-    padding: 10px 14px;
+    padding: 12px 16px;
     background: rgba(255, 153, 51, 0.08);
     border-left: 2px solid #ff9933;
-    color: #ffcc88;
-    font-size: 12px;
+    color: #ffd6a3;
+    font-size: 13px;
     line-height: 1.75;
   }
 
@@ -399,12 +418,12 @@
     flex-wrap: wrap;
   }
   .budget-btn {
-    padding: 8px 16px;
+    padding: 9px 16px;
     background: transparent;
-    border: 1px solid #d0d0d0;
-    color: #555;
+    border: 1px solid #444;
+    color: #c0c0c0;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     letter-spacing: 0.15em;
     cursor: pointer;
   }
@@ -429,8 +448,8 @@
   }
   .budget-stat .label {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #888;
+    font-size: 11px;
+    color: #b0b0b0;
     letter-spacing: 0.2em;
     margin-bottom: 6px;
   }
@@ -445,8 +464,8 @@
   .budget-stat .value.bad { color: #ff5555; }
   .budget-stat .sub {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #888;
+    font-size: 11px;
+    color: #b0b0b0;
     margin-top: 6px;
   }
 
@@ -488,8 +507,8 @@
   .compact-btn:hover { background: #4dff9a; }
   .compact-btn.reset {
     background: transparent;
-    color: #888;
-    border: 1px solid #2a2a2a;
+    color: #c0c0c0;
+    border: 1px solid #444;
   }
 
   .compact-stats {
@@ -505,8 +524,8 @@
   }
   .compact-stat .label {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #888;
+    font-size: 11px;
+    color: #b0b0b0;
     letter-spacing: 0.2em;
     margin-bottom: 4px;
   }
@@ -514,7 +533,7 @@
     font-family: 'IBM Plex Sans', sans-serif;
     font-size: 24px;
     font-weight: 700;
-    color: #c0c0c0;
+    color: #e4e4e4;
   }
   .compact-stat .value.good { color: #00e676; }
   .compact-stat .value.bad { color: #ff9933; }
@@ -527,8 +546,6 @@
   .compact-col {
     background: #1a1a1a;
     border: 1px solid #2a2a2a;
-    max-height: 480px;
-    overflow-y: auto;
   }
   .compact-col-head {
     background: #0a0a0a;
@@ -542,14 +559,14 @@
     top: 0;
   }
   .compact-line {
-    padding: 10px 16px;
+    padding: 12px 18px;
     border-bottom: 1px solid #2a2a2a;
-    font-size: 12px;
-    line-height: 1.7;
-    color: #c0c0c0;
+    font-size: 13px;
+    line-height: 1.75;
+    color: #d4d4d4;
   }
-  .compact-line.user { border-left: 2px solid #4d8eff; color: #b4d2ff; background: rgba(77, 142, 255, 0.04); }
-  .compact-line.agent { border-left: 2px solid #00e676; color: #b4f0d0; background: rgba(0, 230, 118, 0.04); }
+  .compact-line.user { border-left: 3px solid #4d8eff; color: #c8dcff; background: rgba(77, 142, 255, 0.06); }
+  .compact-line.agent { border-left: 3px solid #00e676; color: #c4f4d8; background: rgba(0, 230, 118, 0.05); }
   .compact-line.drop {
     opacity: 0.32;
     text-decoration: line-through;
@@ -561,9 +578,10 @@
   }
   .compact-line .meta {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #555;
-    margin-right: 6px;
+    font-size: 11px;
+    color: #aaa;
+    margin-right: 8px;
+    font-weight: 500;
   }
   .compact-line.summary {
     background: rgba(0, 230, 118, 0.06);
@@ -591,9 +609,9 @@
     background: transparent;
     border: none;
     border-bottom: 3px solid transparent;
-    color: #888;
+    color: #666;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 12px;
+    font-size: 13px;
     letter-spacing: 0.15em;
     cursor: pointer;
     font-weight: 600;
@@ -622,13 +640,12 @@
   .bg-context-area {
     background: #0f0f0f;
     color: #fafafa;
-    padding: 20px 24px;
+    padding: 22px 26px;
     margin-bottom: 14px;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 12px;
-    line-height: 1.8;
-    max-height: 320px;
-    overflow-y: auto;
+    font-size: 13px;
+    line-height: 1.85;
+    overflow-y: visible;
     border-left: 3px solid #00e676;
   }
   .bg-context-area.bad {
@@ -639,16 +656,17 @@
     padding-bottom: 12px;
     border-bottom: 1px dashed #2a2a2a;
   }
-  .bg-context-area .ctx-block:last-child { border-bottom: none; }
+  .bg-context-area .ctx-block:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
   .bg-context-area .ctx-tag {
     color: #00e676;
-    font-size: 10px;
+    font-size: 11px;
     letter-spacing: 0.18em;
     display: block;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
+    font-weight: 600;
   }
   .bg-context-area.bad .ctx-tag { color: #ff5555; }
-  .bg-context-area .ctx-text { color: #c0c0c0; }
+  .bg-context-area .ctx-text { color: #d4d4d4; }
 
   .bg-output {
     padding: 16px 20px;
@@ -683,8 +701,8 @@
   .bg-metric.good { border-left-color: #00aa55; }
   .bg-metric .label {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #888;
+    font-size: 11px;
+    color: #666;
     letter-spacing: 0.2em;
     margin-bottom: 4px;
   }
@@ -724,24 +742,24 @@
   }
   .anti-card .anti-en {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     color: #888;
     letter-spacing: 0.15em;
     margin-bottom: 12px;
   }
   .anti-card p {
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.8;
-    color: #555;
+    color: #444;
     margin-bottom: 8px;
   }
   .anti-card p strong { color: #0f0f0f; }
   .anti-card .anti-fix {
     margin-top: 10px;
-    padding: 10px 14px;
+    padding: 12px 16px;
     background: #f0fff5;
-    border-left: 2px solid #00aa55;
-    font-size: 12px;
+    border-left: 3px solid #00aa55;
+    font-size: 13px;
     color: #0f0f0f;
     line-height: 1.75;
   }
@@ -765,18 +783,24 @@
     color: #fafafa;
   }
   .tc-cell {
-    padding: 14px 18px;
-    font-size: 12px;
+    padding: 16px 20px;
+    font-size: 14px;
     line-height: 1.75;
     border-right: 1px solid #e8e8e8;
+    color: #444;
   }
   .tc-cell:last-child { border-right: none; }
+  .tc-row.head {
+    background: #0f0f0f;
+    border-bottom: 2px solid #00e676;
+  }
   .tc-row.head .tc-cell {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     letter-spacing: 0.2em;
     color: #00e676;
     border-right-color: #1f1f1f;
+    padding: 18px 20px;
   }
   .tc-cell.lab {
     background: #f8f8f8;
@@ -787,7 +811,7 @@
   }
   .tc-cell .tc-en {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
+    font-size: 11px;
     color: #888;
     letter-spacing: 0.15em;
     display: block;
@@ -827,25 +851,25 @@
   }
   .mem-en {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     color: #888;
     letter-spacing: 0.15em;
     margin-bottom: 12px;
   }
   .mem-card p {
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.85;
-    color: #555;
+    color: #444;
     margin-bottom: 8px;
   }
   .mem-card p strong { color: #0f0f0f; }
   .mem-card .mem-eg {
     margin-top: 10px;
-    padding: 10px 14px;
+    padding: 12px 16px;
     background: #f8f8f8;
-    border-left: 2px solid #00aa55;
+    border-left: 3px solid #00aa55;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
+    font-size: 13px;
     color: #0f0f0f;
     line-height: 1.7;
   }
@@ -887,7 +911,7 @@
     font-size: 15px;
     line-height: 1.9;
     margin-bottom: 14px;
-    color: #c0c0c0;
+    color: #d4d4d4;
     position: relative;
   }
   .summary p strong { color: #00e676; }
@@ -910,8 +934,8 @@
     margin-top: 36px;
     padding: 22px;
     background: #0f0f0f;
-    color: #555;
-    font-size: 11px;
+    color: #aaa;
+    font-size: 12px;
     font-family: 'IBM Plex Mono', monospace;
     letter-spacing: 0.2em;
     border: 1px solid #1f1f1f;
@@ -1217,7 +1241,7 @@
       <div class="compact-controls">
         <button class="compact-btn" id="compactRun">Compact Now</button>
         <button class="compact-btn reset" id="compactReset">Reset</button>
-        <span style="font-family:'IBM Plex Mono';font-size:11px;color:#888;letter-spacing:0.15em;margin-left:auto;">/compact · KB-SYSTEM · CRM 需求提取</span>
+        <span style="font-family:'IBM Plex Mono';font-size:12px;color:#c0c0c0;letter-spacing:0.15em;margin-left:auto;">/compact · KB-SYSTEM · CRM 需求提取</span>
       </div>
 
       <div class="compact-stats" id="compactStats"></div>
@@ -1254,28 +1278,28 @@
       这三个决定决定了上下文窗口的健康度。
     </div>
 
-    <h4 style="font-size:20px;margin-top:28px;margin-bottom:12px;color:#0f0f0f;">① Retrieval Gating · 不再是无脑前置检索</h4>
-    <p style="font-size:14px;line-height:1.85;color:#444;margin-bottom:14px;">
+    <h4 style="font-size:20px;margin-top:28px;margin-bottom:12px;color:#0f0f0f;border-left:3px solid #00e676;padding-left:12px;">① Retrieval Gating · 不再是无脑前置检索</h4>
+    <p style="font-size:14px;line-height:1.85;color:#333;margin-bottom:14px;">
       早期 RAG 的设计是<strong>每次 query 都先检索</strong>。Context Engineering 时代我们承认：<strong>检索本身也是上下文污染</strong>——
       召回 8 段不太相关的文档，远比"不检索"更糟糕（注意力被稀释、模型被无关材料带偏）。
     </p>
-    <p style="font-size:14px;line-height:1.85;color:#444;margin-bottom:14px;">
+    <p style="font-size:14px;line-height:1.85;color:#333;margin-bottom:14px;">
       2025 的做法是 <strong>retrieval gating</strong>——先让模型自问"这个问题需要外部知识吗？需要哪一类？"，
       只在需要时才检索，并且检索的<strong>粒度、数量、是否拼回上下文都是动态决定的</strong>。
       Cursor 的 Composer、Claude Code 的 Agentic Search 都是这个范式。
     </p>
 
-    <h4 style="font-size:20px;margin-top:28px;margin-bottom:12px;color:#0f0f0f;">② Subagent 隔离 · 父 agent 的"上下文保护墙"</h4>
-    <p style="font-size:14px;line-height:1.85;color:#444;margin-bottom:14px;">
+    <h4 style="font-size:20px;margin-top:28px;margin-bottom:12px;color:#0f0f0f;border-left:3px solid #00e676;padding-left:12px;">② Subagent 隔离 · 父 agent 的"上下文保护墙"</h4>
+    <p style="font-size:14px;line-height:1.85;color:#333;margin-bottom:14px;">
       Anthropic 的 multi-agent research 系统给出了一个反直觉的结论：<strong>让 subagent 跑独立 context window，比让父 agent 直接读全部资料效果更好</strong>。
       原因是 subagent 处理掉 50k 原始材料后只返回 2k 摘要给父 agent，<strong>父 agent 的窗口被"保护"了</strong>。
     </p>
-    <p style="font-size:14px;line-height:1.85;color:#444;margin-bottom:14px;">
+    <p style="font-size:14px;line-height:1.85;color:#333;margin-bottom:14px;">
       这就是为什么 Claude Code 默认每个 Task / Agent 子任务都跑独立 context——父 agent 永远看到的是<strong>"摘要后的世界"</strong>，
       不是"全量原始材料"。Devin、Cline 也是同款架构。
     </p>
 
-    <h4 style="font-size:20px;margin-top:28px;margin-bottom:12px;color:#0f0f0f;">③ Memory 分层 · 把上下文升级为持久状态</h4>
+    <h4 style="font-size:20px;margin-top:28px;margin-bottom:12px;color:#0f0f0f;border-left:3px solid #00e676;padding-left:12px;">③ Memory 分层 · 把上下文升级为持久状态</h4>
 
     <div class="mem-grid">
       <div class="mem-card">
@@ -1370,7 +1394,7 @@
           <div class="bg-metric bad"><div class="label">USABLE?</div><div class="value">NO</div></div>
         </div>
 
-        <p style="margin-top:14px;font-size:13px;line-height:1.85;color:#555;">
+        <p style="margin-top:14px;font-size:14px;line-height:1.85;color:#333;">
           <strong style="color:#cc4444;">为什么差</strong>：模型不知道你是销售、产品还是顾问；不知道要输出什么结构；不知道优先级怎么定；没看到任何参考样例。
           它只能给一份<strong style="color:#cc4444;">罗列式、无优先级、无可执行性的复述</strong>。这就是大量"AI 回答看着对其实没用"的根源。
         </p>
@@ -1386,44 +1410,32 @@
           <div class="ctx-block">
             <span class="ctx-tag">[ BLOCK 1 · SYSTEM PROMPT · 800 tokens ]</span>
             <div class="ctx-text">
-              你是 SaaS CRM 实施顾问。任务：从客户访谈记录里提取结构化的"需求池"。<br>
-              输出 JSON 数组，每条含: { 描述, 类别∈{性能,集成,业务功能,权限,体验}, 优先级∈{P0,P1,P2}, 是否影响留存 }<br>
-              规则: P0=客户已明确说会因此换厂商；P1=阻塞日常使用；P2=锦上添花
+              你是 SaaS CRM 实施顾问。任务：从客户访谈记录里提取结构化"需求池"。<br>
+              输出 JSON 数组: { 描述, 类别∈{性能,集成,业务功能,权限,体验}, 优先级∈{P0,P1,P2}, 影响留存 }<br>
+              规则: P0=客户已明确说会换厂商；P1=阻塞日常；P2=锦上添花
             </div>
           </div>
           <div class="ctx-block">
-            <span class="ctx-tag">[ BLOCK 2 · FEW-SHOT · 1.4K tokens ]</span>
-            <div class="ctx-text">
-              示例输入: "审批流要 5 个人签字..."<br>
-              示例输出: [{描述:"5 级审批冗长", 类别:"业务功能", 优先级:"P1", 影响留存:false}]<br>
-              ——共 3 个 in-domain 示例
-            </div>
-          </div>
-          <div class="ctx-block">
-            <span class="ctx-tag">[ BLOCK 3 · RETRIEVED · 2.2K tokens ]</span>
+            <span class="ctx-tag">[ BLOCK 2 · RETRIEVED · 2.2K tokens ]</span>
             <div class="ctx-text">
               # 行业先例 (Top-3, retrieved)<br>
-              1. 某客户 2024 因为分销门户性能问题流失，损失 ¥ 380w ARR<br>
-              2. 钉钉集成是华东客户的高频诉求，2024 我们项目库共出现 17 次<br>
+              1. 某客户 2024 因分销门户性能问题流失，损失 ¥ 380w ARR<br>
+              2. 钉钉集成是华东客户高频诉求，2024 项目库出现 17 次<br>
               3. 漏跟进提醒 → P0：参考客户 B 的 CSM 流程
             </div>
           </div>
           <div class="ctx-block">
-            <span class="ctx-tag">[ BLOCK 4 · SCRATCHPAD · 引导 ]</span>
+            <span class="ctx-tag">[ BLOCK 3 · SCRATCHPAD + USER INPUT ]</span>
             <div class="ctx-text">
-              先在 &lt;thinking&gt; 标签里逐条扫描，识别"客户的核心痛点信号词"<br>
-              （流失、崩溃、抱怨、签不动单、被对手抢...），再产出 JSON。
+              先在 &lt;thinking&gt; 里识别"痛点信号词"（流失/崩溃/抱怨/被对手抢），再产出 JSON。<br>
+              客户原文: "我们现在销售管理特别乱..."（同 BAD 完整内容 · 1.8K tokens）
             </div>
-          </div>
-          <div class="ctx-block">
-            <span class="ctx-tag">[ BLOCK 5 · USER INPUT · 1.8K tokens ]</span>
-            <div class="ctx-text">客户：我们现在销售管理特别乱... （同 BAD 完整内容）</div>
           </div>
         </div>
 
         <div class="bg-output">
           <div class="out-label">▼ MODEL OUTPUT · GOOD CONTEXT</div>
-          <pre style="font-family:'IBM Plex Mono';font-size:12px;line-height:1.7;white-space:pre-wrap;margin:0;color:#0f0f0f;">[
+          <pre style="font-family:'IBM Plex Mono';font-size:13px;line-height:1.75;white-space:pre-wrap;margin:0;color:#0f0f0f;">[
   { "描述": "商机列表加载 8 秒", "类别": "性能", "优先级": "P0", "影响留存": true,
     "证据": "性能问题历史上导致过类似客户流失 ¥380w ARR" },
   { "描述": "跟进提醒缺失", "类别": "业务功能", "优先级": "P0", "影响留存": true,
@@ -1444,9 +1456,9 @@
           <div class="bg-metric good"><div class="label">USABLE?</div><div class="value">YES</div></div>
         </div>
 
-        <p style="margin-top:14px;font-size:13px;line-height:1.85;color:#555;">
+        <p style="margin-top:14px;font-size:14px;line-height:1.85;color:#333;">
           <strong style="color:#00aa55;">为什么好</strong>：上下文工程让模型从一个"自由回答机"变成"结构化抽取器"——
-          系统提示锚定身份和输出格式，few-shot 演示边界判断，retrieved 注入业务事实，scratchpad 引导推理路径，user input 才放在最后。
+          系统提示锚定身份和输出格式，retrieved 注入业务事实，scratchpad 引导推理路径，user input 才放在最后。
           代价是上下文涨到 6.2K（5 倍），latency 涨到 3.4s（约 2 倍），<strong style="color:#00aa55;">但输出从"不能用"变成"可以直接进需求池"</strong>——这是 0→1 的差距，不是 +20%。
         </p>
       </div>
@@ -1516,8 +1528,8 @@
     <div class="section-title">2025 <span class="accent">PRACTICES</span></div>
     <div class="section-cn">主流工具的 Context 策略对比</div>
     <div class="section-lead">
-      纸上谈兵不够，看看 2025 真正在生产里跑的产品——
-      Claude Code、Cursor、Devin、Aider、Cline——
+      纸上谈兵不够，看看 2025 真正在生产里跑的三家最有代表性的产品——
+      <strong>Claude Code、Cursor、Devin</strong>——
       <strong>每家的 context engineering 策略都不一样，但都是这 7 个块和 3 项技术的组合拳</strong>。
     </div>
 
@@ -1544,25 +1556,7 @@
         <div class="tc-cell lab">Devin<span class="tc-en">COGNITION</span></div>
         <div class="tc-cell">长 agent loop · 显式 episodic memory · planner 与 executor 分窗口</div>
         <div class="tc-cell">每个 plan step 走子 agent；plan 树本身就是压缩后的状态</div>
-        <div class="tc-cell">episodic（任务 trace）+ semantic（学到的项目知识）双层</div>
-      </div>
-      <div class="tc-row">
-        <div class="tc-cell lab">Aider<span class="tc-en">OPEN SOURCE</span></div>
-        <div class="tc-cell">repo-map（压缩版项目结构）+ /add /drop 显式管理上下文文件</div>
-        <div class="tc-cell">每次 commit 后清空非必要文件；repo-map 替代全量文件</div>
-        <div class="tc-cell">CONVENTIONS.md（program）— 简单但够用</div>
-      </div>
-      <div class="tc-row">
-        <div class="tc-cell lab">Cline / Roo<span class="tc-en">VS CODE</span></div>
-        <div class="tc-cell">显式 task 树 + .clinerules + token usage 实时可视化</div>
-        <div class="tc-cell">任务级 context 重置 + 用户手动 prune 工具</div>
-        <div class="tc-cell">.clinerules（program）+ 持久任务摘要（episodic）</div>
-      </div>
-      <div class="tc-row">
-        <div class="tc-cell lab">ChatGPT<span class="tc-en">OPENAI</span></div>
-        <div class="tc-cell">Memory 功能（用户偏好）+ Custom Instructions + 按会话自动 summarize</div>
-        <div class="tc-cell">长会话自动滚动窗口（Sliding Window）</div>
-        <div class="tc-cell">Memory（semantic）+ Custom Instructions（program）</div>
+        <div class="tc-cell">episodic（任务 trace）+ semantic（项目知识）双层</div>
       </div>
     </div>
 
@@ -1675,12 +1669,18 @@ function renderCtxDemo() {
   CTX_BLOCKS.forEach((b, i) => {
     const pct = preset.ratios[b.key];
     const cell = document.createElement('div');
-    cell.className = 'ctx-bar-cell';
+    cell.className = 'ctx-bar-cell' + (pct < 8 ? ' narrow' : '');
     cell.style.background = b.color;
-    cell.style.flexBasis = pct + '%';
+    cell.style.flexBasis = Math.max(pct, 3) + '%';
     cell.dataset.idx = i;
     cell.title = `${b.name} · ${pct}%`;
-    cell.textContent = pct >= 6 ? `${pct}%` : '';
+    if (pct >= 8) {
+      cell.innerHTML = `<span class="cbc-name">${b.name}</span><span class="cbc-pct">${pct}%</span>`;
+    } else if (pct >= 3) {
+      cell.innerHTML = `<span class="cbc-pct">${pct}%</span>`;
+    } else {
+      cell.innerHTML = `<span class="cbc-pct" style="font-size:10px;">${pct}</span>`;
+    }
     cell.addEventListener('click', () => selectCtxBlock(i));
     bar.appendChild(cell);
 
@@ -1854,35 +1854,15 @@ renderBudgetRows();
 // ===========================
 const COMPACT_TURNS = [
   { role: 'user', text: '我们想做一个 CRM 需求提取助手', keep: true, drop: false, t: 1 },
-  { role: 'agent', text: '好的，请提供访谈材料。建议先定义抽取的字段。', keep: false, drop: true, t: 2 },
-  { role: 'user', text: '字段就是：描述、类别、优先级、是否影响留存', keep: true, drop: false, t: 3 },
-  { role: 'agent', text: '收到。类别有哪些枚举？', keep: false, drop: true, t: 4 },
-  { role: 'user', text: '类别：性能、集成、业务功能、权限、体验', keep: true, drop: false, t: 5 },
-  { role: 'agent', text: '了解。优先级如何分级？', keep: false, drop: true, t: 6 },
+  { role: 'user', text: '字段：描述、类别、优先级、是否影响留存', keep: true, drop: false, t: 3 },
+  { role: 'user', text: '类别枚举：性能/集成/业务功能/权限/体验', keep: true, drop: false, t: 5 },
   { role: 'user', text: '用 P0/P1/P2 三级，P0 是会换厂商的', keep: true, drop: false, t: 7 },
-  { role: 'agent', text: '记住了，P0 = 流失风险。还有别的吗？', keep: false, drop: true, t: 8 },
   { role: 'user', text: '不要 emoji，输出纯 JSON', keep: true, drop: false, t: 9 },
-  { role: 'agent', text: '好的。这是第一份访谈的抽取结果...[JSON]', keep: false, drop: true, t: 10 },
-  { role: 'user', text: '不错，但优先级判断弱了点', keep: false, drop: true, t: 11 },
-  { role: 'agent', text: '请提供更明确的 P0 边界定义', keep: false, drop: true, t: 12 },
   { role: 'user', text: '客户已经说"再不解决就换"的=P0', keep: true, drop: false, t: 13 },
-  { role: 'agent', text: '理解，重新跑第一份...[JSON 修正版]', keep: false, drop: true, t: 14 },
-  { role: 'user', text: '现在好多了。继续第 2 份访谈', keep: false, drop: true, t: 15 },
-  { role: 'agent', text: '[ 第 2 份 JSON 输出 ]', keep: false, drop: true, t: 16 },
-  { role: 'user', text: '第 2 份里那个"钉钉对接"应该是 P1 不是 P2', keep: true, drop: false, t: 17 },
-  { role: 'agent', text: '记住：钉钉对接=P1。是否所有第三方集成都升 P1？', keep: false, drop: true, t: 18 },
-  { role: 'user', text: '不一定，看是否影响日常使用', keep: true, drop: false, t: 19 },
-  { role: 'agent', text: '了解。开始第 3 份访谈...', keep: false, drop: true, t: 20 },
-  { role: 'user', text: '哦对，所有结果都要加证据字段（引用原文）', keep: true, drop: false, t: 21 },
-  { role: 'agent', text: '收到。从这一份开始还是回去补前两份？', keep: false, drop: true, t: 22 },
-  { role: 'user', text: '回去补前两份', keep: true, drop: false, t: 23 },
-  { role: 'agent', text: '[ 补回的 v2 输出，含证据 ]', keep: false, drop: true, t: 24 },
-  { role: 'user', text: '完美。第 3、4、5 份继续这个格式', keep: false, drop: true, t: 25 },
-  { role: 'agent', text: '[ 第 3 份输出 ]', keep: false, drop: true, t: 26 },
-  { role: 'agent', text: '[ 第 4 份输出 ]', keep: false, drop: true, t: 27 },
-  { role: 'agent', text: '[ 第 5 份输出 ]', keep: false, drop: true, t: 28 },
-  { role: 'user', text: '第 5 份的权限类全都是 P0 对吧？分销商场景', keep: true, drop: false, t: 29 },
-  { role: 'agent', text: '是的。继续准备第 6 份。', keep: false, drop: true, t: 30 }
+  { role: 'user', text: '第三方集成（如钉钉对接）默认 P1', keep: true, drop: false, t: 17 },
+  { role: 'user', text: '所有结果都要加证据字段（引用原文）', keep: true, drop: false, t: 21 },
+  { role: 'user', text: '分销商权限类场景 = P0', keep: true, drop: false, t: 29 },
+  { role: 'agent', text: '收到。继续准备第 6 份访谈。', keep: false, drop: false, t: 30 }
 ];
 
 const COMPACT_SUMMARY = `# /compact 输出 · 6 份访谈后的对话状态摘要
@@ -1920,15 +1900,20 @@ function renderCompact(compacted = false) {
     div.innerHTML = `<span class="meta">[T${String(t.t).padStart(2,'0')}·${t.role.toUpperCase()}]</span> ${t.text}`;
     before.appendChild(div);
   });
+  const note = document.createElement('div');
+  note.className = 'compact-line';
+  note.style.cssText = 'color:#888;font-style:italic;font-size:12px;padding:14px 16px;text-align:center;border-bottom:none;';
+  note.textContent = '（后续 20 余轮寒暄、重复确认与中间 JSON 输出已折叠，只显示决策类对话）';
+  before.appendChild(note);
 
   const after = document.getElementById('compactAfter');
   after.innerHTML = '';
   if (!compacted) {
-    after.innerHTML = '<div style="padding:32px;color:#666;font-size:13px;text-align:center;font-style:italic;">尚未执行 /compact<br><br>点击左上 "Compact Now" 按钮触发压缩</div>';
+    after.innerHTML = '<div style="padding:32px;color:#bbb;font-size:14px;text-align:center;">尚未执行 /compact<br><br>点击左上 "Compact Now" 按钮触发压缩</div>';
   } else {
     const div = document.createElement('div');
     div.className = 'compact-line summary';
-    div.innerHTML = '<pre style="font-family:\'IBM Plex Mono\';font-size:12px;line-height:1.7;color:#d0ffd0;white-space:pre-wrap;margin:0;">' + COMPACT_SUMMARY + '</pre>';
+    div.innerHTML = '<pre style="font-family:\'IBM Plex Mono\';font-size:13px;line-height:1.75;color:#d4ffe0;white-space:pre-wrap;margin:0;">' + COMPACT_SUMMARY + '</pre>';
     after.appendChild(div);
   }
 
