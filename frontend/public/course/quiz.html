@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小考 · AI 系列课程</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Noto Sans SC', 'Inter', sans-serif;
+    background: #0a0a0a;
+    color: #e8e8e8;
+    line-height: 1.7;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* 顶部导航 */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(10, 10, 10, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid #1f1f1f;
+  }
+  .topbar-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 14px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .nav-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    color: #b8b6ff;
+    text-decoration: none;
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+    border: 1px solid rgba(120, 119, 198, 0.3);
+    background: rgba(120, 119, 198, 0.08);
+    border-radius: 100px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .nav-btn:hover {
+    background: rgba(120, 119, 198, 0.18);
+    border-color: rgba(120, 119, 198, 0.5);
+  }
+  .topbar-title {
+    flex: 1;
+    text-align: center;
+    font-size: 13px;
+    color: #888;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.15em;
+  }
+  .progress-track {
+    flex: 1;
+    height: 4px;
+    background: #1a1a1a;
+    border-radius: 2px;
+    overflow: hidden;
+    max-width: 320px;
+    display: none;
+  }
+  .progress-track.on { display: block; }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #7877c6 0%, #b8b6ff 100%);
+    width: 0%;
+    transition: width 0.3s;
+  }
+
+  /* 主容器 */
+  main {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 56px 32px 96px;
+  }
+
+  /* 入口 - 模式选择 */
+  .home h1 {
+    font-family: 'Inter', sans-serif;
+    font-size: 56px;
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, #fff 0%, #b8b6ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .home .intro {
+    color: #aaa;
+    font-size: 17px;
+    line-height: 1.8;
+    margin-bottom: 36px;
+    max-width: 640px;
+  }
+  .home .intro strong { color: #fff; font-weight: 500; }
+  .home .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #888;
+    letter-spacing: 0.15em;
+    margin-bottom: 48px;
+    padding-bottom: 36px;
+    border-bottom: 1px solid #1f1f1f;
+  }
+  .home .meta-row strong { color: #fff; font-weight: 500; }
+
+  .modes { display: grid; gap: 14px; }
+  .mode-card {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 24px 28px;
+    background: linear-gradient(180deg, #161616 0%, #111111 100%);
+    border: 1px solid #1f1f1f;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+    color: inherit;
+    width: 100%;
+    font: inherit;
+  }
+  .mode-card:hover:not(:disabled) {
+    border-color: rgba(120, 119, 198, 0.4);
+    transform: translateX(2px);
+    box-shadow: 0 12px 32px -16px rgba(120, 119, 198, 0.3);
+  }
+  .mode-card:disabled { opacity: 0.5; cursor: not-allowed; }
+  .mode-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    background: rgba(120, 119, 198, 0.12);
+    border: 1px solid rgba(120, 119, 198, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #b8b6ff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .mode-body { flex: 1; min-width: 0; }
+  .mode-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .mode-desc { font-size: 13px; color: #888; line-height: 1.6; }
+  .mode-extra {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #666;
+    letter-spacing: 0.1em;
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  /* 历史成绩 */
+  .history {
+    margin-top: 48px;
+    padding-top: 36px;
+    border-top: 1px solid #1f1f1f;
+  }
+  .history h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    color: #888;
+    margin-bottom: 14px;
+  }
+  .history-empty { color: #555; font-size: 13px; }
+  .history-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: #0f0f0f;
+    border: 1px solid #1a1a1a;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #999;
+  }
+  .history-row .score { color: #fff; font-weight: 600; }
+  .history-row .score.good { color: #00e676; }
+  .history-row .score.warn { color: #ffb84d; }
+  .history-row .score.bad { color: #ff7a7a; }
+
+  /* 题目页 */
+  .qstem {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    color: #888;
+    margin-bottom: 16px;
+  }
+  .qstem .qsub { color: #666; margin-left: 12px; }
+  .qstem .qsub.recall { color: #6c8eff; }
+  .qstem .qsub.apply { color: #ffb84d; }
+  .qstem .qsub.synthesis { color: #ff6cd1; }
+  .qtitle {
+    font-size: 24px;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.5;
+    margin-bottom: 28px;
+    word-break: break-word;
+  }
+  .qtype-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    background: rgba(120, 119, 198, 0.12);
+    border: 1px solid rgba(120, 119, 198, 0.3);
+    color: #b8b6ff;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    margin-left: 8px;
+    vertical-align: 4px;
+  }
+
+  .options { display: grid; gap: 10px; margin-bottom: 28px; }
+  .opt {
+    display: flex;
+    gap: 14px;
+    padding: 16px 20px;
+    background: #131313;
+    border: 1px solid #1f1f1f;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+    line-height: 1.6;
+  }
+  .opt:hover:not(.locked) {
+    border-color: rgba(120, 119, 198, 0.4);
+    background: #161616;
+  }
+  .opt.selected {
+    border-color: #7877c6;
+    background: rgba(120, 119, 198, 0.08);
+  }
+  .opt.locked { cursor: default; }
+  .opt-key {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #1f1f1f;
+    color: #aaa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .opt.selected .opt-key {
+    background: #7877c6;
+    color: #fff;
+  }
+  .opt-text { flex: 1; color: #d4d4d4; font-size: 15px; }
+
+  /* 答题后回显 */
+  .opt.correct {
+    border-color: #00e676;
+    background: rgba(0, 230, 118, 0.06);
+  }
+  .opt.correct .opt-key { background: #00e676; color: #0a0a0a; }
+  .opt.wrong {
+    border-color: #ff7a7a;
+    background: rgba(255, 122, 122, 0.06);
+  }
+  .opt.wrong .opt-key { background: #ff7a7a; color: #0a0a0a; }
+
+  /* 提交栏 */
+  .action-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    padding: 12px 22px;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid #2a2a2a;
+    background: transparent;
+    color: #d4d4d4;
+  }
+  .btn:hover:not(:disabled) {
+    border-color: #555;
+    color: #fff;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.primary {
+    background: linear-gradient(135deg, #7877c6 0%, #9695e8 100%);
+    color: #fff;
+    border-color: transparent;
+  }
+  .btn.primary:hover:not(:disabled) {
+    transform: translateX(2px);
+    box-shadow: 0 8px 24px -12px rgba(120, 119, 198, 0.6);
+    color: #fff;
+  }
+  .btn.ghost { color: #888; }
+  .meta-status {
+    margin-left: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #666;
+    letter-spacing: 0.15em;
+  }
+  .meta-status.ok { color: #00e676; }
+  .meta-status.no { color: #ff7a7a; }
+
+  /* 解析 */
+  .explain {
+    margin-top: 24px;
+    padding: 20px 24px;
+    background: rgba(120, 119, 198, 0.06);
+    border-left: 3px solid #b8b6ff;
+    border-radius: 0 8px 8px 0;
+    display: none;
+  }
+  .explain.on { display: block; }
+  .explain-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: #b8b6ff;
+    margin-bottom: 8px;
+  }
+  .explain p { color: #d4d4d4; font-size: 15px; line-height: 1.75; }
+  .explain a {
+    display: inline-block;
+    margin-top: 12px;
+    color: #b8b6ff;
+    text-decoration: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    border-bottom: 1px dashed rgba(184, 182, 255, 0.4);
+    padding-bottom: 2px;
+  }
+  .explain a:hover { border-bottom-style: solid; }
+
+  /* 结算页 */
+  .result h1 {
+    font-family: 'Inter', sans-serif;
+    font-size: 64px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, #fff 0%, #b8b6ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .result-sub {
+    color: #888;
+    margin-bottom: 36px;
+    font-size: 16px;
+  }
+  .score-card {
+    padding: 32px 36px;
+    background: linear-gradient(180deg, #161616 0%, #111111 100%);
+    border: 1px solid #1f1f1f;
+    border-radius: 12px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+  .score-num {
+    font-family: 'Inter', sans-serif;
+    font-size: 96px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: #fff;
+  }
+  .score-num .denom {
+    font-size: 36px;
+    color: #555;
+    font-weight: 500;
+  }
+  .score-grade {
+    flex: 1;
+    min-width: 200px;
+  }
+  .score-grade .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 8px;
+  }
+  .score-grade .verdict {
+    font-size: 22px;
+    color: #fff;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .score-grade .verdict.good { color: #00e676; }
+  .score-grade .verdict.warn { color: #ffb84d; }
+  .score-grade .verdict.bad { color: #ff7a7a; }
+  .score-grade .hint { color: #888; font-size: 14px; }
+
+  .by-part {
+    margin-bottom: 28px;
+  }
+  .by-part h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    color: #888;
+    margin-bottom: 16px;
+  }
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid #161616;
+  }
+  .bar-row:last-child { border-bottom: none; }
+  .bar-name {
+    width: 120px;
+    flex-shrink: 0;
+    font-size: 13px;
+    color: #ccc;
+  }
+  .bar-track {
+    flex: 1;
+    height: 8px;
+    background: #161616;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .bar-fill.s1 { background: #d9b366; }
+  .bar-fill.s2 { background: #ad6cff; }
+  .bar-fill.s3 { background: #00e676; }
+  .bar-fill.s4 { background: #00d4ff; }
+  .bar-fill.s5 { background: #ff6b35; }
+  .bar-fill.syn { background: linear-gradient(90deg, #b8b6ff, #ff6cd1); }
+  .bar-pct {
+    width: 64px;
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #aaa;
+    flex-shrink: 0;
+  }
+
+  .weak-list {
+    margin-bottom: 28px;
+  }
+  .weak-list h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    color: #888;
+    margin-bottom: 14px;
+  }
+  .weak-empty {
+    padding: 16px;
+    background: rgba(0, 230, 118, 0.06);
+    border: 1px solid rgba(0, 230, 118, 0.2);
+    border-radius: 6px;
+    color: #00e676;
+    font-size: 14px;
+  }
+  .weak-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #131313;
+    border: 1px solid #1f1f1f;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    gap: 16px;
+  }
+  .weak-row .info { flex: 1; min-width: 0; }
+  .weak-row .lesson-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.15em;
+    margin-bottom: 4px;
+  }
+  .weak-row .wrong-count {
+    color: #ff7a7a;
+    font-size: 13px;
+  }
+  .weak-row .review-btn {
+    font-size: 11px;
+    padding: 6px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: #b8b6ff;
+    text-decoration: none;
+    border: 1px solid rgba(120, 119, 198, 0.3);
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .weak-row .review-btn:hover {
+    background: rgba(120, 119, 198, 0.12);
+  }
+
+  .result-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 36px;
+  }
+
+  /* loading */
+  .loading {
+    text-align: center;
+    padding: 96px 20px;
+    color: #666;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+
+  /* 移动端 */
+  @media (max-width: 640px) {
+    main { padding: 40px 18px 80px; }
+    .home h1 { font-size: 38px; }
+    .home .intro { font-size: 15px; }
+    .qtitle { font-size: 20px; }
+    .opt { padding: 14px 16px; }
+    .opt-text { font-size: 14px; }
+    .score-num { font-size: 64px; }
+    .score-num .denom { font-size: 24px; }
+    .score-card { padding: 24px; gap: 20px; }
+    .topbar-inner { padding: 12px 16px; gap: 10px; }
+    .topbar-title { display: none; }
+    .nav-btn { padding: 7px 12px; font-size: 12px; }
+    .progress-track { max-width: 100%; }
+    .mode-card { padding: 18px 20px; gap: 16px; }
+    .mode-icon { width: 40px; height: 40px; font-size: 12px; }
+    .mode-extra { display: none; }
+    .bar-name { width: 88px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <div class="topbar-inner">
+    <a href="index.html" class="nav-btn">← 课程总览</a>
+    <div class="topbar-title" id="topbarTitle">小考</div>
+    <div class="progress-track" id="progressTrack"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+</nav>
+
+<main id="app">
+  <div class="loading">题库加载中…</div>
+</main>
+
+<script src="quiz-data.js?v=20260511"></script>
+<script>
+(function () {
+  'use strict';
+
+  const PART_INFO = {
+    1: { range: [1, 4],   name: '基础认知',     accent: 's1' },
+    2: { range: [5, 8],   name: '大模型时代',   accent: 's2' },
+    3: { range: [9, 17],  name: '工程落地',     accent: 's3' },
+    4: { range: [18, 20], name: '企业级落地',   accent: 's4' },
+    5: { range: [21, 23], name: '未来推演',     accent: 's5' }
+  };
+  const LESSON_TITLES = {
+    1: 'AI 到底是什么', 2: '机器学习的三种范式', 3: '神经网络是怎么学的', 4: '深度学习革命',
+    5: 'Transformer 架构详解', 6: 'GPT 是怎么炼成的', 7: 'Scaling Law 与涌现能力', 8: '多模态',
+    9: 'Prompt Engineering 的本质', 10: 'RAG:让模型用上私有知识', 11: 'Function Calling 与 Tool Use',
+    12: 'Agent:从单轮到自主任务', 13: '多 Agent 系统设计', 14: 'AI 应用的评估与可观测性',
+    15: 'Context Engineering', 16: 'Harness Engineering', 17: 'Claude Code 底层原理架构拆解',
+    18: 'AI 在 SaaS 交付中的应用全景', 19: '知识库工程化:从 Demo 到生产', 20: 'AI 安全与合规',
+    21: '当前 AI 的根本局限', 22: '未来演进的几条路线', 23: 'AGI 之后:工作、组织、社会推演'
+  };
+
+  // 状态
+  const state = {
+    view: 'home',     // home | quiz | result
+    mode: null,       // 'all' | 'part-N' | 'wrong'
+    questions: [],
+    idx: 0,
+    answers: [],      // 与 questions 同长,记录提交的答案;null = 未答
+    locked: [],       // 该题是否已提交锁定
+    selecting: [],    // 当前题的选择缓冲(数组,单选也用数组方便复用)
+    startTs: null
+  };
+
+  const STORAGE_KEY = 'kb-course-quiz-v1';
+
+  function loadStorage() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+    catch (e) { return {}; }
+  }
+  function saveStorage(data) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+  }
+  function recordHistory(mode, score, total) {
+    const store = loadStorage();
+    if (!store.history) store.history = [];
+    store.history.unshift({
+      ts: Date.now(),
+      mode,
+      score,
+      total,
+      pct: Math.round(score / total * 100)
+    });
+    store.history = store.history.slice(0, 8);
+    saveStorage(store);
+  }
+  function recordWrongIds(ids) {
+    const store = loadStorage();
+    if (!store.wrongIds) store.wrongIds = [];
+    // 合并去重
+    const set = new Set(store.wrongIds);
+    ids.forEach(id => set.add(id));
+    store.wrongIds = Array.from(set);
+    saveStorage(store);
+  }
+  function clearWrongId(id) {
+    const store = loadStorage();
+    if (!store.wrongIds) return;
+    store.wrongIds = store.wrongIds.filter(x => x !== id);
+    saveStorage(store);
+  }
+
+  function lessonPart(lesson) {
+    for (const p of [1, 2, 3, 4, 5]) {
+      const [lo, hi] = PART_INFO[p].range;
+      if (lesson >= lo && lesson <= hi) return p;
+    }
+    return null;
+  }
+  function arrayEq(a, b) {
+    if (a.length !== b.length) return false;
+    const sa = a.slice().sort(), sb = b.slice().sort();
+    return sa.every((x, i) => x === sb[i]);
+  }
+
+  // ====== Views ======
+  function renderHome() {
+    state.view = 'home';
+    document.getElementById('progressTrack').classList.remove('on');
+    document.getElementById('topbarTitle').textContent = '小考';
+    const allQs = window.QUIZ_DATA || [];
+    const total = allQs.length;
+    const partsCount = {};
+    for (const q of allQs) {
+      const p = q.id.startsWith('SYN') ? 'syn' : 'p' + lessonPart(q.lesson);
+      partsCount[p] = (partsCount[p] || 0) + 1;
+    }
+    const store = loadStorage();
+    const wrongCount = (store.wrongIds || []).length;
+    const history = store.history || [];
+
+    const app = document.getElementById('app');
+    app.innerHTML = `
+      <div class="home">
+        <h1>课程小考</h1>
+        <p class="intro">
+          学完 <strong>23 讲</strong> AI 系列课程后,用 50 道题快速检验掌握度。
+          每题答完立刻给解析 + 「回顾本讲」链接,做完看薄弱章节。<strong>不需要登录,进度自动存本地</strong>。
+        </p>
+        <div class="meta-row">
+          <span>题量·<strong>${total}</strong> 题</span>
+          <span>用时·<strong>~25 分钟</strong></span>
+          <span>题型·<strong>单选 + 多选</strong></span>
+          <span>难度·<strong>识别 / 应用 / 综合</strong></span>
+        </div>
+
+        <div class="modes">
+          <button class="mode-card" data-mode="all">
+            <div class="mode-icon">全</div>
+            <div class="mode-body">
+              <div class="mode-title">全卷挑战</div>
+              <div class="mode-desc">50 题一气呵成,看总分和各章节强弱。建议学完 23 讲后做。</div>
+            </div>
+            <div class="mode-extra">${total} 题<br>~25 分钟</div>
+          </button>
+
+          ${[1,2,3,4,5].map(p => {
+            const info = PART_INFO[p];
+            const cnt = partsCount['p' + p] || 0;
+            const span = info.range[1] - info.range[0] + 1;
+            return `
+            <button class="mode-card" data-mode="part-${p}" ${cnt === 0 ? 'disabled' : ''}>
+              <div class="mode-icon">P${p}</div>
+              <div class="mode-body">
+                <div class="mode-title">PART ${p} · ${info.name}</div>
+                <div class="mode-desc">L${String(info.range[0]).padStart(2,'0')} ~ L${String(info.range[1]).padStart(2,'0')} 共 ${span} 讲</div>
+              </div>
+              <div class="mode-extra">${cnt} 题</div>
+            </button>`;
+          }).join('')}
+
+          <button class="mode-card" data-mode="wrong" ${wrongCount === 0 ? 'disabled' : ''}>
+            <div class="mode-icon">错</div>
+            <div class="mode-body">
+              <div class="mode-title">错题本</div>
+              <div class="mode-desc">${wrongCount === 0 ? '尚无错题。先做一次全卷或分段练习吧。' : '回看之前做错的题,答对后自动从错题本移除。'}</div>
+            </div>
+            <div class="mode-extra">${wrongCount} 题</div>
+          </button>
+        </div>
+
+        <div class="history">
+          <h3>历史记录</h3>
+          ${history.length === 0 ? '<div class="history-empty">还没有做过小考。</div>' :
+            history.map(h => {
+              const date = new Date(h.ts);
+              const dateStr = `${date.getMonth()+1}/${date.getDate()} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+              const modeName = h.mode === 'all' ? '全卷' : h.mode === 'wrong' ? '错题本' : (h.mode.startsWith('part-') ? `PART ${h.mode.slice(5)}` : h.mode);
+              const klass = h.pct >= 80 ? 'good' : h.pct >= 60 ? 'warn' : 'bad';
+              return `
+              <div class="history-row">
+                <span>${dateStr} · ${modeName}</span>
+                <span class="score ${klass}">${h.score} / ${h.total} · ${h.pct}%</span>
+              </div>`;
+            }).join('')
+          }
+        </div>
+      </div>
+    `;
+    app.querySelectorAll('[data-mode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.disabled) return;
+        startQuiz(btn.dataset.mode);
+      });
+    });
+  }
+
+  function pickQuestions(mode) {
+    const all = window.QUIZ_DATA || [];
+    if (mode === 'all') return all.slice();
+    if (mode === 'wrong') {
+      const store = loadStorage();
+      const set = new Set(store.wrongIds || []);
+      return all.filter(q => set.has(q.id));
+    }
+    if (mode.startsWith('part-')) {
+      const p = +mode.slice(5);
+      if (p === 99) return all.filter(q => q.id.startsWith('SYN'));
+      const [lo, hi] = PART_INFO[p].range;
+      return all.filter(q => !q.id.startsWith('SYN') && q.lesson >= lo && q.lesson <= hi);
+    }
+    return all.slice();
+  }
+
+  function startQuiz(mode) {
+    const qs = pickQuestions(mode);
+    if (qs.length === 0) { alert('该模式下题目为空。'); return; }
+    state.mode = mode;
+    state.questions = qs;
+    state.idx = 0;
+    state.answers = qs.map(() => null);
+    state.locked = qs.map(() => false);
+    state.selecting = [];
+    state.startTs = Date.now();
+    state.view = 'quiz';
+    renderQuiz();
+  }
+
+  function renderQuiz() {
+    const q = state.questions[state.idx];
+    if (!q) return;
+    const total = state.questions.length;
+    document.getElementById('topbarTitle').textContent = `第 ${state.idx + 1} / ${total} 题`;
+    document.getElementById('progressTrack').classList.add('on');
+    document.getElementById('progressFill').style.width = `${((state.idx + 1) / total) * 100}%`;
+
+    const partN = q.id.startsWith('SYN') ? null : lessonPart(q.lesson);
+    const partName = q.id.startsWith('SYN') ? '综合题' : `PART ${partN} · ${PART_INFO[partN].name}`;
+    const lessonTag = q.id.startsWith('SYN') ? '' : `L${String(q.lesson).padStart(2,'0')}`;
+    const diffMap = { recall: '识别', apply: '应用', synthesis: '综合' };
+    const diffName = diffMap[q.difficulty] || q.difficulty;
+    const locked = state.locked[state.idx];
+    const submitted = state.answers[state.idx];
+    const isCorrect = submitted && (
+      q.type === 'single'
+        ? submitted[0] === q.correct
+        : arrayEq(submitted, q.correct)
+    );
+    const sel = locked ? submitted : state.selecting;
+
+    const app = document.getElementById('app');
+    app.innerHTML = `
+      <div class="quiz">
+        <div class="qstem">
+          ${q.id}
+          ${lessonTag ? `· ${lessonTag}` : ''}
+          <span class="qsub ${q.difficulty}">${diffName}</span>
+          <span class="qsub">${partName}</span>
+        </div>
+        <h2 class="qtitle">
+          ${escapeHtml(q.question)}
+          <span class="qtype-tag">${q.type === 'single' ? '单选' : '多选'}</span>
+        </h2>
+        <div class="options">
+          ${q.options.map(opt => {
+            const selected = sel.includes(opt.key);
+            let cls = 'opt';
+            if (locked) {
+              cls += ' locked';
+              const correctSet = q.type === 'single' ? [q.correct] : q.correct;
+              const isThisCorrect = correctSet.includes(opt.key);
+              if (isThisCorrect) cls += ' correct';
+              else if (selected) cls += ' wrong';
+            } else if (selected) {
+              cls += ' selected';
+            }
+            return `
+              <button class="${cls}" data-key="${opt.key}" ${locked ? 'disabled' : ''}>
+                <div class="opt-key">${opt.key}</div>
+                <div class="opt-text">${escapeHtml(opt.text)}</div>
+              </button>`;
+          }).join('')}
+        </div>
+
+        <div class="explain ${locked ? 'on' : ''}">
+          <div class="explain-label">${isCorrect ? '答对了' : '答错了'} · 解析</div>
+          <p>${escapeHtml(q.explanation || '')}</p>
+          ${q.id.startsWith('SYN') ? '' : `<a href="lesson${String(q.lesson).padStart(2,'0')}/demo.html?v=20260511" target="_blank" rel="noopener">回顾第 ${q.lesson} 讲 · ${LESSON_TITLES[q.lesson] || ''} →</a>`}
+        </div>
+
+        <div class="action-bar">
+          ${state.idx > 0 ? '<button class="btn ghost" id="btnPrev">← 上一题</button>' : ''}
+          ${!locked
+            ? `<button class="btn primary" id="btnSubmit" ${sel.length === 0 ? 'disabled' : ''}>提交</button>`
+            : (state.idx < total - 1
+                ? '<button class="btn primary" id="btnNext">下一题 →</button>'
+                : '<button class="btn primary" id="btnFinish">查看成绩 →</button>')
+          }
+          <span class="meta-status ${locked ? (isCorrect ? 'ok' : 'no') : ''}">${
+            locked ? (isCorrect ? '✓ 正确' : '✗ 错误') : ''
+          }</span>
+        </div>
+      </div>
+    `;
+    // 绑定
+    app.querySelectorAll('.opt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (state.locked[state.idx]) return;
+        const k = btn.dataset.key;
+        const cur = state.selecting;
+        if (q.type === 'single') {
+          state.selecting = [k];
+        } else {
+          if (cur.includes(k)) state.selecting = cur.filter(x => x !== k);
+          else state.selecting = cur.concat(k);
+        }
+        renderQuiz();
+      });
+    });
+    const prev = document.getElementById('btnPrev');
+    if (prev) prev.addEventListener('click', () => {
+      state.idx--;
+      state.selecting = state.locked[state.idx] ? state.answers[state.idx].slice() : [];
+      renderQuiz();
+    });
+    const sub = document.getElementById('btnSubmit');
+    if (sub) sub.addEventListener('click', submitCurrent);
+    const next = document.getElementById('btnNext');
+    if (next) next.addEventListener('click', () => {
+      state.idx++;
+      state.selecting = state.locked[state.idx] ? state.answers[state.idx].slice() : [];
+      renderQuiz();
+    });
+    const fin = document.getElementById('btnFinish');
+    if (fin) fin.addEventListener('click', finishQuiz);
+  }
+
+  function submitCurrent() {
+    const q = state.questions[state.idx];
+    if (state.selecting.length === 0) return;
+    state.answers[state.idx] = state.selecting.slice();
+    state.locked[state.idx] = true;
+    // 错题更新
+    const correct = q.type === 'single'
+      ? state.selecting[0] === q.correct
+      : arrayEq(state.selecting, q.correct);
+    if (!correct) {
+      recordWrongIds([q.id]);
+    } else if (state.mode === 'wrong') {
+      clearWrongId(q.id);
+    }
+    renderQuiz();
+  }
+
+  function finishQuiz() {
+    let score = 0;
+    const wrongIds = [];
+    const correctIds = [];
+    for (let i = 0; i < state.questions.length; i++) {
+      const q = state.questions[i];
+      const a = state.answers[i];
+      if (!a) continue;
+      const ok = q.type === 'single' ? a[0] === q.correct : arrayEq(a, q.correct);
+      if (ok) { score++; correctIds.push(q.id); }
+      else wrongIds.push(q.id);
+    }
+    const total = state.questions.length;
+    recordHistory(state.mode, score, total);
+    state.view = 'result';
+    state.result = { score, total, wrongIds, correctIds };
+    renderResult();
+  }
+
+  function renderResult() {
+    document.getElementById('progressTrack').classList.remove('on');
+    document.getElementById('topbarTitle').textContent = '成绩';
+    const { score, total, wrongIds, correctIds } = state.result;
+    const pct = Math.round(score / total * 100);
+    const klass = pct >= 80 ? 'good' : pct >= 60 ? 'warn' : 'bad';
+    const verdictMap = {
+      good: ['学得扎实', '能撑过一线团队的内部技术对话。'],
+      warn: ['基础在线', '挑几个薄弱讲再过一遍,然后再来挑战。'],
+      bad:  ['再看一轮', '错的多集中在几个讲,建议系统重看那些讲。']
+    };
+    const [verdictText, hint] = verdictMap[klass];
+
+    // 按 PART 分布
+    const partStats = {};
+    for (let i = 0; i < state.questions.length; i++) {
+      const q = state.questions[i];
+      const p = q.id.startsWith('SYN') ? 'syn' : 's' + lessonPart(q.lesson);
+      if (!partStats[p]) partStats[p] = { total: 0, correct: 0 };
+      partStats[p].total++;
+      const a = state.answers[i];
+      if (a) {
+        const ok = q.type === 'single' ? a[0] === q.correct : arrayEq(a, q.correct);
+        if (ok) partStats[p].correct++;
+      }
+    }
+
+    // 薄弱讲(错题按 lesson 聚合)
+    const lessonWrong = {};
+    for (let i = 0; i < state.questions.length; i++) {
+      const q = state.questions[i];
+      if (q.id.startsWith('SYN')) continue;
+      const a = state.answers[i];
+      if (!a) continue;
+      const ok = q.type === 'single' ? a[0] === q.correct : arrayEq(a, q.correct);
+      if (!ok) {
+        lessonWrong[q.lesson] = (lessonWrong[q.lesson] || 0) + 1;
+      }
+    }
+    const weakSorted = Object.entries(lessonWrong)
+      .sort((a, b) => b[1] - a[1])
+      .map(([lesson, cnt]) => ({ lesson: +lesson, cnt }));
+
+    const modeName = state.mode === 'all' ? '全卷' : state.mode === 'wrong' ? '错题本' : `PART ${state.mode.slice(5)}`;
+
+    const app = document.getElementById('app');
+    app.innerHTML = `
+      <div class="result">
+        <h1>${pct} 分</h1>
+        <div class="result-sub">${modeName} · 共 ${total} 题 · 用时 ${formatDuration(Date.now() - state.startTs)}</div>
+
+        <div class="score-card">
+          <div class="score-num">${score}<span class="denom"> / ${total}</span></div>
+          <div class="score-grade">
+            <div class="label">综合评定</div>
+            <div class="verdict ${klass}">${verdictText}</div>
+            <div class="hint">${hint}</div>
+          </div>
+        </div>
+
+        <div class="by-part">
+          <h3>各 PART 正确率</h3>
+          ${[1,2,3,4,5].map(p => {
+            const stat = partStats['s' + p];
+            if (!stat) return '';
+            const pp = Math.round(stat.correct / stat.total * 100);
+            return `
+              <div class="bar-row">
+                <div class="bar-name">PART ${p} · ${PART_INFO[p].name}</div>
+                <div class="bar-track"><div class="bar-fill s${p}" style="width:${pp}%"></div></div>
+                <div class="bar-pct">${stat.correct}/${stat.total} · ${pp}%</div>
+              </div>`;
+          }).join('')}
+          ${partStats.syn ? `
+            <div class="bar-row">
+              <div class="bar-name">综合题</div>
+              <div class="bar-track"><div class="bar-fill syn" style="width:${Math.round(partStats.syn.correct / partStats.syn.total * 100)}%"></div></div>
+              <div class="bar-pct">${partStats.syn.correct}/${partStats.syn.total} · ${Math.round(partStats.syn.correct / partStats.syn.total * 100)}%</div>
+            </div>` : ''}
+        </div>
+
+        <div class="weak-list">
+          <h3>薄弱讲(错题最多)</h3>
+          ${weakSorted.length === 0 ?
+            '<div class="weak-empty">本次没有错题。下次试试更难的模式。</div>' :
+            weakSorted.slice(0, 6).map(w => `
+              <div class="weak-row">
+                <div class="info">
+                  <div class="lesson-tag">L${String(w.lesson).padStart(2,'0')} · 错 ${w.cnt} 题</div>
+                  <div>${escapeHtml(LESSON_TITLES[w.lesson] || '')}</div>
+                </div>
+                <a class="review-btn" href="lesson${String(w.lesson).padStart(2,'0')}/demo.html?v=20260511" target="_blank">回顾 →</a>
+              </div>`).join('')
+          }
+        </div>
+
+        <div class="result-actions">
+          <button class="btn primary" id="actHome">← 返回首页</button>
+          ${wrongIds.length > 0 ? '<button class="btn" id="actWrong">挑战错题本 →</button>' : ''}
+        </div>
+      </div>
+    `;
+    document.getElementById('actHome').addEventListener('click', renderHome);
+    const wb = document.getElementById('actWrong');
+    if (wb) wb.addEventListener('click', () => startQuiz('wrong'));
+  }
+
+  function formatDuration(ms) {
+    const s = Math.round(ms / 1000);
+    if (s < 60) return s + ' 秒';
+    return Math.floor(s / 60) + ' 分 ' + (s % 60) + ' 秒';
+  }
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  }
+
+  // 初始化:等 QUIZ_DATA 就绪
+  function init() {
+    if (!window.QUIZ_DATA || !Array.isArray(window.QUIZ_DATA) || window.QUIZ_DATA.length === 0) {
+      document.getElementById('app').innerHTML = `
+        <div class="loading">
+          题库尚未发布 · quiz-data.js 加载失败<br>
+          <br>请检查 <code>frontend/public/course/quiz-data.js</code> 是否存在,或刷新页面重试。
+        </div>`;
+      return;
+    }
+    renderHome();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+
+</body>
+</html>

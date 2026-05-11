@@ -396,6 +396,44 @@
   .toc a.s3 .dot { background: #00e676; }
   .toc a.s4 .dot { background: #00d4ff; }
   .toc a.s5 .dot { background: #ff6b35; }
+  .toc a.quiz-link {
+    padding: 4px 12px;
+    border: 1px solid rgba(184, 182, 255, 0.35);
+    background: rgba(120, 119, 198, 0.1);
+    color: #b8b6ff;
+    border-radius: 100px;
+    margin-left: 8px;
+  }
+  .toc a.quiz-link:hover {
+    color: #fff;
+    background: rgba(120, 119, 198, 0.2);
+    border-color: rgba(184, 182, 255, 0.55);
+  }
+  .toc a.quiz-link .dot { background: linear-gradient(135deg, #b8b6ff, #ff6cd1); }
+
+  /* hero 主入口按钮 */
+  .quiz-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 22px;
+    margin-top: 28px;
+    background: linear-gradient(135deg, #7877c6 0%, #b8b6ff 100%);
+    color: #0a0a0a;
+    text-decoration: none;
+    border-radius: 100px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    transition: all 0.2s;
+    box-shadow: 0 12px 28px -16px rgba(120, 119, 198, 0.6);
+  }
+  .quiz-cta:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 36px -16px rgba(120, 119, 198, 0.9);
+  }
+  .quiz-cta .arrow { font-size: 16px; line-height: 1; }
 
   @media (max-width: 768px) {
     h1 { font-size: 56px; }
@@ -417,6 +455,7 @@
   <a href="#s3" class="s3"><span class="dot"></span>PART · 03</a>
   <a href="#s4" class="s4"><span class="dot"></span>PART · 04</a>
   <a href="#s5" class="s5"><span class="dot"></span>PART · 05</a>
+  <a href="quiz.html?v=20260511" class="quiz-link"><span class="dot"></span>小考 →</a>
 </nav>
 
 <header>
@@ -447,6 +486,11 @@
         <div class="label">总时长</div>
       </div>
     </div>
+
+    <a href="quiz.html?v=20260511" class="quiz-cta">
+      课程小考 · 50 题
+      <span class="arrow">→</span>
+    </a>
   </div>
 </header>
 
