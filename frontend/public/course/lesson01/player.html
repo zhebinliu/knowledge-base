@@ -597,6 +597,35 @@
     letter-spacing: 0.1em;
   }
 
+  /* 分步揭示 — 元素跟着音频进度依次浮现 */
+  .step {
+    opacity: 0.18;
+    filter: blur(0.5px);
+    transform: translateY(6px);
+    transition: opacity 0.45s ease, filter 0.45s ease, transform 0.45s ease, box-shadow 0.3s;
+  }
+  .step.on {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+  .step.current {
+    box-shadow: 0 0 0 2px rgba(184, 182, 255, 0.5), 0 12px 32px -10px rgba(120, 119, 198, 0.45);
+    transform: translateY(-2px);
+  }
+  .step.current.no-glow { box-shadow: none; }
+  /* h1/大标题 / 大引言 用 .current 时不打边框,只放大微亮 */
+  .v-hero .step.current,
+  .v-thesis .step.current,
+  .v-quote .step.current,
+  .v-qb .step.current,
+  .v-fus .main.step.current,
+  .v-form .formula.step.current {
+    box-shadow: none;
+    transform: none;
+    filter: brightness(1.12);
+  }
+
   /* 移动端 */
   @media (max-width: 720px) {
     .stage { padding: 24px 18px; }
@@ -685,7 +714,9 @@
     idx: 0,
     autoNext: false,
     rate: 1.5,
-    hasInteracted: false  // 浏览器要求首次播放必须用户交互
+    hasInteracted: false,  // 浏览器要求首次播放必须用户交互
+    maxStep: -1,
+    currentStep: -1
   };
 
   const audio = document.getElementById('audio');
@@ -706,6 +737,8 @@
   const pageTitleRow = document.getElementById('pageTitleRow');
 
   // ===== Visual 渲染 =====
+  // 每个元素加 class="step" data-step="N",N 从 0 开始;
+  // 播放器按音频进度自动揭示 step <= 当前 step 的元素。
   function renderSlide(p) {
     const v = p.visual || {};
     const t = v.type;
@@ -713,17 +746,17 @@
     if (t === 'hero') {
       html = `
         <div class="v-hero">
-          <div class="tag">${esc(v.tag || '')}</div>
-          <h1>${esc(v.h1 || '')}</h1>
-          <div class="sub">${esc(v.subtitle || '')}</div>
-          <div class="note">${esc(v.note || '')}</div>
+          <div class="tag step" data-step="0">${esc(v.tag || '')}</div>
+          <h1 class="step" data-step="1">${esc(v.h1 || '')}</h1>
+          <div class="sub step" data-step="2">${esc(v.subtitle || '')}</div>
+          <div class="note step" data-step="3">${esc(v.note || '')}</div>
         </div>`;
     } else if (t === 'course-map') {
       html = `
         <div class="v-cmap">
-          <h2>${esc(p.title)} · 23 讲全景</h2>
+          <h2 class="step" data-step="0">${esc(p.title)} · 23 讲全景</h2>
           ${v.parts.map((part, i) => `
-            <div class="row ${i === v.highlight ? 'hl' : ''}" style="--c: ${part.color}">
+            <div class="row ${i === v.highlight ? 'hl' : ''} step" data-step="${i + 1}" style="--c: ${part.color}">
               <div class="n">${esc(part.name)}</div>
               <div class="rng">${esc(part.range)}</div>
             </div>`).join('')}
@@ -731,56 +764,56 @@
     } else if (t === 'quote') {
       html = `
         <div class="v-quote">
-          <div class="main">${esc(v.main)}</div>
-          <div class="sub">${esc(v.sub)}</div>
+          <div class="main step" data-step="0">${esc(v.main)}</div>
+          <div class="sub step" data-step="1">${esc(v.sub)}</div>
         </div>`;
     } else if (t === 'thesis') {
       html = `
         <div class="v-thesis">
-          <div class="label">${esc(v.label)}</div>
-          <div class="quote">${v.quote}</div>
-          <div class="footer">${esc(v.footer)}</div>
+          <div class="label step" data-step="0">${esc(v.label)}</div>
+          <div class="quote step" data-step="1">${v.quote}</div>
+          <div class="footer step" data-step="2">${esc(v.footer)}</div>
         </div>`;
     } else if (t === 'question') {
       html = `
         <div class="v-q">
-          <div class="q">${esc(v.q)}</div>
+          <div class="q step" data-step="0">${esc(v.q)}</div>
           <div class="opts">
-            ${v.options.map(o => `<div class="opt">${esc(o)}</div>`).join('')}
+            ${v.options.map((o, i) => `<div class="opt step" data-step="${i + 1}">${esc(o)}</div>`).join('')}
           </div>
-          <div class="tail">${esc(v.tail)}</div>
+          <div class="tail step" data-step="${v.options.length + 1}">${esc(v.tail)}</div>
         </div>`;
     } else if (t === 'rules') {
       html = `
         <div class="v-rules">
-          <h2>${esc(v.title)}</h2>
-          ${v.rules.map(r => `<div class="rule">${esc(r)}</div>`).join('')}
-          <div class="verdict">${esc(v.verdict)}</div>
+          <h2 class="step" data-step="0">${esc(v.title)}</h2>
+          ${v.rules.map((r, i) => `<div class="rule step" data-step="${i + 1}">${esc(r)}</div>`).join('')}
+          <div class="verdict step" data-step="${v.rules.length + 1}">${esc(v.verdict)}</div>
         </div>`;
     } else if (t === 'compare-rules') {
       html = `
         <div class="v-cmp">
-          <h2>挨个试一下</h2>
-          ${v.cases.map(c => `
-            <div class="row ${c.ok ? 'ok' : 'bad'}">
+          <h2 class="step" data-step="0">挨个试一下</h2>
+          ${v.cases.map((c, i) => `
+            <div class="row ${c.ok ? 'ok' : 'bad'} step" data-step="${i + 1}">
               <div class="input">${esc(c.input)}</div>
               <div class="verdict">${esc(c.verdict)}</div>
               <div class="tag">${c.ok ? '✓ 正确' : '✗ 错'}</div>
             </div>`).join('')}
-          <div class="lesson">${esc(v.lesson)}</div>
+          <div class="lesson step" data-step="${v.cases.length + 1}">${esc(v.lesson)}</div>
         </div>`;
     } else if (t === 'sliders') {
       html = `
         <div class="v-sld">
-          <h2>${esc(v.title)}</h2>
-          <div class="subtitle">${esc(v.subtitle)}</div>
-          ${v.features.map(f => `
-            <div class="feat">
+          <h2 class="step" data-step="0">${esc(v.title)}</h2>
+          <div class="subtitle step" data-step="0">${esc(v.subtitle)}</div>
+          ${v.features.map((f, i) => `
+            <div class="feat step" data-step="${i + 1}">
               <div class="name">${esc(f.name)}</div>
               <div class="bar"><div class="bar-fill" style="width:${f.value}%"></div></div>
               <div class="val">${f.value}</div>
             </div>`).join('')}
-          <div class="score-box">
+          <div class="score-box step" data-step="${v.features.length + 1}">
             <div class="score">${v.score}</div>
             <div class="score-label">${esc(v.verdict)}</div>
           </div>
@@ -788,8 +821,8 @@
     } else if (t === 'three-points') {
       html = `
         <div class="v-3p">
-          ${v.points.map(pt => `
-            <div class="pt">
+          ${v.points.map((pt, i) => `
+            <div class="pt step" data-step="${i}">
               <div class="n">${esc(pt.n)}</div>
               <div>
                 <div class="head">${esc(pt.head)}</div>
@@ -800,31 +833,31 @@
     } else if (t === 'quote-big') {
       html = `
         <div class="v-qb">
-          <div class="before">${esc(v.before)}</div>
-          <div class="quote">${esc(v.quote)}</div>
-          <div class="after">${esc(v.after)}</div>
+          <div class="before step" data-step="0">${esc(v.before)}</div>
+          <div class="quote step" data-step="1">${esc(v.quote)}</div>
+          <div class="after step" data-step="2">${esc(v.after)}</div>
         </div>`;
     } else if (t === 'school') {
       html = `
         <div class="v-sch" style="--c: ${v.color}">
-          <div class="head">
+          <div class="head step" data-step="0">
             <div class="n">${esc(v.n)}</div>
             <div class="name">${esc(v.name)}</div>
             <div class="en">${esc(v.en)}</div>
           </div>
-          <div class="row"><div class="lab">核心信念</div><div class="val">${esc(v.belief)}</div></div>
-          <div class="row"><div class="lab">代表</div><div class="val">${esc(v.rep)}</div></div>
-          <div class="row"><div class="lab">困境</div><div class="val">${esc(v.trouble)}</div></div>
-          <div class="row"><div class="lab">在今天</div><div class="val">${esc(v.today)}</div></div>
+          <div class="row step" data-step="1"><div class="lab">核心信念</div><div class="val">${esc(v.belief)}</div></div>
+          <div class="row step" data-step="2"><div class="lab">代表</div><div class="val">${esc(v.rep)}</div></div>
+          <div class="row step" data-step="3"><div class="lab">困境</div><div class="val">${esc(v.trouble)}</div></div>
+          <div class="row step" data-step="4"><div class="lab">在今天</div><div class="val">${esc(v.today)}</div></div>
         </div>`;
     } else if (t === 'fusion') {
       html = `
         <div class="v-fus">
-          <div class="main">${esc(v.main)}</div>
-          <div class="eq">${esc(v.eq)}</div>
+          <div class="main step" data-step="0">${esc(v.main)}</div>
+          <div class="eq step" data-step="0">${esc(v.eq)}</div>
           <div class="grid">
-            ${v.parts.map(part => `
-              <div class="part" style="--c: ${part.color}">
+            ${v.parts.map((part, i) => `
+              <div class="part step" data-step="${i + 1}" style="--c: ${part.color}">
                 <div class="n">${esc(part.n)}</div>
                 <div class="nm">${esc(part.name)}</div>
                 <div class="dt">${esc(part.detail)}</div>
@@ -834,31 +867,63 @@
     } else if (t === 'formula') {
       html = `
         <div class="v-form">
-          <div class="label">${esc(v.label)}</div>
-          <div class="formula">${esc(v.formula)}</div>
+          <div class="label step" data-step="0">${esc(v.label)}</div>
+          <div class="formula step" data-step="1">${esc(v.formula)}</div>
           <div class="examples">
-            ${v.examples.map(e => `<div class="ex"><strong>${esc(e.from)}</strong> → ${esc(e.to)}</div>`).join('')}
+            ${v.examples.map((e, i) => `<div class="ex step" data-step="${i + 2}"><strong>${esc(e.from)}</strong> → ${esc(e.to)}</div>`).join('')}
           </div>
-          <div class="scale">${esc(v.scale)}</div>
+          <div class="scale step" data-step="${v.examples.length + 2}">${esc(v.scale)}</div>
         </div>`;
     } else if (t === 'three-questions') {
       html = `
         <div class="v-3q">
-          <div class="intro">${esc(v.intro)}</div>
-          ${v.questions.map(q => `<div class="q">${esc(q)}</div>`).join('')}
-          <div class="tail">${esc(v.tail)}</div>
+          <div class="intro step" data-step="0">${esc(v.intro)}</div>
+          ${v.questions.map((q, i) => `<div class="q step" data-step="${i + 1}">${esc(q)}</div>`).join('')}
+          <div class="tail step" data-step="${v.questions.length + 1}">${esc(v.tail)}</div>
         </div>`;
     } else if (t === 'recap') {
       html = `
         <div class="v-rec">
-          <h2>${esc(v.title)}</h2>
-          ${v.points.map(pt => `<div class="pt">${esc(pt)}</div>`).join('')}
-          <div class="next">${esc(v.next)}</div>
+          <h2 class="step" data-step="0">${esc(v.title)}</h2>
+          ${v.points.map((pt, i) => `<div class="pt step" data-step="${i + 1}">${esc(pt)}</div>`).join('')}
+          <div class="next step" data-step="${v.points.length + 1}">${esc(v.next)}</div>
         </div>`;
     } else {
       html = `<div style="color:#888">未知 visual type: ${esc(t)}</div>`;
     }
     slide.innerHTML = html;
+    state.maxStep = -1;
+    const stepEls = slide.querySelectorAll('[data-step]');
+    stepEls.forEach(el => {
+      const n = +el.dataset.step;
+      if (n > state.maxStep) state.maxStep = n;
+    });
+    state.currentStep = -1;
+    // 先让 step 0 显示(音频还没开始时也有内容看)
+    updateSteps(true);
+  }
+
+  // 根据音频进度更新揭示步骤
+  function updateSteps(force) {
+    if (state.maxStep < 0) return;
+    let curStep;
+    if (!audio.duration || !isFinite(audio.duration) || audio.currentTime === 0) {
+      curStep = 0; // 起始就显示 step 0
+    } else {
+      // 把音频时长均分成 (maxStep + 1) 段; 留 5% 尾部让最后一步停留
+      const usable = audio.duration * 0.97;
+      const stepDur = usable / (state.maxStep + 1);
+      curStep = Math.floor(audio.currentTime / stepDur);
+      if (curStep > state.maxStep) curStep = state.maxStep;
+      if (curStep < 0) curStep = 0;
+    }
+    if (curStep === state.currentStep && !force) return;
+    state.currentStep = curStep;
+    slide.querySelectorAll('[data-step]').forEach(el => {
+      const n = +el.dataset.step;
+      el.classList.toggle('on', n <= curStep);
+      el.classList.toggle('current', n === curStep);
+    });
   }
 
   function esc(s) {
@@ -905,7 +970,10 @@
       progressFill.style.width = (audio.currentTime / audio.duration * 100) + '%';
       timeText.textContent = `${fmt(audio.currentTime)} / ${fmt(audio.duration)}`;
     }
+    updateSteps();
   });
+  audio.addEventListener('loadedmetadata', () => updateSteps(true));
+  audio.addEventListener('seeking', () => updateSteps(true));
   audio.addEventListener('play', () => { btnPlay.textContent = '❚❚ 暂停'; });
   audio.addEventListener('pause', () => { btnPlay.textContent = '▶ 播放'; });
   audio.addEventListener('ended', () => {
