@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第1讲｜AI到底是什么</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Serif SC', serif;
+    background: #f4f1ea;
+    color: #1a1a1a;
+    min-height: 100vh;
+    padding: 40px 20px;
+    background-image: 
+      radial-gradient(circle at 20% 30%, rgba(212, 165, 116, 0.08) 0%, transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(74, 95, 109, 0.06) 0%, transparent 40%);
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+  
+  header {
+    border-bottom: 2px solid #1a1a1a;
+    padding-bottom: 24px;
+    margin-bottom: 48px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .lesson-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    letter-spacing: 0.2em;
+    color: #8b6f47;
+    margin-bottom: 8px;
+  }
+  h1 {
+    font-size: 48px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  .subtitle {
+    font-size: 16px;
+    color: #5a5a5a;
+    text-align: right;
+    max-width: 300px;
+    line-height: 1.5;
+  }
+  
+  .intro {
+    font-size: 20px;
+    line-height: 1.8;
+    margin-bottom: 48px;
+    max-width: 800px;
+    color: #2a2a2a;
+  }
+  .intro strong { color: #8b3a2c; font-weight: 600; }
+  
+  .demo-section {
+    background: #fff;
+    border: 1px solid #d4c5a0;
+    padding: 40px;
+    margin-bottom: 32px;
+    box-shadow: 4px 4px 0 #1a1a1a;
+  }
+  .demo-title {
+    font-size: 28px;
+    font-weight: 900;
+    margin-bottom: 8px;
+  }
+  .demo-desc {
+    color: #5a5a5a;
+    margin-bottom: 28px;
+    font-size: 15px;
+  }
+  
+  .approach-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 24px;
+    border-bottom: 2px solid #1a1a1a;
+  }
+  .tab {
+    padding: 14px 24px;
+    background: transparent;
+    border: none;
+    font-family: 'Noto Serif SC', serif;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #8a8a8a;
+    border-bottom: 4px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+  }
+  .tab.active {
+    color: #1a1a1a;
+    border-bottom-color: #8b3a2c;
+  }
+  .tab:hover { color: #1a1a1a; }
+  
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  
+  .workspace {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-top: 24px;
+  }
+  
+  .panel {
+    background: #faf8f3;
+    border: 1px solid #d4c5a0;
+    padding: 24px;
+  }
+  .panel-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: #8b6f47;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+  }
+  
+  .rule-list { list-style: none; }
+  .rule-item {
+    padding: 12px 16px;
+    background: #fff;
+    border-left: 3px solid #4a5f6d;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1.6;
+  }
+  .rule-item .keyword { color: #8b3a2c; font-weight: 700; }
+  
+  .test-area {
+    margin-top: 16px;
+  }
+  .test-input {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #1a1a1a;
+    background: #fff;
+    font-family: 'Noto Serif SC', serif;
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+  .test-btn {
+    background: #1a1a1a;
+    color: #f4f1ea;
+    border: none;
+    padding: 12px 28px;
+    font-family: 'Noto Serif SC', serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .test-btn:hover { background: #8b3a2c; }
+  .result {
+    margin-top: 16px;
+    padding: 16px;
+    background: #fff;
+    border-left: 3px solid #8b3a2c;
+    font-size: 14px;
+    min-height: 60px;
+  }
+  .result-yes { color: #2d5a3d; font-weight: 600; }
+  .result-no { color: #8b3a2c; font-weight: 600; }
+  
+  .training-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .sample {
+    aspect-ratio: 1;
+    border: 2px solid #d4c5a0;
+    cursor: pointer;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    background: #fff;
+    transition: all 0.2s;
+  }
+  .sample.cat { background: #ffeacc; }
+  .sample.notcat { background: #d6e3e8; }
+  .sample.selected { border-color: #1a1a1a; transform: scale(1.05); }
+  .sample-label {
+    position: absolute;
+    bottom: 2px;
+    right: 4px;
+    font-size: 9px;
+    font-family: 'JetBrains Mono', monospace;
+    color: #5a5a5a;
+  }
+  
+  .feature-sliders {
+    margin-top: 20px;
+  }
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .slider-label {
+    width: 100px;
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .slider-row input[type="range"] {
+    flex: 1;
+    accent-color: #8b3a2c;
+  }
+  .slider-value {
+    width: 40px;
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: #8b6f47;
+  }
+  
+  .verdict {
+    text-align: center;
+    padding: 24px;
+    margin-top: 16px;
+    font-size: 24px;
+    font-weight: 700;
+    background: #fff;
+    border: 2px solid #1a1a1a;
+  }
+  .verdict.cat { color: #c47a2a; }
+  .verdict.notcat { color: #4a5f6d; }
+  
+  .key-insight {
+    background: #1a1a1a;
+    color: #f4f1ea;
+    padding: 32px;
+    margin-top: 32px;
+    position: relative;
+  }
+  .key-insight::before {
+    content: "核心洞察";
+    position: absolute;
+    top: -12px;
+    left: 24px;
+    background: #8b3a2c;
+    color: #f4f1ea;
+    padding: 4px 16px;
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .key-insight p {
+    font-size: 18px;
+    line-height: 1.8;
+  }
+  .key-insight .highlight {
+    color: #d4a574;
+    font-weight: 600;
+  }
+  
+  .three-paths {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 32px;
+  }
+  .path-card {
+    background: #fff;
+    border: 1px solid #d4c5a0;
+    padding: 24px;
+    position: relative;
+    transition: all 0.3s;
+    cursor: pointer;
+  }
+  .path-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 4px 4px 0 #1a1a1a;
+  }
+  .path-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #8b6f47;
+    letter-spacing: 0.2em;
+  }
+  .path-name {
+    font-size: 22px;
+    font-weight: 900;
+    margin: 8px 0 4px;
+  }
+  .path-en {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #5a5a5a;
+    margin-bottom: 16px;
+  }
+  .path-desc {
+    font-size: 14px;
+    line-height: 1.7;
+    color: #2a2a2a;
+  }
+  .path-rep {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px dashed #d4c5a0;
+    font-size: 12px;
+    color: #5a5a5a;
+  }
+  
+  footer {
+    text-align: center;
+    margin-top: 64px;
+    padding-top: 32px;
+    border-top: 1px solid #d4c5a0;
+    font-size: 13px;
+    color: #8a8a8a;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  
+  @media (max-width: 768px) {
+    .workspace { grid-template-columns: 1fr; }
+    .three-paths { grid-template-columns: 1fr; }
+    h1 { font-size: 32px; }
+  }
+</style>
+</head>
+<body>
+<!-- 课程系列统一导航条 · 由脚本注入 -->
+<div id="course-nav-bar">
+  <div class="course-nav-inner">
+    <span class="course-nav-btn disabled"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></span>
+    <a href="../index.html" class="course-nav-center" title="回到课程总览">
+      <span class="nav-current">LESSON 01 / 20</span>
+      <span class="nav-title">AI到底是什么</span>
+    </a>
+    <a href="../lesson02/demo.html" class="course-nav-btn next" title="机器学习的三种范式"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
+  </div>
+</div>
+
+<style id="course-nav-style">
+  #course-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  .course-nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .course-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .course-nav-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .course-nav-btn.disabled {
+    color: #444;
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .course-nav-btn .nav-arrow {
+    font-size: 14px;
+    line-height: 1;
+  }
+  .course-nav-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+    padding: 4px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    min-width: 0;
+  }
+  .course-nav-center:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .nav-current {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .nav-title {
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+    letter-spacing: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body {
+    padding-top: 64px !important;
+  }
+  
+  @media (max-width: 768px) {
+    .course-nav-inner {
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .course-nav-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .course-nav-btn .nav-label {
+      display: none;
+    }
+    .nav-title {
+      font-size: 11px;
+    }
+    .nav-current {
+      font-size: 9px;
+    }
+    body {
+      padding-top: 54px !important;
+    }
+  }
+</style>
+<!-- 课程系列统一导航条 · END -->
+
+<div class="container">
+  <header>
+    <div>
+      <div class="lesson-num">LESSON · 01 / 20</div>
+      <h1>AI到底是什么</h1>
+    </div>
+    <div class="subtitle">从写规则到看例子<br>三十分钟，建立第一层直觉</div>
+  </header>
+
+  <div class="intro">
+    我们用一个最简单的问题热身：<strong>怎么让计算机识别一只猫？</strong>
+    这个问题看似幼稚，却恰好把AI发展史上的两条主要路线摊开在面前。
+    下面这个交互演示，你可以亲手试试两种方法的差别。
+  </div>
+
+  <div class="demo-section">
+    <div class="demo-title">演示一：教计算机认猫</div>
+    <div class="demo-desc">同一个任务，两种思路。切换标签亲手体验差别。</div>
+
+    <div class="approach-tabs">
+      <button class="tab active" data-tab="rules">方法A · 写规则</button>
+      <button class="tab" data-tab="learning">方法B · 给例子</button>
+    </div>
+
+    <div class="tab-content active" id="rules">
+      <div class="workspace">
+        <div class="panel">
+          <div class="panel-label">人类专家定义的规则</div>
+          <ul class="rule-list">
+            <li class="rule-item">IF <span class="keyword">有毛</span> AND <span class="keyword">四条腿</span></li>
+            <li class="rule-item">AND <span class="keyword">有尾巴</span> AND <span class="keyword">有胡须</span></li>
+            <li class="rule-item">AND <span class="keyword">尖耳朵</span> AND <span class="keyword">体重&lt;10kg</span></li>
+            <li class="rule-item">THEN <span class="keyword">是猫</span></li>
+          </ul>
+        </div>
+        <div class="panel">
+          <div class="panel-label">输入待判断的对象</div>
+          <input type="text" class="test-input" id="rule-input" placeholder="比如：哈士奇、加菲猫、老虎、布偶猫..." value="老虎">
+          <button class="test-btn" onclick="testRule()">用规则判断</button>
+          <div class="result" id="rule-result">
+            点击按钮看看规则系统会怎么判断
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="learning">
+      <div class="workspace">
+        <div class="panel">
+          <div class="panel-label">训练集 · 给它看10个带标签的样本</div>
+          <div class="training-grid" id="training-grid"></div>
+          <div style="font-size:12px; color:#5a5a5a; margin-top:8px; line-height:1.6;">
+            橙色=猫的特征空间，蓝色=非猫。模型从这些样本里学到一条分界线。
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-label">输入新对象的特征 · 让模型预测</div>
+          <div class="feature-sliders">
+            <div class="slider-row">
+              <span class="slider-label">毛茸茸</span>
+              <input type="range" min="0" max="100" value="60" oninput="updateLearning()" id="f1">
+              <span class="slider-value" id="v1">60</span>
+            </div>
+            <div class="slider-row">
+              <span class="slider-label">体型小</span>
+              <input type="range" min="0" max="100" value="50" oninput="updateLearning()" id="f2">
+              <span class="slider-value" id="v2">50</span>
+            </div>
+            <div class="slider-row">
+              <span class="slider-label">耳朵尖</span>
+              <input type="range" min="0" max="100" value="70" oninput="updateLearning()" id="f3">
+              <span class="slider-value" id="v3">70</span>
+            </div>
+            <div class="slider-row">
+              <span class="slider-label">叫声软</span>
+              <input type="range" min="0" max="100" value="65" oninput="updateLearning()" id="f4">
+              <span class="slider-value" id="v4">65</span>
+            </div>
+          </div>
+          <div class="verdict" id="learning-verdict">拖动滑块开始</div>
+          <div style="font-size:12px; color:#5a5a5a; margin-top:12px; line-height:1.6;" id="learning-explain">
+            模型不背规则，它学的是一个连续的"猫味"评分函数。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="key-insight">
+    <p>
+      规则系统的极限：<span class="highlight">老虎也满足"有毛+四条腿+尖耳朵"</span>，会被判断成猫。
+      你可以一直加规则——"体重要&lt;10kg"——但现实中的概念边界<span class="highlight">永远比你能写出的规则多一条</span>。
+      <br><br>
+      学习系统的妙处：它从来不"理解"什么叫猫，<span class="highlight">它只是在拟合一条边界</span>。
+      给它越多样本，这条边界画得越准。这就是机器学习时代<span class="highlight">数据=石油</span>的本质。
+    </p>
+  </div>
+
+  <div class="demo-section" style="margin-top:48px;">
+    <div class="demo-title">演示二：AI的三大流派</div>
+    <div class="demo-desc">点击卡片，看每条路线的核心信念和代表性工作。这三条线在过去七十年此消彼长。</div>
+
+    <div class="three-paths">
+      <div class="path-card" onclick="this.classList.toggle('expanded')">
+        <div class="path-num">PATH · 01</div>
+        <div class="path-name">符号主义</div>
+        <div class="path-en">Symbolism</div>
+        <div class="path-desc">
+          智能 = 操作符号的能力。
+          只要把世界规则写清楚，机器就能像人一样思考。
+          1956到1980年代的主流。
+        </div>
+        <div class="path-rep">
+          代表：专家系统、逻辑推理、知识图谱<br>
+          困境：知识难以穷举，复杂场景规则爆炸
+        </div>
+      </div>
+
+      <div class="path-card" onclick="this.classList.toggle('expanded')">
+        <div class="path-num">PATH · 02</div>
+        <div class="path-name">连接主义</div>
+        <div class="path-en">Connectionism</div>
+        <div class="path-desc">
+          智能 = 神经元之间的连接强度。
+          模仿大脑结构，让网络从数据中自己学。
+          2012年后绝对主流。
+        </div>
+        <div class="path-rep">
+          代表：神经网络、深度学习、Transformer<br>
+          困境：黑箱、能耗高、需要海量数据
+        </div>
+      </div>
+
+      <div class="path-card" onclick="this.classList.toggle('expanded')">
+        <div class="path-num">PATH · 03</div>
+        <div class="path-name">行为主义</div>
+        <div class="path-en">Behaviorism</div>
+        <div class="path-desc">
+          智能 = 在环境中的反馈与适应。
+          不预设知识，只在试错中学策略。
+          强化学习的思想源头。
+        </div>
+        <div class="path-rep">
+          代表：AlphaGo、机器人控制、RLHF<br>
+          困境：训练成本高，奖励函数难设计
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="key-insight" style="margin-top:32px;">
+    <p>
+      今天的大语言模型，<span class="highlight">本质是连接主义的胜利</span>，但融合了另外两派的精华：
+      用海量文本训练神经网络（连接主义），
+      让它学会调用工具和符号推理（符号主义），
+      再用人类反馈强化学习对齐（行为主义）。
+      <br><br>
+      理解了这一层，你就理解了为什么<span class="highlight">"AI不是魔法，而是函数拟合"</span>——
+      只是这个函数大到了7000亿参数。
+    </p>
+  </div>
+
+  <footer>
+    AI系列课程 · 第1讲 · 共20讲 · 下一讲：机器学习的三种范式
+  </footer>
+</div>
+
+<script>
+  // 切换标签
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(tab.dataset.tab).classList.add('active');
+    });
+  });
+
+  // 规则系统判断
+  function testRule() {
+    const input = document.getElementById('rule-input').value.trim();
+    const result = document.getElementById('rule-result');
+    
+    const knownDb = {
+      '哈士奇': { 有毛:true, 四条腿:true, 尾巴:true, 胡须:false, 尖耳朵:true, 小型:false },
+      '加菲猫': { 有毛:true, 四条腿:true, 尾巴:true, 胡须:true, 尖耳朵:false, 小型:true },
+      '老虎': { 有毛:true, 四条腿:true, 尾巴:true, 胡须:true, 尖耳朵:true, 小型:false },
+      '布偶猫': { 有毛:true, 四条腿:true, 尾巴:true, 胡须:true, 尖耳朵:true, 小型:true },
+      '狮子': { 有毛:true, 四条腿:true, 尾巴:true, 胡须:true, 尖耳朵:true, 小型:false },
+      '兔子': { 有毛:true, 四条腿:true, 尾巴:true, 胡须:true, 尖耳朵:false, 小型:true },
+      '鱼': { 有毛:false, 四条腿:false, 尾巴:true, 胡须:false, 尖耳朵:false, 小型:true }
+    };
+    
+    if (!knownDb[input]) {
+      result.innerHTML = `<div style="color:#8b3a2c">规则系统不认识"${input}"。<br>这就是规则方法的死穴：超出预设范围就完全失效。</div>`;
+      return;
+    }
+    
+    const f = knownDb[input];
+    const allTrue = f.有毛 && f.四条腿 && f.尾巴 && f.胡须 && f.尖耳朵 && f.小型;
+    const checks = [
+      { k: '有毛', v: f.有毛 },
+      { k: '四条腿', v: f.四条腿 },
+      { k: '有尾巴', v: f.尾巴 },
+      { k: '有胡须', v: f.胡须 },
+      { k: '尖耳朵', v: f.尖耳朵 },
+      { k: '体型小', v: f.小型 }
+    ];
+    const passed = checks.filter(c => c.v).map(c => c.k).join('、');
+    const failed = checks.filter(c => !c.v).map(c => c.k).join('、');
+    
+    if (allTrue) {
+      result.innerHTML = `
+        <div class="result-yes">系统判断：是猫</div>
+        <div style="font-size:13px; margin-top:8px; color:#5a5a5a;">
+          满足全部条件：${passed}
+        </div>
+      `;
+      if (input === '老虎' || input === '狮子') {
+        result.innerHTML += `<div style="font-size:13px; margin-top:8px; color:#8b3a2c;">但${input}显然不是猫。规则太宽了。</div>`;
+      }
+    } else {
+      result.innerHTML = `
+        <div class="result-no">系统判断：不是猫</div>
+        <div style="font-size:13px; margin-top:8px; color:#5a5a5a;">
+          缺失条件：${failed || '无'}
+        </div>
+      `;
+      if (input === '加菲猫') {
+        result.innerHTML += `<div style="font-size:13px; margin-top:8px; color:#8b3a2c;">但加菲猫确实是猫，只是耳朵不尖。规则太严了。</div>`;
+      }
+    }
+  }
+
+  // 训练集生成
+  const trainingGrid = document.getElementById('training-grid');
+  const samples = [
+    { type: 'cat', label: 'C1' }, { type: 'cat', label: 'C2' },
+    { type: 'notcat', label: 'D1' }, { type: 'cat', label: 'C3' },
+    { type: 'notcat', label: 'R1' }, { type: 'cat', label: 'C4' },
+    { type: 'notcat', label: 'D2' }, { type: 'cat', label: 'C5' },
+    { type: 'notcat', label: 'B1' }, { type: 'cat', label: 'C6' }
+  ];
+  samples.forEach(s => {
+    const div = document.createElement('div');
+    div.className = `sample ${s.type}`;
+    const symbol = s.type === 'cat' ? '猫' : '非';
+    div.innerHTML = `<span style="font-size:18px; opacity:0.4">${symbol}</span><span class="sample-label">${s.label}</span>`;
+    trainingGrid.appendChild(div);
+  });
+
+  // 学习系统判断
+  function updateLearning() {
+    const f1 = +document.getElementById('f1').value;
+    const f2 = +document.getElementById('f2').value;
+    const f3 = +document.getElementById('f3').value;
+    const f4 = +document.getElementById('f4').value;
+    document.getElementById('v1').textContent = f1;
+    document.getElementById('v2').textContent = f2;
+    document.getElementById('v3').textContent = f3;
+    document.getElementById('v4').textContent = f4;
+    
+    // 模拟学到的权重
+    const score = (f1 * 0.3 + f2 * 0.25 + f3 * 0.25 + f4 * 0.2);
+    const verdict = document.getElementById('learning-verdict');
+    const explain = document.getElementById('learning-explain');
+    
+    if (score >= 70) {
+      verdict.textContent = `猫味浓度 ${score.toFixed(0)}%`;
+      verdict.className = 'verdict cat';
+      explain.innerHTML = '模型给出高置信度的"是猫"判断。<br>注意：它不会告诉你"是因为耳朵尖"，整个判断是连续的。';
+    } else if (score >= 40) {
+      verdict.textContent = `不太确定 ${score.toFixed(0)}%`;
+      verdict.className = 'verdict';
+      verdict.style.color = '#8b6f47';
+      explain.innerHTML = '处在边界附近。这种"灰度判断"是规则系统永远做不到的。';
+    } else {
+      verdict.textContent = `猫味浓度 ${score.toFixed(0)}%`;
+      verdict.className = 'verdict notcat';
+      explain.innerHTML = '模型判断不是猫。<br>有趣的是：它从未被教过"什么不是猫"，只是从样本里学到了反例长什么样。';
+    }
+  }
+  updateLearning();
+
+  // 默认演示规则系统
+  testRule();
+</script>
+</body>
+</html>

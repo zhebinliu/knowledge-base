@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第7讲｜Scaling Law与涌现能力</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&family=Noto+Sans+SC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', 'Space Grotesk', sans-serif;
+    background: #f8f8f5;
+    color: #16161a;
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .container { max-width: 1320px; margin: 0 auto; }
+
+  header {
+    background: linear-gradient(135deg, #16161a 0%, #2a2a30 100%);
+    color: #f8f8f5;
+    padding: 64px 56px;
+    margin-bottom: 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(110, 231, 183, 0.1) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .lesson-tag {
+    display: inline-block;
+    padding: 6px 14px;
+    border: 1px solid #6ee7b7;
+    color: #6ee7b7;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    margin-bottom: 24px;
+  }
+  h1 {
+    font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
+    font-size: 80px;
+    font-weight: 700;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    margin-bottom: 12px;
+    position: relative;
+    z-index: 1;
+  }
+  h1 .accent { color: #6ee7b7; font-weight: 300; }
+  .h1-cn {
+    font-size: 32px;
+    font-weight: 700;
+    margin-top: 12px;
+    color: #c4c4ce;
+    position: relative;
+    z-index: 1;
+  }
+  .subtitle {
+    margin-top: 24px;
+    font-size: 16px;
+    color: #a8a8b3;
+    line-height: 1.8;
+    max-width: 720px;
+    position: relative;
+    z-index: 1;
+  }
+  .subtitle strong { color: #6ee7b7; font-weight: 500; }
+
+  /* 章节 */
+  .section {
+    background: #fff;
+    border: 1px solid #e0e0d8;
+    padding: 56px;
+    margin-bottom: 32px;
+  }
+  .section.dark {
+    background: #16161a;
+    color: #f8f8f5;
+  }
+  .section-marker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #6ee7b7;
+    letter-spacing: 0.3em;
+    margin-bottom: 8px;
+  }
+  .section-title {
+    font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
+    font-size: 44px;
+    font-weight: 700;
+    line-height: 1.05;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+  }
+  .section-title .accent { color: #6ee7b7; font-weight: 300; }
+  .section-cn {
+    font-size: 22px;
+    font-weight: 700;
+    margin-top: 4px;
+  }
+  .section-lead {
+    margin-top: 16px;
+    font-size: 15px;
+    line-height: 1.8;
+    max-width: 800px;
+    color: #5a5a64;
+  }
+  .section.dark .section-lead { color: #a8a8b3; }
+
+  /* Scaling Law 主图表 */
+  .scaling-chart {
+    margin-top: 40px;
+    background: #fafaf6;
+    border: 1px solid #e0e0d8;
+    padding: 32px;
+    position: relative;
+  }
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .chart-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .chart-controls {
+    display: flex;
+    gap: 8px;
+  }
+  .chart-axis-toggle {
+    padding: 6px 12px;
+    background: #fff;
+    border: 1px solid #16161a;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+  }
+  .chart-axis-toggle.active {
+    background: #16161a;
+    color: #6ee7b7;
+  }
+  
+  .chart-canvas-wrap {
+    position: relative;
+    height: 360px;
+    background: #fff;
+    border: 1px solid #e8e8e0;
+  }
+  #scalingChart { width: 100%; height: 100%; cursor: crosshair; }
+  
+  .chart-legend {
+    display: flex;
+    gap: 24px;
+    margin-top: 16px;
+    font-size: 12px;
+    color: #5a5a64;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .scale-axis-label {
+    margin-top: 16px;
+    padding: 16px;
+    background: #fff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #5a5a64;
+    line-height: 1.8;
+  }
+  .scale-axis-label strong { color: #6ee7b7; }
+
+  /* Chinchilla对比 */
+  .chinchilla-comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 32px;
+  }
+  .ch-card {
+    background: #fafaf6;
+    padding: 24px;
+    border-top: 3px solid #16161a;
+  }
+  .ch-card.right { border-top-color: #6ee7b7; }
+  .ch-card-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: #5a5a64;
+    margin-bottom: 8px;
+  }
+  .ch-card.right .ch-card-tag { color: #6ee7b7; }
+  .ch-card h4 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .ch-card-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .ch-stat {
+    background: #fff;
+    padding: 14px;
+    border-left: 2px solid #16161a;
+  }
+  .ch-card.right .ch-stat { border-left-color: #6ee7b7; }
+  .ch-stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #5a5a64;
+    letter-spacing: 0.15em;
+  }
+  .ch-stat-value {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin-top: 4px;
+  }
+  .ch-card-conclusion {
+    font-size: 13px;
+    color: #5a5a64;
+    line-height: 1.7;
+  }
+
+  /* 涌现能力可视化 */
+  .emergence-chart {
+    background: #1a1a20;
+    padding: 32px;
+    margin-top: 32px;
+  }
+  .em-chart-canvas {
+    background: #16161a;
+    border: 1px solid #2a2a30;
+    height: 320px;
+    position: relative;
+  }
+  #emergenceChart { width: 100%; height: 100%; }
+  
+  .em-task-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .em-task-tab {
+    padding: 10px 16px;
+    background: transparent;
+    border: 1px solid #2a2a30;
+    color: #a8a8b3;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .em-task-tab:hover { border-color: #6ee7b7; color: #6ee7b7; }
+  .em-task-tab.active {
+    background: #6ee7b7;
+    color: #16161a;
+    border-color: #6ee7b7;
+    font-weight: 700;
+  }
+  
+  .em-explain {
+    margin-top: 16px;
+    padding: 16px 20px;
+    background: rgba(110, 231, 183, 0.06);
+    border-left: 3px solid #6ee7b7;
+    font-size: 13px;
+    color: #c4c4ce;
+    line-height: 1.8;
+  }
+  .em-explain strong { color: #6ee7b7; }
+
+  /* 模型对比表 */
+  .models-table {
+    margin-top: 32px;
+    background: #fafaf6;
+    padding: 32px;
+  }
+  .models-table h4 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .models-table-desc {
+    font-size: 13px;
+    color: #5a5a64;
+    margin-bottom: 20px;
+  }
+  
+  table.mt {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+  }
+  table.mt th {
+    text-align: left;
+    padding: 14px 16px;
+    background: #16161a;
+    color: #6ee7b7;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    font-weight: 500;
+  }
+  table.mt td {
+    padding: 16px;
+    border-bottom: 1px solid #e8e8e0;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  table.mt td:first-child {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+  }
+  table.mt tr:hover { background: #fafaf6; }
+  
+  .model-tier {
+    display: inline-block;
+    padding: 2px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+  }
+  .tier-frontier { background: #6ee7b7; color: #16161a; }
+  .tier-strong { background: #d4d4d8; color: #16161a; }
+  .tier-mid { background: #f5f5f0; color: #5a5a64; }
+
+  /* 中国追赶专题 */
+  .china-section {
+    margin-top: 32px;
+    padding: 32px;
+    background: #fff;
+    border-left: 4px solid #ef4444;
+  }
+  .china-section h4 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .china-section .desc {
+    font-size: 14px;
+    color: #5a5a64;
+    margin-bottom: 16px;
+    line-height: 1.7;
+  }
+  .china-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .china-card {
+    background: #fafaf6;
+    padding: 16px;
+    border-top: 2px solid #ef4444;
+  }
+  .china-card .name {
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+  .china-card .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #ef4444;
+    letter-spacing: 0.15em;
+    margin-bottom: 8px;
+  }
+  .china-card .desc-mini {
+    font-size: 12px;
+    color: #5a5a64;
+    line-height: 1.6;
+  }
+
+  /* 涌现争议块 */
+  .controversy {
+    margin-top: 32px;
+    padding: 40px;
+    background: #16161a;
+    color: #f8f8f5;
+    border-left: 4px solid #fbbf24;
+  }
+  .controversy-tag {
+    display: inline-block;
+    padding: 4px 12px;
+    background: #fbbf24;
+    color: #16161a;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    margin-bottom: 16px;
+  }
+  .controversy h4 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: #fbbf24;
+    line-height: 1.2;
+  }
+  .controversy p {
+    font-size: 14px;
+    line-height: 1.9;
+    color: #c4c4ce;
+    margin-bottom: 12px;
+  }
+  .controversy p strong { color: #fbbf24; }
+
+  /* 总结 */
+  .summary-section {
+    background: linear-gradient(135deg, #16161a 0%, #2a2a30 100%);
+    color: #f8f8f5;
+    padding: 56px;
+    border-left: 4px solid #6ee7b7;
+  }
+  .summary-section h3 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    color: #6ee7b7;
+  }
+  .summary-section p {
+    font-size: 15px;
+    line-height: 1.9;
+    margin-bottom: 16px;
+    color: #c4c4ce;
+  }
+  .summary-section p strong { color: #6ee7b7; }
+  
+  .summary-takeaways {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 32px;
+  }
+  .takeaway {
+    background: rgba(110, 231, 183, 0.08);
+    padding: 20px;
+    border-top: 2px solid #6ee7b7;
+  }
+  .takeaway .num {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: #6ee7b7;
+  }
+  .takeaway .t {
+    margin-top: 6px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #c4c4ce;
+  }
+
+  footer {
+    text-align: center;
+    margin-top: 32px;
+    padding: 24px;
+    background: #16161a;
+    color: #888;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.2em;
+  }
+
+  @media (max-width: 768px) {
+    h1 { font-size: 56px; }
+    .section { padding: 32px 24px; }
+    .chinchilla-comparison, .summary-takeaways, .china-grid { grid-template-columns: 1fr; }
+    .ch-card-stats { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<!-- 课程系列统一导航条 · 由脚本注入 -->
+<div id="course-nav-bar">
+  <div class="course-nav-inner">
+    <a href="../lesson06/demo.html" class="course-nav-btn prev" title="GPT是怎么炼成的"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
+    <a href="../index.html" class="course-nav-center" title="回到课程总览">
+      <span class="nav-current">LESSON 07 / 20</span>
+      <span class="nav-title">Scaling Law与涌现能力</span>
+    </a>
+    <a href="../lesson08/demo.html" class="course-nav-btn next" title="多模态AI"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
+  </div>
+</div>
+
+<style id="course-nav-style">
+  #course-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  .course-nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .course-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .course-nav-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .course-nav-btn.disabled {
+    color: #444;
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .course-nav-btn .nav-arrow {
+    font-size: 14px;
+    line-height: 1;
+  }
+  .course-nav-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+    padding: 4px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    min-width: 0;
+  }
+  .course-nav-center:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .nav-current {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .nav-title {
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+    letter-spacing: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body {
+    padding-top: 64px !important;
+  }
+  
+  @media (max-width: 768px) {
+    .course-nav-inner {
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .course-nav-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .course-nav-btn .nav-label {
+      display: none;
+    }
+    .nav-title {
+      font-size: 11px;
+    }
+    .nav-current {
+      font-size: 9px;
+    }
+    body {
+      padding-top: 54px !important;
+    }
+  }
+</style>
+<!-- 课程系列统一导航条 · END -->
+
+<div class="container">
+  <header>
+    <div class="lesson-tag">LESSON 07 / 20</div>
+    <h1>SCALING LAW<br><span class="accent">&</span> EMERGENCE</h1>
+    <div class="h1-cn">Scaling Law 与涌现能力</div>
+    <div class="subtitle">
+      为什么"大力出奇迹"不是营销话术，是<strong>有数学公式的客观规律</strong>？
+      为什么模型大到某个临界点，会突然学会以前不会的技能？
+      理解这两个现象，你就理解了过去5年大模型行业的<strong>赌局逻辑</strong>。
+    </div>
+  </header>
+
+  <!-- 第一节：Scaling Law -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 01</div>
+    <div class="section-title">THE <span class="accent">SCALING</span> LAW</div>
+    <div class="section-cn">大模型最深刻的发现</div>
+    <div class="section-lead">
+      2020年OpenAI发了一篇论文《Scaling Laws for Neural Language Models》。
+      它发现了一件改变行业的事：<strong>模型能力与"参数量×数据量×算力"之间存在数学规律</strong>，
+      而且这个规律在跨5个数量级的范围内都成立。这是大模型时代"砸钱就有奇迹"的科学依据。
+    </div>
+
+    <div class="scaling-chart">
+      <div class="chart-header">
+        <div class="chart-title">模型损失（Loss）vs 计算量（FLOPs）</div>
+        <div class="chart-controls">
+          <button class="chart-axis-toggle active" data-scale="log">对数坐标</button>
+          <button class="chart-axis-toggle" data-scale="linear">线性坐标</button>
+        </div>
+      </div>
+      
+      <div class="chart-canvas-wrap">
+        <canvas id="scalingChart"></canvas>
+      </div>
+      
+      <div class="chart-legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#16161a;"></div>
+          <span>实测的不同规模模型表现</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#6ee7b7;"></div>
+          <span>幂律拟合曲线 L = a · C^(-b)</span>
+        </div>
+      </div>
+      
+      <div class="scale-axis-label">
+        <strong>关键发现：</strong>在对数坐标下，loss 和 计算量呈完美的<strong>直线关系</strong>。
+        这意味着<strong>每翻10倍算力，loss 下降一个固定比例</strong>。
+        这条直线可以一直外推——只要你愿意花更多钱，模型就会变得更好。
+        <strong>这就是OpenAI、Anthropic、Google敢一直砸钱的核心信念</strong>。
+      </div>
+    </div>
+  </div>
+
+  <!-- 第二节：Chinchilla -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 02</div>
+    <div class="section-title">THE <span class="accent">CHINCHILLA</span> MOMENT</div>
+    <div class="section-cn">Chinchilla定律：参数和数据要均衡</div>
+    <div class="section-lead">
+      2022年DeepMind发了一篇论文，颠覆了之前的认知。他们发现：
+      <strong>大家之前的模型都"参数太多、数据太少"</strong>。
+      在固定算力预算下，应该减少参数、增加数据，才能得到最优模型。
+    </div>
+
+    <div class="chinchilla-comparison">
+      <div class="ch-card">
+        <div class="ch-card-tag">BEFORE · GPT-3 时代的认知</div>
+        <h4>越大越好</h4>
+        <div class="ch-card-stats">
+          <div class="ch-stat">
+            <div class="ch-stat-label">PARAMS</div>
+            <div class="ch-stat-value">175B</div>
+          </div>
+          <div class="ch-stat">
+            <div class="ch-stat-label">TRAINING TOKENS</div>
+            <div class="ch-stat-value">300B</div>
+          </div>
+          <div class="ch-stat">
+            <div class="ch-stat-label">RATIO</div>
+            <div class="ch-stat-value">1.7:1</div>
+          </div>
+          <div class="ch-stat">
+            <div class="ch-stat-label">每个参数</div>
+            <div class="ch-stat-value">~2 token</div>
+          </div>
+        </div>
+        <div class="ch-card-conclusion">
+          <strong>GPT-3 (2020)</strong>：1750亿参数只见过3000亿token。
+          相当于一个有惊人天赋但只读过几本书的人——容量很大，但内容稀薄。
+          模型大量参数没有充分利用。
+        </div>
+      </div>
+
+      <div class="ch-card right">
+        <div class="ch-card-tag">AFTER · Chinchilla 之后</div>
+        <h4>参数和数据要1:20</h4>
+        <div class="ch-card-stats">
+          <div class="ch-stat">
+            <div class="ch-stat-label">PARAMS</div>
+            <div class="ch-stat-value">70B</div>
+          </div>
+          <div class="ch-stat">
+            <div class="ch-stat-label">TRAINING TOKENS</div>
+            <div class="ch-stat-value">1.4T</div>
+          </div>
+          <div class="ch-stat">
+            <div class="ch-stat-label">RATIO</div>
+            <div class="ch-stat-value">1:20</div>
+          </div>
+          <div class="ch-stat">
+            <div class="ch-stat-label">每个参数</div>
+            <div class="ch-stat-value">~20 token</div>
+          </div>
+        </div>
+        <div class="ch-card-conclusion">
+          <strong>Chinchilla (2022)</strong>：用同样算力，参数减到700亿，但数据增到1.4万亿token。
+          结果模型表现<strong>全面优于GPT-3</strong>。从此所有团队都按这个比例训练。
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 24px; padding: 24px; background: #fafaf6; border-left: 3px solid #6ee7b7;">
+      <p style="font-size: 14px; line-height: 1.9;">
+        <strong>2024年的新认知</strong>：Llama 3又把比例推到了<strong>1:200</strong>——700亿参数喂15万亿token。
+        DeepSeek、Qwen等也在往这个方向走。<strong>"小模型+海量数据"成了新主流</strong>，
+        因为这样的模型推理成本低、部署友好、效果还更好。
+        Chinchilla比例本身也在被不断刷新。
+      </p>
+    </div>
+  </div>
+
+  <!-- 第三节：涌现能力 -->
+  <div class="section dark">
+    <div class="section-marker">CHAPTER · 03</div>
+    <div class="section-title">THE <span class="accent">EMERGENCE</span> PHENOMENON</div>
+    <div class="section-cn">涌现：规模带来的"质变"</div>
+    <div class="section-lead">
+      Scaling Law告诉我们loss会平滑下降，但<strong>很多具体能力的提升不是平滑的——是突然的</strong>。
+      模型在小规模时完全不会某些任务，规模到达某个临界点后，<strong>能力突然出现</strong>。这就是"涌现"。
+    </div>
+
+    <div class="emergence-chart">
+      <div class="em-task-tabs">
+        <button class="em-task-tab active" data-task="0">三位数加法</button>
+        <button class="em-task-tab" data-task="1">语义理解</button>
+        <button class="em-task-tab" data-task="2">指令遵循</button>
+        <button class="em-task-tab" data-task="3">多步推理</button>
+      </div>
+
+      <div class="em-chart-canvas">
+        <canvas id="emergenceChart"></canvas>
+      </div>
+
+      <div class="em-explain" id="emExplain">
+        <strong>三位数加法</strong>：模型小于10亿参数时，准确率几乎是0——它根本不会做。
+        过了某个临界点（约150亿参数），<strong>准确率突然跃升到80%以上</strong>。
+        这种"S型曲线"的跃迁，是涌现能力的典型形态。
+      </div>
+    </div>
+
+    <div class="controversy">
+      <div class="controversy-tag">CONTROVERSY · 学术争议</div>
+      <h4>涌现是真的吗？还是评估指标的错觉？</h4>
+      <p>
+        <strong>2023年Stanford发表论文</strong>《Are Emergent Abilities of Large Language Models a Mirage?》，
+        指出很多"涌现"现象，<strong>是因为评估指标用了"全对才算对"的硬阈值</strong>。
+      </p>
+      <p>
+        比如三位数加法，如果只有完全正确才算对，模型的准确率确实会从0突然跳到80%。
+        但如果用"每位数字的正确率"这种连续指标，<strong>能力提升其实是平滑的</strong>。
+      </p>
+      <p>
+        这场争议没有完全结束。但有一个共识：<strong>无论"涌现"是真的还是评估幻觉，
+        实践上"模型大到一定程度突然变得好用"是真实存在的</strong>。
+        这才是企业关心的事——<strong>什么时候该升级到更大的模型</strong>。
+      </p>
+    </div>
+  </div>
+
+  <!-- 第四节：模型梯队 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 04</div>
+    <div class="section-title">THE <span class="accent">MODEL</span> TIERS</div>
+    <div class="section-cn">2025年的模型梯队</div>
+    <div class="section-lead">
+      理解了Scaling Law，我们就能理解今天市场上模型的梯队结构。
+      不同梯队的模型适合不同场景——不是"越大越好"，而是<strong>"匹配场景才好"</strong>。
+    </div>
+
+    <div class="models-table">
+      <h4>主流模型梯队（按参数规模和能力）</h4>
+      <div class="models-table-desc">数据综合自各家公开信息和第三方benchmark，仅供参考</div>
+      
+      <table class="mt">
+        <thead>
+          <tr>
+            <th>模型</th>
+            <th>梯队</th>
+            <th>规模估计</th>
+            <th>典型场景</th>
+            <th>成本量级</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>GPT-4 / Claude Opus / Gemini Ultra</td>
+            <td><span class="model-tier tier-frontier">FRONTIER</span></td>
+            <td>万亿参数级</td>
+            <td>复杂推理、专业任务、Agent</td>
+            <td>$$$$</td>
+          </tr>
+          <tr>
+            <td>Claude Sonnet / GPT-4o / DeepSeek V3</td>
+            <td><span class="model-tier tier-strong">STRONG</span></td>
+            <td>千亿参数级</td>
+            <td>日常对话、代码、写作、RAG</td>
+            <td>$$$</td>
+          </tr>
+          <tr>
+            <td>Qwen 72B / Llama 3 70B</td>
+            <td><span class="model-tier tier-strong">STRONG</span></td>
+            <td>700亿参数</td>
+            <td>开源场景、私有化部署</td>
+            <td>$$</td>
+          </tr>
+          <tr>
+            <td>Claude Haiku / GPT-4o-mini</td>
+            <td><span class="model-tier tier-mid">EFFICIENT</span></td>
+            <td>百亿参数级</td>
+            <td>高并发、批量任务、客服</td>
+            <td>$</td>
+          </tr>
+          <tr>
+            <td>Qwen 7B / Llama 3 8B</td>
+            <td><span class="model-tier tier-mid">EFFICIENT</span></td>
+            <td>70-80亿参数</td>
+            <td>边缘部署、专项微调</td>
+            <td>$</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="china-section">
+      <h4>中国模型的追赶路径</h4>
+      <div class="desc">
+        曾经被认为差距三年的中国大模型，2024年已经追到接近Frontier梯队。这背后是Scaling Law的逻辑——只要算力、数据、对齐都到位，结构上没有壁垒。
+      </div>
+      
+      <div class="china-grid">
+        <div class="china-card">
+          <div class="label">DEEPSEEK V3 / R1</div>
+          <div class="name">DeepSeek</div>
+          <div class="desc-mini">
+            671B总参数（MoE），推理能力对标Claude/GPT-4。
+            训练成本仅558万美元，<strong>挑战了"必须烧上亿才能做大模型"的常识</strong>。
+          </div>
+        </div>
+        <div class="china-card">
+          <div class="label">QWEN 2.5 / 3 系列</div>
+          <div class="name">阿里通义千问</div>
+          <div class="desc-mini">
+            从72B到235B多个尺寸，全开源。<strong>代码、数学、中文场景接近GPT-4水平</strong>。
+            企业私有化部署的首选之一。
+          </div>
+        </div>
+        <div class="china-card">
+          <div class="label">DOUBAO / KIMI / GLM</div>
+          <div class="name">字节、月之暗面、智谱</div>
+          <div class="desc-mini">
+            各有侧重：豆包通用能力强、Kimi长上下文领先、GLM企业服务好。
+            <strong>差距已经从"代际"缩小到"细节"</strong>。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 总结 -->
+  <div class="summary-section">
+    <div class="section-marker">RECAP</div>
+    <h3>带走的核心认知</h3>
+    
+    <p>
+      <strong>Scaling Law告诉我们：模型能力可以通过"砸钱"提升</strong>，
+      而且这个关系是有数学公式的。这是OpenAI、Anthropic、Google敢持续投入几百亿美元的科学依据。
+    </p>
+    <p>
+      <strong>Chinchilla定律告诉我们：参数和数据要均衡</strong>。
+      盲目堆参数不如喂更多数据。这直接改变了2022年之后所有团队的训练策略。
+    </p>
+    <p>
+      <strong>涌现能力告诉我们：能力跃迁是非线性的</strong>。
+      在某个规模阈值前，模型完全不会某些任务；过了阈值，能力突然出现。
+      这意味着<strong>"大模型经济性的拐点"是真实存在的</strong>——
+      规模不到位时，再多优化也没用；规模到位后，能力会一次性解锁。
+    </p>
+
+    <div class="summary-takeaways">
+      <div class="takeaway">
+        <div class="num">01</div>
+        <div class="t">
+          <strong>Frontier模型不能完全替代</strong>。复杂推理、长文档分析、Agent这些场景，必须用最强模型。
+        </div>
+      </div>
+      <div class="takeaway">
+        <div class="num">02</div>
+        <div class="t">
+          <strong>Efficient模型用于规模化</strong>。客服、批量分类、流程自动化，用小模型反而ROI更好。
+        </div>
+      </div>
+      <div class="takeaway">
+        <div class="num">03</div>
+        <div class="t">
+          <strong>分层调度是常态</strong>。生产系统里通常会混用2-3个不同梯队的模型，按任务复杂度路由。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    AI 系列课程 · 第 07 讲 · 共 20 讲 · 下一讲：多模态——从文本到图像、音频、视频
+  </footer>
+</div>
+
+<script>
+// 第一节：Scaling Law 图表
+const scalingCanvas = document.getElementById('scalingChart');
+const scalingCtx = scalingCanvas.getContext('2d');
+let scalingScale = 'log';
+
+const scalingData = [
+  { name: 'GPT-2', flops: 1e21, loss: 3.1 },
+  { name: 'GPT-3 small', flops: 5e21, loss: 2.7 },
+  { name: 'GPT-3', flops: 3.14e23, loss: 2.0 },
+  { name: 'PaLM', flops: 2.5e24, loss: 1.7 },
+  { name: 'Chinchilla', flops: 5.76e23, loss: 1.85 },
+  { name: 'GPT-4 (估)', flops: 2e25, loss: 1.5 },
+  { name: 'GPT-5 (推)', flops: 5e26, loss: 1.25 }
+];
+
+function drawScaling() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = scalingCanvas.getBoundingClientRect();
+  scalingCanvas.width = rect.width * dpr;
+  scalingCanvas.height = rect.height * dpr;
+  scalingCtx.scale(dpr, dpr);
+  
+  const W = rect.width, H = rect.height;
+  const padding = { top: 30, right: 30, bottom: 50, left: 60 };
+  const cw = W - padding.left - padding.right;
+  const ch = H - padding.top - padding.bottom;
+  
+  scalingCtx.clearRect(0, 0, W, H);
+
+  // 网格
+  scalingCtx.strokeStyle = '#e8e8e0';
+  scalingCtx.lineWidth = 0.5;
+  for (let i = 0; i <= 10; i++) {
+    const x = padding.left + (cw * i / 10);
+    scalingCtx.beginPath();
+    scalingCtx.moveTo(x, padding.top);
+    scalingCtx.lineTo(x, padding.top + ch);
+    scalingCtx.stroke();
+  }
+  for (let i = 0; i <= 6; i++) {
+    const y = padding.top + (ch * i / 6);
+    scalingCtx.beginPath();
+    scalingCtx.moveTo(padding.left, y);
+    scalingCtx.lineTo(padding.left + cw, y);
+    scalingCtx.stroke();
+  }
+
+  // X轴坐标转换
+  const minLogX = 21, maxLogX = 26.7;
+  const flopsToX = (f) => {
+    if (scalingScale === 'log') {
+      const lf = Math.log10(f);
+      return padding.left + cw * (lf - minLogX) / (maxLogX - minLogX);
+    } else {
+      return padding.left + cw * f / 5e26;
+    }
+  };
+  const lossToY = (l) => padding.top + ch * (3.5 - l) / (3.5 - 1);
+
+  // 拟合曲线 (幂律)
+  scalingCtx.strokeStyle = '#6ee7b7';
+  scalingCtx.lineWidth = 2;
+  scalingCtx.beginPath();
+  for (let i = 0; i <= 200; i++) {
+    let f;
+    if (scalingScale === 'log') {
+      const lf = minLogX + (maxLogX - minLogX) * i / 200;
+      f = Math.pow(10, lf);
+    } else {
+      f = 5e26 * i / 200;
+      if (f < 1e21) continue;
+    }
+    // L = a * C^(-b), 模拟值
+    const loss = 7.5 * Math.pow(f, -0.045);
+    const x = flopsToX(f);
+    const y = lossToY(loss);
+    if (i === 0) scalingCtx.moveTo(x, y);
+    else scalingCtx.lineTo(x, y);
+  }
+  scalingCtx.stroke();
+
+  // 数据点
+  scalingData.forEach(d => {
+    const x = flopsToX(d.flops);
+    const y = lossToY(d.loss);
+    if (x < padding.left || x > padding.left + cw) return;
+    
+    scalingCtx.fillStyle = '#16161a';
+    scalingCtx.beginPath();
+    scalingCtx.arc(x, y, 5, 0, Math.PI * 2);
+    scalingCtx.fill();
+    
+    scalingCtx.fillStyle = '#fff';
+    scalingCtx.beginPath();
+    scalingCtx.arc(x, y, 2, 0, Math.PI * 2);
+    scalingCtx.fill();
+    
+    scalingCtx.fillStyle = '#16161a';
+    scalingCtx.font = '11px "JetBrains Mono"';
+    scalingCtx.textAlign = 'left';
+    scalingCtx.fillText(d.name, x + 8, y - 4);
+  });
+
+  // 坐标轴
+  scalingCtx.strokeStyle = '#16161a';
+  scalingCtx.lineWidth = 1.5;
+  scalingCtx.beginPath();
+  scalingCtx.moveTo(padding.left, padding.top);
+  scalingCtx.lineTo(padding.left, padding.top + ch);
+  scalingCtx.lineTo(padding.left + cw, padding.top + ch);
+  scalingCtx.stroke();
+
+  // 标签
+  scalingCtx.fillStyle = '#5a5a64';
+  scalingCtx.font = '11px "JetBrains Mono"';
+  scalingCtx.textAlign = 'right';
+  for (let l = 1; l <= 3.5; l += 0.5) {
+    const y = lossToY(l);
+    scalingCtx.fillText(l.toFixed(1), padding.left - 8, y + 3);
+  }
+  
+  scalingCtx.textAlign = 'center';
+  if (scalingScale === 'log') {
+    [21, 22, 23, 24, 25, 26].forEach(lf => {
+      const x = flopsToX(Math.pow(10, lf));
+      scalingCtx.fillText(`10^${lf}`, x, padding.top + ch + 18);
+    });
+  } else {
+    [0, 1e26, 2e26, 3e26, 4e26, 5e26].forEach(f => {
+      const x = flopsToX(f);
+      scalingCtx.fillText((f/1e26).toFixed(0)+'e26', x, padding.top + ch + 18);
+    });
+  }
+  
+  scalingCtx.font = '11px "Noto Sans SC"';
+  scalingCtx.fillText('FLOPs (训练计算量)', padding.left + cw/2, padding.top + ch + 38);
+  scalingCtx.save();
+  scalingCtx.translate(20, padding.top + ch/2);
+  scalingCtx.rotate(-Math.PI/2);
+  scalingCtx.fillText('Loss (越低越好)', 0, 0);
+  scalingCtx.restore();
+}
+
+document.querySelectorAll('.chart-axis-toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.chart-axis-toggle').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    scalingScale = btn.dataset.scale;
+    drawScaling();
+  });
+});
+
+window.addEventListener('load', drawScaling);
+window.addEventListener('resize', drawScaling);
+
+// 第三节：涌现能力图表
+const emCanvas = document.getElementById('emergenceChart');
+const emCtx = emCanvas.getContext('2d');
+let currentTask = 0;
+
+const emergenceTasks = [
+  {
+    name: '三位数加法',
+    points: [
+      { x: 1e8, y: 0.01 }, { x: 1e9, y: 0.02 }, { x: 5e9, y: 0.03 },
+      { x: 1e10, y: 0.05 }, { x: 5e10, y: 0.15 }, { x: 1e11, y: 0.45 },
+      { x: 5e11, y: 0.85 }, { x: 1e12, y: 0.95 }
+    ],
+    explain: '<strong>三位数加法</strong>：模型小于10亿参数时，准确率几乎是0——它根本不会做。过了某个临界点（约150亿参数），<strong>准确率突然跃升到80%以上</strong>。这种"S型曲线"的跃迁，是涌现能力的典型形态。'
+  },
+  {
+    name: '语义理解',
+    points: [
+      { x: 1e8, y: 0.20 }, { x: 1e9, y: 0.32 }, { x: 5e9, y: 0.45 },
+      { x: 1e10, y: 0.55 }, { x: 5e10, y: 0.68 }, { x: 1e11, y: 0.78 },
+      { x: 5e11, y: 0.88 }, { x: 1e12, y: 0.92 }
+    ],
+    explain: '<strong>语义理解</strong>：和加法不同，语义理解是<strong>渐进提升</strong>的，没有明显的涌现拐点。这类任务从小模型时代就有部分能力，规模化只是不断提升。<strong>大部分基础NLP任务都是这种"平滑型"</strong>。'
+  },
+  {
+    name: '指令遵循',
+    points: [
+      { x: 1e8, y: 0.05 }, { x: 1e9, y: 0.08 }, { x: 5e9, y: 0.12 },
+      { x: 1e10, y: 0.20 }, { x: 5e10, y: 0.45 }, { x: 1e11, y: 0.72 },
+      { x: 5e11, y: 0.88 }, { x: 1e12, y: 0.92 }
+    ],
+    explain: '<strong>指令遵循</strong>：能否按用户的复杂指令执行多步任务（"先...再...最后..."）。在500亿参数附近出现明显跃升。<strong>这是Agent能力的基础</strong>——指令跟不准，Agent就跑不起来。'
+  },
+  {
+    name: '多步推理',
+    points: [
+      { x: 1e8, y: 0.02 }, { x: 1e9, y: 0.03 }, { x: 5e9, y: 0.04 },
+      { x: 1e10, y: 0.05 }, { x: 5e10, y: 0.08 }, { x: 1e11, y: 0.20 },
+      { x: 5e11, y: 0.55 }, { x: 1e12, y: 0.82 }
+    ],
+    explain: '<strong>多步推理</strong>：解决需要多步逻辑的题目（如数学题、复杂规划）。这是<strong>最晚涌现的能力之一</strong>——千亿参数才开始显著起色。这也是为什么GPT-4级别的模型才真正能做复杂的Agent任务。'
+  }
+];
+
+function drawEmergence() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = emCanvas.getBoundingClientRect();
+  emCanvas.width = rect.width * dpr;
+  emCanvas.height = rect.height * dpr;
+  emCtx.scale(dpr, dpr);
+  
+  const W = rect.width, H = rect.height;
+  const padding = { top: 30, right: 30, bottom: 60, left: 60 };
+  const cw = W - padding.left - padding.right;
+  const ch = H - padding.top - padding.bottom;
+  
+  emCtx.clearRect(0, 0, W, H);
+
+  // 网格
+  emCtx.strokeStyle = '#2a2a30';
+  emCtx.lineWidth = 0.5;
+  for (let i = 0; i <= 10; i++) {
+    const x = padding.left + (cw * i / 10);
+    emCtx.beginPath();
+    emCtx.moveTo(x, padding.top);
+    emCtx.lineTo(x, padding.top + ch);
+    emCtx.stroke();
+  }
+  for (let i = 0; i <= 5; i++) {
+    const y = padding.top + (ch * i / 5);
+    emCtx.beginPath();
+    emCtx.moveTo(padding.left, y);
+    emCtx.lineTo(padding.left + cw, y);
+    emCtx.stroke();
+  }
+
+  const task = emergenceTasks[currentTask];
+  const minLogX = 8, maxLogX = 12;
+  const xToScreen = (x) => padding.left + cw * (Math.log10(x) - minLogX) / (maxLogX - minLogX);
+  const yToScreen = (y) => padding.top + ch * (1 - y);
+
+  // 平滑曲线
+  emCtx.strokeStyle = '#6ee7b7';
+  emCtx.lineWidth = 2.5;
+  emCtx.beginPath();
+  task.points.forEach((p, i) => {
+    const x = xToScreen(p.x);
+    const y = yToScreen(p.y);
+    if (i === 0) emCtx.moveTo(x, y);
+    else {
+      const prev = task.points[i-1];
+      const px = xToScreen(prev.x);
+      const py = yToScreen(prev.y);
+      const cpx = (px + x) / 2;
+      emCtx.bezierCurveTo(cpx, py, cpx, y, x, y);
+    }
+  });
+  emCtx.stroke();
+
+  // 数据点
+  task.points.forEach(p => {
+    const x = xToScreen(p.x);
+    const y = yToScreen(p.y);
+    emCtx.fillStyle = '#16161a';
+    emCtx.beginPath();
+    emCtx.arc(x, y, 5, 0, Math.PI * 2);
+    emCtx.fill();
+    emCtx.strokeStyle = '#6ee7b7';
+    emCtx.lineWidth = 2;
+    emCtx.stroke();
+  });
+
+  // 坐标轴
+  emCtx.strokeStyle = '#a8a8b3';
+  emCtx.lineWidth = 1.5;
+  emCtx.beginPath();
+  emCtx.moveTo(padding.left, padding.top);
+  emCtx.lineTo(padding.left, padding.top + ch);
+  emCtx.lineTo(padding.left + cw, padding.top + ch);
+  emCtx.stroke();
+
+  emCtx.fillStyle = '#a8a8b3';
+  emCtx.font = '11px "JetBrains Mono"';
+  emCtx.textAlign = 'right';
+  for (let i = 0; i <= 5; i++) {
+    const acc = (5 - i) * 0.2;
+    const y = padding.top + ch * i / 5;
+    emCtx.fillText(`${(acc*100).toFixed(0)}%`, padding.left - 8, y + 3);
+  }
+  
+  emCtx.textAlign = 'center';
+  const xLabels = [
+    { v: 1e8, l: '100M' },
+    { v: 1e9, l: '1B' },
+    { v: 1e10, l: '10B' },
+    { v: 1e11, l: '100B' },
+    { v: 1e12, l: '1T' }
+  ];
+  xLabels.forEach(({v, l}) => {
+    const x = xToScreen(v);
+    emCtx.fillText(l, x, padding.top + ch + 18);
+  });
+  
+  emCtx.font = '11px "Noto Sans SC"';
+  emCtx.fillText('参数数量', padding.left + cw/2, padding.top + ch + 40);
+  emCtx.save();
+  emCtx.translate(20, padding.top + ch/2);
+  emCtx.rotate(-Math.PI/2);
+  emCtx.fillText('准确率', 0, 0);
+  emCtx.restore();
+  
+  document.getElementById('emExplain').innerHTML = task.explain;
+}
+
+document.querySelectorAll('.em-task-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.em-task-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentTask = +tab.dataset.task;
+    drawEmergence();
+  });
+});
+
+window.addEventListener('load', drawEmergence);
+window.addEventListener('resize', drawEmergence);
+</script>
+</body>
+</html>

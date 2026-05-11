@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第11讲｜Function Calling 与 Tool Use</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', 'Archivo', sans-serif;
+    background: #0f1014;
+    color: #e8e8ed;
+    min-height: 100vh;
+    padding: 24px;
+    line-height: 1.6;
+  }
+  .container { max-width: 1280px; margin: 0 auto; }
+
+  header {
+    background: linear-gradient(135deg, #0f1014 0%, #1a1d24 100%);
+    color: #e8e8ed;
+    padding: 60px 56px;
+    margin-bottom: 28px;
+    border: 1px solid #2a2d36;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: 
+      linear-gradient(90deg, rgba(0, 255, 178, 0.04) 1px, transparent 1px),
+      linear-gradient(0deg, rgba(0, 255, 178, 0.04) 1px, transparent 1px);
+    background-size: 50px 50px;
+    pointer-events: none;
+  }
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 240px;
+    height: 240px;
+    background: radial-gradient(circle, rgba(0, 255, 178, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  
+  .lesson-tag {
+    display: inline-block;
+    padding: 6px 14px;
+    background: #00ffb2;
+    color: #0f1014;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    margin-bottom: 24px;
+    position: relative;
+    z-index: 1;
+  }
+  h1 {
+    font-family: 'Archivo', sans-serif;
+    font-size: 80px;
+    font-weight: 900;
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    margin-bottom: 14px;
+    position: relative;
+    z-index: 1;
+  }
+  h1 .accent { color: #00ffb2; }
+  h1 .light { font-weight: 400; color: #8a8d96; }
+  .h1-cn {
+    font-size: 26px;
+    font-weight: 600;
+    margin-top: 12px;
+    color: #b8bbc4;
+    position: relative;
+    z-index: 1;
+  }
+  .subtitle {
+    margin-top: 22px;
+    font-size: 16px;
+    color: #8a8d96;
+    line-height: 1.85;
+    max-width: 720px;
+    position: relative;
+    z-index: 1;
+  }
+  .subtitle strong { color: #00ffb2; font-weight: 500; }
+
+  .section {
+    background: #1a1d24;
+    border: 1px solid #2a2d36;
+    padding: 44px 48px;
+    margin-bottom: 24px;
+  }
+  .section.bright {
+    background: #00ffb2;
+    color: #0f1014;
+    border-color: #00ffb2;
+  }
+  .section.cream {
+    background: #1f2229;
+    border-color: #2a2d36;
+  }
+  
+  .section-marker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #00ffb2;
+    letter-spacing: 0.3em;
+    margin-bottom: 8px;
+  }
+  .section.bright .section-marker { color: #0f1014; opacity: 0.6; }
+  
+  .section-title {
+    font-family: 'Archivo', sans-serif;
+    font-size: 44px;
+    font-weight: 900;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    margin-bottom: 8px;
+    color: #e8e8ed;
+  }
+  .section-title .accent { color: #00ffb2; }
+  .section-title .light { font-weight: 400; color: #8a8d96; }
+  .section.bright .section-title { color: #0f1014; }
+  .section-cn {
+    font-size: 22px;
+    font-weight: 700;
+    margin-top: 4px;
+    color: #b8bbc4;
+  }
+  .section.bright .section-cn { color: #1a1d24; }
+  .section-lead {
+    margin-top: 16px;
+    font-size: 15px;
+    line-height: 1.85;
+    max-width: 800px;
+    color: #8a8d96;
+  }
+  .section.bright .section-lead { color: #1a1d24; }
+
+  /* 第一节：模型的局限 */
+  .limit-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-top: 32px;
+  }
+  .limit-card {
+    background: #0f1014;
+    border: 1px solid #2a2d36;
+    padding: 26px;
+    border-left: 3px solid #ff5c5c;
+  }
+  .limit-card h4 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: #ff5c5c;
+  }
+  .limit-card p {
+    font-size: 13px;
+    color: #b8bbc4;
+    line-height: 1.8;
+    margin-bottom: 10px;
+  }
+  .limit-card p strong { color: #e8e8ed; }
+  .limit-example {
+    margin-top: 10px;
+    padding: 12px;
+    background: #1a1d24;
+    border-left: 2px solid #ff5c5c;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.7;
+    color: #8a8d96;
+  }
+  .limit-example .user { color: #00ffb2; }
+  .limit-example .ai { color: #ffb86c; }
+
+  .solution-banner {
+    margin-top: 28px;
+    background: linear-gradient(90deg, #00ffb2 0%, #00d99a 100%);
+    color: #0f1014;
+    padding: 24px 32px;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+  .solution-banner span { font-weight: 900; }
+
+  /* 第二节：交互流程 */
+  .interaction-demo {
+    margin-top: 32px;
+    background: #0f1014;
+    border: 1px solid #2a2d36;
+    padding: 32px;
+  }
+  .demo-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .demo-btn {
+    padding: 10px 16px;
+    background: #1a1d24;
+    border: 1px solid #2a2d36;
+    color: #b8bbc4;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .demo-btn:hover { border-color: #00ffb2; color: #00ffb2; }
+  .demo-btn.active {
+    background: #00ffb2;
+    color: #0f1014;
+    border-color: #00ffb2;
+    font-weight: 700;
+  }
+  
+  .conversation {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .turn {
+    padding: 16px 20px;
+    border-left: 3px solid #2a2d36;
+    background: #1a1d24;
+    opacity: 0;
+    animation: fadeIn 0.4s forwards;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .turn.user { border-left-color: #00ffb2; }
+  .turn.ai-think { border-left-color: #ffb86c; background: #1f1c14; }
+  .turn.tool-call { border-left-color: #6c8aff; background: #14171f; }
+  .turn.tool-result { border-left-color: #ad6cff; background: #181420; }
+  .turn.ai-final { border-left-color: #00ffb2; background: #0f1f17; }
+  
+  .turn-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+  .turn.user .turn-tag { color: #00ffb2; }
+  .turn.ai-think .turn-tag { color: #ffb86c; }
+  .turn.tool-call .turn-tag { color: #6c8aff; }
+  .turn.tool-result .turn-tag { color: #ad6cff; }
+  .turn.ai-final .turn-tag { color: #00ffb2; }
+  
+  .turn-content {
+    font-size: 14px;
+    color: #e8e8ed;
+    line-height: 1.8;
+  }
+  .turn-content code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: #0f1014;
+    padding: 2px 6px;
+    color: #00ffb2;
+  }
+  .turn-content pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: #0f1014;
+    padding: 12px 14px;
+    margin-top: 8px;
+    color: #b8bbc4;
+    line-height: 1.7;
+    overflow-x: auto;
+    border-left: 2px solid #2a2d36;
+  }
+  .turn-content pre .key { color: #6c8aff; }
+  .turn-content pre .str { color: #ffb86c; }
+  .turn-content pre .num { color: #00ffb2; }
+
+  .turn-replay {
+    text-align: center;
+    margin-top: 16px;
+  }
+  .replay-btn {
+    padding: 10px 20px;
+    background: transparent;
+    border: 1px solid #00ffb2;
+    color: #00ffb2;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    cursor: pointer;
+  }
+  .replay-btn:hover { background: #00ffb2; color: #0f1014; }
+
+  /* 第三节：工具定义 */
+  .tool-spec {
+    margin-top: 32px;
+    background: #0f1014;
+    border: 1px solid #2a2d36;
+    padding: 28px;
+  }
+  .tool-spec-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+  .spec-tab {
+    padding: 10px 16px;
+    background: #1a1d24;
+    border: 1px solid #2a2d36;
+    color: #b8bbc4;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+  }
+  .spec-tab.active {
+    background: #00ffb2;
+    color: #0f1014;
+    border-color: #00ffb2;
+    font-weight: 700;
+  }
+  
+  .tool-spec-content pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: #0a0b0e;
+    padding: 22px;
+    border-left: 3px solid #00ffb2;
+    line-height: 1.85;
+    color: #b8bbc4;
+    overflow-x: auto;
+  }
+  .tool-spec-content pre .key { color: #6c8aff; }
+  .tool-spec-content pre .str { color: #ffb86c; }
+  .tool-spec-content pre .comment { color: #555; }
+  .tool-spec-content pre .important { color: #00ffb2; }
+
+  /* 第四节：CRM工具集 */
+  .toolkit-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 28px;
+  }
+  .tool-card {
+    background: #0f1014;
+    border: 1px solid #2a2d36;
+    padding: 22px;
+    transition: all 0.2s;
+    cursor: default;
+  }
+  .tool-card:hover {
+    border-color: #00ffb2;
+    transform: translateY(-2px);
+  }
+  .tool-icon {
+    width: 36px;
+    height: 36px;
+    background: #00ffb2;
+    color: #0f1014;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 14px;
+  }
+  .tool-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: #00ffb2;
+    margin-bottom: 4px;
+  }
+  .tool-cn {
+    font-size: 15px;
+    font-weight: 700;
+    color: #e8e8ed;
+    margin-bottom: 8px;
+  }
+  .tool-desc {
+    font-size: 12px;
+    color: #8a8d96;
+    line-height: 1.7;
+  }
+
+  /* 第五节：常见陷阱 */
+  .pitfalls-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 28px;
+  }
+  .pitfall-row {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 16px;
+    background: #1a1d24;
+    border: 1px solid #2a2d36;
+    padding: 22px 26px;
+    border-left: 3px solid #ff5c5c;
+  }
+  .pitfall-num {
+    font-family: 'Archivo', sans-serif;
+    font-size: 32px;
+    font-weight: 900;
+    color: #ff5c5c;
+    line-height: 1;
+  }
+  .pitfall-content h5 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #e8e8ed;
+    margin-bottom: 6px;
+  }
+  .pitfall-content p {
+    font-size: 13px;
+    color: #b8bbc4;
+    line-height: 1.8;
+  }
+  .pitfall-content p strong { color: #e8e8ed; }
+  .pitfall-fix {
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: #0f1014;
+    border-left: 2px solid #00ffb2;
+    font-size: 13px;
+    color: #00ffb2;
+    line-height: 1.7;
+  }
+  .pitfall-fix strong { color: #00ffb2; }
+
+  /* 第六节：MCP */
+  .mcp-section {
+    background: #00ffb2;
+    color: #0f1014;
+    padding: 48px;
+    margin-bottom: 24px;
+  }
+  .mcp-comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 28px;
+  }
+  .mcp-card {
+    background: #0f1014;
+    color: #e8e8ed;
+    padding: 26px;
+  }
+  .mcp-card.before {
+    border-top: 3px solid #ff5c5c;
+  }
+  .mcp-card.after {
+    border-top: 3px solid #00ffb2;
+  }
+  .mcp-card h5 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    margin-bottom: 8px;
+  }
+  .mcp-card.before h5 { color: #ff5c5c; }
+  .mcp-card.after h5 { color: #00ffb2; }
+  .mcp-card h4 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 14px;
+  }
+  .mcp-card p {
+    font-size: 13px;
+    color: #b8bbc4;
+    line-height: 1.8;
+    margin-bottom: 8px;
+  }
+  .mcp-card p strong { color: #e8e8ed; }
+  .mcp-card ul {
+    list-style: none;
+    margin-top: 12px;
+  }
+  .mcp-card ul li {
+    padding-left: 18px;
+    position: relative;
+    font-size: 13px;
+    color: #b8bbc4;
+    line-height: 1.9;
+  }
+  .mcp-card.before ul li::before {
+    content: '×';
+    position: absolute;
+    left: 0;
+    color: #ff5c5c;
+    font-weight: 700;
+  }
+  .mcp-card.after ul li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: #00ffb2;
+    font-weight: 700;
+  }
+
+  /* 总结 */
+  .summary {
+    background: #0f1014;
+    border: 1px solid #2a2d36;
+    border-left: 4px solid #00ffb2;
+    padding: 48px;
+    margin-bottom: 24px;
+  }
+  .summary h3 {
+    font-family: 'Archivo', sans-serif;
+    font-size: 32px;
+    font-weight: 900;
+    margin-bottom: 22px;
+    color: #00ffb2;
+    line-height: 1.15;
+  }
+  .summary p {
+    font-size: 15px;
+    line-height: 1.9;
+    margin-bottom: 14px;
+    color: #b8bbc4;
+  }
+  .summary p strong { color: #00ffb2; font-weight: 600; }
+  
+  .summary-formula {
+    background: linear-gradient(90deg, #1a1d24 0%, #0f1014 100%);
+    border-left: 3px solid #00ffb2;
+    padding: 22px 28px;
+    margin: 22px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    line-height: 2;
+    color: #e8e8ed;
+  }
+  .summary-formula .accent { color: #00ffb2; font-weight: 700; }
+
+  footer {
+    text-align: center;
+    margin-top: 36px;
+    padding: 24px;
+    background: #0f1014;
+    color: #555;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.2em;
+    border: 1px solid #2a2d36;
+  }
+
+  @media (max-width: 768px) {
+    h1 { font-size: 56px; }
+    .section, .summary, .mcp-section { padding: 28px 22px; }
+    .limit-grid, .toolkit-grid, .mcp-comparison { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<!-- 课程系列统一导航条 · 由脚本注入 -->
+<div id="course-nav-bar">
+  <div class="course-nav-inner">
+    <a href="../lesson10/demo.html" class="course-nav-btn prev" title="RAG：让模型用上私有知识"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
+    <a href="../index.html" class="course-nav-center" title="回到课程总览">
+      <span class="nav-current">LESSON 11 / 20</span>
+      <span class="nav-title">Function Calling 与 Tool Use</span>
+    </a>
+    <a href="../lesson12/demo.html" class="course-nav-btn next" title="Agent：从单轮对话到自主任务"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
+  </div>
+</div>
+
+<style id="course-nav-style">
+  #course-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  .course-nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .course-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .course-nav-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .course-nav-btn.disabled {
+    color: #444;
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .course-nav-btn .nav-arrow {
+    font-size: 14px;
+    line-height: 1;
+  }
+  .course-nav-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+    padding: 4px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    min-width: 0;
+  }
+  .course-nav-center:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .nav-current {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .nav-title {
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+    letter-spacing: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body {
+    padding-top: 64px !important;
+  }
+  
+  @media (max-width: 768px) {
+    .course-nav-inner {
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .course-nav-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .course-nav-btn .nav-label {
+      display: none;
+    }
+    .nav-title {
+      font-size: 11px;
+    }
+    .nav-current {
+      font-size: 9px;
+    }
+    body {
+      padding-top: 54px !important;
+    }
+  }
+</style>
+<!-- 课程系列统一导航条 · END -->
+
+<div class="container">
+  <header>
+    <div class="lesson-tag">LESSON 11 / 20</div>
+    <h1>FUNCTION <span class="accent">CALLING</span><br><span class="light">让模型</span> ACT.</h1>
+    <div class="h1-cn">Function Calling 与 Tool Use</div>
+    <div class="subtitle">
+      Prompt 让模型"会说"，RAG 让模型"知道"。但模型还<strong>不能"做"</strong>——
+      它不能查数据库、发邮件、改CRM、调外部API。Function Calling 就是<strong>给模型装上手</strong>，
+      让它从"聊天助手"进化成"能干活的同事"。
+    </div>
+  </header>
+
+  <!-- 第一节：模型的"残缺" -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 01</div>
+    <div class="section-title">THE <span class="accent">MISSING</span> CAPABILITY</div>
+    <div class="section-cn">没有工具的模型 = 缺了手的大脑</div>
+    <div class="section-lead">
+      纯Prompt + RAG的模型有两个根本性局限。它们不只是"功能缺失"，是<strong>结构性的</strong>——
+      靠优化Prompt永远解决不了。
+    </div>
+
+    <div class="limit-grid">
+      <div class="limit-card">
+        <h4>局限 #1 · 不能访问实时数据</h4>
+        <p>
+          模型不知道<strong>"现在"</strong>。它无法查今天的库存、本月的销售数据、客户的最新工单状态。
+          所有"需要查询"的问题它都答不了。
+        </p>
+        <div class="limit-example">
+          <span class="user">用户：</span>"客户A本月签了几个单？"<br>
+          <span class="ai">模型：</span>"我无法访问您的CRM数据库……"
+        </div>
+      </div>
+
+      <div class="limit-card">
+        <h4>局限 #2 · 不能执行任何动作</h4>
+        <p>
+          模型只能"说话"。它不能<strong>真正去做</strong>——发邮件、创建工单、修改记录、触发审批流。
+          它只能输出"建议你怎么做"，但做不了。
+        </p>
+        <div class="limit-example">
+          <span class="user">用户：</span>"帮我给客户A发一封跟进邮件"<br>
+          <span class="ai">模型：</span>"我建议您发邮件包含以下要点……（无法实际发送）"
+        </div>
+      </div>
+
+      <div class="limit-card">
+        <h4>局限 #3 · 不擅长精确计算</h4>
+        <p>
+          大模型本质是"概率预测下一个token"，<strong>不擅长精确数学</strong>。
+          复杂的计算（百万级数据求和、统计分析）容易出错。
+        </p>
+        <div class="limit-example">
+          <span class="user">用户：</span>"算一下我们Q3的毛利率"<br>
+          <span class="ai">模型：</span>"假设营收是X，成本是Y……"<br>
+          <span style="color: #ff5c5c;">→ 数字可能是编的</span>
+        </div>
+      </div>
+
+      <div class="limit-card">
+        <h4>局限 #4 · 知识有截止日期</h4>
+        <p>
+          训练截止后的事它不知道。<strong>RAG解决了"私有知识"</strong>，
+          但没解决"实时事件"——比如今天的股价、刚发生的会议结果。
+        </p>
+        <div class="limit-example">
+          <span class="user">用户：</span>"今天美股开盘后纳斯达克涨了多少？"<br>
+          <span class="ai">模型：</span>"我无法获取实时市场数据……"
+        </div>
+      </div>
+    </div>
+
+    <div class="solution-banner">
+      Function Calling 解决方案：<span>给模型装上手</span>。让它能调用外部工具——查数据库、发邮件、调API、跑计算。模型从"会说"变成"能做"。
+    </div>
+  </div>
+
+  <!-- 第二节：交互流程 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 02</div>
+    <div class="section-title">THE <span class="accent">DANCE</span></div>
+    <div class="section-cn">Function Calling 的5步交互流程</div>
+    <div class="section-lead">
+      Function Calling 不是"模型直接执行函数"——它是模型和你的代码之间的<strong>5步舞蹈</strong>。
+      看一个真实例子：用户问"客户A本月签了几个单"。
+    </div>
+
+    <div class="interaction-demo">
+      <div class="demo-controls">
+        <button class="demo-btn active" data-case="0">查询客户业绩</button>
+        <button class="demo-btn" data-case="1">创建跟进任务</button>
+        <button class="demo-btn" data-case="2">多工具组合</button>
+      </div>
+
+      <div class="conversation" id="conversation">
+      </div>
+
+      <div class="turn-replay">
+        <button class="replay-btn" id="replayBtn">▷ REPLAY</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 第三节：工具的定义 -->
+  <div class="section cream">
+    <div class="section-marker">CHAPTER · 03</div>
+    <div class="section-title">DEFINING <span class="accent">TOOLS</span></div>
+    <div class="section-cn">怎么"告诉"模型有哪些工具可用</div>
+    <div class="section-lead">
+      模型怎么知道你有哪些工具？你<strong>用JSON Schema声明每个工具</strong>——
+      包括名称、用途、参数、返回值。下面是真实可用的工具定义示例。
+    </div>
+
+    <div class="tool-spec">
+      <div class="tool-spec-tabs">
+        <button class="spec-tab active" data-tool="0">查询订单</button>
+        <button class="spec-tab" data-tool="1">发送邮件</button>
+        <button class="spec-tab" data-tool="2">创建工单</button>
+      </div>
+
+      <div class="tool-spec-content" id="toolSpec">
+      </div>
+    </div>
+
+    <div style="margin-top: 22px; padding: 22px 26px; background: #0f1014; border-left: 4px solid #00ffb2;">
+      <p style="font-size: 14px; line-height: 1.85; color: #b8bbc4;">
+        <strong style="color: #00ffb2;">关键设计原则</strong>：<br>
+        ① <strong style="color: #e8e8ed;">description要写清楚"什么时候用"</strong>——这是模型决定调用与否的依据，不是写给开发者看的<br>
+        ② <strong style="color: #e8e8ed;">参数命名要语义清晰</strong>——<code style="color:#00ffb2; background: #1a1d24; padding: 1px 5px;">customer_id</code>胜过<code style="color:#ff5c5c; background: #1a1d24; padding: 1px 5px;">cid</code><br>
+        ③ <strong style="color: #e8e8ed;">required字段严格</strong>——少一个必填模型就会调用失败，多一个让模型混乱<br>
+        ④ <strong style="color: #e8e8ed;">enum限制取值</strong>——能枚举的值都用enum，避免模型生成无效参数
+      </p>
+    </div>
+  </div>
+
+  <!-- 第四节：CRM 工具集 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 04</div>
+    <div class="section-title">A REAL <span class="accent">CRM</span> TOOLKIT</div>
+    <div class="section-cn">一个真实的CRM工具集合</div>
+    <div class="section-lead">
+      给模型装哪些工具？这是个工程设计问题。下面是我们项目里实际接的<strong>9个核心工具</strong>，
+      覆盖了CRM场景90%的"动作型"需求。
+    </div>
+
+    <div class="toolkit-grid">
+      <div class="tool-card">
+        <div class="tool-icon">Q1</div>
+        <div class="tool-name">search_customer</div>
+        <div class="tool-cn">客户查询</div>
+        <div class="tool-desc">按名称/编号/行业搜索客户，返回详情</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-icon">Q2</div>
+        <div class="tool-name">get_order_history</div>
+        <div class="tool-cn">订单历史</div>
+        <div class="tool-desc">查询客户的订单、合同、回款记录</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-icon">Q3</div>
+        <div class="tool-name">analyze_sales_data</div>
+        <div class="tool-cn">销售分析</div>
+        <div class="tool-desc">按维度聚合销售数据，输出报表</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-icon">A1</div>
+        <div class="tool-name">create_task</div>
+        <div class="tool-cn">创建任务</div>
+        <div class="tool-desc">为销售/客服创建跟进任务，设置时间和负责人</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-icon">A2</div>
+        <div class="tool-name">send_email</div>
+        <div class="tool-cn">发送邮件</div>
+        <div class="tool-desc">向客户/同事发送邮件，支持模板和附件</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-icon">A3</div>
+        <div class="tool-name">update_record</div>
+        <div class="tool-cn">更新记录</div>
+        <div class="tool-desc">修改客户/订单/合同的字段，含审计日志</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-icon">W1</div>
+        <div class="tool-name">create_ticket</div>
+        <div class="tool-cn">创建工单</div>
+        <div class="tool-desc">创建客服工单，自动分类和分派</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-icon">W2</div>
+        <div class="tool-name">trigger_approval</div>
+        <div class="tool-cn">触发审批</div>
+        <div class="tool-desc">提交折扣/合同/退款审批流</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-icon">W3</div>
+        <div class="tool-name">schedule_meeting</div>
+        <div class="tool-cn">安排会议</div>
+        <div class="tool-desc">查询日历空闲时间，创建会议邀请</div>
+      </div>
+    </div>
+
+    <div style="margin-top: 28px; padding: 22px 26px; background: #1f2229; border: 1px solid #2a2d36;">
+      <p style="font-size: 14px; line-height: 1.85; color: #b8bbc4;">
+        <strong style="color: #00ffb2;">分类逻辑</strong>：<br>
+        • <strong style="color: #e8e8ed;">Q类（查询）</strong>：只读、无副作用、可放心调用<br>
+        • <strong style="color: #e8e8ed;">A类（动作）</strong>：会修改数据、可能需要确认、要有撤销机制<br>
+        • <strong style="color: #e8e8ed;">W类（工作流）</strong>：触发流程、跨系统、影响多人——<strong style="color: #00ffb2;">必须经过用户确认</strong>
+      </p>
+    </div>
+  </div>
+
+  <!-- 第五节：常见陷阱 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 05</div>
+    <div class="section-title">COMMON <span class="accent">PITFALLS</span></div>
+    <div class="section-cn">生产环境里反复出现的6个陷阱</div>
+    <div class="section-lead">
+      Function Calling在demo里特别好使，<strong>但真上线问题一堆</strong>。下面6个是我们踩过的坑。
+    </div>
+
+    <div class="pitfalls-list">
+      <div class="pitfall-row">
+        <div class="pitfall-num">01</div>
+        <div class="pitfall-content">
+          <h5>该调工具时不调，只在嘴上说</h5>
+          <p>
+            用户说"帮我创建任务"，模型回"<strong>好的，我已经为您创建了任务</strong>"——
+            <strong>但实际上没调用任何工具</strong>。它只是在演戏。
+          </p>
+          <div class="pitfall-fix">
+            <strong>修正：</strong>在System Prompt明确"<strong>必须通过工具完成动作，不要只是描述</strong>"，并在代码层校验——发现模型说"已创建"却没有tool_call时，强制重试
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall-row">
+        <div class="pitfall-num">02</div>
+        <div class="pitfall-content">
+          <h5>不该调工具时滥调，造成幻觉式调用</h5>
+          <p>
+            用户问"什么是LTC流程"，模型却调用了<code>search_customer</code>查找一个叫"LTC"的客户。
+            <strong>对工具的滥用比不用还危险</strong>——会污染数据。
+          </p>
+          <div class="pitfall-fix">
+            <strong>修正：</strong>工具description明确"<strong>仅在用户明确需要查询/操作具体客户时使用</strong>"，且加examples说明"什么情况不该调"
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall-row">
+        <div class="pitfall-num">03</div>
+        <div class="pitfall-content">
+          <h5>参数瞎填，类型错误，必填漏填</h5>
+          <p>
+            模型生成的参数看起来合理但实际错的——把"本月"翻译成<code>"this month"</code>但API要的是<code>"2025-04"</code>。
+            <strong>类型不匹配是最常见的运行时错误</strong>。
+          </p>
+          <div class="pitfall-fix">
+            <strong>修正：</strong>① 用JSON Schema严格定义类型 ② 工具内部做参数校验，错了就返回明确错误信息让模型自纠 ③ 关键字段加examples
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall-row">
+        <div class="pitfall-num">04</div>
+        <div class="pitfall-content">
+          <h5>多步操作中途失败，无法回滚</h5>
+          <p>
+            模型决定"先创建客户→再创建订单→最后发邮件"，第二步失败时——<strong>客户已经建了，但是订单没建</strong>。
+            数据残缺，没人知道。
+          </p>
+          <div class="pitfall-fix">
+            <strong>修正：</strong>① 关键链路加事务包裹 ② 失败时显式告诉模型"前面成功了什么、当前失败了什么"，让它决定补救 ③ 写操作日志，可手工回滚
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall-row">
+        <div class="pitfall-num">05</div>
+        <div class="pitfall-content">
+          <h5>无限循环，不停调工具不停止</h5>
+          <p>
+            模型查询失败→重试→还失败→再重试，<strong>陷入死循环</strong>。我们见过最长一次循环了37次才被熔断。
+            一次对话烧掉几十块钱token费。
+          </p>
+          <div class="pitfall-fix">
+            <strong>修正：</strong>① 设置最大tool_call次数（如10次），超过强制停止 ② 同一工具同一参数失败超过2次就让模型走另一条路径 ③ 设置token预算，超了就退出
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall-row">
+        <div class="pitfall-num">06</div>
+        <div class="pitfall-content">
+          <h5>权限越界，影响他人数据</h5>
+          <p>
+            销售小李用AI助手，让它"列一下所有大客户的应收账款"——<strong>结果AI把财务数据全调出来了</strong>。
+            因为工具本身没接权限校验。
+          </p>
+          <div class="pitfall-fix">
+            <strong>修正：</strong>① 每个工具调用必须传入用户身份 ② 工具内部按用户角色校验数据范围 ③ 敏感操作（财务、删除、改权限）必须人类二次确认
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 第六节：MCP -->
+  <div class="mcp-section">
+    <div class="section-marker">CHAPTER · 06</div>
+    <div class="section-title">THE <span class="accent" style="color: #1a1d24;">MCP</span> REVOLUTION</div>
+    <div class="section-cn">MCP：工具生态的"USB-C接口"</div>
+    <div class="section-lead">
+      2024年Anthropic推出的<strong>Model Context Protocol（MCP）</strong>正在成为新标准——
+      <strong>把"工具"从应用内嵌入变成可插拔的标准协议</strong>。这是过去一年最重要的工程演进之一。
+    </div>
+
+    <div class="mcp-comparison">
+      <div class="mcp-card before">
+        <h5>BEFORE · 没有MCP的世界</h5>
+        <h4>每个产品自己写一遍工具</h4>
+        <p>
+          想让AI助手连接Notion？得在代码里写Notion集成。
+          想让它连接Slack？再写一遍。Salesforce？再写。
+        </p>
+        <ul>
+          <li>每个工具集成都是定制开发</li>
+          <li>不同产品之间无法复用</li>
+          <li>工具升级要每个产品都改</li>
+          <li>认证、错误处理、限流——每次重写</li>
+        </ul>
+      </div>
+
+      <div class="mcp-card after">
+        <h5>AFTER · MCP之后</h5>
+        <h4>工具变成标准化的"服务器"</h4>
+        <p>
+          每个应用（Notion、Slack、Salesforce）<strong>提供一个标准的MCP Server</strong>。
+          任何AI客户端只要支持MCP协议，就能用所有这些工具。
+        </p>
+        <ul>
+          <li>工具方一次开发，所有AI产品可用</li>
+          <li>AI产品一次接入，立刻获得所有工具</li>
+          <li>升级只需改MCP Server，客户端无感知</li>
+          <li>认证、错误处理在协议层标准化</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="margin-top: 28px; padding: 24px 28px; background: #0f1014; color: #e8e8ed;">
+      <p style="font-size: 14px; line-height: 1.9;">
+        <strong style="color: #00ffb2;">对我们项目的意义</strong>：
+        过去做CRM AI助手要把<strong>Fxiaoke的所有API手动包装一遍</strong>——耗时几周。
+        如果Fxiaoke官方提供MCP Server（或者我们做一个），所有AI产品（Claude、GPT、自研Agent）都能直接用，
+        <strong>而且未来Fxiaoke升级API我们的AI助手自动跟上</strong>。这是工具生态的"USB-C时刻"。
+      </p>
+    </div>
+  </div>
+
+  <!-- 总结 -->
+  <div class="summary">
+    <div class="section-marker">RECAP</div>
+    <h3>核心收束 · 模型从"会说"到"能做"的桥梁</h3>
+    
+    <p>
+      Function Calling 不是炫技，是大模型从"聊天助手"进化到"能干活的同事"的<strong>必经之路</strong>。
+      它给模型装上手——访问数据、执行动作、跨系统集成。
+    </p>
+
+    <div class="summary-formula">
+      <span class="accent">Prompt</span> 让模型会说<br>
+      <span class="accent">RAG</span> 让模型知道<br>
+      <span class="accent">Function Calling</span> 让模型能做<br>
+      —— 这三件事齐了，才有真正可用的<span class="accent">企业级AI助手</span>
+    </div>
+
+    <p>
+      <strong>实践建议</strong>：从"工具集合"出发设计AI助手，而不是从"对话"出发。
+      先问"这个角色的同事每天做哪些动作？"，把这些动作变成工具，
+      AI助手自然就能替代90%的日常工作。
+    </p>
+
+    <p>
+      但工具和工具的组合，开始让事情变得复杂——<strong>什么时候该用哪个工具？多个工具怎么编排？</strong>
+      这就引出了下一讲的主角：<strong>Agent</strong>——能自主规划、调度工具、完成复杂任务的AI实体。
+    </p>
+  </div>
+
+  <footer>
+    AI 系列课程 · 第 11 讲 · 共 20 讲 · 下一讲：Agent——从单轮对话到自主任务
+  </footer>
+</div>
+
+<script>
+// 第二节：交互流程
+const cases = [
+  {
+    title: '查询客户业绩',
+    turns: [
+      { type: 'user', tag: 'STEP 1 · USER', content: '客户A本月签了几个单？金额多少？' },
+      { type: 'ai-think', tag: 'STEP 2 · MODEL THINKS', content: '用户想查询客户A本月的销售业绩。我需要：①找到客户A的ID ②查询本月订单。我应该调用 <code>search_customer</code> 工具。' },
+      { type: 'tool-call', tag: 'STEP 3 · TOOL CALL', content: `模型生成工具调用：<pre><span class="key">"name"</span>: <span class="str">"search_customer"</span>,
+<span class="key">"arguments"</span>: {
+  <span class="key">"name"</span>: <span class="str">"客户A"</span>
+}</pre>` },
+      { type: 'tool-result', tag: 'STEP 4 · TOOL RESULT', content: `代码执行后返回：<pre>{
+  <span class="key">"customer_id"</span>: <span class="str">"CUST-2024-001"</span>,
+  <span class="key">"name"</span>: <span class="str">"客户A 科技有限公司"</span>,
+  <span class="key">"industry"</span>: <span class="str">"金融"</span>
+}</pre>` },
+      { type: 'ai-think', tag: 'STEP 5 · MODEL CONTINUES', content: '已找到客户A的ID。现在需要查询本月订单。调用 <code>get_order_history</code>。' },
+      { type: 'tool-call', tag: 'STEP 6 · ANOTHER CALL', content: `<pre><span class="key">"name"</span>: <span class="str">"get_order_history"</span>,
+<span class="key">"arguments"</span>: {
+  <span class="key">"customer_id"</span>: <span class="str">"CUST-2024-001"</span>,
+  <span class="key">"date_from"</span>: <span class="str">"2025-04-01"</span>,
+  <span class="key">"date_to"</span>: <span class="str">"2025-04-30"</span>
+}</pre>` },
+      { type: 'tool-result', tag: 'STEP 7 · DATA RETURNED', content: `<pre>{
+  <span class="key">"orders"</span>: [
+    { <span class="key">"id"</span>: <span class="str">"ORD-001"</span>, <span class="key">"amount"</span>: <span class="num">580000</span> },
+    { <span class="key">"id"</span>: <span class="str">"ORD-002"</span>, <span class="key">"amount"</span>: <span class="num">240000</span> },
+    { <span class="key">"id"</span>: <span class="str">"ORD-003"</span>, <span class="key">"amount"</span>: <span class="num">155000</span> }
+  ],
+  <span class="key">"total_count"</span>: <span class="num">3</span>,
+  <span class="key">"total_amount"</span>: <span class="num">975000</span>
+}</pre>` },
+      { type: 'ai-final', tag: 'STEP 8 · FINAL ANSWER', content: '客户A本月共签了 <strong>3个订单</strong>，总金额 <strong>97.5万</strong>。其中最大的订单ORD-001为58万。整体表现优于上月（上月2单合计65万）。需要我把详细订单清单发给您吗？' }
+    ]
+  },
+  {
+    title: '创建跟进任务',
+    turns: [
+      { type: 'user', tag: 'STEP 1 · USER', content: '客户B最近一直没回复，帮我安排销售小李下周二跟进一下' },
+      { type: 'ai-think', tag: 'STEP 2 · MODEL THINKS', content: '用户要创建一个跟进任务。需要的信息：客户（客户B）、负责人（小李）、时间（下周二）。我先查找客户B和小李的ID。' },
+      { type: 'tool-call', tag: 'STEP 3 · LOOKUP', content: `<pre><span class="key">"name"</span>: <span class="str">"search_customer"</span>,
+<span class="key">"arguments"</span>: { <span class="key">"name"</span>: <span class="str">"客户B"</span> }</pre>` },
+      { type: 'tool-result', tag: 'STEP 4 · FOUND', content: `<pre>{ <span class="key">"customer_id"</span>: <span class="str">"CUST-2024-088"</span> }</pre>` },
+      { type: 'tool-call', tag: 'STEP 5 · CREATE TASK', content: `<pre><span class="key">"name"</span>: <span class="str">"create_task"</span>,
+<span class="key">"arguments"</span>: {
+  <span class="key">"customer_id"</span>: <span class="str">"CUST-2024-088"</span>,
+  <span class="key">"assignee"</span>: <span class="str">"sales_lily"</span>,
+  <span class="key">"due_date"</span>: <span class="str">"2025-04-22"</span>,
+  <span class="key">"title"</span>: <span class="str">"跟进客户B"</span>,
+  <span class="key">"note"</span>: <span class="str">"客户最近未回复，需主动跟进"</span>
+}</pre>` },
+      { type: 'tool-result', tag: 'STEP 6 · CREATED', content: `<pre>{
+  <span class="key">"task_id"</span>: <span class="str">"TASK-2025-0419-001"</span>,
+  <span class="key">"status"</span>: <span class="str">"created"</span>,
+  <span class="key">"assignee_notified"</span>: <span class="num">true</span>
+}</pre>` },
+      { type: 'ai-final', tag: 'STEP 7 · FINAL ANSWER', content: '已为您创建跟进任务（编号 TASK-2025-0419-001），分派给销售小李，截止日期下周二（4月22日）。系统已通过APP推送通知她。需要我同时发邮件给小李补充背景吗？' }
+    ]
+  },
+  {
+    title: '多工具组合（销售周报生成）',
+    turns: [
+      { type: 'user', tag: 'STEP 1 · USER', content: '帮我生成上周销售周报，发到老板邮箱' },
+      { type: 'ai-think', tag: 'STEP 2 · MODEL THINKS', content: '复杂任务，需要分3步：①查询上周销售数据 ②生成周报内容 ③发邮件。先调用 <code>analyze_sales_data</code>。' },
+      { type: 'tool-call', tag: 'STEP 3 · ANALYZE', content: `<pre><span class="key">"name"</span>: <span class="str">"analyze_sales_data"</span>,
+<span class="key">"arguments"</span>: {
+  <span class="key">"date_from"</span>: <span class="str">"2025-04-07"</span>,
+  <span class="key">"date_to"</span>: <span class="str">"2025-04-13"</span>,
+  <span class="key">"group_by"</span>: <span class="str">"sales_rep"</span>
+}</pre>` },
+      { type: 'tool-result', tag: 'STEP 4 · DATA', content: `<pre>{
+  <span class="key">"week_total"</span>: <span class="num">3850000</span>,
+  <span class="key">"week_orders"</span>: <span class="num">12</span>,
+  <span class="key">"top_rep"</span>: <span class="str">"小李"</span>,
+  <span class="key">"breakdown"</span>: [...]
+}</pre>` },
+      { type: 'ai-think', tag: 'STEP 5 · MODEL THINKS', content: '数据已获取。现在生成周报内容并发邮件。' },
+      { type: 'tool-call', tag: 'STEP 6 · SEND EMAIL', content: `<pre><span class="key">"name"</span>: <span class="str">"send_email"</span>,
+<span class="key">"arguments"</span>: {
+  <span class="key">"to"</span>: <span class="str">"boss@company.com"</span>,
+  <span class="key">"subject"</span>: <span class="str">"销售周报 (4/7-4/13)"</span>,
+  <span class="key">"body"</span>: <span class="str">"上周销售总额385万..."</span>
+}</pre>` },
+      { type: 'tool-result', tag: 'STEP 7 · SENT', content: `<pre>{
+  <span class="key">"message_id"</span>: <span class="str">"&lt;abc123@mail&gt;"</span>,
+  <span class="key">"status"</span>: <span class="str">"delivered"</span>
+}</pre>` },
+      { type: 'ai-final', tag: 'STEP 8 · FINAL ANSWER', content: '✓ 上周销售周报已生成并发送至 boss@company.com<br>• 总销售额：385万（环比+12%）<br>• 总订单数：12单<br>• Top销售：小李（贡献120万）<br>邮件已送达，老板可在邮箱查看。' }
+    ]
+  }
+];
+
+let currentCase = 0;
+let renderTimer = null;
+
+function renderCase(idx) {
+  if (renderTimer) clearTimeout(renderTimer);
+  const conv = document.getElementById('conversation');
+  conv.innerHTML = '';
+  const turns = cases[idx].turns;
+  
+  turns.forEach((t, i) => {
+    setTimeout(() => {
+      const div = document.createElement('div');
+      div.className = `turn ${t.type}`;
+      div.innerHTML = `
+        <div class="turn-tag">${t.tag}</div>
+        <div class="turn-content">${t.content}</div>
+      `;
+      conv.appendChild(div);
+    }, i * 600);
+  });
+}
+
+document.querySelectorAll('.demo-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.demo-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentCase = +btn.dataset.case;
+    renderCase(currentCase);
+  });
+});
+
+document.getElementById('replayBtn').addEventListener('click', () => renderCase(currentCase));
+
+renderCase(0);
+
+// 第三节：工具规范
+const toolSpecs = [
+  {
+    name: '查询订单',
+    code: `{
+  <span class="key">"name"</span>: <span class="str">"get_order_history"</span>,
+  <span class="key">"description"</span>: <span class="str">"查询指定客户在某时间段内的订单记录</span><span class="important">。当用户询问客户的销售业绩、签单情况、订单历史时使用</span><span class="str">。"</span>,
+  <span class="key">"parameters"</span>: {
+    <span class="key">"type"</span>: <span class="str">"object"</span>,
+    <span class="key">"properties"</span>: {
+      <span class="key">"customer_id"</span>: {
+        <span class="key">"type"</span>: <span class="str">"string"</span>,
+        <span class="key">"description"</span>: <span class="str">"客户ID，格式 CUST-YYYY-NNN"</span>,
+        <span class="key">"example"</span>: <span class="str">"CUST-2024-001"</span>
+      },
+      <span class="key">"date_from"</span>: {
+        <span class="key">"type"</span>: <span class="str">"string"</span>,
+        <span class="key">"format"</span>: <span class="str">"date"</span>,
+        <span class="key">"description"</span>: <span class="str">"起始日期 YYYY-MM-DD"</span>
+      },
+      <span class="key">"date_to"</span>: {
+        <span class="key">"type"</span>: <span class="str">"string"</span>,
+        <span class="key">"format"</span>: <span class="str">"date"</span>,
+        <span class="key">"description"</span>: <span class="str">"结束日期 YYYY-MM-DD"</span>
+      },
+      <span class="key">"status"</span>: {
+        <span class="key">"type"</span>: <span class="str">"string"</span>,
+        <span class="key">"enum"</span>: [<span class="str">"pending"</span>, <span class="str">"signed"</span>, <span class="str">"paid"</span>, <span class="str">"cancelled"</span>],
+        <span class="key">"description"</span>: <span class="str">"订单状态过滤(可选)"</span>
+      }
+    },
+    <span class="key">"required"</span>: [<span class="str">"customer_id"</span>, <span class="str">"date_from"</span>, <span class="str">"date_to"</span>]
+  }
+}`
+  },
+  {
+    name: '发送邮件',
+    code: `{
+  <span class="key">"name"</span>: <span class="str">"send_email"</span>,
+  <span class="key">"description"</span>: <span class="str">"发送邮件给指定收件人</span><span class="important">。仅当用户明确要求发送邮件时调用，模糊的"通知一下"不应直接调用</span><span class="str">。"</span>,
+  <span class="key">"parameters"</span>: {
+    <span class="key">"type"</span>: <span class="str">"object"</span>,
+    <span class="key">"properties"</span>: {
+      <span class="key">"to"</span>: {
+        <span class="key">"type"</span>: <span class="str">"array"</span>,
+        <span class="key">"items"</span>: { <span class="key">"type"</span>: <span class="str">"string"</span>, <span class="key">"format"</span>: <span class="str">"email"</span> },
+        <span class="key">"description"</span>: <span class="str">"收件人邮箱列表"</span>
+      },
+      <span class="key">"cc"</span>: {
+        <span class="key">"type"</span>: <span class="str">"array"</span>,
+        <span class="key">"items"</span>: { <span class="key">"type"</span>: <span class="str">"string"</span> },
+        <span class="key">"description"</span>: <span class="str">"抄送列表（可选）"</span>
+      },
+      <span class="key">"subject"</span>: {
+        <span class="key">"type"</span>: <span class="str">"string"</span>,
+        <span class="key">"description"</span>: <span class="str">"邮件主题，应简短具体"</span>
+      },
+      <span class="key">"body"</span>: {
+        <span class="key">"type"</span>: <span class="str">"string"</span>,
+        <span class="key">"description"</span>: <span class="str">"邮件正文，支持Markdown"</span>
+      },
+      <span class="key">"requires_confirmation"</span>: {
+        <span class="key">"type"</span>: <span class="str">"boolean"</span>,
+        <span class="key">"description"</span>: <span class="str">"是否发送前要求用户二次确认</span><span class="important">（外部邮件建议true）</span><span class="str">"</span>
+      }
+    },
+    <span class="key">"required"</span>: [<span class="str">"to"</span>, <span class="str">"subject"</span>, <span class="str">"body"</span>]
+  }
+}`
+  },
+  {
+    name: '创建工单',
+    code: `{
+  <span class="key">"name"</span>: <span class="str">"create_ticket"</span>,
+  <span class="key">"description"</span>: <span class="str">"创建客服工单</span><span class="important">。当客户报告问题、提出投诉或请求协助时使用</span><span class="str">。"</span>,
+  <span class="key">"parameters"</span>: {
+    <span class="key">"type"</span>: <span class="str">"object"</span>,
+    <span class="key">"properties"</span>: {
+      <span class="key">"customer_id"</span>: {
+        <span class="key">"type"</span>: <span class="str">"string"</span>,
+        <span class="key">"description"</span>: <span class="str">"提交工单的客户ID"</span>
+      },
+      <span class="key">"category"</span>: {
+        <span class="key">"type"</span>: <span class="str">"string"</span>,
+        <span class="key">"enum"</span>: [<span class="str">"functional"</span>, <span class="str">"performance"</span>, <span class="str">"data"</span>, <span class="str">"integration"</span>, <span class="str">"emergency"</span>, <span class="str">"other"</span>],
+        <span class="key">"description"</span>: <span class="str">"工单分类，决定派单路径"</span>
+      },
+      <span class="key">"urgency"</span>: {
+        <span class="key">"type"</span>: <span class="str">"string"</span>,
+        <span class="key">"enum"</span>: [<span class="str">"P0"</span>, <span class="str">"P1"</span>, <span class="str">"P2"</span>, <span class="str">"P3"</span>],
+        <span class="key">"description"</span>: <span class="str">"紧急程度。P0=系统不可用，P1=核心功能受影响，P2=次要问题，P3=咨询"</span>
+      },
+      <span class="key">"title"</span>: {
+        <span class="key">"type"</span>: <span class="str">"string"</span>,
+        <span class="key">"maxLength"</span>: <span class="num">100</span>,
+        <span class="key">"description"</span>: <span class="str">"工单标题，简明描述问题"</span>
+      },
+      <span class="key">"description"</span>: {
+        <span class="key">"type"</span>: <span class="str">"string"</span>,
+        <span class="key">"description"</span>: <span class="str">"详细描述：现象、复现步骤、影响范围"</span>
+      },
+      <span class="key">"attachments"</span>: {
+        <span class="key">"type"</span>: <span class="str">"array"</span>,
+        <span class="key">"items"</span>: { <span class="key">"type"</span>: <span class="str">"string"</span> },
+        <span class="key">"description"</span>: <span class="str">"附件URL列表（截图、日志）"</span>
+      }
+    },
+    <span class="key">"required"</span>: [<span class="str">"customer_id"</span>, <span class="str">"category"</span>, <span class="str">"urgency"</span>, <span class="str">"title"</span>, <span class="str">"description"</span>]
+  }
+}`
+  }
+];
+
+document.querySelectorAll('.spec-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.spec-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const idx = +tab.dataset.tool;
+    document.getElementById('toolSpec').innerHTML = `<pre>${toolSpecs[idx].code}</pre>`;
+  });
+});
+
+document.getElementById('toolSpec').innerHTML = `<pre>${toolSpecs[0].code}</pre>`;
+</script>
+</body>
+</html>

@@ -1,0 +1,1522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第12讲｜Agent：从单轮对话到自主任务</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', 'Inter', sans-serif;
+    background: #f6f3ee;
+    color: #1f1d1a;
+    min-height: 100vh;
+    padding: 24px;
+    line-height: 1.6;
+  }
+  .container { max-width: 1280px; margin: 0 auto; }
+
+  header {
+    background: #1f1d1a;
+    color: #f6f3ee;
+    padding: 60px 56px;
+    margin-bottom: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 900px;
+    height: 900px;
+    background: radial-gradient(circle, rgba(255, 102, 0, 0.05) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  
+  .lesson-tag {
+    display: inline-block;
+    padding: 6px 14px;
+    border: 1px solid #ff6600;
+    color: #ff6600;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    margin-bottom: 24px;
+    position: relative;
+  }
+  h1 {
+    font-family: 'Instrument Serif', 'Inter', serif;
+    font-size: 96px;
+    font-weight: 400;
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    margin-bottom: 12px;
+    position: relative;
+  }
+  h1 .accent { 
+    color: #ff6600; 
+    font-style: italic;
+  }
+  .h1-cn {
+    font-family: 'Inter', 'Noto Sans SC', sans-serif;
+    font-size: 26px;
+    font-weight: 600;
+    margin-top: 14px;
+    color: #b8b4ad;
+    position: relative;
+  }
+  .subtitle {
+    margin-top: 22px;
+    font-size: 16px;
+    color: #a8a49d;
+    line-height: 1.85;
+    max-width: 720px;
+    position: relative;
+  }
+  .subtitle strong { color: #ff6600; font-weight: 500; }
+
+  .section {
+    background: #fff;
+    border: 1px solid #e0d8c8;
+    padding: 44px 48px;
+    margin-bottom: 24px;
+  }
+  .section.dark {
+    background: #1f1d1a;
+    color: #f6f3ee;
+    border-color: #2a2823;
+  }
+  .section.tan {
+    background: #ebe4d4;
+    border-color: #d4cab4;
+  }
+  
+  .section-marker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.3em;
+    margin-bottom: 8px;
+  }
+  .section.dark .section-marker { color: #ff6600; }
+  
+  .section-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 52px;
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    margin-bottom: 8px;
+  }
+  .section-title em { color: #ff6600; font-style: italic; }
+  .section-cn {
+    font-family: 'Inter', sans-serif;
+    font-size: 22px;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  .section-lead {
+    margin-top: 16px;
+    font-size: 15px;
+    line-height: 1.85;
+    max-width: 800px;
+    color: #5a5650;
+  }
+  .section.dark .section-lead { color: #b8b4ad; }
+
+  /* 第一节：Tool Use → Agent */
+  .evolution {
+    margin-top: 36px;
+    display: grid;
+    grid-template-columns: 1fr 60px 1fr;
+    gap: 0;
+    align-items: stretch;
+  }
+  .evo-card {
+    background: #faf6ee;
+    border: 1px solid #e0d8c8;
+    padding: 28px;
+  }
+  .evo-card.right {
+    background: #1f1d1a;
+    color: #f6f3ee;
+    border-color: #1f1d1a;
+  }
+  .evo-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ff6600;
+    font-family: 'Instrument Serif', serif;
+    font-size: 60px;
+    font-style: italic;
+    font-weight: 400;
+  }
+  .evo-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: #888;
+    margin-bottom: 8px;
+  }
+  .evo-card.right .evo-tag { color: #ff6600; }
+  .evo-card h4 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 28px;
+    font-weight: 400;
+    margin-bottom: 12px;
+    line-height: 1.2;
+  }
+  .evo-card h4 em { color: #ff6600; font-style: italic; }
+  .evo-card .feature-list {
+    list-style: none;
+    margin-top: 16px;
+  }
+  .evo-card .feature-list li {
+    padding: 8px 0 8px 22px;
+    position: relative;
+    font-size: 13px;
+    color: #5a5650;
+    line-height: 1.7;
+    border-bottom: 1px solid #e8e0d0;
+  }
+  .evo-card.right .feature-list li {
+    color: #c4c0b8;
+    border-bottom-color: #2a2823;
+  }
+  .evo-card .feature-list li:last-child { border-bottom: none; }
+  .evo-card .feature-list li::before {
+    content: '—';
+    position: absolute;
+    left: 0;
+    color: #ff6600;
+    font-weight: 700;
+  }
+  .evo-card .feature-list li strong {
+    color: #1f1d1a;
+  }
+  .evo-card.right .feature-list li strong { color: #f6f3ee; }
+
+  /* 第二节：ReAct循环 */
+  .react-loop {
+    margin-top: 36px;
+    background: #1f1d1a;
+    color: #f6f3ee;
+    padding: 36px;
+  }
+  .loop-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .loop-task {
+    background: #2a2823;
+    border-left: 3px solid #ff6600;
+    padding: 14px 18px;
+    flex: 1;
+    min-width: 280px;
+  }
+  .loop-task-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #ff6600;
+    letter-spacing: 0.2em;
+    margin-bottom: 4px;
+  }
+  .loop-task-text {
+    font-size: 14px;
+    color: #f6f3ee;
+  }
+  .loop-buttons {
+    display: flex;
+    gap: 8px;
+  }
+  .loop-btn {
+    padding: 10px 16px;
+    background: transparent;
+    border: 1px solid #ff6600;
+    color: #ff6600;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .loop-btn:hover {
+    background: #ff6600;
+    color: #1f1d1a;
+  }
+  .loop-btn.active {
+    background: #ff6600;
+    color: #1f1d1a;
+    font-weight: 700;
+  }
+
+  .loop-diagram {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin: 24px 0;
+  }
+  .loop-stage {
+    background: #2a2823;
+    border: 1px solid #3a3833;
+    padding: 16px 18px;
+    text-align: center;
+    transition: all 0.3s;
+  }
+  .loop-stage.highlighted {
+    background: #ff6600;
+    color: #1f1d1a;
+    border-color: #ff6600;
+  }
+  .loop-stage.highlighted .stage-name { color: #1f1d1a; }
+  .loop-stage.highlighted .stage-desc { color: #1f1d1a; }
+  
+  .stage-letter {
+    font-family: 'Instrument Serif', serif;
+    font-size: 36px;
+    font-style: italic;
+    color: #ff6600;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .loop-stage.highlighted .stage-letter { color: #1f1d1a; }
+  .stage-name {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .stage-desc {
+    font-size: 11px;
+    color: #b8b4ad;
+    line-height: 1.6;
+  }
+  
+  .loop-history {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 600px;
+    overflow-y: auto;
+    padding-right: 8px;
+  }
+  .loop-history::-webkit-scrollbar { width: 6px; }
+  .loop-history::-webkit-scrollbar-track { background: #2a2823; }
+  .loop-history::-webkit-scrollbar-thumb { background: #ff6600; }
+  
+  .iter-block {
+    background: #2a2823;
+    border: 1px solid #3a3833;
+    padding: 16px 20px;
+    opacity: 0;
+    animation: slideIn 0.4s forwards;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .iter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #3a3833;
+  }
+  .iter-num {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    font-style: italic;
+    color: #ff6600;
+  }
+  .iter-status {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: #ff6600;
+  }
+  .iter-step {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 14px;
+    padding: 8px 0;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .iter-step-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: #888;
+    text-transform: uppercase;
+    padding-top: 2px;
+  }
+  .iter-step.thought .iter-step-label { color: #ffb86c; }
+  .iter-step.action .iter-step-label { color: #6c8aff; }
+  .iter-step.observation .iter-step-label { color: #ad6cff; }
+  .iter-step-text {
+    color: #d4d0c8;
+  }
+  .iter-step-text code {
+    font-family: 'JetBrains Mono', monospace;
+    background: #1a1815;
+    color: #ff6600;
+    padding: 2px 6px;
+    font-size: 12px;
+  }
+
+  .final-answer {
+    background: linear-gradient(135deg, #ff6600 0%, #e55a00 100%);
+    color: #1f1d1a;
+    padding: 22px 28px;
+    margin-top: 16px;
+    opacity: 0;
+    animation: slideIn 0.4s 0.3s forwards;
+  }
+  .final-answer-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    margin-bottom: 8px;
+    color: #1f1d1a;
+    opacity: 0.7;
+  }
+  .final-answer-text {
+    font-size: 14px;
+    line-height: 1.85;
+    color: #1f1d1a;
+    font-weight: 500;
+  }
+
+  /* 第三节：Agent四组件 */
+  .components-grid {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .component {
+    background: #faf6ee;
+    border: 1px solid #e0d8c8;
+    padding: 28px;
+    border-left: 4px solid #ff6600;
+  }
+  .comp-num {
+    font-family: 'Instrument Serif', serif;
+    font-size: 48px;
+    font-style: italic;
+    color: #ff6600;
+    line-height: 0.9;
+    margin-bottom: 4px;
+  }
+  .comp-name {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .comp-en {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 14px;
+  }
+  .comp-desc {
+    font-size: 13px;
+    color: #5a5650;
+    line-height: 1.85;
+    margin-bottom: 14px;
+  }
+  .comp-key {
+    background: #fff;
+    border-left: 2px solid #ff6600;
+    padding: 12px 16px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: #1f1d1a;
+  }
+  .comp-key strong { color: #ff6600; }
+
+  /* 第四节：Agent能力光谱 */
+  .spectrum-section {
+    background: #ebe4d4;
+    padding: 44px 48px;
+    margin-bottom: 24px;
+  }
+  .spectrum-bar {
+    margin-top: 36px;
+    position: relative;
+    padding: 20px 0;
+  }
+  .spectrum-track {
+    position: absolute;
+    top: 50%;
+    left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #b8b4ad 0%, #ff6600 100%);
+  }
+  .spectrum-levels {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    position: relative;
+    z-index: 1;
+  }
+  .spec-level {
+    background: #fff;
+    border: 1px solid #d4cab4;
+    padding: 18px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .spec-level::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 16px;
+    height: 16px;
+    background: #fff;
+    border: 3px solid #b8b4ad;
+    border-radius: 50%;
+  }
+  .spec-level.active::before {
+    border-color: #ff6600;
+    background: #ff6600;
+  }
+  .spec-level:hover { border-color: #ff6600; }
+  .spec-level.active {
+    background: #1f1d1a;
+    color: #f6f3ee;
+    border-color: #1f1d1a;
+  }
+  .spec-level.active .spec-num { color: #ff6600; }
+  .spec-level.active .spec-name { color: #f6f3ee; }
+  .spec-level.active .spec-desc { color: #b8b4ad; }
+  
+  .spec-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #ff6600;
+    letter-spacing: 0.15em;
+    margin-bottom: 6px;
+  }
+  .spec-name {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: #1f1d1a;
+  }
+  .spec-desc {
+    font-size: 11px;
+    color: #5a5650;
+    line-height: 1.6;
+  }
+
+  .spec-detail {
+    margin-top: 28px;
+    background: #1f1d1a;
+    color: #f6f3ee;
+    padding: 28px 32px;
+    border-left: 3px solid #ff6600;
+  }
+  .spec-detail h4 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 26px;
+    color: #ff6600;
+    margin-bottom: 12px;
+    font-style: italic;
+  }
+  .spec-detail p {
+    font-size: 14px;
+    line-height: 1.9;
+    color: #d4d0c8;
+    margin-bottom: 10px;
+  }
+  .spec-detail p strong { color: #ff6600; }
+  .spec-detail .examples {
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: #2a2823;
+    font-size: 13px;
+    color: #b8b4ad;
+    line-height: 1.8;
+  }
+  .spec-detail .examples strong { color: #f6f3ee; }
+
+  /* 第五节：CRM Agent设计 */
+  .agent-design {
+    margin-top: 32px;
+    background: #faf6ee;
+    border: 1px solid #e0d8c8;
+    padding: 32px;
+  }
+  .agent-card {
+    background: #fff;
+    padding: 24px;
+    margin-bottom: 14px;
+    border-left: 3px solid #ff6600;
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 20px;
+  }
+  .agent-card .role-name {
+    font-family: 'Instrument Serif', serif;
+    font-size: 24px;
+    font-weight: 400;
+    color: #ff6600;
+    line-height: 1.2;
+  }
+  .agent-card .role-name em {
+    font-style: italic;
+    display: block;
+    font-size: 14px;
+    color: #888;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.1em;
+    margin-top: 4px;
+  }
+  .agent-card .role-content h5 {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .agent-card .role-content p {
+    font-size: 13px;
+    color: #5a5650;
+    line-height: 1.8;
+    margin-bottom: 10px;
+  }
+  .agent-card .role-content .tools {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #ff6600;
+    letter-spacing: 0.05em;
+  }
+  .agent-card .role-content .tools span {
+    display: inline-block;
+    padding: 3px 8px;
+    background: #faf6ee;
+    margin: 2px 4px 2px 0;
+    border: 1px solid #e0d8c8;
+  }
+
+  /* 第六节：限制 */
+  .limitations-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 32px;
+  }
+  .lim-item {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 18px;
+    background: #2a2823;
+    border: 1px solid #3a3833;
+    padding: 22px 26px;
+  }
+  .lim-num {
+    font-family: 'Instrument Serif', serif;
+    font-size: 36px;
+    font-style: italic;
+    color: #ff6600;
+    line-height: 1;
+  }
+  .lim-content h5 {
+    font-size: 17px;
+    font-weight: 700;
+    color: #f6f3ee;
+    margin-bottom: 6px;
+  }
+  .lim-content p {
+    font-size: 13px;
+    color: #b8b4ad;
+    line-height: 1.85;
+  }
+  .lim-content p strong { color: #ff6600; }
+
+  /* 总结 */
+  .summary {
+    background: linear-gradient(135deg, #1f1d1a 0%, #2a2823 100%);
+    color: #f6f3ee;
+    padding: 56px 48px;
+    border-left: 4px solid #ff6600;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .summary::after {
+    content: 'AGENT';
+    position: absolute;
+    bottom: -50px;
+    right: -10px;
+    font-family: 'Instrument Serif', serif;
+    font-size: 220px;
+    font-style: italic;
+    color: rgba(255, 102, 0, 0.04);
+    line-height: 0.85;
+    pointer-events: none;
+  }
+  .summary h3 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 40px;
+    font-weight: 400;
+    margin-bottom: 22px;
+    color: #ff6600;
+    line-height: 1.15;
+    position: relative;
+  }
+  .summary h3 em { font-style: italic; }
+  .summary p {
+    font-size: 15px;
+    line-height: 1.95;
+    margin-bottom: 14px;
+    color: #d4d0c8;
+    position: relative;
+  }
+  .summary p strong { color: #ff6600; font-weight: 600; }
+  
+  .summary-quote {
+    background: rgba(255, 102, 0, 0.06);
+    border-left: 2px solid #ff6600;
+    padding: 24px 28px;
+    margin: 22px 0;
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    font-style: italic;
+    line-height: 1.6;
+    color: #f6f3ee;
+    position: relative;
+  }
+
+  footer {
+    text-align: center;
+    margin-top: 36px;
+    padding: 22px;
+    background: #1f1d1a;
+    color: #555;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.2em;
+  }
+
+  @media (max-width: 768px) {
+    h1 { font-size: 64px; }
+    .section, .summary, .spectrum-section { padding: 28px 22px; }
+    .evolution { grid-template-columns: 1fr; }
+    .evo-arrow { transform: rotate(90deg); padding: 12px 0; }
+    .components-grid, .loop-diagram { grid-template-columns: 1fr; }
+    .spectrum-levels { grid-template-columns: 1fr; }
+    .agent-card { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<!-- 课程系列统一导航条 · 由脚本注入 -->
+<div id="course-nav-bar">
+  <div class="course-nav-inner">
+    <a href="../lesson11/demo.html" class="course-nav-btn prev" title="Function Calling 与 Tool Use"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
+    <a href="../index.html" class="course-nav-center" title="回到课程总览">
+      <span class="nav-current">LESSON 12 / 20</span>
+      <span class="nav-title">Agent：从单轮对话到自主任务</span>
+    </a>
+    <a href="../lesson13/demo.html" class="course-nav-btn next" title="多Agent系统设计"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
+  </div>
+</div>
+
+<style id="course-nav-style">
+  #course-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  .course-nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .course-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .course-nav-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .course-nav-btn.disabled {
+    color: #444;
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .course-nav-btn .nav-arrow {
+    font-size: 14px;
+    line-height: 1;
+  }
+  .course-nav-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+    padding: 4px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    min-width: 0;
+  }
+  .course-nav-center:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .nav-current {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .nav-title {
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+    letter-spacing: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body {
+    padding-top: 64px !important;
+  }
+  
+  @media (max-width: 768px) {
+    .course-nav-inner {
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .course-nav-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .course-nav-btn .nav-label {
+      display: none;
+    }
+    .nav-title {
+      font-size: 11px;
+    }
+    .nav-current {
+      font-size: 9px;
+    }
+    body {
+      padding-top: 54px !important;
+    }
+  }
+</style>
+<!-- 课程系列统一导航条 · END -->
+
+<div class="container">
+  <header>
+    <div class="lesson-tag">LESSON 12 / 20</div>
+    <h1>From <em class="accent">tools</em><br>to <em class="accent">agents.</em></h1>
+    <div class="h1-cn">Agent：从单轮对话到自主任务</div>
+    <div class="subtitle">
+      上一讲我们让模型学会了用工具。但模型还是被动的——你说一句它做一步。
+      Agent是更进一步的存在——<strong>给它一个目标，它自己规划、自己执行、自己反思、自己继续</strong>，
+      直到任务完成。从"会用工具"到"自主完成任务"，这是质的飞跃。
+    </div>
+  </header>
+
+  <!-- 第一节：从Tool Use到Agent -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 01</div>
+    <div class="section-title">From <em>tools</em> to <em>agents</em></div>
+    <div class="section-cn">从"会用工具"到"自主决策"的飞跃</div>
+    <div class="section-lead">
+      Function Calling 让模型会用工具，但每次都是<strong>用户驱动</strong>的——你问一个问题，
+      它最多调用几个工具回答。Agent是<strong>目标驱动</strong>的——你给它一个目标，
+      它自己拆解、自己规划、自己执行、自己反思，直到达成目标或失败。
+    </div>
+
+    <div class="evolution">
+      <div class="evo-card">
+        <div class="evo-tag">LEVEL 1 · 上一讲</div>
+        <h4>Tool Use<br><em>单轮交互</em></h4>
+        <p style="font-size: 13px; color: #5a5650; line-height: 1.85;">
+          模型每次<strong>响应一个用户请求</strong>。它可能调用1-3次工具，但本质上是"被动执行"。
+          流程结束时，结果交还给用户。
+        </p>
+        <ul class="feature-list">
+          <li><strong>用户驱动</strong>——每次行动都源于用户输入</li>
+          <li><strong>有限步骤</strong>——通常2-5步就结束</li>
+          <li><strong>无长期记忆</strong>——每次对话独立</li>
+          <li><strong>无自我反思</strong>——做错了就错了</li>
+          <li><strong>无目标拆解</strong>——只解决当前问题</li>
+        </ul>
+      </div>
+
+      <div class="evo-arrow">→</div>
+
+      <div class="evo-card right">
+        <div class="evo-tag">LEVEL 2 · 今天</div>
+        <h4>Agent<br><em>自主任务</em></h4>
+        <p style="font-size: 13px; color: #c4c0b8; line-height: 1.85;">
+          给它一个<strong>高层目标</strong>，它自己拆解成子任务，依次执行，
+          中途检查进展、调整策略，直到完成或确认无法完成。
+        </p>
+        <ul class="feature-list">
+          <li><strong>目标驱动</strong>——围绕一个目标持续行动</li>
+          <li><strong>多步循环</strong>——可能跑十几步、几十步</li>
+          <li><strong>有工作记忆</strong>——记住中间结果</li>
+          <li><strong>会反思</strong>——失败后调整策略</li>
+          <li><strong>能拆解</strong>——把复杂任务分解成子任务</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="margin-top: 28px; padding: 24px 28px; background: #ebe4d4; border-left: 4px solid #ff6600;">
+      <p style="font-size: 14px; line-height: 1.9; color: #1f1d1a;">
+        <strong style="color: #ff6600;">举个对比例子</strong>：你说"客户A本月业绩怎么样"——
+        <strong>Tool Use</strong>查一下数据告诉你结果，结束。
+        <strong>Agent</strong>查了数据，发现业绩异常下降，<strong>自己决定再深挖原因</strong>——
+        查最近的客户互动记录、看是否有竞品介入的迹象、对比上月差异、最后给出一份完整的"业绩异动分析"。
+        差别是：Agent会<strong style="color: #ff6600;">超出你的提问范围去主动思考</strong>。
+      </p>
+    </div>
+  </div>
+
+  <!-- 第二节：ReAct循环 -->
+  <div class="section dark">
+    <div class="section-marker">CHAPTER · 02</div>
+    <div class="section-title" style="color: #f6f3ee;">The <em>ReAct</em> loop</div>
+    <div class="section-cn" style="color: #f6f3ee;">Agent的核心机制：思考-行动-观察循环</div>
+    <div class="section-lead">
+      Agent不是黑盒。它的核心机制叫 <strong>ReAct</strong>——Reasoning + Acting。
+      每一步都是"<strong>想一想 → 做一做 → 看结果</strong>"的循环。
+      下面看一个真实Agent处理任务的全过程。
+    </div>
+
+    <div class="react-loop">
+      <div class="loop-controls">
+        <div class="loop-task">
+          <div class="loop-task-tag">▼ 用户给Agent的目标</div>
+          <div class="loop-task-text" id="taskText">分析客户A本月销售下滑的原因，给出后续建议</div>
+        </div>
+        <div class="loop-buttons">
+          <button class="loop-btn active" data-task="0">销售下滑分析</button>
+          <button class="loop-btn" data-task="1">线索分配优化</button>
+        </div>
+      </div>
+
+      <div class="loop-diagram">
+        <div class="loop-stage" id="stage-T">
+          <div class="stage-letter">T</div>
+          <div class="stage-name">Thought · 思考</div>
+          <div class="stage-desc">分析当前情况<br>决定下一步</div>
+        </div>
+        <div class="loop-stage" id="stage-A">
+          <div class="stage-letter">A</div>
+          <div class="stage-name">Action · 行动</div>
+          <div class="stage-desc">调用工具<br>或生成回答</div>
+        </div>
+        <div class="loop-stage" id="stage-O">
+          <div class="stage-letter">O</div>
+          <div class="stage-name">Observation · 观察</div>
+          <div class="stage-desc">看工具返回<br>评估结果</div>
+        </div>
+      </div>
+
+      <div class="loop-history" id="loopHistory">
+      </div>
+    </div>
+
+    <div style="margin-top: 28px; padding: 22px 26px; background: #2a2823; border: 1px solid #3a3833; color: #d4d0c8;">
+      <p style="font-size: 14px; line-height: 1.85;">
+        <strong style="color: #ff6600;">ReAct的精髓</strong>：每一步Agent都<strong style="color: #f6f3ee;">"显式地"思考</strong>。
+        它不是闷头干活，而是先说"为什么要做这一步"，再做。这样我们能看到它的思路、能发现它哪里想错了、能干预或纠正它。
+        这种<strong style="color: #f6f3ee;">"思考可见"</strong>是Agent可信的基础。
+      </p>
+    </div>
+  </div>
+
+  <!-- 第三节：Agent四组件 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 03</div>
+    <div class="section-title">The <em>4 components</em></div>
+    <div class="section-cn">构成Agent的4个组件</div>
+    <div class="section-lead">
+      所有Agent都由4个组件构成。理解了这4个组件，你就能拆解任何Agent系统、设计自己的Agent。
+    </div>
+
+    <div class="components-grid">
+      <div class="component">
+        <div class="comp-num">01</div>
+        <div class="comp-name">大脑（LLM）</div>
+        <div class="comp-en">THE BRAIN</div>
+        <div class="comp-desc">
+          Agent的核心是一个LLM。它负责"思考"——理解目标、拆解任务、决定下一步、生成回答。
+          通常用强模型（GPT-4、Claude Opus），因为<strong>规划能力是涌现出来的</strong>，弱模型规划经常出错。
+        </div>
+        <div class="comp-key">
+          <strong>选型经验</strong>：复杂任务必须用Frontier梯队。中等任务可以用Strong（Claude Sonnet、DeepSeek V3）。简单的工具调度用Efficient也行。
+        </div>
+      </div>
+
+      <div class="component">
+        <div class="comp-num">02</div>
+        <div class="comp-name">工具集（Tools）</div>
+        <div class="comp-en">THE HANDS</div>
+        <div class="comp-desc">
+          Agent通过工具与世界交互——查询、计算、调用API、修改数据。这是上一讲的核心内容。
+          工具集合<strong>定义了Agent的能力边界</strong>——能力越大，工具越多。
+        </div>
+        <div class="comp-key">
+          <strong>设计原则</strong>：工具数量适中（10个左右），分类清晰（查询/动作/工作流），权限严格（按用户身份隔离）。
+        </div>
+      </div>
+
+      <div class="component">
+        <div class="comp-num">03</div>
+        <div class="comp-name">记忆（Memory）</div>
+        <div class="comp-en">THE MEMORY</div>
+        <div class="comp-desc">
+          Agent要能记住"自己做过什么"——上一步思考的内容、工具返回的结果、当前进展。
+          分两层：<strong>工作记忆</strong>（当前对话的上下文）和<strong>长期记忆</strong>（跨会话的知识，通常用RAG实现）。
+        </div>
+        <div class="comp-key">
+          <strong>典型问题</strong>：上下文太长会被截断、超过窗口长度会丢信息。需要"记忆压缩"或分层记忆策略。
+        </div>
+      </div>
+
+      <div class="component">
+        <div class="comp-num">04</div>
+        <div class="comp-name">规划（Planner）</div>
+        <div class="comp-en">THE STRATEGY</div>
+        <div class="comp-desc">
+          规划是Agent的灵魂——把高层目标拆解成可执行的子任务。
+          有两种范式：<strong>显式规划</strong>（先列计划再执行）和<strong>隐式规划</strong>（边走边想，ReAct）。
+          实际项目里两种都用。
+        </div>
+        <div class="comp-key">
+          <strong>选择策略</strong>：任务清晰可预知 → 显式规划；任务模糊需探索 → 隐式规划（ReAct）；复杂项目可以混合——先做粗略计划，每个子任务用ReAct执行。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 第四节：Agent能力光谱 -->
+  <div class="spectrum-section">
+    <div class="section-marker">CHAPTER · 04</div>
+    <div class="section-title">The <em>capability</em> spectrum</div>
+    <div class="section-cn">Agent能力光谱：从Co-pilot到Auto-pilot</div>
+    <div class="section-lead">
+      Agent不是非黑即白的——存在<strong>5个能力等级</strong>。
+      你可以根据业务场景的风险和复杂度，选择合适的Agent等级。
+      点击查看每个等级的特点。
+    </div>
+
+    <div class="spectrum-bar">
+      <div class="spectrum-track"></div>
+      <div class="spectrum-levels">
+        <div class="spec-level active" data-level="0">
+          <div class="spec-num">L0</div>
+          <div class="spec-name">无Agent</div>
+          <div class="spec-desc">纯Chat<br>纯被动</div>
+        </div>
+        <div class="spec-level" data-level="1">
+          <div class="spec-num">L1</div>
+          <div class="spec-name">Copilot</div>
+          <div class="spec-desc">辅助建议<br>人类执行</div>
+        </div>
+        <div class="spec-level" data-level="2">
+          <div class="spec-num">L2</div>
+          <div class="spec-name">Agent</div>
+          <div class="spec-desc">自主执行<br>需要确认</div>
+        </div>
+        <div class="spec-level" data-level="3">
+          <div class="spec-num">L3</div>
+          <div class="spec-name">Autonomous</div>
+          <div class="spec-desc">完全自主<br>事后审计</div>
+        </div>
+        <div class="spec-level" data-level="4">
+          <div class="spec-num">L4</div>
+          <div class="spec-name">Multi-Agent</div>
+          <div class="spec-desc">多Agent协作<br>下一讲</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="spec-detail" id="specDetail">
+    </div>
+  </div>
+
+  <!-- 第五节：CRM Agent设计 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 05</div>
+    <div class="section-title">CRM <em>Agent</em> in practice</div>
+    <div class="section-cn">CRM场景下的Agent设计：5种角色</div>
+    <div class="section-lead">
+      在我们的CRM实施场景里，Agent可以替代或辅助多种角色。下面是5种<strong>已经在落地的Agent设计</strong>。
+      每种Agent都有特定的目标、工具集和典型任务。
+    </div>
+
+    <div class="agent-design">
+      <div class="agent-card">
+        <div class="role-name">销售助手<em>SALES AGENT</em></div>
+        <div class="role-content">
+          <h5>目标：帮销售提升业绩、降低无效工作</h5>
+          <p>
+            处理客户跟进提醒、自动生成跟进话术、分析客户行为模式、识别有价值的线索。
+            <strong>典型任务</strong>："这周该跟进哪些客户？给出优先级和具体话术。"
+          </p>
+          <div class="tools">
+            <span>search_customer</span>
+            <span>get_interaction_history</span>
+            <span>analyze_engagement</span>
+            <span>generate_followup_script</span>
+            <span>create_task</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="role-name">实施顾问<em>CONSULTANT AGENT</em></div>
+        <div class="role-content">
+          <h5>目标：辅助交付经理做需求分析和方案设计</h5>
+          <p>
+            从客户访谈中提取需求、关联历史相似项目、生成方案初稿、识别交付风险。
+            <strong>典型任务</strong>："基于这次访谈记录，给我一份初版需求清单和方案大纲。"
+          </p>
+          <div class="tools">
+            <span>extract_requirements</span>
+            <span>search_similar_projects</span>
+            <span>generate_solution_draft</span>
+            <span>identify_risks</span>
+            <span>estimate_effort</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="role-name">客服Agent<em>SUPPORT AGENT</em></div>
+        <div class="role-content">
+          <h5>目标：处理一线客户咨询，过滤简单问题</h5>
+          <p>
+            理解客户问题、检索知识库、回答简单问题、识别复杂问题转人工、记录工单。
+            <strong>典型任务</strong>："客户问'怎么导出报表'——回答+如果无法解决就开工单。"
+          </p>
+          <div class="tools">
+            <span>kb_search</span>
+            <span>get_user_context</span>
+            <span>generate_answer</span>
+            <span>create_ticket</span>
+            <span>escalate_to_human</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="role-name">数据分析师<em>ANALYST AGENT</em></div>
+        <div class="role-content">
+          <h5>目标：自助回答业务问题、生成报表</h5>
+          <p>
+            理解自然语言查询、生成SQL、运行查询、解读结果、给出业务洞察。
+            <strong>典型任务</strong>："上周华南区销售环比下降了多少？是哪些销售导致的？"
+          </p>
+          <div class="tools">
+            <span>nl_to_sql</span>
+            <span>execute_query</span>
+            <span>generate_chart</span>
+            <span>compare_periods</span>
+            <span>explain_anomaly</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="agent-card">
+        <div class="role-name">运营经理<em>OPS AGENT</em></div>
+        <div class="role-content">
+          <h5>目标：自动化日常运营任务、监控异常</h5>
+          <p>
+            监控系统状态、识别异常订单/客户、执行例行清理、生成日报、提醒关键事件。
+            <strong>典型任务</strong>："每天上午9点自动检查昨日订单，找出异常并生成处理建议。"
+          </p>
+          <div class="tools">
+            <span>scan_orders</span>
+            <span>detect_anomaly</span>
+            <span>send_alert</span>
+            <span>generate_daily_report</span>
+            <span>auto_cleanup</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 24px; padding: 22px 26px; background: #ebe4d4; border-left: 4px solid #ff6600;">
+      <p style="font-size: 14px; line-height: 1.9; color: #1f1d1a;">
+        <strong style="color: #ff6600;">设计经验</strong>：每个Agent都<strong>对应一个真实角色</strong>，目标明确、工具有限、边界清晰。
+        不要做"全能Agent"——目标越宽泛，效果越差。
+        <strong>"一个Agent做一件事，做好它"</strong>，多个Agent的协作我们下一讲讲。
+      </p>
+    </div>
+  </div>
+
+  <!-- 第六节：Agent的限制 -->
+  <div class="section dark">
+    <div class="section-marker">CHAPTER · 06</div>
+    <div class="section-title" style="color: #f6f3ee;">The <em>limits</em></div>
+    <div class="section-cn" style="color: #f6f3ee;">Agent今天还做不好的5件事</div>
+    <div class="section-lead">
+      Agent很强，但不是万能。<strong>知道它的边界</strong>，才能正确使用、避免踩坑。
+      这5个限制是我们项目里反复遇到的——也是Agent技术未来要突破的方向。
+    </div>
+
+    <div class="limitations-list">
+      <div class="lim-item">
+        <div class="lim-num">01</div>
+        <div class="lim-content">
+          <h5>长程任务的"目标漂移"</h5>
+          <p>
+            执行超过20-30步的任务时，Agent经常<strong>慢慢偏离原始目标</strong>——开始查A，中途发现B，又去研究C，最后忘了用户问的是A。
+            这是大模型上下文管理的根本问题——<strong>越往后，原始目标在context里越远，影响越弱</strong>。
+          </p>
+        </div>
+      </div>
+
+      <div class="lim-item">
+        <div class="lim-num">02</div>
+        <div class="lim-content">
+          <h5>反思能力有限</h5>
+          <p>
+            Agent能基于"工具返回结果"调整下一步——但<strong>很难真正反思自己的策略错误</strong>。
+            它会一遍遍尝试相同的失败路径，因为它意识不到"这条路根本走不通"。
+            <strong>需要外部规则强制中断、人工干预</strong>，纯靠模型自己反思往往不够。
+          </p>
+        </div>
+      </div>
+
+      <div class="lim-item">
+        <div class="lim-num">03</div>
+        <div class="lim-content">
+          <h5>成本和延迟</h5>
+          <p>
+            Agent做一个任务可能调用LLM 10-30次，每次都消耗token。<strong>一次复杂任务可能花几块到几十块</strong>。
+            而且每次LLM调用都要等几秒——总耗时可能几分钟。
+            <strong>不适合实时交互场景，更适合"后台跑、稍后看"</strong>。
+          </p>
+        </div>
+      </div>
+
+      <div class="lim-item">
+        <div class="lim-num">04</div>
+        <div class="lim-content">
+          <h5>不可预测性</h5>
+          <p>
+            Agent每次执行同一个任务，路径可能不同——选不同的工具、走不同的分支。
+            这让<strong>测试和质量保证非常困难</strong>。
+            传统软件可以单元测试，Agent只能用"端到端评估"+"大量样本"——这是一门新学问，下下讲讲评估时会展开。
+          </p>
+        </div>
+      </div>
+
+      <div class="lim-item">
+        <div class="lim-num">05</div>
+        <div class="lim-content">
+          <h5>很难解释失败</h5>
+          <p>
+            Agent失败了——是模型不够强？工具不够好？目标太模糊？还是某一步思路错了？
+            <strong>排错是个噩梦</strong>。需要完整的trace日志、可视化工具、人工审查。
+            "可观测性"是生产级Agent的硬指标——下下讲会专门讲这件事。
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 总结 -->
+  <div class="summary">
+    <div class="section-marker">RECAP</div>
+    <h3>From <em>chat</em> to <em>autonomous task</em></h3>
+    
+    <p>
+      今天我们走完了从"会聊天"到"能自主完成任务"的第一段路。Agent是大模型从"工具"进化到"同事"的关键一步。
+    </p>
+
+    <div class="summary-quote">
+      "Agent是给目标，不是给步骤。<br>
+      你说'帮我做',它自己想'怎么做'。"
+    </div>
+
+    <p>
+      <strong>4个核心组件</strong>构成所有Agent——大脑（LLM）、工具（Tools）、记忆（Memory）、规划（Planner）。
+      <strong>ReAct循环</strong>是Agent最核心的工作机制——思考-行动-观察，循环直到目标达成。
+    </p>
+
+    <p>
+      <strong>能力光谱5个等级</strong>——从纯Chat到Multi-Agent，逐级放权。
+      生产环境里大部分应用<strong>选L2（需要确认的Agent）</strong>最稳——既享受了Agent的智能，又保留了人类控制。
+      L3完全自主用在低风险高频场景；L4多Agent是下一讲的主角。
+    </p>
+
+    <p>
+      <strong>但Agent还有5个明显的局限</strong>——长程任务漂移、反思有限、成本高、不可预测、难解释。
+      正确的姿势是：<strong>用Agent处理它擅长的事，人类把握它弱的地方</strong>。
+      不要相信"完全替代人类"的鬼话，至少今天不行。
+    </p>
+
+    <p>
+      下一讲——<strong>多Agent系统</strong>。当一个Agent处理不了复杂任务时，我们让多个Agent协作。
+      这是当前Agent领域最前沿、也最有争议的话题。
+    </p>
+  </div>
+
+  <footer>
+    AI 系列课程 · 第 12 讲 · 共 20 讲 · 下一讲：多Agent系统设计
+  </footer>
+</div>
+
+<script>
+// 第二节：ReAct循环演示
+const tasks = [
+  {
+    text: '分析客户A本月销售下滑的原因，给出后续建议',
+    iterations: [
+      {
+        thought: '用户要分析销售下滑原因。我需要先查到客户A本月的实际数据，对比历史，看下滑幅度。',
+        action: '调用 <code>get_order_history</code>，参数 customer_id="客户A", date="2025-04"',
+        observation: '本月3个订单，总额97.5万。上月5个订单，总额180万。下滑幅度约45%。'
+      },
+      {
+        thought: '下滑45%是显著异常。我需要排查可能原因——客户互动减少？竞品介入？决策人变更？先查互动记录。',
+        action: '调用 <code>get_interaction_history</code>，参数 customer_id="客户A", date="2025-04"',
+        observation: '本月互动记录4次，上月12次。新增字段显示"主决策人王总于4月2日离职"。'
+      },
+      {
+        thought: '关键线索！主决策人离职是销售下滑的可能根源。我需要确认新决策人是谁、关系建立情况。',
+        action: '调用 <code>search_customer_contacts</code>，参数 customer_id="客户A"',
+        observation: '当前主联系人变更为李总（4月10日）。但我们公司还没有人和李总直接对接过。'
+      },
+      {
+        thought: '原因清晰了：决策人变更导致关系断层。建议主动建立和新决策人的关系。我应该给销售生成一份具体的行动计划。',
+        action: '生成最终分析报告',
+        observation: null
+      }
+    ],
+    final: '<strong>客户A销售下滑根因分析</strong><br><br>' +
+           '<strong>核心原因</strong>：主决策人王总于4月2日离职，新决策人李总（4月10日上任）尚未与我方建立联系。这导致4月互动减少67%（12次→4次），订单下滑45%（180万→97.5万）。<br><br>' +
+           '<strong>建议行动</strong>：① 销售经理本周内主动拜访李总建立关系 ② 为李总准备针对性的产品介绍（结合其行业背景） ③ 通过原有关系网了解李总的风格和关注点 ④ 5月底前争取恢复至正常签单节奏。<br><br>' +
+           '已为您创建跟进任务（TASK-2025-0419-088），分派给客户经理张工。'
+  },
+  {
+    text: '本月销售线索分配不均，调研问题并提出优化方案',
+    iterations: [
+      {
+        thought: '用户说"分配不均"，我需要先量化——具体每个销售拿到多少线索、转化率如何。',
+        action: '调用 <code>analyze_lead_distribution</code>，参数 month="2025-04"',
+        observation: '本月新增线索132条。Top销售（小李）47条，Bottom销售（小张）8条。差距5.9倍。'
+      },
+      {
+        thought: '差距很大。我要看看分配规则是什么，以及不同销售的转化率，判断是分配不公还是按能力分配。',
+        action: '调用 <code>get_lead_assignment_rule</code>',
+        observation: '当前规则：客户经理评分>80的销售优先。小李评分92，小张评分76。'
+      },
+      {
+        thought: '评分制度本身合理，但导致马太效应。我要看转化率——是不是分配多的人转化也高？',
+        action: '调用 <code>compute_conversion_rate</code>，参数 month="2025-04"',
+        observation: '小李转化率18%（47→8单）。小张转化率37%（8→3单）。差距大，但小张反而更高。'
+      },
+      {
+        thought: '关键发现：分配多的销售转化率反而低，说明优秀线索给了"大胃口"销售反而浪费了。需要调整规则。',
+        action: '生成优化方案',
+        observation: null
+      }
+    ],
+    final: '<strong>线索分配优化方案</strong><br><br>' +
+           '<strong>问题诊断</strong>：当前"评分>80优先"规则导致：① 47/8的极端分配（5.9倍差距） ② 高分销售转化率反而低（18% vs 37%） ③ 优质线索浪费在"接得多但跟得粗"的销售手里。<br><br>' +
+           '<strong>建议规则调整</strong>：① 引入"线索质量×销售能力匹配"模型替代单一评分 ② 设置销售月度线索上限（建议30条/人） ③ 转化率连续3个月>30%的销售优先获得优质线索 ④ 低分销售也保留稳定线索流入用于成长。<br><br>' +
+           '预计调整后整体转化率从24%提升至30%+。建议先在华南区试点1个月。'
+  }
+];
+
+let currentTask = 0;
+let renderTimer = null;
+
+function renderTask(idx) {
+  if (renderTimer) clearTimeout(renderTimer);
+  
+  const task = tasks[idx];
+  document.getElementById('taskText').textContent = task.text;
+  
+  const history = document.getElementById('loopHistory');
+  history.innerHTML = '';
+  
+  task.iterations.forEach((iter, i) => {
+    setTimeout(() => {
+      const block = document.createElement('div');
+      block.className = 'iter-block';
+      const isFinal = !iter.observation;
+      
+      let html = `
+        <div class="iter-header">
+          <div class="iter-num">Iteration ${i + 1}</div>
+          <div class="iter-status">${isFinal ? 'COMPLETE' : 'CONTINUE'}</div>
+        </div>
+        <div class="iter-step thought">
+          <div class="iter-step-label">Thought</div>
+          <div class="iter-step-text">${iter.thought}</div>
+        </div>
+        <div class="iter-step action">
+          <div class="iter-step-label">Action</div>
+          <div class="iter-step-text">${iter.action}</div>
+        </div>
+      `;
+      
+      if (iter.observation) {
+        html += `
+          <div class="iter-step observation">
+            <div class="iter-step-label">Observation</div>
+            <div class="iter-step-text">${iter.observation}</div>
+          </div>
+        `;
+      }
+      
+      block.innerHTML = html;
+      history.appendChild(block);
+      
+      // 高亮当前阶段
+      ['T', 'A', 'O'].forEach(s => document.getElementById('stage-' + s).classList.remove('highlighted'));
+      
+      // 滚动到底部
+      history.scrollTop = history.scrollHeight;
+    }, i * 1100);
+  });
+  
+  // 最后渲染最终答案
+  setTimeout(() => {
+    const finalDiv = document.createElement('div');
+    finalDiv.className = 'final-answer';
+    finalDiv.innerHTML = `
+      <div class="final-answer-tag">▼ FINAL ANSWER · 最终输出</div>
+      <div class="final-answer-text">${task.final}</div>
+    `;
+    document.getElementById('loopHistory').appendChild(finalDiv);
+    document.getElementById('loopHistory').scrollTop = document.getElementById('loopHistory').scrollHeight;
+  }, task.iterations.length * 1100 + 200);
+}
+
+document.querySelectorAll('.loop-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.loop-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentTask = +btn.dataset.task;
+    renderTask(currentTask);
+  });
+});
+
+renderTask(0);
+
+// 第四节：能力光谱
+const specLevels = [
+  {
+    title: 'L0 · 无Agent · 纯Chat',
+    content: `
+      <p>用户问一句，模型答一句。<strong>没有工具、没有记忆、没有规划</strong>。这是最早的ChatGPT形态。</p>
+      <p>适用：通用问答、闲聊、写作辅助、解释概念。</p>
+      <div class="examples">
+        <strong>典型场景</strong>：用户问"什么是LTC流程"——模型基于训练知识回答。不做任何外部操作。
+      </div>
+    `
+  },
+  {
+    title: 'L1 · Copilot · 辅助但不执行',
+    content: `
+      <p>模型给建议、生成草稿、解释问题——但<strong>所有动作都由人类执行</strong>。AI只在旁边"建议"。</p>
+      <p>适用：写作辅助、代码补全、邮件草稿、方案修改。</p>
+      <div class="examples">
+        <strong>典型场景</strong>：GitHub Copilot——AI建议代码，开发者决定是否采纳。Cursor的AI编辑——AI改了文件，但需要人工确认。
+      </div>
+    `
+  },
+  {
+    title: 'L2 · Agent · 自主执行 + 人工确认',
+    content: `
+      <p>Agent自己规划、自己执行工具调用——<strong>但敏感动作需要人类确认</strong>。这是大部分企业Agent的最佳位置。</p>
+      <p>适用：客户跟进、报告生成、数据查询、低风险操作。</p>
+      <div class="examples">
+        <strong>典型场景</strong>：销售助手生成跟进话术并草拟邮件，但发送前要销售点击确认。客户问题分析自动出报告，但建议执行前要主管批准。
+      </div>
+    `
+  },
+  {
+    title: 'L3 · Autonomous · 完全自主 + 事后审计',
+    content: `
+      <p>Agent自主完成任务，<strong>不需要人工确认</strong>，但所有操作记日志，事后可审计。</p>
+      <p>适用：低风险高频任务——日报生成、监控告警、数据清理、自动分类。</p>
+      <div class="examples">
+        <strong>典型场景</strong>：每天自动扫描订单异常并发提醒、自动给新工单分类派单、自动给客户邮件回复模板回复。<strong>谨慎用于涉及钱、权限、对外沟通的场景</strong>。
+      </div>
+    `
+  },
+  {
+    title: 'L4 · Multi-Agent · 多Agent协作',
+    content: `
+      <p>多个专业Agent协作完成复杂任务——一个Agent当"项目经理"，分派任务给"专家Agent"，最后汇总结果。</p>
+      <p>适用：复杂决策、跨领域研究、需要多种专业能力的任务。</p>
+      <div class="examples">
+        <strong>典型场景</strong>：自动化研究助手（搜索Agent + 分析Agent + 写作Agent + 审校Agent）。CRM方案生成（需求Agent + 方案Agent + 风险Agent + 估时Agent）。<strong>下一讲专门讲这个</strong>。
+      </div>
+    `
+  }
+];
+
+document.querySelectorAll('.spec-level').forEach(level => {
+  level.addEventListener('click', () => {
+    document.querySelectorAll('.spec-level').forEach(l => l.classList.remove('active'));
+    level.classList.add('active');
+    const idx = +level.dataset.level;
+    const detail = specLevels[idx];
+    document.getElementById('specDetail').innerHTML = `<h4>${detail.title}</h4>${detail.content}`;
+  });
+});
+
+document.getElementById('specDetail').innerHTML = `<h4>${specLevels[0].title}</h4>${specLevels[0].content}`;
+</script>
+</body>
+</html>

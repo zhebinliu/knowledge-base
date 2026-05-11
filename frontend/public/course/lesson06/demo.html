@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第6讲｜GPT是怎么炼成的</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: #f5f0e8;
+    color: #2a2520;
+    min-height: 100vh;
+    padding: 32px 20px;
+    background-image: 
+      radial-gradient(circle at 10% 20%, rgba(180, 100, 60, 0.04) 0%, transparent 50%),
+      radial-gradient(circle at 90% 80%, rgba(60, 90, 130, 0.04) 0%, transparent 50%);
+  }
+  .container { max-width: 1280px; margin: 0 auto; }
+
+  header {
+    margin-bottom: 56px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid #c9b89a;
+    position: relative;
+  }
+  .lesson-tag {
+    display: inline-block;
+    padding: 6px 14px;
+    background: #2a2520;
+    color: #f5f0e8;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    margin-bottom: 24px;
+  }
+  h1 {
+    font-family: 'Playfair Display', 'Noto Sans SC', serif;
+    font-size: 76px;
+    font-weight: 900;
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    margin-bottom: 16px;
+  }
+  h1 em {
+    font-style: italic;
+    font-weight: 400;
+    color: #b46438;
+  }
+  .h1-cn {
+    font-size: 28px;
+    font-weight: 700;
+    color: #5a5046;
+    margin-top: 8px;
+  }
+  .subtitle {
+    margin-top: 24px;
+    font-size: 16px;
+    color: #5a5046;
+    line-height: 1.8;
+    max-width: 720px;
+  }
+  .subtitle strong { color: #b46438; font-weight: 700; }
+
+  /* 三阶段流程图 */
+  .stages-overview {
+    background: #fff;
+    border: 1px solid #c9b89a;
+    padding: 48px;
+    margin-bottom: 48px;
+    box-shadow: 8px 8px 0 #2a2520;
+  }
+  .section-marker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #b46438;
+    letter-spacing: 0.3em;
+    margin-bottom: 8px;
+  }
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 40px;
+    font-weight: 900;
+    line-height: 1.1;
+    margin-bottom: 8px;
+  }
+  .section-title em {
+    font-style: italic;
+    font-weight: 400;
+    color: #b46438;
+  }
+  .section-cn {
+    font-size: 20px;
+    font-weight: 700;
+    color: #5a5046;
+  }
+  .section-lead {
+    margin-top: 16px;
+    font-size: 15px;
+    color: #5a5046;
+    line-height: 1.8;
+    max-width: 800px;
+  }
+
+  .stages-flow {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    gap: 0;
+    align-items: stretch;
+    margin-top: 40px;
+  }
+  .stage-block {
+    background: #f5f0e8;
+    border: 2px solid #2a2520;
+    padding: 24px;
+    text-align: center;
+    position: relative;
+    transition: all 0.3s;
+    cursor: pointer;
+  }
+  .stage-block:hover {
+    background: #fff;
+    transform: translateY(-4px);
+  }
+  .stage-block.active {
+    background: #2a2520;
+    color: #f5f0e8;
+  }
+  .stage-block.active .stage-block-name { color: #b46438; }
+  .stage-block.active .stage-block-en { color: #c9b89a; }
+  .stage-block.active .stage-block-data { color: #c9b89a; }
+  
+  .stage-block-num {
+    font-family: 'Playfair Display', serif;
+    font-size: 56px;
+    font-weight: 900;
+    color: #b46438;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .stage-block-name {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .stage-block-en {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.15em;
+    margin-bottom: 12px;
+  }
+  .stage-block-data {
+    font-size: 12px;
+    color: #5a5046;
+    line-height: 1.5;
+  }
+  
+  .stage-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    font-size: 32px;
+    color: #b46438;
+    font-weight: 300;
+  }
+
+  .stage-detail {
+    margin-top: 32px;
+    padding: 32px;
+    background: #f5f0e8;
+    border-left: 4px solid #b46438;
+    min-height: 200px;
+  }
+
+  .stage-detail h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    margin-bottom: 12px;
+  }
+  .stage-detail p {
+    font-size: 14px;
+    line-height: 1.9;
+    color: #2a2520;
+    margin-bottom: 12px;
+  }
+  .stage-detail p strong { color: #b46438; }
+
+  /* 预训练演示 */
+  .pretrain-demo {
+    background: #2a2520;
+    color: #f5f0e8;
+    padding: 48px;
+    margin-bottom: 48px;
+  }
+  .pretrain-demo .section-title { color: #f5f0e8; }
+  .pretrain-demo .section-cn { color: #c9b89a; }
+  .pretrain-demo .section-lead { color: #c9b89a; }
+
+  .next-token-demo {
+    background: #1a1612;
+    border: 1px solid #5a5046;
+    padding: 32px;
+    margin-top: 32px;
+  }
+  .nt-prompt {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    line-height: 1.5;
+    margin-bottom: 24px;
+    color: #f5f0e8;
+  }
+  .nt-prompt .pred {
+    background: #b46438;
+    color: #f5f0e8;
+    padding: 0 12px;
+    font-style: italic;
+    border-radius: 2px;
+  }
+  .nt-candidates {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .nt-candidate {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px;
+    background: #2a2520;
+    border-left: 3px solid #5a5046;
+    transition: all 0.3s;
+  }
+  .nt-candidate.top { border-left-color: #b46438; background: rgba(180, 100, 56, 0.1); }
+  .nt-word {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px;
+    width: 100px;
+    color: #f5f0e8;
+  }
+  .nt-bar-wrap {
+    flex: 1;
+    height: 8px;
+    background: #1a1612;
+    overflow: hidden;
+  }
+  .nt-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #5a5046, #b46438);
+    transition: width 0.6s;
+  }
+  .nt-prob {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: #b46438;
+    width: 60px;
+    text-align: right;
+  }
+
+  .nt-controls {
+    margin-top: 24px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .nt-btn {
+    padding: 12px 20px;
+    background: transparent;
+    border: 1.5px solid #b46438;
+    color: #b46438;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .nt-btn:hover {
+    background: #b46438;
+    color: #f5f0e8;
+  }
+  .nt-btn.active {
+    background: #b46438;
+    color: #f5f0e8;
+  }
+
+  .pretrain-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-top: 32px;
+  }
+  .pretrain-stat {
+    background: #1a1612;
+    border-top: 3px solid #b46438;
+    padding: 20px;
+  }
+  .pretrain-stat .l {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #c9b89a;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .pretrain-stat .v {
+    font-family: 'Playfair Display', serif;
+    font-size: 32px;
+    font-weight: 900;
+    color: #b46438;
+    line-height: 1;
+  }
+  .pretrain-stat .u {
+    font-size: 12px;
+    color: #5a5046;
+    margin-top: 4px;
+  }
+
+  /* SFT 演示 */
+  .sft-demo {
+    background: #fff;
+    border: 1px solid #c9b89a;
+    padding: 48px;
+    margin-bottom: 48px;
+  }
+  
+  .sft-comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 32px;
+  }
+  .sft-card {
+    background: #f5f0e8;
+    padding: 28px;
+    border-top: 3px solid #2a2520;
+  }
+  .sft-card.after { border-top-color: #b46438; }
+  
+  .sft-card-tag {
+    display: inline-block;
+    padding: 4px 12px;
+    background: #2a2520;
+    color: #f5f0e8;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    margin-bottom: 16px;
+  }
+  .sft-card.after .sft-card-tag { background: #b46438; }
+  
+  .sft-card h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    margin-bottom: 16px;
+    font-weight: 700;
+  }
+  .sft-qa {
+    background: #fff;
+    padding: 16px;
+    margin-bottom: 12px;
+    border-left: 3px solid #c9b89a;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .sft-qa-q {
+    font-weight: 700;
+    color: #b46438;
+    margin-bottom: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+  }
+  .sft-qa-a {
+    color: #2a2520;
+  }
+  .sft-card.after .sft-qa { border-left-color: #b46438; }
+
+  /* RLHF 演示 */
+  .rlhf-demo {
+    background: #2a2520;
+    color: #f5f0e8;
+    padding: 48px;
+    margin-bottom: 48px;
+  }
+  .rlhf-demo .section-title { color: #f5f0e8; }
+  .rlhf-demo .section-cn { color: #c9b89a; }
+  .rlhf-demo .section-lead { color: #c9b89a; }
+
+  .rlhf-question {
+    background: #1a1612;
+    padding: 24px 32px;
+    margin-top: 32px;
+    border-left: 4px solid #b46438;
+  }
+  .rlhf-q-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #b46438;
+    letter-spacing: 0.2em;
+    margin-bottom: 8px;
+  }
+  .rlhf-q-text {
+    font-size: 18px;
+    color: #f5f0e8;
+  }
+
+  .rlhf-answers {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 24px;
+  }
+  .rlhf-answer {
+    background: #1a1612;
+    border: 2px solid #5a5046;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+  }
+  .rlhf-answer:hover {
+    border-color: #b46438;
+  }
+  .rlhf-answer.preferred {
+    border-color: #b46438;
+    background: rgba(180, 100, 56, 0.1);
+  }
+  .rlhf-answer.preferred::after {
+    content: '✓ PREFERRED';
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #b46438;
+    letter-spacing: 0.15em;
+  }
+  .rlhf-answer.rejected {
+    opacity: 0.5;
+  }
+  .rlhf-a-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.15em;
+    margin-bottom: 12px;
+  }
+  .rlhf-a-text {
+    font-size: 14px;
+    line-height: 1.8;
+    color: #f5f0e8;
+  }
+
+  .rlhf-flow {
+    margin-top: 32px;
+    padding: 24px;
+    background: rgba(180, 100, 56, 0.08);
+    border-left: 3px solid #b46438;
+  }
+  .rlhf-flow-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #b46438;
+    margin-bottom: 16px;
+  }
+  .rlhf-flow-steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  .rlhf-flow-step {
+    background: #1a1612;
+    padding: 16px;
+    border-top: 2px solid #b46438;
+  }
+  .rlhf-flow-step .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #b46438;
+    letter-spacing: 0.2em;
+  }
+  .rlhf-flow-step .title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #f5f0e8;
+    margin: 6px 0 4px;
+  }
+  .rlhf-flow-step .desc {
+    font-size: 11px;
+    color: #c9b89a;
+    line-height: 1.6;
+  }
+
+  /* 总结 */
+  .summary {
+    background: #fff;
+    border: 1px solid #c9b89a;
+    padding: 56px;
+    box-shadow: 8px 8px 0 #b46438;
+    margin-bottom: 32px;
+  }
+  .summary h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 36px;
+    font-weight: 900;
+    margin-bottom: 24px;
+    line-height: 1.1;
+  }
+  .summary h3 em {
+    font-style: italic;
+    color: #b46438;
+    font-weight: 400;
+  }
+  .summary p {
+    font-size: 16px;
+    line-height: 1.9;
+    margin-bottom: 16px;
+  }
+  .summary p strong { color: #b46438; font-weight: 700; }
+
+  .key-formula {
+    background: #f5f0e8;
+    padding: 32px;
+    margin: 24px 0;
+    border-left: 4px solid #b46438;
+    text-align: center;
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    line-height: 1.6;
+  }
+  .key-formula .stage-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #b46438;
+    letter-spacing: 0.2em;
+    display: block;
+    margin: 4px 0;
+  }
+  .key-formula .plus {
+    color: #b46438;
+    font-weight: 700;
+    margin: 0 8px;
+  }
+
+  footer {
+    text-align: center;
+    margin-top: 48px;
+    padding: 24px;
+    border-top: 1px solid #c9b89a;
+    font-size: 11px;
+    color: #888;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.2em;
+  }
+
+  @media (max-width: 768px) {
+    h1 { font-size: 48px; }
+    .stages-flow { grid-template-columns: 1fr; }
+    .stage-arrow { transform: rotate(90deg); padding: 12px; }
+    .sft-comparison, .rlhf-answers, .rlhf-flow-steps { grid-template-columns: 1fr; }
+    .pretrain-stats { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<!-- 课程系列统一导航条 · 由脚本注入 -->
+<div id="course-nav-bar">
+  <div class="course-nav-inner">
+    <a href="../lesson05/demo.html" class="course-nav-btn prev" title="Transformer架构详解"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
+    <a href="../index.html" class="course-nav-center" title="回到课程总览">
+      <span class="nav-current">LESSON 06 / 20</span>
+      <span class="nav-title">GPT是怎么炼成的</span>
+    </a>
+    <a href="../lesson07/demo.html" class="course-nav-btn next" title="Scaling Law与涌现能力"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
+  </div>
+</div>
+
+<style id="course-nav-style">
+  #course-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  .course-nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .course-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .course-nav-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .course-nav-btn.disabled {
+    color: #444;
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .course-nav-btn .nav-arrow {
+    font-size: 14px;
+    line-height: 1;
+  }
+  .course-nav-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+    padding: 4px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    min-width: 0;
+  }
+  .course-nav-center:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .nav-current {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .nav-title {
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+    letter-spacing: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body {
+    padding-top: 64px !important;
+  }
+  
+  @media (max-width: 768px) {
+    .course-nav-inner {
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .course-nav-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .course-nav-btn .nav-label {
+      display: none;
+    }
+    .nav-title {
+      font-size: 11px;
+    }
+    .nav-current {
+      font-size: 9px;
+    }
+    body {
+      padding-top: 54px !important;
+    }
+  }
+</style>
+<!-- 课程系列统一导航条 · END -->
+
+<div class="container">
+  <header>
+    <div class="lesson-tag">LESSON 06 / 20</div>
+    <h1>How <em>GPT</em> is<br>Actually Made</h1>
+    <div class="h1-cn">GPT是怎么炼成的：预训练 + 对齐</div>
+    <div class="subtitle">
+      为什么GPT-3已经很强，但ChatGPT才让世界惊艳？因为<strong>"会说话"</strong>和<strong>"愿意好好说话"</strong>是两件事。
+      今天把大模型从原始数据到能用产品的<strong>三阶段炼丹流程</strong>讲清楚。
+    </div>
+  </header>
+
+  <!-- 第一节：三阶段总览 -->
+  <div class="stages-overview">
+    <div class="section-marker">CHAPTER · 01</div>
+    <div class="section-title">THE <em>THREE</em> STAGES</div>
+    <div class="section-cn">大模型炼成的三个阶段</div>
+    <div class="section-lead">
+      从一堆显卡和文本，到一个能聊天的助手，要经过三个完全不同的阶段。
+      每个阶段的目标、数据、算力都不一样。点击任意阶段查看细节。
+    </div>
+
+    <div class="stages-flow">
+      <div class="stage-block active" data-stage="0">
+        <div class="stage-block-num">01</div>
+        <div class="stage-block-name">预训练</div>
+        <div class="stage-block-en">PRE-TRAINING</div>
+        <div class="stage-block-data">
+          数据：互联网级文本<br>
+          算力：99% 在这一步<br>
+          目标：学会"接话"
+        </div>
+      </div>
+
+      <div class="stage-arrow">→</div>
+
+      <div class="stage-block" data-stage="1">
+        <div class="stage-block-num">02</div>
+        <div class="stage-block-name">监督微调</div>
+        <div class="stage-block-en">SFT</div>
+        <div class="stage-block-data">
+          数据：人工写的高质量问答<br>
+          算力：1%<br>
+          目标：学会"应答"
+        </div>
+      </div>
+
+      <div class="stage-arrow">→</div>
+
+      <div class="stage-block" data-stage="2">
+        <div class="stage-block-num">03</div>
+        <div class="stage-block-name">强化学习对齐</div>
+        <div class="stage-block-en">RLHF / DPO</div>
+        <div class="stage-block-data">
+          数据：人类偏好排序<br>
+          算力：&lt; 1%<br>
+          目标：学会"好好说"
+        </div>
+      </div>
+    </div>
+
+    <div class="stage-detail" id="stageDetail">
+      <h3>STAGE 01 · 预训练 Pre-training</h3>
+      <p>这一步占了大模型训练<strong>99%的算力和成本</strong>。GPT-4据说花了上亿美金，绝大部分都是这一步烧掉的。</p>
+      <p>它做一件听起来非常无聊的事：<strong>给一段文本，预测下一个词</strong>。</p>
+      <p>"今天天气真" → 预测下一个词是"好"还是"差"还是"热"？把整个互联网级别的文本（万亿token级别）这样反复训练。</p>
+      <p>关键洞察：<strong>"预测下一个词"这个简单任务，逼迫模型学会几乎所有人类知识</strong>——语法、事实、推理、风格、常识，全在里面。</p>
+      <p>预训练完成后的模型，叫"基座模型"或"Base Model"。它博学多才，但<strong>不知道怎么和人对话</strong>——你问它问题，它可能给你接着写一段维基百科。</p>
+    </div>
+  </div>
+
+  <!-- 第二节：预训练演示 -->
+  <div class="pretrain-demo">
+    <div class="section-marker" style="color: #b46438;">CHAPTER · 02</div>
+    <div class="section-title">PRE-TRAINING <em>DETAIL</em></div>
+    <div class="section-cn">细看预训练：万亿次"接龙"</div>
+    <div class="section-lead">
+      预训练就是让模型玩一个超大规模的"词语接龙"。下面看模型在学习时怎么预测下一个词。
+    </div>
+
+    <div class="next-token-demo">
+      <div class="nt-prompt">
+        中国的首都是<span class="pred" id="predWord">北京</span>
+      </div>
+
+      <div class="nt-controls">
+        <button class="nt-btn active" data-prompt="0">中国的首都是</button>
+        <button class="nt-btn" data-prompt="1">机器学习的核心是</button>
+        <button class="nt-btn" data-prompt="2">2024年世界杯冠军是</button>
+        <button class="nt-btn" data-prompt="3">今天天气真</button>
+      </div>
+
+      <div style="margin-top: 24px; font-size: 13px; color: #c9b89a;">
+        模型给词表里的每个词打分，下面是Top候选词及其概率：
+      </div>
+
+      <div class="nt-candidates" id="ntCandidates" style="margin-top: 16px;">
+      </div>
+    </div>
+
+    <div class="pretrain-stats">
+      <div class="pretrain-stat">
+        <div class="l">DATA</div>
+        <div class="v">15T</div>
+        <div class="u">tokens (Llama 3级别)</div>
+      </div>
+      <div class="pretrain-stat">
+        <div class="l">PARAMETERS</div>
+        <div class="v">70B+</div>
+        <div class="u">需要学习的权重数</div>
+      </div>
+      <div class="pretrain-stat">
+        <div class="l">COMPUTE</div>
+        <div class="v">25K</div>
+        <div class="u">H100 GPU · 持续数月</div>
+      </div>
+      <div class="pretrain-stat">
+        <div class="l">COST</div>
+        <div class="v">$50M+</div>
+        <div class="u">单次训练成本估计</div>
+      </div>
+    </div>
+
+    <div style="margin-top: 32px; padding: 24px; background: rgba(180, 100, 56, 0.1); border-left: 3px solid #b46438;">
+      <p style="font-size: 14px; line-height: 1.9; color: #c9b89a;">
+        <strong style="color: #b46438;">为什么预训练学到了知识？</strong><br>
+        模型要预测"中国的首都是"后面的字，最好的策略就是<strong style="color: #f5f0e8;">把"中国-北京"这个事实记进权重里</strong>。
+        要预测代码的下一个字符，最好的策略就是学会编程语法。
+        要预测对话回应，最好的策略就是理解上下文和情绪。
+        <strong style="color: #f5f0e8;">"预测下一个词"这个任务，被迫掌握了世界的方方面面</strong>——
+        这是预训练最深刻的秘密。
+      </p>
+    </div>
+  </div>
+
+  <!-- 第三节：SFT 演示 -->
+  <div class="sft-demo">
+    <div class="section-marker">CHAPTER · 03</div>
+    <div class="section-title">SUPERVISED <em>FINE-TUNING</em></div>
+    <div class="section-cn">监督微调：教它怎么应答</div>
+    <div class="section-lead">
+      预训练后的Base模型像一本读过整个互联网的书。但它<strong>不知道怎么"对话"</strong>——
+      你问它问题，它可能接着写另一个问题。SFT阶段的目标：教模型用"问答"格式工作。
+    </div>
+
+    <div class="sft-comparison">
+      <div class="sft-card">
+        <div class="sft-card-tag">BEFORE SFT · BASE模型</div>
+        <h4>只会"接话"，不会"应答"</h4>
+        
+        <div class="sft-qa">
+          <div class="sft-qa-q">USER：</div>
+          <div class="sft-qa-a">中国的首都在哪里？</div>
+        </div>
+        
+        <div class="sft-qa">
+          <div class="sft-qa-q">MODEL：</div>
+          <div class="sft-qa-a">这个问题问得好。还有，日本的首都在哪里？韩国的首都在哪里？泰国的首都...</div>
+        </div>
+        
+        <p style="font-size: 13px; color: #5a5046; line-height: 1.8; margin-top: 16px;">
+          Base模型把你的问题当成<strong>一段文本的开头</strong>，
+          然后接着写"看起来合理的下文"——可能是相关问题列表、维基百科段落、或者随机展开。
+          它不知道你想要的是<strong>回答</strong>。
+        </p>
+      </div>
+
+      <div class="sft-card after">
+        <div class="sft-card-tag">AFTER SFT · 微调后</div>
+        <h4>学会"问答对话"格式</h4>
+        
+        <div class="sft-qa">
+          <div class="sft-qa-q">USER：</div>
+          <div class="sft-qa-a">中国的首都在哪里？</div>
+        </div>
+        
+        <div class="sft-qa">
+          <div class="sft-qa-q">ASSISTANT：</div>
+          <div class="sft-qa-a">中国的首都是北京。北京位于华北平原北部，是中国的政治、文化中心。</div>
+        </div>
+
+        <p style="font-size: 13px; color: #5a5046; line-height: 1.8; margin-top: 16px;">
+          SFT用人工写的<strong>几万到几十万条高质量问答对</strong>
+          再训练一遍模型。模型学会"看到问题就给出回答"这个格式，
+          也学会了基本的<strong>礼貌、有用、可读</strong>的应答风格。
+        </p>
+      </div>
+    </div>
+
+    <div style="margin-top: 32px; padding: 24px; background: #f5f0e8; border-left: 3px solid #b46438;">
+      <p style="font-size: 14px; line-height: 1.9; color: #2a2520;">
+        <strong>SFT 数据的质量极其关键</strong>。OpenAI、Anthropic都雇了大量博士级别的人写问答对，
+        覆盖编程、数学、写作、法律、医疗等各个领域。<strong>"垃圾数据进，垃圾模型出"</strong>。
+        国内的开源模型如Qwen、DeepSeek，SFT数据质量上的投入是它们追上GPT的关键之一。
+      </p>
+    </div>
+  </div>
+
+  <!-- 第四节：RLHF 演示 -->
+  <div class="rlhf-demo">
+    <div class="section-marker" style="color: #b46438;">CHAPTER · 04</div>
+    <div class="section-title">RLHF · <em>对齐人类偏好</em></div>
+    <div class="section-cn">最后一步：让模型"愿意好好说"</div>
+    <div class="section-lead">
+      SFT之后模型已经会问答了，但答案可能<strong>有点冷淡、有点啰嗦、有点不安全</strong>。
+      RLHF这一步让模型学会人类喜欢的那种回答风格——这是ChatGPT让人惊艳的核心秘密。
+    </div>
+
+    <div class="rlhf-question">
+      <div class="rlhf-q-tag">USER QUESTION</div>
+      <div class="rlhf-q-text">我和女朋友吵架了，怎么办？</div>
+    </div>
+
+    <div style="margin-top: 24px; font-size: 14px; color: #c9b89a;">
+      模型生成了两个候选答案。<strong style="color: #b46438;">人类标注员要选哪个更好</strong>：
+    </div>
+
+    <div class="rlhf-answers">
+      <div class="rlhf-answer rejected" id="answerA">
+        <div class="rlhf-a-tag">ANSWER A</div>
+        <div class="rlhf-a-text">
+          解决方案：1. 等3-5天双方冷静；2. 主动联系对方；3. 道歉；4. 沟通分歧。
+          相关数据：根据2019年情侣关系研究，主动道歉方关系修复成功率提升67%。
+        </div>
+      </div>
+
+      <div class="rlhf-answer preferred" id="answerB">
+        <div class="rlhf-a-tag">ANSWER B</div>
+        <div class="rlhf-a-text">
+          先抱抱你，吵架确实让人难受。可以告诉我吵的什么吗？有时候说出来就能想清楚下一步。
+          一般来说，等彼此情绪平复一些再沟通会更好——哪怕只是简单一句"我想和好"，
+          也比讲道理有用。
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 16px; padding: 16px; background: rgba(180, 100, 56, 0.1); font-size: 13px; line-height: 1.8; color: #c9b89a;">
+      <strong style="color: #b46438;">人类的选择：</strong>
+      虽然A更"专业"、有数据支撑，但B更<strong style="color: #f5f0e8;">有共情、可读、亲和</strong>。
+      RLHF就是把这种"哪个更好"的偏好<strong style="color: #f5f0e8;">用强化学习塞进模型</strong>。
+      训练几十万条这样的偏好对之后，模型就学会了人类喜欢什么样的回答。
+    </div>
+
+    <div class="rlhf-flow">
+      <div class="rlhf-flow-title">RLHF的四步流程</div>
+      <div class="rlhf-flow-steps">
+        <div class="rlhf-flow-step">
+          <div class="num">STEP 1</div>
+          <div class="title">收集偏好</div>
+          <div class="desc">让模型对同一个问题生成多个答案，人类标注员排序</div>
+        </div>
+        <div class="rlhf-flow-step">
+          <div class="num">STEP 2</div>
+          <div class="title">训练奖励模型</div>
+          <div class="desc">用排序数据训练一个"打分模型"，能预测人类偏好</div>
+        </div>
+        <div class="rlhf-flow-step">
+          <div class="num">STEP 3</div>
+          <div class="title">PPO优化</div>
+          <div class="desc">用强化学习算法，让原模型的输出最大化奖励模型的分数</div>
+        </div>
+        <div class="rlhf-flow-step">
+          <div class="num">STEP 4</div>
+          <div class="title">反复迭代</div>
+          <div class="desc">收集新偏好、更新奖励模型、再训练。GPT-4迭代了上百轮</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 24px; padding: 24px; background: #1a1612; border-left: 3px solid #b46438;">
+      <p style="font-size: 14px; line-height: 1.9; color: #c9b89a;">
+        <strong style="color: #b46438;">2024年新趋势：DPO替代RLHF</strong><br>
+        RLHF流程复杂、不稳定。Stanford在2023年提出DPO（Direct Preference Optimization），
+        <strong style="color: #f5f0e8;">直接用偏好数据微调，跳过奖励模型</strong>。
+        DeepSeek、Llama 3等都在用DPO或它的变体。效果接近RLHF，但训练成本低、稳定性好。
+        <strong style="color: #f5f0e8;">未来对齐方法可能完全转向DPO路线</strong>。
+      </p>
+    </div>
+  </div>
+
+  <!-- 总结 -->
+  <div class="summary">
+    <div class="section-marker">RECAP</div>
+    <h3>三阶段的<em>分工与本质</em></h3>
+    
+    <div class="key-formula">
+      <span class="stage-label">PRE-TRAINING</span>预训练（学知识）
+      <span class="plus">+</span>
+      <span class="stage-label">SFT</span>微调（学应答）
+      <span class="plus">+</span>
+      <span class="stage-label">RLHF / DPO</span>对齐（学偏好）
+      <br>
+      <span style="color: #b46438; font-weight: 900;">= ChatGPT / Claude</span>
+    </div>
+
+    <p>
+      <strong>预训练</strong>让模型"博学"——掌握了世界的所有知识，但不会和人对话。
+      <strong>SFT</strong>让模型"会说"——学会问答格式和基本应答风格。
+      <strong>对齐</strong>让模型"愿意好好说"——回答符合人类偏好，安全、有帮助、不胡说。
+    </p>
+
+    <p>
+      理解了这三步，就理解了为什么<strong>"开源Base模型"和"对话产品"是两个东西</strong>。
+      Llama 3 Base是Base模型，Llama 3 Instruct是经过对齐的对话模型。
+      你做企业应用时，<strong>大概率应该选Instruct版本，而不是Base版本</strong>——
+      除非你想自己做完整的SFT和对齐流程。
+    </p>
+
+    <p>
+      这也回答了一个常见的问题：<strong>为什么有些开源模型在benchmark上分数很高，
+      实际用起来却不如GPT好？</strong> 因为benchmark主要测知识和推理（预训练阶段决定），
+      而日常使用体验主要由SFT和对齐质量决定。<strong>真正的护城河往往不在Base模型，而在对齐</strong>。
+    </p>
+  </div>
+
+  <footer>
+    AI 系列课程 · 第 06 讲 · 共 20 讲 · 下一讲：Scaling Law与涌现能力
+  </footer>
+</div>
+
+<script>
+const stageDetails = [
+  {
+    title: 'STAGE 01 · 预训练 Pre-training',
+    content: `
+      <p>这一步占了大模型训练<strong>99%的算力和成本</strong>。GPT-4据说花了上亿美金，绝大部分都是这一步烧掉的。</p>
+      <p>它做一件听起来非常无聊的事：<strong>给一段文本，预测下一个词</strong>。</p>
+      <p>"今天天气真" → 预测下一个词是"好"还是"差"还是"热"？把整个互联网级别的文本（万亿token级别）这样反复训练。</p>
+      <p>关键洞察：<strong>"预测下一个词"这个简单任务，逼迫模型学会几乎所有人类知识</strong>——语法、事实、推理、风格、常识，全在里面。</p>
+      <p>预训练完成后的模型，叫"基座模型"或"Base Model"。它博学多才，但<strong>不知道怎么和人对话</strong>——你问它问题，它可能给你接着写一段维基百科。</p>
+    `
+  },
+  {
+    title: 'STAGE 02 · 监督微调 SFT',
+    content: `
+      <p>SFT全称 Supervised Fine-Tuning。它的目标：<strong>教Base模型学会问答格式</strong>。</p>
+      <p>方法：用几万到几十万条人工写的<strong>高质量问答对</strong>，再训练一遍模型。</p>
+      <p>每条数据形如：<strong>{"问题": "如何写好简历？", "答案": "写好简历要注意三点：1...2...3..."}</strong></p>
+      <p>模型经过SFT后，学会了几个关键能力：识别"现在该回答了"、给出符合预期的格式、保持连贯的应答风格、覆盖各种类型的任务（写作、编程、分析）。</p>
+      <p>SFT阶段的算力开销大约是预训练的<strong>1%</strong>，但对最终用户体验的影响巨大。<strong>SFT数据的质量是开源模型差距的主要来源</strong>——同样一个Llama Base，不同团队微调出来的模型差异巨大。</p>
+    `
+  },
+  {
+    title: 'STAGE 03 · 强化学习对齐',
+    content: `
+      <p>SFT之后模型已经能问答了，但答案可能<strong>冷淡、啰嗦、不够安全</strong>。RLHF这步让模型对齐人类的偏好。</p>
+      <p>RLHF全称 Reinforcement Learning from Human Feedback。流程：让模型对同一问题生成多个答案，人类标注员对答案排序，再用强化学习把模型调整到符合排序偏好。</p>
+      <p>这一步是<strong>ChatGPT让世界惊艳的核心秘密</strong>——它让模型学会了"什么样的回答更让人舒服"，而不只是"什么是正确答案"。</p>
+      <p>2024年新趋势：<strong>DPO（Direct Preference Optimization）</strong>逐步替代RLHF。
+      DPO直接用偏好数据微调模型，跳过了"训练奖励模型"这一步，更简单、更稳定。
+      DeepSeek、Llama 3、Qwen等开源模型都在转向DPO或它的变体。</p>
+      <p>这一步的算力成本不到预训练的1%，但<strong>对最终产品体验起决定性作用</strong>。</p>
+    `
+  }
+];
+
+document.querySelectorAll('.stage-block').forEach(block => {
+  block.addEventListener('click', () => {
+    document.querySelectorAll('.stage-block').forEach(b => b.classList.remove('active'));
+    block.classList.add('active');
+    const idx = +block.dataset.stage;
+    document.getElementById('stageDetail').innerHTML = `<h3>${stageDetails[idx].title}</h3>${stageDetails[idx].content}`;
+  });
+});
+
+// 第二节：next-token演示
+const prompts = [
+  {
+    text: '中国的首都是',
+    pred: '北京',
+    candidates: [
+      { word: '北京', prob: 0.92 },
+      { word: '中华人民', prob: 0.04 },
+      { word: '一座', prob: 0.02 },
+      { word: '上海', prob: 0.01 },
+      { word: '哪里', prob: 0.01 }
+    ]
+  },
+  {
+    text: '机器学习的核心是',
+    pred: '从数据',
+    candidates: [
+      { word: '从数据', prob: 0.31 },
+      { word: '让机器', prob: 0.24 },
+      { word: '通过', prob: 0.18 },
+      { word: '一种', prob: 0.15 },
+      { word: '算法', prob: 0.12 }
+    ]
+  },
+  {
+    text: '2024年世界杯冠军是',
+    pred: '阿根廷',
+    candidates: [
+      { word: '阿根廷', prob: 0.28 },
+      { word: '法国', prob: 0.18 },
+      { word: '巴西', prob: 0.16 },
+      { word: '哪个', prob: 0.12 },
+      { word: '一支', prob: 0.10 }
+    ]
+  },
+  {
+    text: '今天天气真',
+    pred: '好',
+    candidates: [
+      { word: '好', prob: 0.42 },
+      { word: '不错', prob: 0.21 },
+      { word: '冷', prob: 0.13 },
+      { word: '热', prob: 0.10 },
+      { word: '适合', prob: 0.07 }
+    ]
+  }
+];
+
+function showPrompt(idx) {
+  const p = prompts[idx];
+  document.querySelector('.nt-prompt').innerHTML = `${p.text}<span class="pred">${p.pred}</span>`;
+  
+  const container = document.getElementById('ntCandidates');
+  container.innerHTML = '';
+  p.candidates.forEach((c, i) => {
+    const row = document.createElement('div');
+    row.className = 'nt-candidate' + (i === 0 ? ' top' : '');
+    row.innerHTML = `
+      <div class="nt-word">${c.word}</div>
+      <div class="nt-bar-wrap"><div class="nt-bar" style="width: 0%"></div></div>
+      <div class="nt-prob">${(c.prob*100).toFixed(0)}%</div>
+    `;
+    container.appendChild(row);
+    setTimeout(() => {
+      row.querySelector('.nt-bar').style.width = (c.prob*100) + '%';
+    }, 50 + i * 80);
+  });
+}
+
+document.querySelectorAll('.nt-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nt-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    showPrompt(+btn.dataset.prompt);
+  });
+});
+
+showPrompt(0);
+
+// RLHF 答案切换
+document.getElementById('answerA').addEventListener('click', () => {
+  document.getElementById('answerA').classList.remove('rejected');
+  document.getElementById('answerA').classList.add('preferred');
+  document.getElementById('answerB').classList.remove('preferred');
+  document.getElementById('answerB').classList.add('rejected');
+});
+document.getElementById('answerB').addEventListener('click', () => {
+  document.getElementById('answerB').classList.remove('rejected');
+  document.getElementById('answerB').classList.add('preferred');
+  document.getElementById('answerA').classList.remove('preferred');
+  document.getElementById('answerA').classList.add('rejected');
+});
+</script>
+</body>
+</html>

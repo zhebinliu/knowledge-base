@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第4讲｜深度学习革命：从CNN到Transformer</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+SC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: #0d0d12;
+    color: #e8e8ed;
+    min-height: 100vh;
+    padding: 32px 16px;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image:
+      linear-gradient(0deg, rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .container { max-width: 1320px; margin: 0 auto; position: relative; z-index: 1; }
+
+  header {
+    margin-bottom: 64px;
+    padding: 48px 0 32px;
+    border-bottom: 1px solid #2a2a35;
+    position: relative;
+  }
+  .lesson-tag {
+    display: inline-block;
+    padding: 6px 14px;
+    border: 1px solid #ff5e3a;
+    color: #ff5e3a;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    margin-bottom: 24px;
+  }
+  h1 {
+    font-family: 'Bebas Neue', 'Noto Sans SC', sans-serif;
+    font-size: 96px;
+    font-weight: 400;
+    line-height: 0.92;
+    letter-spacing: 0.01em;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+  h1 .cn {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 900;
+    font-size: 56px;
+    display: block;
+    margin-top: 16px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  h1 .arrow {
+    color: #ff5e3a;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 300;
+    font-size: 48px;
+  }
+  .subtitle {
+    margin-top: 24px;
+    font-size: 16px;
+    color: #9090a0;
+    max-width: 680px;
+    line-height: 1.7;
+  }
+  .subtitle strong { color: #ff5e3a; font-weight: 500; }
+
+  .section-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 120px;
+    color: #1a1a25;
+    line-height: 0.8;
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .section {
+    margin-bottom: 80px;
+    position: relative;
+    padding-left: 32px;
+  }
+  .section-header { position: relative; padding-top: 56px; margin-bottom: 32px; }
+  .section-title {
+    font-family: 'Bebas Neue', 'Noto Sans SC', sans-serif;
+    font-size: 48px;
+    font-weight: 400;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+    position: relative;
+    z-index: 1;
+  }
+  .section-title .cn {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-weight: 900;
+    font-size: 32px;
+    margin-left: 12px;
+    color: #fff;
+  }
+  .section-lead {
+    font-size: 15px;
+    color: #9090a0;
+    max-width: 720px;
+    line-height: 1.8;
+    margin-top: 12px;
+  }
+
+  .timeline {
+    background: linear-gradient(135deg, #15151c 0%, #1a1a25 100%);
+    border: 1px solid #2a2a35;
+    padding: 48px 40px;
+    position: relative;
+    overflow: hidden;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle at center, rgba(255, 94, 58, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .timeline-track {
+    position: relative;
+    height: 4px;
+    background: #2a2a35;
+    margin: 80px 40px 80px 40px;
+  }
+  .timeline-fill {
+    position: absolute;
+    height: 100%;
+    background: linear-gradient(90deg, #4a90e2 0%, #ff5e3a 100%);
+    width: 0;
+    transition: width 0.8s ease;
+  }
+  .timeline-event {
+    position: absolute;
+    top: -12px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #15151c;
+    border: 3px solid #4a90e2;
+    transform: translateX(-50%);
+    cursor: pointer;
+    transition: all 0.3s;
+    z-index: 2;
+  }
+  .timeline-event:hover {
+    transform: translateX(-50%) scale(1.3);
+    box-shadow: 0 0 20px rgba(255, 94, 58, 0.5);
+  }
+  .timeline-event.active {
+    background: #ff5e3a;
+    border-color: #ff5e3a;
+    box-shadow: 0 0 24px rgba(255, 94, 58, 0.6);
+  }
+  .timeline-event::after {
+    content: attr(data-year);
+    position: absolute;
+    top: -36px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: #9090a0;
+    white-space: nowrap;
+    font-weight: 700;
+  }
+  .timeline-event.active::after { color: #ff5e3a; }
+  .timeline-event-label {
+    position: absolute;
+    top: 36px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #6a6a7a;
+    white-space: nowrap;
+    letter-spacing: 0.1em;
+  }
+
+  .event-detail {
+    background: #0d0d12;
+    border-left: 3px solid #ff5e3a;
+    padding: 32px;
+    margin-top: 32px;
+    min-height: 200px;
+  }
+  .event-detail-year {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 56px;
+    color: #ff5e3a;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .event-detail-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .event-detail-en {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #6a6a7a;
+    letter-spacing: 0.15em;
+    margin-bottom: 16px;
+  }
+  .event-detail-text {
+    font-size: 14px;
+    line-height: 1.8;
+    color: #c0c0d0;
+  }
+  .event-detail-text strong { color: #ff5e3a; }
+
+  .arch-compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-top: 32px;
+  }
+  .arch-card {
+    background: #15151c;
+    border: 1px solid #2a2a35;
+    padding: 24px;
+    transition: all 0.3s;
+  }
+  .arch-card:hover {
+    border-color: #ff5e3a;
+    transform: translateY(-2px);
+  }
+  .arch-card-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 12px;
+    color: #ff5e3a;
+    letter-spacing: 0.2em;
+    margin-bottom: 4px;
+  }
+  .arch-card h4 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .arch-card .en {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #6a6a7a;
+    letter-spacing: 0.15em;
+    margin-bottom: 16px;
+  }
+  .arch-feature {
+    font-size: 13px;
+    line-height: 1.7;
+    color: #a0a0b0;
+    padding: 8px 0;
+    border-top: 1px solid #2a2a35;
+  }
+  .arch-feature:first-of-type { border-top: none; }
+  .arch-feature .key {
+    color: #4a90e2;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .attention-demo {
+    background: linear-gradient(135deg, #15151c 0%, #1a1a25 100%);
+    border: 1px solid #2a2a35;
+    padding: 40px;
+    margin-top: 24px;
+  }
+  .demo-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .demo-header h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 0.02em;
+  }
+  .demo-header p {
+    font-size: 13px;
+    color: #9090a0;
+    max-width: 500px;
+    line-height: 1.7;
+  }
+
+  .sentence-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .sentence-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #6a6a7a;
+    letter-spacing: 0.15em;
+    width: 80px;
+  }
+  .word {
+    padding: 10px 16px;
+    background: #1a1a25;
+    border: 1.5px solid #2a2a35;
+    cursor: pointer;
+    font-size: 15px;
+    transition: all 0.3s;
+    user-select: none;
+  }
+  .word:hover {
+    border-color: #4a90e2;
+    color: #4a90e2;
+  }
+  .word.query {
+    background: #ff5e3a;
+    color: #fff;
+    border-color: #ff5e3a;
+  }
+  .word.attended {
+    border-color: #4a90e2;
+    color: #fff;
+  }
+
+  .attention-viz {
+    margin-top: 32px;
+    background: #0d0d12;
+    border: 1px solid #2a2a35;
+    padding: 24px;
+  }
+  .attention-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .att-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .att-word {
+    width: 80px;
+    font-size: 14px;
+    text-align: right;
+  }
+  .att-bar-container {
+    flex: 1;
+    height: 22px;
+    background: #15151c;
+    position: relative;
+    overflow: hidden;
+  }
+  .att-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #4a90e2 0%, #ff5e3a 100%);
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .att-value {
+    width: 50px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #ff5e3a;
+  }
+
+  .demo-explain {
+    margin-top: 24px;
+    padding: 20px;
+    background: rgba(74, 144, 226, 0.08);
+    border-left: 3px solid #4a90e2;
+    font-size: 13px;
+    line-height: 1.8;
+    color: #c0c0d0;
+  }
+  .demo-explain strong { color: #4a90e2; }
+
+  .insight {
+    margin: 48px 0;
+    padding: 40px;
+    background: #fff;
+    color: #0d0d12;
+    position: relative;
+  }
+  .insight::before {
+    content: '';
+    position: absolute;
+    top: -8px; left: -8px;
+    right: 8px; bottom: 8px;
+    background: #ff5e3a;
+    z-index: -1;
+  }
+  .insight-tag {
+    display: inline-block;
+    padding: 6px 14px;
+    background: #ff5e3a;
+    color: #fff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    margin-bottom: 20px;
+  }
+  .insight h4 {
+    font-family: 'Bebas Neue', 'Noto Sans SC', sans-serif;
+    font-size: 36px;
+    line-height: 1.1;
+    margin-bottom: 16px;
+  }
+  .insight p {
+    font-size: 16px;
+    line-height: 1.9;
+    margin-bottom: 12px;
+  }
+  .insight strong { color: #ff5e3a; font-weight: 700; }
+
+  .why-table {
+    width: 100%;
+    margin-top: 24px;
+    border-collapse: collapse;
+  }
+  .why-table th {
+    text-align: left;
+    padding: 16px;
+    background: #15151c;
+    color: #ff5e3a;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    border: 1px solid #2a2a35;
+    font-weight: 500;
+  }
+  .why-table td {
+    padding: 18px;
+    border: 1px solid #2a2a35;
+    font-size: 14px;
+    line-height: 1.7;
+    color: #c0c0d0;
+    vertical-align: top;
+  }
+  .why-table td:first-child {
+    color: #fff;
+    font-weight: 700;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 0.05em;
+    width: 140px;
+  }
+  .why-table .good { color: #4a90e2; }
+  .why-table .bad { color: #ff5e3a; }
+
+  footer {
+    text-align: center;
+    margin-top: 80px;
+    padding-top: 32px;
+    border-top: 1px solid #2a2a35;
+    font-size: 11px;
+    color: #6a6a7a;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.2em;
+  }
+
+  @media (max-width: 768px) {
+    h1 { font-size: 56px; }
+    h1 .cn { font-size: 36px; }
+    .arch-compare { grid-template-columns: 1fr; }
+    .timeline-track { margin: 80px 8px; }
+    .timeline-event-label { display: none; }
+    .section { padding-left: 0; }
+  }
+</style>
+</head>
+<body>
+<!-- 课程系列统一导航条 · 由脚本注入 -->
+<div id="course-nav-bar">
+  <div class="course-nav-inner">
+    <a href="../lesson03/demo.html" class="course-nav-btn prev" title="神经网络是怎么学的"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
+    <a href="../index.html" class="course-nav-center" title="回到课程总览">
+      <span class="nav-current">LESSON 04 / 20</span>
+      <span class="nav-title">深度学习革命</span>
+    </a>
+    <a href="../lesson05/demo.html" class="course-nav-btn next" title="Transformer架构详解"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
+  </div>
+</div>
+
+<style id="course-nav-style">
+  #course-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  .course-nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .course-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .course-nav-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .course-nav-btn.disabled {
+    color: #444;
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .course-nav-btn .nav-arrow {
+    font-size: 14px;
+    line-height: 1;
+  }
+  .course-nav-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+    padding: 4px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    min-width: 0;
+  }
+  .course-nav-center:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .nav-current {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .nav-title {
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+    letter-spacing: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body {
+    padding-top: 64px !important;
+  }
+  
+  @media (max-width: 768px) {
+    .course-nav-inner {
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .course-nav-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .course-nav-btn .nav-label {
+      display: none;
+    }
+    .nav-title {
+      font-size: 11px;
+    }
+    .nav-current {
+      font-size: 9px;
+    }
+    body {
+      padding-top: 54px !important;
+    }
+  }
+</style>
+<!-- 课程系列统一导航条 · END -->
+
+<div class="container">
+  <header>
+    <div class="lesson-tag">LESSON 04 / 20</div>
+    <h1>
+      CNN <span class="arrow">→</span> RNN <span class="arrow">→</span> TRANSFORMER
+      <span class="cn">深度学习的三次范式革命</span>
+    </h1>
+    <div class="subtitle">
+      从2012到2017，五年时间，神经网络架构经历了三次大跳跃。
+      <strong>每一次跳跃都不是因为更聪明</strong>，而是因为更适合并行训练、能吃下更多数据和算力。
+      理解这五年，你就理解了为什么大模型时代非Transformer不可。
+    </div>
+  </header>
+
+  <!-- 第一节：时间线 -->
+  <div class="section">
+    <div class="section-num">01</div>
+    <div class="section-header">
+      <div class="section-title">TIMELINE <span class="cn">五年三次跳跃</span></div>
+      <div class="section-lead">
+        点击时间点查看每个里程碑。注意横轴的密度——前五十年缓慢，最后十年加速，最后五年爆炸。
+      </div>
+    </div>
+
+    <div class="timeline">
+      <div class="timeline-track">
+        <div class="timeline-fill" id="tlFill"></div>
+        <div class="timeline-event" data-year="1986" data-id="bp" style="left:5%;">
+          <div class="timeline-event-label">BP</div>
+        </div>
+        <div class="timeline-event" data-year="1998" data-id="lenet" style="left:18%;">
+          <div class="timeline-event-label">LENET</div>
+        </div>
+        <div class="timeline-event" data-year="2012" data-id="alexnet" style="left:35%;">
+          <div class="timeline-event-label">ALEXNET</div>
+        </div>
+        <div class="timeline-event" data-year="2014" data-id="seq2seq" style="left:50%;">
+          <div class="timeline-event-label">SEQ2SEQ</div>
+        </div>
+        <div class="timeline-event" data-year="2017" data-id="transformer" style="left:67%;">
+          <div class="timeline-event-label">TRANSFORMER</div>
+        </div>
+        <div class="timeline-event" data-year="2020" data-id="gpt3" style="left:82%;">
+          <div class="timeline-event-label">GPT-3</div>
+        </div>
+        <div class="timeline-event active" data-year="2024" data-id="now" style="left:97%;">
+          <div class="timeline-event-label">NOW</div>
+        </div>
+      </div>
+
+      <div class="event-detail" id="eventDetail">
+        <div class="event-detail-year" id="evYear">2024</div>
+        <div class="event-detail-title" id="evTitle">大模型时代</div>
+        <div class="event-detail-en" id="evEn">THE LLM ERA</div>
+        <div class="event-detail-text" id="evText">
+          GPT-4、Claude、Gemini、文心一言、Qwen、DeepSeek。
+          <strong>所有这些模型本质上都是Transformer</strong>，
+          只是规模在不停长大。从1.7亿参数（GPT-2）到1.7万亿参数（GPT-4据传）的1万倍跃迁，
+          仅用了5年。这是人类技术史上罕见的指数级增长曲线。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 第二节：三种架构对比 -->
+  <div class="section">
+    <div class="section-num">02</div>
+    <div class="section-header">
+      <div class="section-title">THE THREE ARCHITECTURES <span class="cn">三种架构的本质</span></div>
+      <div class="section-lead">
+        CNN适合处理图像、RNN适合处理序列、Transformer适合一切——这是每一代主流的分工。
+        但更深的逻辑是：每一代都解决了上一代的瓶颈。
+      </div>
+    </div>
+
+    <div class="arch-compare">
+      <div class="arch-card">
+        <div class="arch-card-num">ARCH · 01</div>
+        <h4>CNN</h4>
+        <div class="en">CONVOLUTIONAL NEURAL NETWORK</div>
+        <div class="arch-feature">
+          <span class="key">CORE IDEA</span>
+          用同一组小尺寸的"滤镜"在图像上滑动，自动提取边缘、纹理、形状特征。
+          模仿人眼视觉皮层的感受野机制。
+        </div>
+        <div class="arch-feature">
+          <span class="key">STRENGTH</span>
+          参数共享 → 训练高效；
+          局部连接 → 平移不变性；
+          层级抽象 → 图像理解的天然形式。
+        </div>
+        <div class="arch-feature">
+          <span class="key">WEAKNESS</span>
+          只能处理网格状数据；
+          不擅长长距离依赖；
+          不适合序列任务。
+        </div>
+        <div class="arch-feature">
+          <span class="key">2012胜利</span>
+          AlexNet在ImageNet把错误率干到15%，
+          比第二名低10个百分点。<br>
+          深度学习正式接管CV。
+        </div>
+      </div>
+
+      <div class="arch-card">
+        <div class="arch-card-num">ARCH · 02</div>
+        <h4>RNN / LSTM</h4>
+        <div class="en">RECURRENT NEURAL NETWORK</div>
+        <div class="arch-feature">
+          <span class="key">CORE IDEA</span>
+          循环结构，每个时间步把前一步的状态传下来。
+          像人读书一样从左到右处理序列，记住前文。
+        </div>
+        <div class="arch-feature">
+          <span class="key">STRENGTH</span>
+          天然适合时序数据；
+          理论上能处理任意长度；
+          LSTM/GRU解决了梯度消失问题。
+        </div>
+        <div class="arch-feature">
+          <span class="key">WEAKNESS</span>
+          只能串行计算 → 训练慢；
+          长距离依赖仍然衰减；
+          GPU并行能力发挥不出来。
+        </div>
+        <div class="arch-feature">
+          <span class="key">2014辉煌</span>
+          Seq2Seq + Attention机制开启机器翻译革命，
+          Google Translate靠它逆袭。<br>
+          但天花板很快显现。
+        </div>
+      </div>
+
+      <div class="arch-card">
+        <div class="arch-card-num">ARCH · 03</div>
+        <h4>TRANSFORMER</h4>
+        <div class="en">ATTENTION IS ALL YOU NEED</div>
+        <div class="arch-feature">
+          <span class="key">CORE IDEA</span>
+          抛弃循环，用"自注意力"让每个词直接看到所有其他词。
+          一次计算，全局视角。
+        </div>
+        <div class="arch-feature">
+          <span class="key">STRENGTH</span>
+          完全并行 → 充分利用GPU；
+          长距离依赖一步到位；
+          可以堆得无限深无限宽。
+        </div>
+        <div class="arch-feature">
+          <span class="key">WEAKNESS</span>
+          注意力计算复杂度O(n²)；
+          长上下文成本爆炸；
+          数据和算力饥渴。
+        </div>
+        <div class="arch-feature">
+          <span class="key">2017革命</span>
+          Google的"Attention is All You Need"论文，
+          一篇论文重塑整个AI界。<br>
+          5年后所有大模型都基于它。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 第三节：注意力可视化 -->
+  <div class="section">
+    <div class="section-num">03</div>
+    <div class="section-header">
+      <div class="section-title">SELF-ATTENTION <span class="cn">注意力机制亲自看一眼</span></div>
+      <div class="section-lead">
+        Transformer最核心的创新就是自注意力。下面这个演示让你亲眼看到：
+        当模型读到一个词时，它实际上在"看"句子里所有其他词，并给每个词一个相关性分数。
+      </div>
+    </div>
+
+    <div class="attention-demo">
+      <div class="demo-header">
+        <h3>POINT TO A WORD</h3>
+        <p>点击下面任意一个橙色的词作为查询词，看模型会"关注"句子里的哪些其他词。</p>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <div style="font-size: 13px; color: #9090a0; margin-bottom: 12px; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.1em;">SENTENCE 01</div>
+        <div class="sentence-row" id="sent1"></div>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <div style="font-size: 13px; color: #9090a0; margin-bottom: 12px; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.1em;">SENTENCE 02</div>
+        <div class="sentence-row" id="sent2"></div>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <div style="font-size: 13px; color: #9090a0; margin-bottom: 12px; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.1em;">SENTENCE 03</div>
+        <div class="sentence-row" id="sent3"></div>
+      </div>
+
+      <div class="attention-viz" id="attentionViz" style="display: none;">
+        <div style="font-size: 13px; color: #9090a0; margin-bottom: 16px;">
+          查询词「<span id="queryWord" style="color: #ff5e3a; font-weight: 700;"></span>」对句子中其他词的注意力分布：
+        </div>
+        <div class="attention-bars" id="attBars"></div>
+        <div class="demo-explain" id="attExplain"></div>
+      </div>
+    </div>
+
+    <div class="insight">
+      <div class="insight-tag">CORE INSIGHT</div>
+      <h4>WHY ATTENTION KILLED RECURRENCE</h4>
+      <p>
+        RNN读"小猫今天没吃饭，所以它有点饿"这句话，
+        要把"小猫"的信息一个词一个词地传递到"它"，传递过程中信息会衰减。
+        <strong>距离越远，关联越弱</strong>。
+      </p>
+      <p>
+        Transformer不传递。它让"它"<strong>直接看到</strong>"小猫"，
+        通过注意力权重计算出"它"和"小猫"的关联强度（高），和"今天"的关联强度（低）。
+        <strong>无论句子多长，每个词都能直接关联到任何位置</strong>。
+      </p>
+      <p>
+        而且——这是更关键的——<strong>所有词的注意力可以同时计算</strong>。
+        RNN只能一步一步算（前一步算完才能算下一步），
+        Transformer可以把整个矩阵一次甩给GPU。
+        <strong>训练速度直接快了几十倍</strong>。
+      </p>
+    </div>
+  </div>
+
+  <!-- 第四节：为什么 Transformer 赢了 -->
+  <div class="section">
+    <div class="section-num">04</div>
+    <div class="section-header">
+      <div class="section-title">WHY IT WON <span class="cn">不是更聪明，是更适合时代</span></div>
+      <div class="section-lead">
+        Transformer之所以横扫AI界，不是因为它"更像人脑"或"更智能"，
+        而是因为它在三个关键维度上完美匹配了2017年之后的硬件和数据现实。
+      </div>
+    </div>
+
+    <table class="why-table">
+      <thead>
+        <tr>
+          <th>维度</th>
+          <th>RNN（旧王）</th>
+          <th>Transformer（新王）</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>并行化</td>
+          <td class="bad">串行计算，时间步t必须等t-1完成</td>
+          <td class="good">完全并行，整个序列一次计算</td>
+        </tr>
+        <tr>
+          <td>长距离依赖</td>
+          <td class="bad">信息逐步衰减，超过50个词就力不从心</td>
+          <td class="good">任意两个位置直接交互，无论多远</td>
+        </tr>
+        <tr>
+          <td>GPU利用率</td>
+          <td class="bad">利用率低，GPU大量空转</td>
+          <td class="good">矩阵运算密集，吃满GPU</td>
+        </tr>
+        <tr>
+          <td>规模化</td>
+          <td class="bad">深度增加训练崩溃，难以堆叠</td>
+          <td class="good">残差+归一化让深度堆叠几乎无限</td>
+        </tr>
+        <tr>
+          <td>数据吞吐</td>
+          <td class="bad">同样的算力下吞吐量小</td>
+          <td class="good">同算力可以训练几十倍数据量</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="insight" style="margin-top: 48px;">
+      <div class="insight-tag">FINAL TAKEAWAY</div>
+      <h4>每一次架构革命，本质都是"硬件适配"的革命</h4>
+      <p>
+        CNN赢了，因为它的卷积运算天然匹配GPU的矩阵并行。
+        Transformer赢了，因为它的自注意力比CNN的卷积更适合GPU，
+        而且可以堆得无限深、训练无限多数据。
+      </p>
+      <p>
+        所以未来谁会取代Transformer？
+        <strong>当出现一种新硬件或新算力形态，让另一种结构比Transformer更高效时</strong>，
+        新王诞生。这是第19讲我们要重点讨论的——Mamba、SSM、神经符号融合，
+        哪条路线最有可能颠覆现状。
+      </p>
+    </div>
+  </div>
+
+  <footer>
+    AI 系列课程 · 第 04 讲 · 共 20 讲 · 第一部分（基础认知）完结 · 下一讲进入大模型时代：Transformer架构详解
+  </footer>
+</div>
+
+<script>
+const events = {
+  bp: {
+    year: '1986',
+    title: '反向传播算法',
+    en: 'BACKPROPAGATION · GEOFFREY HINTON',
+    text: 'Hinton 等人发表反向传播论文，给神经网络的训练提供了通用方法。<strong>但当时算力不够</strong>——训练几层网络都困难，神经网络陷入第二次寒冬。这条线索一直被一小群人坚持着，等待硬件赶上来。'
+  },
+  lenet: {
+    year: '1998',
+    title: 'LeNet · 第一个实用CNN',
+    en: 'LECUN · MNIST DIGIT RECOGNITION',
+    text: '杨立昆（Yann LeCun）做出LeNet-5，识别手写数字达到实用水平，被美国邮政系统采用。<strong>这是CNN的雏形</strong>，定义了"卷积+池化+全连接"的经典结构。但仅在小规模数据上work，没引起大规模关注。'
+  },
+  alexnet: {
+    year: '2012',
+    title: 'AlexNet · 深度学习革命',
+    en: 'IMAGENET · KRIZHEVSKY · HINTON',
+    text: 'AlexNet在ImageNet图像识别比赛上把错误率从26%干到15%，<strong>比第二名低10个百分点</strong>。三个关键：用GPU训练、用ReLU激活、用Dropout防过拟合。<strong>从此整个CV领域全面转向深度学习</strong>，这是真正的转折点。'
+  },
+  seq2seq: {
+    year: '2014',
+    title: 'Seq2Seq + Attention',
+    en: 'GOOGLE · MACHINE TRANSLATION',
+    text: '基于RNN的Seq2Seq模型加上注意力机制，机器翻译突然达到了实用水平。Google Translate因此重写。<strong>注意力机制虽然诞生在RNN里，但它的真正威力直到三年后被Transformer用纯粹的形式释放</strong>。'
+  },
+  transformer: {
+    year: '2017',
+    title: 'Attention is All You Need',
+    en: 'GOOGLE · TRANSFORMER PAPER',
+    text: 'Google的8位作者发表了一篇短论文，提出完全抛弃循环结构，<strong>只用注意力机制做序列建模</strong>。当时谁都没想到，这篇论文开启了未来七年AI的全部范式。<strong>没有这篇论文，就没有今天的GPT、Claude、Gemini</strong>。'
+  },
+  gpt3: {
+    year: '2020',
+    title: 'GPT-3 · 涌现的开端',
+    en: 'OPENAI · 175B PARAMETERS',
+    text: 'GPT-3达到1750亿参数，第一次展示出"涌现能力"——<strong>模型大到一定程度，会突然学会新技能</strong>。Few-shot learning让人震撼：不需要重新训练，给几个例子就能学新任务。<strong>"大力出奇迹"被验证</strong>。但因为没对齐，还不算好用。'
+  },
+  now: {
+    year: '2024',
+    title: '大模型百花齐放',
+    en: 'THE LLM ERA',
+    text: 'GPT-4、Claude、Gemini、文心一言、Qwen、DeepSeek。<strong>所有这些模型本质上都是Transformer</strong>，只是规模在不停长大。从1.7亿参数（GPT-2）到1.7万亿参数（GPT-4据传）的1万倍跃迁，仅用了5年。这是人类技术史上罕见的指数级增长曲线。'
+  }
+};
+
+document.querySelectorAll('.timeline-event').forEach(ev => {
+  ev.addEventListener('click', () => {
+    document.querySelectorAll('.timeline-event').forEach(e => e.classList.remove('active'));
+    ev.classList.add('active');
+    const id = ev.dataset.id;
+    const data = events[id];
+    document.getElementById('evYear').textContent = data.year;
+    document.getElementById('evTitle').textContent = data.title;
+    document.getElementById('evEn').textContent = data.en;
+    document.getElementById('evText').innerHTML = data.text;
+
+    const left = parseFloat(ev.style.left);
+    document.getElementById('tlFill').style.width = left + '%';
+  });
+});
+
+// 初始化进度条
+document.getElementById('tlFill').style.width = '97%';
+
+// 注意力机制演示
+const sentences = [
+  {
+    id: 'sent1',
+    words: ['小猫', '今天', '没', '吃饭', '所以', '它', '很', '饿'],
+    attentions: {
+      '它': { '小猫': 0.85, '今天': 0.05, '没': 0.02, '吃饭': 0.04, '所以': 0.02, '很': 0.01, '饿': 0.01, '它': 0 },
+      '饿': { '小猫': 0.30, '今天': 0.02, '没': 0.40, '吃饭': 0.20, '所以': 0.04, '它': 0.03, '很': 0.01, '饿': 0 },
+      '吃饭': { '小猫': 0.55, '今天': 0.10, '没': 0.30, '所以': 0.02, '它': 0.01, '很': 0.01, '饿': 0.01, '吃饭': 0 },
+      '所以': { '小猫': 0.10, '今天': 0.05, '没': 0.35, '吃饭': 0.40, '它': 0.05, '很': 0.02, '饿': 0.03, '所以': 0 }
+    },
+    explains: {
+      '它': '<strong>关键示范</strong>：模型读到代词"它"时，自动把绝大部分注意力分配给前文的"小猫"。这就是<strong>指代消解</strong>——无论"小猫"和"它"中间隔多少个词，都能直接关联。RNN在这种长距离依赖上经常失效。',
+      '饿': '"饿"这个状态来自"没吃饭"的因果——模型把注意力分给"没"和"吃饭"，同时也关注主语"小猫"。这种<strong>语义因果关系的捕捉</strong>是Transformer的强项。',
+      '吃饭': '"吃饭"这个动作的执行者是"小猫"，所以注意力主要落在主语上，同时关注修饰它的"没"。',
+      '所以': '"所以"是因果连词，它需要知道前面发生了什么——所以注意力主要分配给"没"和"吃饭"。'
+    }
+  },
+  {
+    id: 'sent2',
+    words: ['银行', '在', '河', '边', '我', '去', '银行', '取钱'],
+    attentions: {
+      '银行': { '河': 0.40, '边': 0.30, '取钱': 0.05, '在': 0.10, '我': 0.05, '去': 0.05, '银行': 0, '银行2': 0.05 },
+      '取钱': { '银行': 0.10, '银行2': 0.65, '我': 0.10, '去': 0.10, '河': 0.02, '边': 0.02, '在': 0.01, '取钱': 0 }
+    },
+    explains: {
+      '银行': '第一个"银行"指<strong>河岸</strong>。注意力分配给"河"和"边"——上下文决定了它的含义。这就是<strong>词义消歧</strong>。',
+      '取钱': '"取钱"这个动作必然关联到第二个"银行"（金融机构），而不是第一个"银行"（河岸）。<strong>注意力机制让模型分清两个相同的字在不同上下文里的不同含义</strong>。'
+    }
+  },
+  {
+    id: 'sent3',
+    words: ['他', '把', '苹果', '放进', '包里', '因为', '它', '太', '重'],
+    attentions: {
+      '它': { '苹果': 0.55, '包里': 0.30, '他': 0.03, '把': 0.02, '放进': 0.04, '因为': 0.02, '太': 0.02, '重': 0.02, '它': 0 },
+      '重': { '苹果': 0.45, '包里': 0.35, '它': 0.10, '太': 0.05, '因为': 0.02, '放进': 0.01, '把': 0.01, '他': 0.01, '重': 0 }
+    },
+    explains: {
+      '它': '这是著名的<strong>Winograd难题</strong>——"它"指苹果还是包？模型需要结合常识判断。"重"作为状语暗示了主体应该是被放进去的东西（苹果），所以注意力略微偏向"苹果"。<strong>Transformer能在一次前向传播中完成这种推理</strong>。',
+      '重': '形容"重"的对象是什么？模型同时关注"苹果"和"包里"，最终通过整个句子的语义判断。这种<strong>需要全局信息的判断</strong>正是注意力机制的优势。'
+    }
+  }
+];
+
+function renderSentences() {
+  sentences.forEach(s => {
+    const container = document.getElementById(s.id);
+    container.innerHTML = '';
+    const label = document.createElement('span');
+    label.className = 'sentence-label';
+    container.appendChild(label);
+
+    s.words.forEach((w, i) => {
+      const span = document.createElement('span');
+      span.className = 'word';
+      span.textContent = w;
+      span.dataset.word = w;
+      span.dataset.sentence = s.id;
+      span.dataset.index = i;
+      const isClickable = s.attentions[w] || (i > 0 && s.id === 'sent2' && w === '银行');
+
+      if (isClickable) {
+        span.style.cursor = 'pointer';
+        span.addEventListener('click', () => showAttention(s, w, i));
+      } else {
+        span.style.opacity = '0.5';
+        span.style.cursor = 'default';
+      }
+      container.appendChild(span);
+    });
+  });
+}
+renderSentences();
+
+function showAttention(sentence, word, index) {
+  document.querySelectorAll('.word').forEach(w => {
+    w.classList.remove('query', 'attended');
+  });
+
+  const queryEl = document.querySelector(`[data-sentence="${sentence.id}"][data-index="${index}"]`);
+  queryEl.classList.add('query');
+
+  let key = word;
+  if (sentence.id === 'sent2' && word === '银行' && index > 5) {
+    key = '取钱'; // 第二个"银行"用取钱的注意力
+  }
+  if (sentence.id === 'sent2' && word === '银行' && index === 0) {
+    key = '银行';
+  }
+
+  let attMap = sentence.attentions[key] || sentence.attentions[word];
+  if (!attMap) return;
+
+  const sortedAtt = Object.entries(attMap)
+    .filter(([k, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+  const viz = document.getElementById('attentionViz');
+  document.getElementById('queryWord').textContent = word;
+
+  const barsContainer = document.getElementById('attBars');
+  barsContainer.innerHTML = '';
+  sortedAtt.forEach(([w, v]) => {
+    const row = document.createElement('div');
+    row.className = 'att-bar-row';
+    let displayWord = w;
+    if (w === '银行2') displayWord = '银行';
+    row.innerHTML = `
+      <div class="att-word">${displayWord}</div>
+      <div class="att-bar-container"><div class="att-bar" style="width: 0%;"></div></div>
+      <div class="att-value">${(v*100).toFixed(0)}%</div>
+    `;
+    barsContainer.appendChild(row);
+    setTimeout(() => {
+      row.querySelector('.att-bar').style.width = (v*100) + '%';
+    }, 50);
+  });
+
+  document.getElementById('attExplain').innerHTML = sentence.explains[key] || sentence.explains[word] || '注意力分布的具体分析。';
+  viz.style.display = 'block';
+
+  // 高亮被关注的词
+  setTimeout(() => {
+    sortedAtt.forEach(([w, v]) => {
+      if (v > 0.2) {
+        let displayWord = w;
+        if (w === '银行2') displayWord = '银行';
+        const targets = document.querySelectorAll(`[data-sentence="${sentence.id}"]`);
+        targets.forEach(t => {
+          if (t.dataset.word === displayWord && !t.classList.contains('query')) {
+            t.classList.add('attended');
+          }
+        });
+      }
+    });
+  }, 100);
+}
+</script>
+</body>
+</html>

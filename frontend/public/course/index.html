@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 系列课程 · 14讲</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Noto Sans SC', 'Inter', sans-serif;
+    background: #0a0a0a;
+    color: #f0f0f0;
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+  .container { max-width: 1280px; margin: 0 auto; padding: 32px 24px; }
+
+  /* 顶部Hero */
+  header {
+    padding: 80px 24px 60px;
+    background: 
+      radial-gradient(circle at 20% 20%, rgba(120, 119, 198, 0.15) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(255, 119, 198, 0.1) 0%, transparent 50%),
+      #0a0a0a;
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid #1f1f1f;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: 
+      linear-gradient(0deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+  .hero {
+    max-width: 1280px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+  }
+  .hero-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: rgba(120, 119, 198, 0.12);
+    border: 1px solid rgba(120, 119, 198, 0.3);
+    color: #b8b6ff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    margin-bottom: 28px;
+    border-radius: 100px;
+  }
+  .hero-tag::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: #b8b6ff;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  
+  h1 {
+    font-family: 'Inter', sans-serif;
+    font-size: 96px;
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #fff 0%, #b8b6ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero-subtitle {
+    font-size: 19px;
+    color: #888;
+    line-height: 1.7;
+    max-width: 700px;
+    margin-bottom: 36px;
+  }
+  .hero-subtitle strong {
+    color: #fff;
+    font-weight: 500;
+  }
+  
+  .hero-stats {
+    display: flex;
+    gap: 48px;
+    flex-wrap: wrap;
+    margin-top: 32px;
+  }
+  .stat-block .num {
+    font-family: 'Inter', sans-serif;
+    font-size: 48px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  .stat-block .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-top: 8px;
+  }
+  .stat-block.accent .num {
+    background: linear-gradient(135deg, #b8b6ff 0%, #7877c6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* 章节分组 */
+  .section-group {
+    margin-bottom: 80px;
+  }
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-bottom: 20px;
+    margin-bottom: 28px;
+    border-bottom: 1px solid #1f1f1f;
+  }
+  .section-info {
+    display: flex;
+    align-items: baseline;
+    gap: 20px;
+  }
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: #555;
+    letter-spacing: 0.2em;
+  }
+  .section-title {
+    font-family: 'Inter', sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.02em;
+  }
+  .section-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #888;
+    letter-spacing: 0.15em;
+  }
+  
+  .section-desc {
+    font-size: 15px;
+    color: #777;
+    line-height: 1.8;
+    max-width: 800px;
+    margin-bottom: 32px;
+  }
+
+  /* 课程卡片 */
+  .lessons-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+  .lesson-card {
+    background: linear-gradient(180deg, #161616 0%, #111111 100%);
+    border: 1px solid #1f1f1f;
+    padding: 32px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 240px;
+  }
+  .lesson-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--accent, #7877c6);
+    opacity: 0.4;
+    transition: opacity 0.3s;
+  }
+  .lesson-card:hover {
+    border-color: #333;
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px -20px rgba(120, 119, 198, 0.2);
+  }
+  .lesson-card:hover::before {
+    opacity: 1;
+  }
+  
+  .lesson-num-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .lesson-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--accent, #7877c6);
+    letter-spacing: 0.2em;
+    font-weight: 500;
+  }
+  .lesson-duration {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #666;
+    letter-spacing: 0.15em;
+  }
+  
+  .lesson-title {
+    font-family: 'Inter', sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 12px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+  .lesson-desc {
+    font-size: 14px;
+    color: #888;
+    line-height: 1.75;
+    margin-bottom: 24px;
+    flex: 1;
+  }
+  
+  .lesson-actions {
+    display: flex;
+    gap: 10px;
+  }
+  .lesson-btn {
+    padding: 10px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-decoration: none;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 4px;
+  }
+  .lesson-btn.demo {
+    background: var(--accent, #7877c6);
+    color: #fff;
+  }
+  .lesson-btn.demo:hover {
+    background: var(--accent-hover, #9695e8);
+    transform: translateX(2px);
+  }
+  .lesson-btn.script {
+    background: transparent;
+    color: #aaa;
+    border: 1px solid #333;
+  }
+  .lesson-btn.script:hover {
+    border-color: #555;
+    color: #fff;
+  }
+  
+  /* 章节色系 */
+  .lesson-card.s1 { --accent: #d9b366; --accent-hover: #e9c376; }
+  .lesson-card.s2 { --accent: #ad6cff; --accent-hover: #bd7cff; }
+  .lesson-card.s3 { --accent: #00e676; --accent-hover: #20f696; }
+  
+  .section-group.s1 .section-num,
+  .section-group.s1 .lesson-num { color: #d9b366; }
+  .section-group.s2 .section-num,
+  .section-group.s2 .lesson-num { color: #ad6cff; }
+  .section-group.s3 .section-num,
+  .section-group.s3 .lesson-num { color: #00e676; }
+  
+  /* 即将推出 */
+  .coming-soon {
+    margin-top: 80px;
+    padding: 48px;
+    background: linear-gradient(135deg, #111 0%, #161616 100%);
+    border: 1px dashed #2a2a2a;
+    text-align: center;
+  }
+  .coming-soon h3 {
+    font-family: 'Inter', sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: #fff;
+  }
+  .coming-soon p {
+    font-size: 14px;
+    color: #888;
+    line-height: 1.8;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  .coming-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    max-width: 700px;
+    margin: 28px auto 0;
+    text-align: left;
+  }
+  .coming-item {
+    padding: 12px 16px;
+    background: #0a0a0a;
+    border: 1px solid #1f1f1f;
+    font-size: 13px;
+    color: #aaa;
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+  }
+  .coming-item .n {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #555;
+    letter-spacing: 0.15em;
+  }
+
+  footer {
+    margin-top: 100px;
+    padding: 40px 24px;
+    border-top: 1px solid #1f1f1f;
+    text-align: center;
+    color: #555;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.15em;
+  }
+
+  /* 锚点跳转的顶部padding */
+  .section-group {
+    scroll-margin-top: 24px;
+  }
+  
+  /* 顶部目录 */
+  .toc {
+    position: sticky;
+    top: 0;
+    background: rgba(10, 10, 10, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid #1f1f1f;
+    padding: 14px 24px;
+    z-index: 100;
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .toc a {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    text-decoration: none;
+    letter-spacing: 0.15em;
+    transition: color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .toc a:hover { color: #fff; }
+  .toc a .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+  .toc a.s1 .dot { background: #d9b366; }
+  .toc a.s2 .dot { background: #ad6cff; }
+  .toc a.s3 .dot { background: #00e676; }
+
+  @media (max-width: 768px) {
+    h1 { font-size: 56px; }
+    .lessons-grid, .coming-list { grid-template-columns: 1fr; }
+    .hero-stats { gap: 24px; }
+    .stat-block .num { font-size: 36px; }
+    header { padding: 60px 20px 40px; }
+    .section-header { flex-direction: column; gap: 8px; align-items: flex-start; }
+    .toc { gap: 14px; padding: 12px 16px; }
+    .toc a { font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <a href="#s1" class="s1"><span class="dot"></span>PART · 01</a>
+  <a href="#s2" class="s2"><span class="dot"></span>PART · 02</a>
+  <a href="#s3" class="s3"><span class="dot"></span>PART · 03</a>
+</nav>
+
+<header>
+  <div class="hero">
+    <div class="hero-tag">AI SERIES · INTERNAL TRAINING · v1.0</div>
+    <h1>AI 系列课程<br>14讲精讲</h1>
+    <div class="hero-subtitle">
+      从最基础的"AI是什么"到企业级"评估与可观测性"——
+      <strong>20讲完整体系，已完成14讲</strong>。每讲30分钟，每讲一个交互式演示 + 一份完整讲稿。
+      给团队同事一份系统化的AI认知地图。
+    </div>
+    
+    <div class="hero-stats">
+      <div class="stat-block">
+        <div class="num">14</div>
+        <div class="label">已完成讲数</div>
+      </div>
+      <div class="stat-block">
+        <div class="num">20</div>
+        <div class="label">总讲数</div>
+      </div>
+      <div class="stat-block accent">
+        <div class="num">3</div>
+        <div class="label">已完成章节</div>
+      </div>
+      <div class="stat-block">
+        <div class="num">~420min</div>
+        <div class="label">已完成时长</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- 第一部分 -->
+  <div class="section-group s1" id="s1">
+    <div class="section-header">
+      <div class="section-info">
+        <div class="section-num">PART · 01</div>
+        <div class="section-title">基础认知</div>
+      </div>
+      <div class="section-meta">4 LESSONS · ~120 MIN</div>
+    </div>
+    <div class="section-desc">
+      建立对AI的本质认知。从"AI到底是什么"开始，理解机器学习的范式分野、神经网络的学习机制、深度学习的革命性突破。这一部分不讲技术细节，讲思维框架——让团队同事知道在和怎样的东西打交道。
+    </div>
+
+    <div class="lessons-grid">
+      <div class="lesson-card s1" onclick="window.open('lesson01/demo.html', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 01</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">AI到底是什么</div>
+        <div class="lesson-desc">从规则到学习——AI不是一个新东西，是软件范式的一次根本转变。三种AI、四种学习方式、为什么2022年是分水岭。</div>
+        <div class="lesson-actions">
+          <a href="lesson01/demo.html" target="_blank" class="lesson-btn demo">演示 →</a>
+          <a href="lesson01/讲稿.md" target="_blank" class="lesson-btn script">讲稿</a>
+        </div>
+      </div>
+
+      <div class="lesson-card s1" onclick="window.open('lesson02/demo.html', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 02</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">机器学习的三种范式</div>
+        <div class="lesson-desc">监督学习、无监督学习、强化学习。每种范式对应不同问题、不同数据、不同应用场景。理解这个分类是理解AI能力边界的基础。</div>
+        <div class="lesson-actions">
+          <a href="lesson02/demo.html" target="_blank" class="lesson-btn demo">演示 →</a>
+          <a href="lesson02/讲稿.md" target="_blank" class="lesson-btn script">讲稿</a>
+        </div>
+      </div>
+
+      <div class="lesson-card s1" onclick="window.open('lesson03/demo.html', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 03</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">神经网络是怎么"学"的</div>
+        <div class="lesson-desc">用最直观的方式拆解神经网络——神经元、激活函数、反向传播、梯度下降。看到为什么"学习"这件事在数学上可行。</div>
+        <div class="lesson-actions">
+          <a href="lesson03/demo.html" target="_blank" class="lesson-btn demo">演示 →</a>
+          <a href="lesson03/讲稿.md" target="_blank" class="lesson-btn script">讲稿</a>
+        </div>
+      </div>
+
+      <div class="lesson-card s1" onclick="window.open('lesson04/demo.html', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 04</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">深度学习革命</div>
+        <div class="lesson-desc">从CNN到Transformer——10年时间AI走过的关键技术演进。为什么2017年那篇《Attention Is All You Need》改变了一切。</div>
+        <div class="lesson-actions">
+          <a href="lesson04/demo.html" target="_blank" class="lesson-btn demo">演示 →</a>
+          <a href="lesson04/讲稿.md" target="_blank" class="lesson-btn script">讲稿</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 第二部分 -->
+  <div class="section-group s2" id="s2">
+    <div class="section-header">
+      <div class="section-info">
+        <div class="section-num">PART · 02</div>
+        <div class="section-title">大模型时代</div>
+      </div>
+      <div class="section-meta">4 LESSONS · ~120 MIN</div>
+    </div>
+    <div class="section-desc">
+      打开大模型的引擎盖。Transformer的核心机制、GPT的炼成流程、Scaling Law为什么"砸钱有效"、多模态如何统一不同信息形式。这一部分回答"大模型为什么这么强"，建立对它能力边界的清晰预期。
+    </div>
+
+    <div class="lessons-grid">
+      <div class="lesson-card s2" onclick="window.open('lesson05/demo.html', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 05</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">Transformer架构详解</div>
+        <div class="lesson-desc">5个核心零件——Tokenization、Embedding、QKV、Attention、Position Encoding。讲清楚后看任何大模型论文都不发怵。</div>
+        <div class="lesson-actions">
+          <a href="lesson05/demo.html" target="_blank" class="lesson-btn demo">演示 →</a>
+          <a href="lesson05/讲稿.md" target="_blank" class="lesson-btn script">讲稿</a>
+        </div>
+      </div>
+
+      <div class="lesson-card s2" onclick="window.open('lesson06/demo.html', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 06</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">GPT是怎么炼成的</div>
+        <div class="lesson-desc">预训练 + SFT + RLHF——大模型从一堆显卡到能用产品的三阶段炼丹流程。理解为什么ChatGPT让世界惊艳。</div>
+        <div class="lesson-actions">
+          <a href="lesson06/demo.html" target="_blank" class="lesson-btn demo">演示 →</a>
+          <a href="lesson06/讲稿.md" target="_blank" class="lesson-btn script">讲稿</a>
+        </div>
+      </div>
+
+      <div class="lesson-card s2" onclick="window.open('lesson07/demo.html', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 07</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">Scaling Law与涌现能力</div>
+        <div class="lesson-desc">为什么"大力出奇迹"是有数学公式的科学规律。Chinchilla定律、涌现现象、模型梯队选型——理解大模型行业逻辑。</div>
+        <div class="lesson-actions">
+          <a href="lesson07/demo.html" target="_blank" class="lesson-btn demo">演示 →</a>
+          <a href="lesson07/讲稿.md" target="_blank" class="lesson-btn script">讲稿</a>
+        </div>
+      </div>
+
+      <div class="lesson-card s2" onclick="window.open('lesson08/demo.html', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 08</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">多模态：从文本到图像、音频、视频</div>
+        <div class="lesson-desc">CLIP、Diffusion、Sora——AI从文本助手到全感官智能体。所有模态映射到同一向量空间这个核心思想。</div>
+        <div class="lesson-actions">
+          <a href="lesson08/demo.html" target="_blank" class="lesson-btn demo">演示 →</a>
+          <a href="lesson08/讲稿.md" target="_blank" class="lesson-btn script">讲稿</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 第三部分 -->
+  <div class="section-group s3" id="s3">
+    <div class="section-header">
+      <div class="section-info">
+        <div class="section-num">PART · 03</div>
+        <div class="section-title">工程落地</div>
+      </div>
+      <div class="section-meta">6 LESSONS · ~180 MIN</div>
+    </div>
+    <div class="section-desc">
+      从模型能力到生产应用。Prompt怎么变成代码、RAG让模型用上私有知识、Function Calling让模型能做事、Agent自主完成任务、多Agent协作复杂业务、评估和观测保证可靠运行。这是企业级AI落地的完整工程框架。
+    </div>
+
+    <div class="lessons-grid">
+      <div class="lesson-card s3" onclick="window.open('lesson09/demo.html', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 09</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">Prompt Engineering的本质</div>
+        <div class="lesson-desc">Prompt不是问问题，是用自然语言写程序。6个核心原则、4个真实场景对比、6个生产陷阱——把Prompt当代码管理。</div>
+        <div class="lesson-actions">
+          <a href="lesson09/demo.html" target="_blank" class="lesson-btn demo">演示 →</a>
+          <a href="lesson09/讲稿.md" target="_blank" class="lesson-btn script">讲稿</a>
+        </div>
+      </div>
+
+      <div class="lesson-card s3" onclick="window.open('lesson10/demo.html', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 10</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">RAG：让模型用上私有知识</div>
+        <div class="lesson-desc">大模型有"知识盲区"——它不知道你的合同、方案、SOP。RAG把私有文档变成模型的"外置大脑",有依据、可追溯。</div>
+        <div class="lesson-actions">
+          <a href="lesson10/demo.html" target="_blank" class="lesson-btn demo">演示 →</a>
+          <a href="lesson10/讲稿.md" target="_blank" class="lesson-btn script">讲稿</a>
+        </div>
+      </div>
+
+      <div class="lesson-card s3" onclick="window.open('lesson11/demo.html', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 11</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">Function Calling 与 Tool Use</div>
+        <div class="lesson-desc">给模型装上手——查数据库、发邮件、调API。从"会说"到"能做"。包含MCP——工具生态的"USB-C时刻"。</div>
+        <div class="lesson-actions">
+          <a href="lesson11/demo.html" target="_blank" class="lesson-btn demo">演示 →</a>
+          <a href="lesson11/讲稿.md" target="_blank" class="lesson-btn script">讲稿</a>
+        </div>
+      </div>
+
+      <div class="lesson-card s3" onclick="window.open('lesson12/demo.html', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 12</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">Agent：从单轮对话到自主任务</div>
+        <div class="lesson-desc">ReAct核心循环——Reason、Act、Observe。给一个目标，Agent自己规划、执行、观察、调整。4种主流架构对比。</div>
+        <div class="lesson-actions">
+          <a href="lesson12/demo.html" target="_blank" class="lesson-btn demo">演示 →</a>
+          <a href="lesson12/讲稿.md" target="_blank" class="lesson-btn script">讲稿</a>
+        </div>
+      </div>
+
+      <div class="lesson-card s3" onclick="window.open('lesson13/demo.html', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 13</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">多Agent系统设计</div>
+        <div class="lesson-desc">单Agent扛不住时的解法。4种协作模式——Supervisor、Pipeline、Debate、Hierarchical。5-Agent CRM团队真实案例。</div>
+        <div class="lesson-actions">
+          <a href="lesson13/demo.html" target="_blank" class="lesson-btn demo">演示 →</a>
+          <a href="lesson13/讲稿.md" target="_blank" class="lesson-btn script">讲稿</a>
+        </div>
+      </div>
+
+      <div class="lesson-card s3" onclick="window.open('lesson14/demo.html', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 14</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">AI应用的评估与可观测性</div>
+        <div class="lesson-desc">没有评估的AI开发是凭感觉,没有观测的生产环境是凭运气。评估金字塔4层、4个核心指标、9个主流工具。</div>
+        <div class="lesson-actions">
+          <a href="lesson14/demo.html" target="_blank" class="lesson-btn demo">演示 →</a>
+          <a href="lesson14/讲稿.md" target="_blank" class="lesson-btn script">讲稿</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 即将推出 -->
+  <div class="coming-soon">
+    <h3>剩余6讲 · 进行中</h3>
+    <p>第四部分（企业级落地）和第五部分（未来推演）正在制作中。完成后这里会自动加上。</p>
+    <div class="coming-list">
+      <div class="coming-item">
+        <div class="n">15</div>
+        <div>AI在SaaS交付中的应用全景</div>
+      </div>
+      <div class="coming-item">
+        <div class="n">16</div>
+        <div>知识库工程化：从Demo到生产</div>
+      </div>
+      <div class="coming-item">
+        <div class="n">17</div>
+        <div>AI安全与合规</div>
+      </div>
+      <div class="coming-item">
+        <div class="n">18</div>
+        <div>当前AI的根本局限</div>
+      </div>
+      <div class="coming-item">
+        <div class="n">19</div>
+        <div>未来演进的几条路线（核心收束讲）</div>
+      </div>
+      <div class="coming-item">
+        <div class="n">20</div>
+        <div>AGI之后：工作、组织、社会推演</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  AI SYSTEM COURSE · 14 / 20 LESSONS · 每讲 30 MIN · DEMO + SCRIPT · INTERNAL TRAINING
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第5讲｜Transformer架构详解</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Noto+Sans+SC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: #f5f1e8;
+    color: #1a1f2e;
+    min-height: 100vh;
+    padding: 40px 20px;
+    background-image:
+      radial-gradient(circle at 15% 20%, rgba(82, 113, 145, 0.08) 0%, transparent 40%),
+      radial-gradient(circle at 85% 80%, rgba(186, 90, 75, 0.06) 0%, transparent 40%);
+  }
+  .container { max-width: 1300px; margin: 0 auto; }
+
+  header {
+    margin-bottom: 56px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid #1a1f2e;
+    position: relative;
+  }
+  .lesson-tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: #ba5a4b;
+    margin-bottom: 16px;
+  }
+  h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 76px;
+    font-weight: 400;
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    color: #1a1f2e;
+  }
+  h1 em {
+    font-style: italic;
+    color: #527191;
+  }
+  .subtitle {
+    margin-top: 20px;
+    font-size: 16px;
+    color: #4a5468;
+    max-width: 720px;
+    line-height: 1.8;
+  }
+  .subtitle strong { color: #ba5a4b; font-weight: 500; }
+
+  .toc {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 64px;
+    padding: 24px;
+    background: #1a1f2e;
+    color: #f5f1e8;
+  }
+  .toc-item {
+    padding: 16px;
+    border-right: 1px solid #2a3142;
+  }
+  .toc-item:last-child { border-right: none; }
+  .toc-num {
+    font-family: 'DM Serif Display', serif;
+    font-size: 32px;
+    font-style: italic;
+    color: #ba5a4b;
+    line-height: 1;
+  }
+  .toc-title {
+    font-size: 14px;
+    margin-top: 8px;
+    font-weight: 500;
+  }
+  .toc-en {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #8a9aab;
+    letter-spacing: 0.1em;
+    margin-top: 4px;
+  }
+
+  .section {
+    margin-bottom: 80px;
+    position: relative;
+  }
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 24px;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px dashed #1a1f2e;
+  }
+  .section-num {
+    font-family: 'DM Serif Display', serif;
+    font-size: 88px;
+    font-style: italic;
+    color: #ba5a4b;
+    line-height: 0.8;
+    flex-shrink: 0;
+  }
+  .section-info h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 42px;
+    font-weight: 400;
+    line-height: 1.1;
+  }
+  .section-info .en {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #527191;
+    letter-spacing: 0.2em;
+    margin-top: 8px;
+  }
+  .section-lead {
+    margin-top: 16px;
+    font-size: 15px;
+    color: #4a5468;
+    line-height: 1.8;
+    max-width: 800px;
+  }
+
+  .demo-box {
+    background: #fff;
+    border: 1px solid #d4cfc4;
+    box-shadow: 8px 8px 0 #1a1f2e;
+    padding: 40px;
+    margin-bottom: 24px;
+  }
+
+  /* Tokenization Demo */
+  .tokenize-input {
+    width: 100%;
+    padding: 16px 20px;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 16px;
+    border: 2px solid #1a1f2e;
+    background: #faf7f0;
+    margin-bottom: 16px;
+  }
+  .tokenize-btn {
+    background: #1a1f2e;
+    color: #f5f1e8;
+    border: none;
+    padding: 12px 32px;
+    font-size: 14px;
+    font-family: 'Noto Sans SC', sans-serif;
+    cursor: pointer;
+    margin-bottom: 24px;
+    transition: all 0.2s;
+  }
+  .tokenize-btn:hover { background: #ba5a4b; }
+
+  .tokens-output {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .token-pill {
+    padding: 8px 14px;
+    background: #527191;
+    color: #fff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    border-radius: 4px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .token-pill:hover { background: #ba5a4b; transform: translateY(-2px); }
+  .token-pill .id {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #ba5a4b;
+    color: #fff;
+    font-size: 9px;
+    padding: 2px 5px;
+    border-radius: 8px;
+  }
+
+  .embedding-grid {
+    margin-top: 24px;
+    background: #faf7f0;
+    border: 1px solid #d4cfc4;
+    padding: 20px;
+    overflow-x: auto;
+  }
+  .embedding-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+  .emb-label {
+    width: 80px;
+    color: #527191;
+    font-weight: 700;
+  }
+  .emb-arrow {
+    color: #ba5a4b;
+    font-weight: 700;
+  }
+  .emb-vector {
+    display: flex;
+    gap: 2px;
+  }
+  .emb-cell {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+  }
+
+  /* Position Encoding Demo */
+  .pe-controls {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .pe-control {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .pe-control label {
+    font-size: 13px;
+    color: #4a5468;
+  }
+  .pe-control input[type="range"] {
+    width: 200px;
+    accent-color: #ba5a4b;
+  }
+  .pe-display {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: #ba5a4b;
+    min-width: 30px;
+  }
+
+  .pe-canvas-wrap {
+    background: #1a1f2e;
+    padding: 24px;
+    border-radius: 4px;
+  }
+  #peCanvas {
+    width: 100%;
+    height: 240px;
+    display: block;
+  }
+
+  .pe-explain {
+    margin-top: 16px;
+    padding: 16px 20px;
+    background: rgba(82, 113, 145, 0.08);
+    border-left: 3px solid #527191;
+    font-size: 14px;
+    line-height: 1.8;
+    color: #1a1f2e;
+  }
+
+  /* QKV Demo */
+  .qkv-stage {
+    background: #faf7f0;
+    padding: 32px;
+    border: 1px solid #d4cfc4;
+  }
+  .qkv-sentence {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+    justify-content: center;
+  }
+  .qkv-word {
+    padding: 12px 20px;
+    background: #fff;
+    border: 2px solid #1a1f2e;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.3s;
+  }
+  .qkv-word:hover { background: #527191; color: #fff; }
+  .qkv-word.selected {
+    background: #ba5a4b;
+    color: #fff;
+    border-color: #ba5a4b;
+  }
+
+  .qkv-flow {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+  .qkv-vector {
+    background: #fff;
+    border: 1px solid #d4cfc4;
+    padding: 16px;
+    text-align: center;
+  }
+  .qkv-vector-label {
+    font-family: 'DM Serif Display', serif;
+    font-style: italic;
+    font-size: 28px;
+    color: #ba5a4b;
+    margin-bottom: 4px;
+  }
+  .qkv-vector-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #527191;
+    letter-spacing: 0.15em;
+    margin-bottom: 12px;
+  }
+  .qkv-vector-desc {
+    font-size: 13px;
+    line-height: 1.6;
+    color: #4a5468;
+  }
+
+  .qkv-attention-result {
+    background: #1a1f2e;
+    color: #f5f1e8;
+    padding: 24px;
+    margin-top: 16px;
+  }
+  .qkv-result-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #ba5a4b;
+    letter-spacing: 0.2em;
+    margin-bottom: 16px;
+  }
+  .qkv-formula {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    background: #2a3142;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .qkv-formula .v { color: #ba5a4b; }
+  .qkv-formula .n { color: #8ec8a8; }
+
+  .score-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .score-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+  }
+  .score-word { width: 80px; text-align: right; color: #f5f1e8; }
+  .score-bar-bg {
+    flex: 1;
+    height: 18px;
+    background: #2a3142;
+    overflow: hidden;
+  }
+  .score-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #527191, #ba5a4b);
+    transition: width 0.6s;
+  }
+  .score-val { width: 50px; color: #ba5a4b; }
+
+  /* Architecture Demo */
+  .arch-toggle {
+    display: flex;
+    gap: 0;
+    margin-bottom: 24px;
+    border: 1px solid #1a1f2e;
+    width: fit-content;
+  }
+  .arch-tab {
+    padding: 12px 24px;
+    background: transparent;
+    border: none;
+    border-right: 1px solid #1a1f2e;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .arch-tab:last-child { border-right: none; }
+  .arch-tab.active { background: #1a1f2e; color: #f5f1e8; }
+
+  .arch-viz {
+    background: #faf7f0;
+    padding: 32px;
+    border: 1px solid #d4cfc4;
+    min-height: 480px;
+  }
+  .arch-svg-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  .arch-svg-wrap svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .layer-block {
+    fill: #fff;
+    stroke: #1a1f2e;
+    stroke-width: 1.5;
+    transition: fill 0.2s;
+    cursor: pointer;
+  }
+  .layer-block:hover { fill: #ba5a4b; }
+  .layer-block.attn { fill: #527191; }
+  .layer-block.ffn { fill: #8a9aab; }
+  .layer-text { font-family: 'Noto Sans SC', sans-serif; font-size: 11px; pointer-events: none; }
+
+  .arch-explain {
+    margin-top: 24px;
+    padding: 20px;
+    background: #fff;
+    border-left: 4px solid #ba5a4b;
+  }
+  .arch-explain h4 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    margin-bottom: 8px;
+  }
+  .arch-explain p {
+    font-size: 14px;
+    line-height: 1.8;
+    color: #4a5468;
+  }
+
+  /* Insight blocks */
+  .insight-block {
+    margin: 32px 0;
+    padding: 32px 40px;
+    background: linear-gradient(135deg, #1a1f2e 0%, #2a3142 100%);
+    color: #f5f1e8;
+    position: relative;
+  }
+  .insight-block::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 80px; height: 4px;
+    background: #ba5a4b;
+  }
+  .insight-block h4 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 26px;
+    font-style: italic;
+    margin-bottom: 14px;
+    color: #ba5a4b;
+  }
+  .insight-block p {
+    font-size: 15px;
+    line-height: 1.9;
+    margin-bottom: 12px;
+  }
+  .insight-block strong { color: #ba5a4b; }
+
+  footer {
+    text-align: center;
+    margin-top: 80px;
+    padding-top: 32px;
+    border-top: 1px solid #d4cfc4;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #8a9aab;
+    letter-spacing: 0.2em;
+  }
+
+  @media (max-width: 768px) {
+    h1 { font-size: 44px; }
+    .toc { grid-template-columns: 1fr 1fr; }
+    .qkv-flow { grid-template-columns: 1fr; }
+    .section-header { flex-direction: column; gap: 8px; }
+    .section-num { font-size: 56px; }
+  }
+</style>
+</head>
+<body>
+<!-- 课程系列统一导航条 · 由脚本注入 -->
+<div id="course-nav-bar">
+  <div class="course-nav-inner">
+    <a href="../lesson04/demo.html" class="course-nav-btn prev" title="深度学习革命"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
+    <a href="../index.html" class="course-nav-center" title="回到课程总览">
+      <span class="nav-current">LESSON 05 / 20</span>
+      <span class="nav-title">Transformer架构详解</span>
+    </a>
+    <a href="../lesson06/demo.html" class="course-nav-btn next" title="GPT是怎么炼成的"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
+  </div>
+</div>
+
+<style id="course-nav-style">
+  #course-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  .course-nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .course-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .course-nav-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .course-nav-btn.disabled {
+    color: #444;
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .course-nav-btn .nav-arrow {
+    font-size: 14px;
+    line-height: 1;
+  }
+  .course-nav-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+    padding: 4px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    min-width: 0;
+  }
+  .course-nav-center:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .nav-current {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .nav-title {
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+    letter-spacing: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body {
+    padding-top: 64px !important;
+  }
+  
+  @media (max-width: 768px) {
+    .course-nav-inner {
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .course-nav-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .course-nav-btn .nav-label {
+      display: none;
+    }
+    .nav-title {
+      font-size: 11px;
+    }
+    .nav-current {
+      font-size: 9px;
+    }
+    body {
+      padding-top: 54px !important;
+    }
+  }
+</style>
+<!-- 课程系列统一导航条 · END -->
+
+<div class="container">
+  <header>
+    <div class="lesson-tag">LESSON · 05 / 20</div>
+    <h1>Transformer<br>架构<em>详解</em></h1>
+    <div class="subtitle">
+      上一讲我们建立了"为什么是Transformer"的直觉，这一讲打开它的引擎盖。
+      <strong>不讲数学推导，讲机制</strong>——把分词、位置编码、Q/K/V、Encoder-Decoder四个零件拆开，
+      每个零件都让你亲手玩一遍。讲完这讲，你看到任何大模型论文都不会再发怵。
+    </div>
+  </header>
+
+  <div class="toc">
+    <div class="toc-item">
+      <div class="toc-num">01</div>
+      <div class="toc-title">分词与嵌入</div>
+      <div class="toc-en">TOKEN & EMBEDDING</div>
+    </div>
+    <div class="toc-item">
+      <div class="toc-num">02</div>
+      <div class="toc-title">位置编码</div>
+      <div class="toc-en">POSITION ENCODING</div>
+    </div>
+    <div class="toc-item">
+      <div class="toc-num">03</div>
+      <div class="toc-title">Q K V 三件套</div>
+      <div class="toc-en">QUERY · KEY · VALUE</div>
+    </div>
+    <div class="toc-item">
+      <div class="toc-num">04</div>
+      <div class="toc-title">三种架构变种</div>
+      <div class="toc-en">ENCODER · DECODER · BOTH</div>
+    </div>
+  </div>
+
+  <!-- Section 1: Tokenization -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">01</div>
+      <div class="section-info">
+        <h2>从一段文字到一串数字</h2>
+        <div class="en">TOKENIZATION & EMBEDDING</div>
+        <div class="section-lead">
+          神经网络只能处理数字，不能处理"今天天气真好"这种文字。所以第一步——把文字切成"token"，再把每个token变成一个向量。这一步叫分词与嵌入，是所有大模型的起点。
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-box">
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #ba5a4b; letter-spacing: 0.2em; margin-bottom: 8px;">DEMO · 输入一句话看它怎么被切分</div>
+      <h3 style="font-family: 'DM Serif Display', serif; font-size: 24px; margin-bottom: 16px;">输入文本</h3>
+
+      <input type="text" class="tokenize-input" id="tokenInput" value="Transformer 是一个革命性的架构。" placeholder="输入任意文本...">
+      <button class="tokenize-btn" onclick="tokenize()">切分并向量化</button>
+
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #527191; letter-spacing: 0.2em; margin-bottom: 12px;">STEP 1 · TOKENS</div>
+      <div class="tokens-output" id="tokensOutput"></div>
+
+      <div style="margin-top:24px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #527191; letter-spacing: 0.2em; margin-bottom: 12px;">STEP 2 · EMBEDDINGS（每个token变成一个向量，这里展示前16维）</div>
+      <div class="embedding-grid" id="embeddingGrid"></div>
+
+      <div class="pe-explain" style="margin-top: 20px;">
+        每个token会被映射到一个高维向量（GPT-3是12288维，这里只展示16维示意）。<strong>这些向量在训练前是随机初始化的，训练过程中会自动学习</strong>——
+        让"国王"和"皇帝"这种语义相近的词，在向量空间里也靠得近。这个过程叫嵌入（embedding），是所有语义理解的基础。
+      </div>
+    </div>
+
+    <div class="insight-block">
+      <h4>为什么不直接按字符切？</h4>
+      <p>
+        早期模型按字符切，但中文一个字一个token、英文一个字母一个token，序列变得超长，效率低。
+      </p>
+      <p>
+        现代大模型用 <strong>BPE（Byte Pair Encoding）</strong>或类似算法，从大量文本中统计出最常见的字符组合作为token。
+        常见词整个作为一个token（"the"、"中国"），不常见的词拆成子词（"transformer" 可能拆成 "trans" + "former"）。
+        <strong>这是大模型词表通常在5万到30万之间的原因</strong>。
+      </p>
+    </div>
+  </div>
+
+  <!-- Section 2: Position Encoding -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">02</div>
+      <div class="section-info">
+        <h2>给每个位置一个独特的指纹</h2>
+        <div class="en">POSITION ENCODING</div>
+        <div class="section-lead">
+          Transformer的注意力机制有个"副作用"——它把所有词同时看一眼，<strong>分不清谁前谁后</strong>。"我打你"和"你打我"对它来说一样。怎么办？给每个位置加一个独特的"位置指纹"。
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-box">
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #ba5a4b; letter-spacing: 0.2em; margin-bottom: 8px;">DEMO · 位置编码的波形</div>
+      <h3 style="font-family: 'DM Serif Display', serif; font-size: 24px; margin-bottom: 8px;">每个位置 = 一组不同频率的正弦/余弦值</h3>
+      <p style="font-size: 14px; color: #4a5468; line-height: 1.8; margin-bottom: 24px;">
+        Transformer原始论文用正弦余弦函数生成位置编码。每个位置在每个维度上都有一个独特的值，<strong>低维度变化快、高维度变化慢</strong>——就像"时分秒"用不同频率表示一个时间。
+      </p>
+
+      <div class="pe-controls">
+        <div class="pe-control">
+          <label>序列长度</label>
+          <input type="range" min="20" max="100" value="50" id="peLength" oninput="drawPE()">
+          <span class="pe-display" id="peLenDisplay">50</span>
+        </div>
+        <div class="pe-control">
+          <label>显示维度</label>
+          <input type="range" min="0" max="63" value="0" id="peDim" oninput="drawPE()">
+          <span class="pe-display" id="peDimDisplay">0</span>
+        </div>
+      </div>
+
+      <div class="pe-canvas-wrap">
+        <canvas id="peCanvas" width="1200" height="480"></canvas>
+      </div>
+
+      <div class="pe-explain">
+        每条曲线代表向量的一个维度。<strong>低维度（dim=0,1）波长短、变化快，能区分相邻位置；高维度（dim=60,61）波长长、变化慢，刻画粗粒度的位置</strong>。
+        把这组值加到token的embedding上，模型就既知道"这个词是什么"又知道"它在哪个位置"。
+        <br><br>
+        现在主流大模型用更先进的位置编码（RoPE、ALiBi），但<strong>核心思想都是给每个位置一个独特、可区分的"指纹"</strong>。
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 3: QKV -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">03</div>
+      <div class="section-info">
+        <h2>QKV 三件套：注意力的真正机制</h2>
+        <div class="en">QUERY · KEY · VALUE</div>
+        <div class="section-lead">
+          上一讲我们看了"注意力分数"长什么样，但没讲它怎么算出来的。答案就是QKV——把每个词变成三个角色：<strong>查询者、被查者、被取的内容</strong>。这三个角色完美对应人脑的"检索"过程。
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-box">
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #ba5a4b; letter-spacing: 0.2em; margin-bottom: 8px;">DEMO · 看每个词的Q/K/V扮演什么角色</div>
+      <h3 style="font-family: 'DM Serif Display', serif; font-size: 24px; margin-bottom: 16px;">点击一个词，作为查询发起者</h3>
+
+      <div class="qkv-stage">
+        <div class="qkv-sentence" id="qkvSentence"></div>
+
+        <div class="qkv-flow">
+          <div class="qkv-vector">
+            <div class="qkv-vector-label">Q</div>
+            <div class="qkv-vector-name">QUERY · 查询</div>
+            <div class="qkv-vector-desc">
+              <strong>当前词作为发起方</strong>。它带着一个"问题"去问其他词："你和我有多相关？"
+            </div>
+          </div>
+          <div class="qkv-vector">
+            <div class="qkv-vector-label">K</div>
+            <div class="qkv-vector-name">KEY · 钥匙</div>
+            <div class="qkv-vector-desc">
+              <strong>每个词作为被查询的"标签"</strong>。Q和K做点积，得到相关性分数——分数越高，越相关。
+            </div>
+          </div>
+          <div class="qkv-vector">
+            <div class="qkv-vector-label">V</div>
+            <div class="qkv-vector-name">VALUE · 内容</div>
+            <div class="qkv-vector-desc">
+              <strong>每个词的实际信息</strong>。最终输出 = 所有V的加权平均，权重就是Q和K算出的分数。
+            </div>
+          </div>
+        </div>
+
+        <div class="qkv-attention-result">
+          <div class="qkv-result-title">ATTENTION FORMULA · 当前词的输出向量是怎么算出来的</div>
+          <div class="qkv-formula">
+            output = softmax( <span class="v">Q</span>·<span class="v">K</span>ᵀ / √<span class="n">d</span> ) · <span class="v">V</span>
+          </div>
+          <div style="font-size: 13px; line-height: 1.8; margin-bottom: 16px; color: #c0c8d4;">
+            <span id="qkvDescriptor">点击上面的词查看注意力分布</span>
+          </div>
+          <div class="score-bars" id="qkvScores"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="insight-block">
+      <h4>为什么是Q×K而不是Q+K？</h4>
+      <p>
+        点积的几何意义是<strong>两个向量"对齐程度"</strong>——方向一致时点积大，方向不同时点积小，方向相反时点积为负。
+        这正好对应"相关性"这个语义。
+      </p>
+      <p>
+        一个词的Q和另一个词的K点积大，意味着<strong>"我在找的"正好是"你能提供的"</strong>。
+        所以Q和K相当于一对锁和钥匙——能配上的会得到高分，配不上的得低分。
+      </p>
+      <p>
+        实际计算中，<strong>所有词的Q、K、V都是同一句话过三个不同的线性层得到的</strong>。也就是说，每个词同时扮演查询者、被查者、内容提供者三个角色。
+      </p>
+    </div>
+  </div>
+
+  <!-- Section 4: Architecture variants -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">04</div>
+      <div class="section-info">
+        <h2>三种架构变种：怎么搭出BERT和GPT</h2>
+        <div class="en">ENCODER · DECODER · ENCODER-DECODER</div>
+        <div class="section-lead">
+          原始Transformer是Encoder-Decoder架构（左半边Encoder、右半边Decoder）。但实际应用中我们经常只取一半——<strong>BERT是纯Encoder、GPT是纯Decoder</strong>。这两条路线决定了不同模型的"性格"。
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-box">
+      <div class="arch-toggle">
+        <button class="arch-tab active" data-arch="encoder">仅 Encoder</button>
+        <button class="arch-tab" data-arch="decoder">仅 Decoder</button>
+        <button class="arch-tab" data-arch="encdec">Encoder + Decoder</button>
+      </div>
+
+      <div class="arch-viz">
+        <div class="arch-svg-wrap" id="archSvg"></div>
+        <div class="arch-explain" id="archExplain"></div>
+      </div>
+    </div>
+
+    <div class="insight-block">
+      <h4>一个简单的判断框架</h4>
+      <p>
+        <strong>Encoder擅长"理解"</strong>——它能同时看到所有词，所以适合分类、抽取、检索这类需要全局理解的任务。
+        我们做的<strong>语义检索、Embedding模型，都是Encoder架构</strong>（BGE、Qwen Embedding、BERT这些）。
+      </p>
+      <p>
+        <strong>Decoder擅长"生成"</strong>——它从左到右一个词一个词生成，每个词只能看到前面的词（叫"因果掩码"）。所有<strong>聊天大模型都是Decoder架构</strong>（GPT、Claude、Qwen-Chat这些）。
+      </p>
+      <p>
+        <strong>Encoder-Decoder适合"翻译"</strong>类任务——先用Encoder完整理解输入，再用Decoder生成输出。机器翻译、文档摘要、Seq2Seq任务用这种架构（T5、BART）。
+      </p>
+    </div>
+  </div>
+
+  <footer>
+    AI 系列课程 · 第 05 讲 · 共 20 讲 · 下一讲：GPT是怎么炼成的，预训练 + 对齐的两段式
+  </footer>
+</div>
+
+<script>
+// ==== Section 1: Tokenization ====
+function tokenize() {
+  const input = document.getElementById('tokenInput').value || 'Transformer 是一个革命性的架构。';
+
+  // 简化的分词模拟：英文按词，中文按字符或2-gram
+  const tokens = [];
+  let buffer = '';
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (/[a-zA-Z]/.test(ch)) {
+      buffer += ch;
+    } else {
+      if (buffer) { tokens.push(buffer); buffer = ''; }
+      if (ch.trim() && ch !== ' ') tokens.push(ch);
+    }
+  }
+  if (buffer) tokens.push(buffer);
+
+  // 渲染tokens
+  const out = document.getElementById('tokensOutput');
+  out.innerHTML = '';
+  tokens.forEach((tok, i) => {
+    const pill = document.createElement('span');
+    pill.className = 'token-pill';
+    pill.innerHTML = `${tok}<span class="id">id:${(tok.charCodeAt(0) * 7) % 9999}</span>`;
+    out.appendChild(pill);
+  });
+
+  // 渲染embeddings
+  renderEmbeddings(tokens);
+}
+
+function renderEmbeddings(tokens) {
+  const grid = document.getElementById('embeddingGrid');
+  grid.innerHTML = '';
+  tokens.slice(0, 6).forEach(tok => {
+    const row = document.createElement('div');
+    row.className = 'embedding-row';
+
+    const label = document.createElement('span');
+    label.className = 'emb-label';
+    label.textContent = `"${tok}"`;
+    row.appendChild(label);
+
+    const arrow = document.createElement('span');
+    arrow.className = 'emb-arrow';
+    arrow.textContent = '→';
+    row.appendChild(arrow);
+
+    const vec = document.createElement('div');
+    vec.className = 'emb-vector';
+    const seed = tok.charCodeAt(0);
+    for (let i = 0; i < 16; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'emb-cell';
+      const val = (Math.sin(seed * (i+1) * 0.5) * 0.7 + Math.cos(seed * 0.3 + i) * 0.3);
+      const intensity = Math.abs(val);
+      const r = val > 0 ? 186 : 82;
+      const g = val > 0 ? 90 : 113;
+      const b = val > 0 ? 75 : 145;
+      cell.style.background = `rgba(${r}, ${g}, ${b}, ${intensity * 0.7 + 0.1})`;
+      cell.style.color = intensity > 0.5 ? '#fff' : '#1a1f2e';
+      cell.textContent = val.toFixed(1).replace('-0.0', '0');
+      vec.appendChild(cell);
+    }
+    row.appendChild(vec);
+    grid.appendChild(row);
+  });
+  if (tokens.length > 6) {
+    const more = document.createElement('div');
+    more.style.cssText = 'text-align:center; font-family: monospace; font-size: 11px; color: #8a9aab; margin-top: 8px;';
+    more.textContent = `... 还有 ${tokens.length - 6} 个 tokens 省略 ...`;
+    grid.appendChild(more);
+  }
+}
+
+tokenize();
+
+// ==== Section 2: Position Encoding ====
+function drawPE() {
+  const canvas = document.getElementById('peCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const seqLen = +document.getElementById('peLength').value;
+  const startDim = +document.getElementById('peDim').value;
+  document.getElementById('peLenDisplay').textContent = seqLen;
+  document.getElementById('peDimDisplay').textContent = startDim;
+
+  const dModel = 64;
+  const dimsToShow = 4;
+
+  const padding = 50;
+  const plotW = W - padding * 2;
+  const plotH = H - padding * 2;
+
+  // 网格
+  ctx.strokeStyle = 'rgba(245, 241, 232, 0.1)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 10; i++) {
+    const x = padding + (i / 10) * plotW;
+    ctx.beginPath(); ctx.moveTo(x, padding); ctx.lineTo(x, H - padding); ctx.stroke();
+  }
+  for (let i = 0; i <= 4; i++) {
+    const y = padding + (i / 4) * plotH;
+    ctx.beginPath(); ctx.moveTo(padding, y); ctx.lineTo(W - padding, y); ctx.stroke();
+  }
+
+  // 0轴
+  ctx.strokeStyle = 'rgba(245, 241, 232, 0.3)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(padding, padding + plotH/2);
+  ctx.lineTo(W - padding, padding + plotH/2);
+  ctx.stroke();
+
+  // 画几条曲线
+  const colors = ['#ba5a4b', '#527191', '#8ec8a8', '#d4a574'];
+  for (let dimIdx = 0; dimIdx < dimsToShow; dimIdx++) {
+    const dim = (startDim + dimIdx * 2) % dModel;
+    ctx.strokeStyle = colors[dimIdx];
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+
+    for (let pos = 0; pos < seqLen; pos++) {
+      let val;
+      const denominator = Math.pow(10000, dim / dModel);
+      if (dim % 2 === 0) {
+        val = Math.sin(pos / denominator);
+      } else {
+        val = Math.cos(pos / denominator);
+      }
+      const x = padding + (pos / (seqLen - 1)) * plotW;
+      const y = padding + plotH/2 - val * (plotH/2 - 10);
+      if (pos === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // 图例
+    ctx.fillStyle = colors[dimIdx];
+    ctx.fillRect(W - padding - 130, padding + 10 + dimIdx * 20, 12, 4);
+    ctx.fillStyle = '#f5f1e8';
+    ctx.font = '11px JetBrains Mono';
+    ctx.fillText(`dim ${dim}`, W - padding - 110, padding + 14 + dimIdx * 20);
+  }
+
+  // 坐标轴标签
+  ctx.fillStyle = '#8a9aab';
+  ctx.font = '11px JetBrains Mono';
+  ctx.fillText('position →', W - padding - 80, H - 20);
+  ctx.save();
+  ctx.translate(20, padding + 40);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('value', 0, 0);
+  ctx.restore();
+}
+
+window.addEventListener('load', () => {
+  // resize canvas
+  const canvas = document.getElementById('peCanvas');
+  const wrapper = canvas.parentElement;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = wrapper.getBoundingClientRect();
+  canvas.width = (rect.width - 48) * dpr;
+  canvas.height = 240 * dpr;
+  canvas.style.width = (rect.width - 48) + 'px';
+  canvas.style.height = '240px';
+  canvas.getContext('2d').scale(dpr, dpr);
+
+  // override draw to use display dimensions
+  const ctx = canvas.getContext('2d');
+  drawPE();
+});
+window.addEventListener('resize', drawPE);
+
+// ==== Section 3: QKV ====
+const qkvSentence = ['他', '把', '苹果', '放进', '篮子', '因为', '它', '很', '红'];
+const qkvAttentions = {
+  0: { 0: 0, 1: 0.1, 2: 0.2, 3: 0.05, 4: 0.05, 5: 0.05, 6: 0.4, 7: 0.05, 8: 0.1 },  // 他
+  2: { 0: 0.05, 1: 0.05, 2: 0, 3: 0.15, 4: 0.05, 5: 0.05, 6: 0.35, 7: 0.05, 8: 0.25 }, // 苹果
+  6: { 0: 0.10, 1: 0.05, 2: 0.55, 3: 0.05, 4: 0.10, 5: 0.05, 6: 0, 7: 0.02, 8: 0.08 }, // 它
+  8: { 0: 0.05, 1: 0.02, 2: 0.50, 3: 0.05, 4: 0.10, 5: 0.05, 6: 0.18, 7: 0.05, 8: 0 }, // 红
+  4: { 0: 0.10, 1: 0.05, 2: 0.20, 3: 0.30, 4: 0, 5: 0.05, 6: 0.10, 7: 0.05, 8: 0.15 }  // 篮子
+};
+
+const qkvDescs = {
+  0: '主语"他"——它的Query在找"动作发出者的属性"，注意力略偏向"它"和"苹果"（涉及它操作的对象）。',
+  2: '"苹果"——它的Query在找"我是什么样的"，注意力分配给"红"（自己的颜色属性）和"它"（指代自己的代词）。',
+  6: '<strong>关键：代词"它"</strong>——指代消解的经典例子。它的Query在找"我指的是谁"，55%的注意力落在"苹果"上。Transformer一次前向就能完成传统NLP需要专门模块才能解决的指代问题。',
+  8: '形容词"红"——它在描述什么？Q会去找最相关的名词，注意力主要给"苹果"。语法和语义关系自动浮现。',
+  4: '"篮子"——容器角色，它的Q关心"什么被放进我里面"，注意力分给"放进"和"苹果"。'
+};
+
+function renderQkvSentence() {
+  const container = document.getElementById('qkvSentence');
+  container.innerHTML = '';
+  qkvSentence.forEach((word, i) => {
+    const span = document.createElement('span');
+    span.className = 'qkv-word';
+    span.textContent = word;
+    span.dataset.idx = i;
+    if (qkvAttentions[i]) {
+      span.addEventListener('click', () => selectQkv(i));
+    } else {
+      span.style.opacity = '0.4';
+      span.style.cursor = 'not-allowed';
+    }
+    container.appendChild(span);
+  });
+}
+renderQkvSentence();
+
+function selectQkv(idx) {
+  document.querySelectorAll('.qkv-word').forEach(w => w.classList.remove('selected'));
+  document.querySelector(`.qkv-word[data-idx="${idx}"]`).classList.add('selected');
+
+  const attn = qkvAttentions[idx];
+  const sorted = Object.entries(attn).sort((a, b) => b[1] - a[1]);
+
+  const scores = document.getElementById('qkvScores');
+  scores.innerHTML = '';
+  sorted.forEach(([i, v]) => {
+    if (v < 0.01) return;
+    const row = document.createElement('div');
+    row.className = 'score-row';
+    row.innerHTML = `
+      <span class="score-word">${qkvSentence[i]}</span>
+      <div class="score-bar-bg"><div class="score-bar" style="width: 0%"></div></div>
+      <span class="score-val">${(v*100).toFixed(0)}%</span>
+    `;
+    scores.appendChild(row);
+    setTimeout(() => {
+      row.querySelector('.score-bar').style.width = (v * 100) + '%';
+    }, 50);
+  });
+
+  document.getElementById('qkvDescriptor').innerHTML = qkvDescs[idx];
+}
+selectQkv(6); // 默认显示"它"
+
+// ==== Section 4: Architecture ====
+const archData = {
+  encoder: {
+    title: '仅 Encoder · BERT、Embedding模型',
+    desc: 'Encoder架构没有"因果掩码"，每个词可以同时看到所有其他词（包括后面的）。这让它擅长"理解"任务——分类、抽取、相似度判断。<strong>BERT、RoBERTa、BGE Embedding模型都是这种架构</strong>。在我们做的RAG知识库里，做向量化的Embedding模型就是Encoder架构。',
+    blocks: [
+      { type: 'input', y: 0, label: '输入文本' },
+      { type: 'embed', y: 1, label: '词嵌入 + 位置编码' },
+      { type: 'attn', y: 2, label: 'Self-Attention（双向）' },
+      { type: 'ffn', y: 3, label: 'Feed-Forward Network' },
+      { type: 'attn', y: 4, label: 'Self-Attention（双向）' },
+      { type: 'ffn', y: 5, label: 'Feed-Forward Network' },
+      { type: 'output', y: 6, label: '语义向量 / 分类结果' }
+    ]
+  },
+  decoder: {
+    title: '仅 Decoder · GPT、Claude、Qwen-Chat',
+    desc: 'Decoder用"因果掩码"——每个词只能看到自己和前面的词，看不到后面。这让它擅长"生成"——从前往后一个词一个词写。<strong>所有聊天大模型本质都是Decoder架构</strong>。给一段开头，它接着写。GPT-4、Claude、文心一言、通义千问都是这一种。',
+    blocks: [
+      { type: 'input', y: 0, label: '已生成的token序列' },
+      { type: 'embed', y: 1, label: '词嵌入 + 位置编码' },
+      { type: 'attn', y: 2, label: 'Masked Self-Attention（单向）' },
+      { type: 'ffn', y: 3, label: 'Feed-Forward Network' },
+      { type: 'attn', y: 4, label: 'Masked Self-Attention（单向）' },
+      { type: 'ffn', y: 5, label: 'Feed-Forward Network' },
+      { type: 'output', y: 6, label: '下一个token的概率分布' }
+    ]
+  },
+  encdec: {
+    title: 'Encoder-Decoder · T5、BART、机器翻译',
+    desc: '完整的Transformer架构。Encoder理解输入，Decoder生成输出，中间通过Cross-Attention连接。<strong>适合"输入和输出差异大"的任务</strong>——机器翻译（中文→英文）、文档摘要、问答系统。Google T5就是这种架构。今天纯Decoder通过更大规模也能做这些事，所以新模型用Encoder-Decoder的越来越少。',
+    blocks: [
+      { type: 'input', y: 0, label: '源文本（如中文）' },
+      { type: 'embed', y: 1, label: 'Encoder · 词嵌入' },
+      { type: 'attn', y: 2, label: 'Encoder · Self-Attention' },
+      { type: 'ffn', y: 3, label: 'Encoder · FFN（输出语义表示）' },
+      { type: 'cross', y: 4, label: 'Decoder · Cross-Attention（看Encoder输出）' },
+      { type: 'attn', y: 5, label: 'Decoder · Masked Self-Attention' },
+      { type: 'output', y: 6, label: '目标文本（如英文）' }
+    ]
+  }
+};
+
+function renderArch(arch) {
+  const data = archData[arch];
+  const container = document.getElementById('archSvg');
+  const W = 600, H = 440;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+
+  data.blocks.forEach((block, i) => {
+    const y = 30 + i * 55;
+    let fillClass = '';
+    let bg = '#fff';
+    if (block.type === 'attn') bg = '#527191';
+    else if (block.type === 'ffn') bg = '#8a9aab';
+    else if (block.type === 'cross') bg = '#ba5a4b';
+    else if (block.type === 'input' || block.type === 'output') bg = '#1a1f2e';
+
+    const textColor = (block.type === 'embed' || block.type === '') ? '#1a1f2e' : '#fff';
+
+    svg += `<rect x="50" y="${y}" width="500" height="38" fill="${bg}" stroke="#1a1f2e" stroke-width="1.5" rx="2"/>`;
+    svg += `<text x="300" y="${y + 24}" text-anchor="middle" class="layer-text" fill="${textColor}" font-size="13">${block.label}</text>`;
+
+    if (i < data.blocks.length - 1) {
+      svg += `<line x1="300" y1="${y + 38}" x2="300" y2="${y + 55}" stroke="#1a1f2e" stroke-width="1.5"/>`;
+      svg += `<polygon points="${300},${y + 55} ${295},${y + 49} ${305},${y + 49}" fill="#1a1f2e"/>`;
+    }
+  });
+
+  svg += '</svg>';
+  container.innerHTML = svg;
+
+  document.getElementById('archExplain').innerHTML = `
+    <h4>${data.title}</h4>
+    <p>${data.desc}</p>
+  `;
+}
+renderArch('encoder');
+
+document.querySelectorAll('.arch-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.arch-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    renderArch(tab.dataset.arch);
+  });
+});
+</script>
+</body>
+</html>

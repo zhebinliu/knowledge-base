@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第8讲｜多模态：从文本到图像、音频、视频</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;700;800&family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', 'Manrope', sans-serif;
+    background: #f0ece6;
+    color: #1a1818;
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .container { max-width: 1320px; margin: 0 auto; }
+
+  header {
+    background: linear-gradient(135deg, #2d1f3a 0%, #4a2d5a 50%, #6b3a6f 100%);
+    color: #f0ece6;
+    padding: 64px 56px;
+    margin-bottom: 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0; bottom: 0; width: 50%;
+    background-image:
+      radial-gradient(circle at 30% 30%, rgba(255, 184, 108, 0.2) 0%, transparent 40%),
+      radial-gradient(circle at 70% 60%, rgba(189, 147, 249, 0.2) 0%, transparent 40%);
+    pointer-events: none;
+  }
+  .lesson-tag {
+    display: inline-block;
+    padding: 6px 14px;
+    border: 1px solid #ffb86c;
+    color: #ffb86c;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    margin-bottom: 24px;
+  }
+  h1 {
+    font-family: 'Manrope', 'Noto Sans SC', sans-serif;
+    font-size: 80px;
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    margin-bottom: 16px;
+    position: relative;
+    z-index: 1;
+  }
+  h1 .accent {
+    color: #ffb86c;
+    font-weight: 300;
+  }
+  .h1-cn {
+    font-size: 28px;
+    font-weight: 700;
+    margin-top: 8px;
+    color: #d4c5e0;
+    position: relative;
+    z-index: 1;
+  }
+  .subtitle {
+    margin-top: 24px;
+    font-size: 16px;
+    color: #c4b5d0;
+    line-height: 1.8;
+    max-width: 720px;
+    position: relative;
+    z-index: 1;
+  }
+  .subtitle strong { color: #ffb86c; font-weight: 500; }
+
+  .section {
+    background: #fff;
+    padding: 48px 56px;
+    margin-bottom: 32px;
+    border: 1px solid #d8d0c4;
+  }
+  .section.dark {
+    background: #2d1f3a;
+    color: #f0ece6;
+    border-color: #4a2d5a;
+  }
+  .section-marker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #6b3a6f;
+    letter-spacing: 0.3em;
+    margin-bottom: 8px;
+  }
+  .section.dark .section-marker { color: #ffb86c; }
+  .section-title {
+    font-family: 'Manrope', sans-serif;
+    font-size: 44px;
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+  .section-title .accent { color: #6b3a6f; font-weight: 300; }
+  .section.dark .section-title .accent { color: #ffb86c; }
+  .section-cn {
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .section-lead {
+    margin-top: 16px;
+    font-size: 15px;
+    line-height: 1.8;
+    max-width: 800px;
+    color: #5a4a5a;
+  }
+  .section.dark .section-lead { color: #c4b5d0; }
+
+  /* 第一节：统一向量空间 */
+  .embedding-demo {
+    margin-top: 32px;
+    background: #faf6f0;
+    border: 1px solid #d8d0c4;
+    padding: 32px;
+  }
+  .demo-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 24px;
+  }
+  .demo-header h4 {
+    font-family: 'Manrope', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+  }
+  
+  .vector-space {
+    background: #fff;
+    border: 1px solid #d8d0c4;
+    height: 400px;
+    position: relative;
+    overflow: hidden;
+  }
+  #vectorCanvas { width: 100%; height: 100%; cursor: pointer; }
+  
+  .vector-controls {
+    margin-top: 16px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .vec-btn {
+    padding: 10px 16px;
+    background: #fff;
+    border: 1.5px solid #2d1f3a;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .vec-btn:hover { background: #2d1f3a; color: #fff; }
+  .vec-btn.active {
+    background: #6b3a6f;
+    color: #fff;
+    border-color: #6b3a6f;
+  }
+
+  .vector-explain {
+    margin-top: 16px;
+    padding: 16px 20px;
+    background: rgba(107, 58, 111, 0.06);
+    border-left: 3px solid #6b3a6f;
+    font-size: 13px;
+    line-height: 1.8;
+    color: #2d1f3a;
+  }
+  .vector-explain strong { color: #6b3a6f; }
+
+  /* CLIP 演示 */
+  .clip-demo {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .clip-side {
+    background: #faf6f0;
+    border: 1px solid #d8d0c4;
+    padding: 24px;
+  }
+  .clip-side h5 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #6b3a6f;
+    letter-spacing: 0.2em;
+    margin-bottom: 12px;
+  }
+  
+  .image-box {
+    background: #fff;
+    border: 2px solid #2d1f3a;
+    aspect-ratio: 1.4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  
+  .image-svg {
+    width: 100%;
+    height: 100%;
+  }
+  
+  .clip-text {
+    background: #fff;
+    border-left: 3px solid #6b3a6f;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .clip-text:hover { background: #fff8ee; }
+  .clip-text.matched {
+    background: #fff8ee;
+    border-left-color: #ffb86c;
+    border-left-width: 5px;
+  }
+  .clip-text-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .clip-text-content { flex: 1; }
+  .clip-score {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #6b3a6f;
+    font-weight: 700;
+  }
+  .clip-text.matched .clip-score { color: #d4811a; }
+
+  .clip-image-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .img-btn {
+    padding: 8px 12px;
+    background: #fff;
+    border: 1.5px solid #2d1f3a;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    flex: 1;
+  }
+  .img-btn.active { background: #2d1f3a; color: #fff; }
+
+  /* Diffusion 演示 */
+  .diffusion-demo {
+    margin-top: 32px;
+    background: #1a1418;
+    padding: 32px;
+    border: 1px solid #4a2d5a;
+  }
+  .diff-stages {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .diff-stage {
+    aspect-ratio: 1;
+    background: #2d1f3a;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #4a2d5a;
+  }
+  .diff-stage canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .diff-stage-label {
+    position: absolute;
+    bottom: 4px;
+    left: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #ffb86c;
+  }
+  
+  .diff-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .diff-btn {
+    padding: 12px 20px;
+    background: #ffb86c;
+    color: #1a1418;
+    border: none;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .diff-btn:hover { background: #ffa040; }
+  .diff-prompt-input {
+    flex: 1;
+    padding: 12px 16px;
+    background: #2d1f3a;
+    border: 1px solid #4a2d5a;
+    color: #f0ece6;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 14px;
+  }
+
+  .diff-explain {
+    margin-top: 16px;
+    padding: 16px 20px;
+    background: rgba(255, 184, 108, 0.08);
+    border-left: 3px solid #ffb86c;
+    font-size: 13px;
+    line-height: 1.8;
+    color: #f0ece6;
+  }
+  .diff-explain strong { color: #ffb86c; }
+
+  /* 模态对照表 */
+  .modality-table {
+    margin-top: 32px;
+  }
+  .modality-table h4 {
+    font-family: 'Manrope', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 16px;
+  }
+  
+  table.mod {
+    width: 100%;
+    border-collapse: collapse;
+    background: #faf6f0;
+    border: 1px solid #d8d0c4;
+  }
+  table.mod th {
+    text-align: left;
+    padding: 16px;
+    background: #2d1f3a;
+    color: #ffb86c;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    font-weight: 500;
+  }
+  table.mod td {
+    padding: 16px;
+    border-bottom: 1px solid #e0d8cc;
+    font-size: 13px;
+    line-height: 1.7;
+    vertical-align: top;
+  }
+  table.mod td:first-child {
+    font-family: 'Manrope', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    color: #2d1f3a;
+  }
+  table.mod tr:hover { background: #fff; }
+
+  /* 应用场景 */
+  .applications {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 32px;
+  }
+  .app-card {
+    background: #faf6f0;
+    border: 1px solid #d8d0c4;
+    padding: 24px;
+    border-top: 3px solid #6b3a6f;
+  }
+  .app-card-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #6b3a6f;
+    letter-spacing: 0.2em;
+    margin-bottom: 8px;
+  }
+  .app-card h5 {
+    font-family: 'Manrope', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .app-card-list {
+    list-style: none;
+    font-size: 13px;
+    line-height: 1.9;
+    color: #5a4a5a;
+  }
+  .app-card-list li {
+    padding-left: 16px;
+    position: relative;
+  }
+  .app-card-list li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: #6b3a6f;
+  }
+
+  /* 总结 */
+  .summary {
+    background: linear-gradient(135deg, #2d1f3a 0%, #4a2d5a 100%);
+    color: #f0ece6;
+    padding: 56px;
+    border-left: 4px solid #ffb86c;
+    margin-bottom: 32px;
+  }
+  .summary h3 {
+    font-family: 'Manrope', sans-serif;
+    font-size: 32px;
+    font-weight: 800;
+    margin-bottom: 24px;
+    color: #ffb86c;
+  }
+  .summary p {
+    font-size: 15px;
+    line-height: 1.9;
+    margin-bottom: 16px;
+    color: #d4c5e0;
+  }
+  .summary p strong { color: #ffb86c; }
+
+  .key-formula {
+    background: rgba(255, 184, 108, 0.08);
+    padding: 28px;
+    margin: 24px 0;
+    text-align: center;
+    font-family: 'Manrope', sans-serif;
+    font-size: 22px;
+    line-height: 1.6;
+    color: #f0ece6;
+    border-left: 3px solid #ffb86c;
+  }
+  .key-formula .arrow { color: #ffb86c; margin: 0 12px; }
+
+  footer {
+    text-align: center;
+    margin-top: 48px;
+    padding: 24px;
+    background: #2d1f3a;
+    color: #888;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.2em;
+  }
+
+  @media (max-width: 768px) {
+    h1 { font-size: 56px; }
+    .section { padding: 32px 24px; }
+    .clip-demo, .applications { grid-template-columns: 1fr; }
+    .diff-stages { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+<!-- 课程系列统一导航条 · 由脚本注入 -->
+<div id="course-nav-bar">
+  <div class="course-nav-inner">
+    <a href="../lesson07/demo.html" class="course-nav-btn prev" title="Scaling Law与涌现能力"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
+    <a href="../index.html" class="course-nav-center" title="回到课程总览">
+      <span class="nav-current">LESSON 08 / 20</span>
+      <span class="nav-title">多模态AI</span>
+    </a>
+    <a href="../lesson09/demo.html" class="course-nav-btn next" title="Prompt Engineering的本质"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
+  </div>
+</div>
+
+<style id="course-nav-style">
+  #course-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  .course-nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .course-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .course-nav-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .course-nav-btn.disabled {
+    color: #444;
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .course-nav-btn .nav-arrow {
+    font-size: 14px;
+    line-height: 1;
+  }
+  .course-nav-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+    padding: 4px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    min-width: 0;
+  }
+  .course-nav-center:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .nav-current {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .nav-title {
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+    letter-spacing: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body {
+    padding-top: 64px !important;
+  }
+  
+  @media (max-width: 768px) {
+    .course-nav-inner {
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .course-nav-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .course-nav-btn .nav-label {
+      display: none;
+    }
+    .nav-title {
+      font-size: 11px;
+    }
+    .nav-current {
+      font-size: 9px;
+    }
+    body {
+      padding-top: 54px !important;
+    }
+  }
+</style>
+<!-- 课程系列统一导航条 · END -->
+
+<div class="container">
+  <header>
+    <div class="lesson-tag">LESSON 08 / 20</div>
+    <h1>BEYOND <span class="accent">TEXT</span><br>MULTIMODAL AI</h1>
+    <div class="h1-cn">多模态：从文本到图像、音频、视频</div>
+    <div class="subtitle">
+      文本只是世界的一种表达方式。<strong>真实智能必须能看、能听、能说、能画</strong>。
+      过去三年，AI从文本助手跃迁到通用感知系统，背后只有一个核心思想——
+      <strong>把所有模态映射到同一个向量空间</strong>。
+    </div>
+  </header>
+
+  <!-- 第一节：统一向量空间 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 01</div>
+    <div class="section-title">UNIFIED <span class="accent">EMBEDDING</span> SPACE</div>
+    <div class="section-cn">核心思想：所有模态映射到同一个空间</div>
+    <div class="section-lead">
+      多模态AI听起来玄乎，核心思想其实只有一个：
+      <strong>不管你是文字、图片、音频还是视频，都被映射成一个高维向量</strong>。
+      在这个向量空间里，"一只橘猫"的图片和"orange cat"的文字会被映射到非常接近的位置。
+      然后所有任务都变成向量之间的运算。
+    </div>
+
+    <div class="embedding-demo">
+      <div class="demo-header">
+        <h4>共享向量空间可视化</h4>
+        <div style="font-size: 12px; color: #5a4a5a;">点击按钮切换查看不同语义簇</div>
+      </div>
+
+      <div class="vector-space">
+        <canvas id="vectorCanvas"></canvas>
+      </div>
+
+      <div class="vector-controls">
+        <button class="vec-btn active" data-cluster="all">全部</button>
+        <button class="vec-btn" data-cluster="cat">"猫"概念簇</button>
+        <button class="vec-btn" data-cluster="vehicle">"交通工具"概念簇</button>
+        <button class="vec-btn" data-cluster="emotion">"情感"概念簇</button>
+      </div>
+
+      <div class="vector-explain" id="vectorExplain">
+        <strong>关键观察：</strong>同一个概念的文字、图片、音频，<strong>在向量空间里聚集成一团</strong>。
+        "猫"这个文字、各种猫的图片、猫叫的音频，都在同一个区域。
+        这意味着<strong>模型理解的是"概念"，不是"文字"</strong>。
+        从此跨模态翻译变得可能——给定文字找图片、给定图片描述内容、给定音频生成视频。
+      </div>
+    </div>
+  </div>
+
+  <!-- 第二节：CLIP -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 02</div>
+    <div class="section-title">CLIP · <span class="accent">CONTRASTIVE</span> LEARNING</div>
+    <div class="section-cn">CLIP：让图片和文字"看见"彼此</div>
+    <div class="section-lead">
+      2021年OpenAI发布的CLIP是多模态的奠基之作。
+      训练方法极其简单：从互联网爬4亿条"图片+描述"配对，
+      让模型学习<strong>"哪张图配哪段文字"</strong>。
+      训练完成后，图片和文字共享同一个向量空间。
+    </div>
+
+    <div class="clip-demo">
+      <div class="clip-side">
+        <h5>INPUT IMAGE</h5>
+        
+        <div class="clip-image-controls">
+          <button class="img-btn active" data-img="cat">橘猫照片</button>
+          <button class="img-btn" data-img="dog">狗狗照片</button>
+          <button class="img-btn" data-img="city">城市夜景</button>
+        </div>
+        
+        <div class="image-box" id="clipImageBox">
+          <svg class="image-svg" viewBox="0 0 200 140" id="catSvg">
+            <rect width="200" height="140" fill="#fff8ee"/>
+            <ellipse cx="100" cy="100" rx="60" ry="35" fill="#d4811a"/>
+            <circle cx="100" cy="65" r="32" fill="#d4811a"/>
+            <polygon points="80,42 75,25 90,38" fill="#d4811a"/>
+            <polygon points="120,42 125,25 110,38" fill="#d4811a"/>
+            <polygon points="82,40 78,30 88,38" fill="#fff8ee"/>
+            <polygon points="118,40 122,30 112,38" fill="#fff8ee"/>
+            <ellipse cx="90" cy="65" rx="4" ry="6" fill="#1a1818"/>
+            <ellipse cx="110" cy="65" rx="4" ry="6" fill="#1a1818"/>
+            <circle cx="90" cy="63" r="1.5" fill="#fff"/>
+            <circle cx="110" cy="63" r="1.5" fill="#fff"/>
+            <polygon points="100,75 95,80 105,80" fill="#1a1818"/>
+            <line x1="100" y1="80" x2="100" y2="85" stroke="#1a1818" stroke-width="1"/>
+            <line x1="80" y1="70" x2="60" y2="68" stroke="#1a1818" stroke-width="0.5"/>
+            <line x1="80" y1="73" x2="58" y2="74" stroke="#1a1818" stroke-width="0.5"/>
+            <line x1="120" y1="70" x2="140" y2="68" stroke="#1a1818" stroke-width="0.5"/>
+            <line x1="120" y1="73" x2="142" y2="74" stroke="#1a1818" stroke-width="0.5"/>
+          </svg>
+        </div>
+        
+        <div style="font-size: 12px; color: #5a4a5a; line-height: 1.7;">
+          CLIP的图像编码器把这张图<strong>压缩成一个512维向量</strong>。
+          然后这个向量去和下面所有候选文字的向量做相似度匹配。
+        </div>
+      </div>
+
+      <div class="clip-side">
+        <h5>CANDIDATE TEXTS · 看模型选谁</h5>
+        
+        <div id="clipTexts">
+          <div class="clip-text matched" data-text="0">
+            <div class="clip-text-row">
+              <span class="clip-text-content">一只橘色的猫</span>
+              <span class="clip-score">94%</span>
+            </div>
+          </div>
+          <div class="clip-text" data-text="1">
+            <div class="clip-text-row">
+              <span class="clip-text-content">橘色的小动物</span>
+              <span class="clip-score">71%</span>
+            </div>
+          </div>
+          <div class="clip-text" data-text="2">
+            <div class="clip-text-row">
+              <span class="clip-text-content">毛茸茸的宠物</span>
+              <span class="clip-score">52%</span>
+            </div>
+          </div>
+          <div class="clip-text" data-text="3">
+            <div class="clip-text-row">
+              <span class="clip-text-content">一辆红色的车</span>
+              <span class="clip-score">3%</span>
+            </div>
+          </div>
+          <div class="clip-text" data-text="4">
+            <div class="clip-text-row">
+              <span class="clip-text-content">城市的夜景</span>
+              <span class="clip-score">2%</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 16px; padding: 16px; background: #fff8ee; border-left: 3px solid #ffb86c; font-size: 12px; line-height: 1.8;">
+          <strong>关键创新</strong>：CLIP训练时<strong>没有人告诉它"这是猫"</strong>。
+          它只是学习"哪段描述配哪张图"。但学完之后，它<strong>无意中获得了识别能力</strong>——
+          这就是著名的"<strong>零样本分类</strong>"——不用专门训练，给任何新类别的描述就能识别。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 第三节：Diffusion -->
+  <div class="section dark">
+    <div class="section-marker">CHAPTER · 03</div>
+    <div class="section-title">DIFFUSION · <span class="accent">FROM NOISE</span></div>
+    <div class="section-cn">Diffusion：从噪声中"雕刻"出图像</div>
+    <div class="section-lead">
+      Stable Diffusion、Midjourney、Sora，背后都是Diffusion模型。
+      它的工作原理反直觉但极其优雅：<strong>从一团纯随机噪声开始，逐步去噪，最终生成一张图</strong>。
+      就像米开朗基罗说的——"雕像本来就在大理石里，我只是把多余的部分去掉"。
+    </div>
+
+    <div class="diffusion-demo">
+      <div class="diff-controls">
+        <input type="text" class="diff-prompt-input" id="diffPrompt" value="一只在沙发上睡觉的猫" placeholder="输入一段描述...">
+        <button class="diff-btn" id="diffStart">开始扩散生成</button>
+      </div>
+
+      <div class="diff-stages">
+        <div class="diff-stage">
+          <canvas id="stage0" width="100" height="100"></canvas>
+          <div class="diff-stage-label">T=1000</div>
+        </div>
+        <div class="diff-stage">
+          <canvas id="stage1" width="100" height="100"></canvas>
+          <div class="diff-stage-label">T=800</div>
+        </div>
+        <div class="diff-stage">
+          <canvas id="stage2" width="100" height="100"></canvas>
+          <div class="diff-stage-label">T=600</div>
+        </div>
+        <div class="diff-stage">
+          <canvas id="stage3" width="100" height="100"></canvas>
+          <div class="diff-stage-label">T=400</div>
+        </div>
+        <div class="diff-stage">
+          <canvas id="stage4" width="100" height="100"></canvas>
+          <div class="diff-stage-label">T=200</div>
+        </div>
+        <div class="diff-stage">
+          <canvas id="stage5" width="100" height="100"></canvas>
+          <div class="diff-stage-label">T=0</div>
+        </div>
+      </div>
+
+      <div class="diff-explain">
+        <strong>左到右的过程</strong>：纯噪声 → 朦胧轮廓 → 模糊形状 → 清晰物体 → 细节涌现 → 最终成品。<br>
+        每一步，模型都在问自己一个问题：<strong>"如果这是从'一只猫的图'添加噪声而来，那原图应该是什么样？"</strong>
+        然后预测并去掉一点噪声。重复1000次，图就出来了。
+        <br><br>
+        <strong>训练方法巧妙</strong>：拿真实图片，逐步加噪声，让模型学习"如何反向去噪"。
+        生成时反着用——从纯噪声出发，让模型一步步去噪。
+        <strong>"加噪声"是免费的，所以训练数据可以无限造</strong>。
+      </div>
+    </div>
+
+    <div style="margin-top: 32px; padding: 24px; background: rgba(255, 184, 108, 0.08); border-left: 3px solid #ffb86c;">
+      <p style="font-size: 14px; line-height: 1.9; color: #f0ece6;">
+        <strong style="color: #ffb86c;">Sora、可灵、Veo的本质</strong>：
+        视频生成 = Diffusion + 时间维度。把"图像Diffusion"扩展到"图像序列Diffusion"，
+        多了一个保持帧间连贯的约束。本质和图像生成一样，只是数据更多、计算量更大。
+        这也是为什么<strong style="color: #fff;">视频生成晚两年才成熟</strong>——需要Diffusion先在图像上跑通。
+      </p>
+    </div>
+  </div>
+
+  <!-- 第四节：模态对照 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 04</div>
+    <div class="section-title">THE <span class="accent">MODALITY</span> MAP</div>
+    <div class="section-cn">不同模态的技术对照</div>
+    <div class="section-lead">
+      把目前主流的多模态技术按"模态对"梳理一下。每一对都对应一个核心模型范式。
+    </div>
+
+    <div class="modality-table">
+      <table class="mod">
+        <thead>
+          <tr>
+            <th>模态对</th>
+            <th>代表模型</th>
+            <th>技术核心</th>
+            <th>典型应用</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>文本 → 图像</td>
+            <td>Stable Diffusion / Midjourney / DALL-E</td>
+            <td>Diffusion + Text Encoder</td>
+            <td>设计图生成、营销素材、概念图</td>
+          </tr>
+          <tr>
+            <td>图像 → 文本</td>
+            <td>GPT-4V / Claude Vision / Qwen-VL</td>
+            <td>Vision Encoder + LLM</td>
+            <td>OCR、图片理解、票据识别、设计审核</td>
+          </tr>
+          <tr>
+            <td>图像 ↔ 文本</td>
+            <td>CLIP / 中文CLIP / SigLIP</td>
+            <td>对比学习</td>
+            <td>图像搜索、商品配对、内容审核</td>
+          </tr>
+          <tr>
+            <td>文本 → 视频</td>
+            <td>Sora / 可灵 / Veo / 海螺</td>
+            <td>Video Diffusion</td>
+            <td>短视频生成、动画、广告创意</td>
+          </tr>
+          <tr>
+            <td>音频 → 文本</td>
+            <td>Whisper / FunASR / SenseVoice</td>
+            <td>Speech Encoder + Decoder</td>
+            <td>会议转录、字幕生成、客服分析</td>
+          </tr>
+          <tr>
+            <td>文本 → 音频</td>
+            <td>ElevenLabs / GPT-SoVITS / CosyVoice</td>
+            <td>Acoustic Model + Vocoder</td>
+            <td>语音播报、有声书、虚拟人</td>
+          </tr>
+          <tr>
+            <td>全模态</td>
+            <td>GPT-4o / Gemini 2 / Qwen2.5-Omni</td>
+            <td>统一Transformer + 多模态Tokenizer</td>
+            <td>下一代AI助手、多模态Agent</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="applications">
+      <div class="app-card">
+        <div class="app-card-num">SCENE · 01</div>
+        <h5>CRM 中的视觉应用</h5>
+        <ul class="app-card-list">
+          <li>合同OCR + 智能解析</li>
+          <li>名片扫描自动入库</li>
+          <li>报销单/票据识别</li>
+          <li>产品图片自动配描述</li>
+          <li>设计图审核与建议</li>
+        </ul>
+      </div>
+      <div class="app-card">
+        <div class="app-card-num">SCENE · 02</div>
+        <h5>CRM 中的语音应用</h5>
+        <ul class="app-card-list">
+          <li>客户访谈自动转录</li>
+          <li>销售电话质检</li>
+          <li>会议纪要自动生成</li>
+          <li>语音转需求工单</li>
+          <li>多语言客服</li>
+        </ul>
+      </div>
+      <div class="app-card">
+        <div class="app-card-num">SCENE · 03</div>
+        <h5>CRM 中的视频应用</h5>
+        <ul class="app-card-list">
+          <li>产品介绍视频自动生成</li>
+          <li>培训视频快速制作</li>
+          <li>客户定制化营销视频</li>
+          <li>方案演示动画</li>
+          <li>视频会议智能摘要</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 总结 -->
+  <div class="summary">
+    <div class="section-marker" style="color: #ffb86c;">RECAP</div>
+    <h3>多模态的核心范式</h3>
+
+    <div class="key-formula">
+      所有模态 <span class="arrow">→</span> 共享向量空间 <span class="arrow">→</span> 任意模态间转换
+    </div>
+
+    <p>
+      多模态AI的本质极其简单：<strong>把文字、图像、音频、视频都映射到同一个向量空间</strong>。
+      在这个空间里，语义相近的东西距离近——一张橘猫的照片和"orange cat"这串文字，
+      会落在几乎相同的位置。
+    </p>
+    <p>
+      <strong>CLIP</strong>解决了"文字-图像"的匹配——给一张图找匹配的文字描述。
+      <strong>Diffusion</strong>解决了"文字-图像"的生成——给一段描述生成对应的图。
+      把这两个能力组合起来，再扩展到时间维度，就是<strong>Sora级别的视频生成</strong>。
+    </p>
+    <p>
+      对我们做CRM的启示是巨大的——<strong>OCR、语音、视频这些过去要单独建模的能力，现在统一到了大模型框架下</strong>。
+      你可以用同一个GPT-4o处理"客户上传的截图+语音留言+文字需求"，输出结构化的需求工单。
+      这是过去想都不敢想的能力。
+    </p>
+    <p>
+      <strong>下一个十年的AI应用，将不再是"文本助手"，而是"全感官智能体"</strong>。
+      谁先把多模态能力嵌入业务流程，谁就有先发优势。
+    </p>
+  </div>
+
+  <footer>
+    AI 系列课程 · 第 08 讲 · 共 20 讲 · 第二部分（大模型时代）完结 · 下一讲进入工程落地
+  </footer>
+</div>
+
+<script>
+// 第一节：向量空间
+const vCanvas = document.getElementById('vectorCanvas');
+const vCtx = vCanvas.getContext('2d');
+let currentCluster = 'all';
+
+const concepts = {
+  cat: {
+    color: '#d4811a',
+    items: [
+      { type: 'text', label: '猫', x: 0.3, y: 0.3 },
+      { type: 'text', label: 'cat', x: 0.32, y: 0.28 },
+      { type: 'text', label: '小猫咪', x: 0.28, y: 0.33 },
+      { type: 'image', label: '橘猫图', x: 0.34, y: 0.31 },
+      { type: 'image', label: '黑猫图', x: 0.31, y: 0.27 },
+      { type: 'image', label: '幼猫图', x: 0.27, y: 0.29 },
+      { type: 'audio', label: '猫叫声', x: 0.29, y: 0.34 }
+    ]
+  },
+  vehicle: {
+    color: '#6b8aae',
+    items: [
+      { type: 'text', label: '汽车', x: 0.7, y: 0.7 },
+      { type: 'text', label: 'car', x: 0.72, y: 0.68 },
+      { type: 'text', label: '轿车', x: 0.68, y: 0.71 },
+      { type: 'image', label: '红色车', x: 0.74, y: 0.7 },
+      { type: 'image', label: '跑车图', x: 0.71, y: 0.66 },
+      { type: 'image', label: 'SUV图', x: 0.67, y: 0.69 },
+      { type: 'audio', label: '引擎声', x: 0.69, y: 0.73 }
+    ]
+  },
+  emotion: {
+    color: '#ad6f9e',
+    items: [
+      { type: 'text', label: '开心', x: 0.65, y: 0.3 },
+      { type: 'text', label: 'happy', x: 0.67, y: 0.28 },
+      { type: 'text', label: '快乐', x: 0.63, y: 0.32 },
+      { type: 'image', label: '笑脸图', x: 0.69, y: 0.31 },
+      { type: 'audio', label: '笑声', x: 0.66, y: 0.34 }
+    ]
+  }
+};
+
+const explainers = {
+  all: '<strong>关键观察：</strong>同一个概念的文字、图片、音频，<strong>在向量空间里聚集成一团</strong>。"猫"这个文字、各种猫的图片、猫叫的音频，都在同一个区域。这意味着<strong>模型理解的是"概念"，不是"文字"</strong>。从此跨模态翻译变得可能——给定文字找图片、给定图片描述内容、给定音频生成视频。',
+  cat: '<strong>"猫"概念簇</strong>：左上角这一团包括了"猫"、"cat"、"小猫咪"等不同语言的文字描述，多种猫的图片，以及猫叫的音频。<strong>不同模态的"猫"在向量空间里聚得很近</strong>——这就是CLIP训练后的效果。',
+  vehicle: '<strong>"交通工具"概念簇</strong>：右下角是另一个独立的概念簇。文字、图片、音频虽然形式不同，但都映射到了"汽车"这个语义区域。<strong>跨模态搜索能work的原理就在这里</strong>。',
+  emotion: '<strong>"情感"概念簇</strong>：抽象概念也能映射。"开心"这个词、笑脸表情图、笑声音频，会落在相邻区域。这就是为什么AI能"感受"图片或音频的情感倾向。'
+};
+
+function drawVectorSpace() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = vCanvas.getBoundingClientRect();
+  vCanvas.width = rect.width * dpr;
+  vCanvas.height = rect.height * dpr;
+  vCtx.scale(dpr, dpr);
+  
+  const W = rect.width, H = rect.height;
+  vCtx.clearRect(0, 0, W, H);
+
+  // 网格
+  vCtx.strokeStyle = '#e0d8cc';
+  vCtx.lineWidth = 0.5;
+  for (let i = 0; i <= 20; i++) {
+    vCtx.beginPath();
+    vCtx.moveTo(W * i / 20, 0);
+    vCtx.lineTo(W * i / 20, H);
+    vCtx.stroke();
+    vCtx.beginPath();
+    vCtx.moveTo(0, H * i / 20);
+    vCtx.lineTo(W, H * i / 20);
+    vCtx.stroke();
+  }
+
+  // 坐标轴标签
+  vCtx.fillStyle = '#aaa';
+  vCtx.font = '11px "JetBrains Mono"';
+  vCtx.fillText('Embedding Dim 1', 10, H - 10);
+  vCtx.save();
+  vCtx.translate(15, H - 80);
+  vCtx.rotate(-Math.PI / 2);
+  vCtx.fillText('Embedding Dim 2', 0, 0);
+  vCtx.restore();
+
+  // 渲染所有点
+  Object.entries(concepts).forEach(([key, cluster]) => {
+    const visible = currentCluster === 'all' || currentCluster === key;
+    const opacity = visible ? 1 : 0.15;
+    
+    // 画聚类范围圆
+    if (visible) {
+      const cx = cluster.items.reduce((a, b) => a + b.x, 0) / cluster.items.length * W;
+      const cy = cluster.items.reduce((a, b) => a + b.y, 0) / cluster.items.length * H;
+      vCtx.fillStyle = cluster.color + '20';
+      vCtx.beginPath();
+      vCtx.arc(cx, cy, 70, 0, Math.PI * 2);
+      vCtx.fill();
+      vCtx.strokeStyle = cluster.color;
+      vCtx.lineWidth = 1;
+      vCtx.setLineDash([4, 4]);
+      vCtx.stroke();
+      vCtx.setLineDash([]);
+    }
+    
+    cluster.items.forEach(item => {
+      const x = item.x * W;
+      const y = item.y * H;
+      
+      vCtx.globalAlpha = opacity;
+      
+      // 不同模态用不同形状
+      if (item.type === 'text') {
+        vCtx.fillStyle = cluster.color;
+        vCtx.fillRect(x - 6, y - 6, 12, 12);
+      } else if (item.type === 'image') {
+        vCtx.fillStyle = cluster.color;
+        vCtx.beginPath();
+        vCtx.arc(x, y, 7, 0, Math.PI * 2);
+        vCtx.fill();
+      } else { // audio
+        vCtx.fillStyle = cluster.color;
+        vCtx.beginPath();
+        vCtx.moveTo(x, y - 7);
+        vCtx.lineTo(x + 7, y + 5);
+        vCtx.lineTo(x - 7, y + 5);
+        vCtx.closePath();
+        vCtx.fill();
+      }
+      
+      // 标签
+      if (visible) {
+        vCtx.fillStyle = '#1a1818';
+        vCtx.font = '11px "Noto Sans SC"';
+        vCtx.fillText(item.label, x + 10, y + 4);
+      }
+      vCtx.globalAlpha = 1;
+    });
+  });
+
+  // 图例
+  vCtx.fillStyle = '#1a1818';
+  vCtx.font = '11px "JetBrains Mono"';
+  vCtx.fillText('■ TEXT  ● IMAGE  ▲ AUDIO', W - 200, 20);
+}
+
+document.querySelectorAll('.vec-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.vec-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentCluster = btn.dataset.cluster;
+    drawVectorSpace();
+    document.getElementById('vectorExplain').innerHTML = explainers[currentCluster];
+  });
+});
+
+window.addEventListener('load', drawVectorSpace);
+window.addEventListener('resize', drawVectorSpace);
+
+// 第二节：CLIP 切换图片
+const clipImages = {
+  cat: {
+    svg: `<svg class="image-svg" viewBox="0 0 200 140">
+      <rect width="200" height="140" fill="#fff8ee"/>
+      <ellipse cx="100" cy="100" rx="60" ry="35" fill="#d4811a"/>
+      <circle cx="100" cy="65" r="32" fill="#d4811a"/>
+      <polygon points="80,42 75,25 90,38" fill="#d4811a"/>
+      <polygon points="120,42 125,25 110,38" fill="#d4811a"/>
+      <ellipse cx="90" cy="65" rx="4" ry="6" fill="#1a1818"/>
+      <ellipse cx="110" cy="65" rx="4" ry="6" fill="#1a1818"/>
+      <circle cx="90" cy="63" r="1.5" fill="#fff"/>
+      <circle cx="110" cy="63" r="1.5" fill="#fff"/>
+      <polygon points="100,75 95,80 105,80" fill="#1a1818"/>
+      <line x1="80" y1="70" x2="60" y2="68" stroke="#1a1818" stroke-width="0.5"/>
+      <line x1="120" y1="70" x2="140" y2="68" stroke="#1a1818" stroke-width="0.5"/>
+    </svg>`,
+    scores: [
+      { text: '一只橘色的猫', score: 94 },
+      { text: '橘色的小动物', score: 71 },
+      { text: '毛茸茸的宠物', score: 52 },
+      { text: '一辆红色的车', score: 3 },
+      { text: '城市的夜景', score: 2 }
+    ]
+  },
+  dog: {
+    svg: `<svg class="image-svg" viewBox="0 0 200 140">
+      <rect width="200" height="140" fill="#f0f5e8"/>
+      <ellipse cx="100" cy="100" rx="58" ry="32" fill="#8b6f47"/>
+      <ellipse cx="100" cy="65" r="30" rx="32" ry="28" fill="#8b6f47"/>
+      <ellipse cx="78" cy="55" rx="9" ry="18" fill="#5e4d33"/>
+      <ellipse cx="122" cy="55" rx="9" ry="18" fill="#5e4d33"/>
+      <ellipse cx="88" cy="70" rx="3.5" ry="4.5" fill="#1a1818"/>
+      <ellipse cx="112" cy="70" rx="3.5" ry="4.5" fill="#1a1818"/>
+      <ellipse cx="100" cy="80" rx="6" ry="4" fill="#1a1818"/>
+      <path d="M 95 88 Q 100 95 105 88" stroke="#1a1818" stroke-width="1.5" fill="none"/>
+    </svg>`,
+    scores: [
+      { text: '一只棕色的狗', score: 92 },
+      { text: '可爱的宠物', score: 68 },
+      { text: '毛茸茸的动物', score: 60 },
+      { text: '一辆红色的车', score: 2 },
+      { text: '城市的夜景', score: 1 }
+    ]
+  },
+  city: {
+    svg: `<svg class="image-svg" viewBox="0 0 200 140">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#1a1340"/>
+          <stop offset="1" stop-color="#4a2d6e"/>
+        </linearGradient>
+      </defs>
+      <rect width="200" height="140" fill="url(#sky)"/>
+      <circle cx="160" cy="30" r="12" fill="#fff8ee"/>
+      <rect x="20" y="60" width="20" height="80" fill="#1a1340"/>
+      <rect x="45" y="40" width="25" height="100" fill="#1a1340"/>
+      <rect x="75" y="55" width="22" height="85" fill="#1a1340"/>
+      <rect x="102" y="30" width="28" height="110" fill="#1a1340"/>
+      <rect x="135" y="50" width="20" height="90" fill="#1a1340"/>
+      <rect x="160" y="65" width="22" height="75" fill="#1a1340"/>
+      <g fill="#ffb86c">
+        <rect x="24" y="68" width="3" height="3"/>
+        <rect x="32" y="76" width="3" height="3"/>
+        <rect x="50" y="50" width="3" height="3"/>
+        <rect x="58" y="62" width="3" height="3"/>
+        <rect x="65" y="80" width="3" height="3"/>
+        <rect x="80" y="65" width="3" height="3"/>
+        <rect x="88" y="78" width="3" height="3"/>
+        <rect x="108" y="42" width="3" height="3"/>
+        <rect x="115" y="55" width="3" height="3"/>
+        <rect x="123" y="70" width="3" height="3"/>
+        <rect x="140" y="60" width="3" height="3"/>
+        <rect x="148" y="75" width="3" height="3"/>
+        <rect x="165" y="72" width="3" height="3"/>
+        <rect x="173" y="85" width="3" height="3"/>
+      </g>
+    </svg>`,
+    scores: [
+      { text: '城市的夜景', score: 96 },
+      { text: '建筑物的灯光', score: 78 },
+      { text: '夜晚的街道', score: 62 },
+      { text: '一只橘色的猫', score: 1 },
+      { text: '一辆红色的车', score: 4 }
+    ]
+  }
+};
+
+document.querySelectorAll('.img-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.img-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const data = clipImages[btn.dataset.img];
+    document.getElementById('clipImageBox').innerHTML = data.svg;
+    
+    const sortedScores = [...data.scores].sort((a, b) => b.score - a.score);
+    const textsContainer = document.getElementById('clipTexts');
+    textsContainer.innerHTML = '';
+    sortedScores.forEach((s, i) => {
+      const div = document.createElement('div');
+      div.className = 'clip-text' + (i === 0 ? ' matched' : '');
+      div.innerHTML = `
+        <div class="clip-text-row">
+          <span class="clip-text-content">${s.text}</span>
+          <span class="clip-score">${s.score}%</span>
+        </div>
+      `;
+      textsContainer.appendChild(div);
+    });
+  });
+});
+
+// 第三节：Diffusion 演示
+const stages = [];
+for (let i = 0; i < 6; i++) {
+  stages.push(document.getElementById('stage' + i).getContext('2d'));
+}
+
+function drawNoise(ctx, noiseLevel) {
+  const w = 100, h = 100;
+  const imageData = ctx.createImageData(w, h);
+  
+  // 基础"猫"图案 (噪声为0时显示)
+  const baseImage = (x, y) => {
+    const cx = 50, cy = 55;
+    const dx = x - cx, dy = y - cy;
+    const r = Math.sqrt(dx*dx + dy*dy);
+    
+    // 头部
+    if (r < 25) {
+      // 眼睛
+      if ((Math.abs(dx + 8) < 3 && Math.abs(dy + 5) < 4) || 
+          (Math.abs(dx - 8) < 3 && Math.abs(dy + 5) < 4)) {
+        return [30, 30, 30];
+      }
+      // 鼻子
+      if (Math.abs(dx) < 2 && dy > 3 && dy < 7) {
+        return [40, 30, 30];
+      }
+      return [180, 130, 60]; // 橘色
+    }
+    // 身体
+    if (Math.abs(x - 50) < 35 && y > 70 && y < 95) {
+      return [180, 130, 60];
+    }
+    // 耳朵
+    if (((x - 35)*(x - 35) + (y - 35)*(y - 35) < 80) ||
+        ((x - 65)*(x - 65) + (y - 35)*(y - 35) < 80)) {
+      return [180, 130, 60];
+    }
+    return [50, 35, 50]; // 背景紫
+  };
+  
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = (y * w + x) * 4;
+      const [r, g, b] = baseImage(x, y);
+      
+      // 混合噪声
+      const noise = (Math.random() - 0.5) * 255 * noiseLevel;
+      const blend = noiseLevel;
+      const noiseR = 128 + noise;
+      const noiseG = 128 + noise * 0.8;
+      const noiseB = 128 + noise * 1.2;
+      
+      imageData.data[idx] = r * (1 - blend) + noiseR * blend;
+      imageData.data[idx + 1] = g * (1 - blend) + noiseG * blend;
+      imageData.data[idx + 2] = b * (1 - blend) + noiseB * blend;
+      imageData.data[idx + 3] = 255;
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function runDiffusion() {
+  const noiseLevels = [1.0, 0.85, 0.65, 0.4, 0.18, 0];
+  stages.forEach((ctx, i) => {
+    setTimeout(() => {
+      drawNoise(ctx, noiseLevels[i]);
+    }, i * 250);
+  });
+}
+
+document.getElementById('diffStart').addEventListener('click', runDiffusion);
+
+// 初始化
+window.addEventListener('load', () => {
+  // 初始全噪声
+  stages.forEach((ctx, i) => {
+    drawNoise(ctx, 1.0 - i * 0.18);
+  });
+});
+</script>
+</body>
+</html>

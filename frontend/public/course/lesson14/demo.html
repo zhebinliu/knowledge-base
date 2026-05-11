@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第14讲｜AI应用的评估与可观测性</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', 'IBM Plex Sans', sans-serif;
+    background: #fafafa;
+    color: #0f0f0f;
+    min-height: 100vh;
+    padding: 24px;
+    line-height: 1.6;
+  }
+  .container { max-width: 1280px; margin: 0 auto; }
+
+  /* 工业控制台风格 */
+  header {
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 56px 56px;
+    margin-bottom: 24px;
+    border: 1px solid #1f1f1f;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: 
+      linear-gradient(0deg, rgba(0, 230, 118, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 230, 118, 0.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+  
+  .lesson-tag {
+    display: inline-block;
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid #00e676;
+    color: #00e676;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    margin-bottom: 24px;
+    position: relative;
+    z-index: 1;
+  }
+  h1 {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 80px;
+    font-weight: 700;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    margin-bottom: 14px;
+    position: relative;
+    z-index: 1;
+  }
+  h1 .accent { color: #00e676; }
+  h1 .light { font-weight: 300; color: #888; }
+  .h1-cn {
+    font-size: 26px;
+    font-weight: 600;
+    margin-top: 12px;
+    color: #c0c0c0;
+    position: relative;
+    z-index: 1;
+  }
+  .subtitle {
+    margin-top: 22px;
+    font-size: 16px;
+    color: #888;
+    line-height: 1.85;
+    max-width: 720px;
+    position: relative;
+    z-index: 1;
+  }
+  .subtitle strong { color: #00e676; font-weight: 500; }
+
+  .section {
+    background: #fff;
+    padding: 44px 48px;
+    margin-bottom: 24px;
+    border: 1px solid #e8e8e8;
+  }
+  .section.dark {
+    background: #0f0f0f;
+    color: #fafafa;
+    border-color: #1f1f1f;
+  }
+  .section.tinted {
+    background: #f0f0f0;
+    border-color: #d8d8d8;
+  }
+  
+  .section-marker {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #00aa55;
+    letter-spacing: 0.3em;
+    margin-bottom: 8px;
+  }
+  .section.dark .section-marker { color: #00e676; }
+  
+  .section-title {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 44px;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    margin-bottom: 8px;
+  }
+  .section-title .accent { color: #00aa55; }
+  .section.dark .section-title .accent { color: #00e676; }
+  .section-title .light { font-weight: 300; color: #888; }
+  
+  .section-cn {
+    font-size: 22px;
+    font-weight: 700;
+    margin-top: 4px;
+  }
+  .section-lead {
+    margin-top: 16px;
+    font-size: 15px;
+    line-height: 1.85;
+    max-width: 800px;
+    color: #555;
+  }
+  .section.dark .section-lead { color: #a0a0a0; }
+
+  /* 第一节：传统软件 vs AI软件 */
+  .compare-table {
+    margin-top: 32px;
+    background: #fff;
+    border: 1px solid #e8e8e8;
+    overflow-x: auto;
+  }
+  .compare-row {
+    display: grid;
+    grid-template-columns: 200px 1fr 1fr;
+    border-bottom: 1px solid #e8e8e8;
+  }
+  .compare-row:last-child { border-bottom: none; }
+  .compare-row.header {
+    background: #0f0f0f;
+    color: #fafafa;
+  }
+  .compare-cell {
+    padding: 16px 20px;
+    font-size: 13px;
+    line-height: 1.7;
+    border-right: 1px solid #e8e8e8;
+  }
+  .compare-cell:last-child { border-right: none; }
+  .compare-row.header .compare-cell {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: #00e676;
+    border-right-color: #1f1f1f;
+  }
+  .compare-cell.label {
+    background: #f8f8f8;
+    font-weight: 600;
+    color: #0f0f0f;
+  }
+  .compare-cell.bad { color: #555; }
+  .compare-cell.bad strong { color: #cc4444; }
+  .compare-cell.good { color: #555; background: #f0fff5; }
+  .compare-cell.good strong { color: #00aa55; }
+
+  /* 第二节：评估金字塔 */
+  .pyramid {
+    margin-top: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .pyramid-layer {
+    width: 100%;
+    background: #fff;
+    border: 1px solid #e8e8e8;
+    padding: 24px 28px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-left: 4px solid;
+  }
+  .pyramid-layer:hover {
+    background: #0f0f0f;
+    color: #fafafa;
+  }
+  .pyramid-layer.l1 {
+    width: 50%;
+    border-left-color: #00aa55;
+  }
+  .pyramid-layer.l2 {
+    width: 70%;
+    border-left-color: #4d8eff;
+  }
+  .pyramid-layer.l3 {
+    width: 85%;
+    border-left-color: #ff9933;
+  }
+  .pyramid-layer.l4 {
+    width: 100%;
+    border-left-color: #cc4444;
+  }
+  
+  .pyr-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+  .pyr-name {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .pyr-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: #888;
+  }
+  .pyramid-layer:hover .pyr-tag { color: #00e676; }
+  .pyr-desc {
+    font-size: 13px;
+    line-height: 1.7;
+    color: #555;
+  }
+  .pyramid-layer:hover .pyr-desc { color: #c0c0c0; }
+  
+  .pyr-detail {
+    margin-top: 20px;
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 28px 32px;
+    min-height: 200px;
+    border-left: 4px solid #00e676;
+  }
+  .pyr-detail h4 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #00e676;
+    margin-bottom: 12px;
+  }
+  .pyr-detail p {
+    font-size: 14px;
+    line-height: 1.85;
+    color: #c0c0c0;
+    margin-bottom: 10px;
+  }
+  .pyr-detail p strong { color: #00e676; }
+  .pyr-detail code {
+    font-family: 'IBM Plex Mono', monospace;
+    background: #1f1f1f;
+    color: #00e676;
+    padding: 2px 6px;
+    font-size: 12px;
+  }
+  .pyr-detail .example {
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: #1a1a1a;
+    border-left: 2px solid #00e676;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    color: #a0a0a0;
+  }
+  .pyr-detail .example .key { color: #00e676; }
+
+  /* 第三节：评估集 */
+  .eval-set-demo {
+    margin-top: 32px;
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 32px;
+  }
+  .eval-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .eval-btn {
+    padding: 10px 16px;
+    background: transparent;
+    border: 1px solid #1f1f1f;
+    color: #888;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+  }
+  .eval-btn:hover { border-color: #00e676; color: #00e676; }
+  .eval-btn.active {
+    background: #00e676;
+    color: #0f0f0f;
+    border-color: #00e676;
+    font-weight: 600;
+  }
+  
+  .eval-table {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    overflow-x: auto;
+  }
+  .eval-row {
+    display: grid;
+    grid-template-columns: 60px 2fr 2fr 1fr 80px;
+    border-bottom: 1px solid #2a2a2a;
+  }
+  .eval-row:last-child { border-bottom: none; }
+  .eval-row.head {
+    background: #0a0a0a;
+  }
+  .eval-row.head .eval-cell {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #00e676;
+    letter-spacing: 0.2em;
+    padding: 12px 14px;
+  }
+  .eval-cell {
+    padding: 14px 16px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: #c0c0c0;
+    border-right: 1px solid #2a2a2a;
+  }
+  .eval-cell:last-child { border-right: none; }
+  .eval-cell.id {
+    font-family: 'IBM Plex Mono', monospace;
+    color: #888;
+  }
+  .eval-cell.score {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    text-align: center;
+  }
+  .eval-cell.score.pass { color: #00e676; }
+  .eval-cell.score.fail { color: #ff5555; }
+
+  .eval-summary {
+    margin-top: 20px;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    padding: 20px 24px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .eval-stat .label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .eval-stat .value {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: #00e676;
+    line-height: 1;
+  }
+  .eval-stat .value.warn { color: #ff9933; }
+
+  /* 第四节：可观测性Trace */
+  .trace-viewer {
+    margin-top: 32px;
+    background: #0a0a0a;
+    border: 1px solid #1f1f1f;
+    padding: 24px;
+  }
+  .trace-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #1f1f1f;
+  }
+  .trace-id {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #00e676;
+  }
+  .trace-meta {
+    display: flex;
+    gap: 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #888;
+  }
+  .trace-meta span strong { color: #00e676; }
+  
+  .trace-tree {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+  .trace-line {
+    padding: 6px 8px;
+    margin-bottom: 2px;
+    border-left: 2px solid #1f1f1f;
+    color: #c0c0c0;
+  }
+  .trace-line.user { border-left-color: #4d8eff; color: #4d8eff; background: rgba(77, 142, 255, 0.05); }
+  .trace-line.agent { border-left-color: #00e676; color: #00e676; background: rgba(0, 230, 118, 0.05); }
+  .trace-line.tool { border-left-color: #ff9933; color: #ffb866; background: rgba(255, 153, 51, 0.05); }
+  .trace-line.error { border-left-color: #ff5555; color: #ff8888; background: rgba(255, 85, 85, 0.05); }
+  .trace-line.info { color: #888; }
+  
+  .trace-line .indent { color: #444; }
+  .trace-line .timestamp { color: #555; font-size: 11px; }
+  .trace-line .duration { color: #00e676; font-weight: 600; margin-left: 8px; }
+  .trace-line.error .duration { color: #ff5555; }
+  
+  .trace-issue {
+    margin-top: 16px;
+    padding: 16px 20px;
+    background: rgba(255, 85, 85, 0.08);
+    border-left: 3px solid #ff5555;
+    color: #ffaaaa;
+  }
+  .trace-issue h5 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: #ff5555;
+    margin-bottom: 8px;
+  }
+  .trace-issue p {
+    font-size: 13px;
+    line-height: 1.8;
+    color: #ffd0d0;
+  }
+  .trace-issue p strong { color: #ff8888; }
+
+  /* 第五节：4个关键指标 */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-top: 32px;
+  }
+  .metric-card {
+    background: #fff;
+    border: 1px solid #e8e8e8;
+    padding: 28px;
+    border-top: 3px solid #00aa55;
+  }
+  .metric-card.l2 { border-top-color: #4d8eff; }
+  .metric-card.l3 { border-top-color: #ff9933; }
+  .metric-card.l4 { border-top-color: #aa55cc; }
+  
+  .metric-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #00aa55;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .metric-card.l2 .metric-num { color: #4d8eff; }
+  .metric-card.l3 .metric-num { color: #ff9933; }
+  .metric-card.l4 .metric-num { color: #aa55cc; }
+  
+  .metric-name {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .metric-en {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.15em;
+    margin-bottom: 14px;
+  }
+  .metric-card p {
+    font-size: 13px;
+    line-height: 1.85;
+    color: #555;
+    margin-bottom: 10px;
+  }
+  .metric-card p strong { color: #0f0f0f; }
+  .metric-formula {
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: #f8f8f8;
+    border-left: 2px solid #00aa55;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: #0f0f0f;
+    line-height: 1.7;
+  }
+  .metric-card.l2 .metric-formula { border-left-color: #4d8eff; }
+  .metric-card.l3 .metric-formula { border-left-color: #ff9933; }
+  .metric-card.l4 .metric-formula { border-left-color: #aa55cc; }
+  
+  .metric-target {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #00aa55;
+    font-weight: 600;
+  }
+  .metric-card.l2 .metric-target { color: #4d8eff; }
+  .metric-card.l3 .metric-target { color: #ff9933; }
+  .metric-card.l4 .metric-target { color: #aa55cc; }
+
+  /* 第六节：工具栈 */
+  .tools-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-top: 32px;
+  }
+  .tool-card {
+    background: #f8f8f8;
+    border: 1px solid #e0e0e0;
+    padding: 24px;
+  }
+  .tool-card.featured {
+    background: #0f0f0f;
+    color: #fafafa;
+    border-color: #1f1f1f;
+  }
+  
+  .tool-cat {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #00aa55;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .tool-card.featured .tool-cat { color: #00e676; }
+  
+  .tool-name {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .tool-en {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 12px;
+  }
+  .tool-card p {
+    font-size: 13px;
+    line-height: 1.8;
+    color: #555;
+  }
+  .tool-card.featured p { color: #c0c0c0; }
+  .tool-card p strong { color: #0f0f0f; }
+  .tool-card.featured p strong { color: #00e676; }
+
+  /* 总结 */
+  .summary {
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 56px;
+    margin-bottom: 24px;
+    border: 1px solid #1f1f1f;
+    border-left: 4px solid #00e676;
+    position: relative;
+    overflow: hidden;
+  }
+  .summary::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: 
+      linear-gradient(0deg, rgba(0, 230, 118, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 230, 118, 0.02) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+  .summary h3 {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 34px;
+    font-weight: 700;
+    margin-bottom: 22px;
+    color: #00e676;
+    line-height: 1.15;
+    position: relative;
+  }
+  .summary p {
+    font-size: 15px;
+    line-height: 1.9;
+    margin-bottom: 14px;
+    color: #c0c0c0;
+    position: relative;
+  }
+  .summary p strong { color: #00e676; }
+  
+  .summary-quote {
+    background: rgba(0, 230, 118, 0.06);
+    border-left: 3px solid #00e676;
+    padding: 22px 28px;
+    margin: 22px 0;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 19px;
+    line-height: 1.6;
+    color: #fafafa;
+    font-weight: 500;
+    position: relative;
+  }
+
+  footer {
+    text-align: center;
+    margin-top: 36px;
+    padding: 22px;
+    background: #0f0f0f;
+    color: #555;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.2em;
+    border: 1px solid #1f1f1f;
+  }
+
+  @media (max-width: 768px) {
+    h1 { font-size: 56px; }
+    .section, .summary { padding: 28px 22px; }
+    .pyramid-layer.l1, .pyramid-layer.l2, .pyramid-layer.l3 { width: 100%; }
+    .compare-row { grid-template-columns: 1fr; }
+    .metrics-grid, .tools-grid { grid-template-columns: 1fr; }
+    .eval-row { grid-template-columns: 1fr; }
+    .eval-summary { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<!-- 课程系列统一导航条 · 由脚本注入 -->
+<div id="course-nav-bar">
+  <div class="course-nav-inner">
+    <a href="../lesson13/demo.html" class="course-nav-btn prev" title="多Agent系统设计"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
+    <a href="../index.html" class="course-nav-center" title="回到课程总览">
+      <span class="nav-current">LESSON 14 / 20</span>
+      <span class="nav-title">AI应用的评估与可观测性</span>
+    </a>
+    <span class="course-nav-btn disabled"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></span>
+  </div>
+</div>
+
+<style id="course-nav-style">
+  #course-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  .course-nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .course-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .course-nav-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .course-nav-btn.disabled {
+    color: #444;
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .course-nav-btn .nav-arrow {
+    font-size: 14px;
+    line-height: 1;
+  }
+  .course-nav-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+    padding: 4px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    min-width: 0;
+  }
+  .course-nav-center:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .nav-current {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .nav-title {
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+    letter-spacing: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body {
+    padding-top: 64px !important;
+  }
+  
+  @media (max-width: 768px) {
+    .course-nav-inner {
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .course-nav-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .course-nav-btn .nav-label {
+      display: none;
+    }
+    .nav-title {
+      font-size: 11px;
+    }
+    .nav-current {
+      font-size: 9px;
+    }
+    body {
+      padding-top: 54px !important;
+    }
+  }
+</style>
+<!-- 课程系列统一导航条 · END -->
+
+<div class="container">
+  <header>
+    <div class="lesson-tag">LESSON 14 / 20</div>
+    <h1>EVALS <span class="light">&</span><br><span class="accent">OBSERVABILITY</span></h1>
+    <div class="h1-cn">AI应用的评估与可观测性</div>
+    <div class="subtitle">
+      上一讲我们说"多Agent调试爆炸"。但单Agent也有同样的问题——
+      <strong>AI系统在生产里像个黑盒</strong>。它好不好你说不清，它出问题你查不到。
+      今天讲清楚AI工程化最关键、最被忽视的<strong>基础设施</strong>。
+    </div>
+  </header>
+
+  <!-- 第一节：传统软件 vs AI软件 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 01</div>
+    <div class="section-title">SOFTWARE <span class="light">vs</span> <span class="accent">AI</span></div>
+    <div class="section-cn">为什么传统测试方法对AI完全失效</div>
+    <div class="section-lead">
+      做过软件工程的同学都熟悉单元测试、集成测试、CI/CD。
+      但<strong>这些方法对AI应用基本失效</strong>——AI系统的不确定性、主观性、动态性是全新的工程挑战。
+    </div>
+
+    <div class="compare-table">
+      <div class="compare-row header">
+        <div class="compare-cell">维度</div>
+        <div class="compare-cell">传统软件</div>
+        <div class="compare-cell">AI 应用</div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-cell label">输出确定性</div>
+        <div class="compare-cell bad">同输入 → <strong>同输出</strong>。可以做严格断言：assertEqual(result, expected)</div>
+        <div class="compare-cell good">同输入 → <strong>每次输出都不一样</strong>。assertEqual完全无效，需要语义评估</div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-cell label">正确性判断</div>
+        <div class="compare-cell bad">客观、二元——<strong>对/错明确</strong></div>
+        <div class="compare-cell good">主观、连续——<strong>"好/中/差"</strong>。同一个回答不同的人会有不同评价</div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-cell label">回归测试</div>
+        <div class="compare-cell bad">改一行代码，跑一遍测试集，<strong>红了就修</strong></div>
+        <div class="compare-cell good">改一句Prompt，输出全变了——<strong>很难判断"变好还是变差"</strong></div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-cell label">线上故障定位</div>
+        <div class="compare-cell bad">看异常堆栈、日志、APM——<strong>路径明确</strong></div>
+        <div class="compare-cell good">没有异常，但输出"不太对"——<strong>不知道哪步出了问题</strong></div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-cell label">性能波动</div>
+        <div class="compare-cell bad">代码不变，性能<strong>基本稳定</strong></div>
+        <div class="compare-cell good">同一段代码，<strong>不同时段质量飘忽</strong>（模型升级/降级、负载变化）</div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-cell label">"修复"成本</div>
+        <div class="compare-cell bad">改代码、加单测、合并PR——<strong>过程标准</strong></div>
+        <div class="compare-cell good">改Prompt治标，改不动模型本身——<strong>很多问题"无解"，只能workaround</strong></div>
+      </div>
+    </div>
+
+    <div style="margin-top: 28px; padding: 22px 26px; background: #0f0f0f; color: #fafafa; border-left: 4px solid #00e676;">
+      <p style="font-size: 14px; line-height: 1.85;">
+        <strong style="color: #00e676;">核心结论</strong>：传统软件的"测试驱动开发（TDD）"思路对AI系统不工作了。
+        AI系统需要新的工程范式——<strong style="color: #00e676;">评估驱动开发（EDD, Eval-Driven Development）</strong>。
+        <strong style="color: #00e676;">没有评估体系的AI系统，等于在黑暗中开车</strong>。
+      </p>
+    </div>
+  </div>
+
+  <!-- 第二节：评估金字塔 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 02</div>
+    <div class="section-title">THE <span class="accent">EVAL</span> PYRAMID</div>
+    <div class="section-cn">评估的4个层次：从单元到生产</div>
+    <div class="section-lead">
+      就像传统软件有"单元-集成-端到端"的测试金字塔，AI应用也有自己的评估金字塔。
+      <strong>4层从基础到高级，覆盖范围越来越大，频率越来越低</strong>。点击查看详情。
+    </div>
+
+    <div class="pyramid">
+      <div class="pyramid-layer l1" data-layer="0">
+        <div class="pyr-header">
+          <div class="pyr-name">L1 · 单元评估</div>
+          <div class="pyr-tag">UNIT EVAL</div>
+        </div>
+        <div class="pyr-desc">单个组件的输出质量。如：一个Prompt的回答是否符合预期、一个工具调用是否正确</div>
+      </div>
+      
+      <div class="pyramid-layer l2" data-layer="1">
+        <div class="pyr-header">
+          <div class="pyr-name">L2 · 链路评估</div>
+          <div class="pyr-tag">CHAIN EVAL</div>
+        </div>
+        <div class="pyr-desc">完整任务流程的输出质量。如：RAG的端到端答案、Agent完成任务的最终结果</div>
+      </div>
+      
+      <div class="pyramid-layer l3" data-layer="2">
+        <div class="pyr-header">
+          <div class="pyr-name">L3 · 用户评估</div>
+          <div class="pyr-tag">USER EVAL</div>
+        </div>
+        <div class="pyr-desc">真实用户的反馈和满意度。如：点赞/踩、对话评分、用户行为指标（任务完成率、回访率）</div>
+      </div>
+      
+      <div class="pyramid-layer l4" data-layer="3">
+        <div class="pyr-header">
+          <div class="pyr-name">L4 · 业务评估</div>
+          <div class="pyr-tag">BUSINESS EVAL</div>
+        </div>
+        <div class="pyr-desc">AI对业务指标的影响。如：客单价提升、转化率变化、人均处理量、成本节省</div>
+      </div>
+    </div>
+
+    <div class="pyr-detail" id="pyrDetail">
+    </div>
+  </div>
+
+  <!-- 第三节：评估集Demo -->
+  <div class="section dark">
+    <div class="section-marker">CHAPTER · 03</div>
+    <div class="section-title" style="color: #fafafa;">A REAL <span class="accent">EVAL SET</span></div>
+    <div class="section-cn" style="color: #fafafa;">CRM需求提取评估集 · 真实样例</div>
+    <div class="section-lead">
+      口说无凭。看一个我们项目实际用的<strong>需求提取评估集</strong>——
+      30个测试用例每周自动跑一次，<strong>是Prompt迭代的"质检线"</strong>。
+    </div>
+
+    <div class="eval-set-demo">
+      <div class="eval-controls">
+        <button class="eval-btn active" data-version="v1">v1 · 基线版本</button>
+        <button class="eval-btn" data-version="v2">v2 · 优化Prompt</button>
+        <button class="eval-btn" data-version="v3">v3 · 加few-shot</button>
+        <button class="eval-btn" data-version="v4">v4 · 升级模型</button>
+      </div>
+
+      <div class="eval-table" id="evalTable">
+      </div>
+
+      <div class="eval-summary" id="evalSummary">
+      </div>
+    </div>
+  </div>
+
+  <!-- 第四节：可观测性Trace -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 04</div>
+    <div class="section-title">PRODUCTION <span class="accent">TRACING</span></div>
+    <div class="section-cn">生产环境的全链路追踪</div>
+    <div class="section-lead">
+      评估集解决"上线前"，<strong>Trace解决"上线后"</strong>。每一次AI调用都要可追溯——
+      用户问了什么、检索了哪些文档、调用了哪些工具、模型怎么"想"的、最后回答了什么。
+    </div>
+
+    <div class="trace-viewer">
+      <div class="trace-header">
+        <div class="trace-id">TRACE_ID: 2025-04-19-T14:32:08-a3f5b921</div>
+        <div class="trace-meta">
+          <span>USER: <strong>sales_lily</strong></span>
+          <span>STATUS: <strong style="color: #ff5555;">DEGRADED</strong></span>
+          <span>TOTAL: <strong>4847ms</strong></span>
+          <span>COST: <strong>$0.043</strong></span>
+        </div>
+      </div>
+
+      <div class="trace-tree">
+        <div class="trace-line user">
+          <span class="timestamp">[14:32:08.012]</span> ▸ <strong>USER_INPUT</strong>: "客户A本月的销售情况怎么样，需要我跟进吗？"
+        </div>
+        <div class="trace-line agent">
+          <span class="indent">  └─</span> <span class="timestamp">[14:32:08.156]</span> AGENT.think: "需要查询客户A本月业绩"<span class="duration">144ms</span>
+        </div>
+        <div class="trace-line tool">
+          <span class="indent">    └─</span> <span class="timestamp">[14:32:08.892]</span> TOOL.search_customer({name:"客户A"})<span class="duration">736ms</span>
+        </div>
+        <div class="trace-line info">
+          <span class="indent">      └─</span> <span class="timestamp">[14:32:08.890]</span> RESULT: {customer_id: "CUST-2024-001", ...}
+        </div>
+        <div class="trace-line tool">
+          <span class="indent">    └─</span> <span class="timestamp">[14:32:09.456]</span> TOOL.get_order_history({...})<span class="duration">564ms</span>
+        </div>
+        <div class="trace-line info">
+          <span class="indent">      └─</span> <span class="timestamp">[14:32:09.450]</span> RESULT: {orders: [...], total: 975000}
+        </div>
+        <div class="trace-line tool">
+          <span class="indent">    └─</span> <span class="timestamp">[14:32:10.234]</span> TOOL.get_customer_health({...})<span class="duration">778ms</span>
+        </div>
+        <div class="trace-line error">
+          <span class="indent">      └─</span> <span class="timestamp">[14:32:13.012]</span> <strong>ERROR</strong>: TimeoutError - health_score_service degraded<span class="duration">2778ms</span>
+        </div>
+        <div class="trace-line agent">
+          <span class="indent">  └─</span> <span class="timestamp">[14:32:13.234]</span> AGENT.fallback: "继续基于已有数据回答"<span class="duration">222ms</span>
+        </div>
+        <div class="trace-line agent">
+          <span class="indent">  └─</span> <span class="timestamp">[14:32:14.859]</span> AGENT.final_answer: "客户A本月签了3个订单，共97.5万..."<span class="duration">1625ms</span>
+        </div>
+      </div>
+
+      <div class="trace-issue">
+        <h5>▼ AUTOMATED ANALYSIS</h5>
+        <p>
+          <strong>问题识别</strong>：health_score_service超时（2.8秒），导致整体响应时间从预期1.5秒延长到4.8秒。
+          Agent正确处理了超时——使用fallback回答，没让用户看到错误。
+          但 <strong>"是否需要跟进"的判断少了关键的健康度信息</strong>，回答质量打折扣。
+        </p>
+        <p>
+          <strong>修复建议</strong>：① 检查health_score_service性能 ② 给该工具设置200ms超时阈值 ③ 在Agent的Prompt中明确"健康度数据缺失时如何降级回答"
+        </p>
+      </div>
+    </div>
+
+    <div style="margin-top: 28px; padding: 22px 26px; background: #f0f0f0; border-left: 4px solid #00aa55;">
+      <p style="font-size: 14px; line-height: 1.85; color: #0f0f0f;">
+        <strong>这个Trace告诉我们三件事</strong>：① 哪一步慢了——<code style="background: #fff; padding: 2px 6px; font-family: 'IBM Plex Mono';">health_score_service</code> ② 哪一步出错了——超时降级 ③ 用户的体验如何——回答完成但不完整。
+        <strong>没有这种Trace，所有这些都是黑盒</strong>。你只会收到客户的反馈——"AI助手怎么有点慢，回答也不太完整"，然后两眼一抹黑。
+      </p>
+    </div>
+  </div>
+
+  <!-- 第五节：4个关键指标 -->
+  <div class="section tinted">
+    <div class="section-marker">CHAPTER · 05</div>
+    <div class="section-title">FOUR <span class="accent">METRICS</span></div>
+    <div class="section-cn">必须监控的4个核心指标</div>
+    <div class="section-lead">
+      从无数指标里挑出最关键的4个。<strong>这4个看清楚了，AI系统的健康度基本能掌握</strong>。
+      涵盖质量、性能、成本、用户体验四个维度。
+    </div>
+
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-num">METRIC · 01 · 质量</div>
+        <div class="metric-name">通过率</div>
+        <div class="metric-en">EVAL PASS RATE</div>
+        <p>
+          每次代码或Prompt变更后，<strong>评估集的通过率</strong>。这是AI版本的"绿灯/红灯"——
+          通过率掉了就说明这次改坏了。
+        </p>
+        <div class="metric-formula">
+          通过率 = 通过用例数 / 总用例数<br>
+          按维度细分：分类 / 抽取 / 推理 / 边界
+        </div>
+        <div class="metric-target">▸ 健康线：&gt;90%；告警线：&lt;85%</div>
+      </div>
+
+      <div class="metric-card l2">
+        <div class="metric-num">METRIC · 02 · 性能</div>
+        <div class="metric-name">P95延迟</div>
+        <div class="metric-en">LATENCY P95</div>
+        <p>
+          <strong>95%的请求在多长时间内完成</strong>。AI应用比传统应用慢（Token逐个生成），
+          但用户对延迟敏感。监控P95比平均值更能反映真实体验。
+        </p>
+        <div class="metric-formula">
+          P95 = 95%请求的响应时间分位数<br>
+          按链路细分：检索 / 生成 / 工具调用
+        </div>
+        <div class="metric-target">▸ 对话场景：&lt;3秒；批处理：&lt;30秒</div>
+      </div>
+
+      <div class="metric-card l3">
+        <div class="metric-num">METRIC · 03 · 成本</div>
+        <div class="metric-name">单次请求成本</div>
+        <div class="metric-en">COST PER REQUEST</div>
+        <p>
+          每次AI调用消耗的<strong>Token成本</strong>。这是AI应用最容易失控的部分——
+          一个prompt写得不好、一个Agent循环了十几次，<strong>成本可能翻10倍</strong>。
+        </p>
+        <div class="metric-formula">
+          成本 = (input_tokens × $/1k) + (output_tokens × $/1k)<br>
+          监控分位：P50 / P95 / P99
+        </div>
+        <div class="metric-target">▸ 设预算：超过P99 2倍触发告警</div>
+      </div>
+
+      <div class="metric-card l4">
+        <div class="metric-num">METRIC · 04 · 用户</div>
+        <div class="metric-name">满意率</div>
+        <div class="metric-en">USER SATISFACTION</div>
+        <p>
+          用户对回答的<strong>正/负反馈率</strong>。最直接的真实质量信号——
+          所有自动化评估都比不上真实用户用脚投票。
+        </p>
+        <div class="metric-formula">
+          点赞率 = 👍 / (👍+👎)<br>
+          细分：按用户角色、按问题类型、按时段
+        </div>
+        <div class="metric-target">▸ 健康线：&gt;80%；持续观察&lt;70%要重点优化</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 第六节：工具栈 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 06</div>
+    <div class="section-title">THE <span class="accent">TOOLCHAIN</span></div>
+    <div class="section-cn">2025年AI可观测性工具栈</div>
+    <div class="section-lead">
+      工具是基础，不是花架子。下面是2025年生产环境最常用的<strong>9个工具</strong>，按职能分3类。
+    </div>
+
+    <div class="tools-grid">
+      <div class="tool-card featured">
+        <div class="tool-cat">CATEGORY · 01 · TRACING</div>
+        <div class="tool-name">LangSmith</div>
+        <div class="tool-en">by LangChain</div>
+        <p>
+          最成熟的LLM Trace平台。<strong>每次调用全链路追溯</strong>，支持评估集管理、版本对比、Prompt调试。
+          推荐作为<strong>第一选择</strong>。
+        </p>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-cat">CATEGORY · 01 · TRACING</div>
+        <div class="tool-name">Langfuse</div>
+        <div class="tool-en">OPEN SOURCE</div>
+        <p>
+          开源版本的LangSmith。<strong>支持私有化部署</strong>，对企业内部AI应用非常友好。
+          国内项目用得多。
+        </p>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-cat">CATEGORY · 01 · TRACING</div>
+        <div class="tool-name">Phoenix / Arize</div>
+        <div class="tool-en">OBSERVABILITY</div>
+        <p>
+          专注AI模型监控和漂移检测的平台。<strong>对生产级AI系统</strong>更专业，
+          能识别质量漂移、数据分布变化。
+        </p>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-cat">CATEGORY · 02 · EVAL</div>
+        <div class="tool-name">Promptfoo</div>
+        <div class="tool-en">CLI / OPEN SOURCE</div>
+        <p>
+          命令行的Prompt评估工具。<strong>YAML定义测试用例</strong>，CI集成方便。
+          适合工程师团队快速搭建评估pipeline。
+        </p>
+      </div>
+
+      <div class="tool-card featured">
+        <div class="tool-cat">CATEGORY · 02 · EVAL</div>
+        <div class="tool-name">DeepEval</div>
+        <div class="tool-en">PYTHON / OPEN SOURCE</div>
+        <p>
+          像pytest的AI评估框架。<strong>提供14+评估指标</strong>（hallucination、relevance、faithfulness等），
+          可以直接接入CI。
+        </p>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-cat">CATEGORY · 02 · EVAL</div>
+        <div class="tool-name">RAGAS</div>
+        <div class="tool-en">RAG专用</div>
+        <p>
+          专门评估RAG系统的工具集。<strong>包含上下文召回率、答案忠实度</strong>等RAG特有指标。
+          做RAG必备。
+        </p>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-cat">CATEGORY · 03 · USER FB</div>
+        <div class="tool-name">Helicone</div>
+        <div class="tool-en">LLM PROXY</div>
+        <p>
+          作为LLM API代理，<strong>透明记录所有调用</strong>。无侵入式接入，
+          适合后接入观测能力的项目。
+        </p>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-cat">CATEGORY · 03 · USER FB</div>
+        <div class="tool-name">PostHog</div>
+        <div class="tool-en">PRODUCT ANALYTICS</div>
+        <p>
+          产品分析工具。<strong>记录用户与AI的交互行为</strong>——点赞、跳出、重新提问等，
+          形成真实用户体验信号。
+        </p>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-cat">CATEGORY · 03 · USER FB</div>
+        <div class="tool-name">自建数据库</div>
+        <div class="tool-en">PostgreSQL + 看板</div>
+        <p>
+          中国项目里最实用的方案。<strong>把上面所有信号导入自己的数据库</strong>，
+          用Metabase / Superset做看板，完全可控。
+        </p>
+      </div>
+    </div>
+
+    <div style="margin-top: 28px; padding: 22px 26px; background: #f0f0f0; border-left: 4px solid #00aa55;">
+      <p style="font-size: 14px; line-height: 1.85; color: #0f0f0f;">
+        <strong>实战配置建议</strong>：原型阶段用 <code style="background: #fff; padding: 2px 6px; font-family: 'IBM Plex Mono';">Langfuse</code>（开源、私有化）+ <code style="background: #fff; padding: 2px 6px; font-family: 'IBM Plex Mono';">DeepEval</code>（CI集成）；生产阶段加 <code style="background: #fff; padding: 2px 6px; font-family: 'IBM Plex Mono';">PostHog</code>（用户行为）+ 自建PostgreSQL看板。
+        <strong>不要等到出问题才装观测——它必须从第一天就在</strong>。
+      </p>
+    </div>
+  </div>
+
+  <!-- 总结 -->
+  <div class="summary">
+    <div class="section-marker" style="color: #00e676;">RECAP</div>
+    <h3>核心收束 · 工程化AI的"基础设施"</h3>
+    
+    <p>
+      第三部分（工程落地）讲到这里——<strong>Prompt、RAG、Function Calling、Agent、多Agent</strong>——
+      都是"功能"。今天讲的是<strong>支撑这些功能可靠运行的"基础设施"</strong>。
+    </p>
+
+    <div class="summary-quote">
+      "没有评估，AI开发就是在凭感觉调；<br>
+      没有可观测性，生产环境就是在凭运气跑。"
+    </div>
+
+    <p>
+      <strong>评估金字塔</strong>——单元、链路、用户、业务四层，覆盖从开发到生产的全流程。
+      <strong>4个核心指标</strong>——通过率、P95延迟、单次成本、满意率——简单但有效。
+      <strong>9个工具</strong>覆盖Tracing、Eval、用户反馈三大类需求。
+    </p>
+
+    <p>
+      <strong>对我们项目最实用的建议</strong>：
+      ① 每个上线的AI功能必须有<strong>评估集（最少30个用例）</strong>；
+      ② 接入<strong>Langfuse或自建Trace</strong>，每次调用可追溯；
+      ③ 在产品里加<strong>👍👎按钮</strong>，把真实用户反馈沉淀下来；
+      ④ 周会review四个核心指标的趋势，不出问题不代表健康。
+    </p>
+
+    <p>
+      <strong>第三部分到此结束</strong>。我们走完了从Prompt到多Agent的工程落地全景，
+      也建立了评估和观测的基础认知。下一部分（4个讲）我们看<strong>企业级落地的真实场景</strong>——
+      AI怎么真正进入CRM SaaS的交付流程，怎么解决知识库工程化和合规问题。
+    </p>
+  </div>
+
+  <footer>
+    AI 系列课程 · 第 14 讲 · 共 20 讲 · 第三部分（工程落地）完结 · 下一讲进入企业级落地
+  </footer>
+</div>
+
+<script>
+// 第二节：评估金字塔详情
+const pyrDetails = [
+  {
+    title: 'L1 · 单元评估（Unit Eval）',
+    content: `
+      <p><strong>评估对象</strong>：单个原子组件——一个Prompt、一个工具、一个抽取任务。</p>
+      <p><strong>核心问题</strong>：这个最小单元的输出是不是符合预期？</p>
+      <p>典型实现：</p>
+      <p>• 准备20-50个 <code>(输入, 期望输出)</code> 对</p>
+      <p>• 每次代码/Prompt改动后跑一遍</p>
+      <p>• 计算通过率</p>
+      <p><strong>评估方式</strong>：</p>
+      <p>① <strong>规则评估</strong>——能用代码判断的（JSON格式正确、必填字段、长度范围）</p>
+      <p>② <strong>LLM-as-Judge</strong>——用另一个模型当"考官"，按rubric打分</p>
+      <p>③ <strong>人工评估</strong>——前两种都搞不定时，团队抽样人工评分</p>
+      <div class="example">
+<span class="key">case_id</span>: req-001<br>
+<span class="key">input</span>: "客户说销售总忘记跟进大客户..."<br>
+<span class="key">expected</span>: 至少识别出 ["跟进提醒", "P0优先级"]<br>
+<span class="key">actual</span>: 识别出 ["跟进提醒", "P0优先级", "大客户标签"]<br>
+<span class="key">score</span>: PASS (覆盖了核心要求)
+      </div>
+    `
+  },
+  {
+    title: 'L2 · 链路评估（Chain Eval）',
+    content: `
+      <p><strong>评估对象</strong>：完整的任务流程——RAG从问题到答案、Agent从目标到结果、多Agent协作的最终输出。</p>
+      <p><strong>核心问题</strong>：把所有组件串起来后，端到端能不能完成任务？</p>
+      <p>这是最关键的一层——单元都过了不代表整体OK。<strong>各组件之间的"接口"经常是问题源头</strong>。</p>
+      <p>典型实现：</p>
+      <p>• 准备30-100个真实场景的端到端测试用例</p>
+      <p>• 模拟用户提问 → 让系统跑完整链路 → 评估最终回答质量</p>
+      <p>• 关注 <strong>"是否完成任务"</strong> 而不是中间步骤</p>
+      <p><strong>评估维度</strong>：</p>
+      <p>① <strong>正确性</strong>——回答是否正确</p>
+      <p>② <strong>完整性</strong>——是否覆盖了用户问题的所有方面</p>
+      <p>③ <strong>相关性</strong>——回答是否切题（不答非所问）</p>
+      <p>④ <strong>忠实度</strong>——是否基于知识库（不编造）</p>
+      <div class="example">
+<span class="key">scenario</span>: 客户询问发票开具流程<br>
+<span class="key">expected_steps</span>: 检索FAQ → 提供分步指引 → 包含申请入口<br>
+<span class="key">actual</span>: 检索成功 → 提供4步指引 → 链接缺失<br>
+<span class="key">score</span>: PARTIAL (主体OK但缺关键信息)
+      </div>
+    `
+  },
+  {
+    title: 'L3 · 用户评估（User Eval）',
+    content: `
+      <p><strong>评估对象</strong>：真实用户的反馈和行为。</p>
+      <p><strong>核心问题</strong>：实际用户用得满意吗？</p>
+      <p>这是最真实但最被忽视的一层。L1/L2都是"内部判断"，可能和真实用户感受脱节。</p>
+      <p><strong>采集方式</strong>：</p>
+      <p>① <strong>显式反馈</strong>——回答下方的👍👎按钮、5星评分、文字反馈</p>
+      <p>② <strong>隐式反馈</strong>——是否重新提问（不满意的信号）、对话长度（短=快速解决/挫败）、复制按钮使用率</p>
+      <p>③ <strong>行为指标</strong>——任务完成率、回访率、推荐率（NPS）</p>
+      <p><strong>关键认知</strong>：用户不会主动告诉你"哪里不好"，要从行为中读信号。</p>
+      <div class="example">
+<span class="key">user_action</span>: 用户问A → 回答 → 用户立刻问A的变体<br>
+<span class="key">implicit_signal</span>: 上次回答没用，用户在重试<br>
+<span class="key">action</span>: 标记为"低质量回答"<span class="key">流入分析队列</span>
+      </div>
+    `
+  },
+  {
+    title: 'L4 · 业务评估（Business Eval）',
+    content: `
+      <p><strong>评估对象</strong>：AI对业务指标的实际影响。</p>
+      <p><strong>核心问题</strong>：AI到底给业务带来多少价值？</p>
+      <p>这是最高层、最重要、也最难度量的评估。<strong>所有AI项目最终都要回到这一层证明价值</strong>。</p>
+      <p><strong>典型业务指标</strong>：</p>
+      <p>① <strong>效率类</strong>——人均处理工单数（接入AI前/后）、平均响应时间、客户成功经理人均覆盖客户数</p>
+      <p>② <strong>转化类</strong>——商机转化率、客户激活率、续约率</p>
+      <p>③ <strong>成本类</strong>——客服人力成本、销售支持成本、内容生产成本</p>
+      <p>④ <strong>体验类</strong>——客户满意度（CSAT）、净推荐值（NPS）</p>
+      <p><strong>评估方法</strong>：</p>
+      <p>• <strong>A/B测试</strong>——一部分用户用AI，一部分不用，对比指标</p>
+      <p>• <strong>前后对比</strong>——上线前后同期数据对比（注意季节性影响）</p>
+      <p>• <strong>用户分群</strong>——按"AI使用强度"分群，看不同群体的业务表现</p>
+      <div class="example">
+<span class="key">case</span>: 销售助手AI上线3个月<br>
+<span class="key">指标</span>: 销售人均跟进客户数 +28%<br>
+<span class="key">指标</span>: 商机推进周期 -15天<br>
+<span class="key">指标</span>: 团队人力成本 -12%（少招2人）<br>
+<span class="key">ROI</span>: 项目投入回收期 4个月
+      </div>
+    `
+  }
+];
+
+document.querySelectorAll('.pyramid-layer').forEach(layer => {
+  layer.addEventListener('click', () => {
+    const idx = +layer.dataset.layer;
+    const d = pyrDetails[idx];
+    document.getElementById('pyrDetail').innerHTML = `
+      <h4>${d.title}</h4>
+      ${d.content}
+    `;
+  });
+});
+const d0 = pyrDetails[0];
+document.getElementById('pyrDetail').innerHTML = `<h4>${d0.title}</h4>${d0.content}`;
+
+// 第三节：评估集
+const evalVersions = {
+  v1: {
+    desc: 'v1 · 基线版本（裸Prompt）',
+    cases: [
+      { id: '001', input: '销售忘记跟进大客户...', expected: '跟进提醒 + P0', actual: '跟进提醒', score: 'fail' },
+      { id: '002', input: 'OA审批和CRM需要双向同步...', expected: '集成类 + P0', actual: '集成类 + P1', score: 'fail' },
+      { id: '003', input: '希望看到月度销售排行榜...', expected: '报表类 + P1', actual: '报表类 + P1', score: 'pass' },
+      { id: '004', input: '客户问"这个怎么用"...', expected: '不提取（疑问非诉求）', actual: '提取了一条需求', score: 'fail' },
+      { id: '005', input: '客户经理多人共享客户...', expected: '权限类 + P0', actual: '权限类 + P0', score: 'pass' }
+    ],
+    stats: { pass: 18, fail: 12, rate: '60%', cost: '$0.012', warn: false }
+  },
+  v2: {
+    desc: 'v2 · 优化Prompt（加更明确的5步流程）',
+    cases: [
+      { id: '001', input: '销售忘记跟进大客户...', expected: '跟进提醒 + P0', actual: '跟进提醒 + P0', score: 'pass' },
+      { id: '002', input: 'OA审批和CRM需要双向同步...', expected: '集成类 + P0', actual: '集成类 + P0', score: 'pass' },
+      { id: '003', input: '希望看到月度销售排行榜...', expected: '报表类 + P1', actual: '报表类 + P1', score: 'pass' },
+      { id: '004', input: '客户问"这个怎么用"...', expected: '不提取（疑问非诉求）', actual: '提取了一条需求', score: 'fail' },
+      { id: '005', input: '客户经理多人共享客户...', expected: '权限类 + P0', actual: '权限类 + P0', score: 'pass' }
+    ],
+    stats: { pass: 23, fail: 7, rate: '77%', cost: '$0.014', warn: false }
+  },
+  v3: {
+    desc: 'v3 · 加few-shot范例（特别覆盖"疑问vs诉求"边界）',
+    cases: [
+      { id: '001', input: '销售忘记跟进大客户...', expected: '跟进提醒 + P0', actual: '跟进提醒 + P0', score: 'pass' },
+      { id: '002', input: 'OA审批和CRM需要双向同步...', expected: '集成类 + P0', actual: '集成类 + P0', score: 'pass' },
+      { id: '003', input: '希望看到月度销售排行榜...', expected: '报表类 + P1', actual: '报表类 + P1', score: 'pass' },
+      { id: '004', input: '客户问"这个怎么用"...', expected: '不提取（疑问非诉求）', actual: '不提取', score: 'pass' },
+      { id: '005', input: '客户经理多人共享客户...', expected: '权限类 + P0', actual: '权限类 + P0', score: 'pass' }
+    ],
+    stats: { pass: 27, fail: 3, rate: '90%', cost: '$0.018', warn: false }
+  },
+  v4: {
+    desc: 'v4 · 升级模型（DeepSeek V3 → Claude Opus）',
+    cases: [
+      { id: '001', input: '销售忘记跟进大客户...', expected: '跟进提醒 + P0', actual: '跟进提醒 + P0', score: 'pass' },
+      { id: '002', input: 'OA审批和CRM需要双向同步...', expected: '集成类 + P0', actual: '集成类 + P0', score: 'pass' },
+      { id: '003', input: '希望看到月度销售排行榜...', expected: '报表类 + P1', actual: '报表类 + P1', score: 'pass' },
+      { id: '004', input: '客户问"这个怎么用"...', expected: '不提取（疑问非诉求）', actual: '不提取', score: 'pass' },
+      { id: '005', input: '客户经理多人共享客户...', expected: '权限类 + P0', actual: '权限类 + P0', score: 'pass' }
+    ],
+    stats: { pass: 28, fail: 2, rate: '93%', cost: '$0.073', warn: true }
+  }
+};
+
+function renderEval(version) {
+  const data = evalVersions[version];
+  const tbl = document.getElementById('evalTable');
+  let html = `
+    <div class="eval-row head">
+      <div class="eval-cell">ID</div>
+      <div class="eval-cell">输入（节选）</div>
+      <div class="eval-cell">期望提取</div>
+      <div class="eval-cell">实际提取</div>
+      <div class="eval-cell">结果</div>
+    </div>
+  `;
+  data.cases.forEach(c => {
+    html += `
+      <div class="eval-row">
+        <div class="eval-cell id">${c.id}</div>
+        <div class="eval-cell">${c.input}</div>
+        <div class="eval-cell">${c.expected}</div>
+        <div class="eval-cell">${c.actual}</div>
+        <div class="eval-cell score ${c.score}">${c.score === 'pass' ? '✓ PASS' : '✗ FAIL'}</div>
+      </div>
+    `;
+  });
+  tbl.innerHTML = html;
+
+  const sum = document.getElementById('evalSummary');
+  sum.innerHTML = `
+    <div class="eval-stat">
+      <div class="label">PASS</div>
+      <div class="value">${data.stats.pass}</div>
+    </div>
+    <div class="eval-stat">
+      <div class="label">FAIL</div>
+      <div class="value" style="color: #ff5555;">${data.stats.fail}</div>
+    </div>
+    <div class="eval-stat">
+      <div class="label">PASS RATE</div>
+      <div class="value">${data.stats.rate}</div>
+    </div>
+    <div class="eval-stat">
+      <div class="label">COST/CASE</div>
+      <div class="value ${data.stats.warn ? 'warn' : ''}">${data.stats.cost}</div>
+    </div>
+  `;
+}
+
+document.querySelectorAll('.eval-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.eval-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderEval(btn.dataset.version);
+  });
+});
+renderEval('v1');
+</script>
+</body>
+</html>

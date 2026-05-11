@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第2讲｜机器学习的三种范式</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;700&family=IBM+Plex+Sans+SC:wght@300;400;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'IBM Plex Sans SC', sans-serif;
+    background: #0a0e14;
+    color: #e8e3d8;
+    min-height: 100vh;
+    padding: 40px 20px;
+    background-image: 
+      linear-gradient(135deg, #0a0e14 0%, #131820 50%, #0a0e14 100%),
+      radial-gradient(circle at 70% 20%, rgba(232, 180, 90, 0.04) 0%, transparent 50%);
+    background-attachment: fixed;
+  }
+  .container { max-width: 1280px; margin: 0 auto; }
+  
+  header {
+    margin-bottom: 56px;
+    position: relative;
+  }
+  .lesson-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.3em;
+    color: #e8b45a;
+    margin-bottom: 16px;
+  }
+  h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 72px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: #f4ecd8;
+  }
+  h1 em {
+    font-style: italic;
+    color: #e8b45a;
+    font-weight: 400;
+  }
+  .subtitle {
+    margin-top: 16px;
+    font-size: 16px;
+    color: #8a8478;
+    max-width: 700px;
+    line-height: 1.7;
+  }
+  
+  .nav-pills {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 40px;
+    flex-wrap: wrap;
+  }
+  .pill {
+    padding: 12px 24px;
+    background: transparent;
+    border: 1px solid #3a3f4a;
+    color: #8a8478;
+    font-family: 'IBM Plex Sans SC', sans-serif;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s;
+    letter-spacing: 0.05em;
+  }
+  .pill:hover { border-color: #e8b45a; color: #e8b45a; }
+  .pill.active {
+    background: #e8b45a;
+    color: #0a0e14;
+    border-color: #e8b45a;
+    font-weight: 600;
+  }
+  
+  .paradigm {
+    display: none;
+    animation: fadeIn 0.5s;
+  }
+  .paradigm.active { display: block; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .paradigm-header {
+    display: flex;
+    align-items: baseline;
+    gap: 24px;
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #3a3f4a;
+  }
+  .p-num {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 96px;
+    font-weight: 300;
+    color: #e8b45a;
+    line-height: 1;
+    font-style: italic;
+  }
+  .p-info h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 44px;
+    font-weight: 500;
+    color: #f4ecd8;
+    line-height: 1.1;
+  }
+  .p-en {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: #8a8478;
+    margin-top: 4px;
+    letter-spacing: 0.1em;
+  }
+  .p-tagline {
+    margin-top: 12px;
+    font-size: 17px;
+    color: #c4bfb3;
+    line-height: 1.7;
+    max-width: 700px;
+  }
+  
+  .demo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-bottom: 32px;
+  }
+  
+  .demo-card {
+    background: #131820;
+    border: 1px solid #3a3f4a;
+    padding: 32px;
+    position: relative;
+  }
+  .demo-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 4px; height: 100%;
+    background: #e8b45a;
+  }
+  .card-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #e8b45a;
+    letter-spacing: 0.2em;
+    margin-bottom: 12px;
+  }
+  .card-title {
+    font-size: 22px;
+    color: #f4ecd8;
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+  .card-desc {
+    font-size: 14px;
+    color: #8a8478;
+    line-height: 1.7;
+    margin-bottom: 24px;
+  }
+  
+  /* 监督学习: 邮件分类器 */
+  .email-stack {
+    margin-bottom: 16px;
+  }
+  .email-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #1a2028;
+    border-left: 3px solid #3a3f4a;
+    margin-bottom: 6px;
+    font-size: 13px;
+    transition: all 0.3s;
+  }
+  .email-row.spam { border-left-color: #c84a4a; }
+  .email-row.ham { border-left-color: #6abf6a; }
+  .email-row.unknown { border-left-color: #e8b45a; }
+  .email-text {
+    flex: 1;
+    color: #c4bfb3;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .email-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 2px;
+    letter-spacing: 0.1em;
+  }
+  .tag-spam { background: rgba(200, 74, 74, 0.2); color: #ff8a8a; }
+  .tag-ham { background: rgba(106, 191, 106, 0.2); color: #9ee59e; }
+  .tag-unknown { background: rgba(232, 180, 90, 0.2); color: #e8b45a; }
+  
+  .train-btn {
+    width: 100%;
+    padding: 14px;
+    background: transparent;
+    border: 1px solid #e8b45a;
+    color: #e8b45a;
+    font-family: 'IBM Plex Sans SC', sans-serif;
+    font-size: 14px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    transition: all 0.3s;
+    margin-bottom: 16px;
+  }
+  .train-btn:hover { background: #e8b45a; color: #0a0e14; }
+  .train-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  
+  .test-section {
+    border-top: 1px solid #3a3f4a;
+    padding-top: 20px;
+    margin-top: 8px;
+  }
+  .test-input-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .test-input-row input, .test-input-row select {
+    flex: 1;
+    padding: 10px 12px;
+    background: #0a0e14;
+    border: 1px solid #3a3f4a;
+    color: #e8e3d8;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+  }
+  .test-input-row button {
+    padding: 10px 20px;
+    background: #e8b45a;
+    border: none;
+    color: #0a0e14;
+    font-family: 'IBM Plex Sans SC', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  
+  /* 无监督学习: 客户聚类 */
+  .scatter-container {
+    background: #0a0e14;
+    border: 1px solid #3a3f4a;
+    padding: 16px;
+    position: relative;
+    height: 320px;
+  }
+  .scatter-svg { width: 100%; height: 100%; }
+  
+  .axis-label {
+    position: absolute;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #5a5a5a;
+    letter-spacing: 0.1em;
+  }
+  .axis-x { bottom: 4px; right: 16px; }
+  .axis-y { top: 16px; left: 4px; transform: rotate(-90deg); transform-origin: left top; }
+  
+  .cluster-controls {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .k-slider {
+    flex: 1;
+    accent-color: #e8b45a;
+  }
+  .k-display {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    color: #e8b45a;
+    min-width: 40px;
+  }
+  .k-label {
+    font-size: 13px;
+    color: #8a8478;
+  }
+  
+  .cluster-readout {
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: #1a2028;
+    border-left: 3px solid #e8b45a;
+    font-size: 13px;
+    color: #c4bfb3;
+    line-height: 1.7;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  
+  /* 强化学习: 走迷宫 */
+  .maze-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .maze-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 48px);
+    grid-template-rows: repeat(6, 48px);
+    gap: 2px;
+    background: #3a3f4a;
+    padding: 2px;
+    margin-bottom: 16px;
+  }
+  .cell {
+    background: #0a0e14;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #5a5a5a;
+    position: relative;
+    transition: all 0.2s;
+  }
+  .cell.wall { background: #2a2f3a; }
+  .cell.start { background: #2a3a4a; color: #6ab1e8; }
+  .cell.goal { background: #2a3a2a; color: #6abf6a; }
+  .cell.agent {
+    background: #e8b45a !important;
+    color: #0a0e14;
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .cell.path { background: #2a2520; }
+  .cell.visited::after {
+    content: '';
+    position: absolute;
+    width: 4px; height: 4px;
+    background: #e8b45a;
+    opacity: 0.4;
+    border-radius: 50%;
+  }
+  
+  .maze-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .maze-btn {
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid #3a3f4a;
+    color: #c4bfb3;
+    font-family: 'IBM Plex Sans SC', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .maze-btn:hover { border-color: #e8b45a; color: #e8b45a; }
+  .maze-btn.primary {
+    background: #e8b45a;
+    color: #0a0e14;
+    border-color: #e8b45a;
+    font-weight: 600;
+  }
+  
+  .maze-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    width: 100%;
+    margin-top: 16px;
+  }
+  .stat {
+    padding: 10px;
+    background: #1a2028;
+    border-left: 2px solid #e8b45a;
+    font-size: 12px;
+  }
+  .stat-label {
+    color: #8a8478;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+  }
+  .stat-value {
+    color: #f4ecd8;
+    font-size: 18px;
+    font-family: 'IBM Plex Mono', monospace;
+    margin-top: 4px;
+  }
+  
+  /* 关键洞察 */
+  .insight {
+    background: linear-gradient(135deg, #1a2028 0%, #131820 100%);
+    border-left: 4px solid #e8b45a;
+    padding: 28px 32px;
+    margin: 32px 0;
+  }
+  .insight-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #e8b45a;
+    letter-spacing: 0.3em;
+    margin-bottom: 12px;
+  }
+  .insight-text {
+    font-size: 16px;
+    line-height: 1.8;
+    color: #e8e3d8;
+  }
+  .insight-text em {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    color: #e8b45a;
+    font-size: 18px;
+  }
+  
+  /* 对比表 */
+  .compare-section {
+    margin-top: 64px;
+    padding-top: 48px;
+    border-top: 1px solid #3a3f4a;
+  }
+  .compare-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 36px;
+    color: #f4ecd8;
+    margin-bottom: 8px;
+    font-style: italic;
+  }
+  .compare-desc {
+    color: #8a8478;
+    margin-bottom: 32px;
+    font-size: 15px;
+  }
+  
+  table.comparison {
+    width: 100%;
+    border-collapse: collapse;
+    background: #131820;
+    border: 1px solid #3a3f4a;
+  }
+  table.comparison th {
+    text-align: left;
+    padding: 16px 20px;
+    background: #1a2028;
+    color: #e8b45a;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    border-bottom: 1px solid #3a3f4a;
+    font-weight: 500;
+  }
+  table.comparison td {
+    padding: 16px 20px;
+    border-bottom: 1px solid #2a2f3a;
+    font-size: 14px;
+    color: #c4bfb3;
+    line-height: 1.7;
+    vertical-align: top;
+  }
+  table.comparison tr:last-child td { border-bottom: none; }
+  table.comparison td:first-child {
+    color: #f4ecd8;
+    font-weight: 600;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px;
+    font-style: italic;
+  }
+  
+  footer {
+    text-align: center;
+    margin-top: 80px;
+    padding-top: 32px;
+    border-top: 1px solid #3a3f4a;
+    font-size: 12px;
+    color: #5a5a5a;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.2em;
+  }
+  
+  @media (max-width: 768px) {
+    h1 { font-size: 44px; }
+    .demo-grid { grid-template-columns: 1fr; }
+    .maze-grid { grid-template-columns: repeat(6, 36px); grid-template-rows: repeat(6, 36px); }
+  }
+</style>
+</head>
+<body>
+<!-- 课程系列统一导航条 · 由脚本注入 -->
+<div id="course-nav-bar">
+  <div class="course-nav-inner">
+    <a href="../lesson01/demo.html" class="course-nav-btn prev" title="AI到底是什么"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
+    <a href="../index.html" class="course-nav-center" title="回到课程总览">
+      <span class="nav-current">LESSON 02 / 20</span>
+      <span class="nav-title">机器学习的三种范式</span>
+    </a>
+    <a href="../lesson03/demo.html" class="course-nav-btn next" title="神经网络是怎么学的"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
+  </div>
+</div>
+
+<style id="course-nav-style">
+  #course-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  .course-nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .course-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .course-nav-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .course-nav-btn.disabled {
+    color: #444;
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .course-nav-btn .nav-arrow {
+    font-size: 14px;
+    line-height: 1;
+  }
+  .course-nav-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+    padding: 4px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    min-width: 0;
+  }
+  .course-nav-center:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .nav-current {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .nav-title {
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+    letter-spacing: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body {
+    padding-top: 64px !important;
+  }
+  
+  @media (max-width: 768px) {
+    .course-nav-inner {
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .course-nav-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .course-nav-btn .nav-label {
+      display: none;
+    }
+    .nav-title {
+      font-size: 11px;
+    }
+    .nav-current {
+      font-size: 9px;
+    }
+    body {
+      padding-top: 54px !important;
+    }
+  }
+</style>
+<!-- 课程系列统一导航条 · END -->
+
+<div class="container">
+  <header>
+    <div class="lesson-num">LESSON · 02 / 20</div>
+    <h1>机器学习的<em>三种</em>范式</h1>
+    <div class="subtitle">
+      监督、无监督、强化——不是三种算法，是三种向世界提问的方式。
+      理解了这三种范式，你就理解了今天每一个AI产品在做什么。
+    </div>
+  </header>
+
+  <div class="nav-pills">
+    <button class="pill active" data-paradigm="supervised">监督学习 · Supervised</button>
+    <button class="pill" data-paradigm="unsupervised">无监督学习 · Unsupervised</button>
+    <button class="pill" data-paradigm="reinforcement">强化学习 · Reinforcement</button>
+  </div>
+
+  <!-- 监督学习 -->
+  <div class="paradigm active" id="supervised">
+    <div class="paradigm-header">
+      <div class="p-num">01</div>
+      <div class="p-info">
+        <h2>监督学习</h2>
+        <div class="p-en">SUPERVISED LEARNING · 给答案，让它学映射</div>
+        <div class="p-tagline">
+          世界上80%的AI应用，今天还都在这个范式下工作。
+          核心是：每条训练数据都附带正确答案，模型从"输入→答案"的对应中学规律。
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-grid">
+      <div class="demo-card">
+        <div class="card-label">DEMO · 垃圾邮件分类器</div>
+        <div class="card-title">第一步：给它看带标签的样本</div>
+        <div class="card-desc">每封邮件都人工标注好是垃圾还是正常。这就是监督信号。</div>
+        
+        <div class="email-stack">
+          <div class="email-row spam">
+            <span class="email-text">恭喜中奖！点击领取百万现金</span>
+            <span class="email-tag tag-spam">SPAM</span>
+          </div>
+          <div class="email-row spam">
+            <span class="email-text">限时优惠 充值就送iPhone</span>
+            <span class="email-tag tag-spam">SPAM</span>
+          </div>
+          <div class="email-row ham">
+            <span class="email-text">关于Q3项目进度的同步</span>
+            <span class="email-tag tag-ham">HAM</span>
+          </div>
+          <div class="email-row ham">
+            <span class="email-text">下周一例会议程请查收</span>
+            <span class="email-tag tag-ham">HAM</span>
+          </div>
+          <div class="email-row spam">
+            <span class="email-text">您的账户有风险 立即点击验证</span>
+            <span class="email-tag tag-spam">SPAM</span>
+          </div>
+          <div class="email-row ham">
+            <span class="email-text">客户合同附件确认</span>
+            <span class="email-tag tag-ham">HAM</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="demo-card">
+        <div class="card-label">DEMO · 训练后的模型</div>
+        <div class="card-title">第二步：用学到的规律判断新邮件</div>
+        <div class="card-desc">模型学到了"中奖、限时、点击、验证"等词是危险信号。试试输入一封新邮件。</div>
+
+        <button class="train-btn" id="trainBtn">点击训练模型 →</button>
+        
+        <div class="test-section" id="testSection" style="display:none;">
+          <div style="font-size:12px; color:#e8b45a; margin-bottom:12px; font-family:'IBM Plex Mono', monospace;">模型已训练完成 · 输入新邮件测试</div>
+          <div class="test-input-row">
+            <select id="emailSelect">
+              <option value="您的快递已到 请尽快取件">您的快递已到 请尽快取件</option>
+              <option value="点击免费领取百万现金奖励">点击免费领取百万现金奖励</option>
+              <option value="月度财务报表附件请查收">月度财务报表附件请查收</option>
+              <option value="限时秒杀 错过等一年">限时秒杀 错过等一年</option>
+              <option value="客户反馈整理 等你确认">客户反馈整理 等你确认</option>
+            </select>
+            <button onclick="classifyEmail()">判断</button>
+          </div>
+          <div class="email-row unknown" id="emailResult" style="display:none;">
+            <span class="email-text" id="emailContent"></span>
+            <span class="email-tag tag-unknown" id="emailVerdict"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="insight">
+      <div class="insight-label">关键</div>
+      <div class="insight-text">
+        监督学习的命门是<em>标注成本</em>。
+        每一条训练数据都需要人工告诉模型"正确答案是什么"。
+        我们日常做的需求分类、合同审核、字段提取，
+        本质都是在用人力标注数据，然后让模型去拟合"输入→标签"的映射。
+        <br><br>
+        这也是为什么<em>"标注数据是新石油"</em>——
+        在大模型出现之前，谁有更多更干净的标注数据，谁就能训练出更好的模型。
+      </div>
+    </div>
+  </div>
+
+  <!-- 无监督学习 -->
+  <div class="paradigm" id="unsupervised">
+    <div class="paradigm-header">
+      <div class="p-num">02</div>
+      <div class="p-info">
+        <h2>无监督学习</h2>
+        <div class="p-en">UNSUPERVISED LEARNING · 没答案，自己找结构</div>
+        <div class="p-tagline">
+          监督学习需要标签，但很多场景没有标签——你不知道"正确分类"是什么。
+          无监督学习的任务是：从一堆没标注的数据中，自己发现潜在的结构。
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-grid">
+      <div class="demo-card">
+        <div class="card-label">DEMO · 客户聚类</div>
+        <div class="card-title">120个客户散布在两个维度上</div>
+        <div class="card-desc">横轴是消费频次，纵轴是客单价。我们没有任何标签。</div>
+        
+        <div class="scatter-container">
+          <svg class="scatter-svg" id="scatter" viewBox="0 0 400 280"></svg>
+          <div class="axis-label axis-x">FREQUENCY →</div>
+          <div class="axis-label axis-y">VALUE →</div>
+        </div>
+      </div>
+
+      <div class="demo-card">
+        <div class="card-label">DEMO · K-Means聚类</div>
+        <div class="card-title">让算法自己分组</div>
+        <div class="card-desc">你告诉它分成几组，它自己找出每组的中心。注意：算法不知道每组叫什么。</div>
+        
+        <div class="scatter-container">
+          <svg class="scatter-svg" id="clustered" viewBox="0 0 400 280"></svg>
+        </div>
+        
+        <div class="cluster-controls">
+          <span class="k-label">K =</span>
+          <input type="range" min="2" max="6" value="3" class="k-slider" id="kSlider">
+          <span class="k-display" id="kValue">3</span>
+        </div>
+
+        <div class="cluster-readout" id="clusterReadout">
+          算法发现了 3 个客户群体，但它<strong>不会告诉你</strong>哪组是高价值客户。<br>
+          解读和命名是人的工作。
+        </div>
+      </div>
+    </div>
+
+    <div class="insight">
+      <div class="insight-label">关键</div>
+      <div class="insight-text">
+        无监督学习不需要标签，但代价是<em>结果需要人来解读</em>。
+        它能告诉你"这120个客户分成3群"，但不能告诉你哪一群是VIP、哪一群是流失风险。
+        <br><br>
+        在我们做CRM的实际场景里，无监督学习常用于：客户分群、异常检测、用户画像、文档主题挖掘。
+        最近大家熟悉的<em>Embedding</em>和<em>向量检索</em>，本质也是无监督学习的思想——
+        让模型自己发现"语义相近的文本应该在向量空间靠得近"，没有任何人工标注。
+      </div>
+    </div>
+  </div>
+
+  <!-- 强化学习 -->
+  <div class="paradigm" id="reinforcement">
+    <div class="paradigm-header">
+      <div class="p-num">03</div>
+      <div class="p-info">
+        <h2>强化学习</h2>
+        <div class="p-en">REINFORCEMENT LEARNING · 不教知识，只给反馈</div>
+        <div class="p-tagline">
+          前两种范式都是从静态数据中学。强化学习不一样——它把模型扔进环境，
+          让它在试错中学习什么行动有奖励、什么行动有惩罚。AlphaGo和ChatGPT背后都有它。
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-grid">
+      <div class="demo-card" style="grid-column: span 2;">
+        <div class="card-label">DEMO · 智能体走迷宫</div>
+        <div class="card-title">没人教它路怎么走，靠试错学策略</div>
+        <div class="card-desc">每走一步都有反馈：撞墙=惩罚，到达终点=奖励。点击"训练500回合"看它从随机乱走到找到最优路径的全过程。</div>
+
+        <div class="maze-container">
+          <div class="maze-controls">
+            <button class="maze-btn primary" id="trainMaze">训练 500 回合</button>
+            <button class="maze-btn" id="runOnce">运行一次</button>
+            <button class="maze-btn" id="resetMaze">重置</button>
+          </div>
+          
+          <div class="maze-grid" id="maze"></div>
+          
+          <div class="maze-stats">
+            <div class="stat">
+              <div class="stat-label">EPISODE</div>
+              <div class="stat-value" id="episode">0</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">STEPS</div>
+              <div class="stat-value" id="steps">0</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">REWARD</div>
+              <div class="stat-value" id="reward">0</div>
+            </div>
+          </div>
+          
+          <div style="margin-top:16px; font-size:13px; color:#8a8478; line-height:1.7; max-width:600px; text-align:center;">
+            橙色方块是智能体，从蓝色起点出发，目标是到达绿色终点。
+            未训练时它会乱撞，训练后会学到一条接近最优的路径。
+            <span style="color:#e8b45a;">这就是AlphaGo的思想——只是棋盘比迷宫复杂得多。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="insight">
+      <div class="insight-label">关键</div>
+      <div class="insight-text">
+        强化学习的精髓是<em>奖励工程</em>——你不告诉它怎么做，只告诉它什么是好结果。
+        AlphaGo不背棋谱，它只知道"赢=+1，输=-1"，自己跟自己下了几千万盘学出来的。
+        <br><br>
+        今天大家用ChatGPT觉得它"懂礼貌、会拒绝、不胡说"，背后就是<em>RLHF</em>——
+        Reinforcement Learning from Human Feedback。
+        OpenAI让人对模型回答打分，再用强化学习把模型调整到更符合人类偏好。
+        <br><br>
+        所以GPT-3已经"会了很多"，但它不像ChatGPT那样"好用"——
+        差的就是这一层强化学习对齐。
+      </div>
+    </div>
+  </div>
+
+  <!-- 三种范式对比 -->
+  <div class="compare-section">
+    <div class="compare-title">三种范式横向对比</div>
+    <div class="compare-desc">同一个维度看下来，差别一目了然。</div>
+
+    <table class="comparison">
+      <thead>
+        <tr>
+          <th>维度</th>
+          <th>监督学习</th>
+          <th>无监督学习</th>
+          <th>强化学习</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>数据形式</td>
+          <td>(输入, 标签) 配对</td>
+          <td>只有输入，没有标签</td>
+          <td>(状态, 动作, 奖励) 序列</td>
+        </tr>
+        <tr>
+          <td>学习目标</td>
+          <td>拟合"输入→输出"映射</td>
+          <td>发现数据中的结构</td>
+          <td>找到最优行动策略</td>
+        </tr>
+        <tr>
+          <td>典型场景</td>
+          <td>分类、回归、识别、翻译</td>
+          <td>聚类、降维、异常检测、Embedding</td>
+          <td>游戏AI、机器人、模型对齐</td>
+        </tr>
+        <tr>
+          <td>核心成本</td>
+          <td>标注数据贵</td>
+          <td>结果需要人工解读</td>
+          <td>训练慢、奖励难设计</td>
+        </tr>
+        <tr>
+          <td>CRM场景举例</td>
+          <td>需求分类、商机预测、智能审批</td>
+          <td>客户分群、异常订单识别、文档主题</td>
+          <td>对话机器人对齐、推荐系统优化</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    AI 系列课程 · 第 02 讲 · 共 20 讲 · 下一讲：神经网络是怎么"学"的
+  </footer>
+</div>
+
+<script>
+  // 切换范式
+  document.querySelectorAll('.pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.paradigm').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      document.getElementById(pill.dataset.paradigm).classList.add('active');
+    });
+  });
+
+  // 监督学习: 训练动画 & 邮件分类
+  document.getElementById('trainBtn').addEventListener('click', function() {
+    this.textContent = '训练中...';
+    this.disabled = true;
+    setTimeout(() => {
+      this.style.display = 'none';
+      document.getElementById('testSection').style.display = 'block';
+    }, 800);
+  });
+
+  function classifyEmail() {
+    const text = document.getElementById('emailSelect').value;
+    const spamWords = ['中奖', '现金', '免费', '点击', '限时', '秒杀', '验证', '账户'];
+    const score = spamWords.filter(w => text.includes(w)).length;
+    
+    const result = document.getElementById('emailResult');
+    const content = document.getElementById('emailContent');
+    const verdict = document.getElementById('emailVerdict');
+    
+    content.textContent = text;
+    result.style.display = 'flex';
+    
+    if (score >= 2) {
+      result.className = 'email-row spam';
+      verdict.className = 'email-tag tag-spam';
+      verdict.textContent = 'SPAM';
+    } else if (score >= 1) {
+      result.className = 'email-row unknown';
+      verdict.className = 'email-tag tag-unknown';
+      verdict.textContent = '可疑';
+    } else {
+      result.className = 'email-row ham';
+      verdict.className = 'email-tag tag-ham';
+      verdict.textContent = 'HAM';
+    }
+  }
+
+  // 无监督学习: 散点+聚类
+  const customers = [];
+  for (let i = 0; i < 40; i++) {
+    customers.push({ x: 30 + Math.random() * 80, y: 40 + Math.random() * 70, group: 0 });
+  }
+  for (let i = 0; i < 40; i++) {
+    customers.push({ x: 200 + Math.random() * 80, y: 40 + Math.random() * 70, group: 1 });
+  }
+  for (let i = 0; i < 40; i++) {
+    customers.push({ x: 130 + Math.random() * 100, y: 160 + Math.random() * 80, group: 2 });
+  }
+
+  const colors = ['#e8b45a', '#6ab1e8', '#a06ae8', '#6abf6a', '#e86a8a', '#e8e36a'];
+
+  function drawScatter() {
+    const svg = document.getElementById('scatter');
+    svg.innerHTML = '';
+    customers.forEach(c => {
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', c.x);
+      circle.setAttribute('cy', c.y);
+      circle.setAttribute('r', '3');
+      circle.setAttribute('fill', '#8a8478');
+      circle.setAttribute('opacity', '0.7');
+      svg.appendChild(circle);
+    });
+  }
+
+  function kMeans(k) {
+    // 简化的伪聚类: 直接根据预设组分配,但允许调整k
+    const centers = [];
+    if (k === 2) {
+      centers.push({x: 70, y: 75}, {x: 220, y: 200});
+    } else if (k === 3) {
+      centers.push({x: 70, y: 75}, {x: 240, y: 75}, {x: 180, y: 200});
+    } else if (k === 4) {
+      centers.push({x: 70, y: 75}, {x: 240, y: 75}, {x: 130, y: 200}, {x: 280, y: 200});
+    } else if (k === 5) {
+      centers.push({x: 50, y: 70}, {x: 100, y: 90}, {x: 240, y: 75}, {x: 130, y: 200}, {x: 280, y: 200});
+    } else {
+      centers.push({x: 50, y: 70}, {x: 100, y: 90}, {x: 220, y: 60}, {x: 270, y: 90}, {x: 130, y: 200}, {x: 280, y: 200});
+    }
+    
+    customers.forEach(c => {
+      let minDist = Infinity, idx = 0;
+      centers.forEach((center, i) => {
+        const d = Math.hypot(c.x - center.x, c.y - center.y);
+        if (d < minDist) { minDist = d; idx = i; }
+      });
+      c.cluster = idx;
+    });
+    
+    return centers;
+  }
+
+  function drawClustered(k) {
+    const centers = kMeans(k);
+    const svg = document.getElementById('clustered');
+    svg.innerHTML = '';
+    
+    customers.forEach(c => {
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', c.x);
+      circle.setAttribute('cy', c.y);
+      circle.setAttribute('r', '3');
+      circle.setAttribute('fill', colors[c.cluster]);
+      circle.setAttribute('opacity', '0.85');
+      svg.appendChild(circle);
+    });
+    
+    centers.forEach((c, i) => {
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', c.x);
+      circle.setAttribute('cy', c.y);
+      circle.setAttribute('r', '8');
+      circle.setAttribute('fill', 'none');
+      circle.setAttribute('stroke', colors[i]);
+      circle.setAttribute('stroke-width', '2');
+      svg.appendChild(circle);
+      
+      const cross1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      cross1.setAttribute('x1', c.x - 5); cross1.setAttribute('y1', c.y);
+      cross1.setAttribute('x2', c.x + 5); cross1.setAttribute('y2', c.y);
+      cross1.setAttribute('stroke', colors[i]); cross1.setAttribute('stroke-width', '2');
+      svg.appendChild(cross1);
+      
+      const cross2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      cross2.setAttribute('x1', c.x); cross2.setAttribute('y1', c.y - 5);
+      cross2.setAttribute('x2', c.x); cross2.setAttribute('y2', c.y + 5);
+      cross2.setAttribute('stroke', colors[i]); cross2.setAttribute('stroke-width', '2');
+      svg.appendChild(cross2);
+    });
+    
+    document.getElementById('clusterReadout').innerHTML = 
+      `算法发现了 <strong style="color:#e8b45a">${k}</strong> 个客户群体，但它<strong>不会告诉你</strong>哪组是高价值客户。<br>解读和命名是人的工作。`;
+  }
+
+  document.getElementById('kSlider').addEventListener('input', function() {
+    document.getElementById('kValue').textContent = this.value;
+    drawClustered(+this.value);
+  });
+
+  drawScatter();
+  drawClustered(3);
+
+  // 强化学习: 迷宫
+  const MAZE = [
+    [0,0,0,1,0,0],
+    [1,1,0,1,0,1],
+    [0,0,0,0,0,0],
+    [0,1,1,1,1,0],
+    [0,0,0,1,0,0],
+    [1,1,0,0,0,2]  // 2 = goal
+  ];
+  const START = [0, 0];
+  const ROWS = 6, COLS = 6;
+  
+  let qTable = {};
+  let agent = [...START];
+  let trained = false;
+  let visited = new Set();
+
+  function initQ() {
+    qTable = {};
+    for (let i = 0; i < ROWS; i++) {
+      for (let j = 0; j < COLS; j++) {
+        qTable[`${i},${j}`] = [0, 0, 0, 0]; // up, right, down, left
+      }
+    }
+  }
+  initQ();
+
+  function isWall(r, c) {
+    if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return true;
+    return MAZE[r][c] === 1;
+  }
+
+  function step(state, action) {
+    const [r, c] = state;
+    let nr = r, nc = c;
+    if (action === 0) nr = r - 1;
+    else if (action === 1) nc = c + 1;
+    else if (action === 2) nr = r + 1;
+    else if (action === 3) nc = c - 1;
+    
+    if (isWall(nr, nc)) return { next: state, reward: -5, done: false };
+    if (MAZE[nr][nc] === 2) return { next: [nr, nc], reward: 100, done: true };
+    return { next: [nr, nc], reward: -1, done: false };
+  }
+
+  function trainQ(episodes) {
+    for (let ep = 0; ep < episodes; ep++) {
+      let state = [...START];
+      let stepCount = 0;
+      const epsilon = Math.max(0.05, 1 - ep / episodes);
+      
+      while (stepCount < 200) {
+        const key = `${state[0]},${state[1]}`;
+        let action;
+        if (Math.random() < epsilon) {
+          action = Math.floor(Math.random() * 4);
+        } else {
+          const q = qTable[key];
+          action = q.indexOf(Math.max(...q));
+        }
+        
+        const { next, reward, done } = step(state, action);
+        const nextKey = `${next[0]},${next[1]}`;
+        const maxNext = Math.max(...qTable[nextKey]);
+        qTable[key][action] += 0.5 * (reward + 0.9 * maxNext - qTable[key][action]);
+        
+        state = next;
+        stepCount++;
+        if (done) break;
+      }
+    }
+    trained = true;
+  }
+
+  function renderMaze(highlight = []) {
+    const grid = document.getElementById('maze');
+    grid.innerHTML = '';
+    for (let i = 0; i < ROWS; i++) {
+      for (let j = 0; j < COLS; j++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        if (MAZE[i][j] === 1) cell.classList.add('wall');
+        else if (MAZE[i][j] === 2) { cell.classList.add('goal'); cell.textContent = 'END'; }
+        if (i === START[0] && j === START[1]) { cell.classList.add('start'); cell.textContent = 'START'; }
+        if (i === agent[0] && j === agent[1] && (i !== START[0] || j !== START[1])) { 
+          cell.classList.add('agent'); cell.textContent = '●'; 
+        }
+        if (visited.has(`${i},${j}`) && !cell.classList.contains('agent') && !cell.classList.contains('start') && !cell.classList.contains('goal')) {
+          cell.classList.add('visited');
+        }
+        grid.appendChild(cell);
+      }
+    }
+  }
+  renderMaze();
+
+  document.getElementById('trainMaze').addEventListener('click', () => {
+    trainQ(500);
+    document.getElementById('episode').textContent = '500';
+    document.getElementById('trainMaze').textContent = '已训练 500 回合';
+    document.getElementById('trainMaze').style.opacity = '0.6';
+  });
+
+  document.getElementById('runOnce').addEventListener('click', async () => {
+    agent = [...START];
+    visited.clear();
+    let stepCount = 0;
+    let totalReward = 0;
+    
+    document.getElementById('steps').textContent = '0';
+    document.getElementById('reward').textContent = '0';
+    renderMaze();
+    
+    while (stepCount < 100) {
+      const key = `${agent[0]},${agent[1]}`;
+      let action;
+      if (trained) {
+        const q = qTable[key];
+        action = q.indexOf(Math.max(...q));
+      } else {
+        action = Math.floor(Math.random() * 4);
+      }
+      
+      const { next, reward, done } = step(agent, action);
+      visited.add(`${agent[0]},${agent[1]}`);
+      agent = next;
+      stepCount++;
+      totalReward += reward;
+      
+      document.getElementById('steps').textContent = stepCount;
+      document.getElementById('reward').textContent = totalReward;
+      renderMaze();
+      
+      await new Promise(r => setTimeout(r, 80));
+      if (done) break;
+    }
+  });
+
+  document.getElementById('resetMaze').addEventListener('click', () => {
+    agent = [...START];
+    visited.clear();
+    initQ();
+    trained = false;
+    document.getElementById('episode').textContent = '0';
+    document.getElementById('steps').textContent = '0';
+    document.getElementById('reward').textContent = '0';
+    document.getElementById('trainMaze').textContent = '训练 500 回合';
+    document.getElementById('trainMaze').style.opacity = '1';
+    renderMaze();
+  });
+</script>
+</body>
+</html>

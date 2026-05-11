@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第3讲｜神经网络是怎么学的</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Source+Han+Serif+SC:wght@400;500;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Source Han Serif SC', 'Fraunces', serif;
+    background: #faf6f1;
+    color: #1a1a1a;
+    min-height: 100vh;
+    padding: 32px 20px;
+  }
+  .container { max-width: 1280px; margin: 0 auto; }
+
+  header {
+    margin-bottom: 48px;
+    padding-bottom: 24px;
+    border-bottom: 3px double #c69a5b;
+    position: relative;
+  }
+  header::after {
+    content: '03';
+    position: absolute;
+    top: -20px; right: 0;
+    font-family: 'Fraunces', serif;
+    font-size: 240px;
+    font-weight: 900;
+    color: rgba(198, 154, 91, 0.08);
+    line-height: 0.8;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .lesson-num {
+    font-family: 'Fira Code', monospace;
+    font-size: 12px;
+    letter-spacing: 0.3em;
+    color: #c69a5b;
+    margin-bottom: 8px;
+    position: relative;
+    z-index: 1;
+  }
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-size: 56px;
+    font-weight: 900;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    position: relative;
+    z-index: 1;
+  }
+  h1 .accent {
+    font-style: italic;
+    font-weight: 400;
+    color: #c69a5b;
+  }
+  .subtitle {
+    margin-top: 12px;
+    font-size: 16px;
+    color: #5a5246;
+    line-height: 1.7;
+    max-width: 700px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .section { margin-bottom: 56px; }
+  .section-marker {
+    font-family: 'Fira Code', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    color: #c69a5b;
+    margin-bottom: 8px;
+  }
+  .section-title {
+    font-family: 'Fraunces', serif;
+    font-size: 36px;
+    font-weight: 900;
+    line-height: 1.1;
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+  .section-lead {
+    font-size: 16px;
+    color: #5a5246;
+    margin-bottom: 32px;
+    line-height: 1.7;
+    max-width: 800px;
+  }
+
+  .neuron-demo {
+    background: #fff;
+    border: 1px solid #e5d5b8;
+    box-shadow: 6px 6px 0 #c69a5b;
+    padding: 36px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+  }
+  .neuron-controls h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 16px;
+  }
+  .input-group { margin-bottom: 16px; }
+  .input-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .input-name { width: 90px; font-size: 14px; }
+  .input-row input[type="range"] { flex: 1; accent-color: #c69a5b; }
+  .input-val {
+    width: 40px;
+    text-align: right;
+    font-family: 'Fira Code', monospace;
+    font-size: 13px;
+    color: #8b6f47;
+  }
+
+  .formula {
+    background: #1a1a1a;
+    color: #faf6f1;
+    padding: 20px 24px;
+    margin: 20px 0;
+    font-family: 'Fira Code', monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    overflow-x: auto;
+  }
+  .formula .var { color: #c69a5b; }
+  .formula .num { color: #a8c8e8; }
+
+  .neuron-viz {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .neuron-viz svg { width: 100%; max-width: 400px; height: auto; }
+  .output-display {
+    margin-top: 24px;
+    padding: 20px;
+    background: #faf6f1;
+    border: 2px solid #1a1a1a;
+    width: 100%;
+    text-align: center;
+  }
+  .output-label {
+    font-family: 'Fira Code', monospace;
+    font-size: 11px;
+    color: #8b6f47;
+    letter-spacing: 0.2em;
+    margin-bottom: 8px;
+  }
+  .output-value {
+    font-family: 'Fraunces', serif;
+    font-size: 48px;
+    font-weight: 900;
+    color: #1a1a1a;
+    line-height: 1;
+  }
+  .output-fire {
+    font-size: 13px;
+    margin-top: 8px;
+    font-style: italic;
+  }
+  .fire-yes { color: #2d5a3d; }
+  .fire-no { color: #8b3a2c; }
+
+  .layered-demo {
+    background: #fff;
+    border: 1px solid #e5d5b8;
+    box-shadow: 6px 6px 0 #c69a5b;
+    padding: 36px;
+  }
+  .demo-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .demo-header h3 { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; }
+  .difficulty-tabs { display: flex; gap: 0; border: 1px solid #1a1a1a; }
+  .diff-tab {
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    font-family: 'Source Han Serif SC', serif;
+    font-size: 13px;
+    cursor: pointer;
+    border-right: 1px solid #1a1a1a;
+  }
+  .diff-tab:last-child { border-right: none; }
+  .diff-tab.active { background: #1a1a1a; color: #faf6f1; }
+
+  .layered-viz {
+    margin: 24px 0;
+    height: 360px;
+    background: #faf6f1;
+    border: 1px solid #e5d5b8;
+    position: relative;
+  }
+  .layered-viz svg { width: 100%; height: 100%; }
+
+  .arch-readout {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .arch-stat {
+    background: #faf6f1;
+    border-left: 3px solid #c69a5b;
+    padding: 14px 18px;
+  }
+  .arch-stat .label {
+    font-family: 'Fira Code', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: #8b6f47;
+  }
+  .arch-stat .val {
+    font-family: 'Fraunces', serif;
+    font-size: 24px;
+    font-weight: 700;
+    margin-top: 4px;
+  }
+
+  .gd-demo {
+    background: #fff;
+    border: 1px solid #e5d5b8;
+    box-shadow: 6px 6px 0 #c69a5b;
+    padding: 36px;
+  }
+  .gd-grid {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 32px;
+    margin-top: 24px;
+  }
+  .gd-canvas-wrap {
+    background: #faf6f1;
+    border: 1px solid #e5d5b8;
+    padding: 16px;
+    position: relative;
+  }
+  #gd-canvas {
+    width: 100%;
+    height: 320px;
+    cursor: crosshair;
+    display: block;
+  }
+  .gd-info {
+    font-family: 'Fira Code', monospace;
+    font-size: 11px;
+    color: #8b6f47;
+    margin-top: 8px;
+    line-height: 1.6;
+  }
+
+  .gd-controls h4 { font-family: 'Fraunces', serif; font-size: 18px; margin-bottom: 16px; }
+  .gd-control-row { margin-bottom: 16px; }
+  .gd-control-row label {
+    display: block;
+    font-size: 13px;
+    margin-bottom: 6px;
+    color: #5a5246;
+  }
+  .gd-control-row input[type="range"] { width: 100%; accent-color: #c69a5b; }
+  .gd-control-row .val-display {
+    font-family: 'Fira Code', monospace;
+    font-size: 12px;
+    color: #c69a5b;
+    margin-top: 2px;
+  }
+
+  .gd-buttons { display: flex; gap: 8px; margin: 16px 0; }
+  .gd-btn {
+    flex: 1;
+    padding: 12px;
+    background: transparent;
+    border: 1.5px solid #1a1a1a;
+    font-family: 'Source Han Serif SC', serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .gd-btn:hover { background: #1a1a1a; color: #faf6f1; }
+  .gd-btn.primary { background: #c69a5b; color: #fff; border-color: #c69a5b; }
+
+  .gd-stats {
+    background: #1a1a1a;
+    color: #faf6f1;
+    padding: 16px;
+    margin-top: 16px;
+  }
+  .gd-stat {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-family: 'Fira Code', monospace;
+    font-size: 12px;
+  }
+  .gd-stat:last-child { margin-bottom: 0; }
+  .gd-stat .k { color: #c69a5b; }
+
+  .insight-block {
+    margin: 32px 0;
+    padding: 32px 36px;
+    background: #1a1a1a;
+    color: #faf6f1;
+    position: relative;
+  }
+  .insight-block::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 60px; height: 4px;
+    background: #c69a5b;
+  }
+  .insight-block h4 {
+    font-family: 'Fraunces', serif;
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: #c69a5b;
+    font-style: italic;
+  }
+  .insight-block p { font-size: 16px; line-height: 1.8; }
+  .insight-block .hl { color: #c69a5b; font-weight: 600; }
+
+  .analogy {
+    margin: 32px 0;
+    padding: 24px 32px;
+    background: #f4ead8;
+    border-left: 4px solid #c69a5b;
+    font-style: italic;
+    font-size: 16px;
+    line-height: 1.9;
+    color: #2a2520;
+  }
+  .analogy strong { font-style: normal; font-weight: 700; color: #1a1a1a; }
+
+  footer {
+    text-align: center;
+    margin-top: 80px;
+    padding-top: 32px;
+    border-top: 1px solid #e5d5b8;
+    font-size: 12px;
+    color: #8b6f47;
+    font-family: 'Fira Code', monospace;
+    letter-spacing: 0.2em;
+  }
+
+  @media (max-width: 768px) {
+    h1 { font-size: 36px; }
+    .neuron-demo, .gd-grid { grid-template-columns: 1fr; }
+    header::after { font-size: 140px; }
+  }
+</style>
+</head>
+<body>
+<!-- 课程系列统一导航条 · 由脚本注入 -->
+<div id="course-nav-bar">
+  <div class="course-nav-inner">
+    <a href="../lesson02/demo.html" class="course-nav-btn prev" title="机器学习的三种范式"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
+    <a href="../index.html" class="course-nav-center" title="回到课程总览">
+      <span class="nav-current">LESSON 03 / 20</span>
+      <span class="nav-title">神经网络是怎么学的</span>
+    </a>
+    <a href="../lesson04/demo.html" class="course-nav-btn next" title="深度学习革命"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
+  </div>
+</div>
+
+<style id="course-nav-style">
+  #course-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  .course-nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .course-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .course-nav-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .course-nav-btn.disabled {
+    color: #444;
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .course-nav-btn .nav-arrow {
+    font-size: 14px;
+    line-height: 1;
+  }
+  .course-nav-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+    padding: 4px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    min-width: 0;
+  }
+  .course-nav-center:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .nav-current {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .nav-title {
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+    letter-spacing: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body {
+    padding-top: 64px !important;
+  }
+  
+  @media (max-width: 768px) {
+    .course-nav-inner {
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .course-nav-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .course-nav-btn .nav-label {
+      display: none;
+    }
+    .nav-title {
+      font-size: 11px;
+    }
+    .nav-current {
+      font-size: 9px;
+    }
+    body {
+      padding-top: 54px !important;
+    }
+  }
+</style>
+<!-- 课程系列统一导航条 · END -->
+
+<div class="container">
+  <header>
+    <div class="lesson-num">LESSON · 03 / 20</div>
+    <h1>神经网络<br>是怎么<span class="accent">"学"</span>的</h1>
+    <div class="subtitle">
+      不讲数学公式，讲直觉。三个交互演示串起：单个神经元到分层网络再到梯度下降。
+      讲完这一讲，你就理解了从感知机到GPT背后的同一套核心机制。
+    </div>
+  </header>
+
+  <div class="section">
+    <div class="section-marker">CHAPTER · 01</div>
+    <div class="section-title">先看一个神经元在做什么</div>
+    <div class="section-lead">
+      所谓神经网络，最小单位就是一个数学函数。它接收几个输入，每个输入有个权重，加起来再做一次非线性变换，输出一个数。
+      这就是全部。下面拖动滑块，看一个判断"要不要去吃火锅"的神经元怎么工作。
+    </div>
+
+    <div class="neuron-demo">
+      <div class="neuron-controls">
+        <h3>三个决策因素</h3>
+        <p style="font-size:13px; color:#5a5246; margin-bottom:20px; line-height:1.6;">
+          想象一个决定"今晚吃不吃火锅"的神经元，它考虑三个因素，每个因素的权重不同。
+        </p>
+
+        <div class="input-group">
+          <div class="input-row">
+            <span class="input-name">天气冷</span>
+            <input type="range" min="0" max="10" value="7" id="x1" oninput="updateNeuron()">
+            <span class="input-val" id="v_x1">7</span>
+          </div>
+          <div class="input-row">
+            <span class="input-name">朋友邀请</span>
+            <input type="range" min="0" max="10" value="5" id="x2" oninput="updateNeuron()">
+            <span class="input-val" id="v_x2">5</span>
+          </div>
+          <div class="input-row">
+            <span class="input-name">钱包饱满</span>
+            <input type="range" min="0" max="10" value="6" id="x3" oninput="updateNeuron()">
+            <span class="input-val" id="v_x3">6</span>
+          </div>
+        </div>
+
+        <h3 style="margin-top:24px;">权重（神经元学到的）</h3>
+        <p style="font-size:13px; color:#5a5246; margin-bottom:20px; line-height:1.6;">
+          每个因素对结果的影响程度。这些权重是模型从历史数据里学出来的，不是写死的。
+        </p>
+
+        <div class="input-group">
+          <div class="input-row">
+            <span class="input-name">w1 (天气)</span>
+            <input type="range" min="-10" max="10" value="3" id="w1" oninput="updateNeuron()">
+            <span class="input-val" id="v_w1">3</span>
+          </div>
+          <div class="input-row">
+            <span class="input-name">w2 (朋友)</span>
+            <input type="range" min="-10" max="10" value="5" id="w2" oninput="updateNeuron()">
+            <span class="input-val" id="v_w2">5</span>
+          </div>
+          <div class="input-row">
+            <span class="input-name">w3 (钱包)</span>
+            <input type="range" min="-10" max="10" value="2" id="w3" oninput="updateNeuron()">
+            <span class="input-val" id="v_w3">2</span>
+          </div>
+          <div class="input-row">
+            <span class="input-name">b (偏置)</span>
+            <input type="range" min="-50" max="20" value="-30" id="b" oninput="updateNeuron()">
+            <span class="input-val" id="v_b">-30</span>
+          </div>
+        </div>
+
+        <div class="formula">
+          <span class="var">y</span> = activation(<span class="var">w1·x1</span> + <span class="var">w2·x2</span> + <span class="var">w3·x3</span> + <span class="var">b</span>)<br>
+          &nbsp; = activation(<span id="calc_str" class="num">0</span>)<br>
+          &nbsp; = <span id="calc_result" class="num">0</span>
+        </div>
+      </div>
+
+      <div class="neuron-viz">
+        <svg viewBox="0 0 400 280">
+          <circle cx="60" cy="60" r="22" fill="#faf6f1" stroke="#1a1a1a" stroke-width="2"/>
+          <text x="60" y="64" text-anchor="middle" font-family="Fira Code" font-size="11" font-weight="700" id="svg_x1">7</text>
+          <text x="20" y="65" text-anchor="middle" font-size="10" fill="#5a5246">x1</text>
+
+          <circle cx="60" cy="140" r="22" fill="#faf6f1" stroke="#1a1a1a" stroke-width="2"/>
+          <text x="60" y="144" text-anchor="middle" font-family="Fira Code" font-size="11" font-weight="700" id="svg_x2">5</text>
+          <text x="20" y="145" text-anchor="middle" font-size="10" fill="#5a5246">x2</text>
+
+          <circle cx="60" cy="220" r="22" fill="#faf6f1" stroke="#1a1a1a" stroke-width="2"/>
+          <text x="60" y="224" text-anchor="middle" font-family="Fira Code" font-size="11" font-weight="700" id="svg_x3">6</text>
+          <text x="20" y="225" text-anchor="middle" font-size="10" fill="#5a5246">x3</text>
+
+          <line x1="82" y1="60" x2="218" y2="140" stroke="#c69a5b" stroke-width="2"/>
+          <line x1="82" y1="140" x2="218" y2="140" stroke="#c69a5b" stroke-width="2"/>
+          <line x1="82" y1="220" x2="218" y2="140" stroke="#c69a5b" stroke-width="2"/>
+
+          <text x="140" y="92" font-family="Fira Code" font-size="11" fill="#8b6f47" id="lw1">w1=3</text>
+          <text x="140" y="135" font-family="Fira Code" font-size="11" fill="#8b6f47" id="lw2">w2=5</text>
+          <text x="140" y="195" font-family="Fira Code" font-size="11" fill="#8b6f47" id="lw3">w3=2</text>
+
+          <circle cx="240" cy="140" r="32" fill="#1a1a1a"/>
+          <text x="240" y="138" text-anchor="middle" font-family="Fraunces" font-size="11" fill="#c69a5b">∑ + σ</text>
+          <text x="240" y="152" text-anchor="middle" font-family="Fira Code" font-size="9" fill="#faf6f1" id="svg_z">z=10</text>
+
+          <line x1="272" y1="140" x2="350" y2="140" stroke="#1a1a1a" stroke-width="2"/>
+          <polygon points="350,135 360,140 350,145" fill="#1a1a1a"/>
+          <text x="370" y="138" text-anchor="start" font-family="Fira Code" font-size="11" font-weight="700" id="svg_y">y=1</text>
+          <text x="370" y="152" text-anchor="start" font-size="10" fill="#5a5246">输出</text>
+        </svg>
+
+        <div class="output-display">
+          <div class="output-label">激活值</div>
+          <div class="output-value" id="out_value">0.95</div>
+          <div class="output-fire fire-yes" id="out_fire">大于0.5 · 神经元被激活 · 决定吃火锅</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="analogy">
+      <strong>核心比喻</strong>：一个神经元就是一个加权投票器。
+      每个输入有权重（重要性），求和之后看是否超过阈值。
+      超过就激活输出，没超过就沉默。
+      整个神经网络的全部秘密，就藏在<strong>"权重和阈值是怎么调出来的"</strong>这件事里。
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-marker">CHAPTER · 02</div>
+    <div class="section-title">为什么要堆很多层</div>
+    <div class="section-lead">
+      单个神经元只能画一条直线，分不开复杂的形状。但如果把神经元分层堆叠起来，能力会指数级增长。
+      这就是深度学习里"深度"的含义——不是难度深，是层数深。
+    </div>
+
+    <div class="layered-demo">
+      <div class="demo-header">
+        <h3>不同任务需要不同深度的网络</h3>
+        <div class="difficulty-tabs">
+          <button class="diff-tab active" data-arch="simple">简单任务</button>
+          <button class="diff-tab" data-arch="medium">中等任务</button>
+          <button class="diff-tab" data-arch="deep">复杂任务</button>
+        </div>
+      </div>
+
+      <div class="layered-viz">
+        <svg id="network-svg" viewBox="0 0 800 360"></svg>
+      </div>
+
+      <div class="arch-readout">
+        <div class="arch-stat">
+          <div class="label">LAYERS</div>
+          <div class="val" id="stat-layers">3</div>
+        </div>
+        <div class="arch-stat">
+          <div class="label">NEURONS</div>
+          <div class="val" id="stat-neurons">12</div>
+        </div>
+        <div class="arch-stat">
+          <div class="label">PARAMETERS</div>
+          <div class="val" id="stat-params">38</div>
+        </div>
+      </div>
+
+      <div style="margin-top:24px; font-size:14px; line-height:1.8; color:#2a2520;" id="arch-explain">
+        <strong style="font-family:Fraunces; font-size:16px;">简单任务</strong>：
+        分类邮件、识别数字这种任务，几层小网络就够了。每层神经元学习不同抽象层次的特征——
+        浅层抓"有没有这个词"，深层组合成"这是不是营销话术"。
+      </div>
+    </div>
+
+    <div class="insight-block">
+      <h4>这就是特征工程的终结</h4>
+      <p>
+        2012年之前，做图像识别要靠人工写特征：边缘检测、HOG、SIFT，几十个博士搞几年。
+        <span class="hl">深度学习的革命就是把特征工程自动化了</span>，
+        不用人想该提取什么特征，让网络自己分层学。
+        浅层学边缘和颜色，中层学纹理和形状，深层学物体和场景。
+        <br><br>
+        从神经网络到Transformer，从CNN到GPT，<span class="hl">"分层抽象"这个核心思想从未改变</span>。
+        变化的只是怎么把层堆得更高、更宽、更聪明。
+      </p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-marker">CHAPTER · 03</div>
+    <div class="section-title">权重是怎么调出来的</div>
+    <div class="section-lead">
+      前面说神经元有权重，那这些权重一开始是从哪来的？答案是<strong>随机初始化，然后慢慢调</strong>。
+      调的方法叫梯度下降。下面这个演示让你亲手看到"找最低点"的全过程。
+    </div>
+
+    <div class="gd-demo">
+      <h3 style="font-family:Fraunces; font-size:24px; font-weight:700;">在山谷里找最低点</h3>
+      <p style="font-size:14px; color:#5a5246; margin-top:8px; line-height:1.7;">
+        曲线代表损失函数：预测错得越多，值越高。我们的目标是把权重调到曲线最低点。
+        点击曲线选择起点，然后点"开始下降"看小球如何一步步滚到谷底。
+      </p>
+
+      <div class="gd-grid">
+        <div>
+          <div class="gd-canvas-wrap">
+            <canvas id="gd-canvas" width="600" height="320"></canvas>
+            <div class="gd-info">
+              点击曲线任意位置设置起点。学习率太大会越过谷底，太小会走得很慢。
+            </div>
+          </div>
+        </div>
+
+        <div class="gd-controls">
+          <h4>训练超参数</h4>
+
+          <div class="gd-control-row">
+            <label>学习率（Learning Rate）</label>
+            <input type="range" min="1" max="100" value="20" id="lr" oninput="updateLR()">
+            <div class="val-display" id="lr-display">0.20</div>
+          </div>
+
+          <div class="gd-control-row">
+            <label>损失函数形状</label>
+            <input type="range" min="0" max="2" value="0" id="shape" oninput="changeShape()">
+            <div class="val-display" id="shape-display">单谷（凸函数）</div>
+          </div>
+
+          <div class="gd-buttons">
+            <button class="gd-btn primary" id="startGD">开始下降</button>
+            <button class="gd-btn" id="stepGD">单步</button>
+            <button class="gd-btn" id="resetGD">重置</button>
+          </div>
+
+          <div class="gd-stats">
+            <div class="gd-stat">
+              <span class="k">EPOCH</span>
+              <span class="v" id="gd-epoch">0</span>
+            </div>
+            <div class="gd-stat">
+              <span class="k">WEIGHT</span>
+              <span class="v" id="gd-w">0.00</span>
+            </div>
+            <div class="gd-stat">
+              <span class="k">LOSS</span>
+              <span class="v" id="gd-loss">0.00</span>
+            </div>
+            <div class="gd-stat">
+              <span class="k">GRADIENT</span>
+              <span class="v" id="gd-grad">0.00</span>
+            </div>
+          </div>
+
+          <div style="margin-top:16px; font-size:12px; color:#5a5246; line-height:1.7;">
+            梯度告诉你"往哪个方向走、走多陡"。
+            权重更新公式：<span style="font-family:'Fira Code', monospace; color:#c69a5b;">w = w - lr × gradient</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="insight-block">
+      <h4>这就是大模型的训练全过程</h4>
+      <p>
+        训练GPT-4本质上就是在做这件事，<span class="hl">只不过权重不是1个，是1.7万亿个</span>；
+        损失曲线不是2D的山谷，是1.7万亿维空间里的一个超复杂曲面。
+        <br><br>
+        但核心机制完全一样：随机初始化所有权重，喂给模型一批数据，
+        计算它的预测和真实答案之间的损失，再反向计算每个权重该怎么调，调一点点。
+        几百万次重复之后，模型就学好了。
+        <br><br>
+        <span class="hl">学习率太大模型炸掉，太小模型学不动</span>，
+        现实里有更复杂的优化器（Adam、AdamW）和学习率调度策略，但底层思想就是这个滑块。
+      </p>
+    </div>
+
+    <div class="analogy">
+      <strong>形象记忆</strong>：训练一个神经网络就像在浓雾中下山。
+      你看不到山谷在哪，只能用脚感受脚下的坡度（梯度），朝着最陡的下坡方向迈一步。
+      重复几百万次，你就到了谷底——也就是损失最小的那组权重。
+      所谓"训练好的模型"，就是<strong>一组在数据曲面上找到了局部最低点的权重</strong>。
+    </div>
+  </div>
+
+  <footer>
+    AI 系列课程 · 第 03 讲 · 共 20 讲 · 下一讲：深度学习革命，从CNN到Transformer
+  </footer>
+</div>
+
+<script>
+function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+
+function updateNeuron() {
+  const x1 = +document.getElementById('x1').value;
+  const x2 = +document.getElementById('x2').value;
+  const x3 = +document.getElementById('x3').value;
+  const w1 = +document.getElementById('w1').value;
+  const w2 = +document.getElementById('w2').value;
+  const w3 = +document.getElementById('w3').value;
+  const b = +document.getElementById('b').value;
+
+  document.getElementById('v_x1').textContent = x1;
+  document.getElementById('v_x2').textContent = x2;
+  document.getElementById('v_x3').textContent = x3;
+  document.getElementById('v_w1').textContent = w1;
+  document.getElementById('v_w2').textContent = w2;
+  document.getElementById('v_w3').textContent = w3;
+  document.getElementById('v_b').textContent = b;
+
+  document.getElementById('svg_x1').textContent = x1;
+  document.getElementById('svg_x2').textContent = x2;
+  document.getElementById('svg_x3').textContent = x3;
+  document.getElementById('lw1').textContent = `w1=${w1}`;
+  document.getElementById('lw2').textContent = `w2=${w2}`;
+  document.getElementById('lw3').textContent = `w3=${w3}`;
+
+  const z = w1*x1 + w2*x2 + w3*x3 + b;
+  const y = sigmoid(z);
+
+  document.getElementById('calc_str').textContent =
+    `${w1*x1} + ${w2*x2} + ${w3*x3} + (${b}) = ${z}`;
+  document.getElementById('calc_result').textContent = y.toFixed(3);
+  document.getElementById('svg_z').textContent = `z=${z}`;
+  document.getElementById('svg_y').textContent = `y=${y.toFixed(2)}`;
+
+  document.getElementById('out_value').textContent = y.toFixed(2);
+  const fire = document.getElementById('out_fire');
+  if (y > 0.5) {
+    fire.textContent = '大于0.5 · 神经元被激活 · 决定吃火锅';
+    fire.className = 'output-fire fire-yes';
+  } else {
+    fire.textContent = '小于0.5 · 神经元未激活 · 不去吃';
+    fire.className = 'output-fire fire-no';
+  }
+}
+updateNeuron();
+
+// 第二节：分层网络
+const archs = {
+  simple: { layers: [3, 4, 2], desc: '<strong style="font-family:Fraunces; font-size:16px;">简单任务</strong>：分类邮件、识别数字这种任务，几层小网络就够了。每层神经元学习不同抽象层次的特征——浅层抓"有没有某个词"，深层组合成"这是不是营销话术"。' },
+  medium: { layers: [4, 8, 8, 6, 3], desc: '<strong style="font-family:Fraunces; font-size:16px;">中等任务</strong>：商品推荐、人脸识别、语音识别这一档。层数和宽度都增加，能学习更复杂的特征组合。这种规模的网络在2010年代中后期非常普遍。' },
+  deep: { layers: [6, 10, 14, 14, 10, 6, 3], desc: '<strong style="font-family:Fraunces; font-size:16px;">复杂任务</strong>：图像生成、机器翻译、聊天对话。GPT-4据说有100多层、上万维度。深度让模型能形成层层递进的抽象——从字符到词，到短语，到句意，到段落主题，到全文逻辑。' }
+};
+
+function drawNetwork(arch) {
+  const svg = document.getElementById('network-svg');
+  svg.innerHTML = '';
+  const layers = archs[arch].layers;
+  const W = 800, H = 360;
+  const layerSpacing = W / (layers.length + 1);
+  const positions = [];
+
+  layers.forEach((count, li) => {
+    const x = (li + 1) * layerSpacing;
+    const layer = [];
+    const totalH = (count - 1) * 32;
+    const startY = (H - totalH) / 2;
+    for (let i = 0; i < count; i++) {
+      layer.push({ x, y: startY + i * 32 });
+    }
+    positions.push(layer);
+  });
+
+  // 连线
+  for (let i = 0; i < positions.length - 1; i++) {
+    positions[i].forEach(p1 => {
+      positions[i+1].forEach(p2 => {
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', p1.x);
+        line.setAttribute('y1', p1.y);
+        line.setAttribute('x2', p2.x);
+        line.setAttribute('y2', p2.y);
+        line.setAttribute('stroke', '#c69a5b');
+        line.setAttribute('stroke-width', '0.4');
+        line.setAttribute('opacity', '0.4');
+        svg.appendChild(line);
+      });
+    });
+  }
+
+  // 神经元
+  positions.forEach((layer, li) => {
+    layer.forEach(p => {
+      const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      c.setAttribute('cx', p.x);
+      c.setAttribute('cy', p.y);
+      c.setAttribute('r', '7');
+      c.setAttribute('fill', li === 0 ? '#faf6f1' : (li === positions.length - 1 ? '#1a1a1a' : '#c69a5b'));
+      c.setAttribute('stroke', '#1a1a1a');
+      c.setAttribute('stroke-width', '1.5');
+      svg.appendChild(c);
+    });
+
+    // 层标签
+    const labels = ['INPUT', 'HIDDEN', 'OUTPUT'];
+    let label;
+    if (li === 0) label = 'INPUT';
+    else if (li === positions.length - 1) label = 'OUTPUT';
+    else label = `HIDDEN ${li}`;
+
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', layer[0].x);
+    t.setAttribute('y', H - 16);
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('font-family', 'Fira Code');
+    t.setAttribute('font-size', '10');
+    t.setAttribute('fill', '#8b6f47');
+    t.setAttribute('letter-spacing', '0.2em');
+    t.textContent = label;
+    svg.appendChild(t);
+  });
+
+  // 计算参数数量
+  let params = 0;
+  for (let i = 0; i < layers.length - 1; i++) {
+    params += layers[i] * layers[i+1] + layers[i+1];
+  }
+  const totalNeurons = layers.reduce((a,b) => a+b, 0);
+  document.getElementById('stat-layers').textContent = layers.length;
+  document.getElementById('stat-neurons').textContent = totalNeurons;
+  document.getElementById('stat-params').textContent = params;
+  document.getElementById('arch-explain').innerHTML = archs[arch].desc;
+}
+drawNetwork('simple');
+
+document.querySelectorAll('.diff-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.diff-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    drawNetwork(tab.dataset.arch);
+  });
+});
+
+// 第三节：梯度下降
+const canvas = document.getElementById('gd-canvas');
+const ctx = canvas.getContext('2d');
+let W = canvas.width, H = canvas.height;
+
+function resizeCanvas() {
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * 2;
+  canvas.height = 320 * 2;
+  ctx.scale(2, 2);
+  W = rect.width;
+  H = 320;
+}
+
+let currentShape = 0;
+let currentW = 0;
+let lr = 0.2;
+let epoch = 0;
+let path = [];
+let intervalId = null;
+
+function loss(w, shape) {
+  if (shape === 0) {
+    return (w - 1) * (w - 1) + 0.5;
+  } else if (shape === 1) {
+    return 0.05 * w * w * w * w - 0.5 * w * w + 0.4 * w + 2;
+  } else {
+    return 0.6 + 0.5 * Math.sin(w * 1.5) + 0.05 * w * w;
+  }
+}
+
+function gradient(w, shape) {
+  const eps = 0.001;
+  return (loss(w + eps, shape) - loss(w - eps, shape)) / (2 * eps);
+}
+
+function w_to_x(w) { return W * 0.5 + w * (W * 0.18); }
+function x_to_w(x) { return (x - W * 0.5) / (W * 0.18); }
+function loss_to_y(l) { return H - 30 - l * (H * 0.16); }
+
+function drawCurve() {
+  setTimeout(() => {
+    if (canvas.width !== canvas.getBoundingClientRect().width * 2) {
+      resizeCanvas();
+    }
+
+    ctx.clearRect(0, 0, W, H);
+
+    // 网格
+    ctx.strokeStyle = '#e5d5b8';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 10; i++) {
+      const x = i * W / 10;
+      ctx.beginPath();
+      ctx.moveTo(x, 0); ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+    for (let i = 0; i <= 6; i++) {
+      const y = i * H / 6;
+      ctx.beginPath();
+      ctx.moveTo(0, y); ctx.lineTo(W, y);
+      ctx.stroke();
+    }
+
+    // 损失曲线
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let started = false;
+    for (let px = 0; px < W; px++) {
+      const w = x_to_w(px);
+      const l = loss(w, currentShape);
+      const py = loss_to_y(l);
+      if (py < 0 || py > H) { started = false; continue; }
+      if (!started) { ctx.moveTo(px, py); started = true; }
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // 路径
+    if (path.length > 1) {
+      ctx.strokeStyle = '#c69a5b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      path.forEach((p, i) => {
+        const px = w_to_x(p.w);
+        const py = loss_to_y(p.l);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+
+      path.forEach((p) => {
+        const px = w_to_x(p.w);
+        const py = loss_to_y(p.l);
+        ctx.fillStyle = '#c69a5b';
+        ctx.beginPath();
+        ctx.arc(px, py, 3, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    // 当前球
+    const curL = loss(currentW, currentShape);
+    const cx = w_to_x(currentW);
+    const cy = loss_to_y(curL);
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#c69a5b';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 坐标轴标签
+    ctx.fillStyle = '#8b6f47';
+    ctx.font = '11px "Fira Code"';
+    ctx.fillText('weight', W - 50, H - 8);
+    ctx.fillText('loss', 8, 18);
+
+    // 更新右侧stats
+    document.getElementById('gd-w').textContent = currentW.toFixed(2);
+    document.getElementById('gd-loss').textContent = curL.toFixed(3);
+    document.getElementById('gd-grad').textContent = gradient(currentW, currentShape).toFixed(3);
+    document.getElementById('gd-epoch').textContent = epoch;
+  }, 0);
+}
+
+window.addEventListener('load', () => {
+  resizeCanvas();
+  drawCurve();
+});
+window.addEventListener('resize', () => {
+  resizeCanvas();
+  drawCurve();
+});
+
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const cx = e.clientX - rect.left;
+  currentW = x_to_w(cx);
+  if (currentW < -3) currentW = -3;
+  if (currentW > 3) currentW = 3;
+  path = [{w: currentW, l: loss(currentW, currentShape)}];
+  epoch = 0;
+  if (intervalId) { clearInterval(intervalId); intervalId = null; }
+  drawCurve();
+});
+
+document.getElementById('lr').addEventListener('input', updateLR);
+function updateLR() {
+  lr = +document.getElementById('lr').value / 100;
+  document.getElementById('lr-display').textContent = lr.toFixed(2);
+}
+
+document.getElementById('shape').addEventListener('input', changeShape);
+function changeShape() {
+  currentShape = +document.getElementById('shape').value;
+  const labels = ['单谷（凸函数）', '双谷（容易陷入局部最优）', '波浪（多个局部最优）'];
+  document.getElementById('shape-display').textContent = labels[currentShape];
+  currentW = 0;
+  path = [];
+  epoch = 0;
+  if (intervalId) { clearInterval(intervalId); intervalId = null; }
+  drawCurve();
+}
+
+function gdStep() {
+  const g = gradient(currentW, currentShape);
+  currentW = currentW - lr * g;
+  if (currentW < -4) currentW = -4;
+  if (currentW > 4) currentW = 4;
+  epoch++;
+  path.push({w: currentW, l: loss(currentW, currentShape)});
+  if (path.length > 50) path.shift();
+  drawCurve();
+  if (Math.abs(g) < 0.01 || epoch > 100) {
+    if (intervalId) { clearInterval(intervalId); intervalId = null; document.getElementById('startGD').textContent = '开始下降'; }
+  }
+}
+
+document.getElementById('startGD').addEventListener('click', () => {
+  if (intervalId) {
+    clearInterval(intervalId);
+    intervalId = null;
+    document.getElementById('startGD').textContent = '开始下降';
+  } else {
+    document.getElementById('startGD').textContent = '暂停';
+    intervalId = setInterval(gdStep, 200);
+  }
+});
+
+document.getElementById('stepGD').addEventListener('click', gdStep);
+
+document.getElementById('resetGD').addEventListener('click', () => {
+  currentW = 0;
+  path = [];
+  epoch = 0;
+  if (intervalId) { clearInterval(intervalId); intervalId = null; document.getElementById('startGD').textContent = '开始下降'; }
+  drawCurve();
+});
+</script>
+</body>
+</html>

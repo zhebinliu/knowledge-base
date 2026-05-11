@@ -1,0 +1,1535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第13讲｜多Agent系统设计</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', 'Inter', sans-serif;
+    background: #f5f3ee;
+    color: #1a1d2e;
+    min-height: 100vh;
+    padding: 24px;
+    line-height: 1.6;
+  }
+  .container { max-width: 1280px; margin: 0 auto; }
+
+  header {
+    background: linear-gradient(135deg, #1a1d2e 0%, #2a2f4a 100%);
+    color: #f5f3ee;
+    padding: 60px 56px;
+    margin-bottom: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: 
+      radial-gradient(circle at 20% 30%, rgba(196, 152, 214, 0.08) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(125, 168, 196, 0.08) 0%, transparent 50%);
+  }
+  
+  .lesson-tag {
+    display: inline-block;
+    padding: 6px 14px;
+    background: #c498d6;
+    color: #1a1d2e;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    margin-bottom: 24px;
+    position: relative;
+    z-index: 1;
+  }
+  h1 {
+    font-family: 'Cormorant Garamond', 'Inter', serif;
+    font-size: 92px;
+    font-weight: 500;
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    margin-bottom: 14px;
+    position: relative;
+    z-index: 1;
+    font-style: italic;
+  }
+  h1 .accent {
+    color: #c498d6;
+    font-style: normal;
+    font-weight: 700;
+  }
+  h1 .normal {
+    font-family: 'Inter', sans-serif;
+    font-style: normal;
+    font-weight: 700;
+    font-size: 80px;
+  }
+  .h1-cn {
+    font-size: 26px;
+    font-weight: 600;
+    margin-top: 12px;
+    color: #b8b8c8;
+    position: relative;
+    z-index: 1;
+    font-family: 'Inter', 'Noto Sans SC', sans-serif;
+  }
+  .subtitle {
+    margin-top: 22px;
+    font-size: 16px;
+    color: #b8b8c8;
+    line-height: 1.85;
+    max-width: 720px;
+    position: relative;
+    z-index: 1;
+  }
+  .subtitle strong { color: #c498d6; font-weight: 500; }
+
+  .section {
+    background: #fff;
+    padding: 44px 48px;
+    margin-bottom: 24px;
+    border: 1px solid #e0dccf;
+  }
+  .section.dark {
+    background: #1a1d2e;
+    color: #f5f3ee;
+    border-color: #2a2f4a;
+  }
+  .section.tinted {
+    background: #ebe6dc;
+    border-color: #d8d0bf;
+  }
+  
+  .section-marker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #8a6b9c;
+    letter-spacing: 0.3em;
+    margin-bottom: 8px;
+  }
+  .section.dark .section-marker { color: #c498d6; }
+  
+  .section-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 48px;
+    font-weight: 500;
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    margin-bottom: 8px;
+    font-style: italic;
+  }
+  .section-title .accent { color: #8a6b9c; font-style: normal; font-weight: 700; }
+  .section.dark .section-title .accent { color: #c498d6; }
+  .section-title .b {
+    font-family: 'Inter', sans-serif;
+    font-style: normal;
+    font-weight: 700;
+    font-size: 42px;
+  }
+  
+  .section-cn {
+    font-size: 22px;
+    font-weight: 600;
+    margin-top: 4px;
+    font-family: 'Inter', 'Noto Sans SC', sans-serif;
+  }
+  .section-lead {
+    margin-top: 16px;
+    font-size: 15px;
+    line-height: 1.85;
+    max-width: 800px;
+    color: #5a5a6c;
+  }
+  .section.dark .section-lead { color: #b8b8c8; }
+
+  /* 第一节：单Agent的边界 */
+  .limits-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-top: 32px;
+  }
+  .limit-card {
+    background: #fafaf6;
+    border: 1px solid #e0dccf;
+    padding: 24px 28px;
+    border-left: 4px solid #cc6b6b;
+  }
+  .limit-card h4 {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: #1a1d2e;
+  }
+  .limit-card p {
+    font-size: 13px;
+    color: #5a5a6c;
+    line-height: 1.8;
+  }
+  .limit-card p strong { color: #1a1d2e; }
+  .limit-example {
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: #fff;
+    border-left: 2px solid #cc6b6b;
+    font-size: 12px;
+    line-height: 1.7;
+    color: #5a5a6c;
+    font-style: italic;
+  }
+
+  /* 第二节：协作模式 */
+  .patterns-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 32px;
+  }
+  .pattern-card {
+    background: #1a1d2e;
+    color: #f5f3ee;
+    padding: 0;
+    border: 1px solid #2a2f4a;
+    overflow: hidden;
+  }
+  .pattern-canvas {
+    background: #2a2f4a;
+    height: 240px;
+    position: relative;
+    padding: 20px;
+  }
+  .pattern-canvas svg {
+    width: 100%;
+    height: 100%;
+  }
+  .pattern-info {
+    padding: 22px 26px;
+  }
+  .pattern-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #c498d6;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .pattern-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 26px;
+    font-style: italic;
+    margin-bottom: 4px;
+  }
+  .pattern-en {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #b8b8c8;
+    letter-spacing: 0.15em;
+    margin-bottom: 14px;
+  }
+  .pattern-desc {
+    font-size: 13px;
+    line-height: 1.85;
+    color: #d4d4dc;
+    margin-bottom: 12px;
+  }
+  .pattern-desc strong { color: #c498d6; }
+  .pattern-when {
+    font-size: 12px;
+    line-height: 1.7;
+    color: #c498d6;
+    padding: 10px 14px;
+    background: rgba(196, 152, 214, 0.08);
+    border-left: 2px solid #c498d6;
+  }
+
+  /* 第三节：CRM案例 */
+  .case-section {
+    background: #ebe6dc;
+    padding: 36px;
+    margin-top: 32px;
+    border: 1px solid #d8d0bf;
+  }
+  .case-task {
+    background: #1a1d2e;
+    color: #f5f3ee;
+    padding: 18px 24px;
+    margin-bottom: 24px;
+  }
+  .case-task-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #c498d6;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .case-task-text {
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1.5;
+  }
+  
+  .agent-team {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .team-agent {
+    background: #fff;
+    border: 1px solid #d8d0bf;
+    padding: 18px;
+    border-top: 3px solid #8a6b9c;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .team-agent:hover {
+    background: #1a1d2e;
+    color: #f5f3ee;
+    border-color: #c498d6;
+  }
+  .team-agent:hover .agent-role { color: #c498d6; }
+  .team-agent.active {
+    background: #1a1d2e;
+    color: #f5f3ee;
+    border-color: #c498d6;
+  }
+  .team-agent.active .agent-role { color: #c498d6; }
+  
+  .agent-icon {
+    width: 40px;
+    height: 40px;
+    background: #8a6b9c;
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px;
+    font-style: italic;
+    font-weight: 700;
+    margin: 0 auto 12px;
+  }
+  .team-agent.active .agent-icon { background: #c498d6; }
+  .agent-role {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #8a6b9c;
+    letter-spacing: 0.15em;
+    margin-bottom: 4px;
+  }
+  .agent-name {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  
+  .agent-detail {
+    background: #fff;
+    border: 1px solid #d8d0bf;
+    padding: 28px 32px;
+    min-height: 200px;
+  }
+  .agent-detail h4 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 26px;
+    font-style: italic;
+    margin-bottom: 6px;
+    color: #1a1d2e;
+  }
+  .agent-detail .role-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #8a6b9c;
+    letter-spacing: 0.15em;
+    margin-bottom: 16px;
+  }
+  .agent-detail p {
+    font-size: 13px;
+    line-height: 1.85;
+    color: #5a5a6c;
+    margin-bottom: 10px;
+  }
+  .agent-detail p strong { color: #8a6b9c; }
+  .agent-detail .resp-list {
+    margin-top: 10px;
+    padding: 14px 18px;
+    background: #fafaf6;
+    border-left: 3px solid #8a6b9c;
+  }
+  .agent-detail .resp-list h5 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #8a6b9c;
+    letter-spacing: 0.2em;
+    margin-bottom: 8px;
+  }
+  .agent-detail .resp-list ul {
+    list-style: none;
+  }
+  .agent-detail .resp-list li {
+    font-size: 13px;
+    line-height: 1.85;
+    color: #1a1d2e;
+    padding-left: 16px;
+    position: relative;
+  }
+  .agent-detail .resp-list li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: #8a6b9c;
+  }
+
+  /* 第四节：编排模式 */
+  .orch-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 32px;
+  }
+  .orch-card {
+    background: #fafaf6;
+    border: 1px solid #e0dccf;
+    padding: 26px;
+    border-top: 3px solid #c498d6;
+  }
+  .orch-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #8a6b9c;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .orch-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 28px;
+    font-style: italic;
+    margin-bottom: 4px;
+  }
+  .orch-en {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #5a5a6c;
+    letter-spacing: 0.15em;
+    margin-bottom: 14px;
+  }
+  .orch-card p {
+    font-size: 13px;
+    color: #1a1d2e;
+    line-height: 1.85;
+    margin-bottom: 8px;
+  }
+  .orch-card p strong { color: #8a6b9c; }
+  .orch-meta {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    margin-top: 14px;
+    font-size: 12px;
+  }
+  .orch-meta .meta-row {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px dashed #d8d0bf;
+  }
+  .orch-meta .meta-label {
+    font-family: 'JetBrains Mono', monospace;
+    color: #8a6b9c;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+  }
+  .orch-meta .meta-val {
+    color: #1a1d2e;
+    line-height: 1.7;
+  }
+
+  /* 第五节：避坑 */
+  .pitfalls {
+    margin-top: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .pitfall {
+    background: #fff;
+    border: 1px solid #e0dccf;
+    padding: 22px 26px;
+    display: grid;
+    grid-template-columns: 50px 1fr;
+    gap: 18px;
+    border-left: 3px solid #cc6b6b;
+  }
+  .pitfall-num {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 32px;
+    font-style: italic;
+    color: #cc6b6b;
+    line-height: 1;
+  }
+  .pitfall-content h5 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .pitfall-content p {
+    font-size: 13px;
+    color: #5a5a6c;
+    line-height: 1.8;
+  }
+  .pitfall-content p strong { color: #1a1d2e; }
+  .pitfall-fix {
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: #ebe6dc;
+    border-left: 2px solid #8a6b9c;
+    font-size: 13px;
+    color: #1a1d2e;
+    line-height: 1.7;
+  }
+  .pitfall-fix strong { color: #8a6b9c; }
+
+  /* 第六节：决策框架 */
+  .decision-section {
+    background: #1a1d2e;
+    color: #f5f3ee;
+    padding: 44px 48px;
+    margin-bottom: 24px;
+  }
+  .decision-tree {
+    margin-top: 28px;
+    background: #2a2f4a;
+    padding: 30px;
+  }
+  .decision-step {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 18px;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #3a3f5a;
+  }
+  .decision-step:last-child { border-bottom: none; }
+  
+  .decision-q {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-style: italic;
+    color: #c498d6;
+    line-height: 1;
+  }
+  .decision-content {
+    font-size: 14px;
+    line-height: 1.85;
+  }
+  .decision-content .q {
+    font-weight: 700;
+    color: #f5f3ee;
+    margin-bottom: 8px;
+    font-size: 15px;
+  }
+  .decision-content .answers {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .decision-content .ans {
+    padding: 8px 12px;
+    background: #1a1d2e;
+    border-left: 2px solid #c498d6;
+    font-size: 13px;
+    color: #d4d4dc;
+  }
+  .decision-content .ans strong { color: #c498d6; }
+
+  /* 总结 */
+  .summary {
+    background: #fff;
+    border: 1px solid #e0dccf;
+    border-left: 4px solid #8a6b9c;
+    padding: 48px;
+    margin-bottom: 24px;
+  }
+  .summary h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 38px;
+    font-style: italic;
+    margin-bottom: 22px;
+    color: #1a1d2e;
+    line-height: 1.15;
+  }
+  .summary h3 .accent {
+    color: #8a6b9c;
+    font-style: normal;
+    font-weight: 700;
+  }
+  .summary p {
+    font-size: 15px;
+    line-height: 1.9;
+    margin-bottom: 14px;
+    color: #1a1d2e;
+  }
+  .summary p strong { color: #8a6b9c; font-weight: 600; }
+  
+  .summary-quote {
+    background: #ebe6dc;
+    border-left: 3px solid #8a6b9c;
+    padding: 22px 28px;
+    margin: 22px 0;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    line-height: 1.5;
+    color: #1a1d2e;
+    font-style: italic;
+  }
+
+  footer {
+    text-align: center;
+    margin-top: 36px;
+    padding: 22px;
+    background: #1a1d2e;
+    color: #5a5a6c;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.2em;
+  }
+
+  @media (max-width: 768px) {
+    h1 { font-size: 56px; }
+    h1 .normal { font-size: 48px; }
+    .section, .summary, .decision-section, .case-section { padding: 28px 22px; }
+    .limits-grid, .patterns-grid, .agent-team, .orch-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<!-- 课程系列统一导航条 · 由脚本注入 -->
+<div id="course-nav-bar">
+  <div class="course-nav-inner">
+    <a href="../lesson12/demo.html" class="course-nav-btn prev" title="Agent：从单轮对话到自主任务"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
+    <a href="../index.html" class="course-nav-center" title="回到课程总览">
+      <span class="nav-current">LESSON 13 / 20</span>
+      <span class="nav-title">多Agent系统设计</span>
+    </a>
+    <a href="../lesson14/demo.html" class="course-nav-btn next" title="AI应用的评估与可观测性"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
+  </div>
+</div>
+
+<style id="course-nav-style">
+  #course-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  .course-nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .course-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .course-nav-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .course-nav-btn.disabled {
+    color: #444;
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .course-nav-btn .nav-arrow {
+    font-size: 14px;
+    line-height: 1;
+  }
+  .course-nav-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+    padding: 4px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    min-width: 0;
+  }
+  .course-nav-center:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .nav-current {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .nav-title {
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+    letter-spacing: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body {
+    padding-top: 64px !important;
+  }
+  
+  @media (max-width: 768px) {
+    .course-nav-inner {
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .course-nav-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .course-nav-btn .nav-label {
+      display: none;
+    }
+    .nav-title {
+      font-size: 11px;
+    }
+    .nav-current {
+      font-size: 9px;
+    }
+    body {
+      padding-top: 54px !important;
+    }
+  }
+</style>
+<!-- 课程系列统一导航条 · END -->
+
+<div class="container">
+  <header>
+    <div class="lesson-tag">LESSON 13 / 20</div>
+    <h1><span class="normal">FROM ONE</span><br><em>to</em> <span class="accent">MANY</span></h1>
+    <div class="h1-cn">多Agent系统设计</div>
+    <div class="subtitle">
+      上一讲单Agent能干很多事——但企业级业务流程不是一个Agent能扛的。
+      <strong>专业化分工</strong>是软件工程亘古不变的真理。
+      今天我们看：多个Agent如何协作完成复杂任务，又如何不变成一锅粥。
+    </div>
+  </header>
+
+  <!-- 第一节：单Agent的边界 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 01</div>
+    <div class="section-title">WHEN <em>ONE</em> <span class="accent">IS NOT ENOUGH</span></div>
+    <div class="section-cn">单Agent扛不住的四种场景</div>
+    <div class="section-lead">
+      Agent很强大——但不是所有任务都该用一个Agent。
+      下面四种情况，<strong>单Agent会出问题</strong>，你需要专业分工。
+    </div>
+
+    <div class="limits-grid">
+      <div class="limit-card">
+        <h4>边界 #1 · 任务太复杂，工具集太大</h4>
+        <p>
+          一个Agent接30+个工具，<strong>它会"忘记"自己有什么</strong>，调错工具。
+          就像让一个人同时当销售、客服、财务、技术——什么都懂一点，什么都做不精。
+        </p>
+        <div class="limit-example">
+          实测：超过15个工具时，调用准确率从92%掉到67%
+        </div>
+      </div>
+
+      <div class="limit-card">
+        <h4>边界 #2 · 涉及多种专业领域</h4>
+        <p>
+          需求分析、合同审核、技术方案、定价策略——<strong>每个领域都需要不同的"心智"</strong>。
+          同一个Prompt和工具集，无法同时让Agent在多个领域都做到专家水平。
+        </p>
+        <div class="limit-example">
+          做销售方案时让Agent兼顾合规审查，会两头都做不好
+        </div>
+      </div>
+
+      <div class="limit-card">
+        <h4>边界 #3 · 需要多视角和"质疑"</h4>
+        <p>
+          一个Agent给的答案就像"一个人独自做决定"——<strong>没有审核、没有质疑、没有不同视角</strong>。
+          重要决策需要"多个角色"互相验证。
+        </p>
+        <div class="limit-example">
+          客户合同条款不利？销售可能放过，但合规Agent会拦下
+        </div>
+      </div>
+
+      <div class="limit-card">
+        <h4>边界 #4 · 流程跨多个角色</h4>
+        <p>
+          真实业务流程往往涉及多角色——销售提单→风控审核→财务定价→法务合规→交付。
+          <strong>这种流程天然就是多Agent协作的形态</strong>，硬塞到一个Agent里反而别扭。
+        </p>
+        <div class="limit-example">
+          就像让一个员工独自走完所有部门的审批
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 第二节：协作模式 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 02</div>
+    <div class="section-title"><em>FOUR</em> <span class="accent">COLLABORATION</span> PATTERNS</div>
+    <div class="section-cn">多Agent协作的4种基础模式</div>
+    <div class="section-lead">
+      不同任务匹配不同协作方式。下面是2024-2025年生产环境最常见的4种模式。
+      <strong>每种都有它适合的场景，不存在"最好的"</strong>。
+    </div>
+
+    <div class="patterns-grid">
+      <!-- Pattern 1: Supervisor -->
+      <div class="pattern-card">
+        <div class="pattern-canvas">
+          <svg viewBox="0 0 300 200">
+            <circle cx="150" cy="40" r="22" fill="#c498d6"/>
+            <text x="150" y="46" text-anchor="middle" fill="#1a1d2e" font-family="Cormorant Garamond" font-size="14" font-style="italic" font-weight="700">S</text>
+            <circle cx="60" cy="150" r="18" fill="#7da8c4"/>
+            <text x="60" y="155" text-anchor="middle" fill="#fff" font-family="Cormorant Garamond" font-size="12" font-style="italic" font-weight="700">A1</text>
+            <circle cx="150" cy="150" r="18" fill="#7da8c4"/>
+            <text x="150" y="155" text-anchor="middle" fill="#fff" font-family="Cormorant Garamond" font-size="12" font-style="italic" font-weight="700">A2</text>
+            <circle cx="240" cy="150" r="18" fill="#7da8c4"/>
+            <text x="240" y="155" text-anchor="middle" fill="#fff" font-family="Cormorant Garamond" font-size="12" font-style="italic" font-weight="700">A3</text>
+            <line x1="138" y1="55" x2="72" y2="135" stroke="#c498d6" stroke-width="1.5"/>
+            <line x1="150" y1="62" x2="150" y2="132" stroke="#c498d6" stroke-width="1.5"/>
+            <line x1="162" y1="55" x2="228" y2="135" stroke="#c498d6" stroke-width="1.5"/>
+            <text x="150" y="20" text-anchor="middle" fill="#c498d6" font-family="JetBrains Mono" font-size="10" letter-spacing="2">SUPERVISOR</text>
+          </svg>
+        </div>
+        <div class="pattern-info">
+          <div class="pattern-num">PATTERN · 01</div>
+          <div class="pattern-name">Supervisor</div>
+          <div class="pattern-en">CENTRALIZED · 中心化分发</div>
+          <div class="pattern-desc">
+            一个 <strong>主管Agent</strong> 接收任务，根据任务性质<strong>路由给专业子Agent</strong>。
+            子Agent完成后把结果交回主管，主管整合后返回给用户。
+          </div>
+          <div class="pattern-when">
+            适用：客服系统（不同问题路由到不同专家）、产品经理统一调度团队
+          </div>
+        </div>
+      </div>
+
+      <!-- Pattern 2: Pipeline -->
+      <div class="pattern-card">
+        <div class="pattern-canvas">
+          <svg viewBox="0 0 300 200">
+            <circle cx="40" cy="100" r="20" fill="#7da8c4"/>
+            <text x="40" y="105" text-anchor="middle" fill="#fff" font-family="Cormorant Garamond" font-size="14" font-style="italic" font-weight="700">A1</text>
+            <circle cx="115" cy="100" r="20" fill="#7da8c4"/>
+            <text x="115" y="105" text-anchor="middle" fill="#fff" font-family="Cormorant Garamond" font-size="14" font-style="italic" font-weight="700">A2</text>
+            <circle cx="190" cy="100" r="20" fill="#7da8c4"/>
+            <text x="190" y="105" text-anchor="middle" fill="#fff" font-family="Cormorant Garamond" font-size="14" font-style="italic" font-weight="700">A3</text>
+            <circle cx="265" cy="100" r="20" fill="#c498d6"/>
+            <text x="265" y="105" text-anchor="middle" fill="#1a1d2e" font-family="Cormorant Garamond" font-size="14" font-style="italic" font-weight="700">A4</text>
+            <line x1="60" y1="100" x2="95" y2="100" stroke="#c498d6" stroke-width="2"/>
+            <polygon points="95,100 88,96 88,104" fill="#c498d6"/>
+            <line x1="135" y1="100" x2="170" y2="100" stroke="#c498d6" stroke-width="2"/>
+            <polygon points="170,100 163,96 163,104" fill="#c498d6"/>
+            <line x1="210" y1="100" x2="245" y2="100" stroke="#c498d6" stroke-width="2"/>
+            <polygon points="245,100 238,96 238,104" fill="#c498d6"/>
+            <text x="150" y="180" text-anchor="middle" fill="#c498d6" font-family="JetBrains Mono" font-size="10" letter-spacing="2">SEQUENTIAL HANDOFF</text>
+          </svg>
+        </div>
+        <div class="pattern-info">
+          <div class="pattern-num">PATTERN · 02</div>
+          <div class="pattern-name">Pipeline</div>
+          <div class="pattern-en">SEQUENTIAL · 流水线</div>
+          <div class="pattern-desc">
+            多个Agent <strong>按固定顺序处理</strong>，前一个的输出是后一个的输入。
+            像工厂流水线——每个工位做一件事，完了交给下一个。
+          </div>
+          <div class="pattern-when">
+            适用：流程固定的业务（合同审批、订单处理）、内容生产管线
+          </div>
+        </div>
+      </div>
+
+      <!-- Pattern 3: Debate -->
+      <div class="pattern-card">
+        <div class="pattern-canvas">
+          <svg viewBox="0 0 300 200">
+            <circle cx="80" cy="100" r="25" fill="#7da8c4"/>
+            <text x="80" y="106" text-anchor="middle" fill="#fff" font-family="Cormorant Garamond" font-size="14" font-style="italic" font-weight="700">Pro</text>
+            <circle cx="220" cy="100" r="25" fill="#cc6b6b"/>
+            <text x="220" y="106" text-anchor="middle" fill="#fff" font-family="Cormorant Garamond" font-size="13" font-style="italic" font-weight="700">Con</text>
+            <line x1="105" y1="100" x2="195" y2="100" stroke="#c498d6" stroke-width="1.5" stroke-dasharray="4,4"/>
+            <polygon points="195,100 188,96 188,104" fill="#c498d6"/>
+            <polygon points="105,100 112,96 112,104" fill="#c498d6"/>
+            <circle cx="150" cy="40" r="18" fill="#c498d6"/>
+            <text x="150" y="46" text-anchor="middle" fill="#1a1d2e" font-family="Cormorant Garamond" font-size="13" font-style="italic" font-weight="700">J</text>
+            <line x1="80" y1="75" x2="135" y2="50" stroke="#c498d6" stroke-width="1.5" stroke-dasharray="3,3"/>
+            <line x1="220" y1="75" x2="165" y2="50" stroke="#c498d6" stroke-width="1.5" stroke-dasharray="3,3"/>
+            <text x="150" y="180" text-anchor="middle" fill="#c498d6" font-family="JetBrains Mono" font-size="10" letter-spacing="2">DEBATE / JUDGE</text>
+          </svg>
+        </div>
+        <div class="pattern-info">
+          <div class="pattern-num">PATTERN · 03</div>
+          <div class="pattern-name">Debate</div>
+          <div class="pattern-en">ADVERSARIAL · 对抗辩论</div>
+          <div class="pattern-desc">
+            两个Agent持<strong>对立立场辩论</strong>（Pro vs Con），第三个Agent作为<strong>裁判（Judge）</strong>评估并给出最终结论。
+            质疑式协作。
+          </div>
+          <div class="pattern-when">
+            适用：高风险决策（合规审查、合同条款）、需要批判思维的场景
+          </div>
+        </div>
+      </div>
+
+      <!-- Pattern 4: Hierarchical -->
+      <div class="pattern-card">
+        <div class="pattern-canvas">
+          <svg viewBox="0 0 300 200">
+            <circle cx="150" cy="30" r="20" fill="#c498d6"/>
+            <text x="150" y="36" text-anchor="middle" fill="#1a1d2e" font-family="Cormorant Garamond" font-size="14" font-style="italic" font-weight="700">CEO</text>
+            <circle cx="80" cy="100" r="18" fill="#9b87a8"/>
+            <text x="80" y="105" text-anchor="middle" fill="#fff" font-family="Cormorant Garamond" font-size="11" font-style="italic" font-weight="700">M1</text>
+            <circle cx="220" cy="100" r="18" fill="#9b87a8"/>
+            <text x="220" y="105" text-anchor="middle" fill="#fff" font-family="Cormorant Garamond" font-size="11" font-style="italic" font-weight="700">M2</text>
+            <circle cx="40" cy="170" r="14" fill="#7da8c4"/>
+            <text x="40" y="174" text-anchor="middle" fill="#fff" font-family="Cormorant Garamond" font-size="10" font-style="italic" font-weight="700">e1</text>
+            <circle cx="120" cy="170" r="14" fill="#7da8c4"/>
+            <text x="120" y="174" text-anchor="middle" fill="#fff" font-family="Cormorant Garamond" font-size="10" font-style="italic" font-weight="700">e2</text>
+            <circle cx="180" cy="170" r="14" fill="#7da8c4"/>
+            <text x="180" y="174" text-anchor="middle" fill="#fff" font-family="Cormorant Garamond" font-size="10" font-style="italic" font-weight="700">e3</text>
+            <circle cx="260" cy="170" r="14" fill="#7da8c4"/>
+            <text x="260" y="174" text-anchor="middle" fill="#fff" font-family="Cormorant Garamond" font-size="10" font-style="italic" font-weight="700">e4</text>
+            <line x1="138" y1="45" x2="92" y2="85" stroke="#c498d6" stroke-width="1.5"/>
+            <line x1="162" y1="45" x2="208" y2="85" stroke="#c498d6" stroke-width="1.5"/>
+            <line x1="68" y1="115" x2="48" y2="155" stroke="#c498d6" stroke-width="1.5"/>
+            <line x1="92" y1="115" x2="115" y2="155" stroke="#c498d6" stroke-width="1.5"/>
+            <line x1="208" y1="115" x2="185" y2="155" stroke="#c498d6" stroke-width="1.5"/>
+            <line x1="232" y1="115" x2="252" y2="155" stroke="#c498d6" stroke-width="1.5"/>
+          </svg>
+        </div>
+        <div class="pattern-info">
+          <div class="pattern-num">PATTERN · 04</div>
+          <div class="pattern-name">Hierarchical</div>
+          <div class="pattern-en">MULTI-LEVEL · 层级化</div>
+          <div class="pattern-desc">
+            <strong>多层组织结构</strong>——CEO层规划战略，经理层拆分任务，员工层执行具体动作。
+            像真实公司的组织架构。
+          </div>
+          <div class="pattern-when">
+            适用：超复杂任务（年度规划、大型项目）、模拟组织决策流程
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 第三节：CRM真实案例 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 03</div>
+    <div class="section-title">A <em>REAL</em> <span class="accent">CRM CASE</span></div>
+    <div class="section-cn">销售方案生成的5-Agent团队</div>
+    <div class="section-lead">
+      下面是我们项目的真实简化案例——用<strong>5个专业Agent协作完成"销售方案生成"任务</strong>。
+      点击每个Agent看它的职责、Prompt策略、工具集。
+    </div>
+
+    <div class="case-section">
+      <div class="case-task">
+        <div class="case-task-tag">▼ USER REQUEST</div>
+        <div class="case-task-text">
+          客户A是一家200家门店的零售连锁，现有CRM老旧。请生成一份完整销售方案——包含需求分析、解决方案、实施计划、报价、合规审查。
+        </div>
+      </div>
+
+      <div class="agent-team">
+        <div class="team-agent active" data-agent="0">
+          <div class="agent-icon">R</div>
+          <div class="agent-role">RESEARCHER</div>
+          <div class="agent-name">需求分析师</div>
+        </div>
+        <div class="team-agent" data-agent="1">
+          <div class="agent-icon">A</div>
+          <div class="agent-role">ARCHITECT</div>
+          <div class="agent-name">方案架构师</div>
+        </div>
+        <div class="team-agent" data-agent="2">
+          <div class="agent-icon">P</div>
+          <div class="agent-role">PLANNER</div>
+          <div class="agent-name">实施规划师</div>
+        </div>
+        <div class="team-agent" data-agent="3">
+          <div class="agent-icon">$</div>
+          <div class="agent-role">PRICER</div>
+          <div class="agent-name">报价分析师</div>
+        </div>
+        <div class="team-agent" data-agent="4">
+          <div class="agent-icon">C</div>
+          <div class="agent-role">COMPLIANCE</div>
+          <div class="agent-name">合规审查员</div>
+        </div>
+      </div>
+
+      <div class="agent-detail" id="agentDetail">
+      </div>
+    </div>
+  </div>
+
+  <!-- 第四节：编排模式 -->
+  <div class="section tinted">
+    <div class="section-marker">CHAPTER · 04</div>
+    <div class="section-title"><em>ORCHESTRATION</em> <span class="accent">PATTERNS</span></div>
+    <div class="section-cn">3种主流编排框架对比</div>
+    <div class="section-lead">
+      多Agent协作有不同的编排方式。下面是3种主流框架——<strong>不是"哪个最好"，是"哪个适合你"</strong>。
+    </div>
+
+    <div class="orch-grid">
+      <div class="orch-card">
+        <div class="orch-num">FRAMEWORK · 01</div>
+        <div class="orch-name">LangGraph</div>
+        <div class="orch-en">STATE MACHINE</div>
+        <p>
+          基于<strong>状态图</strong>的编排框架。Agent之间的流转用图的边定义，状态在图里流动。
+          支持条件分支、循环、人在回路。
+        </p>
+        <div class="orch-meta">
+          <div class="meta-row">
+            <div class="meta-label">特点</div>
+            <div class="meta-val">控制力强、可视化好</div>
+          </div>
+          <div class="meta-row">
+            <div class="meta-label">门槛</div>
+            <div class="meta-val">中等，需要理解状态机</div>
+          </div>
+          <div class="meta-row">
+            <div class="meta-label">适合</div>
+            <div class="meta-val">复杂业务流程、需要严格控制路径</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="orch-card">
+        <div class="orch-num">FRAMEWORK · 02</div>
+        <div class="orch-name">CrewAI</div>
+        <div class="orch-en">ROLE-BASED</div>
+        <p>
+          以<strong>"角色 + 任务"</strong>为核心抽象。每个Agent定义角色背景和擅长领域，自动协作完成任务。
+          上手最快，最像"组团队"。
+        </p>
+        <div class="orch-meta">
+          <div class="meta-row">
+            <div class="meta-label">特点</div>
+            <div class="meta-val">概念直观、原型快</div>
+          </div>
+          <div class="meta-row">
+            <div class="meta-label">门槛</div>
+            <div class="meta-val">低，几行配置就能跑</div>
+          </div>
+          <div class="meta-row">
+            <div class="meta-label">适合</div>
+            <div class="meta-val">原型验证、内容生产、调研类任务</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="orch-card">
+        <div class="orch-num">FRAMEWORK · 03</div>
+        <div class="orch-name">AutoGen</div>
+        <div class="orch-en">CONVERSATIONAL</div>
+        <p>
+          Microsoft出品。Agent之间通过<strong>对话</strong>协作，可以提问、回答、补充。
+          支持人类作为其中一个"Agent"加入。
+        </p>
+        <div class="orch-meta">
+          <div class="meta-row">
+            <div class="meta-label">特点</div>
+            <div class="meta-val">交互灵活、支持人在回路</div>
+          </div>
+          <div class="meta-row">
+            <div class="meta-label">门槛</div>
+            <div class="meta-val">中等，需要设计对话规则</div>
+          </div>
+          <div class="meta-row">
+            <div class="meta-label">适合</div>
+            <div class="meta-val">需要人介入的业务、研讨型任务</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 28px; padding: 22px 26px; background: #fff; border-left: 4px solid #8a6b9c;">
+      <p style="font-size: 14px; line-height: 1.85; color: #1a1d2e;">
+        <strong>实战经验</strong>：99%的项目<strong>不需要从框架入手</strong>。
+        先用最基础的"几个Agent + 一段调度代码"原型验证业务流程是否合理；流程稳定后再引入框架。
+        过早引入复杂框架是新人最大的坑——<strong>框架解决的是"协作复杂度"问题，业务还没跑通时不需要</strong>。
+      </p>
+    </div>
+  </div>
+
+  <!-- 第五节：避坑指南 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 05</div>
+    <div class="section-title"><em>SIX</em> <span class="accent">PITFALLS</span></div>
+    <div class="section-cn">多Agent系统的6个高频陷阱</div>
+    <div class="section-lead">
+      多Agent比单Agent复杂10倍。坑也多10倍。<strong>这些是2024年我们项目踩过的真实坑</strong>。
+    </div>
+
+    <div class="pitfalls">
+      <div class="pitfall">
+        <div class="pitfall-num">i</div>
+        <div class="pitfall-content">
+          <h5>"为了多Agent而多Agent" — 过度设计</h5>
+          <p>
+            一个简单任务被拆成5个Agent协作，<strong>不仅没提升效果，还引入额外的失败点</strong>。
+            协作overhead高于一个Agent直接做。
+          </p>
+          <div class="pitfall-fix">
+            <strong>判断标准：</strong>能用单Agent + 不同的Prompt切换搞定的，绝不用多Agent。Agent数量 ≤ 真实业务角色数
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-num">ii</div>
+        <div class="pitfall-content">
+          <h5>角色定义模糊 — 谁该做什么不清楚</h5>
+          <p>
+            "需求分析师"和"方案架构师"职责重叠，<strong>每个Agent都做了一部分，每个又都没做完整</strong>。
+            最后整合的内容互相矛盾。
+          </p>
+          <div class="pitfall-fix">
+            <strong>修正：</strong>用"<strong>RACI矩阵</strong>"明确每个Agent的Responsible/Accountable/Consulted/Informed职责。每件事必须有且只有一个Agent是R
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-num">iii</div>
+        <div class="pitfall-content">
+          <h5>上下文爆炸 — 信息越传越冗</h5>
+          <p>
+            Agent A的输出全部塞给Agent B，B又把所有东西塞给C…<strong>到最后一个Agent，context已经是10万token的"大杂烩"</strong>。
+            性能急剧下降。
+          </p>
+          <div class="pitfall-fix">
+            <strong>修正：</strong>① Agent间传递的是"<strong>结构化结论</strong>"而非原始对话历史 ② 关键信息走"共享Memory"，需要的Agent去查 ③ 给Agent定义明确的"输出schema"，不允许传废话
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-num">iv</div>
+        <div class="pitfall-content">
+          <h5>错误传播 — 一个Agent错了，全队跟着错</h5>
+          <p>
+            需求分析Agent提取错了一个关键字段，<strong>后面所有Agent都基于错的需求做事</strong>。
+            到最后输出方案，发现根本不是客户要的。
+          </p>
+          <div class="pitfall-fix">
+            <strong>修正：</strong>① 关键节点设"质量门"——必须通过验证才进入下一环 ② 引入Reviewer Agent检查每一步输出 ③ 重要决策让用户确认
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-num">v</div>
+        <div class="pitfall-content">
+          <h5>无限互踢 — Agent间死循环</h5>
+          <p>
+            Agent A需要B的结果，B说"先问C"，C说"先问A"——<strong>三个Agent在循环互推</strong>。
+            或者两个Agent就同一个问题反复讨论，永远达不成一致。
+          </p>
+          <div class="pitfall-fix">
+            <strong>修正：</strong>① 单次任务设最大轮数（如10轮） ② 设"打破僵局"规则——超时由Supervisor仲裁 ③ Agent间通信图是DAG（有向无环）
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-num">vi</div>
+        <div class="pitfall-content">
+          <h5>调试难度爆炸 — 不知道哪儿出了问题</h5>
+          <p>
+            5个Agent协作输出的结果质量差。<strong>查问题时不知道是哪个Agent的锅，每个Agent单测都OK，但合在一起就崩</strong>。
+          </p>
+          <div class="pitfall-fix">
+            <strong>修正：</strong>① 全链路追踪日志（每个Agent的输入/输出/思考都记录） ② 每个Agent独立可replay ③ 引入LangSmith / Langfuse等观测工具（下一讲展开）
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 第六节：决策框架 -->
+  <div class="decision-section">
+    <div class="section-marker">CHAPTER · 06</div>
+    <div class="section-title" style="color: #f5f3ee;"><em>DECISION</em> <span class="accent">FRAMEWORK</span></div>
+    <div class="section-cn" style="color: #f5f3ee;">单Agent vs 多Agent的决策框架</div>
+    <div class="section-lead">
+      面对一个新业务场景，要不要用多Agent？按下面5个问题问一遍，答案就清楚了。
+    </div>
+
+    <div class="decision-tree">
+      <div class="decision-step">
+        <div class="decision-q">Q1</div>
+        <div class="decision-content">
+          <div class="q">业务流程涉及多少个真实角色？</div>
+          <div class="answers">
+            <div class="ans"><strong>1-2个</strong> → 单Agent + Prompt切换</div>
+            <div class="ans"><strong>3+个</strong> → 多Agent（每个角色一个）</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="decision-step">
+        <div class="decision-q">Q2</div>
+        <div class="decision-content">
+          <div class="q">不同步骤需要的"专业心智"差异有多大？</div>
+          <div class="answers">
+            <div class="ans"><strong>差异小</strong>（同一领域不同视角） → 单Agent</div>
+            <div class="ans"><strong>差异大</strong>（销售/合规/技术） → 多Agent</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="decision-step">
+        <div class="decision-q">Q3</div>
+        <div class="decision-content">
+          <div class="q">是否需要"质疑/对抗"机制？</div>
+          <div class="answers">
+            <div class="ans"><strong>不需要</strong> → 单Agent或Pipeline</div>
+            <div class="ans"><strong>需要</strong>（高风险决策） → Debate模式</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="decision-step">
+        <div class="decision-q">Q4</div>
+        <div class="decision-content">
+          <div class="q">流程是固定的还是动态的？</div>
+          <div class="answers">
+            <div class="ans"><strong>固定</strong>（按部就班） → Pipeline</div>
+            <div class="ans"><strong>动态</strong>（按情况分发） → Supervisor</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="decision-step">
+        <div class="decision-q">Q5</div>
+        <div class="decision-content">
+          <div class="q">业务流程是否已经稳定（不会频繁变化）？</div>
+          <div class="answers">
+            <div class="ans"><strong>不稳定</strong> → 先用单Agent验证</div>
+            <div class="ans"><strong>稳定</strong> → 再考虑多Agent架构</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 总结 -->
+  <div class="summary">
+    <div class="section-marker">RECAP</div>
+    <h3>核心收束 · <em>Agent</em> 的<span class="accent">组织化</span></h3>
+    
+    <p>
+      多Agent系统不是"更厉害的AI"，是<strong>把"组织"的概念引入AI系统</strong>。
+      每个Agent专业化、有明确职责、通过定义好的协作规则共同完成大型任务。
+    </p>
+
+    <div class="summary-quote">
+      "单Agent是个全能员工；<br>
+      多Agent是个有分工的团队。<br>
+      团队的效率不在每个人多强，<br>
+      在协作设计有多好。"
+    </div>
+
+    <p>
+      <strong>4种协作模式</strong>——Supervisor（中心化）、Pipeline（流水线）、Debate（对抗）、Hierarchical（层级）——
+      对应不同的业务场景。<strong>真实项目里往往是这几种的混合</strong>。
+    </p>
+
+    <p>
+      <strong>对我们的意义</strong>：CRM实施项目本身就是多角色协作的——售前、产品、技术、合规、交付。
+      把这种协作模式映射到AI系统里，能<strong>真正自动化复杂的业务流程</strong>，
+      不只是回答问题，是<strong>替代一个团队的产出</strong>。
+    </p>
+
+    <p>
+      但也要警惕——<strong>多Agent是高级武器，不是入门玩具</strong>。
+      在没有把单Agent做扎实之前，别盲目上多Agent。先单后多，先简后繁，是工程纪律。
+    </p>
+
+    <p>
+      下一讲我们解决一个所有Agent系统都会遇到的问题——<strong>怎么知道它跑得好不好</strong>？
+      这就是"评估与可观测性"，工业级AI系统的"基础设施"。
+    </p>
+  </div>
+
+  <footer>
+    AI 系列课程 · 第 13 讲 · 共 20 讲 · 下一讲：AI应用的评估与可观测性
+  </footer>
+</div>
+
+<script>
+const agentDetails = [
+  {
+    title: '需求分析师 Agent',
+    role: 'RESEARCHER',
+    content: `
+      <p><strong>使命</strong>：把客户的口头需求和原始资料，转化为<strong>结构化的需求清单</strong>。这是整个流程的起点，输出质量决定后续所有Agent的工作质量。</p>
+      
+      <p><strong>角色心智</strong>：像一位经验丰富的需求分析师——会刨根问底、识别隐含需求、对模糊表述提出澄清问题。</p>
+      
+      <div class="resp-list">
+        <h5>核心职责</h5>
+        <ul>
+          <li>解析客户提供的原始资料（访谈、文档、邮件）</li>
+          <li>提取显性需求 + 推断隐性需求</li>
+          <li>需求分类：业务流程类 / 数据类 / 集成类 / 报表类</li>
+          <li>评估每条需求的优先级（P0/P1/P2）和复杂度</li>
+          <li>识别需求中的矛盾和模糊点，标记"需澄清"</li>
+        </ul>
+      </div>
+      
+      <div class="resp-list">
+        <h5>使用工具</h5>
+        <ul>
+          <li>read_documents(读取客户上传的资料)</li>
+          <li>search_similar_cases(查相似项目案例参考)</li>
+          <li>query_industry_template(查行业最佳实践模板)</li>
+        </ul>
+      </div>
+      
+      <div class="resp-list">
+        <h5>输出格式</h5>
+        <ul>
+          <li>结构化需求清单JSON（同第9讲模板）</li>
+          <li>需求矩阵：分类 × 优先级</li>
+          <li>"需澄清"问题列表</li>
+        </ul>
+      </div>
+    `
+  },
+  {
+    title: '方案架构师 Agent',
+    role: 'ARCHITECT',
+    content: `
+      <p><strong>使命</strong>：基于需求清单，设计<strong>技术上可行、商业上合理</strong>的解决方案。这是整个团队最依赖"经验"的角色。</p>
+      
+      <p><strong>角色心智</strong>：像一位资深的解决方案架构师——既懂客户业务，又懂产品能力边界，还能权衡成本和效果。</p>
+      
+      <div class="resp-list">
+        <h5>核心职责</h5>
+        <ul>
+          <li>把需求映射到产品能力（如纷享销客的对应模块）</li>
+          <li>识别需要定制开发的部分</li>
+          <li>设计系统架构图（数据流、集成点、用户角色）</li>
+          <li>提出标准方案 + 升级方案（让客户做选择）</li>
+          <li>列出潜在技术风险和应对策略</li>
+        </ul>
+      </div>
+      
+      <div class="resp-list">
+        <h5>使用工具</h5>
+        <ul>
+          <li>search_product_capability(查产品能力库)</li>
+          <li>search_historical_solutions(查历史方案)</li>
+          <li>query_integration_patterns(查集成方案模板)</li>
+        </ul>
+      </div>
+      
+      <div class="resp-list">
+        <h5>输出格式</h5>
+        <ul>
+          <li>方案概要（一页纸）</li>
+          <li>详细方案文档（含架构图）</li>
+          <li>方案选型对比表（标准 vs 升级）</li>
+          <li>风险清单</li>
+        </ul>
+      </div>
+    `
+  },
+  {
+    title: '实施规划师 Agent',
+    role: 'PLANNER',
+    content: `
+      <p><strong>使命</strong>：把方案转化为<strong>可执行的项目计划</strong>。具体到WBS、人天、里程碑、资源配置。</p>
+      
+      <p><strong>角色心智</strong>：像一位项目经理——既要现实（基于人均产出和历史项目数据估时），又要乐观（给客户信心）。</p>
+      
+      <div class="resp-list">
+        <h5>核心职责</h5>
+        <ul>
+          <li>把方案拆解成WBS（工作分解结构）</li>
+          <li>每个工作包估算工时、依赖关系、产出物</li>
+          <li>识别关键路径和风险节点</li>
+          <li>排定里程碑和验收节点</li>
+          <li>计算总人天和建议团队配置</li>
+        </ul>
+      </div>
+      
+      <div class="resp-list">
+        <h5>使用工具</h5>
+        <ul>
+          <li>query_wbs_template(查WBS模板)</li>
+          <li>get_team_capacity(查团队产能数据)</li>
+          <li>calculate_critical_path(算关键路径)</li>
+          <li>query_historical_velocity(查历史项目速率)</li>
+        </ul>
+      </div>
+      
+      <div class="resp-list">
+        <h5>输出格式</h5>
+        <ul>
+          <li>WBS结构（树状）</li>
+          <li>甘特图（带依赖）</li>
+          <li>里程碑清单</li>
+          <li>资源配置建议</li>
+        </ul>
+      </div>
+    `
+  },
+  {
+    title: '报价分析师 Agent',
+    role: 'PRICER',
+    content: `
+      <p><strong>使命</strong>：基于实施计划，<strong>计算合理报价</strong>——既要保证利润空间，又要在客户预期范围内。</p>
+      
+      <p><strong>角色心智</strong>：像一位商务负责人——会权衡成本、竞品价格、客户支付能力，找到最优报价区间。</p>
+      
+      <div class="resp-list">
+        <h5>核心职责</h5>
+        <ul>
+          <li>计算项目人天成本和产品授权成本</li>
+          <li>添加风险溢价、利润目标</li>
+          <li>查竞品在同类客户的报价</li>
+          <li>提供3档报价（保守/标准/激进）</li>
+          <li>给出折扣和分期付款建议</li>
+        </ul>
+      </div>
+      
+      <div class="resp-list">
+        <h5>使用工具</h5>
+        <ul>
+          <li>get_cost_baseline(查标准成本)</li>
+          <li>query_competitor_pricing(查竞品报价)</li>
+          <li>get_customer_segment_data(查客户档位数据)</li>
+          <li>calculate_margin(算毛利)</li>
+        </ul>
+      </div>
+      
+      <div class="resp-list">
+        <h5>输出格式</h5>
+        <ul>
+          <li>详细报价单（含分项）</li>
+          <li>3档方案对比</li>
+          <li>毛利分析</li>
+          <li>商务谈判要点（保留底线、可让步项）</li>
+        </ul>
+      </div>
+    `
+  },
+  {
+    title: '合规审查员 Agent',
+    role: 'COMPLIANCE',
+    content: `
+      <p><strong>使命</strong>：审查整个方案的<strong>合规性、合理性、潜在风险</strong>。这是质量门——出问题它有"否决权"。</p>
+      
+      <p><strong>角色心智</strong>：像一位法务+风控——天然怀疑、关注边角案例、不放过任何"模糊地带"。</p>
+      
+      <div class="resp-list">
+        <h5>核心职责</h5>
+        <ul>
+          <li>合同条款审查（付款、违约、知识产权、数据）</li>
+          <li>方案合规审查（数据保护法、行业监管）</li>
+          <li>报价合理性审查（异常高/低折扣预警）</li>
+          <li>实施风险审查（人天估算是否合理）</li>
+          <li>给出"通过/有条件通过/不通过"判定</li>
+        </ul>
+      </div>
+      
+      <div class="resp-list">
+        <h5>使用工具</h5>
+        <ul>
+          <li>check_legal_compliance(查法律合规)</li>
+          <li>query_risk_database(查风险案例库)</li>
+          <li>verify_pricing_outliers(检测报价异常)</li>
+          <li>request_human_review(关键问题提交人工)</li>
+        </ul>
+      </div>
+      
+      <div class="resp-list">
+        <h5>输出格式</h5>
+        <ul>
+          <li>合规审查报告（按维度打分）</li>
+          <li>风险等级（红/黄/绿）</li>
+          <li>整改建议清单</li>
+          <li>是否需要人工二次审核的判定</li>
+        </ul>
+      </div>
+    `
+  }
+];
+
+document.querySelectorAll('.team-agent').forEach(agent => {
+  agent.addEventListener('click', () => {
+    document.querySelectorAll('.team-agent').forEach(a => a.classList.remove('active'));
+    agent.classList.add('active');
+    const idx = +agent.dataset.agent;
+    const d = agentDetails[idx];
+    document.getElementById('agentDetail').innerHTML = `
+      <h4>${d.title}</h4>
+      <div class="role-tag">${d.role}</div>
+      ${d.content}
+    `;
+  });
+});
+
+const d0 = agentDetails[0];
+document.getElementById('agentDetail').innerHTML = `
+  <h4>${d0.title}</h4>
+  <div class="role-tag">${d0.role}</div>
+  ${d0.content}
+`;
+</script>
+</body>
+</html>

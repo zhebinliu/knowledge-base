@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第9讲｜Prompt Engineering的本质</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@300;400;500;600;800&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', 'Inter', sans-serif;
+    background: #fafaf7;
+    color: #0a0a0a;
+    min-height: 100vh;
+    padding: 24px;
+    line-height: 1.6;
+  }
+  .container { max-width: 1280px; margin: 0 auto; }
+
+  header {
+    background: #0a0a0a;
+    color: #fafaf7;
+    padding: 60px 56px;
+    margin-bottom: 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: 
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(0deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+  .lesson-tag {
+    display: inline-block;
+    padding: 6px 14px;
+    border: 1px solid #d4ff4d;
+    color: #d4ff4d;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    margin-bottom: 28px;
+    position: relative;
+  }
+  h1 {
+    font-family: 'Inter', 'Noto Sans SC', sans-serif;
+    font-size: 88px;
+    font-weight: 800;
+    line-height: 0.92;
+    letter-spacing: -0.04em;
+    margin-bottom: 12px;
+    position: relative;
+  }
+  h1 .accent {
+    background: linear-gradient(180deg, transparent 60%, #d4ff4d 60%);
+  }
+  .h1-cn {
+    font-size: 26px;
+    font-weight: 500;
+    margin-top: 16px;
+    color: #aaa;
+    position: relative;
+  }
+  .subtitle {
+    margin-top: 24px;
+    font-size: 16px;
+    color: #ccc;
+    line-height: 1.8;
+    max-width: 720px;
+    position: relative;
+  }
+  .subtitle strong { color: #d4ff4d; font-weight: 500; }
+
+  .section {
+    background: #fff;
+    border: 1px solid #e5e5e0;
+    padding: 48px;
+    margin-bottom: 24px;
+  }
+  .section.dark {
+    background: #0a0a0a;
+    color: #fafaf7;
+    border-color: #2a2a2a;
+  }
+  .section.accent {
+    background: #d4ff4d;
+    color: #0a0a0a;
+    border: none;
+  }
+  
+  .section-marker {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.3em;
+    margin-bottom: 8px;
+  }
+  .section.dark .section-marker { color: #d4ff4d; }
+  .section.accent .section-marker { color: #0a0a0a; opacity: 0.7; }
+  
+  .section-title {
+    font-family: 'Inter', sans-serif;
+    font-size: 44px;
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+  .section-cn {
+    font-size: 22px;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  .section-lead {
+    margin-top: 16px;
+    font-size: 15px;
+    line-height: 1.8;
+    max-width: 800px;
+    color: #555;
+  }
+  .section.dark .section-lead { color: #bbb; }
+  .section.accent .section-lead { color: #1a1a1a; }
+
+  /* 第一节：错误认知对比 */
+  .misconception-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 32px;
+  }
+  .misc-card {
+    padding: 28px;
+    border: 1px solid #e5e5e0;
+    background: #fafaf7;
+  }
+  .misc-card.wrong {
+    border-left: 4px solid #ff6b6b;
+  }
+  .misc-card.right {
+    border-left: 4px solid #d4ff4d;
+    background: #fff;
+  }
+  .misc-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    margin-bottom: 12px;
+  }
+  .misc-card.wrong .misc-tag {
+    background: #ff6b6b;
+    color: #fff;
+  }
+  .misc-card.right .misc-tag {
+    background: #0a0a0a;
+    color: #d4ff4d;
+  }
+  .misc-card h4 {
+    font-family: 'Inter', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    line-height: 1.3;
+  }
+  .misc-card p {
+    font-size: 14px;
+    color: #555;
+    line-height: 1.8;
+  }
+  .misc-card p strong { color: #0a0a0a; }
+
+  /* 第二节：Prompt 实验台 */
+  .prompt-lab {
+    background: #0a0a0a;
+    color: #fafaf7;
+    padding: 32px;
+    margin-top: 32px;
+  }
+  .lab-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 20px;
+  }
+  .lab-header h4 {
+    font-family: 'Inter', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .lab-status {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: #d4ff4d;
+    letter-spacing: 0.15em;
+  }
+  
+  .lab-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 24px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .lab-tab {
+    padding: 10px 16px;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    color: #aaa;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .lab-tab:hover { border-color: #d4ff4d; color: #d4ff4d; }
+  .lab-tab.active {
+    background: #d4ff4d;
+    color: #0a0a0a;
+    border-color: #d4ff4d;
+    font-weight: 600;
+  }
+  
+  .lab-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .lab-side {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    padding: 20px;
+    min-height: 320px;
+    display: flex;
+    flex-direction: column;
+  }
+  .lab-side-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #2a2a2a;
+  }
+  .lab-side.bad .lab-side-tag { color: #ff8a8a; }
+  .lab-side.good .lab-side-tag { color: #d4ff4d; }
+  
+  .lab-prompt {
+    background: #0a0a0a;
+    padding: 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    color: #d4ff4d;
+    margin-bottom: 16px;
+    white-space: pre-wrap;
+    border-left: 2px solid #d4ff4d;
+  }
+  .lab-side.bad .lab-prompt {
+    color: #ff8a8a;
+    border-left-color: #ff6b6b;
+  }
+  
+  .lab-output-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 8px;
+  }
+  .lab-output {
+    background: #0a0a0a;
+    padding: 14px;
+    font-size: 13px;
+    line-height: 1.8;
+    color: #ddd;
+    flex: 1;
+    border-left: 2px solid #2a2a2a;
+  }
+  
+  .lab-explain {
+    margin-top: 20px;
+    padding: 16px 20px;
+    background: rgba(212, 255, 77, 0.06);
+    border-left: 3px solid #d4ff4d;
+    font-size: 13px;
+    line-height: 1.8;
+    color: #ddd;
+  }
+  .lab-explain strong { color: #d4ff4d; }
+
+  /* 第三节：6个原则卡片 */
+  .principles-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 32px;
+  }
+  .principle {
+    background: #fafaf7;
+    border: 1px solid #e5e5e0;
+    padding: 24px;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .principle:hover {
+    background: #0a0a0a;
+    color: #fafaf7;
+    border-color: #0a0a0a;
+  }
+  .principle:hover .p-num { color: #d4ff4d; }
+  .principle:hover .p-desc { color: #ccc; }
+  
+  .p-num {
+    font-family: 'Inter', sans-serif;
+    font-size: 48px;
+    font-weight: 800;
+    color: #0a0a0a;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .p-name {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .p-en {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.15em;
+    margin-bottom: 12px;
+  }
+  .p-desc {
+    font-size: 13px;
+    color: #555;
+    line-height: 1.7;
+  }
+
+  /* 第四节：CRM Prompt模板 */
+  .template-section {
+    background: #d4ff4d;
+    color: #0a0a0a;
+    padding: 48px;
+    margin-bottom: 24px;
+  }
+  .template-card {
+    background: #0a0a0a;
+    color: #fafaf7;
+    padding: 28px;
+    margin-top: 24px;
+  }
+  .template-meta {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: #d4ff4d;
+    letter-spacing: 0.15em;
+    flex-wrap: wrap;
+  }
+  .template-meta span {
+    padding: 3px 8px;
+    border: 1px solid #d4ff4d;
+  }
+  .template-card pre {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+    color: #ddd;
+    white-space: pre-wrap;
+    background: transparent;
+  }
+  .template-card pre .key { color: #d4ff4d; }
+  .template-card pre .var { color: #ffaa6c; }
+  .template-card pre .comment { color: #666; }
+
+  /* 第五节：常见陷阱 */
+  .pitfalls {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .pitfall {
+    background: #fafaf7;
+    border: 1px solid #e5e5e0;
+    padding: 20px 24px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  .pitfall-num {
+    font-family: 'Inter', sans-serif;
+    font-size: 32px;
+    font-weight: 800;
+    color: #ff6b6b;
+    line-height: 1;
+    width: 40px;
+  }
+  .pitfall-content h5 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .pitfall-content p {
+    font-size: 13px;
+    color: #555;
+    line-height: 1.7;
+  }
+  .pitfall-content p strong { color: #0a0a0a; }
+  .pitfall-content .fix {
+    margin-top: 8px;
+    padding: 10px 14px;
+    background: #d4ff4d;
+    color: #0a0a0a;
+    font-size: 13px;
+    border-left: 3px solid #0a0a0a;
+  }
+  .pitfall-content .fix strong { color: #0a0a0a; }
+
+  /* 总结 */
+  .summary {
+    background: #0a0a0a;
+    color: #fafaf7;
+    padding: 56px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .summary::after {
+    content: 'PROMPT';
+    position: absolute;
+    bottom: -40px;
+    right: -10px;
+    font-size: 200px;
+    font-weight: 800;
+    color: rgba(212, 255, 77, 0.04);
+    pointer-events: none;
+    line-height: 0.8;
+    letter-spacing: -0.05em;
+  }
+  .summary h3 {
+    font-family: 'Inter', sans-serif;
+    font-size: 36px;
+    font-weight: 800;
+    margin-bottom: 24px;
+    color: #d4ff4d;
+    position: relative;
+  }
+  .summary p {
+    font-size: 16px;
+    line-height: 1.9;
+    margin-bottom: 16px;
+    color: #ddd;
+    position: relative;
+  }
+  .summary p strong { color: #d4ff4d; }
+  
+  .summary-key {
+    background: rgba(212, 255, 77, 0.06);
+    padding: 28px;
+    margin: 24px 0;
+    border-left: 3px solid #d4ff4d;
+    font-size: 18px;
+    line-height: 1.7;
+    color: #fafaf7;
+    font-style: italic;
+    position: relative;
+  }
+
+  footer {
+    text-align: center;
+    margin-top: 40px;
+    padding: 24px;
+    background: #0a0a0a;
+    color: #666;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.2em;
+  }
+
+  @media (max-width: 768px) {
+    h1 { font-size: 56px; }
+    .section, .summary, .template-section { padding: 32px 24px; }
+    .misconception-grid, .principles-grid, .lab-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<!-- 课程系列统一导航条 · 由脚本注入 -->
+<div id="course-nav-bar">
+  <div class="course-nav-inner">
+    <a href="../lesson08/demo.html" class="course-nav-btn prev" title="多模态AI"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
+    <a href="../index.html" class="course-nav-center" title="回到课程总览">
+      <span class="nav-current">LESSON 09 / 20</span>
+      <span class="nav-title">Prompt Engineering的本质</span>
+    </a>
+    <a href="../lesson10/demo.html" class="course-nav-btn next" title="RAG：让模型用上私有知识"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
+  </div>
+</div>
+
+<style id="course-nav-style">
+  #course-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  .course-nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .course-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .course-nav-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .course-nav-btn.disabled {
+    color: #444;
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .course-nav-btn .nav-arrow {
+    font-size: 14px;
+    line-height: 1;
+  }
+  .course-nav-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+    padding: 4px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    min-width: 0;
+  }
+  .course-nav-center:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .nav-current {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .nav-title {
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+    letter-spacing: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body {
+    padding-top: 64px !important;
+  }
+  
+  @media (max-width: 768px) {
+    .course-nav-inner {
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .course-nav-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .course-nav-btn .nav-label {
+      display: none;
+    }
+    .nav-title {
+      font-size: 11px;
+    }
+    .nav-current {
+      font-size: 9px;
+    }
+    body {
+      padding-top: 54px !important;
+    }
+  }
+</style>
+<!-- 课程系列统一导航条 · END -->
+
+<div class="container">
+  <header>
+    <div class="lesson-tag">LESSON 09 / 20</div>
+    <h1>PROMPT IS NOT<br>A <span class="accent">QUESTION.</span></h1>
+    <div class="h1-cn">Prompt Engineering 的本质</div>
+    <div class="subtitle">
+      你以为Prompt是问问题。但<strong>真正的Prompt是一段控制程序</strong>——
+      它告诉模型扮演什么角色、按什么步骤思考、用什么格式输出、遇到什么情况怎么处理。
+      理解这个本质，你会发现Prompt是<strong>软件工程</strong>，不是话术。
+    </div>
+  </header>
+
+  <!-- 第一节：错误认知 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 01</div>
+    <div class="section-title">Prompt is NOT...</div>
+    <div class="section-cn">绝大多数人对Prompt的误解</div>
+    <div class="section-lead">
+      在团队里调研过——大家对Prompt的理解差异很大。先把<strong>三个最普遍的错误认知</strong>说清楚，
+      避免后面的内容被旧认知带偏。
+    </div>
+
+    <div class="misconception-grid">
+      <div class="misc-card wrong">
+        <div class="misc-tag">误解 #1</div>
+        <h4>"Prompt就是问问题，越口语越好"</h4>
+        <p>
+          很多人把和ChatGPT聊天等同于Prompt Engineering。
+          <strong>但聊天是"探索"，工程是"生产"</strong>。
+          产品里的Prompt要稳定输出、能被代码解析、要处理边界情况——
+          这些都不是"自然提问"能解决的。
+        </p>
+      </div>
+      
+      <div class="misc-card right">
+        <div class="misc-tag">真相</div>
+        <h4>Prompt是一段配置驱动的程序</h4>
+        <p>
+          产品级Prompt有<strong>明确的结构</strong>：角色定义、任务说明、输入约束、
+          推理步骤、输出格式、异常处理。每一段都有目的，每一行都被反复测试过。
+          它的本质是<strong>用自然语言写程序</strong>。
+        </p>
+      </div>
+
+      <div class="misc-card wrong">
+        <div class="misc-tag">误解 #2</div>
+        <h4>"Prompt写得越长越详细越好"</h4>
+        <p>
+          看到一些"Prompt模板"长达几千字，事无巨细。
+          实际上<strong>Prompt过长会稀释关键指令</strong>，
+          模型注意力会分散到无关细节，反而影响核心任务的完成度。
+        </p>
+      </div>
+      
+      <div class="misc-card right">
+        <div class="misc-tag">真相</div>
+        <h4>Prompt是"必要且充分"的艺术</h4>
+        <p>
+          好的Prompt是<strong>把核心指令放在最显眼位置</strong>，
+          细节通过例子（few-shot）传达，边界情况单独说明。
+          长度不是目标，<strong>"任务完成度"才是</strong>。
+          一个20行的精准Prompt往往胜过200行的糊涂Prompt。
+        </p>
+      </div>
+
+      <div class="misc-card wrong">
+        <div class="misc-tag">误解 #3</div>
+        <h4>"换更强的模型就能解决Prompt问题"</h4>
+        <p>
+          经常听到："现在Prompt不行，等GPT-5出来就好了"。
+          <strong>但模型升级不会自动解决糟糕Prompt的问题</strong>——
+          垃圾Prompt遇到强模型，得到的是"更精致的垃圾"。
+        </p>
+      </div>
+      
+      <div class="misc-card right">
+        <div class="misc-tag">真相</div>
+        <h4>Prompt是模型能力的"放大器"</h4>
+        <p>
+          好的Prompt能让<strong>中等模型表现接近顶级</strong>，
+          差的Prompt能让顶级模型表现像垃圾。模型升级让上限提高，
+          但<strong>下限永远由Prompt质量决定</strong>。
+          所以Prompt工程的ROI始终是最高的。
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 第二节：Prompt 实验台 -->
+  <div class="section dark">
+    <div class="section-marker">CHAPTER · 02</div>
+    <div class="section-title" style="color: #fafaf7;">THE <span style="background: linear-gradient(180deg, transparent 60%, #d4ff4d 60%); color: #0a0a0a;">DIFFERENCE</span></div>
+    <div class="section-cn" style="color: #fff;">同样的任务，糟糕Prompt vs 工程级Prompt</div>
+    <div class="section-lead">
+      切换不同任务，看左右两边的Prompt差异和实际输出。这些都是<strong>真实CRM场景</strong>的简化版。
+    </div>
+
+    <div class="prompt-lab">
+      <div class="lab-header">
+        <h4>PROMPT LAB · 实时对比</h4>
+        <div class="lab-status">▼ 切换场景查看差异</div>
+      </div>
+
+      <div class="lab-tabs" id="labTabs">
+        <button class="lab-tab active" data-case="0">客户需求提取</button>
+        <button class="lab-tab" data-case="1">合同条款审核</button>
+        <button class="lab-tab" data-case="2">销售对话总结</button>
+        <button class="lab-tab" data-case="3">工单分类</button>
+      </div>
+
+      <div class="lab-grid">
+        <div class="lab-side bad">
+          <div class="lab-side-tag">▼ 糟糕的Prompt</div>
+          <div class="lab-prompt" id="badPrompt"></div>
+          <div class="lab-output-label">▼ 模型实际输出</div>
+          <div class="lab-output" id="badOutput"></div>
+        </div>
+
+        <div class="lab-side good">
+          <div class="lab-side-tag">▼ 工程级Prompt</div>
+          <div class="lab-prompt" id="goodPrompt"></div>
+          <div class="lab-output-label">▼ 模型实际输出</div>
+          <div class="lab-output" id="goodOutput"></div>
+        </div>
+      </div>
+
+      <div class="lab-explain" id="labExplain">
+      </div>
+    </div>
+  </div>
+
+  <!-- 第三节：六个核心原则 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 03</div>
+    <div class="section-title">THE 6 PRINCIPLES</div>
+    <div class="section-cn">工程级Prompt的6个核心原则</div>
+    <div class="section-lead">
+      不是技巧大全。这6个原则是从大量生产实践中沉淀出来的，<strong>覆盖了90%的Prompt工程场景</strong>。
+    </div>
+
+    <div class="principles-grid">
+      <div class="principle">
+        <div class="p-num">01</div>
+        <div class="p-name">明确角色</div>
+        <div class="p-en">ROLE DEFINITION</div>
+        <div class="p-desc">
+          告诉模型"你是谁"。"你是一个CRM需求分析师"比"帮我分析需求"效果好得多——
+          角色会激活模型对应的能力组合。
+        </div>
+      </div>
+      <div class="principle">
+        <div class="p-num">02</div>
+        <div class="p-name">结构化任务</div>
+        <div class="p-en">TASK DECOMPOSITION</div>
+        <div class="p-desc">
+          把复杂任务拆成有序步骤。"先做A，再做B，最后做C"比"完成X"效果好——
+          强制模型按顺序思考，避免跳步。
+        </div>
+      </div>
+      <div class="principle">
+        <div class="p-num">03</div>
+        <div class="p-name">给出范例</div>
+        <div class="p-en">FEW-SHOT EXAMPLES</div>
+        <div class="p-desc">
+          给2-3个"输入→输出"的范例。模型从范例里学到的格式和风格，
+          比文字描述精准10倍。
+        </div>
+      </div>
+      <div class="principle">
+        <div class="p-num">04</div>
+        <div class="p-name">指定输出格式</div>
+        <div class="p-en">OUTPUT FORMAT</div>
+        <div class="p-desc">
+          明确要JSON、Markdown还是纯文本。生产系统几乎都要结构化输出——
+          没有指定格式 = 没有可解析性 = 集成失败。
+        </div>
+      </div>
+      <div class="principle">
+        <div class="p-num">05</div>
+        <div class="p-name">边界与异常</div>
+        <div class="p-en">EDGE CASES</div>
+        <div class="p-desc">
+          告诉模型"如果X，怎么办"。"如果信息不足，输出'NEED_MORE_INFO'"
+          比让模型瞎猜要好得多。
+        </div>
+      </div>
+      <div class="principle">
+        <div class="p-num">06</div>
+        <div class="p-name">让它思考</div>
+        <div class="p-en">CHAIN OF THOUGHT</div>
+        <div class="p-desc">
+          复杂任务加一句"先逐步思考再给答案"。让模型显式推理，
+          准确率能提升20%-50%。这就是著名的CoT。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 第四节：CRM Prompt模板 -->
+  <div class="template-section">
+    <div class="section-marker">CHAPTER · 04</div>
+    <div class="section-title">A REAL TEMPLATE</div>
+    <div class="section-cn">真实可用的CRM需求提取Prompt模板</div>
+    <div class="section-lead">
+      下面这个Prompt是我们项目里实际用的简化版。<strong>把6个原则全部体现出来</strong>，
+      你可以直接复用到自己的场景。
+    </div>
+
+    <div class="template-card">
+      <div class="template-meta">
+        <span>USE CASE: 客户访谈需求提取</span>
+        <span>MODEL: Claude Sonnet / DeepSeek V3</span>
+        <span>TOKEN: ~600</span>
+      </div>
+      <pre><span class="comment"># 角色定义（原则1）</span>
+<span class="key">你是一名资深的CRM实施需求分析师</span>，专门从客户访谈记录中提取系统化的需求项。
+你的输出会直接进入项目WBS和方案文档，<span class="key">必须准确、可追溯</span>。
+
+<span class="comment"># 任务说明 + 步骤拆解（原则2）</span>
+<span class="key">请按以下步骤处理</span>访谈记录：
+1. 先逐句扫描，标记所有<span class="var">"客户表达的痛点或诉求"</span>
+2. 把同类诉求<span class="var">合并去重</span>，保留最具体的表达
+3. 为每条需求<span class="var">分类</span>：业务流程类 / 数据管理类 / 集成类 / 报表类 / 其他
+4. 评估<span class="var">优先级</span>：P0(必须)/P1(应该)/P2(可以)
+5. 标注每条需求的<span class="var">原话来源</span>（用于客户confirm）
+
+<span class="comment"># Few-shot 范例（原则3）</span>
+<span class="key">范例输入</span>：
+"我们销售总是忘记跟进，特别是大客户跟进周期长容易掉。
+另外现在审批要走OA，签了合同还得回CRM录一遍，太麻烦了。"
+
+<span class="key">范例输出</span>：
+[
+  {
+    "id": "REQ-001",
+    "description": "销售跟进自动提醒，针对长周期大客户",
+    "category": "业务流程类",
+    "priority": "P0",
+    "source_quote": "销售总是忘记跟进，特别是大客户"
+  },
+  {
+    "id": "REQ-002",
+    "description": "OA审批与CRM合同数据双向同步",
+    "category": "集成类",
+    "priority": "P0",
+    "source_quote": "签了合同还得回CRM录一遍"
+  }
+]
+
+<span class="comment"># 输出格式（原则4）</span>
+<span class="key">输出格式</span>：严格的JSON数组，结构同上述范例。<span class="key">不要任何额外文字</span>。
+
+<span class="comment"># 边界与异常（原则5）</span>
+- 如果原文中是<span class="var">客户的疑问而非诉求</span>（如"这个怎么做？"），不要提取
+- 如果<span class="var">无法判断优先级</span>，标记为P2并加备注field "needs_clarification": true
+- 如果<span class="var">访谈记录过短或与CRM无关</span>，输出空数组 [] 而不是编造
+
+<span class="comment"># 思考引导（原则6）</span>
+<span class="key">先在 &lt;thinking&gt; 标签内逐句分析</span>，再输出最终JSON。
+
+<span class="comment"># 输入</span>
+访谈记录：
+<span class="var">{interview_transcript}</span></pre>
+    </div>
+
+    <div style="margin-top: 24px; padding: 24px; background: #0a0a0a; color: #fafaf7;">
+      <p style="font-size: 14px; line-height: 1.9;">
+        <strong style="color: #d4ff4d;">这个Prompt的关键设计点：</strong><br>
+        ① 角色"资深需求分析师"激活了模型的专业模式<br>
+        ② 5步流程强制模型不跳步、不漏项<br>
+        ③ 范例锁定了字段结构和风格<br>
+        ④ 严格JSON 让代码可以直接 <code style="background: #1a1a1a; color: #d4ff4d; padding: 2px 6px;">JSON.parse()</code><br>
+        ⑤ 异常处理避免模型在边界情况下编造<br>
+        ⑥ &lt;thinking&gt;标签让模型先思考再输出，准确率显著提升
+      </p>
+    </div>
+  </div>
+
+  <!-- 第五节：常见陷阱 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 05</div>
+    <div class="section-title">COMMON PITFALLS</div>
+    <div class="section-cn">生产环境里反复出现的陷阱</div>
+    <div class="section-lead">
+      这些陷阱我们项目里都踩过。提前知道它们，能少走半年弯路。
+    </div>
+
+    <div class="pitfalls">
+      <div class="pitfall">
+        <div class="pitfall-num">01</div>
+        <div class="pitfall-content">
+          <h5>否定式指令的失效</h5>
+          <p>
+            <strong>"不要使用专业术语"——模型经常照样使用</strong>。
+            因为否定指令需要模型先想"什么是专业术语"，反而强化了关注。
+          </p>
+          <div class="fix">
+            <strong>修正：</strong>用肯定式——"使用普通用户能理解的日常用语，举例说明"
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-num">02</div>
+        <div class="pitfall-content">
+          <h5>JSON输出包含说明文字</h5>
+          <p>
+            模型经常在JSON前加一句<strong>"好的，这是您要的JSON："</strong>，
+            让代码解析失败。这是模型的"友好倾向"在作怪。
+          </p>
+          <div class="fix">
+            <strong>修正：</strong>明确写"<strong>直接输出JSON，不要任何前后说明文字</strong>"，
+            或在代码里用正则提取 <code>{...}</code>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-num">03</div>
+        <div class="pitfall-content">
+          <h5>长文档处理时的"中间遗忘"</h5>
+          <p>
+            喂给模型1万字文档，让它总结。模型经常<strong>只用了开头和结尾，忽略中间</strong>。
+            这是著名的"Lost in the Middle"现象。
+          </p>
+          <div class="fix">
+            <strong>修正：</strong>分段处理 + 显式指令"必须覆盖文档的<strong>每一段</strong>"，
+            或用RAG拆分检索（下一讲讲）
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-num">04</div>
+        <div class="pitfall-content">
+          <h5>模型"过度配合"导致的幻觉</h5>
+          <p>
+            问模型"客户是否提到了预算"，<strong>即使没提到，模型也倾向编一个</strong>。
+            因为它被训练成"乐于回答"。
+          </p>
+          <div class="fix">
+            <strong>修正：</strong>明确给"逃生口"——"<strong>如果原文没提及，输出 'NOT_MENTIONED'</strong>"，
+            并在范例里展示这种情况
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-num">05</div>
+        <div class="pitfall-content">
+          <h5>多次微调Prompt后效果反而变差</h5>
+          <p>
+            为了修复一个边界case加一句指令，<strong>结果原本好的case也变差了</strong>。
+            Prompt是个有副作用的系统，改一处影响全局。
+          </p>
+          <div class="fix">
+            <strong>修正：</strong>建立<strong>测试集</strong>（10-20个固定的输入输出对），
+            每次改Prompt都跑一遍。这是Prompt工程化的核心实践
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-num">06</div>
+        <div class="pitfall-content">
+          <h5>不同模型对同一Prompt表现差异巨大</h5>
+          <p>
+            在GPT-4上调好的Prompt，<strong>换到Claude或DeepSeek上效果可能完全变样</strong>。
+            因为不同模型的训练偏好不同。
+          </p>
+          <div class="fix">
+            <strong>修正：</strong>为每个使用的模型<strong>单独维护Prompt版本</strong>，
+            或者用模型无关的"骨架"+模型特定的"细节"两层结构
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 总结 -->
+  <div class="summary">
+    <h3>核心收束</h3>
+    
+    <p>
+      Prompt Engineering不是"会聊天"，是<strong>用自然语言写程序</strong>。
+      它有结构、有规范、有测试、有版本控制——是<strong>软件工程的一种</strong>。
+    </p>
+
+    <div class="summary-key">
+      "Prompt is the new code. <br>
+      The model is the new compiler."
+    </div>
+
+    <p>
+      <strong>实践建议</strong>：把Prompt当代码管理。建立Prompt仓库、写测试用例、
+      做版本对比、记录变更日志。<strong>用工程的纪律对待Prompt，回报会非常丰厚</strong>。
+    </p>
+
+    <p>
+      <strong>但Prompt也有边界</strong>。它擅长"指挥模型怎么做"，
+      但<strong>无法给模型增加新知识</strong>——下一讲我们讲RAG，
+      解决"如何让模型用上你的私有知识"这个问题。
+    </p>
+  </div>
+
+  <footer>
+    AI 系列课程 · 第 09 讲 · 共 20 讲 · 下一讲：RAG——让模型用上你的私有知识
+  </footer>
+</div>
+
+<script>
+const cases = [
+  {
+    title: '客户需求提取',
+    bad: {
+      prompt: '帮我从这段访谈里提取需求',
+      output: `根据访谈，客户的需求大致包括：
+
+1. 客户希望改进销售跟进
+2. 客户提到了审批流程的问题
+3. 还有一些数据同步方面的痛点
+
+建议进一步沟通确认细节。`
+    },
+    good: {
+      prompt: `角色：你是CRM需求分析师
+任务：从访谈记录提取需求项
+输出：JSON数组，每项含id/description/category/priority/source_quote
+异常：无法判断优先级时priority=P2并标记needs_clarification=true
+先在<thinking>内逐句分析，再输出JSON`,
+      output: `[
+  {
+    "id": "REQ-001",
+    "description": "销售大客户长周期跟进自动提醒",
+    "category": "业务流程类",
+    "priority": "P0",
+    "source_quote": "销售总是忘记跟进，特别是大客户跟进周期长"
+  },
+  {
+    "id": "REQ-002",
+    "description": "OA与CRM合同数据双向同步",
+    "category": "集成类",
+    "priority": "P0",
+    "source_quote": "签了合同还得回CRM录一遍"
+  }
+]`
+    },
+    explain: '<strong>差距来源</strong>：左边输出是"段落式建议"，无法直接进入WBS或方案文档。右边输出是结构化JSON，每条需求有ID、分类、优先级、原话引用——<strong>可以直接进系统、可以追溯、可以让客户confirm</strong>。这就是产品级Prompt和聊天Prompt的本质区别。'
+  },
+  {
+    title: '合同条款审核',
+    bad: {
+      prompt: '看看这份合同有没有问题',
+      output: `这份合同总体看起来还可以，但建议关注以下几点：
+
+- 付款条款可能需要再确认
+- 知识产权部分有些模糊
+- 违约责任的描述比较常见
+
+建议法务再过一遍。`
+    },
+    good: {
+      prompt: `角色：你是CRM SaaS合同的合规审核员
+审核维度：
+1. 付款节奏（首款/进度款/尾款比例）
+2. 验收标准（是否明确可量化）
+3. 违约金（是否对等、上限是否合理）
+4. 知识产权归属
+5. 数据安全条款
+
+每个维度按【符合/有风险/缺失】判定，给出依据原文片段。
+输出JSON，无符合项时explanation字段说明原因。`,
+      output: `{
+  "payment_terms": {
+    "status": "有风险",
+    "evidence": "首款比例30%，行业标准40-50%",
+    "suggestion": "建议提至40%以降低交付风险"
+  },
+  "acceptance_criteria": {
+    "status": "缺失",
+    "evidence": "未找到验收标准描述",
+    "suggestion": "新增'验收标准'专节，列出可量化指标"
+  },
+  "penalty": {
+    "status": "符合",
+    "evidence": "第8.3条违约金对等约定，上限为合同金额30%"
+  },
+  "ip_ownership": { "status": "符合", ... },
+  "data_security": { "status": "有风险", ... }
+}`
+    },
+    explain: '<strong>差距来源</strong>：左边Prompt太宽泛，模型不知道审什么、审到什么颗粒度。右边Prompt明确了<strong>5个审核维度</strong>，每个维度有明确的判定标准，要求引用原文片段——<strong>这种Prompt产生的结果可以直接对接合同管理系统的合规模块</strong>。'
+  },
+  {
+    title: '销售对话总结',
+    bad: {
+      prompt: '总结一下这通销售电话',
+      output: `销售人员与客户进行了沟通，介绍了产品的主要功能。
+客户对一些细节提出了问题，销售做了解答。
+整体氛围良好，客户表示会考虑。`
+    },
+    good: {
+      prompt: `角色：你是销售对话分析师
+任务：按以下结构提取关键信息
+
+1. 客户公司基本信息（行业/规模/角色）
+2. 客户核心痛点（按重要度排序）
+3. 客户对我方产品的反应（赞同/疑虑/反对）
+4. 客户提到的竞品
+5. 下一步行动（具体到时间和负责人）
+6. 销售本次表现（信号点+改进点）
+
+如果某项未提及，明确标注"未涉及"，不要编造。`,
+      output: `## 客户基本信息
+公司：某零售连锁，门店200+，IT决策人为CIO李总
+
+## 核心痛点
+1. 门店端CRM响应慢（最高频抱怨）
+2. 会员数据多系统不一致
+3. 总部看不到实时销售数据
+
+## 对我方产品反应
+- 赞同：移动端体验、会员标签管理
+- 疑虑：私有化部署成本、与现有POS集成难度
+- 反对：暂无
+
+## 提到的竞品
+SAP CRM（已对比，价格高3倍）
+
+## 下一步行动
+- 我方：5月15日前提供POS集成方案 (负责人：张工)
+- 客户：5月20日前安排IT团队评估 (负责人：李总)
+
+## 销售表现
+- 信号点：识别了客户对集成的真实顾虑
+- 改进点：未尝试探询预算上限`
+    },
+    explain: '<strong>差距来源</strong>：销售对话总结的价值在于"<strong>能形成下一步行动</strong>"。左边的输出像CRM里被销售应付的"今日跟进记录"，没有任何价值。右边的Prompt强制提取了竞品信息、下一步责任人、销售自我改进——<strong>这些是销售管理真正关心的</strong>。'
+  },
+  {
+    title: '工单分类',
+    bad: {
+      prompt: '把这个工单分类一下',
+      output: `这个工单看起来是关于报表功能的问题。
+建议归类到"功能问题"类别。`
+    },
+    good: {
+      prompt: `角色：你是客服工单分类引擎
+分类体系（必须严格使用）：
+- A. 功能咨询  - B. 操作问题
+- C. 配置需求  - D. 性能问题
+- E. 数据异常  - F. 集成对接
+- G. 紧急故障  - H. 其他
+
+紧急程度（4级）：P0/P1/P2/P3
+
+输出JSON：
+{
+  "category": "字母+名称",
+  "urgency": "P0-P3",
+  "keywords": ["关键词1", "关键词2"],
+  "needs_human": true/false,
+  "estimated_resolution_hours": 数字
+}
+
+如果工单内容不足以判断urgency，默认P2并needs_human=true`,
+      output: `{
+  "category": "G. 紧急故障",
+  "urgency": "P0",
+  "keywords": ["销售模块", "无法保存", "影响业务"],
+  "needs_human": true,
+  "estimated_resolution_hours": 4
+}`
+    },
+    explain: '<strong>差距来源</strong>：工单分类要进自动化路由系统，<strong>必须有标准化的输出格式</strong>。左边的"看起来是...建议归到..."无法被代码使用。右边的Prompt定义了完整分类体系、紧急程度、附加字段，输出可以直接driver自动派单系统。<strong>这就是工程化Prompt的价值</strong>。'
+  }
+];
+
+function showCase(idx) {
+  const c = cases[idx];
+  document.getElementById('badPrompt').textContent = c.bad.prompt;
+  document.getElementById('badOutput').textContent = c.bad.output;
+  document.getElementById('goodPrompt').textContent = c.good.prompt;
+  document.getElementById('goodOutput').textContent = c.good.output;
+  document.getElementById('labExplain').innerHTML = c.explain;
+}
+
+document.querySelectorAll('.lab-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.lab-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    showCase(+tab.dataset.case);
+  });
+});
+
+showCase(0);
+</script>
+</body>
+</html>
