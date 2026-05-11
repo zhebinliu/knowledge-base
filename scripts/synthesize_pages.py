@@ -40,7 +40,7 @@ def load_api_key():
     sys.exit("XIAOMI_API_KEY 未在 .env 中找到")
 
 
-def synthesize_one(api_key, model, voice, prompt, script_text, retries=3):
+def synthesize_one(api_key, model, voice, prompt, script_text, fmt="mp3", retries=3):
     url = f"{API_BASE}/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     body = {
@@ -49,7 +49,7 @@ def synthesize_one(api_key, model, voice, prompt, script_text, retries=3):
             {"role": "user", "content": prompt},
             {"role": "assistant", "content": script_text},
         ],
-        "audio": {"format": "wav", "voice": voice},
+        "audio": {"format": fmt, "voice": voice},
     }
     last_err = None
     for attempt in range(retries):
@@ -84,22 +84,23 @@ def main():
     model = data.get("model", "mimo-v2.5-tts")
     voice = data.get("voice", "白桦")
     prompt = data.get("prompt", "专业、温和、清晰、像企业培训讲师的男声。")
+    fmt = data.get("format", "mp3")
 
     pages = data["pages"]
     total = len(pages)
-    print(f"准备合成 {total} 页, voice={voice} model={model}")
+    print(f"准备合成 {total} 页, voice={voice} model={model} format={fmt}")
 
     for i, page in enumerate(pages, 1):
         pid = page["id"]
         script = page["script"]
-        out = out_dir / f"{pid}.wav"
+        out = out_dir / f"{pid}.{fmt}"
         if out.exists() and out.stat().st_size > 1000:
             print(f"[{i}/{total}] {pid} 已存在 ({out.stat().st_size} bytes) — 跳过")
             continue
         print(f"[{i}/{total}] {pid} 合成中 ({len(script)} 字)... ", end="", flush=True)
         t0 = time.time()
         try:
-            audio = synthesize_one(api_key, model, voice, prompt, script)
+            audio = synthesize_one(api_key, model, voice, prompt, script, fmt=fmt)
             with open(out, "wb") as f:
                 f.write(audio)
             print(f"OK {len(audio)//1024} KB / {time.time()-t0:.1f}s")

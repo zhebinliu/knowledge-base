@@ -1,0 +1,295 @@
+{
+  "lesson": 17,
+  "title": "Claude Code 底层原理架构拆解",
+  "voice": "白桦",
+  "model": "mimo-v2.5-tts",
+  "format": "mp3",
+  "prompt": "专业、温和、清晰、像企业培训讲师,语速适中,有节奏感,关键词稍重读。",
+  "pages": [
+    {
+      "id": "01-opening",
+      "title": "开场 · 一个被 Cursor 折腾 3 个月的团队",
+      "script": "PART 3 最后一讲。去年接触过一个团队,想给代码库做这件事:自动重构老模块、跑测试、生成 commit、提 PR。用 Cursor 折腾 3 个月做不出来。不是 Cursor 不好用,是任务长——超过 30 分钟开始飘,context 越来越满、tool 调用越来越乱。最后切到 Claude Code,第一周就跑通完整流程。区别在哪?区别在 harness。",
+      "visual": {
+        "type": "hero",
+        "tag": "LESSON 17 · PART 3 终章",
+        "h1": "Claude Code 底层原理架构拆解",
+        "subtitle": "把 Context / Harness 变成一个真实可用的产品",
+        "note": "8 层架构 · 3 个关键决策 · 4 件套 · 6 条 Takeaway"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "02-thesis",
+      "title": "核心论点",
+      "script": "今天讲完之后,记住一句话:一个 AI Agent 的上限 80% 决定于模型,但能不能稳定到那 80% 全看 harness。模型层大家都用得到区别拉不开,真正区别在 harness——你怎么管 context、怎么设计工具、怎么留扩展点、怎么做安全和审计。Claude Code 是这件事的标杆产品。",
+      "visual": {
+        "type": "thesis",
+        "label": "今天唯一要记住的一句话",
+        "quote": "一个 AI Agent 的上限 80% 决定于模型;<br>但能不能稳定到那 80% · 全看 harness。",
+        "footer": "Claude Code 是 2025 这件事的标杆产品",
+        "keywords": [
+          { "k": "模型层", "v": "大家都用得到 · 区别小" },
+          { "k": "Harness 层", "v": "Context / 工具 / 扩展点 / 安全" },
+          { "k": "标杆", "v": "Claude Code (Anthropic)" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "03-product-positioning",
+      "title": "Claude Code 是什么 · 四方对比",
+      "script": "先讲清楚定位——Claude Code 是 agent harness 目标 long-horizon coding。Boris Cherny 强调:CLI 是工程师最小公约数,本地 SSH Docker CI 都是 shell。对照三个同类:Cursor 是 IDE-first inline 补全+Composer。Devin 是 CLOUD AGENT 完全委派黑盒难干预。Aider 是 OSS CLI 标杆但长任务易飘。Claude Code 可理解成 Aider 的工程化加强版。",
+      "visual": {
+        "type": "course-map",
+        "parts": [
+          { "name": "Cursor", "range": "IDE-FIRST", "color": "#0066ff", "kw": "inline 补全 · Composer 多文件 · 绑死 IDE" },
+          { "name": "Devin", "range": "CLOUD AGENT", "color": "#9333ea", "kw": "云端 SaaS · 完全委派 · 黑盒难干预" },
+          { "name": "Aider", "range": "OSS CLI", "color": "#22c55e", "kw": "轻量 · git-friendly · 长任务容易飘" },
+          { "name": "Claude Code", "range": "CLI-FIRST + 工程化", "color": "#d97706", "kw": "worktree · hooks · skills · subagents · auto-compact" }
+        ],
+        "highlight": 3
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "04-architecture-overview",
+      "title": "8 层架构全景图 · L8-L5",
+      "script": "Claude Code 8 层架构,外层 4 层。L8 UI:CLI 一等公民,IDE 插件只是 UI 包装。L7 Session & Perm:settings.json + 4 hook 事件点,声明式 shell 钩子可 audit 进 git。L6 Agent Loop:agent 心脏,单循环不做状态机,复杂度藏 prompt 和 tool。L5 Context:CLAUDE.md + Skills + Subagent + Auto-compact + @file 六件套。",
+      "visual": {
+        "type": "fusion",
+        "main": "外层 4 层",
+        "eq": "↓",
+        "parts": [
+          { "n": "L8", "name": "User Interface", "detail": "CLI / TUI / IDE 插件 / slash command", "color": "#d97706", "techs": "CLI 是一等公民 · IDE 只是 UI 包装" },
+          { "n": "L7", "name": "Session & Perm", "detail": "settings.json · permission modes · 4 hook events", "color": "#ec4899", "techs": "声明式 shell 钩子 · 可 audit 进 git" },
+          { "n": "L6", "name": "Agent Loop", "detail": "整个 agent 心脏 · 单循环 + 并行 tool", "color": "#ff6b35", "techs": "agent 越简单越好 · 复杂度藏在 prompt 和 tool" },
+          { "n": "L5", "name": "Context Engineering", "detail": "system + CLAUDE.md + Skills + Subagent + compact + @file", "color": "#00e676", "techs": "Lesson 15/16 落地" }
+        ]
+      },
+      "interact": "点「下一页」继续看 L4-L1"
+    },
+    {
+      "id": "05-architecture-inner",
+      "title": "8 层架构 · L4-L1",
+      "script": "内层 4 层。L4 Tool System:Read Edit Bash Glob Grep + MCP + gating。决策:专用工具 > Bash。L3 Model Layer:Opus 主力,1M context,cache_control 自动,Claude Code 是 prompt cache 极致用户走 cache 价 10%。L2 Persistence:JSONL 可 grep jq diff。L1 Safety:worktree 是核心安全边界,改坏切回 main 完好。",
+      "visual": {
+        "type": "fusion",
+        "main": "内层 4 层",
+        "eq": "↓",
+        "parts": [
+          { "n": "L4", "name": "Tool System", "detail": "Read/Write/Edit/Bash/Glob/Grep + MCP + gating", "color": "#00d4ff", "techs": "专用工具 > 通用 Bash" },
+          { "n": "L3", "name": "Model Layer", "detail": "Opus 主力 · 1M context · cache_control 自动", "color": "#ad6cff", "techs": "prompt cache 极致用户 · 走 cache 10% 价" },
+          { "n": "L2", "name": "Persistence", "detail": "JSONL append-only event log · 可 grep/jq/diff", "color": "#888888", "techs": "agent 要可回放 · debug 信息都在文件里" },
+          { "n": "L1", "name": "Observability & Safety", "detail": "audit log + worktree 隔离 + Bash sandbox + hook 拦截", "color": "#22c55e", "techs": "worktree 是核心安全边界 · defense in depth" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "06-formula-8-layers",
+      "title": "8 层 · 端到端追踪",
+      "script": "请求怎么穿过这 8 层?简单改文件:L8 UI → L7 权限放行 → L6 主循环 → L4 工具 Edit → L2 JSONL 落盘。触发 rm 拦截:L8 → L7 权限+PreToolUse hook 协同拦截 → L1 安全层记录 → 不进主循环。Agent 还没看到工具执行就被拦下——defense in depth。每层职责清晰,这是 Claude Code 跟 chain 拼起来 agent 的区别——它不是把 LLM 当中间件,是围绕 LLM 搭完整工程栈。",
+      "visual": {
+        "type": "formula",
+        "label": "8 层端到端追踪",
+        "formula": "L8 UI → L7 权限 → L6 主循环 → L4 工具 → L2 JSONL",
+        "examples": [
+          { "from": "简单改文件", "to": "L8→L7→L6→L4→L2 · 中间层按需调" },
+          { "from": "rm 拦截", "to": "L8→L7+hook 协同拦截→L1 记录 · 不进主循环" },
+          { "from": "调研类任务", "to": "L8→L7 plan mode→L6→L4 read-only" }
+        ],
+        "scale": "8 层职责清晰 · 不是 chain 拼接 · 是围绕 LLM 搭工程栈",
+        "negate": [
+          "不是把 LLM 当中间件",
+          "不是开箱即用的 chain 框架",
+          "不是简单的 if-else",
+          "是 defense in depth 工程系统"
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "07-three-decisions",
+      "title": "3 个让 Claude Code 长得不一样的取舍",
+      "script": "Anthropic 反复打磨的 3 个反直觉决策。D1 CLI-FIRST:Boris 说长任务都要能在远程、CI 跑,IDE 形态堵死。D2 SINGLE+SUBAGENT:Anthropic blog 明确说多 agent don't do this unless you must,主 agent 一条链 spawn subagent 跑完即关。D3 SHELL HOOKS:扩展点等于一行 shell,3 行 shell 解决半年工程。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "D1", "head": "CLI-FIRST", "body": "CLI 是工程师最小公约数 · 本地/SSH/Docker/CI 同一 binary", "ex": "IDE 形态把长任务远程化全堵死" },
+          { "n": "D2", "head": "Single + Subagent", "body": "主 agent 一条链 · 子任务隔离 context 跑完即关", "ex": "AutoGen / CrewAI 多 agent 漂移 · 谁拍板说不清" },
+          { "n": "D3", "head": "Shell Hooks 扩展", "body": "4 事件点 + 一行 shell · 不要 SDK · 组合即扩展", "ex": "3 行 jq+curl 解决半年的「AI 调用审计」工程" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "08-tools-comparison",
+      "title": "Tool 设计 · 专用 > Bash",
+      "script": "工具系统核心原则:专用 > Bash。真实任务对比:找 import 不一致 bug。Bash-only:7 次调用 92K 部分失败要回滚——macOS BSD sed 不同、cat 70K 进 context、xargs grep 漏 quote。Full toolset:5 次 18K 一次过——精确 Grep、带行号 Read、批量 Edit、typecheck PASS。专用工具成功率比 Bash 高一个数量级。给 LLM 的不应是开放 shell,应是结构化 API。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "Bash-only · 找 import bug", "verdict": "7 次调用 · 92K context · 部分失败", "ok": false, "why": "macOS BSD sed ≠ Linux · 漏 quote · 70K 整文件读" },
+          { "input": "Full toolset · 同任务", "verdict": "5 次调用 · 18K context · 一次过", "ok": true, "why": "Grep schema 精确 · Read 带行号片段" },
+          { "input": "Bash-only · fetch→axios", "verdict": "8 步 · 128K · 勉强完成", "ok": false, "why": "通用 shell 出错率高" },
+          { "input": "Full toolset · 同任务", "verdict": "6 步 · 24K · 一次过", "ok": true, "why": "结构化 API · 输出有格式" }
+        ],
+        "lesson": "Erik Schluntz:有 schema 的工具 · 成功率比 shell 高一个数量级",
+        "history": "把 Bash 能做的事拆成有 schema 的 API · 是 Claude Code 的极致原则"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "09-auto-compact",
+      "title": "Auto-compact · 是怎么工作的",
+      "script": "Opus 能跑 1M context,既然能跑 1M 为什么需要 compact?1M 不是免费午餐:成本一轮十几美金、延迟 prefill 30 秒、注意力 lost-in-the-middle。所以默认 200K 容量 85% 阈值触发 auto-compact。算法:保留决策+TODO+文件路径+错误现场——未来还要用的状态;丢寒暄+重复读+已完成中间产物——过去的过程结论已在。Anthropic 核心思想:agent 的 context 不是对话历史,是任务状态最新快照。",
+      "visual": {
+        "type": "rules",
+        "title": "Auto-compact · 85% 阈值触发",
+        "subtitle": "context 不是对话历史 · 是任务状态最新快照",
+        "rules": [
+          "✓ Keep · DECISIONS 决策 · 未来还要用",
+          "✓ Keep · TODO 未完成 · 接续状态",
+          "✓ Keep · 文件路径与符号 · 下次还要改",
+          "✓ Keep · ERROR 错误现场 · 没解决的",
+          "✗ Drop · 寒暄 (好的 / 明白 / 准备开始)",
+          "✗ Drop · 重复 Read · 已答复的疑问"
+        ],
+        "verdict": "1M ≠ 免费午餐 · 成本 + 延迟 + 注意力衰减三笔账",
+        "footnote": "搭建成本低 · 长对话 token 成本能降 60-80%"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "10-skills",
+      "title": "Skills 系统 · 按需触发 vs 全量注册",
+      "script": "Skills 是 2025 年 7 月引入的新特性。痼疾 Plugin:装 50 个插件描述都在 system prompt 里,50 × 800 = 40K,每次对话都付费干扰注意力。Skills 按需触发:文件夹+frontmatter+文档,SKILL.md 开头写 name+description。路由器只扫 description 平均 60 token,50 × 60 = 3K 比 plugin 少 90%+。只有用户消息匹配时才注入完整 SKILL.md。本质是延迟加载+语义路由。",
+      "visual": {
+        "type": "formula",
+        "label": "Skills · 延迟加载 + 语义路由",
+        "formula": "50 plugin × 800 = 40K  vs  50 skill × 60 = 3K",
+        "examples": [
+          { "from": "Plugin (旧)", "to": "全注册 · 永远在 system prompt · 烧 token + 干扰" },
+          { "from": "Skill (新)", "to": "只注册 description 60 token · 匹配才加载全文" },
+          { "from": "我们项目", "to": "需求提取 / 调研问卷 / 合同抽取 → 都该是 skill" }
+        ],
+        "scale": "Plugin 40K 永远在  ←→  Skill 3K + 按需加载 · 减 90%+",
+        "negate": [
+          "不要全塞进 system prompt",
+          "不要写「如果用户问 X 就 Y」50 条",
+          "不要每个能力都常驻",
+          "用 description 路由 · 命中才加载"
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "11-tool-details",
+      "title": "Tool 设计的精巧细节",
+      "script": "4 个反复踩坑后的设计。D1 Read/Edit/Write 为什么拆?互相设前置:Read 强制行号让 Edit 精确定位、Edit 拒绝未 Read 过的文件防凭印象改、Write 覆盖式专用新建。D2 Bash 三件套:每次新子进程不残留 env、2 分钟超时避免死等、background 长任务后台跑。D3 Glob/Grep 独立:有 schema 不用记 flag。D4 Tool 输出截断:留头尾省略中间——事前裁剪+事后压缩双闸。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "01", "head": "Read/Edit/Write 互锁", "body": "Read 必带行号 · Edit 必先 Read · Write 只用于新建", "ex": "堵住「凭印象改」常见错误模式" },
+          { "n": "02", "head": "Bash 三件套", "body": "子进程隔离 · 2 分钟超时 · background 模式", "ex": "避免上次 cd 残留 · 避免 server 死等" },
+          { "n": "03", "head": "Glob/Grep + 智能截断", "body": "有 schema · LLM 不记 flag · 输出截断 + 提示", "ex": "事前裁剪 + 事后 compact 双闸" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "12-hooks",
+      "title": "Hook 编程演示 · 4 个事件点",
+      "script": "Hook 是 Claude Code 最被低估的特性。4 事件点:PreToolUse 工具前返回非零可拦截——最强;PostToolUse 不可拦可副作用;Stop 收尾;Notification 通知。每个挂一行 shell:block_rm grep 含 rm -rf 就 exit 1。auto_format Edit 后跑 prettier。run_lint Agent 想停时跑 eslint。slack 完成发 Slack。Unix 哲学搬进 AI agent。",
+      "visual": {
+        "type": "rules",
+        "title": "4 个 Hook 事件点 · 一行 shell 即扩展",
+        "subtitle": "Unix 哲学搬进 AI agent · 不要 SDK / plugin",
+        "rules": [
+          "PreToolUse · 工具调用前 · 返回非零可拦截 (最强大)",
+          "PostToolUse · 工具调用后 · 不可拦但可触发副作用",
+          "Stop · Agent 想结束时 · 收尾检查 (跑 lint / test)",
+          "Notification · 需用户注意 · 发 Slack / 钉钉"
+        ],
+        "verdict": "block_rm · auto_format · run_lint · slack · 全是一行 shell",
+        "footnote": "整个过程没 SDK 没插件 · pipe / filter / composable"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "13-four-pillars",
+      "title": "4 件套 · Skills / Tools / Compact / Hooks",
+      "script": "核心机制收束成 4 件套。Skills 解决能力扩展——description 路由按需加载。Tools 解决世界互动——专用 API > Bash 互锁。Auto-compact 解决上下文管理——85% 阈值保留决策丢寒暄。Hooks 解决企业扩展——4 事件点 + 一行 shell。4 件套加 8 层架构加 3 决策,就是 Claude Code 能跑通 long-horizon coding 的全部底牌。",
+      "visual": {
+        "type": "fusion",
+        "main": "Claude Code 4 件套",
+        "eq": "=",
+        "parts": [
+          { "n": "01", "name": "Skills", "detail": "按需加载 · description 路由 · 减 90% system prompt", "color": "#00e676", "techs": "能力扩展" },
+          { "n": "02", "name": "Tools", "detail": "专用 > Bash · Read/Edit/Glob 互锁 · 智能截断", "color": "#00d4ff", "techs": "世界互动" },
+          { "n": "03", "name": "Auto-compact", "detail": "85% 阈值 · 保留决策/TODO · 丢寒暄/重复", "color": "#ad6cff", "techs": "上下文管理" },
+          { "n": "04", "name": "Hooks", "detail": "4 事件点 + 一行 shell · Unix 哲学", "color": "#ff6b35", "techs": "企业扩展" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "14-takeaways",
+      "title": "Takeaway · 搬到自家产品",
+      "script": "6 条 Takeaway 跟我们项目对得上。Subagent 隔离:文档脱敏就是典型场景。Hook 扩展点:不要设计 SDK,关键节点暴露 webhook。Skill 按需加载:不要 system prompt 塞 50 条规则,每个能力做成 SKILL.md。CLI 入口:UI 是包装 CLI 是骨架。工具层裁剪 context:RAG 30 段工具层只回前 5。持久 transcript:不要超窗口就丢,持久化整个 JSONL。",
+      "visual": {
+        "type": "rules",
+        "title": "6 条 Takeaway · 直接搬到自家产品",
+        "subtitle": "每一条都跟我们项目对得上",
+        "rules": [
+          "1. Subagent 隔离 · 文档脱敏就是典型场景",
+          "2. Hook 等价扩展点 · webhook 替代 SDK · 3 端点解 80% 需求",
+          "3. Skill 按需加载 · 能力包 description 路由",
+          "4. CLI 入口 · UI 是包装 CLI 是骨架 · 给 power user",
+          "5. 工具层裁剪 context · RAG 30 段只回前 5",
+          "6. JSONL 持久 transcript · 可 resume 可回放可审计"
+        ],
+        "verdict": "Anthropic SDK 直接支持 · 不需要额外框架",
+        "footnote": "推荐先抄 3 条:subagent · webhook · JSONL"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "15-questions",
+      "title": "三个常见疑问",
+      "script": "三个常被问的问题。一,能直接抄 Claude Code 架构吗?不能直接抄,但可抄工程思路。先抄 3 条:subagent 隔离、webhook 扩展、JSONL 持久化。二,Skills 机制复杂吗?不复杂,核心是 description 路由器,LangChain 现成实现 1-2 天。三,1M context 该用吗?短对话默认 200K 够,长对话或大文档 1M 有用。但 1M 不能滥用——cost 涨 5 倍延迟涨 3 倍。先用 200K + auto-compact。",
+      "visual": {
+        "type": "three-questions",
+        "intro": "三个最常被问的问题",
+        "questions": [
+          { "q": "1. 我们能直接抄 Claude Code 吗?", "ex": "不能直接抄 · 可抄工程思路 · 先抄 3 条:subagent / webhook / JSONL" },
+          { "q": "2. Skills 实现复杂吗?", "ex": "不复杂 · LangChain 现成原语 · 1-2 天搭起来" },
+          { "q": "3. 1M context 该用吗?", "ex": "短对话默认 200K · 长对话或大文档才上 1M · 别滥用" }
+        ],
+        "tail": "工程思路是可搬运的 · 不要照搬实现细节"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "16-recap",
+      "title": "收尾 · PART 3 完结",
+      "script": "一句话:AI Agent 上限 80% 决定于模型,但能稳定到那 80% 全看 harness。对我们项目 4 条:设计 subagent 隔离机制;关键节点暴露 webhook 让企业自挂审计;能力做成 Skill 延迟加载;提供 CLI 入口让 power user 脚本化进 CI。PART 3 工程落地完结,9 讲构建 2025 企业 AI 完整工程地图。下一讲 PART 4——AI 在 SaaS 交付的应用全景。",
+      "visual": {
+        "type": "recap",
+        "title": "今天讲了什么 + PART 3 完结",
+        "points": [
+          "8 层架构:UI/Session/Loop/Context/Tool/Model/Persist/Safety",
+          "3 个决策:CLI-First / Single+Subagent / Shell Hooks",
+          "4 件套:Skills / Tools / Auto-compact / Hooks",
+          "Tool 细节:Read/Edit/Write 互锁 · 智能截断",
+          "6 条 Takeaway:subagent / webhook / Skill / CLI / 工具截断 / JSONL",
+          "PART 3 完结:9 讲构建 2025 企业 AI 完整工程地图"
+        ],
+        "next": "下一讲 · PART 4 企业级落地",
+        "next_kw": [ "SaaS 交付", "知识库工程化", "安全合规", "纷享销客现场" ]
+      },
+      "interact": "PART 3 工程落地完结 · 下一讲回到我们最熟悉的领域"
+    }
+  ]
+}

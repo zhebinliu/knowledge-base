@@ -3,6 +3,7 @@
   "title": "AI 到底是什么:从规则到学习",
   "voice": "白桦",
   "model": "mimo-v2.5-tts",
+  "format": "wav",
   "prompt": "专业、温和、清晰、像企业培训讲师,语速适中,有节奏感,关键词稍重读。",
   "pages": [
     {

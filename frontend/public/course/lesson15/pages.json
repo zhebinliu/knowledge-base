@@ -1,0 +1,272 @@
+{
+  "lesson": 15,
+  "title": "Context Engineering — 从 Prompt 到上下文系统",
+  "voice": "白桦",
+  "model": "mimo-v2.5-tts",
+  "format": "mp3",
+  "prompt": "专业、温和、清晰、像企业培训讲师,语速适中,有节奏感,关键词稍重读。",
+  "pages": [
+    {
+      "id": "01-opening",
+      "title": "开场 · 一个让团队蒙圈的故障",
+      "script": "先讲一个真事。某客户 Demo 用 GPT-4o 跑需求提取效果惊艳,生产升级到 Opus 后客户反馈:换了模型效果还不如 Demo。我们本能反应是不可能,Opus 各家 benchmark 都比 4o 强。排查到最后,是我们调 API 时不小心把检索文档压到了 system 消息开头。GPT-4o 不敏感,Opus 把它当权威指令。这就是 Context Engineering 这个新词背后的核心命题。",
+      "visual": {
+        "type": "hero",
+        "tag": "LESSON 15 · PART 3",
+        "h1": "Context Engineering",
+        "subtitle": "从「写好一条 prompt」到「设计上下文系统」",
+        "note": "2024 Q4 业界正式命名的范式升级 · Tobias / Karpathy 推动"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "02-thesis",
+      "title": "核心论点",
+      "script": "今天讲完之后,我希望大家理解一句话:Prompt Engineering 关心如何写好一句话,Context Engineering 关心如何设计模型每次调用前的整个上下文系统。2023 靠 prompt,2024 靠 RAG + 工具,2025 决定上限的是 Context Engineering。",
+      "visual": {
+        "type": "thesis",
+        "label": "今天唯一要记住的一句话",
+        "quote": "Prompt 是关心如何写好一句话;<br>Context 是关心如何设计整个上下文系统。",
+        "footer": "2025 决定 AI 应用上限的关键工程能力",
+        "keywords": [
+          { "k": "Prompt", "v": "静态 · 一段字符串" },
+          { "k": "Context", "v": "动态 · 一个组装器函数" },
+          { "k": "范式升级", "v": "措辞 → 系统设计" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "03-paradigm-shift",
+      "title": "Prompt vs Context · 6 维对比",
+      "script": "为什么需要这个新词?6 个维度逐条看。关注对象:Prompt 关注一条措辞结构范例,Context 关注整个窗口 7 块总和。工作产物:Prompt 是静态字符串,Context 是运行时 build_context 函数。优化手段:Prompt 改措辞加 few-shot,Context 做 gating、compaction、subagent isolation。质量瓶颈:Prompt 时代是写得不够清楚,Context 时代是塞错了顺序错了。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "关注对象", "verdict": "一条 prompt → 整个上下文窗口", "ok": true, "why": "system / RAG / few-shot / tools / scratch / history / memory" },
+          { "input": "工作产物", "verdict": "静态字符串 → 运行时组装器", "ok": true, "why": "prompt.txt → build_context(task, state)" },
+          { "input": "优化手段", "verdict": "改措辞 + few-shot → gating / compact / subagent", "ok": true, "why": "完全不同的工程范畴" },
+          { "input": "质量瓶颈", "verdict": "写得不清楚 → 塞错了顺序错了", "ok": true, "why": "Opus 把文档当系统指令 = 顺序错了" }
+        ],
+        "lesson": "Prompt 是 Context 的子集 · 包含但不限于",
+        "history": "Tobias (Shopify) · Karpathy (OpenAI) · Lance Martin (LangChain) 2024 联合推动"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "04-seven-blocks",
+      "title": "Context Window · 7 大组成块",
+      "script": "做 Context Engineering 第一步:知道窗口里有什么。它不是袋子,是有结构的 7 层堆栈。System Prompt 是宪法 500-5K。Retrieved 是 RAG 召回 0-100K 变化最大。Few-shot 是范例 500-5K。Tool Schemas 是工具列表 500-30K 容易膨胀。Scratchpad 是工作记事本让模型推理。History 是前 N 轮。Memory 是跨 session 持久记忆。",
+      "visual": {
+        "type": "fusion",
+        "main": "Context Window",
+        "eq": "=",
+        "parts": [
+          { "n": "B1", "name": "System Prompt", "detail": "上下文宪法 · 500-5K · 进 git review", "color": "#00e676", "techs": "角色 / 任务 / 输出 / 规则" },
+          { "n": "B2", "name": "Retrieved", "detail": "RAG 召回 · 0-100K · 变化范围最大", "color": "#00d4ff", "techs": "不是越多越好 · Lost in Middle" },
+          { "n": "B3", "name": "Few-shot", "detail": "范例 · 500-5K · 分布影响输出分布", "color": "#ad6cff", "techs": "范例选择是工程问题" },
+          { "n": "B4", "name": "Tool Schemas", "detail": "工具列表 · 500-30K · Tool Soup 反模式", "color": "#d9b366", "techs": "tool retrieval 动态选 3-5 个" }
+        ]
+      },
+      "interact": "点「下一页」继续看 B5-B7"
+    },
+    {
+      "id": "05-blocks-tail",
+      "title": "7 块 · 后三块",
+      "script": "后三块。Scratchpad 在 thinking 标签里推理 500-10K,用完即弃不是知识,塞进下一轮会 Context Rot。History 长会话最大敌人 1K-100K,必须接入 compaction。Memory 跨 session 沉淀的偏好知识,从向量库读取,容易过时需要 expire。简单 QA 时 system 主导,复杂 RAG retrieved 暴涨到 55%,长 Agent history 反超到 38%——没有通用模板。",
+      "visual": {
+        "type": "fusion",
+        "main": "Context Window",
+        "eq": "=",
+        "parts": [
+          { "n": "B5", "name": "Scratchpad", "detail": "工作记事本 · 500-10K · 用完即弃", "color": "#ff6b35", "techs": "Context Rot 高危区" },
+          { "n": "B6", "name": "History", "detail": "对话历史 · 1K-100K · 长会话杀手", "color": "#ec4899", "techs": "Lost in Middle 主战场" },
+          { "n": "B7", "name": "Memory", "detail": "跨 session 持久 · 200-5K · 需 expire", "color": "#888888", "techs": "ChatGPT memory / CLAUDE.md" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "06-budget",
+      "title": "Context Budget · 200K 不是免费午餐",
+      "script": "很多人有误解:Claude / Gemini 都有 200K 窗口了塞满不就行了?错。200K 不是免费午餐,每多 1K 都要付三笔账。第一笔成本:Opus 输入 $15/M,塞 100K 单次 $1.5,一天 10 万次就是 $15 万账单。第二笔延迟:200K TTFT 2-3 秒,对话场景不可接受。第三笔注意力衰减:Stanford Lost in the Middle 论文证明模型对中段几乎视而不见。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "01", "head": "成本 (Cost)", "body": "Opus 输入 $15/M · 100K 单次 $1.5", "ex": "一天 10 万次 = $15 万账单 · 真实数字" },
+          { "n": "02", "head": "延迟 (Latency)", "body": "200K TTFT 2-3 秒 · 对话不可接受", "ex": "用户等首 token 出来太久" },
+          { "n": "03", "head": "注意力衰减", "body": "Lost in the Middle · 中段被忽略", "ex": "塞 200K · 中间 100K 等于扔进黑洞" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "07-budget-numbers",
+      "title": "我们项目的实战预算",
+      "script": "讲我们项目的真实数字。KB-System 项目洞察,文档全文喂 Opus,决策上限 200K。实际分配:system 约 2K、retrieved 核心 D 类每份 30K 共 4-7 份 50-80K、few-shot 0、tools 约 1K、scratchpad 约 5K、history 通常 0、memory 约 2K。总计 60-90K,预留 100K 输出。这是我们和用户 2026 年 4 月确认的决策——文档喂全文,不走切片召回。",
+      "visual": {
+        "type": "sliders",
+        "title": "KB-System 项目洞察 · Budget 实战",
+        "subtitle": "总预算 200K · 实际占用 60-90K · 预留 100K 输出",
+        "features": [
+          { "name": "system prompt", "value": 2 },
+          { "name": "retrieved (D 类全文)", "value": 80 },
+          { "name": "scratchpad", "value": 5 },
+          { "name": "tools", "value": 1 },
+          { "name": "memory", "value": 2 }
+        ],
+        "score": 90,
+        "verdict": "总和 90K · 预留 100K 输出 · production 级",
+        "diff": [
+          { "k": "总量不是越大越好", "v": "反面教材 77K (质量 30) · 参考 27K (质量 90+)" },
+          { "k": "每块有健康区间", "v": "不在区间 = 触发反模式" },
+          { "k": "预算分配是工程决策", "v": "不是「开个大上下文就完事」" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "08-compaction",
+      "title": "技术 1 · History Compaction",
+      "script": "三项核心技术最常用的是 History Compaction。长 agent 会话最大敌人是历史指数级膨胀,Cursor 开 4 小时、Claude Code 跑 30 轮,历史能涨到 50K+。但 80% 是垃圾:寒暄、重复确认、已完成中间步骤、CoT 残留。Claude Code /compact 命令把 30 轮 26.4K 压成 4K 摘要,压缩率 85%。保留决策、约束、未完成、关键变量;丢弃寒暄、重复确认、无依赖的中间步骤。",
+      "visual": {
+        "type": "rules",
+        "title": "/compact 算法 · 保留 vs 丢弃",
+        "subtitle": "30 轮 26.4K → 4K 摘要 · 压缩率 85%",
+        "rules": [
+          "✓ 保留 · DECISIONS 已确认的决策",
+          "✓ 保留 · CONSTRAINTS 全局约束",
+          "✓ 保留 · TODO 未完成项",
+          "✗ 丢弃 · 寒暄 (好的 / 明白)",
+          "✗ 丢弃 · 重复确认 / 已完成中间步骤",
+          "✗ 丢弃 · 内部 CoT 残留"
+        ],
+        "verdict": "用 LLM 做语义压缩 · 不要简单截断",
+        "footnote": "每 20 轮强制触发一次 · 不要等爆了再压"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "09-three-techniques",
+      "title": "三项核心技术 · 完整版",
+      "script": "三项核心技术完整版。T1 Retrieval Gating:不再无脑前置检索。2025 认知是检索本身也是污染,召回 8 段相关性 0.4 远不如不检索。新做法是先问需要外部知识吗。T2 Subagent Isolation:Anthropic 反直觉结论——子任务跑独立 context 比父 agent 读全部资料更好。subagent 处理 50K 原料只返 2K 摘要,父 agent 永远看摘要后的世界。T3 History Compaction 上面讲过。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "T1", "head": "Retrieval Gating", "body": "不再无脑前置检索 · 检索本身也是污染", "ex": "Claude Code Agentic Search · 我们项目 D/C 分级" },
+          { "n": "T2", "head": "Subagent Isolation", "body": "子任务独立 context · 只返摘要给父 agent", "ex": "项目洞察可拆 · 每份 D 类文档一个 subagent" },
+          { "n": "T3", "head": "History Compaction", "body": "30 轮 → 4K 摘要 · LLM 做语义压缩", "ex": "Claude Code /compact · 每 20 轮触发" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "10-memory-layers",
+      "title": "Memory · 4 层架构",
+      "script": "Memory 分层把 context 升级为持久状态。L1 Working 工作记忆,当前几轮在 window 里,size 10-50K,ttl 到 /compact。L2 Episodic 情景记忆,过去 session 任务 trace 摘要,vector DB 存。L3 Semantic 语义记忆,沉淀的知识偏好,长期跨项目。L4 Procedural 程序记忆,怎么做的固化技能,CLAUDE.md / .cursorrules——2025 最重要一层,本质是把验证过的好上下文打包复用。",
+      "visual": {
+        "type": "fusion",
+        "main": "Memory",
+        "eq": "=",
+        "parts": [
+          { "n": "L1", "name": "Working", "detail": "当前对话直接在窗口 · 10-50K · 最快最贵", "color": "#00e676", "techs": "Claude Code conversation buffer" },
+          { "n": "L2", "name": "Episodic", "detail": "过去 session 任务 trace 摘要 · vector DB", "color": "#00d4ff", "techs": "Devin episodic memory" },
+          { "n": "L3", "name": "Semantic", "detail": "知识 / 偏好 · 50-500 条事实 · 跨项目", "color": "#ad6cff", "techs": "ChatGPT memory · 用户画像" },
+          { "n": "L4", "name": "Procedural", "detail": "怎么做的固化 · CLAUDE.md · 2025 最重要", "color": "#ff6b35", "techs": "Claude Skills · Cursor rules" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "11-bad-vs-good",
+      "title": "Bad vs Good Context · 0→1 的差距",
+      "script": "做总实验。同一道题让模型分析客户访谈。BAD CONTEXT 只有用户输入,模型输出罗列式无优先级 3/10 不可用。GOOD CONTEXT 五块:system 800 角色+输出、few-shot 1.4K 边界、retrieved 2.2K 行业先例、scratchpad 引导扫信号词、user input 1.8K 放最后。模型输出 JSON 带证据 9/10 直接进需求池。Token 涨 5 倍,但质量从不可用到可用——这是 0→1 的差距。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "BAD · 只有用户输入", "verdict": "罗列式 · 无优先级 · 质量 3/10", "ok": false, "why": "模型不知道你是谁 / 要什么格式 / 优先级规则" },
+          { "input": "GOOD · 5 块组装", "verdict": "结构化 JSON · 带证据 · 质量 9/10", "ok": true, "why": "system + few-shot + retrieved + scratch + user" },
+          { "input": "Token 成本", "verdict": "1.2K → 6.2K · 涨 5 倍", "ok": true, "why": "单次几分钱 · 业务价值 0→1" },
+          { "input": "延迟", "verdict": "1.8s → 3.4s · 涨 1.9 倍", "ok": true, "why": "用户场景可接受" }
+        ],
+        "lesson": "这不是 +20% 差距 · 是 0→1 差距",
+        "history": "「好」的来源不是改 prompt 措辞 · 是改上下文里塞什么"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "12-anti-patterns",
+      "title": "4 大反模式",
+      "script": "反模式 1 Lost in the Middle 中段遗忘——开头结尾强中段被忽略,修:关键事实放末尾 retrieved ≤5 段。反模式 2 Context Rot——长跑历史堆已推翻决策,修:每 20 轮 /compact。反模式 3 Tool Soup——30 工具吃 24K,修:分组 schema ≤150 token + tool retrieval。反模式 4 Prompt Drift——被 N 人改 N 次互相矛盾,修:进 git 建回归测试集。",
+      "visual": {
+        "type": "rules",
+        "title": "4 大反模式 · 上下文工程必修",
+        "subtitle": "每个都是真实生产事故的根因",
+        "rules": [
+          "Lost in the Middle · 关键事实放末尾 · retrieved ≤5",
+          "Context Rot · 每 20 轮 /compact · 显式标注已完成",
+          "Tool Soup · 分组挂 · schema ≤150 token · tool retrieval",
+          "Prompt Drift · prompt 进 git · 回归测试集 · 定期对账"
+        ],
+        "verdict": "Context 是稀缺资源 · 必须做工程化管理",
+        "footnote": "所有头部产品都在做窗口节流 · 没人在塞满 200K"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "13-tools-2025",
+      "title": "2025 工具栈对比",
+      "script": "看 5 个一线产品 Context 策略。Claude Code 最完整:CLAUDE.md + Search + Subagent + /compact。Cursor:.cursorrules + file gating。Devin:长 loop + episodic + 分窗口。Aider:repo-map + /add /drop。Cline:task 树 + token 可视化。共性:头部产品都不塞满 200K,都在做窗口节流。「上下文是稀缺资源」是 2025 共识。",
+      "visual": {
+        "type": "school",
+        "n": "5 产品",
+        "name": "2025 主流 Context 策略",
+        "en": "Industry Consensus",
+        "era": "2025 全行业共识",
+        "color": "#00e676",
+        "belief": "上下文是稀缺资源 · 必须工程化管理",
+        "rep": "Claude Code / Cursor / Devin / Aider / Cline",
+        "trouble": "200K 不是免费 · 塞满 = 烧钱 + 慢 + 注意力衰减",
+        "today": "所有头部产品都在做「窗口节流」· 差异只在方式",
+        "in_crm": "我们要做的:build_context() 函数化 + /compact + subagent + CLAUDE.md 严肃维护"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "14-questions",
+      "title": "三个常见疑问",
+      "script": "三个最常问的问题。一,Context 和 Prompt 是替代关系吗?不是,Prompt 是 Context 的子集。二,模型窗口越大 Context 是不是就不重要?恰好相反——cost 和 latency 线性增长,attention 衰减更严重,大窗口让人有塞满诱惑反而需要更强约束。三,subagent 隔离会引入新协调问题吗?会——所以下一讲专门讲 Harness Engineering。",
+      "visual": {
+        "type": "three-questions",
+        "intro": "三个最常被问的问题",
+        "questions": [
+          { "q": "1. Context 和 Prompt 是替代关系吗?", "ex": "不是 · Prompt 是 Context 的子集" },
+          { "q": "2. 窗口越大越不重要?", "ex": "相反 · 1M 窗口需要更强 Context Engineering" },
+          { "q": "3. Subagent 会不会引入新问题?", "ex": "会 · 协调问题 → 下一讲 Harness 解决" }
+        ],
+        "tail": "Prompt 关注单点 · Context 关注系统"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "15-recap",
+      "title": "收尾 · 5 件事 + 4 条建议",
+      "script": "今天讲清 5 件事:7 块组成、Budget、三项技术、Memory 四层、四反模式。对我们项目 4 条:组装 prompt 独立成 build_context 函数;长会话强制接入 /compact;Agent 能拆 subagent 就拆;CLAUDE.md 当程序记忆严肃维护,它就是 2025 的代码。下一讲 Harness Engineering——Context 解决调用前塞什么,Harness 解决调用之间循环怎么不崩。",
+      "visual": {
+        "type": "recap",
+        "title": "今天讲了什么",
+        "points": [
+          "7 块组成:system / retrieved / few-shot / tools / scratch / history / memory",
+          "Budget 管控:200K 不是免费午餐 · 三笔账",
+          "三项核心技术:gating / compact / subagent",
+          "Memory 四层:working / episodic / semantic / procedural",
+          "四大反模式:Lost-Middle / Rot / Soup / Drift",
+          "Bad vs Good:0→1 的差距 · 不是 +20%"
+        ],
+        "next": "下一讲 · Harness Engineering",
+        "next_kw": [ "Loop Control", "Tool Gating", "Checkpoint", "Auto-Compact" ]
+      },
+      "interact": "本讲结束 · 下一讲讲调用之间的循环"
+    }
+  ]
+}

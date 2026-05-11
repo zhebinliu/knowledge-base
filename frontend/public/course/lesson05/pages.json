@@ -1,0 +1,376 @@
+{
+  "lesson": 5,
+  "title": "Transformer 架构详解",
+  "voice": "白桦",
+  "model": "mimo-v2.5-tts",
+  "format": "mp3",
+  "prompt": "专业、温和、清晰、像企业培训讲师,语速适中,有节奏感,关键词稍重读。",
+  "pages": [
+    {
+      "id": "01-opening",
+      "title": "开场",
+      "script": "我们正式进入第二部分大模型时代。上一讲我们讲了为什么 2017 年的 Transformer 论文重塑了一切。今天我们打开它的引擎盖,把核心机制拆开看。我先说一下今天的目标。我不会讲数学公式,我会让你看到 Transformer 里 4 个关键零件怎么工作:分词与嵌入、位置编码、QKV 三件套、架构变种。讲完这 4 个零件,你看任何大模型论文都不会再发怵。",
+      "visual": {
+        "type": "hero",
+        "tag": "LESSON 05 · 开场",
+        "h1": "Transformer 架构详解",
+        "subtitle": "4 个关键零件 · 看穿所有大模型",
+        "note": "不讲数学公式 · 只讲机制 · GPT/Claude/Qwen 本质都是这 4 个零件"
+      },
+      "interact": "听完点「下一页」继续"
+    },
+    {
+      "id": "02-four-parts",
+      "title": "今天的 4 个零件",
+      "script": "今天就讲 4 个零件,缺一不可。第一,分词与嵌入,文字怎么变成数字。第二,位置编码,怎么告诉模型词的先后顺序。第三,QKV 三件套,注意力到底怎么算。第四,架构变种,BERT 和 GPT 为什么是两种生物。讲完这 4 个零件,无论 GPT、Claude、Qwen、DeepSeek,本质上都是这 4 个零件的组合。",
+      "visual": {
+        "type": "thesis",
+        "label": "Transformer 的 4 个核心零件",
+        "quote": "分词嵌入 → 位置编码 → QKV → 架构变种",
+        "footer": "所有大模型 = 这 4 个零件的组合",
+        "keywords": [
+          { "k": "01 分词嵌入", "v": "文字 → token → 高维向量" },
+          { "k": "02 位置编码", "v": "给每个位置加「位置指纹」" },
+          { "k": "03 QKV", "v": "Query / Key / Value 三件套" },
+          { "k": "04 架构变种", "v": "Encoder / Decoder / Encoder-Decoder" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "03-network-eats-numbers",
+      "title": "神经网络只能吃数字",
+      "script": "第一个问题:Transformer 是个数学函数,它处理的输入是向量,一串数字。但你输入的是今天天气真好——这是文字。怎么把文字变成数字?答案是两步:分词,然后嵌入。分词把字符串切成离散的 token,嵌入把每个 token 的 ID 映射成高维向量。这两步合起来,就是把任何文字翻译成神经网络能消化的数学对象。",
+      "visual": {
+        "type": "question",
+        "q": "Transformer 只能吃数字 · 文字怎么办?",
+        "options": [
+          "「今天天气真好」 → 怎么变成向量?",
+          "答案:两步",
+          "Tokenization + Embedding →"
+        ],
+        "tail": "两步把任何文字翻译成数学对象",
+        "paths": [
+          { "n": "Step 1", "name": "分词", "owner": "Tokenization · 字符串 → token ID" },
+          { "n": "Step 2", "name": "嵌入", "owner": "Embedding · ID → 高维向量" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "04-tokenization",
+      "title": "分词 · BPE 算法",
+      "script": "早期模型尝试过两种极端。按字符切:词表小,但序列变得超长,Transformer 是 11 个 token。按词切:词表大,但遇到没见过的词就废了,AlphaGoZero、GPT-4 这种模型完全不认识。现代大模型用一种叫 BPE 的算法找平衡。简单说:从大量文本里统计什么字符组合最常见,把这些组合作为 token。GPT-3 的词表大概 5 万个 token,GPT-4 扩到了 10 万,国产模型为了支持中文一般 15 到 30 万。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "按字符切", "verdict": "词表小,序列长", "ok": false, "why": "Transformer = 11 个 token · 效率低" },
+          { "input": "按词切", "verdict": "词表大,新词废", "ok": false, "why": "AlphaGoZero / GPT-4 这种新词完全不认识" },
+          { "input": "BPE 折中", "verdict": "今天主流", "ok": true, "why": "「the」整词 · 「AlphaGoZero」拆 Alpha+Go+Zero" },
+          { "input": "中文模型", "verdict": "扩大词表", "ok": true, "why": "Qwen / DeepSeek 15-30 万 token · 支持中文常用词" }
+        ],
+        "lesson": "BPE = 字符和词之间的平衡 · 现代大模型标准",
+        "history": "GPT-3 5 万 → GPT-4 10 万 → 国产模型 15-30 万"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "05-embedding",
+      "title": "嵌入 · 把 ID 变向量",
+      "script": "每个 token 还是个离散的 ID,网络怎么处理?第二步:嵌入。把每个 token 的 ID 映射成一个高维向量。GPT-3 每个 token 映射到 12288 维向量。注意这些数字不是人写的,是训练过程中自动学出来的。训练完成后,语义相近的词在向量空间里靠得近。经典的例子:国王减男人加女人约等于女王。向量之间的代数运算居然有语义意义——这是嵌入最神奇的地方。",
+      "visual": {
+        "type": "formula",
+        "label": "嵌入的神奇属性",
+        "formula": "vec(国王) - vec(男人) + vec(女人) ≈ vec(女王)",
+        "examples": [
+          { "from": "token ID 4567", "to": "12288 维向量" },
+          { "from": "「猫」的向量", "to": "和「狗」的向量靠得近" },
+          { "from": "「巴黎-法国」", "to": "≈ 「东京-日本」(首都关系)" }
+        ],
+        "scale": "向量代数运算 · 居然有语义意义 → 嵌入最神奇的地方",
+        "negate": [
+          "数字不是人写的",
+          "从海量文本里自动学出来",
+          "我们做 RAG 用的 Embedding 模型本质就是这一步"
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "06-position-side-effect",
+      "title": "注意力的副作用 · 分不清顺序",
+      "script": "上一讲我们讲了 Transformer 的注意力机制——每个词同时看所有词。但这有个致命副作用:它分不清谁前谁后。注意力计算只看词 A 和词 B 有多相关,不管 A 在前还是 B 在前。所以对模型来说,我打你和你打我是一样的。这显然不行。怎么办?给每个位置一个独特的指纹。",
+      "visual": {
+        "type": "quote-with-rows",
+        "main": "注意力的致命副作用",
+        "sub": "它分不清「谁前谁后」",
+        "rows": [
+          { "tag": "现象", "body": "对模型来说「我打你」和「你打我」是一样的" },
+          { "tag": "根因", "body": "注意力只看「A 和 B 有多相关」 · 不管谁在前" },
+          { "tag": "解法", "body": "给每个位置一个独特的「位置指纹」 → 位置编码" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "07-sinusoidal",
+      "title": "正弦位置编码 · 位置的指纹",
+      "script": "Transformer 论文的方案叫正弦位置编码。简单说:给每个位置生成一组独特的正弦余弦值,加到词向量上。这样每个词的向量里同时包含了我是什么和我在第几位两层信息。注意一个关键模式:低维度波长短、变化快,能精确区分相邻位置;高维度波长很长、变化慢,刻画粗粒度的位置。这有点像时分秒——秒针变化快用来区分 10 秒和 11 秒,时针变化慢用来分辨上午和下午。",
+      "visual": {
+        "type": "quote-with-rows",
+        "main": "位置编码 = 时分秒的指纹",
+        "sub": "用不同频率的正弦波组合 · 给每个位置打独一无二的指纹",
+        "rows": [
+          { "tag": "低维度", "body": "波长短 · 变化快 → 精确区分相邻位置(像秒针)" },
+          { "tag": "高维度", "body": "波长长 · 变化慢 → 刻画粗粒度位置(像时针)" },
+          { "tag": "组合起来", "body": "所有维度合起来 · 每个位置一个独一无二的指纹" },
+          { "tag": "好处", "body": "可以处理任意长度序列 · 包括训练时没见过的长度" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "08-modern-pos",
+      "title": "现代大模型的位置编码",
+      "script": "原始正弦编码已经被改进了。现在主流大模型用 RoPE,旋转位置编码,Llama、Qwen、DeepSeek 都用这个,把位置信息编码成旋转角度,更适合长序列。还有 ALiBi,直接在注意力分数上加位置惩罚。但核心思想都没变——给每个位置一个独特、可区分、能延伸到任意长度的位置指纹。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "01", "head": "Sinusoidal (原始)", "body": "Transformer 论文方案", "ex": "正弦余弦组合 · 简单 · 长序列外推一般" },
+          { "n": "02", "head": "RoPE 旋转编码", "body": "今天的主流", "ex": "Llama · Qwen · DeepSeek · 位置编码成旋转角度 · 长序列友好" },
+          { "n": "03", "head": "ALiBi", "body": "在注意力分数上加惩罚", "ex": "距离越远 · 注意力分越低 · 简单粗暴有效" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "09-qkv-library",
+      "title": "QKV · 图书馆找书的比喻",
+      "script": "这是今天最重要的部分。注意力机制具体怎么算出来?答案是 QKV 三件套。我用图书馆找书的比喻。你想找一本关于唐朝政治制度的书,这是你的 Query 查询。图书馆每本书有书脊上的标签,这是 Key 钥匙。书的实际内容,这是 Value 值。你的 Query 在书脊标签上扫一遍,找最相关的几本,然后从这几本书里取出实际内容。",
+      "visual": {
+        "type": "fusion",
+        "main": "注意力机制",
+        "eq": "= 图书馆找书",
+        "parts": [
+          { "n": "Q", "name": "Query 查询", "detail": "你想找什么 · 关于唐朝政治的书", "color": "#d9b366", "techs": "每个词同时发起一次查询" },
+          { "n": "K", "name": "Key 钥匙", "detail": "书脊上的标签 · 让人来检索", "color": "#ad6cff", "techs": "每个词同时充当被查者" },
+          { "n": "V", "name": "Value 值", "detail": "书的实际内容 · 取走的东西", "color": "#00e676", "techs": "每个词同时充当内容提供者" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "10-qkv-demo",
+      "title": "QKV 演示 · 「它」指的是谁",
+      "script": "看演示。当它这个词作为 Query 发起查询:它的 Q 在问我指的是谁?句子里所有词的 K 作为标签被检索。算出的注意力分数:苹果 55%,其他都很低。最后输出的是这些 Value 的加权平均。模型一次前向就完成了指代消解——这在传统 NLP 里需要专门的模块。注意一个细节:Q、K、V 不是预设的角色,而是同一个词的向量经过三个不同的线性变换得到的。",
+      "visual": {
+        "type": "sliders",
+        "title": "「它」对句中各词的注意力分布",
+        "subtitle": "Q 发问 · K 应答 · V 提供内容 · 加权求和得新表示",
+        "features": [
+          { "name": "苹果", "value": 55 },
+          { "name": "我", "value": 8 },
+          { "name": "吃", "value": 5 },
+          { "name": "了", "value": 3 },
+          { "name": "很", "value": 4 },
+          { "name": "甜", "value": 25 }
+        ],
+        "score": 55,
+        "verdict": "「它」55% 注意力指向「苹果」 → 一次前向完成指代消解",
+        "diff": [
+          { "k": "Q", "v": "我指的是谁?" },
+          { "k": "K", "v": "其他词的「自我标签」" },
+          { "k": "V", "v": "其他词的「实际内容」 · 加权求和成新表示" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "11-qkv-formula",
+      "title": "QKV 公式拆解",
+      "script": "公式拆解一下。output 等于 softmax 括号 Q 乘 K 转置除以根号 d 括号再乘 V。一步一步看。Q 乘 K 转置:矩阵乘法,每个词的 Q 去和每个词的 K 做点积,得到分数矩阵,点积反映对齐程度。除以根号 d:数值稳定性技巧,维度高的话点积值会很大,softmax 后梯度容易消失。softmax:把分数归一化成 0 到 1 之间的概率。乘 V:用归一化的分数作为权重,对所有词的 V 做加权求和。",
+      "visual": {
+        "type": "formula",
+        "label": "注意力的全部公式",
+        "formula": "output = softmax( Q · Kᵀ / √d ) · V",
+        "examples": [
+          { "from": "Q · Kᵀ", "to": "矩阵乘法 · 点积 = 对齐程度" },
+          { "from": "/√d", "to": "数值稳定 · 防 softmax 梯度消失" },
+          { "from": "softmax", "to": "归一化成 0-1 概率 · 加起来 = 1" },
+          { "from": "× V", "to": "用权重对所有词的 V 加权求和" }
+        ],
+        "scale": "这一个公式 · 是 Transformer 的「心脏」",
+        "negate": [
+          "不需要循环",
+          "不需要逐步传递",
+          "一个矩阵乘法 · GPU 吃满"
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "12-multi-head",
+      "title": "多头注意力 · 同时多角度看",
+      "script": "实际 Transformer 不是只算一次 QKV,而是同时算很多组,每组叫一个头。GPT-3 有 96 个头。每个头学到不同的关注模式:有的头专门看语法、有的头专门看语义、有的头专门看指代。多头让模型同时从多个角度理解上下文。第一,Q 和 K 的分离让模型可以学到非对称的关系。第二,QKV 都是从原始 embedding 学习得到的线性变换。",
+      "visual": {
+        "type": "thesis",
+        "label": "多头注意力 · 同时多角度看上下文",
+        "quote": "Q 和 K 是一对锁和钥匙,能配上的得到高分;<br>V 是钥匙打开后取走的内容",
+        "footer": "GPT-3 有 96 个头 · 每个头学不同的关注模式",
+        "keywords": [
+          { "k": "语法头", "v": "专门关注主谓宾结构" },
+          { "k": "指代头", "v": "专门看代词指向谁" },
+          { "k": "语义头", "v": "专门看上下文语义关系" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "13-three-variants",
+      "title": "三种架构变种",
+      "script": "Transformer 论文里画的架构其实是一个 Encoder-Decoder 双塔——左半边 Encoder,右半边 Decoder。它最初是用来做机器翻译的。但是后来人们发现,两半可以拆开单独用。这就有了三种架构变种。仅 Encoder、仅 Decoder、Encoder 加 Decoder。下面我们一个一个看。",
+      "visual": {
+        "type": "fusion",
+        "main": "Transformer 架构变种",
+        "eq": "拆开",
+        "parts": [
+          { "n": "01", "name": "仅 Encoder", "detail": "只用左半边 · 双向看", "color": "#d9b366", "techs": "BERT · BGE · Embedding 模型" },
+          { "n": "02", "name": "仅 Decoder", "detail": "只用右半边 · 只看左边", "color": "#ad6cff", "techs": "GPT · Claude · Qwen · Llama · DeepSeek" },
+          { "n": "03", "name": "Encoder-Decoder", "detail": "左右都用 · Cross-Attention 连接", "color": "#00e676", "techs": "T5 · BART(原始机器翻译路线)" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "14-encoder-only",
+      "title": "仅 Encoder · 理解类",
+      "script": "仅 Encoder 架构:只用左半边。每个词可以同时看到所有其他词——前后都能看。擅长理解类任务:分类、抽取、相似度判断、检索。代表是 BERT,Google 2018 年,以及 RoBERTa、所有 Embedding 模型,像 BGE、Qwen-Embedding、OpenAI ada。我们做 RAG 知识库,把文档切片做向量化用的就是 Encoder 架构。它读完整段文字,输出一个语义向量。",
+      "visual": {
+        "type": "school",
+        "n": "01",
+        "name": "仅 Encoder",
+        "en": "Encoder-Only",
+        "era": "2018 BERT 起 · Embedding 模型主流",
+        "color": "#d9b366",
+        "belief": "每个词双向看所有词 · 用来「理解」",
+        "rep": "BERT / RoBERTa / BGE / Qwen-Embedding / OpenAI ada",
+        "trouble": "不擅长生成 · 适合「读完出一个向量」",
+        "today": "RAG 知识库语义检索的基石",
+        "in_crm": "我们的 RAG 系统切片向量化 · 用的就是 Encoder"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "15-decoder-only",
+      "title": "仅 Decoder · 生成类(今天所有聊天模型)",
+      "script": "仅 Decoder 架构:只用右半边。每个词只能看到自己和前面的词——后面的词被遮住了,叫因果掩码。擅长生成类任务:从左到右一个词一个词写。代表是 GPT 系列、Claude、Qwen-Chat、Llama、DeepSeek——所有聊天大模型本质都是这种。为什么所有聊天模型都是 Decoder?因为对话本质就是生成下一个词。给你一段开头,模型预测最可能的下一个词,然后把这个词加到输入里,再预测下一个,循环。",
+      "visual": {
+        "type": "school",
+        "n": "02",
+        "name": "仅 Decoder",
+        "en": "Decoder-Only",
+        "era": "2018 GPT 起 · 今天大模型主流",
+        "color": "#ad6cff",
+        "belief": "每个词只能看左边 · 用来「生成下一个 token」",
+        "rep": "GPT-4 / Claude / Qwen-Chat / Llama / DeepSeek",
+        "trouble": "因果掩码 → 看不到右边 · 但够用",
+        "today": "所有聊天大模型都是 Decoder · 占绝对统治地位",
+        "in_crm": "我们用的 Claude / GPT / Qwen-Max · 全是 Decoder"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "16-enc-dec",
+      "title": "Encoder + Decoder · 转换类",
+      "script": "Encoder 加 Decoder 架构:左右都用。Encoder 完整理解输入,Decoder 生成输出,中间通过 Cross-Attention 连接(Decoder 的 Q 来自自己,K 和 V 来自 Encoder 的输出)。擅长输入和输出形式差别大的任务:翻译,中到英;摘要,长到短;问答。代表是 T5、BART。但是有意思的是——这种架构在新模型里越来越少见了。大家发现,纯 Decoder 通过更大规模也能做翻译和摘要。简单的架构加大规模数据,胜过复杂的架构加中等数据。",
+      "visual": {
+        "type": "school",
+        "n": "03",
+        "name": "Encoder + Decoder",
+        "en": "Encoder-Decoder",
+        "era": "2017 原始 Transformer · 2020 后让位",
+        "color": "#00e676",
+        "belief": "Encoder 理解 + Decoder 生成 · 中间 Cross-Attention",
+        "rep": "T5 / BART(原始机器翻译路线)",
+        "trouble": "新模型越来越少 · 被纯 Decoder 大规模化淘汰",
+        "today": "「简单架构 + 大数据」 > 「复杂架构 + 中等数据」",
+        "in_crm": "翻译/摘要场景:今天直接用 Decoder Prompt 就够"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "17-selection-framework",
+      "title": "CRM 应用选型框架",
+      "script": "记住这个对应:Encoder 是理解,BERT、Embedding 模型;Decoder 是生成,GPT、Claude、所有聊天模型;Encoder-Decoder 是转换,T5、BART、机器翻译。我们做 CRM 应用要做选型,比如:做语义检索,用 Encoder 架构的 Embedding 模型;做文档抽取,用 Decoder 架构的大模型 prompt;做对话机器人,用 Decoder 架构的聊天模型。理解了这层,选型就有了清晰的依据。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "语义检索 / RAG 切片向量", "verdict": "用 Encoder", "ok": true, "why": "BGE / Qwen-Embedding · 读完出一个向量" },
+          { "input": "文档抽取 / 合同字段提取", "verdict": "用 Decoder + Prompt", "ok": true, "why": "Claude / GPT-4 · 输入文档 · 输出 JSON" },
+          { "input": "对话机器人 / 客服", "verdict": "用 Decoder Chat", "ok": true, "why": "GPT-4 / Claude / Qwen-Chat · 多轮生成" },
+          { "input": "中英翻译", "verdict": "今天也用 Decoder", "ok": true, "why": "T5/BART 让位 · 直接 Prompt Decoder 大模型" }
+        ],
+        "lesson": "理解架构 → 选型有清晰依据",
+        "history": "Encoder 做理解 · Decoder 做生成 · 这条线刻在脑子里"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "18-key-insight",
+      "title": "核心洞察 · 没有架构创新,只有规模和工程",
+      "script": "今天所有大模型本质都是这 4 个零件的组合。GPT-4 比 GPT-2 大 100 倍,但底层就是更多层、更宽、更多注意力头的同一架构。没有架构上的本质创新,只有规模和工程上的优化。这也引出了下一讲的核心问题:既然架构都一样,为什么 GPT-3 只是个接话机器,而 ChatGPT 能聊天、写代码、回答问题?",
+      "visual": {
+        "type": "thesis",
+        "label": "今天大模型的本质",
+        "quote": "没有架构上的本质创新<br>只有规模和工程上的优化",
+        "footer": "GPT-2 → GPT-4 · 100 倍参数 · 同一架构",
+        "keywords": [
+          { "k": "GPT-2", "v": "1.7 亿参数 · 48 层" },
+          { "k": "GPT-4", "v": "1.7 万亿参数 · 100+ 层" },
+          { "k": "区别", "v": "更多层 · 更宽 · 更多头 · 更多数据" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "19-bridge-to-next",
+      "title": "为什么 GPT-3 不像 ChatGPT 好用",
+      "script": "这一讲讲完,我们留一个悬念给下一讲。既然 GPT-3 和 GPT-4 架构一样,既然 GPT-3 已经是 1750 亿参数的庞然大物,那为什么 GPT-3 当年只是个接话机器,而 ChatGPT 出来就刷屏了?答案是对齐。下一讲我们讲清楚预训练加 SFT 加 RLHF 这个三段式过程——这是把能写的模型变成好用的模型的关键一跃。",
+      "visual": {
+        "type": "question",
+        "q": "悬念 · 架构一样 · 为什么 GPT-3 ≠ ChatGPT?",
+        "options": [
+          "GPT-3 已经 1750 亿参数",
+          "什么都能写 · 但不知道用户想要什么",
+          "答案 = 对齐 Alignment →"
+        ],
+        "tail": "下一讲展开:预训练 + SFT + RLHF",
+        "paths": [
+          { "n": "预训练", "name": "学语言规律", "owner": "无监督 · 海量文本" },
+          { "n": "SFT", "name": "学回答格式", "owner": "监督微调 · 高质量问答对" },
+          { "n": "RLHF", "name": "学人类偏好", "owner": "强化学习 · 人工排序反馈" }
+        ]
+      },
+      "interact": "点「下一页」到收尾"
+    },
+    {
+      "id": "20-recap",
+      "title": "收尾",
+      "script": "今天我们把 Transformer 拆开看了 4 个零件。第一,分词与嵌入:文字到 token 到向量。第二,位置编码:给每个位置加上独特的位置指纹。第三,QKV 三件套:每个词扮演查询者、被查者、内容提供者三个角色,注意力本质是 Q 和 K 的点积。第四,架构变种:Encoder 理解、Decoder 生成、双塔做转换。记住一个关键洞察——今天所有大模型本质都是这 4 个零件的组合。",
+      "visual": {
+        "type": "recap",
+        "title": "今天讲了什么",
+        "points": [
+          "分词嵌入:文字 → token → 高维向量",
+          "位置编码:每个位置一个独特指纹",
+          "QKV 三件套:Q 问 · K 答 · V 给内容",
+          "架构变种:Encoder 理解 · Decoder 生成 · 双塔转换",
+          "本质:没有架构创新,只有规模工程"
+        ],
+        "next": "下一讲 · GPT 是怎么炼成的(预训练 + SFT + RLHF)",
+        "next_kw": [ "预训练", "SFT", "RLHF", "对齐" ]
+      },
+      "interact": "本讲结束。可以重看任意一页,或者回总览"
+    }
+  ]
+}

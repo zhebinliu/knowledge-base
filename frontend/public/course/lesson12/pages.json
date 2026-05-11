@@ -1,0 +1,266 @@
+{
+  "lesson": 12,
+  "title": "Agent:从单轮对话到自主任务",
+  "voice": "白桦",
+  "model": "mimo-v2.5-tts",
+  "format": "mp3",
+  "prompt": "专业、温和、清晰、像企业培训讲师,语速适中,有节奏感,关键词稍重读。",
+  "pages": [
+    {
+      "id": "01-opening",
+      "title": "开场",
+      "script": "第三部分第四讲。前面我们讲了:Prompt 让模型会说,RAG 让模型知道,Function Calling 让模型能做。今天讲一个让「做」上一个台阶的东西——Agent。我先问个问题:Function Calling 和 Agent 的本质差异是什么?很多人觉得「Agent 就是会调工具的模型」,这个理解不准确。差异在于——谁在驱动。Function Calling 是用户驱动,你说一句它做一步。Agent 是目标驱动,你给一个目标,它自己规划、自己执行、自己反思、自己继续,直到目标达成。",
+      "visual": {
+        "type": "hero",
+        "tag": "LESSON 12 · PART 3 工程落地",
+        "h1": "Agent:从单轮对话到自主任务",
+        "subtitle": "目标驱动 · ReAct 循环 · 4 个组件",
+        "note": "差异不在「会不会调工具」 · 在「谁在驱动」"
+      },
+      "interact": "听完点「下一页」"
+    },
+    {
+      "id": "02-thesis",
+      "title": "核心论点",
+      "script": "今天唯一要记住的一句话:Agent 是给目标,不是给步骤。你说「帮我做」,它自己想「怎么做」。这一句话区分了 Tool Use 和 Agent 的本质差别——Tool Use 是「我让你做这件事」,Agent 是「我让你达成这个目标」。",
+      "visual": {
+        "type": "thesis",
+        "label": "今天唯一要记住的一句话",
+        "quote": "Agent 是给目标 · 不是给步骤<br>你说「帮我做」 · 它自己想「怎么做」",
+        "footer": "Tool Use = 用户驱动 · Agent = 目标驱动",
+        "keywords": [
+          { "k": "目标", "v": "用户给一个高层意图" },
+          { "k": "规划", "v": "Agent 自己拆解子任务" },
+          { "k": "反思", "v": "失败后调整策略" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "03-tool-vs-agent",
+      "title": "Tool Use vs Agent",
+      "script": "在 demo 里做了个对比。Tool Use 是上一讲内容:用户驱动、有限步骤(2 到 5 步)、无长期记忆、无反思、无目标拆解。Agent 是今天主角:目标驱动、多步循环、有工作记忆、会反思、能拆解。一个例子感受差异:你说「客户 A 本月业绩怎么样?」Tool Use 调工具返回「3 单 97.5 万」就结束了。Agent 查完发现下滑 45% 是异常,自己决定深挖——查客户互动、看竞品、对比上月、识别决策人变更——最后给出完整的根因分析。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "Tool Use · 「客户 A 本月业绩?」", "verdict": "返回「3 单 97.5 万」 · 结束", "ok": true, "why": "用户驱动 · 2-5 步 · 不主动深挖" },
+          { "input": "Agent · 「客户 A 本月业绩?」", "verdict": "查数据 → 发现下滑 45% → 主动深挖根因 → 完整报告", "ok": true, "why": "目标驱动 · 超出提问范围主动思考 · 满足深层需求" }
+        ],
+        "lesson": "Agent 的本质 · 理解目标 · 不止于回答问题",
+        "history": "Tool Use 把「业绩怎么样」理解成「告诉我数字」 · Agent 理解成「告诉我状态和原因」"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "04-react-loop",
+      "title": "ReAct · Agent 的核心机制",
+      "script": "Agent 不是黑盒,它有非常明确的工作机制——叫 ReAct。ReAct 等于 Reasoning 加 Acting,思考加行动。每一次迭代都是三步:Thought 思考,分析当前情况决定下一步该做什么;Action 行动,调用工具或生成回答;Observation 观察,看工具返回的结果评估是否达成目标。这三步循环往复,直到 Agent 判断「目标完成」或「无法继续」。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "T", "head": "Thought · 思考", "body": "分析当前情况 · 决定下一步该做什么", "ex": "「下滑 45% 是异常 · 我需要排查可能原因 · 先查互动记录」" },
+          { "n": "A", "head": "Action · 行动", "body": "调用工具 / 生成中间输出 / 询问澄清", "ex": "调用 get_interaction_history(customer_id=CUST-2024-001)" },
+          { "n": "O", "head": "Observation · 观察", "body": "看工具返回结果 · 评估是否达成目标 · 决定继续还是终止", "ex": "「互动减少 67% · 决策人王总 4 月 2 日离职 · 关键线索!」" }
+        ]
+      },
+      "interact": "点「下一页」看完整循环"
+    },
+    {
+      "id": "05-react-trace",
+      "title": "看一次完整 ReAct",
+      "script": "分析客户 A 本月销售下滑原因。迭代 1 思考:先查实际数据对比历史;观察本月 3 单 97.5 万、上月 5 单 180 万,下滑 45%。迭代 2 思考:45% 是异常,排查互动 / 竞品 / 决策人;观察互动减 67%,王总 4 月 2 日离职。迭代 3 思考:决策人离职是根源;观察李总 4 月 10 日上任,我们还没对接。迭代 4 输出报告 + 4 条建议 + 创建跟进任务。每步「先说为什么再做」——这种「思考可见」是 Agent 可信的基础。",
+      "visual": {
+        "type": "rules",
+        "title": "ReAct 4 次迭代 · 销售下滑根因分析",
+        "subtitle": "每一步「先说 why · 再做」 · Thought 显式可见 = 可监督",
+        "rules": [
+          "迭代 1 · Thought 「先查实际数据对比历史」 → Action get_order_history → 下滑 45%",
+          "迭代 2 · Thought 「45% 异常 · 排查原因」 → Action get_interaction_history → 互动 -67% · 王总离职",
+          "迭代 3 · Thought 「决策人离职是根源 · 找新人」 → Action search_contacts → 李总 4/10 上任",
+          "迭代 4 · Thought 「原因清晰 · 输出报告」 → Action 生成报告 + 4 条建议 + 创建跟进任务"
+        ],
+        "verdict": "Agent 自己决定走 4 步 · 没人告诉它路径",
+        "footnote": "思考可见 = Agent 可监督 / 可调试 / 可干预 · 这是可信的基础"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "06-four-components",
+      "title": "Agent 的 4 个组件",
+      "script": "所有 Agent 都由 4 个组件构成。理解了这 4 个,你就能拆解任何 Agent 系统、设计自己的 Agent。打个比方,Agent 就像一个员工:大脑是这个员工的智力水平,工具是给他的工作设备,记忆是他的笔记本和工作经验,规划是他做事情的方法论。少了哪个都不行。",
+      "visual": {
+        "type": "fusion",
+        "main": "Agent",
+        "eq": "=",
+        "parts": [
+          { "n": "01", "name": "大脑 · LLM", "detail": "理解目标 · 拆解任务 · 决定下一步", "color": "#ad6cff", "techs": "复杂任务 Frontier 梯队(Opus / GPT-4) · 简单任务 Efficient(Haiku)" },
+          { "n": "02", "name": "工具 · Tools", "detail": "通过工具与世界交互 · 定义能力边界", "color": "#d9b366", "techs": "10 个左右最佳 · Q/A/W 分类 · 严格权限隔离" },
+          { "n": "03", "name": "记忆 · Memory", "detail": "工作记忆(对话上下文) + 长期记忆(RAG)", "color": "#00e676", "techs": "需要记忆压缩 / 分层记忆策略 · 防止 context 爆炸" },
+          { "n": "04", "name": "规划 · Planner", "detail": "把高层目标拆解成可执行子任务 · 灵魂", "color": "#00d4ff", "techs": "显式规划(先列计划) / 隐式规划(ReAct 边走边想)" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "07-capability-spectrum",
+      "title": "Agent 能力光谱 5 级",
+      "script": "Agent 不是非黑即白的,存在 5 个能力等级。L0 无 Agent 纯 Chat——问一句答一句,最早的 ChatGPT 形态。L1 Copilot 辅助但不执行——AI 给建议,人类执行,典型例子 GitHub Copilot。L2 Agent 自主执行加人工确认——敏感动作需要人确认,这是大部分企业 Agent 的最佳位置。L3 Autonomous 完全自主加事后审计——所有操作记日志,适合低风险高频任务。L4 Multi-Agent 多 Agent 协作——下一讲的主角。",
+      "visual": {
+        "type": "sliders",
+        "title": "Agent 能力光谱 · L0 → L4",
+        "subtitle": "逐级放权 · 生产环境大部分应用选 L2 最稳",
+        "features": [
+          { "name": "L0 纯 Chat", "value": 10 },
+          { "name": "L1 Copilot", "value": 30 },
+          { "name": "L2 Agent", "value": 60 },
+          { "name": "L3 Autonomous", "value": 85 },
+          { "name": "L4 Multi-Agent", "value": 100 }
+        ],
+        "score": 60,
+        "verdict": "企业 Agent 最佳位置 · L2 · 既享受智能 · 又保留人类控制",
+        "diff": [
+          { "k": "风险维度", "v": "影响小→L3  影响中→L2  影响大→L1/L2" },
+          { "k": "复杂维度", "v": "单步→L1  多步→L2/L3  跨领域→L4" },
+          { "k": "我们项目", "v": "大部分 Agent 在 L2 · 既能干活又有控制点" }
+        ]
+      },
+      "interact": "点「下一页」看 5 种 CRM Agent"
+    },
+    {
+      "id": "08-sales-agent",
+      "title": "Agent 1 · 销售助手",
+      "script": "理论讲完了看落地。CRM 场景下,Agent 可以替代或辅助多种角色。第一个销售助手。目标:帮销售提升业绩、降低无效工作。能力:跟进提醒、生成话术、分析行为模式、识别有价值线索。工具集:search_customer、get_interaction_history、analyze_engagement、generate_followup_script、create_task。典型任务「这周该跟进哪些客户?给优先级和具体话术。」Agent 自己分析所有客户状态,给出排序和针对性话术。",
+      "visual": {
+        "type": "school",
+        "n": "01",
+        "name": "Sales Agent",
+        "en": "销售助手",
+        "era": "L2 · 自主执行 + 人工确认",
+        "color": "#00e676",
+        "belief": "目标 · 帮销售提升业绩 · 降低无效工作",
+        "rep": "search_customer / get_interaction_history / analyze_engagement / generate_followup_script / create_task",
+        "trouble": "工具偏多时容易选错 · 建议保持在 5-7 个核心工具",
+        "today": "典型任务 · 「这周该跟进哪些客户?给优先级和具体话术」",
+        "in_crm": "Agent 自己排序所有客户状态 · 输出针对性话术 + 自动建跟进任务"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "09-consultant-agent",
+      "title": "Agent 2 · 实施顾问",
+      "script": "第二个实施顾问 Agent。目标:辅助交付经理做需求分析和方案设计。能力:从访谈提取需求、关联历史相似项目、生成方案初稿、识别交付风险。工具集:extract_requirements、search_similar_projects、generate_solution_draft、identify_risks、estimate_effort。典型任务「基于访谈记录给一份初版需求清单和方案大纲」。Agent 自动提取需求、找相似项目、生成方案、估工作量。这就是我们在做的事情。",
+      "visual": {
+        "type": "school",
+        "n": "02",
+        "name": "Consultant Agent",
+        "en": "实施顾问",
+        "era": "L2 · 自主执行 + 人工确认",
+        "color": "#00d4ff",
+        "belief": "目标 · 辅助交付经理做需求分析和方案设计",
+        "rep": "extract_requirements / search_similar_projects / generate_solution_draft / identify_risks / estimate_effort",
+        "trouble": "需求提取的隐性需求 · 模糊表述都要标「待澄清」",
+        "today": "典型任务 · 「基于访谈记录 · 给初版需求清单和方案大纲」",
+        "in_crm": "这就是我们正在做的事 · 把方案设计的初稿质量做到 80% · 每项目省几个人天"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "10-other-agents",
+      "title": "Agent 3-5 · 客服 / 分析 / 运营",
+      "script": "第三个客服 Agent,处理一线客户咨询、过滤简单问题。客户问「怎么导出报表」,Agent 检索知识库回答,无法解决就开工单转人工。第四个数据分析师 Agent,NL2SQL 自助回答业务问题。「上周华南区销售环比下降了多少?是哪些销售导致的?」Agent 自动写 SQL、查数据、对比、归因。第五个运营经理 Agent,监控异常订单 / 客户、执行例行清理、生成日报、提醒关键事件。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "03", "head": "Support Agent · 客服", "body": "处理一线咨询 · 过滤简单问题 · 复杂转人工", "ex": "kb_search · get_user_context · generate_answer · create_ticket · escalate_to_human" },
+          { "n": "04", "head": "Analyst Agent · 数据分析师", "body": "NL2SQL 自助回答业务问题 · 归因异常", "ex": "nl_to_sql · execute_query · generate_chart · compare_periods · explain_anomaly" },
+          { "n": "05", "head": "Ops Agent · 运营经理", "body": "监控异常 · 例行清理 · 自动日报", "ex": "scan_orders · detect_anomaly · send_alert · generate_daily_report · auto_cleanup" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "11-design-principle",
+      "title": "设计原则 · 一个 Agent 做一件事",
+      "script": "把 5 个 Agent 放一起,注意一个共同点——每个 Agent 都对应一个真实角色,目标明确、工具有限、边界清晰。不要做「全能 Agent」。我见过很多项目想做「超级 AI 助手」,什么都能干,结果什么都干不好——目标越宽泛,效果越差。正确的姿势是「一个 Agent 做一件事,做好它」。需要多种能力时,就用多个 Agent 协作——这是下一讲的主题。",
+      "visual": {
+        "type": "quote-big",
+        "before": "设计 Agent 的第一原则",
+        "quote": "一个 Agent 做一件事 · 做好它",
+        "after": "需要多能力时 → 多个 Agent 协作 · 而不是一个全能 Agent",
+        "compare": [
+          { "side": "全能 Agent", "rows": ["30 个工具一锅烩", "system prompt 既要又要还要", "调用准确率 67%", "答案常常前后矛盾"] },
+          { "side": "专业 Agent", "rows": ["5-10 个核心工具", "system prompt 精确到角色", "调用准确率 92%", "可信、可控、可优化"] }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "12-limit-drift",
+      "title": "限制 1-2 · 目标漂移 / 反思有限",
+      "script": "Agent 很强但不是万能。限制 1 长程任务目标漂移。超过 20 到 30 步时,Agent 经常偏离原始目标——开始查 A,中途发现 B,又去研究 C,最后忘了用户问的是 A。原因是越往后,原始目标在 context 里越远,影响越弱。应对:每 5 步重申一次目标,或用分层规划——主 Agent 盯目标,子 Agent 干活。限制 2 反思能力有限。Agent 会一遍遍尝试相同的失败路径。应对:外部规则强制中断,同参数失败 2 次换路。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "执行 30 步以上长任务", "verdict": "中途忘了原始目标 · 跑偏", "ok": false, "why": "限制 1 · 每 5 步重申目标 + 分层规划(主盯目标 · 子干活)" },
+          { "input": "查询失败 → 同样路径再试", "verdict": "反复重试 · 意识不到路不通", "ok": false, "why": "限制 2 · 外部规则强制中断 · 同参数失败 2 次换路" }
+        ],
+        "lesson": "Agent 的「反思」依赖模型上下文 · 长任务必须外部规则兜底",
+        "history": "纯靠模型自己反思往往不够 · 工程层必须设熔断和换路规则"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "13-limit-cost",
+      "title": "限制 3-5 · 成本 / 不可预测 / 难解释",
+      "script": "限制 3 成本和延迟。Agent 做一个任务可能调用 LLM 10 到 30 次,一次复杂任务可能花几块到几十块,总耗时几分钟。不适合实时交互场景,更适合「后台跑、稍后看」。限制 4 不可预测性。Agent 每次执行同一个任务,路径可能不同——选不同的工具、走不同的分支。测试和质量保证非常困难,只能用「端到端评估加大量样本」,第 14 讲会专门讲。限制 5 很难解释失败。是模型不够强?工具不够好?目标太模糊?排错是个噩梦。「可观测性」是生产级 Agent 的硬指标,第 14 讲专门讲。",
+      "visual": {
+        "type": "rules",
+        "title": "限制 3-5 · 工程化的硬约束",
+        "subtitle": "Agent 跟着 LLM 走 · LLM 的限制就是 Agent 的限制",
+        "rules": [
+          "限制 3 · 成本和延迟 — 单任务 10-30 次 LLM 调用 · 几块到几十块 · 几分钟",
+          "限制 4 · 不可预测性 — 同任务每次路径不同 · 测试只能端到端评估",
+          "限制 5 · 很难解释失败 — 模型 / 工具 / 目标都可能错 · 排错是噩梦"
+        ],
+        "verdict": "可观测性是生产级 Agent 的硬指标",
+        "footnote": "5 个限制共同信息 · Agent 的能力上限 = LLM 的能力上限 · 跟着 LLM 升级一起进步"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "14-three-questions",
+      "title": "判断是否用 Agent 的三问",
+      "script": "决定要不要上 Agent,问自己三个问题。第一,这个任务用户是给目标还是给步骤?给目标才需要 Agent,给步骤用 Tool Use 就够了。第二,任务的步骤数 ≤5 还是 ≥10?5 步以内 Tool Use 够,10 步以上才考虑 Agent。第三,我能接受 Agent 的不确定性和成本吗?生产场景必须做评估和可观测,准备好这些再上 Agent。三个问题都「是」,再上 Agent,否则用 Tool Use 更稳。",
+      "visual": {
+        "type": "three-questions",
+        "intro": "决定要不要上 Agent · 问自己三个问题",
+        "questions": [
+          { "q": "1. 用户给的是「目标」还是「步骤」?", "ex": "目标 → Agent  步骤 → Tool Use" },
+          { "q": "2. 任务步骤数 ≤5 还是 ≥10?", "ex": "≤5 → Tool Use 够用  ≥10 → 考虑 Agent" },
+          { "q": "3. 能接受不确定性 + 成本 + 评估投入吗?", "ex": "能 → 上 Agent  不能 → 用 Tool Use + 人工把关" }
+        ],
+        "tail": "三个问题都「是」 · 再上 Agent · 否则 Tool Use 更稳"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "15-recap",
+      "title": "收尾",
+      "script": "今天核心串一下。Agent 是给目标,不是给步骤。你说「帮我做」,它自己想「怎么做」。4 个核心组件——大脑、工具、记忆、规划。ReAct 循环——思考行动观察的循环,是 Agent 最核心的工作机制。能力光谱 5 级——L0 到 L4,生产环境大部分应用选 L2 最稳。5 个明显的局限——知道边界,正确使用。不要相信「完全替代人类」的鬼话,至少今天不行。下一讲我们讲多 Agent 系统——当一个 Agent 处理不了复杂任务时,多个 Agent 怎么协作。",
+      "visual": {
+        "type": "recap",
+        "title": "今天讲了什么",
+        "points": [
+          "Agent = 给目标 · 不是给步骤",
+          "ReAct 循环 · Thought + Action + Observation",
+          "4 个组件 · 大脑 + 工具 + 记忆 + 规划",
+          "能力光谱 5 级 · 生产首选 L2",
+          "5 种 CRM Agent · 一个 Agent 做一件事"
+        ],
+        "next": "下一讲 · 多 Agent 系统设计",
+        "next_kw": ["4 种协作模式", "5-Agent CRM 团队", "6 个高频陷阱"]
+      },
+      "interact": "本讲结束 · 可以重看任意一页"
+    }
+  ]
+}

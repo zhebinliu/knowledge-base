@@ -1,0 +1,278 @@
+{
+  "lesson": 22,
+  "title": "未来演进的几条路线",
+  "voice": "白桦",
+  "model": "mimo-v2.5-tts",
+  "format": "mp3",
+  "prompt": "专业、温和、清晰、像企业培训讲师,语速适中,有节奏感,关键词稍重读。",
+  "pages": [
+    {
+      "id": "01-opening",
+      "title": "开场",
+      "script": "上一讲我们盘了当前 AI 的根本局限——七堵墙。讲完之后有人问:既然有这么多局限,未来到底怎么破?这就是这一讲要回答的。但我先说清楚——我不会预言哪条路会赢。任何 2026 年说 2030 一定是某某路线主导的人,要么是销售话术,要么是赌徒。我要做的是把现在业界正在押注的 7 条路线讲清楚——每一条的信念、玩家、里程碑、弱点、赔率。讲完你自己有判断、能 hedge、能给老板讲明白为什么不 all-in 任何一条。",
+      "visual": {
+        "type": "hero",
+        "tag": "LESSON 22 · PART 5 · 未来推演",
+        "h1": "未来演进的几条路线",
+        "subtitle": "7 条路线 · 没有任何一条赔率超过 55%",
+        "note": "Scaling · 推理时计算 · 合成数据 · 世界模型 · 新架构 · 神经符号 · 边缘智能"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "02-thesis",
+      "title": "核心论点",
+      "script": "今天讲完之后,大家要建立一个判断:不要押单条路线,但要相信一件事——模型在变、应用在变,但数据沉淀、工程能力、场景理解、分发信任不会变。押单条路线从概率上就是错的。任何 all-in 都要警惕。平时按 hedge 配置走——别把全部资源压在一条路线上,留出 30% 投在「所有路线下都不亏」的能力上。",
+      "visual": {
+        "type": "thesis",
+        "label": "今天的核心论点",
+        "quote": "不要押单条路线。<br>但要相信:数据 / 工程 / 场景 / 分发 不会变。",
+        "footer": "押这四件事 · 无论哪条路线最后赢 · 你都赢",
+        "keywords": [
+          { "k": "7 条路线", "v": "没有任何一条赔率超过 55%" },
+          { "k": "现在主线", "v": "B 推理时计算 · 55%" },
+          { "k": "Hedge", "v": "7 条路线观察 · 重投 4 条护城河" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "03-seven-routes",
+      "title": "7 条演进路线全景",
+      "script": "根节点是 AGI 通用人工智能,这是所有人都瞄准的终点。但通往这个终点的路,业界已经分化成 7 条主分支。A 继续 Scaling,赔率 30%。B 推理时计算,赔率 55%——目前最被看好。C 合成数据 + 自我对弈,35%。D 世界模型 / 具身智能,40%——最像下一代范式。E 架构革新 Post-Transformer,25%。F 神经符号融合,30%——已是事实主流。G 分布式 / 边缘智能,30%。每条路线都有大玩家重金押注。",
+      "visual": {
+        "type": "course-map",
+        "parts": [
+          { "name": "A · Scaling", "range": "30%", "color": "#ff6b35", "kw": "OpenAI · xAI · Meta · 数据墙 + 能耗墙" },
+          { "name": "B · 推理时计算", "range": "55%", "color": "#ff6b35", "kw": "o1/o3 · R1 · Claude thinking · 主线" },
+          { "name": "C · 合成数据 self-play", "range": "35%", "color": "#ff6b35", "kw": "AlphaGeometry · AlphaProof · SCoRe" },
+          { "name": "D · 世界模型 / 具身", "range": "40%", "color": "#ff6b35", "kw": "Genie 3 · Cosmos · JEPA · 1X / Figure" },
+          { "name": "E · 新架构", "range": "25%", "color": "#ff6b35", "kw": "Mamba · Liquid · RWKV · 替代 Transformer" },
+          { "name": "F · 神经符号", "range": "30%", "color": "#ff6b35", "kw": "Function Calling · Wolfram · AlphaGeometry" },
+          { "name": "G · 边缘智能", "range": "30%", "color": "#ff6b35", "kw": "Apple · Phi · Mistral Small · 端侧" }
+        ],
+        "highlight": 1
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "04-route-a-scaling",
+      "title": "路线 A · 继续 Scaling",
+      "script": "核心信念:更大参数 + 更多数据 + 更多算力 = 更强智能。Kaplan / Chinchilla 仍成立,继续推就行。押注玩家:OpenAI GPT-5/6、xAI Memphis 10 万卡集群、Meta Llama 4。致命三堵墙:数据墙、能耗墙、边际递减。赔率 30%。Scaling 不会归零,但从主线退为辅线是 2026 共识——连 OpenAI 自己都用脚投票,研究重心转去了路线 B。",
+      "visual": {
+        "type": "school",
+        "n": "A",
+        "name": "继续 Scaling",
+        "en": "Scaling Law Continues",
+        "era": "曾经的主线 · 2026 退为辅线",
+        "color": "#ff6b35",
+        "belief": "更大参数 + 更多数据 + 更多算力 = 更强智能",
+        "rep": "OpenAI GPT-5/6 · xAI Memphis · Meta Llama 4",
+        "trouble": "三堵墙:数据墙 + 能耗墙 + 边际收益递减",
+        "today": "GPT-4 → GPT-4.5 → GPT-5 增幅肉眼可见放缓",
+        "in_crm": "赔率 30% · OpenAI 自己也转 B 路线"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "05-route-b-test-time",
+      "title": "路线 B · 推理时计算 · 当前主线",
+      "script": "核心信念:推理时让模型多想几遍——用 RL 训练长 Chain-of-Thought,模型自己在解空间搜索。2025 头部 lab 共同押注:OpenAI o1/o3/o4、DeepSeek R1/R2、Claude Opus thinking。里程碑:o1-preview 2024.9 AIME 83%,DeepSeek R1 2025.1 用 1/10 算力做到 o1 同级。致命弱点:推理成本爆炸单次几万 token,泛化未证。赔率 55%,目前最被看好的近 2 年主线。",
+      "visual": {
+        "type": "school",
+        "n": "B",
+        "name": "推理时计算",
+        "en": "Test-Time Compute",
+        "era": "2024.9 起 · 当前主线",
+        "color": "#ff6b35",
+        "belief": "推理时让模型多想几遍 · RL 训练长 CoT",
+        "rep": "o1/o3 · DeepSeek R1/R2 · Claude thinking",
+        "trouble": "单次成本翻 10-100× · 创意 / 写作泛化未证",
+        "today": "DeepSeek R1 用 1/10 算力做到 o1 同级 · 开源冲击巨大",
+        "in_crm": "赔率 55% · 每家头部 lab 都在押"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "06-route-c-synthetic",
+      "title": "路线 C · 合成数据 + 自我对弈",
+      "script": "核心信念:让模型自己生成数据——可验证领域用 RL self-play,质量无限提升。押注:DeepMind AlphaGeometry / AlphaProof、OpenAI SCoRe、Anthropic CAI。里程碑:AlphaGeometry 神经 + 符号做到 IMO 银牌,AlphaProof 也是 IMO 银牌。致命弱点:写方案、做销售对话没办法 self-play,没有可验证奖励。赔率 35%,通用域如通了相当于解决数据墙。",
+      "visual": {
+        "type": "school",
+        "n": "C",
+        "name": "合成数据 self-play",
+        "en": "Synthetic Data + Self-Play",
+        "era": "窄域已验证 · 通用域未证",
+        "color": "#ff6b35",
+        "belief": "可验证领域用 RL self-play · 数据无限",
+        "rep": "AlphaGeometry · AlphaProof · SCoRe · DeepSeek R1",
+        "trouble": "「写好一份方案」没办法 self-play · 无可验证奖励",
+        "today": "AlphaGeometry IMO 银牌 · AlphaProof IMO 银牌",
+        "in_crm": "赔率 35% · 通了就解决数据墙 · 颠覆性"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "07-route-d-world",
+      "title": "路线 D · 世界模型 / 具身智能",
+      "script": "核心信念:智能必须懂物理世界——能预测下一秒、能在真实环境行动。Yann LeCun 反复讲的事。押注阵营豪华:DeepMind Genie 3、Nvidia Cosmos、Meta V-JEPA、Tesla Optimus、Physical Intelligence π0、1X NEO Beta、Figure 02。致命弱点:硬件瓶颈机器人成本没破,数据采集成本是文本的 1000 倍以上。赔率 40% 5-10 年视角——最像下一代范式,但短期落地慢。",
+      "visual": {
+        "type": "school",
+        "n": "D",
+        "name": "世界模型 / 具身智能",
+        "en": "World Models · Embodied AI",
+        "era": "最像下一代范式 · 5-10 年视角",
+        "color": "#ff6b35",
+        "belief": "智能必须懂物理世界 · 不只是文字符号",
+        "rep": "Genie 3 · Cosmos · V-JEPA · Tesla Optimus · 1X · Figure",
+        "trouble": "硬件瓶颈 · 数据采集成本 1000× 文本",
+        "today": "1X NEO Beta + Figure 02 已 2025 量产人形机器人",
+        "in_crm": "赔率 40% · 3 年内不会成为主线 · 2030 看是另一回事"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "08-route-efg",
+      "title": "路线 E · F · G · 三条补充线",
+      "script": "路线 E 架构革新。Transformer O(N²) attention 是瓶颈,新架构在 long-context 上甩开。玩家:Mamba 作者 Gu、Liquid AI、RWKV、Sakana。赔率 25%,Jamba 这种 hybrid 是大概率。路线 F 神经符号融合,已在 Function Calling 下普遍落地,赔率 30% 事实主流。路线 G 边缘智能,Apple 押得最坚定,Phi-4 14B 超越 70B。赔率 30%——消费端会赢,企业端继续以云为主。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "E", "head": "新架构 · 25%", "body": "Mamba / Liquid / RWKV · 替代 Transformer", "ex": "long-context 更优但综合 benchmark 仍落后 · hybrid 是出路" },
+          { "n": "F", "head": "神经符号 · 30%", "body": "LLM + 数学引擎 / 代码执行 / 工具调用", "ex": "Function Calling 已普遍落地 · 事实主流" },
+          { "n": "G", "head": "边缘智能 · 30%", "body": "Apple Intelligence · Phi-4 · Mistral Small", "ex": "消费端赢 · 企业端继续云为主" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "09-no-bullet",
+      "title": "没有任何一条赔率超过 55%",
+      "script": "讲到这里我们看清楚一件事——没有任何一条路线赔率超过 55%。最高的是 B 推理时计算的 55%,意味着即便是最被看好的方向也有 45% 的可能不是主线。这就是为什么必须 hedge——任何 all-in 单条路线的策略,从概率上就是错的。",
+      "visual": {
+        "type": "quote-big",
+        "before": "7 条路线赔率全景",
+        "quote": "没有任何一条赔率超过 55%",
+        "after": "任何 all-in 单条路线的策略 · 从概率上就是错的",
+        "compare": [
+          { "side": "高赔率组", "rows": ["B 推理时计算 55%", "D 世界模型 40%", "C 合成数据 35%"] },
+          { "side": "低赔率组", "rows": ["A Scaling 30%", "F 神经符号 30%", "G 边缘智能 30%", "E 新架构 25%"] }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "10-scaling-law-curves",
+      "title": "Scaling Law 现状 · 4 系列对照",
+      "script": "看一个具体的现状——Scaling Law 到底还成立吗?GPT-2 28%,GPT-3 58%,GPT-4 78%,GPT-5 估计 87%。GPT-3 → 4 几乎翻倍,但 4 → 5 增幅明显收窄。Claude 系列特别——3.5 Sonnet 比 3 Opus 更小但更强,不再只是堆参数。DeepSeek R1 用 1/10 算力做到 o1 同级,纯 RL 路线可行。所有曲线在 log 横轴下越来越平——单纯堆参数边际收益显著递减。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "GPT-2 → GPT-3 → GPT-4", "verdict": "28% → 58% → 78% MMLU-Pro", "ok": true, "why": "Scaling 翻倍提升" },
+          { "input": "GPT-4 → GPT-4.5 → GPT-5", "verdict": "78% → 84% → 87%", "ok": false, "why": "4× 参数只涨 9 分 · 边际递减" },
+          { "input": "Claude 3.5 Sonnet", "verdict": "比 Opus 更小但更强", "ok": true, "why": "B + C 路线组合拳" },
+          { "input": "DeepSeek R1", "verdict": "1/10 算力 = o1 同级", "ok": true, "why": "纯 RL 路线可行 + 开源冲击" }
+        ],
+        "lesson": "Scaling 没死 · 但从「主菜」降级为「基础设施」",
+        "history": "主线切换到 B 推理时计算 + C 合成数据 + D 世界模型 组合"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "11-compute-tradeoff",
+      "title": "推理 vs 训练 · 算力 trade-off",
+      "script": "推理时计算是什么意思?同样算力预算下,重分配训练 vs 推理的算力比例。infer 80% 极右:AIME 推到 90%+,但日常任务反而下降被过度思考拖累。infer 50% 中间:复杂任务进 thinking,简单走快速通道,2026 主流。infer 5% 纯训练:便宜快但复杂推理拉胯,AIME 只能拿 20%。给项目的启发——简单 FAQ 用 GPT-4o-mini,复杂分析用 Opus thinking,别一刀切。",
+      "visual": {
+        "type": "sliders",
+        "title": "算力分配 · 训练 vs 推理",
+        "subtitle": "同样 100 单位算力 · 分配方式决定能力",
+        "features": [
+          { "name": "infer 5% (纯训练)", "value": 20 },
+          { "name": "infer 20%", "value": 50 },
+          { "name": "infer 50% (混合)", "value": 80 },
+          { "name": "infer 80% (重推理)", "value": 90 }
+        ],
+        "score": 80,
+        "verdict": "infer 50% 混合 = 2026 API 主流配置",
+        "diff": [
+          { "k": "数学 / 代码", "v": "需要重推理 · 单次几万 token 也值" },
+          { "k": "日常对话", "v": "需要轻推理 · GPT-4o-mini 一次 forward" },
+          { "k": "API 未来", "v": "动态分配 · 按问题难度自动决定 thinking budget" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "12-2x2-matrix",
+      "title": "2×2 押注矩阵 · 决策器",
+      "script": "给一个真正能用的决策工具——2×2 押注矩阵。横轴算法突破程度,纵轴算力供给。Q1 突破 + 丰沛 → D + C 起飞。Q2 突破 + 紧缺 → E + F 逼出新架构。Q3 增量 + 丰沛 → A + B 当前现实。Q4 增量 + 紧缺 → G + E 小型化。如果认为 Q3 概率最高这是主流判断,主投 A + B。如果像我一样保守 4 象限各 25%,主投 4 条护城河。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "Q1 · 算法突破 + 算力丰沛", "verdict": "押 D 世界模型 + C 合成数据", "ok": true, "why": "最乐观 · 下一代范式起飞" },
+          { "input": "Q2 · 算法突破 + 算力紧缺", "verdict": "押 E 新架构 + F 神经符号", "ok": true, "why": "在数学根上发力" },
+          { "input": "Q3 · 增量改良 + 算力丰沛", "verdict": "押 A Scaling + B 推理时计算", "ok": true, "why": "2026 当前现实 · 主流判断" },
+          { "input": "Q4 · 增量改良 + 算力紧缺", "verdict": "押 G 边缘智能 + E 小型化", "ok": true, "why": "手机 / 汽车 / AR 主战场" }
+        ],
+        "lesson": "Q3 ≥ 50% 是当前主流 · 但都给 25% 的 hedge 是真正稳健的",
+        "history": "每季度团队对一次表 · 分布变化即新信号"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "13-moat",
+      "title": "4 条真正的护城河",
+      "script": "讲了这么多路线,回到企业团队视角——我们不是 OpenAI、不是 DeepMind,押路线没意义。但 7 条路线背后有件事是共识——4 件事在所有路线下都不亏。这是企业团队真正应该投入的护城河。第一数据沉淀:私域业务数据、用户行为日志、领域 know-how 是稳的。第二工程能力:评估、监控、灰度、降级、合规、成本控制。第三场景理解:AI 公司不懂你的客户,SaaS 20 年沉淀的产业 know-how。第四分发与信任:客户信任、销售渠道、合规资质、私有化部署能力。",
+      "visual": {
+        "type": "fusion",
+        "main": "4 条护城河",
+        "eq": "=",
+        "parts": [
+          { "n": "01", "name": "数据沉淀", "detail": "CRM 真实使用 + 销售对话 + 续约故事 + 合同库", "color": "#ff6b35", "techs": "知识库工程化 + 标注流程 + 私域 RAG" },
+          { "n": "02", "name": "工程能力", "detail": "Eval / Observability / MLOps / 灰度 / 成本", "color": "#00d4ff", "techs": "评估集换模型也能复用 · 复利资产" },
+          { "n": "03", "name": "场景理解", "detail": "什么算延期 / 什么算续约风险 / SOW 怎么拆", "color": "#00e676", "techs": "AI 工具更新换代时 · 唯一不贬值的资产" },
+          { "n": "04", "name": "分发与信任", "detail": "客户关系 + 合规资质 + 私有化部署能力", "color": "#ad6cff", "techs": "OpenAI 进不了国企内网 · 老 SaaS 底牌" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "14-three-advice",
+      "title": "对团队的 3 条实用建议",
+      "script": "把这一讲收束成 3 条实用建议。第一,模型层当成会被替换的薄层——别为某个具体模型建组织、建团队、建 Prompt 大库。模型用法要快速可迁移。第二,每季度对一次 2×2 矩阵的判断——看大家的概率分布有没有变,变了就讨论是不是有新信号。第三,把 70% 资源投在 4 条护城河上——剩下 30% 在 7 条路线里试错,不是反过来。这就是企业团队在高度不确定的未来里能下好的注。",
+      "visual": {
+        "type": "rules",
+        "title": "对团队的 3 条实用建议",
+        "subtitle": "应用方面 hedge · 资源分配 70 / 30",
+        "rules": [
+          "① 模型层 = 薄层 — 别为某个模型建组织 / Prompt 大库,要可迁移 ✓",
+          "② 每季度对 2×2 矩阵 — 概率分布变了就讨论新信号 ✓",
+          "③ 70% 资源投护城河 — 30% 在 7 条路线试错 ✓",
+          "④ 单象限 > 60% 概率 — 必须有强证据 ✓",
+          "⑤ 任何 all-in 都警惕 — 从概率上就是错的 ✓"
+        ],
+        "verdict": "押 4 条护城河 · 无论哪条路线赢都赢",
+        "footnote": "数据 + 工程 + 场景 + 分发 · 这四件事在任何路线下都复利"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "15-recap",
+      "title": "收尾",
+      "script": "PART 5 第二讲到这里。3 个关键判断:7 条路线没有任何一条赔率超过 55%,任何 all-in 从概率上就是错的;2×2 矩阵 hedge 法,4 象限赋概率主投 top 2;企业团队真正该投入的是 4 条护城河——数据沉淀、工程能力、场景理解、分发信任。所有这些技术变化最终会落到一个更宏大的问题——当 AI 真的接近 AGI 之后,工作怎么办?组织怎么办?社会怎么办?下一讲完结讲会回答这些问题。",
+      "visual": {
+        "type": "recap",
+        "title": "PART 5 · 第 22 讲总结",
+        "points": [
+          "7 条演进路线 · 没有任何一条赔率超过 55%",
+          "2×2 矩阵决策器 · 4 象限赋概率 · 主投 top 2",
+          "4 条护城河 · 数据 / 工程 / 场景 / 分发 · 任何路线下都赢",
+          "70 / 30 资源分配 · 70% 护城河 · 30% 试错"
+        ],
+        "next": "下一讲 · 完结讲 · AGI 之后:工作 / 组织 / 社会推演",
+        "next_kw": [ "任务级冲击", "组织扁平化", "UBI", "中美双极", "AI 判断力" ]
+      },
+      "interact": "本讲结束 · 下一讲是完结讲"
+    }
+  ]
+}

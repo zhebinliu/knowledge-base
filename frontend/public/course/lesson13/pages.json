@@ -1,0 +1,284 @@
+{
+  "lesson": 13,
+  "title": "多 Agent 系统设计",
+  "voice": "白桦",
+  "model": "mimo-v2.5-tts",
+  "format": "mp3",
+  "prompt": "专业、温和、清晰、像企业培训讲师,语速适中,有节奏感,关键词稍重读。",
+  "pages": [
+    {
+      "id": "01-opening",
+      "title": "开场",
+      "script": "第三部分的第五讲。上一讲我们讲了 Agent——给模型装上自主性。但有个明显的问题——单 Agent 是有极限的。我先抛个真实场景。我们项目里有个客户要求:给我做一个 AI 助手,能从客户访谈里提取需求、设计方案、估算人天、写报价、做合规审查、生成最终 PPT。听起来是一个完整的「售前自动化」对吧?我们一开始一个 Agent 接 30 个工具,覆盖所有环节。结果一塌糊涂。工具调用准确率从 demo 时的 92% 掉到了 67%。客户拿到的方案文档里,「需求分析」和「实施规划」互相矛盾。",
+      "visual": {
+        "type": "hero",
+        "tag": "LESSON 13 · PART 3 工程落地",
+        "h1": "多 Agent 系统设计",
+        "subtitle": "专业化分工 · 协作模式 · 团队工程",
+        "note": "让一个 Agent 做 30 件事 · 就像让一个员工同时当销售客服财务技术法务"
+      },
+      "interact": "听完点「下一页」"
+    },
+    {
+      "id": "02-thesis",
+      "title": "核心论点",
+      "script": "今天唯一要记住的一句话:单 Agent 是个全能员工,多 Agent 是个有分工的团队。团队的效率不在每个人多强,在协作设计有多好。专业化分工是软件工程亘古不变的真理,AI 系统也不例外。但请记住:多 Agent 是高级武器,不是入门玩具——在没有把单 Agent 做扎实之前,别盲目上多 Agent。",
+      "visual": {
+        "type": "thesis",
+        "label": "今天唯一要记住的一句话",
+        "quote": "单 Agent 是个全能员工<br>多 Agent 是个有分工的团队",
+        "footer": "团队效率 · 不在每个人多强 · 在协作设计有多好",
+        "keywords": [
+          { "k": "专业化", "v": "每个 Agent 精专一个领域" },
+          { "k": "协作", "v": "Supervisor / Pipeline / Debate / Hierarchical" },
+          { "k": "纪律", "v": "先单后多 · 先简后繁" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "03-four-boundaries",
+      "title": "单 Agent 的 4 个边界",
+      "script": "什么时候单 Agent 扛不住?四种情况。边界 1 工具集太大,30+ 工具时模型「忘记」自己有什么,实测超过 15 个准确率从 92% 掉到 67%。边界 2 涉及多种专业领域,需求、合同、技术、定价每个领域需要不同的「心智」,一个 prompt 不可能都到专家水平。边界 3 需要多视角和「质疑」,单 Agent 没有审核没有对抗,模拟不了内部博弈。边界 4 流程跨多个角色,销售→风控→财务→法务→交付,天然就是多 Agent。",
+      "visual": {
+        "type": "rules",
+        "title": "单 Agent 扛不住的 4 种边界",
+        "subtitle": "看到任意 2 个 · 就该考虑多 Agent 了",
+        "rules": [
+          "边界 1 · 工具集太大 — 30+ 工具准确率从 92% 掉到 67% · 注意力被稀释",
+          "边界 2 · 多种专业领域 — 销售方案要进取 · 合规要严谨 · 一个 prompt 两头都做不好",
+          "边界 3 · 需要多视角质疑 — 单 Agent 没有审核没有对抗 · 模拟不了内部博弈",
+          "边界 4 · 流程跨多个角色 — 销售 → 风控 → 财务 → 法务 → 交付 · 天然多 Agent"
+        ],
+        "verdict": "「工具多 / 领域杂 / 需要质疑 / 跨角色」任意 2 个 → 考虑多 Agent",
+        "footnote": "但多 Agent 是高级武器 · 没把单 Agent 做扎实之前 · 别盲目上"
+      },
+      "interact": "点「下一页」看 4 种协作模式"
+    },
+    {
+      "id": "04-supervisor",
+      "title": "模式 1 · Supervisor 中心化分发",
+      "script": "最直观的模式——一个主管 Agent 加多个专业子 Agent。主管接收用户任务,根据任务性质判断该路由给哪个子 Agent。子 Agent 完成后把结果交回主管,主管整合后返回给用户。就像一个团队的负责人在分活。这是最常见的多 Agent 模式,原因简单:好理解、好实现、好调试。一旦出问题,主管 Agent 的日志能告诉你它把任务分给了谁、为什么。适用客服系统、产品经理统一调度团队、任何需要「总体把控加专业执行」的场景。",
+      "visual": {
+        "type": "school",
+        "n": "01",
+        "name": "Supervisor",
+        "en": "中心化分发",
+        "era": "最常见的多 Agent 模式",
+        "color": "#00e676",
+        "belief": "一个主管 + N 个专业子 Agent · 主管按任务分发路由",
+        "rep": "客服系统(技术问题→技术 Agent · 财务问题→财务 Agent)· 产品经理调度团队",
+        "trouble": "主管 Agent 成为瓶颈 · 路由判断错全队跟着错",
+        "today": "好理解 · 好实现 · 好调试 · 日志能告诉你为什么分给了谁",
+        "in_crm": "适合「总体把控 + 专业执行」的场景 · 大部分企业首选这种"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "05-pipeline",
+      "title": "模式 2 · Pipeline 流水线",
+      "script": "第二种模式 Pipeline。多个 Agent 按固定顺序处理,前一个的输出是后一个的输入。像工厂流水线,每个工位做一件事,完了交给下一个。这个模式的特点是流程是固定的、单向的。举例:销售合同审批流程——销售生成合同、法务审核条款、财务核算价格、总监审批、归档。每一步都是固定的,没有跳过、没有回流。好处是每个 Agent 只关心自己的部分,简单。坏处是不灵活,前一步出错后面全乱。",
+      "visual": {
+        "type": "school",
+        "n": "02",
+        "name": "Pipeline",
+        "en": "流水线",
+        "era": "流程固定 · 单向流转",
+        "color": "#00d4ff",
+        "belief": "多个 Agent 按固定顺序 · 前一个输出 = 后一个输入",
+        "rep": "合同审批 · 订单处理 · 内容生产管线 · 工厂式流水线",
+        "trouble": "不灵活 · 前一步出错后面全乱 · 没有回流机制",
+        "today": "好处 · 每个 Agent 只关心自己的部分 · 简单清晰",
+        "in_crm": "销售 · 法务 · 财务 · 总监审批 · 归档 — 每步固定 · 无跳过"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "06-debate",
+      "title": "模式 3 · Debate 对抗辩论",
+      "script": "第三种是个有意思的模式——两个 Agent 持对立立场辩论,第三个 Agent 作为裁判。比如审查一个合同:Pro Agent 找这个合同对我们有利的地方,Con Agent 找对我们不利、有风险的地方,Judge Agent 综合两方观点给出最终评估。这种「质疑式协作」在高风险决策里特别有用——它强迫系统从对立视角看问题,避免「思维定式」。我们项目用过这个模式做合同审查,效果惊人,比单 Agent 多发现了 40% 的潜在风险点——因为 Pro 和 Con 互相挑刺,没什么能蒙混过关。",
+      "visual": {
+        "type": "school",
+        "n": "03",
+        "name": "Debate",
+        "en": "对抗辩论",
+        "era": "高风险决策必备",
+        "color": "#ff6b35",
+        "belief": "Pro + Con + Judge · 强迫系统从对立视角看问题",
+        "rep": "合同条款审查 · 合规审查 · 多个合理方案权衡",
+        "trouble": "成本翻倍 · 设计需要明确「分歧维度」",
+        "today": "我们项目用过 · 比单 Agent 多发现 40% 风险点",
+        "in_crm": "Pro 找有利 · Con 找风险 · Judge 综合判定 · 互相挑刺没什么能蒙混过关"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "07-hierarchical",
+      "title": "模式 4 · Hierarchical 层级化",
+      "script": "第四种 Hierarchical 层级化。多层组织结构——CEO 层规划战略,经理层拆分任务,员工层执行具体动作。像真实公司的组织架构。举例:做一个完整的「客户营销活动」——CEO Agent 定战略「激活老客户」;Manager Agent 拆战术「邮件营销 + APP 推送 + 电话回访」;Worker Agent 执行具体写邮件、发推送、安排电话。这个模式很强大,但也是最复杂的。一般只在确实需要多层抽象时才用,否则容易过度设计。",
+      "visual": {
+        "type": "school",
+        "n": "04",
+        "name": "Hierarchical",
+        "en": "层级化",
+        "era": "超大项目 · 多层抽象",
+        "color": "#ad6cff",
+        "belief": "CEO 定战略 · Manager 拆战术 · Worker 执行",
+        "rep": "年度规划 · 大型项目 · 模拟组织决策流程",
+        "trouble": "最复杂 · 容易过度设计 · 不需要多层抽象就别上",
+        "today": "适用 · 确实需要战略→战术→执行三层抽象的场景",
+        "in_crm": "营销活动 · CEO「激活老客户」 → Manager「邮 + 推 + 话」 → Worker 真正执行"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "08-pattern-pick",
+      "title": "4 种模式怎么选",
+      "script": "实际项目里怎么选?我给一个简单判断:任务类型多样、需要分发,用 Supervisor;流程固定、按部就班,用 Pipeline;高风险决策、需要质疑,用 Debate;超大型项目、多层抽象,用 Hierarchical。实战中最常见的是几种模式的混合——总体是 Supervisor,关键节点用 Debate 做审查,部分子流程用 Pipeline——这是一个成熟多 Agent 系统的真实形态。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "任务类型多样 · 需要分发", "verdict": "Supervisor", "ok": true, "why": "主管按任务性质路由 · 最常见首选" },
+          { "input": "流程固定 · 按部就班", "verdict": "Pipeline", "ok": true, "why": "每个 Agent 关心自己那段 · 简单清晰" },
+          { "input": "高风险决策 · 需要质疑", "verdict": "Debate", "ok": true, "why": "Pro / Con / Judge 三方对抗 · 多挖 40% 风险" },
+          { "input": "超大型 · 多层抽象", "verdict": "Hierarchical", "ok": true, "why": "战略 / 战术 / 执行三层 · 模拟组织架构" }
+        ],
+        "lesson": "成熟多 Agent 系统 · 几乎都是混合模式 · Supervisor 主体 + Debate 关键节点 + Pipeline 子流程",
+        "history": "不存在「最好的」模式 · 只有「最匹配场景的」模式"
+      },
+      "interact": "点「下一页」看 5-Agent CRM 团队"
+    },
+    {
+      "id": "09-five-agent-team",
+      "title": "5-Agent CRM 团队",
+      "script": "光说模式太抽象。一个真实简化案例:用 5 个专业 Agent 协作完成「销售方案生成」任务。任务跨 5 个专业领域——完美的多 Agent 场景。我们设计了 5 个 Agent:Researcher 需求分析师、Architect 方案架构师、Planner 实施规划师、Pricer 报价分析师、Compliance 合规审查员。整体协作模式:Pipeline 主体 + Debate 补充——前 4 个 Agent 按顺序工作,第 5 个 Compliance 作为质量门审查所有环节。",
+      "visual": {
+        "type": "course-map",
+        "parts": [
+          { "name": "Researcher · 需求分析师", "range": "Pipeline 1", "color": "#00e676", "kw": "解析资料 · 提取显隐需求 · 分类 · 标「待澄清」" },
+          { "name": "Architect · 方案架构师", "range": "Pipeline 2", "color": "#00d4ff", "kw": "需求→产品能力 · 标准 + 升级 双方案 · 列技术风险" },
+          { "name": "Planner · 实施规划师", "range": "Pipeline 3", "color": "#ad6cff", "kw": "WBS · 人天 · 里程碑 · 历史速率校准估算" },
+          { "name": "Pricer · 报价分析师", "range": "Pipeline 4", "color": "#d9b366", "kw": "保守 / 标准 / 激进 三档报价 · 引导成交" },
+          { "name": "Compliance · 合规审查员", "range": "Debate 质量门", "color": "#ff6b35", "kw": "审查所有前序输出 · 有「否决权」" }
+        ],
+        "highlight": 4
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "10-researcher-architect",
+      "title": "Agent 1-2 · Researcher / Architect",
+      "script": "Agent 1 需求分析师。使命:把客户的口头需求和原始资料,转化为结构化的需求清单。为什么是它打头阵?因为它的输出是后面 4 个 Agent 的输入,起点错了全队跟着错。核心职责:解析客户资料、提取显隐需求、需求分类、评估优先级、标记「需澄清」。Agent 2 方案架构师。这是整个团队最依赖「经验」的角色。核心职责:把需求映射到产品能力、识别定制开发部分、设计架构图、提出标准 + 升级双方案。让它输出两个方案给客户决策空间——单一方案是新人作品,多方案是顾问作品。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "01", "head": "Researcher · 起点不能错", "body": "输出是后 4 个 Agent 的输入 · 起点错全队跟着错", "ex": "工具 · read_documents · search_similar_cases · query_industry_template" },
+          { "n": "02", "head": "Architect · 双方案是顾问作品", "body": "需求 → 产品能力 · 标准版 + 升级版 + 技术风险清单", "ex": "「单一方案是新人作品 · 多方案是顾问作品」" },
+          { "n": "—", "head": "前两个 Agent 的共同特征", "body": "依赖经验 · 模型选 Frontier 梯队", "ex": "复杂规划任务 · Opus / GPT-4 · 不能用 Haiku" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "11-planner-pricer-compliance",
+      "title": "Agent 3-5 · Planner / Pricer / Compliance",
+      "script": "Agent 3 实施规划师。把方案转化为可执行的项目计划——WBS、人天、里程碑。最值得说的工具是 query_historical_velocity,查我们历史上做类似项目的实际速率,让估算贴近真实。Agent 4 报价分析师,商务负责人心智,输出 3 档报价——保守、标准、激进,给客户选择引导成交。Agent 5 合规审查员,最重要——有「否决权」。它不是 Pipeline 中的下一站,而是质量门审查所有前面环节的输出。实测上线后避免了 3 次有重大风险的项目。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "03", "head": "Planner · 历史速率校准", "body": "WBS · 人天 · 里程碑 · 资源", "ex": "query_historical_velocity · 防止新人式过度乐观估时" },
+          { "n": "04", "head": "Pricer · 3 档报价引导成交", "body": "保守 / 标准 / 激进 · 给客户选择空间", "ex": "权衡 · 成本 + 竞品 + 客户支付能力 · 销售实战最有用的形式" },
+          { "n": "05", "head": "Compliance · 否决权 · 质量门", "body": "审查所有前序输出 · 通过 / 有条件 / 不通过", "ex": "实测 · 避免了 3 次本可签但重大风险的项目" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "12-frameworks",
+      "title": "3 个主流框架",
+      "script": "主流多 Agent 框架有 3 个。LangGraph 基于状态机,Agent 之间的流转用图的边定义,控制力强,适合复杂业务流程。CrewAI 基于角色,Agent 定义角色背景和擅长领域,框架自动协作,概念直观、原型快。AutoGen 基于对话,Agent 之间通过对话协作,支持人类作为其中一个。99% 的项目不需要从框架入手——先用「几个 Agent + 一段调度代码」原型验证,流程稳定后再引入框架。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "01", "head": "LangGraph · 状态机", "body": "图 + 状态 + 边 · 控制力强 · 支持分支循环", "ex": "适合 · 复杂业务流程 · 需要严格控制路径的生产系统" },
+          { "n": "02", "head": "CrewAI · 角色式", "body": "角色 + 任务 · 几行配置就跑 · 最像「组团队」", "ex": "适合 · 原型验证 · 内容生产 · 调研类任务" },
+          { "n": "03", "head": "AutoGen · 对话式", "body": "Agent 间对话 · 支持人在回路", "ex": "适合 · 需要人介入的业务 · 研讨型任务" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "13-trap-overdesign",
+      "title": "陷阱 1-3 · 过度 / 角色模糊 / 上下文爆炸",
+      "script": "多 Agent 比单 Agent 复杂 10 倍,坑也多 10 倍。陷阱 1 过度设计:简单任务硬拆 5 个 Agent,overhead 高于单 Agent 直接做。判断标准:能用单 Agent 切 Prompt 搞定的绝不用多。陷阱 2 角色定义模糊,需求和架构师职责重叠。修正:用 RACI 矩阵明确职责。陷阱 3 上下文爆炸,A 全塞给 B、B 全塞给 C,最后 context 是 10 万 token 大杂烩。修正:Agent 间只传结构化结论。",
+      "visual": {
+        "type": "rules",
+        "title": "陷阱 1-3 · 架构层失误",
+        "subtitle": "过度设计 / 角色模糊 / 上下文爆炸 · 都是设计阶段的锅",
+        "rules": [
+          "陷阱 1 · 过度设计 — 简单任务硬拆 5 Agent · 修正 · 能单 Agent 切 Prompt 搞定就别用多",
+          "陷阱 2 · 角色模糊 — 需求 vs 架构师职责重叠 · 修正 · RACI 矩阵 · 每件事只有一个 R",
+          "陷阱 3 · 上下文爆炸 — 全量对话传下去 · 修正 · 传结构化结论 + 共享 Memory + 输出 schema"
+        ],
+        "verdict": "Agent 数量不应超过真实业务角色数",
+        "footnote": "好的多 Agent 设计 · 像组织设计 · 不像炫技"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "14-trap-runtime",
+      "title": "陷阱 4-6 · 错误传播 / 互踢 / 调试爆炸",
+      "script": "陷阱 4 错误传播。需求 Agent 提取错一个关键字段,后面所有 Agent 都基于错的需求做事。修正:关键节点设质量门 + Reviewer Agent。陷阱 5 无限互踢。A 要 B,B 说先问 C,C 说先问 A。修正:最大轮数 + Supervisor 仲裁 + 通信图必须 DAG。陷阱 6 调试爆炸。5 个 Agent 输出差,不知是哪个 Agent 的锅。修正:全链路 trace + 独立 replay。这个陷阱直接引出下一讲——评估与可观测性。",
+      "visual": {
+        "type": "rules",
+        "title": "陷阱 4-6 · 运行时失误",
+        "subtitle": "错误传播 / 无限互踢 / 调试爆炸 · 都是运行时才暴露",
+        "rules": [
+          "陷阱 4 · 错误传播 — 需求错全队跟着错 · 修正 · 关键节点设质量门 + Reviewer Agent",
+          "陷阱 5 · 无限互踢 — A→B→C→A 循环 · 修正 · 最大轮数 + 仲裁规则 + 通信图必须 DAG",
+          "陷阱 6 · 调试爆炸 — 不知是哪个 Agent 的锅 · 修正 · 全链路 trace + 独立 replay + LangSmith"
+        ],
+        "verdict": "多 Agent 系统不可观测 · 就没法持续优化",
+        "footnote": "这个陷阱直接引出下一讲 · 评估与可观测性"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "15-decision-framework",
+      "title": "5 问决策框架",
+      "script": "面对新业务场景,要不要用多 Agent?5 个问题问一遍。Q1 业务流程涉及多少真实角色?1-2 个用单,3 个以上用多。Q2 不同步骤的「专业心智」差异多大?小用单,大用多。Q3 是否需要质疑或对抗?需要用 Debate。Q4 流程固定还是动态?固定 Pipeline,动态 Supervisor。Q5 业务流程是否已稳定?不稳定先用单 Agent 验证。3 个以上指向多 Agent 才上,否则先用单。",
+      "visual": {
+        "type": "three-questions",
+        "intro": "面对新场景 · 5 问决策 · 3 个以上指向多 Agent 才上",
+        "questions": [
+          { "q": "Q1 业务流程涉及多少真实角色?", "ex": "1-2 个 → 单 Agent  3+ 个 → 多 Agent" },
+          { "q": "Q2 步骤间「专业心智」差异多大?", "ex": "小 → 单 Agent  大 → 多 Agent" },
+          { "q": "Q3 是否需要质疑 / 对抗?", "ex": "需要 → Debate · 不需要 → 单或 Pipeline" },
+          { "q": "Q4 流程固定还是动态?", "ex": "固定 → Pipeline  动态 → Supervisor" },
+          { "q": "Q5 业务流程稳定了吗?", "ex": "不稳定 → 先单 Agent 验证  稳定 → 再多 Agent" }
+        ],
+        "tail": "3 个以上指向多 Agent 才上 · 否则先单 Agent · 先简后繁是工程纪律"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "16-recap",
+      "title": "收尾",
+      "script": "今天核心一句话:单 Agent 是全能员工,多 Agent 是有分工的团队,团队效率不在每个人多强,在协作设计有多好。4 种协作模式——Supervisor、Pipeline、Debate、Hierarchical,真实项目里往往是混合。5-Agent CRM 团队是企业级真实形态:专业化分工 + Pipeline 效率 + Debate 审查。多 Agent 是高级武器,先单后多、先简后繁是工程纪律。下一讲解决评估与可观测性——怎么知道 Agent 跑得好不好。",
+      "visual": {
+        "type": "recap",
+        "title": "今天讲了什么",
+        "points": [
+          "单 Agent 的 4 个边界 → 何时该上多 Agent",
+          "4 种协作模式 · Supervisor / Pipeline / Debate / Hierarchical",
+          "5-Agent CRM 团队 · Pipeline 主体 + Debate 质量门",
+          "6 个高频陷阱 + 5 问决策框架",
+          "先单后多 · 先简后繁 · 工程纪律"
+        ],
+        "next": "下一讲 · 评估与可观测性",
+        "next_kw": ["端到端评估", "全链路 trace", "LangSmith / Langfuse"]
+      },
+      "interact": "本讲结束 · 可以重看任意一页"
+    }
+  ]
+}

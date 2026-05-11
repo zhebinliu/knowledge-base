@@ -1,0 +1,305 @@
+{
+  "lesson": 7,
+  "title": "Scaling Law 与涌现能力",
+  "voice": "白桦",
+  "model": "mimo-v2.5-tts",
+  "format": "mp3",
+  "prompt": "专业、温和、清晰、像企业培训讲师,语速适中,有节奏感,关键词稍重读。",
+  "pages": [
+    {
+      "id": "01-opening",
+      "title": "开场",
+      "script": "我们继续 PART 2。前两讲讲了 Transformer 的结构和大模型的训练流程。今天讨论一个更宏观的问题——为什么 OpenAI、Anthropic、Google 敢一直砸几百亿美元做大模型?他们看到了什么我们没看到的东西?答案是两个东西:Scaling Law 规模定律,和涌现能力 Emergence。理解了这两个,大模型行业过去 5 年的逻辑就通了。",
+      "visual": {
+        "type": "hero",
+        "tag": "LESSON 07 · PART 2 大模型时代",
+        "h1": "Scaling Law 与涌现能力",
+        "subtitle": "大力出奇迹背后的数学公式",
+        "note": "理解了它 · 才能看懂大模型行业过去 5 年的疯狂投入"
+      },
+      "interact": "听完点「下一页」"
+    },
+    {
+      "id": "02-the-paper",
+      "title": "一切的起点 · 2020 那篇论文",
+      "script": "故事的开始是 2020 年,OpenAI 发了一篇论文,标题平淡得不像有什么了不起:Scaling Laws for Neural Language Models,神经语言模型的规模定律。这篇论文做了一件简单的事:训练几十个不同大小的 Transformer,从几百万参数到几十亿参数,记录每个模型的最终损失 loss,然后画图。他们发现了一个让所有人震惊的规律。",
+      "visual": {
+        "type": "quote-with-rows",
+        "main": "Scaling Laws for Neural Language Models",
+        "sub": "OpenAI · 2020 · 大模型行业的圣经",
+        "rows": [
+          { "tag": "实验方法", "body": "训练几十个不同大小 Transformer · 几百万到几十亿参数" },
+          { "tag": "记录什么", "body": "每个模型的最终损失 loss" },
+          { "tag": "结果", "body": "在对数坐标下 · 所有点几乎完美落在一条直线上" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "03-power-law",
+      "title": "幂律 · 一条惊人的直线",
+      "script": "横轴是训练总算力 FLOPs,纵轴是模型最终 loss。在对数坐标下,所有数据点几乎完美地落在一条直线上。这条直线意味着 loss 和算力之间存在一个幂律关系。公式是 L 等于 a 乘以 C 的负 b 次方,翻译成人话就是:算力翻 10 倍,loss 就稳定下降一个固定比例。这个关系在跨 5 个数量级的范围内都成立——从 GPT-2 到 GPT-3 再到 GPT-4,每一步都精确符合这条公式。",
+      "visual": {
+        "type": "formula",
+        "label": "Scaling Law 公式",
+        "formula": "L = a · C ^ ( -b )",
+        "examples": [
+          { "from": "GPT-2 小规模", "to": "loss ≈ 3.0" },
+          { "from": "GPT-3 1750 亿", "to": "loss ≈ 2.0" },
+          { "from": "GPT-4 万亿级", "to": "loss ≈ 1.5" }
+        ],
+        "scale": "对数坐标下:跨 5 个数量级的算力 · 所有点落在一条直线上",
+        "negate": [
+          "L = loss(模型损失)",
+          "C = 训练总算力(FLOPs)",
+          "a, b = 实验拟合常数",
+          "算力 ×10 → loss 稳定 ↓ 一个固定比例"
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "04-investment-bible",
+      "title": "为什么这是投资圣经",
+      "script": "理解一下这个发现的恐怖之处。如果你训练 GPT-3 级别模型花了 1 亿美元,得到 loss 等于 2.0。Scaling Law 告诉你:只要再花 10 亿美元,你就能得到 loss 等于 1.7;再花 100 亿,loss 等于 1.5。只要你愿意花更多钱,模型就会变得更好。这条曲线没有看到尽头。这就是 OpenAI、Anthropic、Google 敢持续投入几百亿美元的科学依据。他们不是在赌,他们是在按照公式投资。",
+      "visual": {
+        "type": "thesis",
+        "label": "OpenAI 敢砸百亿的科学依据",
+        "quote": "他们不是在赌 · <br> 他们是在按照公式投资",
+        "footer": "竞争对手按同样路径也能做出同样模型 · 所以国内追赶并不是奇迹",
+        "keywords": [
+          { "k": "1 亿美元", "v": "loss ≈ 2.0 (GPT-3 级)" },
+          { "k": "10 亿美元", "v": "loss ≈ 1.7 (GPT-3.5 级)" },
+          { "k": "100 亿美元", "v": "loss ≈ 1.5 (GPT-4 级)" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "05-will-it-fail",
+      "title": "这个规律会失效吗?",
+      "script": "这是个开放问题。乐观派包括 OpenAI 和 Anthropic 认为:曲线还会继续,GPT-5、GPT-6 会在这条曲线上继续往下走。怀疑派认为:训练数据快用完了,互联网上高质量文本是有限的,不可能一直翻 10 倍,Scaling Law 可能在 2025 到 2026 年遇到数据墙。但无论如何,过去 5 年这条曲线被反复验证。这是大模型行业最坚实的科学基础。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "乐观派 · OpenAI / Anthropic", "verdict": "曲线还会继续 · GPT-5/6 继续往下走", "ok": true, "why": "合成数据 / Test-time Compute 等新路径" },
+          { "input": "怀疑派 · 学界一部分", "verdict": "数据墙将至 · 2025-2026 可能失效", "ok": true, "why": "互联网高质量文本有限 · 不可能一直翻 10 倍" }
+        ],
+        "lesson": "无论如何 · 过去 5 年这条曲线被反复验证",
+        "history": "即使遇数据墙 · 合成数据 + 推理时计算等新 scaling 维度正在打开"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "06-chinchilla-question",
+      "title": "Chinchilla 提出的关键问题",
+      "script": "Scaling Law 有个细节:模型表现取决于参数乘以数据乘以算力。但这三个东西怎么分配?GPT-3 时代的做法是尽量堆参数。1750 亿参数,只训练了 3000 亿 token,参数和数据比例是 1.7 比 1,每个参数大约只见过 2 个 token。打个比方,这就像一个有惊人天赋但只读过几本书的人——容量很大,但内容稀薄。模型有大量参数没充分利用。",
+      "visual": {
+        "type": "question",
+        "q": "参数 × 数据 × 算力 · 怎么分配最优?",
+        "options": [
+          "GPT-3 时代 → 尽量堆参数 (1750 亿)",
+          "数据只有 3000 亿 token (比例 1.7:1)",
+          "每个参数只见过 2 个 token"
+        ],
+        "tail": "DeepMind 2022 年做了一个关键实验 →",
+        "paths": [
+          { "n": "比喻", "name": "天赋 vs 读书", "owner": "有惊人天赋但只读过几本书的人" },
+          { "n": "结论", "name": "参数没用满", "owner": "大量参数没被充分利用" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "07-chinchilla-law",
+      "title": "Chinchilla 定律 · 1:20",
+      "script": "2022 年 DeepMind 发了一篇论文做了关键实验:在固定算力预算下,怎么分配参数和数据才最优?他们训练了几百个模型,得出结论——最优比例是 1 比 20,每个参数应该见过约 20 个 token。按这个比例 DeepMind 训练了 Chinchilla 模型,700 亿参数,1.4 万亿 token。结果 Chinchilla 全面优于 GPT-3,而算力消耗一样。这彻底改变了行业,从 2022 年开始所有团队都按 Chinchilla 比例训练。",
+      "visual": {
+        "type": "thesis",
+        "label": "DeepMind 2022 · Chinchilla 论文",
+        "quote": "最优参数:数据 = 1 : 20 <br> 每个参数应见过约 20 个 token",
+        "footer": "Chinchilla 70B + 1.4T token · 全面优于 GPT-3 175B · 算力一样",
+        "keywords": [
+          { "k": "参数", "v": "700 亿 (比 GPT-3 小 2.5 倍)" },
+          { "k": "数据", "v": "1.4 万亿 token (4.7 倍 GPT-3)" },
+          { "k": "效果", "v": "全面优于 GPT-3 · 算力消耗一样" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "08-new-ratio-1-200",
+      "title": "2024 新发现 · 1:200",
+      "script": "Chinchilla 比例 1 比 20 也在被刷新。Llama 3 又把比例推到了 1 比 200——700 亿参数喂 15 万亿 token,每个参数见过 200 个 token。DeepSeek、Qwen 等都在往这个方向走。小模型加海量数据成了新主流。为什么?因为推理成本。模型小、推理便宜、部署友好,企业更喜欢用。这件事对我们的启示:参数大不一定更好用,一个充分训练的 70B 模型往往比训练不充分的 175B 模型更好。",
+      "visual": {
+        "type": "sliders",
+        "title": "参数 vs 数据比例的演进",
+        "subtitle": "从 1:1.7 → 1:20 → 1:200 · 数据越来越重要",
+        "features": [
+          { "name": "GPT-3 (1:1.7)", "value": 15 },
+          { "name": "Chinchilla (1:20)", "value": 50 },
+          { "name": "Llama 3 (1:200)", "value": 95 }
+        ],
+        "score": 95,
+        "verdict": "今天主流:小模型 + 海量数据 · 推理友好、部署便宜",
+        "diff": [
+          { "k": "选型反直觉", "v": "参数大 ≠ 更好 · 看每个参数见过多少数据" },
+          { "k": "受欢迎模型", "v": "Llama 3 70B / Qwen 72B · 参数效率高" },
+          { "k": "市场逻辑", "v": "推理成本 = 企业部署的主要矛盾" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "09-emergence-thesis",
+      "title": "涌现 · 非线性的能力跃迁",
+      "script": "Scaling Law 告诉我们 loss 会平滑下降。但很多具体能力的提升不是平滑的——是突然的。这就是涌现能力 Emergence。模型在小规模时完全不会某些任务,规模到达某个临界点后能力突然出现。横轴是模型参数规模,纵轴是某任务准确率,看到的是一条 S 型曲线——参数小于某个阈值时准确率几乎是 0,过了阈值突然跃升到 80% 以上。没有过渡,能力一夜之间出现。",
+      "visual": {
+        "type": "quote-big",
+        "before": "Scaling Law 说 loss 平滑下降",
+        "quote": "但具体能力的提升不是平滑的 · 是突然的",
+        "after": "S 型曲线 · 过了临界点能力一夜之间出现",
+        "compare": [
+          { "side": "Scaling Law", "rows": ["loss 平滑下降", "对数坐标一条直线", "覆盖整体损失"] },
+          { "side": "涌现能力", "rows": ["S 型曲线", "临界点之前为 0", "过阈值突然涌现"] }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "10-emergence-tasks",
+      "title": "四种涌现曲线",
+      "script": "看几个具体任务。三位数加法是涌现型,参数小于 10 亿时准确率几乎是 0,在 150 亿参数附近突然跃升到 80% 以上。语义理解是平滑型,从小模型时代就有部分能力,规模化只是不断提升。指令遵循在 500 亿参数附近出现明显跃升,这是 Agent 能力的基础——指令跟不准 Agent 就跑不起来。多步推理是最晚涌现的,千亿参数才开始显著起色,这也是 GPT-4 级别模型才能做复杂 Agent 任务的原因。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "01", "head": "三位数加法 · 涌现型", "body": "<10 亿参数:准确率 ≈ 0 · 150 亿附近突然跃升到 80%+", "ex": "经典 S 型曲线 · 没有过渡 · 突然学会" },
+          { "n": "02", "head": "语义理解 · 平滑型", "body": "小模型已有部分能力 · 规模化是不断提升", "ex": "不是所有任务都涌现 · 这条是平滑曲线" },
+          { "n": "03", "head": "指令遵循 · 500 亿涌现", "body": "按用户复杂指令执行多步任务 · 500 亿参数附近跃升", "ex": "Agent 能力的基础 · 指令跟不准 Agent 跑不起来" },
+          { "n": "04", "head": "多步推理 · 千亿涌现", "body": "最晚涌现的能力之一 · 千亿参数才显著起色", "ex": "这就是为什么 GPT-4 级才能做复杂 Agent 任务" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "11-emergence-engineering",
+      "title": "涌现的工程意义",
+      "script": "涌现现象给我们一个非常重要的工程指导:任务能力和模型规模可能是非线性关系。举几个例子。做需求分类是平滑型,小模型够用。做合同条款抽取是平滑型,中模型不错。做多步骤的需求分析加方案生成是涌现型,必须用大模型。用错梯队的模型,效果会完全不一样。这就是为什么不能盲目说越小越省钱——任务如果在涌现型,小模型再便宜也做不了。",
+      "visual": {
+        "type": "rules",
+        "title": "任务类型 → 模型梯队的工程映射",
+        "subtitle": "用错梯队 · 效果完全不一样",
+        "rules": [
+          "需求分类 → 平滑型 → 小模型够用 (Efficient 梯队)",
+          "合同条款抽取 → 平滑型 → 中模型不错 (Strong 梯队)",
+          "情感分类 / 关键词 → 平滑型 → Efficient 梯队",
+          "多步需求分析 + 方案生成 → 涌现型 → 必须 Frontier",
+          "复杂 Agent 任务 → 涌现型 → 必须 Frontier",
+          "数学推理 / 代码大型重构 → 涌现型 → 必须 Frontier"
+        ],
+        "verdict": "盲目用小模型省钱 · 涌现任务会做不了",
+        "footnote": "工程的核心:任务类型 → 模型梯队的精准匹配"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "12-emergence-controversy",
+      "title": "涌现是真的吗?",
+      "script": "这里要给大家讲一个学术争议。2023 年 Stanford 发表了一篇论文,标题挑衅意味十足:大模型的涌现能力是幻觉吗?他们的论点是,很多涌现现象是因为评估指标用了全对才算对的硬阈值。比如三位数加法只有完全正确才算对,模型准确率确实会从  0 突然跳到 80%——因为答错一位就算 0 分。但如果用每位数字正确率这种连续指标,能力提升其实是平滑的。但有一个实用共识:模型大到一定程度突然变得好用,是真实存在的。",
+      "visual": {
+        "type": "quote-with-rows",
+        "main": "Are Emergent Abilities a Mirage?",
+        "sub": "Stanford 2023 · 涌现的幻觉之争",
+        "rows": [
+          { "tag": "Stanford 论点", "body": "涌现是「全对才算对」硬阈值造成的视觉假象" },
+          { "tag": "反例", "body": "如用「每位数字正确率」 → 提升其实是平滑的" },
+          { "tag": "实用共识", "body": "无论真假 · 「过了阈值突然好用」是企业关心的事实" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "13-three-tiers",
+      "title": "2025 模型梯队",
+      "script": "理解了 Scaling Law,我们看今天市场上模型的梯队结构,分三个梯队。Frontier 梯队最强,GPT-4、Claude Opus、Gemini Ultra,万亿参数级,适合复杂推理和 Agent,贵。Strong 梯队,Claude Sonnet、GPT-4o、DeepSeek V3,千亿参数级,适合日常对话、代码、RAG,中等价位。Efficient 梯队,Claude Haiku、Qwen 7B,百亿及以下,适合高并发、批量、客服,便宜。",
+      "visual": {
+        "type": "fusion",
+        "main": "2025 模型梯队",
+        "eq": "·",
+        "parts": [
+          { "n": "01", "name": "Frontier 梯队", "detail": "万亿参数级 · 复杂推理 / 专业任务 / Agent · 贵", "color": "#ad6cff", "techs": "GPT-4 · Claude Opus · Gemini Ultra" },
+          { "n": "02", "name": "Strong 梯队", "detail": "千亿参数级 · 日常对话 / 代码 / 写作 / RAG · 中等", "color": "#ad6cff", "techs": "Claude Sonnet · GPT-4o · DeepSeek V3 · Qwen 72B" },
+          { "n": "03", "name": "Efficient 梯队", "detail": "百亿及以下 · 高并发 / 批量 / 客服 · 便宜", "color": "#ad6cff", "techs": "Claude Haiku · GPT-4o-mini · Qwen 7B" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "14-tier-cases",
+      "title": "三个真实场景 · 三种选择",
+      "script": "选模型的核心原则不是越大越好,是匹配场景才好。看三个真实场景。场景 1,从客户访谈录音里抽取需求,这是相对结构化的任务,Strong 梯队就够了,用 Claude Sonnet 或 DeepSeek V3,成本可控、效果好。场景 2,基于历史项目数据给客户复杂需求设计完整方案,这需要多步推理加知识整合,是涌现型任务,必须用 Frontier。场景 3,批量处理几万条客户反馈做情感分类,用 Efficient 梯队,Qwen 7B 就够,成本能压到 Frontier 的百分之一。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "场景 1 · 访谈需求抽取", "verdict": "Strong (Sonnet / DeepSeek V3)", "ok": true, "why": "结构化任务 · 成本可控、效果好" },
+          { "input": "场景 2 · 复杂方案设计", "verdict": "Frontier (Opus / GPT-4)", "ok": true, "why": "多步推理 + 知识整合 = 涌现型任务" },
+          { "input": "场景 3 · 几万条情感分类", "verdict": "Efficient (Qwen 7B)", "ok": true, "why": "简单任务大批量 · 成本压到 1/100" }
+        ],
+        "lesson": "核心原则:不是用最强的模型 · 是用最合适的模型",
+        "history": "选错梯队 · 要么成本爆炸,要么任务做不了"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "15-layered-dispatch",
+      "title": "分层调度 · 企业落地核心",
+      "script": "生产系统里通常会混用 2 到 3 个不同梯队的模型,按任务复杂度路由。比如我们的 CRM AI 流程:意图识别用 Efficient 模型 Qwen 7B,毫秒级响应。需求抽取用 Strong 模型 DeepSeek V3,准确率优先。方案设计用 Frontier 模型 Claude Opus,质量优先。通过分层调度,整体成本降低 70% 到 80%,但用户体验仍是 Frontier 水平。这是企业 AI 落地的核心工程问题——不是用最强的模型,是用最合适的模型。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "01", "head": "意图识别", "body": "Efficient · Qwen 7B · 毫秒级响应", "ex": "判断「这是询问还是请求」 → 简单分类用最便宜的" },
+          { "n": "02", "head": "需求抽取", "body": "Strong · DeepSeek V3 · 准确率优先", "ex": "从访谈里抽出结构化需求 → 中等复杂度用 Strong" },
+          { "n": "03", "head": "方案设计", "body": "Frontier · Claude Opus · 质量优先", "ex": "整合上下文 + 行业知识 + 历史项目 → 必须 Frontier" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "16-china-catchup",
+      "title": "中国模型的追赶",
+      "script": "曾经被认为差距三年的中国大模型,2024 到 2025 年已经追到接近 Frontier 梯队。这背后是 Scaling Law 的逻辑——只要算力、数据、对齐都到位,结构上没有壁垒。DeepSeek 671B 总参数 MoE 架构,推理能力对标 Claude 和 GPT-4,最让行业震撼的是训练成本仅 558 万美元。通义千问从 7B 到 235B 多个尺寸全开源,企业私有化部署的首选之一。豆包、Kimi、智谱各有侧重。对我们做 CRM 实施的启示——国产模型已经可以打一线项目。",
+      "visual": {
+        "type": "school",
+        "n": "★",
+        "name": "中国大模型 2024-2025",
+        "en": "China Frontier Models",
+        "era": "从「差距三年」到「接近 Frontier」",
+        "color": "#ad6cff",
+        "belief": "Scaling Law 路径公开 · 算力 + 数据 + 对齐到位即可追上",
+        "rep": "DeepSeek V3 · 通义千问 · 豆包 · Kimi · 智谱",
+        "trouble": "算力获取受出口限制 · 数据规模仍在追",
+        "today": "私有化 / 国产化场景的首选 · 中文场景甚至更好",
+        "in_crm": "DeepSeek V3:671B MoE · 推理对标 Opus · 训练成本仅 558 万美金 (vs GPT-4 几亿)"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "17-recap",
+      "title": "收尾",
+      "script": "总结今天三个核心。第一,Scaling Law:模型能力可以通过砸算力提升,关系是有数学公式的,这是过去 5 年大模型投资的科学依据。第二,Chinchilla 定律:参数和数据要均衡,盲目堆参数不如喂更多数据,新的最佳比例可能是 1 比 200。第三,涌现能力:能力跃迁是非线性的,某些任务在规模阈值前完全做不了,过了阈值突然学会,这意味着模型梯队的选择极其关键。工程上的核心建议——学会分层调度。",
+      "visual": {
+        "type": "recap",
+        "title": "今天讲了什么",
+        "points": [
+          "Scaling Law:loss 跟算力是幂律关系 · 砸钱有公式",
+          "Chinchilla:参数 : 数据 = 1:20 → 1:200 · 数据为王",
+          "涌现能力:S 型曲线 · 模型梯队的选择是工程核心",
+          "实践:分层调度 · Frontier / Strong / Efficient 三梯队混用"
+        ],
+        "next": "下一讲 · 多模态:从文本到图像、音频、视频",
+        "next_kw": [ "CLIP", "Diffusion", "Sora", "GPT-4o" ]
+      },
+      "interact": "本讲结束 · 可以重看任意一页,或回总览"
+    }
+  ]
+}

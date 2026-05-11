@@ -1,0 +1,299 @@
+{
+  "lesson": 19,
+  "title": "知识库工程化:从 Demo 到生产",
+  "voice": "白桦",
+  "model": "mimo-v2.5-tts",
+  "format": "mp3",
+  "prompt": "专业、温和、清晰、像企业培训讲师,语速适中,有节奏感,关键词稍重读。",
+  "pages": [
+    {
+      "id": "01-opening",
+      "title": "开场 · 一个真实塌房案例",
+      "script": "PART 4 第二讲。今天只聊一件事——知识库。为什么单独拎出来?因为所有企业级 AI 项目的成败,几乎都卡在知识库这一层。去年底我们交付一个华东制造业头部客户,Demo 阶段满意度 80%,客户当场拍板扩到 200 人。两个月后扩完,满意度掉到 35%。一查三个雷:权限边界、文档增量同步、查询成本失控。我们花 6 周才把这三个雷扫掉。这就是 Demo 到生产的差距——不是功能,是工程功夫。",
+      "visual": {
+        "type": "hero",
+        "tag": "LESSON 19 · PART 4 · 企业级落地",
+        "h1": "知识库工程化:从 Demo 到生产",
+        "subtitle": "Demo 满意度 80% · 扩到 200 人掉到 35%",
+        "note": "11 道工程坎 · 9 大差距 · 5 阶段流水线 · 向量库选型 · 1→100 团队扩展"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "02-thesis",
+      "title": "核心论点",
+      "script": "今天讲完之后,大家要建立一个共识:能做 Demo 的人多,能把 Demo 撑到企业级的少。模型是公共能力,Prompt 容易抄,Agent 框架开源遍地——只有为你的企业沉淀知识、加工知识、治理知识的那一套基础设施,是别人抄不走的。知识库工程化是 AI 落地真正的护城河。",
+      "visual": {
+        "type": "thesis",
+        "label": "今天唯一要记住的一句话",
+        "quote": "能做 Demo 的人多。<br>能把 Demo 撑到企业级的少。",
+        "footer": "这中间隔着 11 道工程坎",
+        "keywords": [
+          { "k": "Demo 阶段", "v": "1 份 PDF + 1 个用户 → 80% 满意度" },
+          { "k": "生产阶段", "v": "200 团队 + 增量同步 + 权限 + 成本" },
+          { "k": "差距", "v": "50 倍工程量 · 6 周才能补齐" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "03-three-bombs",
+      "title": "扩到 200 人后炸出的三个雷",
+      "script": "我们派人去现场排查,一查三个大雷。第一,权限边界。Demo 阶段所有人看一份测试数据,扩到 200 人后客户 A 的销售能搜到客户 B 的合同,这是合规事故。第二,文档增量同步。飞书云文档每天在改版,但我们的向量库是 Demo 时一次性导入,根本没有增量更新机制。第三,查询成本失控。200 人一天 5000 次查询每次 8000 token,光 Claude API 一个月 15 万。这三个雷在 Demo 阶段就该提前预防——不是事后救火。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "权限边界", "verdict": "客户 A 看到客户 B 合同", "ok": false, "why": "Demo 一份数据 → 生产合规事故" },
+          { "input": "文档增量同步", "verdict": "上周改的报价表 AI 还引旧版", "ok": false, "why": "Demo 一次性导入 · 无增量机制" },
+          { "input": "查询成本", "verdict": "月烧 18 万 API 费", "ok": false, "why": "200 人 × 5000 次 × 8000 token" },
+          { "input": "性能", "verdict": "查询延迟 8 秒", "ok": false, "why": "无缓存 · 无 rerank · 全量召回" }
+        ],
+        "lesson": "Demo 阶段就要预防 · 不要等事后救火",
+        "history": "6 周 5 个 sprint 救回 · 满意度 35% → 78% · 成本 18 万 → 6.5 万"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "04-nine-gaps",
+      "title": "Demo vs 生产 · 9 大差距",
+      "script": "我列了 9 个维度,挨个看。今天重点讲 5 个,也就是我们项目踩过最深坑的 5 个——数据接入、文档解析、切片策略、Embedding 更新、权限边界。其余的可观测、灰度发布、成本控制、版本治理也都是 Demo 做不到的工程量。每一条都是一道坎,9 条加起来就是「Demo 到生产差 50 倍工程量」的来源。",
+      "visual": {
+        "type": "course-map",
+        "parts": [
+          { "name": "01 · 数据接入", "range": "CDC 增量", "color": "#00d4ff", "kw": "Airbyte / Fivetran / LlamaHub / 飞书 webhook" },
+          { "name": "02 · 文档解析", "range": "多模态", "color": "#00d4ff", "kw": "Unstructured.io · LlamaParse · DeepDoc · Marker" },
+          { "name": "03 · 切片策略", "range": "Layout-aware", "color": "#00d4ff", "kw": "Late chunking · ColPali · 召回 68→83%" },
+          { "name": "04 · Embedding 升级", "range": "全量回填", "color": "#00d4ff", "kw": "BGE-M3 · Voyage · embedding_model_version" },
+          { "name": "05 · 权限边界", "range": "per-row ACL", "color": "#00d4ff", "kw": "Qdrant payload filter · tenant_id" },
+          { "name": "06-09 · 其它 4 项", "range": "工程化", "color": "#00d4ff", "kw": "可观测 / 灰度 / 成本 / 版本治理" }
+        ],
+        "highlight": 4
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "05-gap-parse",
+      "title": "差距 2 · 文档解析",
+      "script": "Demo 用 PyPDF 抽文本,中文乱码硬吃。生产要 OCR、表格结构化、图片 caption、版面恢复。最经典的坑:SOW「报价表」3 列 8 行,PyPDF 抽出来变散乱数字串,行列对应完全丢失。销售一问工期 AI 就瞎编。2026 主流工具 Unstructured.io 通用首选,LlamaParse GPT-4 视觉级,DeepDoc 中文合同碾压,Marker 开源 PDF → Markdown。一刀切会有 30% 文档翻车。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "01", "head": "Unstructured.io", "body": "通用 40+ 格式 · 生产首选", "ex": "我们项目主解析器" },
+          { "n": "02", "head": "LlamaParse / DeepDoc", "body": "GPT-4 视觉级 / 中文合同年报", "ex": "合同 / 财报场景必选" },
+          { "n": "03", "head": "分类用不同解析器", "body": "一刀切 = 30% 文档翻车", "ex": "Word/PDF → Unstructured · 合同 → LlamaParse" }
+        ]
+      },
+      "interact": "点「下一页」看切片"
+    },
+    {
+      "id": "06-gap-chunk",
+      "title": "差距 3 · 切片策略 · 2026 进步最大",
+      "script": "Demo 固定 512 token 窗口加 50 重叠完事。2026 RAG 进步最大的方向。三个新概念必须知道。Layout-aware chunking 按标题层级切,语义统一。Late chunking Jina 2024 提出,先 embedding 再切,每个 chunk 自带整文档上下文。ColPali / ColQwen 多模态切片,直接对图块 embed。我们项目实测:固定切换 layout-aware + late chunking,召回准确率 68% → 83%。",
+      "visual": {
+        "type": "rules",
+        "title": "切片策略 · 三件新东西",
+        "subtitle": "2026 RAG 进步最大的方向 · 召回 68 → 83%",
+        "rules": [
+          "Layout-aware chunking — 按标题层级切,语义统一 ✓",
+          "Late chunking — 先 embedding 再切片,自带上下文 ✓",
+          "ColPali / ColQwen — 直接对图块 embed,不走 caption ✓",
+          "表格不切 — 保留行列关系 ✓",
+          "300 页年报:固定切 2000 块 → layout-aware 600 块 ✓"
+        ],
+        "verdict": "召回准确率 68% → 83% · 实测数字",
+        "footnote": "Late chunking 对长文档效果惊人 · 图片成一等公民"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "07-gap-permission",
+      "title": "差距 5 · 权限边界 · 最关键",
+      "script": "企业级最关键的一道坎。三种方案。① per-tenant 物理隔离,最安全但贵,100 团队 = 100 collection。② per-row ACL,每条文档带 acl 字段,性能好。③ 检索后过滤是最危险的——召回 100 个全是别人的,过滤完剩 0 条,用户以为系统没数据。我们用方案二变种:Qdrant payload filter,检索同时做权限过滤,1000 万向量 P99 80ms;后过滤会涨到 400ms。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "方案 ① per-tenant", "verdict": "物理隔离 · 最安全", "ok": true, "why": "100 团队 = 100 collection · 贵" },
+          { "input": "方案 ② per-row ACL", "verdict": "Qdrant payload filter · 我们用的", "ok": true, "why": "P99 80ms · 检索同时过滤" },
+          { "input": "方案 ③ 后过滤", "verdict": "检索完再筛权限", "ok": false, "why": "top_k=5 时 30% 概率被过滤光" },
+          { "input": "后过滤性能", "verdict": "P99 80ms → 400ms", "ok": false, "why": "5× 慢 · 且结果不可控" }
+        ],
+        "lesson": "权限过滤必须和向量检索同时进行 · 不能后过滤",
+        "history": "tenant_id / project_id / acl 三件套 · 从 schema 第一天就埋进去"
+      },
+      "interact": "点「下一页」看完整 5 阶段流水线"
+    },
+    {
+      "id": "08-pipeline",
+      "title": "5 阶段流水线",
+      "script": "一份 SOW 走完 5 阶段。Stage 1 采集:飞书 webhook CDC 增量。Stage 2 解析:Unstructured + LlamaParse 兜底,147 elements。Stage 3 切片:layout-aware,23 chunk,metadata 含 tenant_id 和 acl。Stage 4 嵌入:dense + sparse 双向量。Stage 5 召回:Query 改写 + filter + Rerank,P99 187ms。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "01-02", "head": "采集 + 解析", "body": "飞书 webhook CDC · Unstructured + LlamaParse fallback · 147 elements", "ex": "表格保留 HTML + Markdown 双形态" },
+          { "n": "03-04", "head": "切片 + 嵌入", "body": "Layout-aware · 表格不切 · 23 chunk · BGE-M3 dense + BM25 sparse", "ex": "metadata 含 tenant_id / acl · 老向量保留 30 天" },
+          { "n": "05", "head": "召回", "body": "Query 改写 → 检索 + 权限 filter 同时 → Rerank top_k=10 → top_n=3", "ex": "P99 187ms · Demo 通常 1-3 秒" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "09-vector-db",
+      "title": "向量库选型 · 2026 决策树",
+      "script": "向量库选型最容易出错。选错一次迁移成本 = 半年工程量。我亲身经历——Pinecone 迁 Qdrant,1500 万向量,3 周数据迁移加索引重建,业务影响 1 个月。2026 选型口诀:不知道选啥就 Qdrant,Rust 性能稳;已用 PG 就 pgvector;数据超 5 亿就 Milvus;要 GraphRAG 就 Neo4j 加插件;不想运维就 TurboPuffer。",
+      "visual": {
+        "type": "school",
+        "n": "09",
+        "name": "Qdrant",
+        "en": "Rust + Hybrid + Payload Filter",
+        "era": "2026 中国项目事实标准",
+        "color": "#00d4ff",
+        "belief": "性能稳 · 原生 hybrid · payload filter 强",
+        "rep": "Qdrant / Milvus / Weaviate / pgvector / TurboPuffer / LanceDB",
+        "trouble": "选错一次 = 半年迁移工程量",
+        "today": "我们项目从 Pinecone 迁过来 · 3 周数据迁移 + 1 个月业务影响",
+        "in_crm": "已用 PG 就 pgvector · 数据 >5 亿 就 Milvus · 不想运维就 TurboPuffer"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "10-hybrid-graph",
+      "title": "GraphRAG / Hybrid / ColBERT",
+      "script": "再补三个 2026 RAG 工具栈。GraphRAG 微软 2024 提出,文档构造成实体关系图,适合医疗、法律、学术。CRM 实体简单价值不大。Hybrid Search,BM25 + Vector 用 RRF 融合,中文必须用,补「丢词」短板。ColBERT 每 token 独立向量做 max-sim,精度高 10% 但贵 10 倍,适合高价值低频如法律、医疗。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "01", "head": "GraphRAG (微软)", "body": "文档 → 实体关系图 + 社区摘要", "ex": "适合医疗 / 法律 · CRM 不必上" },
+          { "n": "02", "head": "Hybrid Search", "body": "BM25 + Vector 用 RRF 融合", "ex": "中文场景必须 · 补「丢词」短板" },
+          { "n": "03", "head": "ColBERT / Late Interaction", "body": "每 token 独立向量 · max-sim 计算", "ex": "精度 +10% · 贵 10× · 高价值低频场景" }
+        ]
+      },
+      "interact": "点「下一页」看扩展模拟器"
+    },
+    {
+      "id": "11-scale-1",
+      "title": "起点 · 1 团队 5 万文档",
+      "script": "看规模的非线性变化。起点:1 个团队、5 万文档、20 万次查询每月。月成本 6400 元、单查询 0.032 元、P99 580 毫秒。推荐架构是原型级——Qdrant 单节点 + BGE-M3 本地 + Redis,1 台 4 核 8G 服务器。风险点不多——文档版本治理、评估集兜底。一个工程师兼职就能维护。这是绝大多数 Demo 阶段的真实形态。",
+      "visual": {
+        "type": "sliders",
+        "title": "起点 · 1 团队 · 原型级",
+        "subtitle": "Demo 阶段真实形态 · 工程师兼职维护",
+        "features": [
+          { "name": "团队数", "value": 1 },
+          { "name": "文档数 (万)", "value": 5 },
+          { "name": "月查询 (万)", "value": 20 },
+          { "name": "月成本 (千元)", "value": 6 }
+        ],
+        "score": 92,
+        "verdict": "原型级 · Qdrant 单节点 + BGE-M3 本地 · 1 台 4C8G",
+        "diff": [
+          { "k": "P99 延迟", "v": "580ms · 单查询 0.032 元" },
+          { "k": "运维", "v": "0.1 FTE 兼职够用" },
+          { "k": "风险点", "v": "版本治理 + 评估集兜底" }
+        ]
+      },
+      "interact": "点「下一页」看 20 团队"
+    },
+    {
+      "id": "12-scale-20",
+      "title": "扩到 20 团队 · 风险开始叠加",
+      "script": "扩到 20 个团队、50 万文档、200 万次查询。月成本飙到 4-5 万、单查询 0.02 元缓存命中率上来、P99 850 毫秒。架构变成 SMB 级——Qdrant 升 16 核 32G,异步 embed worker、Langfuse trace 必装。风险点新增——权限边界、Embedding 升级回填、评估集要更新。至少 0.3 个 FTE 专人维护。这是大多数项目第二个生命周期。",
+      "visual": {
+        "type": "sliders",
+        "title": "扩到 20 团队 · SMB 级",
+        "subtitle": "第二个生命周期 · 风险开始叠加",
+        "features": [
+          { "name": "团队数", "value": 20 },
+          { "name": "文档数 (万)", "value": 50 },
+          { "name": "月查询 (万)", "value": 200 },
+          { "name": "月成本 (千元)", "value": 45 }
+        ],
+        "score": 76,
+        "verdict": "SMB 级 · Qdrant 16C32G + Langfuse trace 必装",
+        "diff": [
+          { "k": "P99 延迟", "v": "850ms · 单查询 0.02 元 · 缓存命中率上来" },
+          { "k": "运维", "v": "0.3 FTE 专人维护" },
+          { "k": "新增风险", "v": "权限边界 + Embedding 回填 + 评估集更新" }
+        ]
+      },
+      "interact": "点「下一页」看 100 团队"
+    },
+    {
+      "id": "13-scale-100",
+      "title": "100 团队 · 架构质变",
+      "script": "扩到 100 团队、500 万文档、2000 万次查询。月成本 30 万以上警告变红。单查询 0.015 元缓存 70%。P99 1500 毫秒。架构变企业级——Milvus / Zilliz 集群 + 多区域 + per-tenant 隔离 + 完整 MLOps。风险点全亮:物理隔离、LLM 单点、冷热分层、热点限流、24/7 oncall。3-5 人专职 + 1 SRE。Qdrant 撑到 1 亿向量,再上必须换架构,提前 3-6 个月规划。",
+      "visual": {
+        "type": "sliders",
+        "title": "100 团队 · 企业级",
+        "subtitle": "架构质变 · 3-5 人专职 + 1 SRE",
+        "features": [
+          { "name": "团队数", "value": 100 },
+          { "name": "文档数 (万)", "value": 500 },
+          { "name": "月查询 (万)", "value": 2000 },
+          { "name": "月成本 (千元)", "value": 300 }
+        ],
+        "score": 55,
+        "verdict": "企业级 · Milvus / Zilliz 集群 + 多区域 + per-tenant + 完整 MLOps",
+        "diff": [
+          { "k": "P99 延迟", "v": "1500ms+ · 单查询 0.015 元 · 缓存 70%" },
+          { "k": "运维", "v": "3-5 人专职 + 1 SRE · 24/7 oncall" },
+          { "k": "架构断点", "v": "Qdrant 撑到 1 亿 1000 QPS · 必须提前 3-6 个月换架构" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "14-four-rules",
+      "title": "对项目最实用的 4 条建议",
+      "script": "4 条最实用建议。第一,知识库第一天就规划权限模型,tenant_id / project_id / acl 三件套从 schema 设计就埋进去,后补成本极高。第二,CDC 增量同步替代手工上传,Demo 阶段就用 Airbyte 接飞书 webhook。第三,Embedding 升级要有策略,元数据加 embedding_model_version 字段。第四,查询级 Trace 必装,Langfuse + PG 看板,召回质量和答案质量分离监控。",
+      "visual": {
+        "type": "rules",
+        "title": "知识库工程化 · 4 条铁律",
+        "subtitle": "现在不做 · 以后补成本 10×",
+        "rules": [
+          "① 权限模型第一天就埋 — tenant_id / project_id / acl ✓",
+          "② CDC 增量同步 — Airbyte / 飞书 webhook,不写 upload 脚本 ✓",
+          "③ Embedding 升级有策略 — embedding_model_version 元数据 ✓",
+          "④ 查询级 Trace 必装 — Langfuse + PG 看板 ✓",
+          "⑤ 召回质量 / 答案质量 — 分离监控,定位锅在哪 ✓"
+        ],
+        "verdict": "做到这 5 条 → Demo 可以扩到生产",
+        "footnote": "我们项目用 6 周补齐 · 满意度 35% → 78% · 成本 18 万 → 6.5 万"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "15-moat",
+      "title": "知识库 = 真正的护城河",
+      "script": "回到开头那个论点。模型是公共能力——所有人都能调 Claude、GPT、DeepSeek。Prompt 是抄来抄去的——你写得再花,别人复制就用。Agent 框架开源遍地——LangChain、AutoGPT、CrewAI 一年换一茬。唯一抄不走的,是为你的企业沉淀知识、加工知识、治理知识的那一套基础设施。这是 AI 落地的真正护城河。下一讲讲安全合规——当企业把知识库、客户数据、决策权交给 AI,安全边界在哪里、合规怎么过、出事谁负责。",
+      "visual": {
+        "type": "fusion",
+        "main": "护城河",
+        "eq": "=",
+        "parts": [
+          { "n": "公共", "name": "模型 / Prompt / Agent 框架", "detail": "GPT · Claude · LangChain · CrewAI · 抄完就用", "color": "#888", "techs": "不是护城河" },
+          { "n": "私有", "name": "知识库工程化", "detail": "采集 → 解析 → 切片 → 嵌入 → 召回 → 评估 → 治理", "color": "#00d4ff", "techs": "Demo 到生产 11 道坎" },
+          { "n": "复利", "name": "数据 + 治理", "detail": "用得越多 → 越懂 → 输出越好 → 用得更多", "color": "#ad6cff", "techs": "Salesforce 学不到 · HubSpot 学不到" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "16-recap",
+      "title": "收尾",
+      "script": "PART 4 第二讲到这里。今天讲了 Demo vs 生产的 9 大差距、5 阶段文档处理流水线、向量库选型决策树、1 到 100 团队扩展的非线性变化。一句话总结:能做 Demo 的人多,能把 Demo 撑到企业级的少。下一讲——AI 安全与合规。当企业把知识库、客户数据、决策权交给 AI,安全边界在哪里、合规怎么过、出事谁负责。这是企业级落地的最后一公里。",
+      "visual": {
+        "type": "recap",
+        "title": "PART 4 · 第 19 讲总结",
+        "points": [
+          "9 大差距 · 5 个最致命的我们都踩过",
+          "5 阶段流水线 · 权限元数据从切片就埋",
+          "Qdrant 是 2026 中国项目事实标准",
+          "1 → 100 团队 · 架构 3 次质变 · 提前规划"
+        ],
+        "next": "下一讲 · AI 安全与合规",
+        "next_kw": [ "OWASP LLM Top 10", "Prompt Injection", "数据脱敏", "EU AI Act", "8 项控制" ]
+      },
+      "interact": "本讲结束"
+    }
+  ]
+}

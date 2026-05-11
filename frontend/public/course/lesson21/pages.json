@@ -1,0 +1,309 @@
+{
+  "lesson": 21,
+  "title": "当前 AI 的根本局限",
+  "voice": "白桦",
+  "model": "mimo-v2.5-tts",
+  "format": "mp3",
+  "prompt": "专业、温和、清晰、像企业培训讲师,语速适中,有节奏感,关键词稍重读。",
+  "pages": [
+    {
+      "id": "01-opening",
+      "title": "开场 · Demo 99% / 生产 60%",
+      "script": "进入 PART 5。前 17 讲我们一直讲怎么用好 AI——Prompt、RAG、Agent、评估、安全合规。今天换一个视角,把 AI 还不能做什么讲得彻彻底底。先讲一个真实故事。去年我接触过一个 CXO 级高管,6 月发布会被某家 AI 公司 Demo 镇住,所有 Demo 准确率 95% 以上,当场拍板「all-in AI」。半年后他说:Demo 是 99%,生产环境永远 60%。三个项目都卡在那儿。这背后不是工程问题,是当前 AI 架构的根本性局限。",
+      "visual": {
+        "type": "hero",
+        "tag": "LESSON 21 · PART 5 · 未来推演",
+        "h1": "当前 AI 的根本局限",
+        "subtitle": "Demo 99% / 生产 60% 的鸿沟从哪来",
+        "note": "七堵墙 · 幻觉 / 推理脆性 / 长上下文 / 世界模型 / 能耗 / 数据墙 / 对齐"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "02-thesis",
+      "title": "核心论点 · 这是地图不是泼冷水",
+      "script": "今天这一讲不是泼冷水,是给大家一张局限地图。盲目乐观和盲目悲观一样有害。地图不是为了让你不走,是为了让你知道哪里有坑。我们会一条一条过——幻觉为什么是结构性的、推理为什么是脆性的、长上下文为什么名义大于实际、能耗为什么有天花板、数据墙为什么真实存在、对齐为什么是未解难题。",
+      "visual": {
+        "type": "thesis",
+        "label": "今天的核心论点",
+        "quote": "盲目乐观和盲目悲观一样有害。<br>地图不是为了让你不走,是为了让你知道哪里有坑。",
+        "footer": "七堵墙叠加 = Demo 99% vs 生产 60% 鸿沟",
+        "keywords": [
+          { "k": "MMLU", "v": "GPT-3 43% → Opus 4.7 / GPT-5 90%+" },
+          { "k": "AIME", "v": "从 0 分 → 95%+ · 推理时计算" },
+          { "k": "但是", "v": "7 个根本问题至今没解决" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "03-seven-walls",
+      "title": "七堵墙概览",
+      "script": "把当前 AI 的根本局限叫做七堵墙。第一墙幻觉,模型会自信地编造。第二墙推理脆性,同一道题改个数字就崩。第三墙长上下文衰减,200K 窗口里中间的信息记不住。第四墙世界模型缺失,不知道物理世界怎么运作。第五墙能耗,北美电网都成了瓶颈。第六墙数据墙,高质量训练数据快用完了。第七墙对齐难题,你不知道模型真听话还是装的。这七堵墙叠加,造就了 Demo 99% vs 生产 60% 的根本矛盾。",
+      "visual": {
+        "type": "course-map",
+        "parts": [
+          { "name": "01 · 幻觉", "range": "结构性", "color": "#ff6b35", "kw": "next-token prediction · 不是 bug" },
+          { "name": "02 · 推理脆性", "range": "GSM-Symbolic", "color": "#ff6b35", "kw": "改数字 → 准确率掉 17pp" },
+          { "name": "03 · 长上下文", "range": "U 型曲线", "color": "#ff6b35", "kw": "Lost in the Middle · RULER" },
+          { "name": "04 · 世界模型缺失", "range": "JEPA", "color": "#ff6b35", "kw": "物理 / 空间 / 因果" },
+          { "name": "05 · 能耗", "range": "电网瓶颈", "color": "#ff6b35", "kw": "三里岛 + SMR + GW 数据中心" },
+          { "name": "06 · 数据墙", "range": "2026-2028", "color": "#ff6b35", "kw": "高质量文本耗尽 · Model Collapse" },
+          { "name": "07 · 对齐", "range": "未解", "color": "#ff6b35", "kw": "Sleeper Agents · Sycophancy" }
+        ],
+        "highlight": 0
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "04-hallucination-cases",
+      "title": "幻觉 · 4 个真实 case",
+      "script": "幻觉不是 bug,是架构决定的结构性问题。4 个真实 case,2025 年底用前沿模型亲手跑出来的。Case 1 冷门人物:问民国学者钱观藩,模型给生卒年、专著——人不存在我编的。Case 2 未发生事件:问 OpenAI 9 月 18 日发布会,给了 6 个新产品——全是编的。Case 3 数字精度:问 Opus 训练用多少 H100,模型给 25000 张 90 天——Anthropic 从未公开,凭空编。Case 4 合成名词:问「张氏熵-梯度对偶定理」,模型给完整解释——定理不存在。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "Case 1 · 冷门人物「钱观藩」", "verdict": "出生年 / 毕业 / 专著俱全", "ok": false, "why": "历史上不存在 · 模型编的" },
+          { "input": "Case 2 · OpenAI 2025.9.18 发布会", "verdict": "6 个新产品 GPT-5 Pro / Sora 2.0...", "ok": false, "why": "那天根本没发布会 · 时间敏感型" },
+          { "input": "Case 3 · Opus 训练用多少 H100", "verdict": "25000 张 · 90 天 · $2.4M 电费", "ok": false, "why": "Anthropic 从未公开 · 看起来有方法论最危险" },
+          { "input": "Case 4 · 张氏熵-梯度对偶定理", "verdict": "ICML 2020 + Riemannian 流形", "ok": false, "why": "完全不存在 · 合成名词" }
+        ],
+        "lesson": "LLM 优化的是「文本看起来合理」 · 不是「文本是真的」",
+        "history": "Anthropic 2024 SAE 论文 · 模型内部有「虚构特征」"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "05-hallucination-why",
+      "title": "幻觉 · 为什么是结构性的",
+      "script": "LLM 的本质是下一个 token 的概率分布,它优化的目标是文本看起来合理,不是文本是真的。训练数据里没有某个事实时,模型不会拒答,它会按统计规律编一个看起来合理的。这是 Transformer 架构 + next-token prediction 训练范式决定的,不是某次微调的失误。Anthropic 2024 SAE 论文用稀疏自动编码器解码 Claude 3 Sonnet,发现模型内部确实存在专门的「虚构特征」。坏消息是幻觉无法靠更大模型自动消失,好消息是我们至少能识别它发生的时机。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "01", "head": "根因 · next-token 概率", "body": "模型优化「看起来合理」 · 不是「真的」", "ex": "训练数据缺失 → 按统计规律编合理的" },
+          { "n": "02", "head": "SelfCheckGPT 检测", "body": "同问题多次采样 · 答案不一致 = 在编", "ex": "EMNLP 2023 · 工程兜底标配" },
+          { "n": "03", "head": "FACTSCORE 检测", "body": "拆原子事实 · 逐条用维基或可信库验证", "ex": "我们项目教训:AI 编 120 万合同金额,实际 87 万" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "06-gsm-symbolic",
+      "title": "推理脆性 · Apple GSM-Symbolic",
+      "script": "第二堵墙推理脆性。Apple 2024 年 10 月那篇论文系统性证明:所有主流大模型在做的不是推理,而是近似模式匹配。5 个扰动等级。L0 原题 GPT-4o 95% 准确率。L1 只改数字 44→71,准确率掉到 78%,下降 17 个百分点。L2 改名字 + 改实体,跌到 72%。L3 加一句「这些小的不算」其实不影响答案但模型被误导,暴跌到 57%。L4 多重扰动叠加,从 95% 跌到 42%。L4 才是生产环境的真实分布——真实用户的输入永远不会那么干净。",
+      "visual": {
+        "type": "sliders",
+        "title": "GSM-Symbolic · 5 级扰动 · GPT-4o 准确率",
+        "subtitle": "Apple 2024.10 论文 · 所有主流模型都掉",
+        "features": [
+          { "name": "L0 原题", "value": 95 },
+          { "name": "L1 改数字", "value": 78 },
+          { "name": "L2 改名/实体", "value": 72 },
+          { "name": "L3 加无关条款", "value": 57 },
+          { "name": "L4 多重叠加", "value": 42 }
+        ],
+        "score": 42,
+        "verdict": "模型在做表层模式匹配 · 不是通用算术推理",
+        "diff": [
+          { "k": "L0 → L4", "v": "GPT-4o 95% → 42% · Claude 96% → 51%" },
+          { "k": "L4 真实", "v": "生产环境的真实分布 · benchmark 太干净" },
+          { "k": "o3 的回应", "v": "推理时计算 · 单次成本翻 10-100×" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "07-arc-agi",
+      "title": "推理脆性 · ARC-AGI",
+      "script": "针对推理脆性 OpenAI 推出 o1 / o3,核心是推理时多想几遍。o3 在 AIME 2024 上 96%。代价是单次推理成本翻 10-100 倍。再看 ARC-AGI——Chollet 2019 提出抽象推理测试,人类儿童 90%+,GPT-4o 只有 5%,o3 暴力推理时计算才到 75.7%。2025 年 ARC-AGI-2 最强模型还在低分挣扎。这是有力信号——LLM 离通用推理还差很远。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "人类儿童", "verdict": "ARC-AGI 90%+", "ok": true, "why": "通用抽象推理能力" },
+          { "input": "GPT-4o", "verdict": "ARC-AGI 5%", "ok": false, "why": "近乎随机猜测" },
+          { "input": "o3 (2024.12)", "verdict": "ARC-AGI 75.7%", "ok": true, "why": "暴力推理时计算 · 单次几十美元" },
+          { "input": "ARC-AGI-2 (2025)", "verdict": "最强模型仍低分", "ok": false, "why": "通用推理仍未解决" }
+        ],
+        "lesson": "评估集要覆盖噪音输入 · 复杂推理用 o3 / Opus 但算清成本",
+        "history": "benchmark 高分 ≠ 生产可用 · 多采样验证一致性"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "08-long-context",
+      "title": "长上下文衰减 · Lost in the Middle",
+      "script": "第三堵墙长上下文衰减。Claude 200K、Gemini 2M、Opus 4.7 上 1M。但装得下不等于能用上。Stanford 2023 Lost in the Middle 揭示反直觉现象:信息埋开头结尾召回最高,中间最低,U 型曲线。100K 长文档,Opus 4.7 在 5% 位置 98%,55% 位置掉到 70%,95% 位置回升 97%。NVIDIA RULER 测下来,Sonnet 宣传 200K,真实可用约 64K。",
+      "visual": {
+        "type": "sliders",
+        "title": "Opus 4.7 · 100K 长文档召回率",
+        "subtitle": "Lost in the Middle 实测 · U 型曲线",
+        "features": [
+          { "name": "5% 位置", "value": 98 },
+          { "name": "25%", "value": 85 },
+          { "name": "50% 中间", "value": 70 },
+          { "name": "75%", "value": 88 },
+          { "name": "95% 末尾", "value": 97 }
+        ],
+        "score": 70,
+        "verdict": "中间最低 · 所有模型都是 U 型 · 没有完全无损的",
+        "diff": [
+          { "k": "Gemini 2M", "v": "100K 测试 55% 位置只剩 55% 召回" },
+          { "k": "RULER 真实", "v": "Sonnet 宣传 200K · 有效约 64K" },
+          { "k": "工程做法", "v": "关键信息放头尾 · RAG 切片召回" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "09-world-model",
+      "title": "世界模型缺失 · LeCun JEPA",
+      "script": "第四堵墙世界模型缺失。LLM 学文本里的统计规律,从未在物理世界活过。空间认知:让它描述 3D 物体相对位置,错误率高得离谱。因果链:把相关性当因果。目标推断:LLM 经常推不出来。Yann LeCun 多年主张 LLM 不是 AGI 正路。他推的路线叫 JEPA——不直接预测下一个 token,而是预测世界状态的下一个嵌入表示,学到更结构化的世界模型。",
+      "visual": {
+        "type": "school",
+        "n": "04",
+        "name": "JEPA · LeCun 路线",
+        "en": "Joint-Embedding Predictive Architecture",
+        "era": "2022 提出 · 和 LLM 平行的技术路线",
+        "color": "#ff6b35",
+        "belief": "智能 = 学到世界状态预测,不是 next-token",
+        "rep": "V-JEPA / I-JEPA · Meta AI · LeCun 团队",
+        "trouble": "目前还在早期 · 没有商业级模型",
+        "today": "Sora / Genie 3 / Cosmos 都是世界模型方向的探索",
+        "in_crm": "涉及物理 / 空间 / 因果链的任务 · 不要 all-in LLM"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "10-energy-wall",
+      "title": "能耗墙 · 电网瓶颈",
+      "script": "第五堵墙能耗。训练 GPT-4 估算 1 亿美元以上。下一代 GPT-5 / Opus 4.7 / Gemini 3 Pro 训练成本估算 5 亿到 10 亿美元。推理也不便宜,Opus 单 query 几美分到几美元,o3 复杂任务到几十美元。深层问题是北美电网快不够了——Microsoft 重启三里岛给 OpenAI 供电,Meta / Amazon 自建 SMR,Anthropic 在 Wisconsin 自建 GW 级数据中心,2030 北美 AI 用电占总电网 8-10%。",
+      "visual": {
+        "type": "rules",
+        "title": "能耗墙 · 2025-2026 真实数据",
+        "subtitle": "电网瓶颈 · 这不是开玩笑",
+        "rules": [
+          "Microsoft 重启三里岛核电站 — 专给 OpenAI 训练算力供电 ✓",
+          "Meta / Amazon 自建 SMR 小型模块化反应堆 — 大厂标配 ✓",
+          "Anthropic Wisconsin 自建 GW 级数据中心 — 直接对接电网 ✓",
+          "2030 北美 AI 数据中心 8-10% 总电网 — 美国能源部 ✓",
+          "GPT-5 训练成本估算 $500M-$1B — 推理 Opus 单 query 几美元 ✓"
+        ],
+        "verdict": "推理成本是真实成本项 · 不再是「AI 调用免费」幻觉",
+        "footnote": "工程对策:小模型 / Prompt Caching / Batch API"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "11-data-wall",
+      "title": "数据墙 · Model Collapse",
+      "script": "第六堵墙数据墙。Epoch AI 2024 估算,按当前速度高质量公开文本将在 2026-2028 年耗尽。Wikipedia + Common Crawl + 论文 + 书加起来就那么多。合成数据能救场吗?Nature 2024 那篇 Model Collapse 论文证明:用 AI 数据反复训练几代后分布会坍塌——多样性、长尾消失。合成数据不能完全替代真实数据。数据将是 2026-2030 年最大的护城河——你的项目里有什么独家数据?",
+      "visual": {
+        "type": "quote-big",
+        "before": "高质量训练文本快用完了",
+        "quote": "数据将是 2026-2030 年最大的护城河",
+        "after": "Epoch AI:2026-2028 高质量公开文本耗尽 · Nature 2024:Model Collapse 是真实风险",
+        "compare": [
+          { "side": "互联网公开文本", "rows": ["Wikipedia · Common Crawl · 学术论文", "trillion 级 token · 增长已放缓", "2026-2028 实测耗尽窗口"] },
+          { "side": "合成数据 + 私有数据", "rows": ["Model Collapse · 分布坍塌风险", "OpenAI / Anthropic 收购授权", "私有医疗 / 法律 / 行业数据成壁垒"] }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "12-alignment",
+      "title": "对齐难题 · Sleeper Agents",
+      "script": "第七堵墙对齐难题。Anthropic 2024 年 1 月震动业界的 Sleeper Agents 论文——故意训练一个「看起来对齐」但有触发条件会变恶意的模型,平时正常,但只要 prompt 里有 2024 这个词就输出有漏洞的代码。核心发现:当前所有对齐技术 RLHF、CAI、Red Team 都无法可靠检测出来。另一个问题 Sycophancy 谄媚:模型倾向说用户想听的,即使想法很烂也附和。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "01", "head": "Sleeper Agents", "body": "训练一个「看起来对齐」但有恶意后门的模型", "ex": "RLHF + CAI + Red Team 都检测不出" },
+          { "n": "02", "head": "Sycophancy 谄媚", "body": "模型附和用户 · 即使想法很烂", "ex": "RLHF 副作用 · 标注员给「让自己舒服」的高分" },
+          { "n": "03", "head": "工程对策", "body": "不让 AI 单独做高风险决策 · 设计反对意见机制", "ex": "钱 / 健康 / 法律 永远人决策" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "13-demo-vs-prod",
+      "title": "Demo 99% / 生产 60% 鸿沟",
+      "script": "前面 7 堵墙叠加,造就了 AI 商业化最大的隐痛——Demo 99% / 生产 60%。Demo 阶段挑 10 个典型场景,准确率 95%+,客户被惊艳签合同。为什么这么准?因为挑的都是典型分布里的高频 case,就是模型在训练数据里见过最多的那一段。生产阶段真实用户每天 1000 个 query,长尾里全是奇形怪状的 case——错别字、行业黑话、嵌套引用、罕见格式、对抗性提问。这些长尾触发了前面 7 堵墙集中爆发。准确率从 95% 跌到 60%,永远卡在那里。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "Demo 阶段 · 99%", "verdict": "10 个典型场景 / 训练高频 case", "ok": true, "why": "签合同的样子" },
+          { "input": "生产阶段 · 60%", "verdict": "1000 query / 长尾全是怪 case", "ok": false, "why": "7 堵墙集中爆发" },
+          { "input": "60 → 70%", "verdict": "3 个月可能搞定", "ok": true, "why": "工程化挤干水分" },
+          { "input": "70 → 80%", "verdict": "可能要 1 年", "ok": false, "why": "边际成本陡升" },
+          { "input": "80 → 90%", "verdict": "可能根本做不到", "ok": false, "why": "除非模型本身突破" }
+        ],
+        "lesson": "工程手段在 60-90% 提升效率 · 没有任何手段能突破模型本身的能力天花板",
+        "history": "Power law 长尾比想象厚得多 · 60% 死循环是大量 AI 项目下线的真实原因"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "14-pareto",
+      "title": "2026 前沿模型 · Pareto 前沿",
+      "script": "讲完限制,看 2026 年初前沿模型真实定位。推理任务:o3 最强 96 分 90 美元,Opus 4.7 第二 94 分 75 美元,GPT-5 第三 92 分,Gemini 3 Pro 88 分性价比好。长上下文洗牌:Gemini 3 Pro 92 分反超。多模态又洗牌:Gemini 第一 88 分。性价比完全反转:DeepSeek V3、o3-mini、Sonnet 4.5。三个核心洞察:没有银弹、前沿曲线每任务不同、价格暴跌但前沿在重新上涨。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "推理 (AIME/GPQA)", "verdict": "o3 96 · Opus 94 · GPT-5 92", "ok": true, "why": "o3 最强但 $90/M 最贵" },
+          { "input": "长上下文 (RULER)", "verdict": "Gemini 3 Pro 92 · Opus 90", "ok": true, "why": "Google 长上下文功夫深" },
+          { "input": "多模态 (MMMU)", "verdict": "Gemini 88 · GPT-5 84", "ok": true, "why": "Google 多模态强项" },
+          { "input": "性价比", "verdict": "DeepSeek V3 · o3-mini · Sonnet 4.5", "ok": true, "why": "前沿模型 Opus/o3/GPT-5 在下半段" }
+        ],
+        "lesson": "没有银弹 · 别相信「最强模型」营销 · 跑自己的评估集",
+        "history": "选型 4 步:定任务 → 定 SLA → 对比前沿 → 跑评估集"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "15-investment-map",
+      "title": "投资地图 · 三个区",
+      "script": "就算有这七堵墙,AI 在能力分布的核心区已经能创造巨大价值。投资地图三个区。GO 区可以上:高频场景 + 有人监督——客服辅助、销售提示、文档摘要、需求提取、代码补全、内容初稿。AI 给候选、人最终决策、有兜底。CAUTIOUS 区慎重:中频场景 + 流程化——合同审阅、医疗辅助诊断、金融研报。必须有结构化兜底,不能把信任建立在 AI 上。WAIT 区等等:高风险 + 长尾密集——无人驾驶、自主交易、医疗自动诊断、法律自动判决。长尾密集且单次失败代价巨大,2026 的 AI 还不到。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "GO", "head": "可以上 · 高频 + 有人监督", "body": "客服 / 销售提示 / 文档摘要 / 需求提取 / 代码补全 / 内容初稿", "ex": "AI 给候选 · 人决策 · 有兜底" },
+          { "n": "CAUTIOUS", "head": "慎重 · 中频 + 流程化", "body": "合同审阅 / 医疗辅助诊断 / 金融研报", "ex": "必须结构化兜底 + 二次审核 + 人工抽样" },
+          { "n": "WAIT", "head": "等等 · 高风险 + 长尾密集", "body": "无人驾驶 / 自主交易 / 医疗自动诊断 / 法律自动判决", "ex": "单次失败代价巨大 · 2026 AI 还不到" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "16-cxo-revisit",
+      "title": "回到那位 all-in 的 CXO",
+      "script": "回到开场那位拍板 all-in AI 的 CXO 高管。如果他在拍板之前看过今天这一讲,他会怎么决策?销售辅助、内容初稿、文档摘要——上,因为是 GO 区。合同审阅、客户健康度判断——慎重,加结构化兜底。自动报价、自主签约、自主决策——等等,2026 还不到。这就是有局限地图的人和没有的人的区别。不是不上 AI,而是知道每个场景在地图上的位置。",
+      "visual": {
+        "type": "quote-with-rows",
+        "main": "不是不上 AI · 而是知道每个场景在地图上的位置",
+        "sub": "如果那位 CXO 看过今天这一讲 · 决策会完全不同",
+        "rows": [
+          { "tag": "GO", "body": "销售辅助 / 内容初稿 / 文档摘要 · 全力上" },
+          { "tag": "CAUTIOUS", "body": "合同审阅 / 客户健康度 · 上但加兜底" },
+          { "tag": "WAIT", "body": "自动报价 / 自主签约 / 自主决策 · 2026 不到" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "17-recap",
+      "title": "收尾",
+      "script": "PART 5 第一讲到这里。七堵墙再过一遍——幻觉是结构性的、推理脆性是脆的、长上下文名义大于实际、世界模型缺失、能耗有天花板、数据有墙、对齐未解。加上综合症 Demo 99% / 生产 60% 鸿沟。但也别忘了好消息:AI 在能力核心区已经实实在在地改变生产关系。下一讲我们换个视角——讲这些边界正在怎么被突破。OpenAI o3 推理时计算、Anthropic 可解释性、LeCun JEPA、世界模型、Embodied AI、Mamba 新架构。未来 2-5 年 AI 还能走到哪。",
+      "visual": {
+        "type": "recap",
+        "title": "PART 5 · 第 21 讲总结",
+        "points": [
+          "七堵墙:幻觉 / 推理脆 / 长上下文 / 世界模型 / 能耗 / 数据 / 对齐",
+          "Demo 99% / 生产 60% 鸿沟 = 七堵墙叠加 + 长尾",
+          "投资地图三区:GO / CAUTIOUS / WAIT",
+          "工程能在 60-90% 提效 · 但不能突破模型本身上限"
+        ],
+        "next": "下一讲 · 未来演进的几条路线",
+        "next_kw": [ "Scaling Law", "推理时计算", "合成数据", "JEPA", "Mamba" ]
+      },
+      "interact": "本讲结束"
+    }
+  ]
+}

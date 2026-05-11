@@ -1,0 +1,255 @@
+{
+  "lesson": 14,
+  "title": "AI 应用的评估与可观测性",
+  "voice": "白桦",
+  "model": "mimo-v2.5-tts",
+  "format": "mp3",
+  "prompt": "专业、温和、清晰、像企业培训讲师,语速适中,有节奏感,关键词稍重读。",
+  "pages": [
+    {
+      "id": "01-opening",
+      "title": "开场",
+      "script": "各位下午好。这是 PART 3 工程落地的最后一讲。前面五讲我们讲了 Prompt、RAG、Function Calling、Agent、多 Agent——这些都是功能层,把 AI 能力组装起来解决业务问题。今天讲一件完全不同的事——基础设施层。具体就是两件事:评估(Eval)和可观测性(Observability)。为什么放在最后?因为前面那五讲讲的所有功能,没有评估和观测都跑不起来。",
+      "visual": {
+        "type": "hero",
+        "tag": "LESSON 14 · PART 3 收官",
+        "h1": "AI 应用的评估与可观测性",
+        "subtitle": "从「凭感觉调」到「评估驱动开发」",
+        "note": "PART 3 第 6 讲 · 基础设施层 · 工程落地的地基"
+      },
+      "interact": "听完点「下一页」继续"
+    },
+    {
+      "id": "02-real-case",
+      "title": "一个真实的踩坑现场",
+      "script": "先抛个真实场景。我们项目里有个客户去年上线了一个 AI 需求提取系统。Demo 阶段效果惊艳,客户当场拍板买单。上线两个月后,客户来投诉:你们这个 AI 怎么越用越差?我们一看——确实,最近一个月用户反馈很差。但问题在哪?Prompt 没变,模型版本没升级,数据看不出问题。我们什么都查不到。最后只能让工程师一个 case 一个 case 看,花了一周时间才定位到——是某个客户上传了一批结构特殊的访谈记录。",
+      "visual": {
+        "type": "quote-with-rows",
+        "main": "AI 系统在生产环境是个黑盒",
+        "sub": "出问题靠运气 · 改进靠拍脑袋 · 汇报靠话术",
+        "rows": [
+          { "tag": "排查 1", "body": "Prompt 变了吗? 没变" },
+          { "tag": "排查 2", "body": "模型升级了吗? 没有" },
+          { "tag": "排查 3", "body": "数据有问题吗? 看不出来" },
+          { "tag": "代价", "body": "一周时间逐 case 看 · 才定位到根因" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "03-thesis",
+      "title": "核心论点",
+      "script": "今天讲完之后,我希望大家记住一句话:没有评估,AI 开发就是在凭感觉调;没有可观测性,生产环境就是在凭运气跑。传统软件靠 TDD,AI 系统靠 EDD——评估驱动开发。这是个根本性的认知转变。",
+      "visual": {
+        "type": "thesis",
+        "label": "今天唯一要记住的一句话",
+        "quote": "没有评估,AI 开发就是在凭感觉调;<br>没有可观测性,生产环境就是在凭运气跑。",
+        "footer": "TDD → EDD · 评估驱动开发是 AI 时代的新范式",
+        "keywords": [
+          { "k": "Eval", "v": "上线前的体检" },
+          { "k": "Observability", "v": "上线后的心电图" },
+          { "k": "EDD", "v": "Eval-Driven Development" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "04-traditional-vs-ai",
+      "title": "传统软件 vs AI 软件",
+      "script": "做过软件工程的同学都熟悉单元测试、集成测试、CI/CD。但这些方法对 AI 应用基本失效。逐条看:传统软件同输入同输出,AI 软件同输入每次输出都不一样;传统软件对错明确,AI 软件主观连续;传统软件改代码跑测试集,AI 软件改一句 Prompt 所有输出都变;传统软件看堆栈日志,AI 软件没异常但「不太对」;传统软件性能稳定,AI 软件质量飘忽;传统软件改 PR 修复,AI 软件很多问题无解只能 workaround。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "输出确定性", "verdict": "同输入同输出 → 同输入不同输出", "ok": false, "why": "assertEqual 完全无效" },
+          { "input": "正确性判断", "verdict": "对/错明确 → 主观连续", "ok": false, "why": "「我觉得好」vs「产品觉得差」扯皮" },
+          { "input": "回归测试", "verdict": "改代码跑测试 → 改 Prompt 全变", "ok": false, "why": "改一句 Prompt · 80% case 质量掉" },
+          { "input": "故障定位", "verdict": "看堆栈日志 → 无异常但「不太对」", "ok": false, "why": "模型不报错 · 它会自信地胡说" }
+        ],
+        "lesson": "传统软件的 TDD 思路对 AI 系统不工作了",
+        "history": "AI 系统需要新范式 → EDD (Eval-Driven Development)"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "05-pyramid-overview",
+      "title": "评估金字塔 · 4 层",
+      "script": "就像传统软件有「单元-集成-端到端」的测试金字塔,AI 应用也有自己的评估金字塔。4 层从基础到高级,覆盖范围越来越大,频率越来越低。L1 单元评估,评估对象是单个 Prompt、单个工具;L2 链路评估,评估端到端流程;L3 用户评估,真实用户的反馈和行为;L4 业务评估,AI 对业务指标的影响。每一层都不能省。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "L1", "head": "单元评估 (Unit)", "body": "评估单个原子组件 · 一个 Prompt / 一个工具", "ex": "20-50 个「输入-期望输出」对 · 每次改动跑一遍 · 通过率" },
+          { "n": "L2", "head": "链路评估 (Chain)", "body": "评估完整任务流程 · 端到端能不能完成", "ex": "单元都过了不代表整体 OK · 组件接口是问题源头" },
+          { "n": "L3", "head": "用户评估 (User)", "body": "真实用户的反馈和行为 · 最真实最被忽视", "ex": "显式反馈 (👍👎) + 隐式反馈 (重提问 / 复制率)" }
+        ]
+      },
+      "interact": "点「下一页」继续看 L4"
+    },
+    {
+      "id": "06-pyramid-l4",
+      "title": "L4 · 业务评估",
+      "script": "最高层、最重要、也最难度量的评估。所有 AI 项目最终都要回到这一层证明价值。讲一个我们项目里真实的 L4 评估:某客户上线销售助手 AI 三个月,销售人均跟进客户数 +28%、商机推进周期 -15 天、团队人力成本 -12%(少招 2 人)、项目投入回收期 4 个月。这就是 L4 能讲清楚的故事。汇报老板、续约客户、扩展业务,都靠 L4。",
+      "visual": {
+        "type": "quote-big",
+        "before": "L4 业务评估 · 真实项目数据",
+        "quote": "项目投入回收期 4 个月",
+        "after": "汇报老板 / 续约客户 / 扩展业务 · 都要靠 L4",
+        "compare": [
+          { "side": "效率类", "rows": ["人均跟进客户 +28%", "商机推进 -15 天", "响应时间下降"] },
+          { "side": "成本类", "rows": ["人力成本 -12%", "少招 2 人", "回收期 4 个月"] }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "07-eval-versions",
+      "title": "真实评估集 · 4 版对比",
+      "script": "光说概念太抽象。看我们项目实际用的评估集——需求提取任务的 30 个测试用例。我做了 4 个版本对比。v1 裸 Prompt,通过率 60%,上线不可接受。v2 加 5 步流程,77%,还不够。v3 加 few-shot 范例,90%,生产可用。v4 升级模型到 Opus,93%,但成本翻 4 倍。关键洞察:Prompt 优化 ROI 最高,模型升级是最后一招。没有评估集就没法做这种对比——你怎么知道哪次改动是改对了?",
+      "visual": {
+        "type": "sliders",
+        "title": "需求提取评估集 · 30 用例",
+        "subtitle": "从 60% 通过率到 93% 的路径",
+        "features": [
+          { "name": "v1 · 裸 Prompt", "value": 60 },
+          { "name": "v2 · 加 5 步流程", "value": 77 },
+          { "name": "v3 · 加 few-shot", "value": 90 },
+          { "name": "v4 · 升级模型", "value": 93 }
+        ],
+        "score": 90,
+        "verdict": "v3 已生产可用 · v4 成本翻 4 倍",
+        "diff": [
+          { "k": "Prompt 优化 ROI 最高", "v": "v1→v3 质量 +30% · 成本只涨 50%" },
+          { "k": "模型升级是最后一招", "v": "v3→v4 质量 +3% · 成本涨 4 倍" },
+          { "k": "评估集是基本卫生条件", "v": "每个上线 AI 功能 ≥30 用例" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "08-trace",
+      "title": "生产 Trace · 上线后的眼睛",
+      "script": "评估集解决上线前,Trace 解决上线后。每次 AI 调用都要可追溯——用户问了什么、检索了哪些文档、调了哪些工具、模型怎么想的、最后回答什么。看一个真实 Trace:用户问客户 A 本月销售情况。Agent 思考 144ms,search_customer 736ms,get_order_history 564ms,get_customer_health 超时 2.8 秒 ERROR。Agent fallback 继续回答但少了健康度信息,质量打折扣。没有 Trace,这些都是黑盒。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "01", "head": "哪一步慢了", "body": "health_score_service 超时 2.8 秒", "ex": "整体响应从预期 1.5s 延长到 4.8s" },
+          { "n": "02", "head": "哪一步错了", "body": "tool error · Agent 用 fallback 没让用户看到", "ex": "降级策略生效 · 但回答质量打折扣" },
+          { "n": "03", "head": "修复路径清楚", "body": "查 health_service / 设 200ms 超时 / Prompt 加降级规则", "ex": "Trace 必含 · trace_id / 时间戳 / 耗时 / 输入输出 / 错误 / 元数据" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "09-four-metrics",
+      "title": "4 个核心指标",
+      "script": "从无数指标里挑出最关键的 4 个。这 4 个看清楚了,AI 系统的健康度基本能掌握,涵盖质量、性能、成本、用户体验四个维度。指标 1 通过率,健康 >90%。指标 2 P95 延迟,对话场景 <3 秒——为什么不用平均值?因为 AI 应用延迟是长尾分布,平均值掩盖痛苦。指标 3 单次成本,我们项目有过一次 Agent 死循环,一晚上烧 8000 块——必须设预算告警。指标 4 用户满意率,👍👎 按钮简单粗暴但极其有效。",
+      "visual": {
+        "type": "fusion",
+        "main": "4 核心指标",
+        "eq": "=",
+        "parts": [
+          { "n": "质量", "name": "通过率", "detail": "评估集通过率 · 健康 >90% / 告警 <85%", "color": "#00e676", "techs": "AI 版的「绿灯红灯」" },
+          { "n": "性能", "name": "P95 延迟", "detail": "对话场景 <3s · 批处理 <30s", "color": "#00d4ff", "techs": "平均值掩盖长尾痛苦" },
+          { "n": "成本", "name": "单次请求成本", "detail": "Token 成本 · 必须设预算 · 超 P99 × 2 告警", "color": "#ad6cff", "techs": "Agent 死循环一晚烧 8000 块" },
+          { "n": "体验", "name": "用户满意率", "detail": "👍👎 反馈率 · 健康 >80%", "color": "#d9b366", "techs": "用脚投票 · 最直接的真实信号" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "10-metric-combo",
+      "title": "指标联动分析",
+      "script": "光看单个指标不够,要组合看。通过率掉 + 满意率掉 = 质量问题,可能是 Prompt 回归。延迟涨 + 成本涨 = 性能问题,某个工具或检索慢了。满意率掉但通过率不变 = 用户场景变了,评估集需要更新——这是我开场讲的那个案例的核心信号。周会 review 这 4 个指标的趋势,不出问题不代表健康。",
+      "visual": {
+        "type": "rules",
+        "title": "指标联动 · 三种典型组合",
+        "subtitle": "周会 review · 不出问题不代表健康",
+        "rules": [
+          "通过率↓ + 满意率↓ → 质量问题 · Prompt 回归",
+          "延迟↑ + 成本↑ → 性能问题 · 工具/检索慢",
+          "满意率↓ + 通过率不变 → 用户场景变了 · 评估集需更新",
+          "通过率↑ + 满意率↑ + 延迟稳定 → 健康",
+          "成本突涨 + 通过率不变 → 死循环 / 工具异常 · 立刻拦"
+        ],
+        "verdict": "周会 review 趋势 · 而不是只看绝对值",
+        "footnote": "评估集要持续生长 · 从真实日志构建"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "11-toolstack",
+      "title": "9 个主流工具栈",
+      "script": "工具是基础,不是花架子。讲 9 个 2025 年生产环境最常用的工具,分三类。Tracing 类:LangSmith 最成熟、Langfuse 开源可私有化、Phoenix 专业级。Eval 类:Promptfoo 命令行 CI 友好、DeepEval 像 pytest、RAGAS 专评 RAG。用户反馈类:Helicone 无侵入代理、PostHog 产品分析、自建 PostgreSQL 看板。原型阶段 Langfuse + DeepEval,生产阶段加 PostHog + 自建看板。",
+      "visual": {
+        "type": "school",
+        "n": "9 工具",
+        "name": "工具栈三类",
+        "en": "Tracing / Eval / User Feedback",
+        "era": "2025 主流 · 按阶段叠加",
+        "color": "#00e676",
+        "belief": "不要等出问题才装观测 · 它必须从第一天就在",
+        "rep": "LangSmith / Langfuse / Phoenix / Promptfoo / DeepEval / RAGAS / Helicone / PostHog / 自建 PG",
+        "trouble": "工具栈太复杂 · 小团队怎么选",
+        "today": "原型: Langfuse + DeepEval · 生产: +PostHog + 自建看板",
+        "in_crm": "中国项目最实用 · Langfuse 开源 + PostgreSQL 看板 (Metabase/Superset)"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "12-build-eval-set",
+      "title": "评估集怎么构建",
+      "script": "讲点更具体的。评估集要多少用例够?最少 30 个,覆盖典型场景 + 边界 case + 陷阱 case。复杂场景如多 Agent 建议 100+。质量比数量重要——10 个精心设计的边界 case 比 100 个普通 case 价值高。怎么持续生长?从真实用户日志构建评估集,每周抽样 100 个真实 case,工程师产品标注期望输出,沉淀进评估集。评估集是活的,要持续生长。",
+      "visual": {
+        "type": "three-questions",
+        "intro": "评估集 · 三个常见疑问",
+        "questions": [
+          { "q": "1. 用例多少够?", "ex": "最少 30 · 复杂场景 100+ · 质量 > 数量" },
+          { "q": "2. LLM-as-Judge 靠谱吗?", "ex": "简单维度靠谱 · 复杂维度配 20% 人工抽样" },
+          { "q": "3. 评估集会不会脱节?", "ex": "从真实日志构建 · 每周抽样 100 · 活的评估集" }
+        ],
+        "tail": "评估集是「基本卫生条件」· 不是「锦上添花」"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "13-trace-design",
+      "title": "Trace 设计原则",
+      "script": "Trace 不是随手 print log。每个 Trace 必须包含六要素:trace_id 唯一标识可全链路串联、时间戳每一步开始结束、耗时延迟、输入输出完整内容、错误信息异常堆栈、元数据用户 ID 模型版本 Prompt 版本。保留时间至少 30 天最好 90 天。Trace 数据存哪?全量含完整内容存 30-90 天,统计指标长期存。采样存储——成功的请求采样 10%,失败的 100% 存。",
+      "visual": {
+        "type": "rules",
+        "title": "Trace 六要素",
+        "subtitle": "出问题时回溯窗口要够长",
+        "rules": [
+          "trace_id · 唯一标识 · 可全链路串联",
+          "时间戳 · 每一步开始 + 结束",
+          "耗时 · 每步延迟",
+          "输入/输出 · 完整内容",
+          "错误信息 · 异常详细堆栈",
+          "元数据 · user_id / model / prompt_version"
+        ],
+        "verdict": "保留 30-90 天 · 采样: 成功 10% / 失败 100%",
+        "footnote": "Trace = AI 的飞行黑匣子"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "14-recap",
+      "title": "收尾 + 4 条实用建议",
+      "script": "今天信息密度大,但都是地基。一句话总结:没有评估 AI 开发就是凭感觉调,没有可观测性生产环境就是凭运气跑。对我们项目最实用的 4 条建议:每个上线的 AI 功能必须有评估集最少 30 用例;接入 Langfuse 或自建 Trace 每次调用可追溯;产品里加 👍👎 按钮把用户反馈沉淀下来;周会 review 四个核心指标趋势。PART 3 工程落地到此结束。下一讲进入 Context Engineering——2024 业界正式命名的范式升级。",
+      "visual": {
+        "type": "recap",
+        "title": "今天讲了什么",
+        "points": [
+          "传统 vs AI 软件:TDD 不工作 → EDD",
+          "评估金字塔 4 层:L1/L2/L3/L4",
+          "评估集 v1→v4:60%→93% · Prompt ROI 最高",
+          "Trace 解决上线后:六要素 · 30-90 天保留",
+          "4 核心指标:通过率 / P95 / 成本 / 满意率",
+          "9 工具栈:Langfuse + DeepEval + 自建看板"
+        ],
+        "next": "下一讲 · Context Engineering",
+        "next_kw": [ "7 块组成", "Budget 管控", "Compaction", "4 大反模式" ]
+      },
+      "interact": "本讲结束 · PART 3 工程落地下半场"
+    }
+  ]
+}

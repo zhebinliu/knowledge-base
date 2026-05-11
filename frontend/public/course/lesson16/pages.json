@@ -1,0 +1,246 @@
+{
+  "lesson": 16,
+  "title": "Harness Engineering — Agent 长程任务的外壳设计",
+  "voice": "白桦",
+  "model": "mimo-v2.5-tts",
+  "format": "mp3",
+  "prompt": "专业、温和、清晰、像企业培训讲师,语速适中,有节奏感,关键词稍重读。",
+  "pages": [
+    {
+      "id": "01-opening",
+      "title": "开场 · 一个 while True 引发的灾难",
+      "script": "PART 3 倒数第二讲。去年一个合作团队拿 GPT-4 + LangChain 拼了自动写代码 agent,Demo 效果惊艳客户当场买单。上线两个月找我们救火:长任务必崩、用户 Ctrl+C 状态丢失、同 tool error 原样重试 30 次一晚烧 8000 块、context 满抛异常无恢复。团队一直在调 prompt 换模型——都没用。问题不在 agent,在 harness——他们根本没有 harness,只有一个 while True model.invoke。",
+      "visual": {
+        "type": "hero",
+        "tag": "LESSON 16 · PART 3",
+        "h1": "Harness Engineering",
+        "subtitle": "Agent 是策略 · Harness 是骨架",
+        "note": "Context 解决调用前塞什么 · Harness 解决调用之间循环怎么跑"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "02-thesis",
+      "title": "核心论点",
+      "script": "今天讲完之后,记住一句话:模型能力决定 Agent 上限的 80%,Harness 决定能不能稳定到这个上限。2025 所有严肃 agent 团队都在做 harness,而不是只调 prompt。瓶颈不在策略,在骨架。",
+      "visual": {
+        "type": "thesis",
+        "label": "今天唯一要记住的一句话",
+        "quote": "模型能力决定 Agent 上限的 80%,<br>Harness 决定能不能稳定到这个上限。",
+        "footer": "Sonnet 4.5 / Opus 4.7 之后 · 瓶颈不在策略 · 在骨架",
+        "keywords": [
+          { "k": "Agent", "v": "决定做什么 (Decide)" },
+          { "k": "Harness", "v": "保证持续跑 (Keep Running)" },
+          { "k": "比喻", "v": "司机 vs 汽车底盘" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "03-agent-vs-harness",
+      "title": "Agent vs Harness · 5 维分界",
+      "script": "Boris Cherny、Walden Yan、Karpathy 反复强调这个区分。逐条看:职责,Agent decide 模型判断力,Harness keep running 工程师基建。载体,Agent 是 Prompt+模型,Harness 是主循环+状态机+持久化。频率,Agent 软层每次都变,Harness 硬层半年不动——这就是 Claude Code 不动 harness 也能跑通 Sonnet 3.5 到 Opus 4.7 多次升级的原因。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "职责", "verdict": "Decide what to do / Keep it running", "ok": true, "why": "判断力 vs 基建" },
+          { "input": "实现载体", "verdict": "Prompt + 模型 / 主循环 + 状态机 + 持久化", "ok": true, "why": "Claude prompt vs Python/TS" },
+          { "input": "变化频率", "verdict": "每次都变 / 半年不动", "ok": true, "why": "软层 vs 硬层" },
+          { "input": "失败模式", "verdict": "幻觉走错路 / 死循环超时 context 炸", "ok": true, "why": "质量问题 vs 可用性问题 · 修法完全不同" }
+        ],
+        "lesson": "Harness 是工程骨架 · 不是 prompt 调优",
+        "history": "不要让 AI 工程师同时背 harness 的锅 · 两件事都做做不好"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "04-six-components",
+      "title": "Harness 6 大核心组件 · 前三",
+      "script": "拆所有严肃 agent 系统,最终沉淀出 6 大组件,缺一个就会崩。前三个。C1 Loop Control 主循环——心脏 while 循环,三层停止条件:自然停 end_turn、硬上限 max_iter、软上限成本时间预算。C2 Tool Gating 工具门控——2025 最被低估的优化,一次最多暴露 8-12 个 tool。C3 Interruption 中断处理——用户 Ctrl+C 时 agent 不应丢盔弃甲,进行中的工作要安全保存。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "C1", "head": "Loop Control 主循环", "body": "while 循环 · 决定继续 / 停 · 三层停止条件", "ex": "Claude Code max 200 · Cursor 25 · 不设上限烧 8000 块" },
+          { "n": "C2", "head": "Tool Gating 工具门控", "body": "Skills 系统 · 按任务场景动态加载 · 8-12 个", "ex": "tool soup 反模式 · 30 个 tool 模型迷失" },
+          { "n": "C3", "head": "Interruption 中断处理", "body": "Ctrl+C 安全保存 · 不丢盔弃甲", "ex": "Claude Code ESC · /resume · tool 调用做幂等" }
+        ]
+      },
+      "interact": "点「下一页」继续看 C4-C6"
+    },
+    {
+      "id": "05-six-components-tail",
+      "title": "Harness 6 大核心组件 · 后三",
+      "script": "后三个组件。C4 Checkpointing——long-running 生死线,每完成 tool call 保存。Claude Code 用 JSONL,既是 checkpoint 也是 trace。C5 Error Recovery——L1 瞬时 backoff 重试 3 次、L2 tool error 返 ERROR 自决、L3 fallback、L4 ≥3 次 escalate。坑是原样重试错误放大。C6 Auto-Compact——接近 200K 主动 summarize。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "C4", "head": "Checkpointing 检查点", "body": "每 tool call 存一次 · long-running 生死线", "ex": "Claude Code JSONL · 既是 checkpoint 也是 trace" },
+          { "n": "C5", "head": "Error Recovery 错误恢复", "body": "分级降级 · L1 重试 / L2 返 ERROR / L3 fallback / L4 escalate", "ex": "同 input 连续失败 ≥3 次必须中断" },
+          { "n": "C6", "head": "Auto-Compact 自动压缩", "body": "context ≥85% 阈值主动 summarize", "ex": "保留 system + 用户原始任务 + 最近 K 轮原文" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "06-tool-gating",
+      "title": "Tool Gating 实战 · 5 个场景",
+      "script": "Tool Gating 单独讲,这是最容易被低估的 harness 决策。28 个 tool 横跨 7 类。5 种场景:代码编辑 6 个,edit 优先 write,delete 不暴露。文件搜索无写权限,最安全 subset。测试运行不含 write——agent 不应跑测试时偷偷改代码。部署 deploy tool 标 danger=true。调试 7 个 read/inspect 无写权限。少即是多——8 个相关 tool 漂亮,50 个迷失。",
+      "visual": {
+        "type": "rules",
+        "title": "Tool Gating · 5 种场景设计",
+        "subtitle": "28 个 tool · 按场景暴露 6-8 个子集",
+        "rules": [
+          "代码编辑 · 6 个 read/edit/glob · delete 不暴露",
+          "文件搜索 · 无写权限 · 最安全 subset · 调研类先走这层",
+          "测试运行 · 不含 write · 防止偷偷改代码",
+          "部署 · 每个 deploy 标 danger=true · 强制人工确认",
+          "调试 · 7 个 read/inspect · 找到 root cause 再切到编辑"
+        ],
+        "verdict": "Tool 描述必须写 when to use / when NOT to use",
+        "footnote": "Cursor 走固定 · Claude Code 走 Skills 动态加载"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "07-long-timeline",
+      "title": "8 小时长任务时间线",
+      "script": "看真实 long-running 任务。重构 nest.js 到 fastify,7h28m $8.74。00:08 初始 ckpt。00:58 第一批 4 controller 完成。01:46 run_test 超时,降级返 ERROR 让模型跳过标 tech-debt。02:28 compact 152K 压到 78K。03:02 用户介入 auth/jwt 改坏,从 CKPT-02 重新出发跳过 auth。04:38 API 429 自动 backoff 无感继续。",
+      "visual": {
+        "type": "course-map",
+        "parts": [
+          { "name": "00:08 · CKPT-01", "range": "init", "color": "#00e676", "kw": "codebase 调研 · 12 controller 8 service · 重构计划" },
+          { "name": "00:58 · CKPT-02", "range": "first batch", "color": "#00e676", "kw": "4 controller 迁移 · 单测过 · 可放心回滚点" },
+          { "name": "01:46 · ERR-1", "range": "tool fail", "color": "#ff4444", "kw": "run_test 超时 · retry 2 次 · 降级跳过" },
+          { "name": "02:28 · COMPACT", "range": "auto", "color": "#ff9500", "kw": "152K → 78K · 保留决策 + 最近 5 步" },
+          { "name": "03:02 · USER", "range": "intervene", "color": "#00d4ff", "kw": "发现 auth 改坏 · 回滚 CKPT-02 · 跳过 auth" },
+          { "name": "04:38 · ERR-2", "range": "API 429", "color": "#ff4444", "kw": "自动 backoff 2/4/8s · agent 无感继续" }
+        ],
+        "highlight": 2
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "08-timeline-value",
+      "title": "时间线告诉我们什么",
+      "script": "这个时间线告诉我们什么?没有 harness 这 8 小时会变成:第一次 tool 超时直接崩,第一次 context 满直接抛异常,用户介入只能从头跑,API 429 直接报错给用户——实际能跑通的概率接近 0。有 harness 每个异常都被吸收降级 checkpoint,整个任务的成功概率从 <5% 提升到 >90%。这就是 harness 在 long-running 任务上的本质价值。",
+      "visual": {
+        "type": "compare-rules",
+        "cases": [
+          { "input": "Tool 超时", "verdict": "无 harness 直接崩 / 有 harness 降级跳过", "ok": false, "why": "L2 错误恢复" },
+          { "input": "Context 满", "verdict": "无 harness 抛异常 / 有 harness 自动压缩", "ok": false, "why": "C6 auto-compact" },
+          { "input": "用户介入", "verdict": "无 harness 从头跑 / 有 harness 回滚到 CKPT", "ok": false, "why": "C4 + C3" },
+          { "input": "API 429", "verdict": "无 harness 报错 / 有 harness 自动 backoff", "ok": false, "why": "L1 瞬时错误吸收" }
+        ],
+        "lesson": "成功概率: <5% → >90% · 这是 harness 的本质价值",
+        "history": "8 小时任务 · $8.74 · 真实跑通 · 这就是 2025 工程的状态"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "09-harness-compare",
+      "title": "2025 主流 Harness 对比",
+      "script": "2025 年 6 大主流 agent harness。Claude Code 最完整开发型,subagent + skills + hooks。Cursor Composer IDE 原生,强项多文件协调编辑。Devin 最激进全自主,Linear ticket 几小时后给 PR。Aider 最受工程师喜爱 OSS,保守 git-first。Cline 每个 tool call 弹 approve 最保守。Codex CLI OpenAI 对 Claude Code 的直接回应。",
+      "visual": {
+        "type": "course-map",
+        "parts": [
+          { "name": "Claude Code", "range": "最完整开发型", "color": "#d97706", "kw": "subagent · skills · hooks · CLI+IDE" },
+          { "name": "Cursor Composer", "range": "IDE 原生", "color": "#0066ff", "kw": "Apply 模型 · file-level diff · Tab 补全" },
+          { "name": "Devin", "range": "全自主云端", "color": "#9333ea", "kw": "异步执行 · PR-native · single agent" },
+          { "name": "Aider", "range": "OSS pair-programmer", "color": "#22c55e", "kw": "repo-map · git-first · diff edit" },
+          { "name": "Cline / RooCode", "range": "最保守可控", "color": "#06b6d4", "kw": "每步 approve · 本地模型 · modes" },
+          { "name": "Codex CLI", "range": "OpenAI 官方", "color": "#10a37f", "kw": "GPT-5 · sandbox · Web 异步" }
+        ],
+        "highlight": 0
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "10-failure-modes",
+      "title": "4 大失败模式",
+      "script": "自造 harness 最容易踩的 4 个坑。F1 Tool Soup 注册 50 个 tool 选择困难症放大 10 倍。修:gating 一次 8-12 个。F2 Context Bomb 让 agent 读完整代码库,200K 五分钟填满。修:read 默认前 N 行 + 先 grep 定位。F3 死循环错误放大,原样重试 30 次烧 8000 块。F4 中断无 Resume,跑 1 小时 30 步 Ctrl+C 全没。",
+      "visual": {
+        "type": "rules",
+        "title": "Demo 阶段看不出来 · 生产 1 小时就崩",
+        "subtitle": "自己造 harness 最容易踩的 4 个坑",
+        "rules": [
+          "Tool Soup · 50 个 tool · 模型选择困难症 10x → 8-12 个 + 描述清晰",
+          "Context Bomb · agent 自己读完整代码库 → 默认截断 + 先 grep 定位",
+          "死循环/错误放大 · 同 input 重试 30 次 → ≥3 次强制中断 + max_iter 200",
+          "中断无 Resume · Ctrl+C 全丢 → 每 tool call 写 checkpoint"
+        ],
+        "verdict": "demo 看不出 · 生产 1 小时就崩",
+        "footnote": "LangChain 早期被骂得最惨就是这 4 个"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "11-80-lines",
+      "title": "80 行 Python 起步",
+      "script": "可能有同学觉得 harness 工程量大做不动。算笔账——最简 harness 80 行 Python,覆盖 6 大组件:while 主循环+max_iter、TOOLS 字典+gate、SIGINT+save_ckpt、pickle 每步存、retry backoff、阈值 summarize。这就是 Claude Code 早期原型。建议每个做 agent 的同学亲手写一遍——认知会从「很复杂」变成「就这点东西」。",
+      "visual": {
+        "type": "school",
+        "n": "80 行",
+        "name": "Minimum Viable Harness",
+        "en": "80 Lines Python",
+        "era": "2025 · 这就是 Claude Code 早期原型",
+        "color": "#00e676",
+        "belief": "harness 不复杂 · 80 行覆盖 6 大组件的 5 个",
+        "rep": "while + TOOLS 字典 + SIGINT + pickle + retry + compact",
+        "trouble": "听起来很复杂 · 写完之后变成「就这点东西」",
+        "today": "实战路径: 第 1 周抄 · 第 2 周加 tool · 第 3 周测中断 · 第 4 周加防护",
+        "in_crm": "推荐每个做 agent 的同学自己亲手写一遍"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "12-tradeoffs",
+      "title": "4 个设计权衡",
+      "script": "harness 设计 4 个权衡。T1 自主 vs 可控:Devin 全自主,Cline 每步 approval,Claude Code 中间。T2 多 Agent vs Single+Subagent:Cognition 主张共享 context 难,Claude Code 走 single+subagent。T3 动态 vs 固定 Tool Set:Skills 动态,Aider 固定。T4 同步 vs 异步:Devin 异步适合 30 分钟以上,Claude Code 同步。",
+      "visual": {
+        "type": "three-points",
+        "points": [
+          { "n": "T1", "head": "自主 vs 可控", "body": "Devin 全自主 · Cline 每步审 · Claude Code 中间", "ex": "自主→快但容易跑偏 · 可控→慢但安心" },
+          { "n": "T2", "head": "多 Agent vs Subagent", "body": "Cognition 主张 single + subagent · 共享 context 难", "ex": "并行可分解任务用多 agent · 连续复杂用 single" },
+          { "n": "T3", "head": "动态 vs 固定 Tool Set", "body": "Claude Code skills 动态 · Aider 三件套固定", "ex": "固定可缓存 · 动态选错率低" }
+        ]
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "13-questions",
+      "title": "三个常见疑问",
+      "script": "三个常问的问题。一,用 Claude Code 还需自造 harness 吗?工程师用是一回事,产品给最终用户的 agent 依然要自造。二,80 行生产能用吗?能用,但要加监控告警成本控制并发管理,生产级 500-1500 行,主要扩展多用户隔离、DB 持久化、Trace 上报、成本预算、失败告警。三,Harness vs LangGraph 什么关系?Framework 是别人的 harness,但抽象不一定匹配业务。原型用 framework,规模化评估是否自造。",
+      "visual": {
+        "type": "three-questions",
+        "intro": "三个最常被问的问题",
+        "questions": [
+          { "q": "1. 用 Claude Code 还需要自造 harness 吗?", "ex": "需要 · 产品里给最终用户的 agent 是另一回事" },
+          { "q": "2. 80 行生产真能用?", "ex": "能 · 加监控告警 = 500-1500 行 production" },
+          { "q": "3. Harness vs LangGraph?", "ex": "Framework 是别人的 harness · 抽象不一定匹配业务" }
+        ],
+        "tail": "原型阶段 framework · 规模化阶段评估自造"
+      },
+      "interact": "点「下一页」"
+    },
+    {
+      "id": "14-recap",
+      "title": "收尾 · 5 条实用建议",
+      "script": "一句话:模型能力决定 Agent 上限 80%,Harness 决定能稳定到这上限。对我们项目 5 条:不要造大而全 harness 从 80 行 MVP 起步;checkpoint 和 interruption 是生死线;Tool gating 少即是多;想清楚同步 vs 异步;多 agent 不是默认答案,能用 single+subagent 就别上。下一讲 Claude Code 架构拆解——把今天的抽象变成可摸的工程体。",
+      "visual": {
+        "type": "recap",
+        "title": "今天讲了什么",
+        "points": [
+          "Agent vs Harness:策略 vs 骨架 · 司机 vs 汽车",
+          "6 大组件:Loop / Gating / Interrupt / Ckpt / Error / Compact",
+          "Tool Gating:5 场景 · 8-12 个 · 少即是多",
+          "8h 长任务:成功率 <5% → >90%",
+          "4 大失败:Soup / Bomb / 死循环 / 无 Resume",
+          "80 行 Python 起步 → 500-1500 行生产级"
+        ],
+        "next": "下一讲 · Claude Code 底层原理架构拆解",
+        "next_kw": [ "8 层架构", "Skills", "Auto-compact", "Hooks" ]
+      },
+      "interact": "本讲结束 · 下一讲把 harness 变成可摸的工程体"
+    }
+  ]
+}
