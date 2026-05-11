@@ -1,6 +1,187 @@
 # 任务跟踪
 
-## 新迭代:4 个用户反馈点(2026-05-08)
+## 新迭代:meeting-ai 项目整合(2026-05-11) — 方案 B 深度合并
+
+### 背景
+当前 `/console/meeting` 是 iframe 嵌入 `meeting.liii.in`(外部部署的 meeting-ai)。
+方案 B 目标:**把 meeting-ai 的代码完整合并进 kb-system**——后端作为 router 挂上去,前端用 React+Tailwind 重写,数据库迁到 Postgres,会议数据可与 KB 项目深度联动。
+
+### 集成蓝图(基于双向探查)
+
+**meeting-ai 现状**
+- 后端 19 endpoints + 1 WS(路径前缀 `/api/meetings`)
+- 模型 2 张表:`meetings`(20+ 字段) + `requirements`(meeting_id FK)
+- AI pipeline 4 阶段:TextPolisher / MinutesGenerator / RequirementExtractor / StakeholderExtractor
+- ASR 3 选 1:whisper(本地大模型)/ xiaomi(MiMo-V2 Omni)/ xunfei(讯飞 WS 流式)
+- 飞书:FeishuDocWriter(文档)+ FeishuBitableWriter(多维表)
+- 前端 vanilla JS + Arco Design + vis-network + hash router,**必须完全重写**
+
+**kb-system 接入点**
+- 路由集中在 `backend/main.py` 末尾 include_router,无版本前缀
+- 鉴权:`Depends(get_current_user)` JWT
+- DB:Postgres + async SQLAlchemy,无 alembic(用 `Base.metadata.create_all` 幂等迁移)
+- LLM:走 `services/model_router.py`(多 provider 统一封装)
+- 异步:Celery + Redis,worker 入口 `tasks/convert_task.py`
+- 文件:MinIO(bucket 由 env 注入)
+- 前端:React Router v6 + TanStack Query + Tailwind,API 层在 `api/client.ts`
+
+### 决策(已做,需要用户拍板的项打 ⚠️)
+
+| # | 决策 | 选择 | 理由 |
+|---|---|---|---|
+| 1 | 路由前缀 | `/api/meeting`(单数) | 符合 kb-system `/api/<模块>` 习惯 |
+| 2 | 主键 | 保留 `int autoincrement` | meeting-ai 内部 19 处用 meeting_id:int,改 UUID 改动大 |
+| 3 | JSON 字段类型 | Postgres `JSONB` | 替代 SQLite TEXT,可索引可查询 |
+| 4 | 多用户隔离 | `meetings.owner_id → users.id` FK | 接 JWT,默认只查 owner 自己的 |
+| 5 | 项目关联 | `meetings.project_id → projects.id` FK(替代原字符串 kb_project_id) | 联通 kb-system 项目体系 |
+| 6 | ASR 后端 | **只保留 xiaomi**(用户拍板砍 xunfei) | xiaomi 走 OpenAI 兼容 API 可复用 model_router;whisper 本地大依赖砍;xunfei WS 流式不要 |
+| 7 | AI pipeline | 改造为走 model_router,串成 1 个 Celery task | 复用 kb-system 多 provider + 限流 |
+| 8 | 文件存储 | MinIO bucket `meeting-audio` | 替代本地 uploads/ |
+| 9 | WS 鉴权 | JWT(query param `?token=<jwt>`) | 替代 WS_AUTH_TOKEN 单点 token |
+| 10 | KBClient 反向调用 | 改成内部 service call(直接调 kb-system service) | 不走 HTTP,事务可控 |
+| 11 | 飞书集成 | **改用户级配置**(用户拍板):User 加 feishu_app_id + feishu_app_secret_encrypted,Settings.tsx 加配置区 | 每个用户用自己的飞书租户,不共享全局凭证;secret 用 Fernet 加密入库 |
+| 12 | 数据迁移 | 不迁(meeting-ai 是 dev 环境) | 从零开始,简化 |
+| 13 | 前端利益相关者图 | **reactflow**(已知轻量,跟 React 配套) ⚠️ | vis-network 也行但需另装 |
+| 14 | iframe 处理 | 删除 ConsoleMeeting.tsx 现有 iframe,改为本地路由 | B 方案的核心要求 |
+| 15 | worktree | **建议切回 main 新开 worktree** ⚠️ | 当前 `busy-noyce` 在 course 分支,集成混进去会乱;但用户没回应所以默认就在当前继续,等用户决定 |
+
+⚠️ 项目 6 / 13 / 15 是用户可能想调整的,实施前确认。
+
+---
+
+### Block A — 后端基础(模型 + CRUD + 鉴权)
+- [ ] **A.1** `backend/models/meeting.py`:Meeting + Requirement 模型
+  - 字段对齐 meeting-ai 现状,JSON 字段改 JSONB
+  - 加 `owner_id`(FK users)+ `project_id`(FK projects, nullable)
+  - 删 `kb_project_id`/`kb_project_name` 字符串字段(被 project_id FK 替代)
+- [ ] **A.2** `backend/api/meeting.py`:挂 19 endpoints 中的 CRUD 子集(create / from-text / list / detail / patch / delete / requirements)
+  - 全部 `Depends(get_current_user)`
+  - list/detail 默认按 owner_id 过滤,管理员可看全部
+- [ ] **A.3** `backend/main.py` 注册 router,prefix=`/api/meeting`
+- [ ] **A.4** import 触发 `Base.metadata.create_all` 建表(参考 project_briefs 模式)
+- [ ] **A.5** 验证:`python -c "from models import meeting"` 不报错;curl 注册的端点返回 401
+
+### Block B — AI Pipeline(改造为 model_router + Celery)
+- [ ] **B.1** `backend/services/meeting/`(新目录)
+  - `polisher.py` / `minutes.py` / `requirement.py` / `stakeholder.py`(从 meeting-ai 拷贝并改造)
+  - 内部 LLM 调用全部走 `services/model_router.py`,不直接 import openai
+- [ ] **B.2** prompts 迁到 `backend/prompts/meeting/`(参考现有 prompts 目录结构)
+- [ ] **B.3** `backend/tasks/meeting_tasks.py`:Celery task `process_meeting(meeting_id)` 串 4 阶段
+- [ ] **B.4** API 接 task:`POST /api/meeting/{id}/process` 改为触发 Celery,立即返回 202
+- [ ] **B.5** 单点 actions:`/actions/polish`、`/actions/summarize`、`/actions/extract_requirements`、`/actions/extract_stakeholders` 4 个 endpoint 直接调 service 函数(同步,小数据量)
+- [ ] **B.6** 验证:塞一段假 transcript 跑 process,检查 raw_transcript → minutes 全链路
+
+### Block C — 文件上传 + ASR
+- [ ] **C.1** `services/meeting/storage.py`:上传音频到 MinIO,返回 object_key
+- [ ] **C.2** `POST /api/meeting/{id}/upload` 接口:multipart 上传 → MinIO,触发 ASR task
+- [ ] **C.3** `services/meeting/asr/xiaomi.py`:**只迁 xiaomi**(用户拍板砍 xunfei + whisper)
+  - 接口形态:`async transcribe(audio_bytes) → str`,走 OpenAI 兼容 API
+  - 复用 kb-system `services/model_router` 的 client 池
+- [ ] **C.4** `tasks/meeting_tasks.py` 加 `transcribe_meeting(meeting_id)`:下载 MinIO 音频 → 调 ASR → 写 raw_transcript → 自动触发 process
+- [ ] **C.5** env 配置:`OPENAI_*` 已有,新增可选 `XIAOMI_OMNI_MODEL`(默认 `mimo-v2-omni`)
+
+### Block D — WebSocket 实时录音 [**已延期 (2026-05-11)**]
+用户拍板 D-Skip:暂不做 WS,前端走 MediaRecorder 录完再走 POST /upload。
+
+延期原因:xiaomi mimo-v2-omni 是 OpenAI 兼容 chat completion 接口,不是真流式 ASR;
+meeting-ai 原 WS 实现本质是"每 15-30s 缓冲一段 → 调 xiaomi → 推回",所谓"实时"是"准实时"。
+upload 整段路径已经把功能闭环,等用户实际有"边开会边看转写"诉求再单做一个 Block D。
+
+- [ ] **D.1** `backend/api/meeting_ws.py`:WS endpoint(延期)
+- [ ] **D.2** WS 鉴权(延期)
+- [ ] **D.3** 实时缓冲 + 增量 ASR(延期)
+- [ ] **D.4** 中断恢复(延期)
+- [ ] **D.5** 挂 ws router(延期)
+
+### Block E — KB 联动 + 飞书集成(用户级凭证)
+- [ ] **E.1** 替换 KBClient 为内部 service call
+  - `sync-kb` 端点:直接调 `services/document_service.create_doc`,不走 HTTP
+  - `sync-stakeholder-map-kb`、`sync-requirements` 同样改写
+- [ ] **E.2** User 模型加字段(幂等迁移)
+  - `feishu_app_id: str | None` (String 128)
+  - `feishu_app_secret_encrypted: str | None` (Text, Fernet 加密后的 base64)
+  - 加密密钥从 env `APP_SECRET_KEY` 派生(已有,看 settings 是否暴露,没有就新增)
+- [ ] **E.3** `services/meeting/feishu/`:迁移 FeishuAuth / FeishuDocWriter / FeishuBitableWriter
+  - 改 FeishuAuth 接受 (app_id, app_secret) 参数化(原版从 env 读)
+  - 新增 `get_user_feishu_credentials(user_id)`:从 User 表读出并解密
+- [ ] **E.4** 用户飞书凭证 API:
+  - `GET /api/users/me/feishu` → 返回 `{configured: bool, app_id: str | None}`(不返 secret)
+  - `PUT /api/users/me/feishu` → 接收 `{app_id, app_secret}`,加密入库
+  - `DELETE /api/users/me/feishu` → 清空配置
+- [ ] **E.5** 会议飞书 endpoints 接通:
+  - `POST /api/meeting/{id}/export-feishu` / `/sync-requirements` / `/sync-stakeholder-map-kb`
+  - 入口先读当前用户的飞书凭证,未配置返回 412 `{detail: "请先在设置中配置飞书集成"}`
+- [ ] **E.6** Settings.tsx 加「飞书集成」卡片
+  - 显示当前配置状态(已配置 ✓ / 未配置)
+  - 输入 APP_ID + APP_SECRET → 保存(secret 始终展示 `••••••••` 占位)
+  - 「清除配置」按钮
+  - 帮助链接:跳飞书开放平台创建自建应用指南
+
+### Block F — 前端 API 层 + 路由
+- [ ] **F.1** `frontend/src/api/client.ts` 加 meeting 域函数:
+  - `listMeetings()` / `getMeeting(id)` / `createMeeting` / `createMeetingFromText` / `patchMeeting` / `deleteMeeting`
+  - `uploadAudio(id, file)` / `processMeeting(id)` / 4 个 actions
+  - `syncMeetingToKB` / `exportFeishu` / `syncRequirementsBitable`
+  - TS 类型:`Meeting`、`Requirement`、`MeetingMinutes`、`StakeholderMap`
+- [ ] **F.2** `frontend/src/pages/console/ConsoleMeeting.tsx` 重写:**删 iframe**,改为列表页(用 TanStack Query 拉 listMeetings)
+- [ ] **F.3** 新增路由 `/console/meeting/:id`,对应 `ConsoleMeetingDetail.tsx`
+- [ ] **F.4** 新增路由 `/console/meeting/new/(record|upload|text)` 三种创建方式
+
+### Block G — 前端会议列表 + 创建
+- [ ] **G.1** `ConsoleMeeting.tsx` 列表:卡片或表格,显示标题 / 时间 / 状态 / 关联项目 / 操作(查看/删除)
+  - 状态徽标(recording / processing / completed / failed)
+  - 顶部三个新建入口:🎙️ 录音 / 📁 上传 / 📝 文本
+- [ ] **G.2** `NewMeetingRecord.tsx`:MediaRecorder API + WebSocket 实时转录显示
+- [ ] **G.3** `NewMeetingUpload.tsx`:文件拖拽上传 + 进度
+- [ ] **G.4** `NewMeetingText.tsx`:粘贴文本 → 直接创建会议 → 自动 process
+
+### Block H — 前端会议详情(多 tab)
+- [ ] **H.1** `ConsoleMeetingDetail.tsx` 骨架:Hero(标题/时间/状态)+ Tab Bar + 内容区
+- [ ] **H.2** Overview tab:基本信息编辑、关联 KB 项目(下拉 listProjects)、操作按钮(导出/同步/重跑 pipeline)
+- [ ] **H.3** Transcript tab:raw + polished 双栏对照,可编辑
+- [ ] **H.4** Minutes tab:summary / key_points / decisions / action_items 结构化展示 + 编辑
+- [ ] **H.5** Requirements tab:表格 + priority/module 筛选 + 状态切换
+- [ ] **H.6** Stakeholders tab:reactflow 渲染 stakeholder_map.{stakeholders, relations},节点可拖,双击编辑
+- [ ] **H.7** Actions tab:导出飞书、同步 KB、同步多维表、单点触发 4 个 action
+
+### Block I — 部署 + 端到端测试
+- [ ] **I.1** docker-compose.yml:确认 backend / celery_worker 重启会拾取新 task
+- [ ] **I.2** .env 远程同步新增变量(FEISHU_*、XUNFEI_*、ASR_ENGINE)
+- [ ] **I.3** MinIO 建 bucket `meeting-audio`
+- [ ] **I.4** rsync + rebuild backend + frontend + celery_worker
+- [ ] **I.5** 端到端 smoke:
+  - 文本创建 → 看到 process 自动跑完 → minutes/requirements 出来
+  - 录音 → WS 实时转录显示 → 完成后 process
+  - 关联项目 → 同步到 KB → kb-system 项目里看到这个文档
+  - 飞书导出 → 收到飞书文档 URL
+
+### 边界
+- 不动 kb-system 现有任何 API(只新加 `/api/meeting/*`)
+- 不动 ConsoleQA / ConsoleHome / ConsoleProjects 等模块
+- 不删除 meeting-ai 项目本身(保留独立部署,作为可对照的备份,后续稳定再砍)
+- meeting.liii.in 暂不下线
+- 仅迁代码逻辑,不迁 meeting-ai 现有 SQLite 历史会议数据(已决策)
+- 不引入 alembic(沿用 `Base.metadata.create_all` 幂等模式)
+- 不动 LEARNING.md 里标记的「三处 kind 列表必须同步」逻辑(meeting 不是 output_kind,不入 KIND_TO_TASK)
+
+### 关键技术点 / 风险
+- **Postgres async session 跨 Celery worker**:LEARNING.md §convert_task 提到 worker fork 后用 NullPool,新 meeting_tasks 沿用同模式
+- **MinIO 音频文件 ACL**:私有 bucket,内部 service 用 presigned URL 读
+- **WebSocket 鉴权**:WS 没有 Authorization header,只能 query param 传 token,要在 ws handshake 处校验(参考 fastapi 文档)
+- **reactflow 引入**:需 `npm install reactflow`,bundle 增大约 100KB
+- **音频 chunk 缓冲策略**:meeting-ai 现状 10-30s 硬编码,迁过来时参数化
+- **多用户隔离**:listMeetings 必须按 owner_id 过滤,否则用户能看到别人的会议(严重隐私问题)
+
+### 节奏建议
+- Block A → B → C → D → E 后端先完整可用,每个 Block 完成 commit,Block E 后第一次部署
+- Block F → G → H 前端,Block H 完成后第二次部署
+- Block I 整体 smoke
+
+预计:后端 1.5 天 / 前端 1 天 / 联调部署 0.5 天 ≈ 3 天
+
+---
+
+## 旧迭代:4 个用户反馈点(2026-05-08)
 
 来自一次反馈回合,4 件事独立性高,工作量差异大,做之前先排优先级。
 

@@ -83,6 +83,7 @@ async def startup():
     from models.invite_code import InviteCode  # noqa: F401
     from models.captcha_challenge import CaptchaChallenge  # noqa: F401
     from models.project_collaborator import ProjectCollaborator  # noqa: F401
+    from models.meeting import Meeting, Requirement  # noqa: F401  会议纪要(2026-05-11 接入)
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -146,6 +147,9 @@ async def startup():
             # 文档脱敏:Document.markdown_content_raw + Project.aliases
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS markdown_content_raw TEXT",
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS aliases JSON",
+            # 会议纪要集成:User 级飞书凭证(2026-05-11)
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS feishu_app_id VARCHAR(128)",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS feishu_app_secret VARCHAR(255)",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")

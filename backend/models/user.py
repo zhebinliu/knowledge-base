@@ -39,6 +39,11 @@ class User(Base):
     # 注册时使用的邀请码(审计用,记录是哪个 invite_code 把这个账号引进来的)
     signed_up_via_invite_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
+    # 飞书集成(用户级凭证):每个用户配置自己的飞书自建应用
+    # secret 明文存(DB 访问控制兜底;Block E 决策不引入 cryptography 依赖,后续可补)
+    feishu_app_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    feishu_app_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
