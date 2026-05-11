@@ -1,0 +1,1848 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第20讲｜AGI 之后：工作、组织、社会推演</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', 'IBM Plex Sans', sans-serif;
+    background: #fafafa;
+    color: #0f0f0f;
+    min-height: 100vh;
+    padding: 24px;
+    line-height: 1.6;
+  }
+  .container { max-width: 1280px; margin: 0 auto; }
+
+  /* 工业控制台风格 */
+  header {
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 56px 56px;
+    margin-bottom: 24px;
+    border: 1px solid #1f1f1f;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(0deg, rgba(255, 107, 53, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 107, 53, 0.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+
+  .lesson-tag {
+    display: inline-block;
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid #ff6b35;
+    color: #ff6b35;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    margin-bottom: 24px;
+    position: relative;
+    z-index: 1;
+  }
+  h1 {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 80px;
+    font-weight: 700;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    margin-bottom: 14px;
+    position: relative;
+    z-index: 1;
+  }
+  h1 .accent { color: #ff6b35; }
+  h1 .light { font-weight: 300; color: #888; }
+  .h1-cn {
+    font-size: 26px;
+    font-weight: 600;
+    margin-top: 12px;
+    color: #c0c0c0;
+    position: relative;
+    z-index: 1;
+  }
+  .subtitle {
+    margin-top: 22px;
+    font-size: 16px;
+    color: #888;
+    line-height: 1.85;
+    max-width: 760px;
+    position: relative;
+    z-index: 1;
+  }
+  .subtitle strong { color: #ff6b35; font-weight: 500; }
+
+  .section {
+    background: #fff;
+    padding: 44px 48px;
+    margin-bottom: 24px;
+    border: 1px solid #e8e8e8;
+  }
+  .section.dark {
+    background: #0f0f0f;
+    color: #fafafa;
+    border-color: #1f1f1f;
+  }
+  .section.tinted {
+    background: #f0f0f0;
+    border-color: #d8d8d8;
+  }
+
+  .section-marker {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #c84a18;
+    letter-spacing: 0.3em;
+    margin-bottom: 8px;
+  }
+  .section.dark .section-marker { color: #ff6b35; }
+
+  .section-title {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 44px;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    margin-bottom: 8px;
+  }
+  .section-title .accent { color: #c84a18; }
+  .section.dark .section-title .accent { color: #ff6b35; }
+  .section-title .light { font-weight: 300; color: #888; }
+
+  .section-cn {
+    font-size: 22px;
+    font-weight: 700;
+    margin-top: 4px;
+  }
+  .section-lead {
+    margin-top: 16px;
+    font-size: 15px;
+    line-height: 1.85;
+    max-width: 820px;
+    color: #555;
+  }
+  .section.dark .section-lead { color: #a0a0a0; }
+
+  /* 风险分层表 */
+  .risk-table {
+    margin-top: 32px;
+    background: #fff;
+    border: 1px solid #e8e8e8;
+  }
+  .risk-row {
+    display: grid;
+    grid-template-columns: 140px 1fr 1fr;
+    border-bottom: 1px solid #e8e8e8;
+  }
+  .risk-row:last-child { border-bottom: none; }
+  .risk-row.header {
+    background: #0f0f0f;
+    color: #fafafa;
+  }
+  .risk-cell {
+    padding: 18px 22px;
+    font-size: 13px;
+    line-height: 1.75;
+    border-right: 1px solid #e8e8e8;
+  }
+  .risk-cell:last-child { border-right: none; }
+  .risk-row.header .risk-cell {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: #ff6b35;
+    border-right-color: #1f1f1f;
+  }
+  .risk-cell.label {
+    font-weight: 700;
+    color: #0f0f0f;
+  }
+  .risk-cell.label.high { background: #fff3ec; color: #c84a18; }
+  .risk-cell.label.mid  { background: #fff9ec; color: #b07a18; }
+  .risk-cell.label.low  { background: #f1faf0; color: #2a7a2a; }
+  .risk-cell strong { color: #0f0f0f; }
+  .risk-cell .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #f0f0f0;
+    border: 1px solid #d8d8d8;
+    border-radius: 2px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    margin: 2px 4px 2px 0;
+    color: #555;
+  }
+
+  /* 演示一：行业自动化等级评分器 */
+  .auto-rater {
+    margin-top: 32px;
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 32px;
+  }
+  .rater-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .rater-field label {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 8px;
+  }
+  .rater-field select {
+    width: 100%;
+    padding: 12px 14px;
+    background: #1a1a1a;
+    color: #fafafa;
+    border: 1px solid #2a2a2a;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .rater-field select:focus { outline: none; border-color: #ff6b35; }
+
+  .rater-output {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    padding: 28px 32px;
+  }
+  .rater-bar-wrap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+  .rater-bar {
+    padding: 18px 20px;
+    background: #0a0a0a;
+    border: 1px solid #2a2a2a;
+  }
+  .rater-bar-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 10px;
+  }
+  .rater-bar-val {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 38px;
+    font-weight: 700;
+    color: #ff6b35;
+    line-height: 1;
+    margin-bottom: 12px;
+  }
+  .rater-bar-track {
+    height: 6px;
+    background: #2a2a2a;
+    position: relative;
+    overflow: hidden;
+  }
+  .rater-bar-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: linear-gradient(90deg, #ff6b35, #ffa066);
+    transition: width 0.5s ease;
+  }
+
+  .rater-section {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid #2a2a2a;
+  }
+  .rater-section h5 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #ff6b35;
+    letter-spacing: 0.2em;
+    margin-bottom: 12px;
+  }
+  .rater-section p {
+    font-size: 14px;
+    line-height: 1.85;
+    color: #c0c0c0;
+    margin-bottom: 8px;
+  }
+  .rater-section p strong { color: #ff6b35; }
+  .rater-section ul {
+    list-style: none;
+    padding: 0;
+  }
+  .rater-section li {
+    padding: 6px 0 6px 22px;
+    position: relative;
+    font-size: 13px;
+    color: #c0c0c0;
+    line-height: 1.7;
+  }
+  .rater-section li::before {
+    content: '▸';
+    position: absolute;
+    left: 0;
+    color: #ff6b35;
+  }
+  .rater-section li strong { color: #ffa066; }
+
+  /* 演示二：岗位任务拆解器 */
+  .role-decomp {
+    margin-top: 32px;
+  }
+  .role-input-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .role-btn {
+    padding: 10px 18px;
+    background: #fff;
+    border: 1px solid #d8d8d8;
+    color: #555;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .role-btn:hover { border-color: #ff6b35; color: #c84a18; }
+  .role-btn.active {
+    background: #ff6b35;
+    color: #fff;
+    border-color: #ff6b35;
+    font-weight: 600;
+  }
+
+  .role-summary {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 24px 28px;
+    margin-bottom: 16px;
+  }
+  .role-summary-name {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: #ff6b35;
+    margin-bottom: 4px;
+  }
+  .role-summary-desc {
+    font-size: 13px;
+    color: #a0a0a0;
+    line-height: 1.75;
+  }
+  .role-summary-score {
+    text-align: right;
+  }
+  .role-summary-score .label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 4px;
+  }
+  .role-summary-score .val {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 42px;
+    font-weight: 700;
+    color: #ff6b35;
+    line-height: 1;
+  }
+  .role-summary-score .sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    margin-top: 4px;
+    letter-spacing: 0.1em;
+  }
+
+  .role-tasks {
+    background: #fff;
+    border: 1px solid #e8e8e8;
+  }
+  .role-task-row {
+    display: grid;
+    grid-template-columns: 40px 2fr 100px 1fr;
+    border-bottom: 1px solid #e8e8e8;
+  }
+  .role-task-row:last-child { border-bottom: none; }
+  .role-task-row.head {
+    background: #0f0f0f;
+    color: #fafafa;
+  }
+  .role-task-cell {
+    padding: 14px 18px;
+    font-size: 13px;
+    line-height: 1.7;
+    border-right: 1px solid #e8e8e8;
+  }
+  .role-task-cell:last-child { border-right: none; }
+  .role-task-row.head .role-task-cell {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #ff6b35;
+    letter-spacing: 0.2em;
+    border-right-color: #1f1f1f;
+  }
+  .role-task-cell.idx {
+    font-family: 'IBM Plex Mono', monospace;
+    color: #888;
+    text-align: center;
+  }
+  .role-task-cell.prob {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    text-align: center;
+  }
+  .role-task-cell.prob.h { color: #c84a18; background: #fff3ec; }
+  .role-task-cell.prob.m { color: #b07a18; background: #fff9ec; }
+  .role-task-cell.prob.l { color: #2a7a2a; background: #f1faf0; }
+  .role-task-cell.note { color: #777; font-size: 12px; }
+
+  /* 演示三：三情境社会推演 */
+  .scenario-picker {
+    margin-top: 32px;
+  }
+  .scenario-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .scenario-tab {
+    background: #fff;
+    border: 1px solid #d8d8d8;
+    padding: 24px 26px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+  }
+  .scenario-tab:hover { border-color: #ff6b35; }
+  .scenario-tab.active {
+    background: #0f0f0f;
+    color: #fafafa;
+    border-color: #0f0f0f;
+  }
+  .scenario-tab .code {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+    margin-bottom: 8px;
+  }
+  .scenario-tab.active .code { color: #ff6b35; }
+  .scenario-tab .name {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .scenario-tab .horizon {
+    font-size: 12px;
+    color: #888;
+  }
+  .scenario-tab.active .horizon { color: #c0c0c0; }
+
+  .scenario-panel {
+    background: #0a0a0a;
+    color: #fafafa;
+    padding: 32px 36px;
+    border: 1px solid #1f1f1f;
+  }
+  .scenario-tagline {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 18px;
+    color: #ff6b35;
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+  .scenario-summary {
+    font-size: 14px;
+    color: #a0a0a0;
+    line-height: 1.8;
+    margin-bottom: 22px;
+    max-width: 820px;
+  }
+  .scenario-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+  .scenario-card {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    padding: 20px 22px;
+    border-left: 3px solid #ff6b35;
+  }
+  .scenario-card .axis {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #ff6b35;
+    letter-spacing: 0.25em;
+    margin-bottom: 8px;
+  }
+  .scenario-card .title {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: #fafafa;
+  }
+  .scenario-card p {
+    font-size: 13px;
+    line-height: 1.8;
+    color: #c0c0c0;
+  }
+  .scenario-card p strong { color: #ffa066; }
+
+  .scenario-actions {
+    margin-top: 22px;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    padding: 20px 24px;
+    border-left: 3px solid #ffa066;
+  }
+  .scenario-actions h5 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #ffa066;
+    letter-spacing: 0.2em;
+    margin-bottom: 12px;
+  }
+  .scenario-actions ul {
+    list-style: none;
+    padding: 0;
+  }
+  .scenario-actions li {
+    padding: 6px 0 6px 22px;
+    position: relative;
+    font-size: 13px;
+    color: #c0c0c0;
+    line-height: 1.75;
+  }
+  .scenario-actions li::before {
+    content: '▸';
+    position: absolute;
+    left: 0;
+    color: #ffa066;
+  }
+  .scenario-actions li strong { color: #fafafa; }
+
+  /* 新岗位 */
+  .new-jobs {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .new-job-card {
+    background: #fff;
+    border: 1px solid #e8e8e8;
+    padding: 20px 22px;
+    border-top: 3px solid #ff6b35;
+  }
+  .new-job-card .cat {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #c84a18;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .new-job-card h5 {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .new-job-card p {
+    font-size: 12px;
+    color: #666;
+    line-height: 1.75;
+  }
+
+  /* 演示四：课程总览回顾盘 */
+  .lesson-recap {
+    margin-top: 32px;
+  }
+  .recap-parts {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .recap-part {
+    padding: 14px 16px;
+    border: 1px solid #e8e8e8;
+    background: #fff;
+    text-align: center;
+  }
+  .recap-part.p1 { border-top: 3px solid #4d8eff; }
+  .recap-part.p2 { border-top: 3px solid #aa55cc; }
+  .recap-part.p3 { border-top: 3px solid #00aa55; }
+  .recap-part.p4 { border-top: 3px solid #ff9933; }
+  .recap-part.p5 { border-top: 3px solid #ff6b35; }
+  .recap-part .pcode {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 4px;
+  }
+  .recap-part .pname {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f0f0f;
+  }
+  .recap-part .pcount {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    margin-top: 4px;
+  }
+
+  .recap-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .recap-cell {
+    background: #fff;
+    border: 1px solid #e8e8e8;
+    padding: 16px 18px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-left: 3px solid #d8d8d8;
+  }
+  .recap-cell:hover { background: #fafafa; border-color: #ff6b35; }
+  .recap-cell.active { background: #0f0f0f; color: #fafafa; border-color: #ff6b35; }
+  .recap-cell.active .num,
+  .recap-cell.active .title { color: #ff6b35; }
+  .recap-cell.p1 { border-left-color: #4d8eff; }
+  .recap-cell.p2 { border-left-color: #aa55cc; }
+  .recap-cell.p3 { border-left-color: #00aa55; }
+  .recap-cell.p4 { border-left-color: #ff9933; }
+  .recap-cell.p5 { border-left-color: #ff6b35; }
+  .recap-cell .num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .recap-cell .title {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.4;
+    color: #0f0f0f;
+  }
+
+  .recap-detail {
+    margin-top: 16px;
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 28px 32px;
+    border-left: 4px solid #ff6b35;
+    min-height: 160px;
+  }
+  .recap-detail .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 14px;
+  }
+  .recap-detail .lesson-no {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #ff6b35;
+    letter-spacing: 0.3em;
+  }
+  .recap-detail .lesson-part {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.2em;
+  }
+  .recap-detail h4 {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: #ff6b35;
+    margin-bottom: 12px;
+  }
+  .recap-detail .core {
+    font-size: 16px;
+    line-height: 1.85;
+    color: #fafafa;
+    border-left: 2px solid #ff6b35;
+    padding: 6px 14px;
+    margin: 12px 0;
+  }
+  .recap-detail .extra {
+    font-size: 13px;
+    color: #a0a0a0;
+    line-height: 1.8;
+  }
+  .recap-detail .extra strong { color: #ffa066; }
+  .recap-detail .link {
+    display: inline-block;
+    margin-top: 14px;
+    padding: 8px 16px;
+    background: rgba(255, 107, 53, 0.12);
+    border: 1px solid #ff6b35;
+    color: #ff6b35;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-decoration: none;
+  }
+  .recap-detail .link:hover { background: #ff6b35; color: #0f0f0f; }
+
+  /* 数据卡 */
+  .data-row {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  .data-card {
+    background: #fff;
+    border: 1px solid #e8e8e8;
+    padding: 22px 24px;
+    border-top: 3px solid #ff6b35;
+  }
+  .data-card .src {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .data-card .num {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    color: #c84a18;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .data-card p {
+    font-size: 12px;
+    color: #555;
+    line-height: 1.7;
+  }
+
+  /* 总结 */
+  .summary {
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 56px;
+    margin-bottom: 24px;
+    border: 1px solid #1f1f1f;
+    border-left: 4px solid #ff6b35;
+    position: relative;
+    overflow: hidden;
+  }
+  .summary::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(0deg, rgba(255, 107, 53, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 107, 53, 0.02) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+  .summary h3 {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 34px;
+    font-weight: 700;
+    margin-bottom: 22px;
+    color: #ff6b35;
+    line-height: 1.15;
+    position: relative;
+  }
+  .summary p {
+    font-size: 15px;
+    line-height: 1.9;
+    margin-bottom: 14px;
+    color: #c0c0c0;
+    position: relative;
+  }
+  .summary p strong { color: #ff6b35; }
+
+  .summary-quote {
+    background: rgba(255, 107, 53, 0.06);
+    border-left: 3px solid #ff6b35;
+    padding: 22px 28px;
+    margin: 22px 0;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 19px;
+    line-height: 1.65;
+    color: #fafafa;
+    font-weight: 500;
+    position: relative;
+  }
+
+  .next-steps {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    position: relative;
+  }
+  .next-step {
+    background: rgba(255, 107, 53, 0.05);
+    border: 1px solid rgba(255, 107, 53, 0.2);
+    padding: 22px 24px;
+    border-left: 3px solid #ff6b35;
+  }
+  .next-step .idx {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #ff6b35;
+    letter-spacing: 0.25em;
+    margin-bottom: 8px;
+  }
+  .next-step h5 {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    color: #fafafa;
+    margin-bottom: 8px;
+    line-height: 1.4;
+  }
+  .next-step p {
+    font-size: 13px;
+    line-height: 1.8;
+    color: #a0a0a0;
+    margin: 0;
+  }
+
+  footer {
+    text-align: center;
+    margin-top: 36px;
+    padding: 22px;
+    background: #0f0f0f;
+    color: #555;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.2em;
+    border: 1px solid #1f1f1f;
+  }
+
+  @media (max-width: 768px) {
+    h1 { font-size: 52px; }
+    .section, .summary { padding: 28px 22px; }
+    .risk-row, .role-task-row { grid-template-columns: 1fr; }
+    .rater-controls, .rater-bar-wrap, .role-summary, .scenario-tabs, .scenario-grid,
+    .new-jobs, .recap-parts, .recap-grid, .data-row, .next-steps { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<!-- 课程系列统一导航条 · 由脚本注入 -->
+<div id="course-nav-bar">
+  <div class="course-nav-inner">
+    <a href="../lesson19/demo.html" class="course-nav-btn prev" title="未来演进的几条路线"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
+    <a href="../index.html" class="course-nav-center" title="回到课程总览">
+      <span class="nav-current">LESSON 20 / 20</span>
+      <span class="nav-title">AGI 之后：工作、组织、社会推演</span>
+    </a>
+    <span class="course-nav-btn disabled"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></span>
+  </div>
+</div>
+
+<style id="course-nav-style">
+  #course-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  .course-nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .course-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .course-nav-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .course-nav-btn.disabled {
+    color: #444;
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .course-nav-btn .nav-arrow {
+    font-size: 14px;
+    line-height: 1;
+  }
+  .course-nav-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+    padding: 4px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    min-width: 0;
+  }
+  .course-nav-center:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .nav-current {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .nav-title {
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+    letter-spacing: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body {
+    padding-top: 64px !important;
+  }
+
+  @media (max-width: 768px) {
+    .course-nav-inner {
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .course-nav-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .course-nav-btn .nav-label {
+      display: none;
+    }
+    .nav-title {
+      font-size: 11px;
+    }
+    .nav-current {
+      font-size: 9px;
+    }
+    body {
+      padding-top: 54px !important;
+    }
+  }
+</style>
+<!-- 课程系列统一导航条 · END -->
+
+<div class="container">
+  <header>
+    <div class="lesson-tag">LESSON 20 / 20 · 完结讲</div>
+    <h1>AFTER <span class="light">·</span><br><span class="accent">AGI</span></h1>
+    <div class="h1-cn">AGI 之后：工作、组织、社会推演</div>
+    <div class="subtitle">
+      上一讲我们看了通往 AGI 的几条技术路线。今天做一个更难的题——
+      <strong>假设 5 到 10 年后 AGI 真的来了，世界会发生什么</strong>？
+      不做科幻，不做末日，做<strong>严肃的情境推演</strong>——给团队一个能落地决策的思维脚手架。
+      这也是 20 讲的完结讲，我们会回到第 1 讲那条线："AI = 函数拟合"，看这个函数最终把世界拟合成什么样。
+    </div>
+  </header>
+
+  <!-- 第一节：工作冲击分层 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 01 · WORK</div>
+    <div class="section-title">THE <span class="accent">RESHUFFLE</span> OF WORK</div>
+    <div class="section-cn">工作冲击的分层推演：不看职业，看任务粒度</div>
+    <div class="section-lead">
+      关于 AI 替代工作，最常见的误区是<strong>按职业名称分</strong>——"程序员会失业""客服会失业"。
+      但真实的替代是<strong>任务级别</strong>的——同一岗位中，可结构化的部分先被替代，
+      留下"判断+协调+承担责任"的高价值任务。下面这张分层表，是接下来 5-10 年的基本盘。
+    </div>
+
+    <div class="data-row">
+      <div class="data-card">
+        <div class="src">GOLDMAN SACHS · 2024</div>
+        <div class="num">3 亿</div>
+        <p>全球可能受生成式 AI 影响的岗位总数（约占发达经济体劳动力的 25%）</p>
+      </div>
+      <div class="data-card">
+        <div class="src">ANTHROPIC ECONOMIC INDEX</div>
+        <div class="num">37%</div>
+        <p>Claude 使用场景中，"自动化型"任务占比（其余 63% 仍是协作型）</p>
+      </div>
+      <div class="data-card">
+        <div class="src">IMF · 2024</div>
+        <div class="num">40%</div>
+        <p>全球岗位中"暴露于 AI"的比例（发达国家高达 60%）</p>
+      </div>
+      <div class="data-card">
+        <div class="src">KLARNA · 2024</div>
+        <div class="num">-700 人</div>
+        <p>AI 客服系统上线后，等效替代的人工客服岗位数</p>
+      </div>
+    </div>
+
+    <div class="risk-table">
+      <div class="risk-row header">
+        <div class="risk-cell">风险层级</div>
+        <div class="risk-cell">典型岗位</div>
+        <div class="risk-cell">为什么 & 留给人的部分</div>
+      </div>
+      <div class="risk-row">
+        <div class="risk-cell label high">高风险<br>HIGH</div>
+        <div class="risk-cell">
+          <span class="tag">初级软件工程师</span>
+          <span class="tag">初级律师</span>
+          <span class="tag">文案 / 翻译</span>
+          <span class="tag">客服一线</span>
+          <span class="tag">初级会计</span>
+          <span class="tag">初级设计</span>
+        </div>
+        <div class="risk-cell">
+          任务<strong>高度结构化、有明确产出格式</strong>——写函数、起草合同、回复 FAQ、记账。Devin / Cursor / Cognition 已经能独立完成大量软件工程任务。<strong>留给人</strong>：架构决策、跨域权衡、客户关系。
+        </div>
+      </div>
+      <div class="risk-row">
+        <div class="risk-cell label mid">中风险<br>MID</div>
+        <div class="risk-cell">
+          <span class="tag">销售</span>
+          <span class="tag">产品经理</span>
+          <span class="tag">教师</span>
+          <span class="tag">医生（辅助诊断）</span>
+          <span class="tag">运营</span>
+          <span class="tag">中层管理</span>
+        </div>
+        <div class="risk-cell">
+          岗位<strong>一半任务可被替代，一半依赖人际信任和情境判断</strong>。AI 写邮件、出方案、做分析，但<strong>签单的最后一公里、复杂诊疗、班级管理</strong>仍需要人。岗位会"缩水但不消失"。
+        </div>
+      </div>
+      <div class="risk-row">
+        <div class="risk-cell label low">低风险<br>LOW</div>
+        <div class="risk-cell">
+          <span class="tag">物理操作类</span>
+          <span class="tag">护工 / 月嫂</span>
+          <span class="tag">高级管理</span>
+          <span class="tag">跨域协调</span>
+          <span class="tag">心理咨询</span>
+          <span class="tag">高阶 R&D</span>
+        </div>
+        <div class="risk-cell">
+          要么<strong>需要肉身在场</strong>（机器人成熟度比 LLM 落后 5-10 年），要么<strong>本质就是"承担不确定性"</strong>——CEO 的工作不是写邮件，是在信息缺失下下注。AI 帮你思考，但不能替你扛责。
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 28px; padding: 22px 26px; background: #0f0f0f; color: #fafafa; border-left: 4px solid #ff6b35;">
+      <p style="font-size: 14px; line-height: 1.85;">
+        <strong style="color: #ff6b35;">核心洞察</strong>：风险不取决于<strong style="color: #ff6b35;">职业名称</strong>，取决于<strong style="color: #ff6b35;">任务粒度</strong>。
+        同一岗位里可被 LLM 替代的子任务先消失，留下的是"判断+协调+负责"的部分。
+        你要做的不是"换个不会被替代的职业"——那张安全牌不存在；
+        而是<strong style="color: #ff6b35;">在你的岗位里，主动把工作往"判断/协调/负责"那端迁移</strong>。
+      </p>
+    </div>
+
+    <h4 style="margin-top: 32px; font-size: 18px; font-weight: 700;">新生岗位：替代之外的另一面</h4>
+    <p style="margin-top: 8px; font-size: 14px; color: #555; line-height: 1.8;">
+      职业地图不只是收缩，也在长出新的形状。下面 6 个岗位 2026 年还很小众，5 年内会大规模出现。
+    </p>
+    <div class="new-jobs">
+      <div class="new-job-card">
+        <div class="cat">NEW ROLE · 01</div>
+        <h5>AI 训练师</h5>
+        <p>把行业 know-how 转成微调数据 / RLHF 标注规则；本质是"行业专家 + 数据工程"的混血。</p>
+      </div>
+      <div class="new-job-card">
+        <div class="cat">NEW ROLE · 02</div>
+        <h5>提示工程师</h5>
+        <p>2023 年被嘲"很快消失"的岗位，反而被证明真实存在——它在向"AI 产品架构师"演化。</p>
+      </div>
+      <div class="new-job-card">
+        <div class="cat">NEW ROLE · 03</div>
+        <h5>AI 审计师</h5>
+        <p>评估模型的偏见、合规、安全边界——金融、医疗、政府强监管行业必备角色。</p>
+      </div>
+      <div class="new-job-card">
+        <div class="cat">NEW ROLE · 04</div>
+        <h5>人机协作设计师</h5>
+        <p>设计"人在哪儿介入、AI 在哪儿独立"——产品 + UX + AI 工程的交叉岗。</p>
+      </div>
+      <div class="new-job-card">
+        <div class="cat">NEW ROLE · 05</div>
+        <h5>Agent 调优师</h5>
+        <p>负责把 Agent 在真实业务上跑稳——评估集、prompt、工具、回退策略，是 AI 工程的"SRE"。</p>
+      </div>
+      <div class="new-job-card">
+        <div class="cat">NEW ROLE · 06</div>
+        <h5>AI 业务化负责人</h5>
+        <p>不是工程岗，是业务岗——负责把 AI 嫁接到具体收入场景，定义流程改造和组织重组。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 演示一：行业自动化等级评分器 -->
+  <div class="section dark">
+    <div class="section-marker">DEMO · 01</div>
+    <div class="section-title" style="color: #fafafa;">AUTOMATION <span class="accent">RATER</span></div>
+    <div class="section-cn" style="color: #fafafa;">行业 × 岗位自动化等级评分器</div>
+    <div class="section-lead">
+      抽象的预测没用。选你的<strong>行业 + 岗位</strong>，看 5 年 / 10 年后的自动化比例、
+      你的岗位会如何变形、应该怎么提前下注。
+    </div>
+
+    <div class="auto-rater">
+      <div class="rater-controls">
+        <div class="rater-field">
+          <label>选择行业 · INDUSTRY</label>
+          <select id="raterIndustry">
+            <option value="saas">SaaS / 企业软件</option>
+            <option value="finance">金融 / 银行 / 保险</option>
+            <option value="retail">零售 / 电商</option>
+            <option value="manufacturing">制造业</option>
+            <option value="education">教育</option>
+            <option value="healthcare">医疗健康</option>
+            <option value="media">传媒 / 内容</option>
+            <option value="legal">法律服务</option>
+          </select>
+        </div>
+        <div class="rater-field">
+          <label>选择岗位 · ROLE</label>
+          <select id="raterRole">
+            <option value="engineer">工程师 / 开发</option>
+            <option value="pm">产品经理</option>
+            <option value="sales">销售</option>
+            <option value="cs">客服 / 客户成功</option>
+            <option value="ops">运营</option>
+            <option value="manager">中层管理</option>
+            <option value="executive">高管 / 决策层</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="rater-output" id="raterOutput"></div>
+    </div>
+  </div>
+
+  <!-- 第二节：组织结构变化 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 02 · ORG</div>
+    <div class="section-title">THE <span class="accent">INVERTED</span> PYRAMID</div>
+    <div class="section-cn">组织结构变化：从金字塔到倒金字塔</div>
+    <div class="section-lead">
+      过去 100 年企业组织的标准形态是<strong>金字塔</strong>——决策少数人、执行多数人。
+      AGI 时代倒过来——<strong>决策密度上移、执行密度下沉到 Agent</strong>。
+      这不是预测，已经在发生：Klarna 一年砍 700 个客服、Salesforce 公开宣布 2025 不再招新客服、
+      Sam Altman 公开预测<strong>"第一个一个人的独角兽公司"</strong>在 2026-2028 年出现。
+    </div>
+
+    <div class="risk-table">
+      <div class="risk-row header">
+        <div class="risk-cell">变化</div>
+        <div class="risk-cell">旧形态</div>
+        <div class="risk-cell">新形态</div>
+      </div>
+      <div class="risk-row">
+        <div class="risk-cell label">中层稀释</div>
+        <div class="risk-cell">部门经理 / 总监层 — 大量"协调汇总转发"工作</div>
+        <div class="risk-cell">Agent 接管 80% 的协调和汇总任务。中层<strong>缩到原 1/3</strong>，留下的全是"做决策、扛责任、带人"的强角色</div>
+      </div>
+      <div class="risk-row">
+        <div class="risk-cell label">岗位边界</div>
+        <div class="risk-cell">产品 / 设计 / 工程 / 运营 / 销售 严格分工</div>
+        <div class="risk-cell">单人借助 AI 完成多角色工作，岗位边界融化。<strong>"Founder + 1 个人 + 100 个 Agent"</strong>的小团队出现</div>
+      </div>
+      <div class="risk-row">
+        <div class="risk-cell label">雇佣关系</div>
+        <div class="risk-cell">全职雇员为主、外包为辅</div>
+        <div class="risk-cell"><strong>合伙人 + 项目制 + Agent 算力订阅</strong>三种关系混合。公司变成"项目编排器"</div>
+      </div>
+      <div class="risk-row">
+        <div class="risk-cell label">规模与效率</div>
+        <div class="risk-cell">10 亿美元营收 = 千人公司</div>
+        <div class="risk-cell">10 亿美元营收可能 = 50 人 + 数千 Agent。<strong>人均产能 10-20 倍</strong></div>
+      </div>
+      <div class="risk-row">
+        <div class="risk-cell label">竞争壁垒</div>
+        <div class="risk-cell">人才、流程、规模、品牌</div>
+        <div class="risk-cell">数据飞轮、Agent 编排能力、合规牌照、品牌信任。<strong>人力不再是壁垒，反而是负担</strong></div>
+      </div>
+    </div>
+
+    <div style="margin-top: 28px; padding: 22px 26px; background: #f0f0f0; border-left: 4px solid #c84a18;">
+      <p style="font-size: 14px; line-height: 1.85; color: #0f0f0f;">
+        <strong>对 CRM SaaS 行业的特别启示</strong>：传统企业软件的卖点是"上线流程让事情可重复"——
+        但当 Agent 直接帮客户完成业务时，<strong>客户买的不再是"系统"，而是"完成任务的结果"</strong>。
+        我们必须想清楚：纷享销客在新形态下卖什么？答案大概率是<strong>"业务结果即服务"</strong>——
+        客户付费购买"线索 → 商机 → 成单"的端到端结果，CRM 系统只是结果的副产品。
+      </p>
+    </div>
+  </div>
+
+  <!-- 演示二：岗位任务拆解器 -->
+  <div class="section tinted">
+    <div class="section-marker">DEMO · 02</div>
+    <div class="section-title">ROLE <span class="accent">DECOMPOSER</span></div>
+    <div class="section-cn">岗位任务拆解器：你的工作真的不能被 AI 替代吗？</div>
+    <div class="section-lead">
+      "我的工作不可能被 AI 替代"——这是 2026 年最常见的自我安慰。
+      <strong>它通常是错的</strong>，因为人们把"职业"和"任务"搞混了。下面拆解几个典型岗位的<strong>任务清单</strong>，
+      每条任务标注 AI 替代概率（参考 OpenAI 任务级别评分方法）。看到具体任务，自我安慰就消失了。
+    </div>
+
+    <div class="role-decomp">
+      <div class="role-input-row" id="roleBtns">
+        <button class="role-btn active" data-role="engineer">软件工程师</button>
+        <button class="role-btn" data-role="sales">销售</button>
+        <button class="role-btn" data-role="pm">产品经理</button>
+        <button class="role-btn" data-role="lawyer">律师</button>
+        <button class="role-btn" data-role="teacher">中学教师</button>
+        <button class="role-btn" data-role="doctor">医生</button>
+      </div>
+
+      <div class="role-summary" id="roleSummary"></div>
+
+      <div class="role-tasks" id="roleTasks"></div>
+    </div>
+  </div>
+
+  <!-- 第三节：教育、社会安全网、认知、国际格局 合并叙述 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 03 · EDU & SOCIETY</div>
+    <div class="section-title">EDUCATION <span class="light">·</span> SAFETY NET <span class="light">·</span> <span class="accent">SOCIETY</span></div>
+    <div class="section-cn">教育重构、安全网、认知影响、国际格局</div>
+    <div class="section-lead">
+      AGI 不只是工作问题——它会重塑<strong>知识传递、社会兜底、人际关系、国家竞争</strong>四个层面。
+      我们各挑一个最尖锐的点讲清楚。
+    </div>
+
+    <div class="risk-table">
+      <div class="risk-row header">
+        <div class="risk-cell">维度</div>
+        <div class="risk-cell">关键变化</div>
+        <div class="risk-cell">中国语境的特殊冲击</div>
+      </div>
+      <div class="risk-row">
+        <div class="risk-cell label">教育</div>
+        <div class="risk-cell">
+          从 <strong>"记忆 + 应用"</strong> 转向 <strong>"判断 + 品味"</strong>。<br>
+          Khan Academy Khanmigo、Anthropic Claude for Education、字节豆包教育版让"一对一 AI 家教"普及。<br>
+          评估体系从标准考试 → 项目作品集 + 真实问题解决。
+        </div>
+        <div class="risk-cell">
+          高考 / 考研体系是"高度结构化考核"——<strong>恰恰是 AI 最擅长的范畴</strong>。<br>
+          应试型教育的<strong>"信号价值"会快速贬值</strong>。普通家庭的孩子用 AI 把"补习短板"补齐，但顶尖家庭的优势转移到"品味、视野、人脉"——这些 AI 没法快速复制。<strong>教育不公平可能加剧</strong>。
+        </div>
+      </div>
+      <div class="risk-row">
+        <div class="risk-cell label">安全网</div>
+        <div class="risk-cell">
+          <strong>全民基本收入（UBI）</strong>从"激进想法"变成"必要选项"。<br>
+          Sam Altman 的 World（Worldcoin）、OpenAI 资助的 UBI 实验研究、Andrew Yang 的 Freedom Dividend 都在推这个方向。<br>
+          配套机制：数据红利分配（用户数据是 AI 的"原材料"，应有分红权）。
+        </div>
+        <div class="risk-cell">
+          中国不会照搬 UBI——更可能是 <strong>"扩大公共服务覆盖 + 共同富裕政策 + 数字人民币定向补贴"</strong>组合拳。<br>
+          但<strong>财政压力会前所未有</strong>——失业税收减少、公共支出增加、老龄化叠加。"AI 时代的社会主义市场经济"会是个全新课题。
+        </div>
+      </div>
+      <div class="risk-row">
+        <div class="risk-cell label">认知 / 关系</div>
+        <div class="risk-cell">
+          <strong>关系外包</strong>：AI 伴侣、AI 治疗师、AI 朋友变成普遍现象。<br>
+          Replika 月活已超 2000 万；Character.ai 在美国青少年中渗透极深，已发生<strong>多起伦理事件</strong>（包括青少年自杀案）。<br>
+          人类"创造"的定义被迫重写——AI 已经能写出比 95% 人类更好的小说和音乐。
+        </div>
+        <div class="risk-cell">
+          中国年轻人<strong>孤独感本就普遍</strong>（独生子女、996、城市化）——AI 伴侣的渗透速度可能比西方更快。<br>
+          抖音 / 小红书已经在做"AI 数字人聊天"，离 Replika 模式只差一步。<strong>监管不会缺席</strong>——青少年保护、内容审核、伦理底线，每条都会成为合规线。
+        </div>
+      </div>
+      <div class="risk-row">
+        <div class="risk-cell label">国际格局</div>
+        <div class="risk-cell">
+          <strong>中美 AI 双极格局</strong>：美国控算力 + 顶尖模型、中国控应用场景 + 数据 + 落地速度。<br>
+          其他国家被迫站队——欧盟选择"监管 + 主权"路线、印度走"低成本部署"路线、全球南方面临严重 AI 鸿沟。<br>
+          <strong>算力 / 模型主权</strong>成为新的"石油 / 美元"。
+        </div>
+        <div class="risk-cell">
+          中国《新一代人工智能发展规划》目标 2030 年成为全球 AI 创新中心。<br>
+          实际路径很可能是：<strong>开源 + 应用密度 + 实体产业 AI 化</strong>三条腿走路。DeepSeek、通义、智谱、月之暗面证明：中国不需要在每个能力维度都赢，只要在<strong>"够用 + 便宜 + 整合产业"</strong>这条赛道领先就有自己的位置。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 演示三：三情境社会推演 -->
+  <div class="section dark">
+    <div class="section-marker">DEMO · 03</div>
+    <div class="section-title" style="color: #fafafa;">THREE <span class="accent">SCENARIOS</span></div>
+    <div class="section-cn" style="color: #fafafa;">三情境社会推演：未来不是单线，是分叉</div>
+    <div class="section-lead">
+      未来不是单线确定的——它是<strong>分叉的三条主路径</strong>。点选下面 3 个情境，
+      看每种情境下经济、教育、政治、个人生活会如何不同。
+      情境不是预测，是<strong>给团队的思考脚手架</strong>——任何重大决策都该问一句"这三条路上分别会怎样？"。
+    </div>
+
+    <div class="scenario-picker">
+      <div class="scenario-tabs">
+        <div class="scenario-tab active" data-scen="A">
+          <div class="code">SCENARIO · A</div>
+          <div class="name">渐进过渡</div>
+          <div class="horizon">5-10 年缓慢迭代</div>
+        </div>
+        <div class="scenario-tab" data-scen="B">
+          <div class="code">SCENARIO · B</div>
+          <div class="name">爆发式跃迁</div>
+          <div class="horizon">2-3 年质变</div>
+        </div>
+        <div class="scenario-tab" data-scen="C">
+          <div class="code">SCENARIO · C</div>
+          <div class="name">能力停滞</div>
+          <div class="horizon">技术触顶, 工程优化</div>
+        </div>
+      </div>
+
+      <div class="scenario-panel" id="scenarioPanel"></div>
+    </div>
+  </div>
+
+  <!-- 演示四：课程总览回顾盘 -->
+  <div class="section">
+    <div class="section-marker">DEMO · 04 · RECAP</div>
+    <div class="section-title">20 LESSONS <span class="accent">·</span> ONE STORY</div>
+    <div class="section-cn">课程总览回顾盘：从第 1 讲到第 20 讲</div>
+    <div class="section-lead">
+      最后一节。点击下面的任意一讲，看它在 20 讲整体故事中的位置——
+      <strong>所有这些其实是一条线</strong>："AI 是函数拟合 → 函数能力如何膨胀 → 怎么用这个函数做产品 → 函数最终如何重塑世界"。
+    </div>
+
+    <div class="lesson-recap">
+      <div class="recap-parts">
+        <div class="recap-part p1">
+          <div class="pcode">PART 1</div>
+          <div class="pname">认知奠基</div>
+          <div class="pcount">第 1-4 讲</div>
+        </div>
+        <div class="recap-part p2">
+          <div class="pcode">PART 2</div>
+          <div class="pname">能力地图</div>
+          <div class="pcount">第 5-8 讲</div>
+        </div>
+        <div class="recap-part p3">
+          <div class="pcode">PART 3</div>
+          <div class="pname">工程落地</div>
+          <div class="pcount">第 9-14 讲</div>
+        </div>
+        <div class="recap-part p4">
+          <div class="pcode">PART 4</div>
+          <div class="pname">行业应用</div>
+          <div class="pcount">第 15-18 讲</div>
+        </div>
+        <div class="recap-part p5">
+          <div class="pcode">PART 5</div>
+          <div class="pname">未来推演</div>
+          <div class="pcount">第 19-20 讲</div>
+        </div>
+      </div>
+
+      <div class="recap-grid" id="recapGrid"></div>
+
+      <div class="recap-detail" id="recapDetail"></div>
+    </div>
+  </div>
+
+  <!-- 总结 -->
+  <div class="summary">
+    <div class="section-marker" style="color: #ff6b35;">FINAL RECAP · 20 讲收束</div>
+    <h3>从函数拟合，到一个新世界</h3>
+
+    <p>
+      第 1 讲我们说："<strong>AI 不是魔法，是函数拟合</strong>"——给定输入，找一个能预测输出的函数。
+      神经网络只是一种特别能拟合的函数族，Transformer 只是其中一种特别擅长拟合"序列到序列"的架构。
+    </p>
+
+    <p>
+      到了第 20 讲，我们看到这个"函数"<strong>最终拟合的对象是什么</strong>——
+      不是文字、不是图像、不是代码，<strong>是人类智力本身</strong>。
+      当函数学会拟合"判断、规划、协作、创造"时，所有这些过去依赖人脑的工作流程都将被重新写过一遍。
+    </p>
+
+    <div class="summary-quote">
+      "AI 不会替代你。<br>
+      会用 AI 的人，会替代不会用 AI 的人。<br>
+      但 5 年后，'会用 AI' 这条门槛会从奖励变成基础线——<br>
+      真正的差异，会回到<strong style="color: #ff6b35;">'对 AI 的判断力'</strong>上。"
+    </div>
+
+    <p>
+      <strong>20 讲学完，你的最大资产不是"会用某个工具"，而是<strong>对 AI 的判断力</strong></strong>——
+      能看穿炒作（不被"颠覆一切"的标题党带跑）、能识别真机会（在嘈杂里挑出真正能落地的方向）、
+      能在不确定性中下注（既不 all-in 也不躺平，组合配置）。
+    </p>
+
+    <p>
+      <strong>给团队的三个具体下一步</strong>。不是"以后慢慢做"，是<strong>下周就开始</strong>：
+    </p>
+
+    <div class="next-steps">
+      <div class="next-step">
+        <div class="idx">NEXT · 01</div>
+        <h5>选一个真实业务问题，做完整尝试</h5>
+        <p>不要再听课、不要再看 demo——<strong>选一个你团队真实头疼的业务问题</strong>，
+        用 AI 工具从需求到产出走完一遍。失败了也行，关键是<strong>得到第一手的"工具与问题"的摩擦经验</strong>。
+        没有这个摩擦，所有判断都是空中楼阁。</p>
+      </div>
+      <div class="next-step">
+        <div class="idx">NEXT · 02</div>
+        <h5>每月一次 AI 进展回顾会</h5>
+        <p>这个领域<strong>3 个月一个时代</strong>。建一个团队习惯——
+        每月固定一次 1 小时回顾会：本月模型 / 工具 / 案例的关键变化是什么、
+        我们项目要不要调整。<strong>信息密度不能掉队</strong>——掉队一年，3 年回不来。</p>
+      </div>
+      <div class="next-step">
+        <div class="idx">NEXT · 03</div>
+        <h5>把"AI 判断力"作为团队 KPI</h5>
+        <p>过去考核工程师看交付速度、产品经理看需求质量。
+        <strong>从现在起，每个核心岗位都加一个维度——"AI 杠杆使用度"</strong>：
+        你的工作流里 AI 帮你节省了多少时间？放弃了哪些可以让 AI 做的事？
+        让"AI 判断力"成为可衡量的能力，而不是口号。</p>
+      </div>
+    </div>
+
+    <p style="margin-top: 28px;">
+      <strong>20 讲到此结束</strong>。从第 1 讲的"函数拟合"到第 20 讲的"AGI 之后"，
+      我们走完了 AI 时代的<strong>认知地图</strong>。
+      但<strong>地图不是领土</strong>——课程的真正价值，要在你的日常工作里长出来。
+    </p>
+
+    <p>
+      感谢你和团队的 20 周陪伴。<strong>祝你们在不确定的未来里，能下好每一注</strong>。
+    </p>
+  </div>
+
+  <footer>
+    AI 系列课程 · 第 20 讲 · 共 20 讲 · 完结讲 · 感谢同行的 20 周
+  </footer>
+</div>
+
+<script>
+// ===== 演示一：行业自动化等级评分器 =====
+// 行业基础替代率（5年 / 10年）
+const industryBase = {
+  saas:          { y5: 35, y10: 65, name: 'SaaS / 企业软件',  trait: '高数字化、流程标准化、低物理依赖' },
+  finance:       { y5: 30, y10: 60, name: '金融 / 银行 / 保险', trait: '结构化数据 + 严格合规' },
+  retail:        { y5: 28, y10: 55, name: '零售 / 电商',       trait: '客服 / 推荐 / 选品大量可自动化' },
+  manufacturing: { y5: 18, y10: 38, name: '制造业',           trait: '物理操作占比高、机器人成熟度低' },
+  education:     { y5: 25, y10: 50, name: '教育',             trait: '一对一辅导被 AI 替代，但管理与情感留给人' },
+  healthcare:    { y5: 20, y10: 40, name: '医疗健康',         trait: '诊断辅助化、操作仍需人手 + 强监管' },
+  media:         { y5: 45, y10: 75, name: '传媒 / 内容',       trait: '生成式 AI 直接冲击文字 / 视觉创作' },
+  legal:         { y5: 35, y10: 60, name: '法律服务',         trait: '初级文书自动化，庭审仍需人' }
+};
+
+// 岗位修正系数（替代倾向）
+const roleAdjust = {
+  engineer:  { delta: +10, label: '工程师 / 开发',  note: '编码任务高度结构化',
+               prep: ['转向架构和系统设计', '掌握 AI Agent 编排', '建立"判断力"而非"执行力"', '关注业务理解'] },
+  pm:        { delta: -5,  label: '产品经理',      note: '人际协调 + 业务判断仍需人',
+               prep: ['强化决策与权衡能力', '加深行业 know-how', '熟练用 AI 加速分析', '建立 cross-team 影响力'] },
+  sales:     { delta: -10, label: '销售',          note: '客户信任与最后一公里靠人',
+               prep: ['深耕大客户 / 复杂交易', 'AI 接管线索 + 分析 + 跟进', '加强商务谈判能力', '聚焦战略型客户'] },
+  cs:        { delta: +15, label: '客服 / 客户成功', note: '一线问答几乎完全可自动化',
+               prep: ['转 CSM 高阶角色', '负责复杂场景 / 大客户', '掌握 AI 工单系统', '把"成功"做成有数据驱动的咨询'] },
+  ops:       { delta: +5,  label: '运营',          note: '数据驱动型运营被自动化',
+               prep: ['转向策略型运营', '从"执行"到"设计"', '熟悉 AI 增长工具栈', '建立洞察 + 实验文化'] },
+  manager:   { delta: 0,   label: '中层管理',      note: '"协调汇总"被替代，"决策带人"留下',
+               prep: ['强化判断 + 责任承担', '把团队转向 AI 杠杆型工作', '减少"信息搬运"工作', '上移到战略决策'] },
+  executive: { delta: -15, label: '高管 / 决策层',   note: 'AI 不能替你承担不确定性',
+               prep: ['用 AI 倍增决策信息密度', '聚焦关键资源配置 / 战略', '关注组织重构机会', '保持对前沿的接触'] }
+};
+
+function renderRater() {
+  const ind = document.getElementById('raterIndustry').value;
+  const role = document.getElementById('raterRole').value;
+  const indData = industryBase[ind];
+  const roleData = roleAdjust[role];
+  const y5 = Math.max(5, Math.min(95, indData.y5 + roleData.delta));
+  const y10 = Math.max(10, Math.min(95, indData.y10 + roleData.delta));
+
+  const out = document.getElementById('raterOutput');
+  out.innerHTML = `
+    <div style="margin-bottom: 18px; font-size: 13px; color: #c0c0c0; line-height: 1.8;">
+      <strong style="color: #ff6b35;">${indData.name} · ${roleData.label}</strong> &nbsp;|&nbsp;
+      行业特征：${indData.trait} &nbsp;|&nbsp;
+      岗位修正：${roleData.note}
+    </div>
+    <div class="rater-bar-wrap">
+      <div class="rater-bar">
+        <div class="rater-bar-label">5 年预测自动化比例</div>
+        <div class="rater-bar-val">${y5}%</div>
+        <div class="rater-bar-track"><div class="rater-bar-fill" style="width: ${y5}%"></div></div>
+      </div>
+      <div class="rater-bar">
+        <div class="rater-bar-label">10 年预测自动化比例</div>
+        <div class="rater-bar-val">${y10}%</div>
+        <div class="rater-bar-track"><div class="rater-bar-fill" style="width: ${y10}%"></div></div>
+      </div>
+    </div>
+    <div class="rater-section">
+      <h5>▼ 该如何提前准备</h5>
+      <p>风险<strong>不是"会不会失业"</strong>，是"你的工作中有多少任务可以被替代"。
+      ${y10 > 60 ? '该岗位 10 年内有<strong>过半任务</strong>会被自动化——必须主动转型。'
+       : y10 > 40 ? '该岗位 10 年内<strong>有约一半任务</strong>会被替代——岗位会"缩水但留存"，需要主动升级。'
+       : '该岗位整体替代速率较低，但内部任务结构会大幅变化。'}</p>
+      <ul>
+        ${roleData.prep.map(p => `<li>${p}</li>`).join('')}
+      </ul>
+    </div>
+    <div class="rater-section">
+      <h5>▼ 杠杆点（应该立刻做的）</h5>
+      <p>用 AI<strong>放大自己</strong>，而不是和它比赛。具体做法：
+      ① 把每周 50% 重复性工作交给 AI Agent；
+      ② 把节省下来的时间投入<strong>"AI 不能做"</strong>的部分——客户关系、跨团队协调、深度判断；
+      ③ <strong>每月学习一个新 AI 工具</strong>，建立"工具直觉"。</p>
+    </div>
+  `;
+}
+document.getElementById('raterIndustry').addEventListener('change', renderRater);
+document.getElementById('raterRole').addEventListener('change', renderRater);
+renderRater();
+
+// ===== 演示二：岗位任务拆解器 =====
+const roleData = {
+  engineer: {
+    name: '软件工程师',
+    desc: '把需求翻译成可运行的代码、维护系统稳定、参与架构决策',
+    score: 68,
+    label: '组合风险：高（核心任务高度结构化，但架构与判断仍需人）',
+    tasks: [
+      { name: '编写新功能代码', prob: 85, note: 'Cursor / Copilot 已能独立完成大量初级 + 中级任务' },
+      { name: '修复 bug', prob: 75, note: '能定位的 bug 大多可由 Agent 修，复杂故障仍需人' },
+      { name: '阅读代码 / Review', prob: 55, note: 'AI 能 review 风格 / 安全，但架构权衡留给人' },
+      { name: '写单元测试', prob: 90, note: '高度结构化、典型 AI 强项' },
+      { name: '调试线上问题', prob: 50, note: '日志检索 AI 强，根因判断仍需经验' },
+      { name: '设计系统架构', prob: 30, note: '需要全局判断、跨团队协调' },
+      { name: '需求澄清与拆解', prob: 35, note: '需要业务理解和判断力' },
+      { name: '团队 mentor / 招聘', prob: 15, note: '人际信任型工作' },
+      { name: '技术选型', prob: 40, note: 'AI 帮分析，最终决策仍需承担责任' },
+      { name: '上线发布与监控', prob: 70, note: 'CI/CD + AI 监控大部分自动化' }
+    ]
+  },
+  sales: {
+    name: '销售',
+    desc: '找到客户、建立信任、推动决策、签约成交',
+    score: 42,
+    label: '组合风险：中（线索 / 文案高度替代，但成交靠人）',
+    tasks: [
+      { name: '线索筛选与触达', prob: 85, note: 'AI 销售助手已是标配' },
+      { name: '邮件 / 话术撰写', prob: 90, note: 'AI 生成 + 个性化非常成熟' },
+      { name: '客户调研 + 准备', prob: 75, note: 'Deep Research 类工具可自动生成完整背调' },
+      { name: '电话 / 视频会议', prob: 35, note: 'AI 实时辅助，但谁谈仍是人' },
+      { name: '复杂方案设计', prob: 30, note: '客户场景理解 + 业务判断' },
+      { name: '商务谈判 / 议价', prob: 15, note: '深度博弈和承诺，AI 不能替你扛' },
+      { name: 'CRM 录入 + 更新', prob: 95, note: '完全可自动化' },
+      { name: '客户关系维护', prob: 25, note: '日常问候 AI 可做，关键时刻仍需人' },
+      { name: '内部协调（PM / 工程）', prob: 35, note: 'AI 可起草，决策仍需人' },
+      { name: '业绩复盘与计划', prob: 50, note: 'AI 分析强，目标制定仍需人' }
+    ]
+  },
+  pm: {
+    name: '产品经理',
+    desc: '理解需求、设计方案、协调资源、推动交付',
+    score: 48,
+    label: '组合风险：中（文档 / 分析高度替代，判断 / 协调留给人）',
+    tasks: [
+      { name: '需求文档撰写', prob: 80, note: 'AI 可基于讨论自动生成 PRD' },
+      { name: '竞品分析', prob: 75, note: 'Deep Research + AI 总结非常成熟' },
+      { name: '用户访谈与解读', prob: 40, note: 'AI 帮整理，洞察仍需人' },
+      { name: '数据分析 / 看板', prob: 70, note: 'AI 数据分析师工具大量成熟' },
+      { name: '原型设计', prob: 65, note: 'v0 / Cursor 已能从描述生成完整原型' },
+      { name: '需求优先级排序', prob: 30, note: '需要业务判断和取舍' },
+      { name: '跨团队协调（设计 / 工程 / 销售）', prob: 25, note: '高人际信任、需要 buy-in' },
+      { name: '路线图规划', prob: 30, note: '需要战略判断和长期视野' },
+      { name: '上线推进与跟进', prob: 50, note: 'AI 项目管理工具显著替代' },
+      { name: '复盘与决策', prob: 35, note: 'AI 提供数据，决策由人做' }
+    ]
+  },
+  lawyer: {
+    name: '律师',
+    desc: '理解案情、起草文书、研究判例、出庭辩护',
+    score: 58,
+    label: '组合风险：中高（文书 / 检索高度替代，复杂诉讼仍需人）',
+    tasks: [
+      { name: '合同起草 / 审阅', prob: 85, note: 'Harvey / Allen & Overy 实践中大量替代' },
+      { name: '法律检索 + 判例研究', prob: 90, note: 'AI 检索能力远超人脑' },
+      { name: '尽职调查 (DD)', prob: 70, note: '文档审阅 AI 强，最终判断需人' },
+      { name: '法律意见书撰写', prob: 65, note: '初稿 AI，定稿律师' },
+      { name: '客户咨询接待', prob: 45, note: '简单咨询 AI 应付，复杂案件需人' },
+      { name: '出庭辩护', prob: 10, note: '强人际信任 + 临场判断' },
+      { name: '与法官 / 对方律师谈判', prob: 15, note: '人际博弈和经验' },
+      { name: '复杂诉讼策略', prob: 25, note: '需要深度判断和经验' },
+      { name: '客户关系维护', prob: 20, note: '信任型工作' },
+      { name: '行政事务 / 计费', prob: 90, note: '完全可自动化' }
+    ]
+  },
+  teacher: {
+    name: '中学教师',
+    desc: '备课讲课、批改作业、管理学生、家校沟通',
+    score: 45,
+    label: '组合风险：中（教学内容大量被替代，但课堂管理 / 心理仍需人）',
+    tasks: [
+      { name: '备课 / 课件制作', prob: 80, note: 'AI 已能从课标生成完整教案' },
+      { name: '讲课', prob: 35, note: '人工智能讲得清楚，但课堂氛围 / 因材施教仍需人' },
+      { name: '作业批改 + 反馈', prob: 90, note: '客观题已完全自动化' },
+      { name: '一对一辅导', prob: 60, note: 'Khanmigo / 豆包教育版已大量替代' },
+      { name: '课堂管理 / 纪律', prob: 10, note: '需要人在场承担权威' },
+      { name: '家长沟通', prob: 30, note: '初步答疑 AI 强，关键沟通仍需人' },
+      { name: '学生心理疏导', prob: 15, note: '高人际信任、伦理敏感' },
+      { name: '出题 / 考试设计', prob: 70, note: '题库 + AI 出题非常成熟' },
+      { name: '教研 / 论文', prob: 60, note: 'AI 写作辅助大幅替代' },
+      { name: '学校行政事务', prob: 65, note: '流程性工作高度可自动化' }
+    ]
+  },
+  doctor: {
+    name: '医生',
+    desc: '诊断、开药、手术、随访、患者沟通',
+    score: 32,
+    label: '组合风险：中低（辅助诊断 + 文书强，但操作和责任仍需人）',
+    tasks: [
+      { name: '初步诊断', prob: 55, note: 'AI 诊断模型在部分专科准确率超人类' },
+      { name: '影像 / 检验报告解读', prob: 80, note: 'AI 影像识别已是医疗标配' },
+      { name: '手术 / 操作类', prob: 8, note: '物理操作 + 责任承担，10 年内难替代' },
+      { name: '处方开具', prob: 35, note: 'AI 能建议，决策和签字仍需医生' },
+      { name: '病历书写', prob: 90, note: 'AI 语音转写 + 自动生成已成熟' },
+      { name: '患者沟通', prob: 25, note: '坏消息告知 / 信任建立靠人' },
+      { name: '医学文献学习', prob: 75, note: 'AI 帮助巨大' },
+      { name: '会诊与团队讨论', prob: 30, note: '需要专业判断和承担' },
+      { name: '科研 / 论文', prob: 60, note: 'AI 辅助加速大量工作' },
+      { name: '医院行政事务', prob: 80, note: '流程性工作高度可自动化' }
+    ]
+  }
+};
+
+function classifyProb(p) { return p >= 70 ? 'h' : p >= 40 ? 'm' : 'l'; }
+
+function renderRole(roleKey) {
+  const r = roleData[roleKey];
+  document.getElementById('roleSummary').innerHTML = `
+    <div>
+      <div class="role-summary-name">${r.name}</div>
+      <div class="role-summary-desc">${r.desc}<br><strong style="color:#ffa066;">${r.label}</strong></div>
+    </div>
+    <div class="role-summary-score">
+      <div class="label">组合风险评分</div>
+      <div class="val">${r.score}</div>
+      <div class="sub">/ 100</div>
+    </div>
+  `;
+  let html = `
+    <div class="role-task-row head">
+      <div class="role-task-cell">#</div>
+      <div class="role-task-cell">典型任务</div>
+      <div class="role-task-cell">AI 替代概率</div>
+      <div class="role-task-cell">备注</div>
+    </div>
+  `;
+  r.tasks.forEach((t, i) => {
+    const cls = classifyProb(t.prob);
+    html += `
+      <div class="role-task-row">
+        <div class="role-task-cell idx">${String(i+1).padStart(2, '0')}</div>
+        <div class="role-task-cell">${t.name}</div>
+        <div class="role-task-cell prob ${cls}">${t.prob}%</div>
+        <div class="role-task-cell note">${t.note}</div>
+      </div>
+    `;
+  });
+  document.getElementById('roleTasks').innerHTML = html;
+}
+
+document.querySelectorAll('.role-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderRole(btn.dataset.role);
+  });
+});
+renderRole('engineer');
+
+// ===== 演示三：三情境社会推演 =====
+const scenarios = {
+  A: {
+    tagline: '情境 A · 渐进过渡（5-10 年）',
+    summary: '主流路径。AI 能力持续提升但未触达真正的通用智能；各行业逐步采纳，每年消失 3-5% 的岗位、长出 1-2% 的新岗位，社会有时间调适。这是大多数 OECD 报告和经济学家在押的基线情境。',
+    cards: [
+      { axis: 'ECONOMICS · 经济', title: '生产力温和提升 + 失业逐步转岗', desc: '生产力每年提升 1.5-3%（接近 19 世纪工业革命的速率）；失业率短期内不会暴增，但<strong>结构性失业明显</strong>——某些行业大幅萎缩，培训跟不上。' },
+      { axis: 'EDUCATION · 教育', title: '体系局部改革 + AI 工具普及', desc: '考核形式从笔试逐步增加项目作品、AI 工具进入教室。<strong>真正的体系性改革要 10 年</strong>——教育系统本身改革慢。' },
+      { axis: 'POLITICS · 政治', title: '渐进监管 + 局部试点', desc: '欧盟《AI Act》模式扩散；中美继续在边界博弈；<strong>UBI 在部分国家小规模试点</strong>但未成主流。社会安全网做加法。' },
+      { axis: 'PERSONAL · 个人生活', title: 'AI 工具进入日常 + 心理调适期', desc: '每个职场人都用 AI 副驾，<strong>"AI 杠杆使用度"成为竞争力分水岭</strong>；AI 伴侣 / 治疗师逐步主流化。' }
+    ],
+    actions: [
+      '<strong>对团队</strong>：建立"AI 用法"季度回顾机制，每个岗位都要主动改造工作流',
+      '<strong>对公司</strong>：5 年内目标 AI 工具覆盖核心 70% 工作流，但<strong>不裁员</strong>，是用 AI 让现有人产能翻倍',
+      '<strong>对个人</strong>：保持学习节奏 + 储蓄 / 投资抗通胀 + 在岗位里主动向"判断/协调/负责"上移'
+    ]
+  },
+  B: {
+    tagline: '情境 B · 爆发式跃迁（2-3 年）',
+    summary: 'AGI 在 2-3 年内出现（不是渐进，是质变）；岗位大规模消失，社会安全网来不及搭建。这是 Sam Altman、Demis Hassabis、Dario Amodei 这一派短期最激进的判断——也是风险/机会最大的路径。',
+    cards: [
+      { axis: 'ECONOMICS · 经济', title: '生产力爆炸 + 短期严重失业', desc: '生产力 2-3 年内提升 50%+，但同时<strong>2-3 亿岗位短期内消失</strong>，失业率冲击社会承受能力。资本所有者和"AI 训练数据所有者"暴富。' },
+      { axis: 'EDUCATION · 教育', title: '现行体系几近失效 + 重构压力', desc: '应试教育的产出（"会做题"）<strong>价值急速归零</strong>；中小学和大学体系面临根本性合法性危机。新的"判断/品味/创造"型教育模式开始出现。' },
+      { axis: 'POLITICS · 政治', title: 'UBI / 数据红利成必选项', desc: '美国可能政治撕裂（受益 vs 失业群体）；中国需要快速建立"AI 时代社保"机制。<strong>地缘政治高度紧张</strong>——谁先 AGI 谁就有结构性优势。' },
+      { axis: 'PERSONAL · 个人生活', title: '"何为意义"的认同危机', desc: '当大多数工作都不再需要人，<strong>"我为什么活着"</strong>成为大规模个人危机。AI 伴侣、虚拟世界、神秘主义等"意义补充"快速膨胀。' }
+    ],
+    actions: [
+      '<strong>对团队</strong>：必须立刻开始 AI 战略——晚 6 个月可能就是"被收购或退出"的命运',
+      '<strong>对公司</strong>：保留小核心团队 + 大量 Agent 编排能力；重金投入到"AI 不能做的部分"——客户关系、品牌、合规牌照',
+      '<strong>对个人</strong>：把 1 年应急储备搞起来；多发展<strong>非工资性收入</strong>（投资 / 副业 / 资产）；建立 AI 时代的"身份认同"'
+    ]
+  },
+  C: {
+    tagline: '情境 C · 能力停滞（技术触顶）',
+    summary: 'LLM 路线在 2026-2028 年触及天花板，AGI 不在 10 年内出现；技术演进转向工程优化和应用深耕。这是 Gary Marcus、Yann LeCun、François Chollet 这一派的判断——也是不可忽视的可能。',
+    cards: [
+      { axis: 'ECONOMICS · 经济', title: '生产力提升收敛 + 行业渐进改造', desc: '生产力增长回落到 1-2%（接近 2010s 水平）；行业改造仍在进行但速度温和。<strong>AI 不再是颠覆叙事，而是基础设施</strong>。' },
+      { axis: 'EDUCATION · 教育', title: 'AI 作为高效工具 + 体系基本保留', desc: 'AI 一对一辅导普及，但<strong>学校 / 考试体系基本保留</strong>。教育不公平问题转向"AI 工具的接入差距"。' },
+      { axis: 'POLITICS · 政治', title: '监管成熟 + 国家间合作扩展', desc: 'AI 安全风险被高估的看法占上风，监管从限制走向<strong>促进</strong>。中美可能在 AI 安全标准上达成有限合作。' },
+      { axis: 'PERSONAL · 个人生活', title: 'AI 工具化、不"伴侣化"', desc: 'AI 仍是工具而非"另一种存在"；AI 伴侣 / 关系外包未成主流，<strong>人际社会基本结构得以保留</strong>。' }
+    ],
+    actions: [
+      '<strong>对团队</strong>：稳扎稳打做产品和客户关系——<strong>AI 不会救坏产品，但能让好产品翻倍</strong>',
+      '<strong>对公司</strong>：把 AI 作为"长期基础设施"投入，而非"风口跟随"。组织扩张更加稳健',
+      '<strong>对个人</strong>：继续按传统路径积累职业资本——但每个环节都要叠加 AI 杠杆。<strong>这条路上, 复利最强</strong>'
+    ]
+  }
+};
+
+function renderScenario(key) {
+  const s = scenarios[key];
+  let cards = s.cards.map(c => `
+    <div class="scenario-card">
+      <div class="axis">${c.axis}</div>
+      <div class="title">${c.title}</div>
+      <p>${c.desc}</p>
+    </div>
+  `).join('');
+  let actions = s.actions.map(a => `<li>${a}</li>`).join('');
+  document.getElementById('scenarioPanel').innerHTML = `
+    <div class="scenario-tagline">${s.tagline}</div>
+    <div class="scenario-summary">${s.summary}</div>
+    <div class="scenario-grid">${cards}</div>
+    <div class="scenario-actions">
+      <h5>▼ 这种情境下，团队 / 公司 / 个人该做什么</h5>
+      <ul>${actions}</ul>
+    </div>
+  `;
+}
+document.querySelectorAll('.scenario-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.scenario-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    renderScenario(tab.dataset.scen);
+  });
+});
+renderScenario('A');
+
+// ===== 演示四：课程总览回顾盘 =====
+const lessons = [
+  { n: 1,  part: 1, title: 'AI 是函数拟合',           core: '剥掉营销外衣——AI 不是魔法，是数学上"找一个函数让输入预测输出"。这条线贯穿整个 20 讲。' },
+  { n: 2,  part: 1, title: '神经网络与 Transformer', core: 'Transformer 的注意力机制是过去 10 年最关键的工程突破——它让函数可以拟合"长序列"。' },
+  { n: 3,  part: 1, title: '训练 · 数据 · 算力',      core: 'Scaling Law 决定了 AI 进展节奏。数据 + 算力 + 算法三角，目前仍是数据/算力主导。' },
+  { n: 4,  part: 1, title: '对齐与 RLHF',            core: '原始模型像野孩子，RLHF 是"用人类偏好把它驯化"——也是 ChatGPT 比 GPT-3 好用的根因。' },
+  { n: 5,  part: 2, title: '语言 / 推理 / 知识',     core: 'LLM 在文本任务上达到甚至超过人类水平。但"推理"这层仍有边界——长链复杂推理依然容易翻车。' },
+  { n: 6,  part: 2, title: '多模态',                 core: '从文字 → 图像 → 视频 → 音频 → 跨模态。GPT-4o、Gemini 把多模态做成默认能力。' },
+  { n: 7,  part: 2, title: '代码与工具',             core: 'AI 写代码 + 调用工具 = "数字员工"。Cursor / Devin / Cognition 已经能独立完成大量软件工程任务。' },
+  { n: 8,  part: 2, title: 'Agent 入门',             core: '从"对话"到"行动"。Agent 是 LLM + 工具 + 记忆 + 规划——把 AI 从"答题机"变成"做事者"。' },
+  { n: 9,  part: 3, title: 'Prompt 工程',            core: '怎么把任务讲清楚是新的"编程"——结构、示例、约束、CoT，都是和模型沟通的语言。' },
+  { n: 10, part: 3, title: 'RAG · 检索增强',         core: '让 AI 知道"你的事"——把私有数据通过检索注入到 Prompt，是企业 AI 落地的基础形态。' },
+  { n: 11, part: 3, title: 'Function Calling',      core: 'AI 不只是说话，更能"做事"——结构化调用工具，是 Agent 的物理基础。' },
+  { n: 12, part: 3, title: 'Agent 工程',            core: '把 Agent 真正跑稳——规划、记忆、回退、评估，每个环节都是工程难题。' },
+  { n: 13, part: 3, title: '多 Agent 协作',          core: '多 Agent 不是 Agent 数量的加法，是<strong>组织结构的设计</strong>——专家、编排器、共享状态、冲突解决。' },
+  { n: 14, part: 3, title: '评估与可观测性',         core: '没有评估的 AI 系统等于在黑暗中开车。评估金字塔 + 4 个核心指标 + Trace，是 AI 时代的 SRE。' },
+  { n: 15, part: 4, title: 'CRM 智能化',            core: '销售、客服、营销三大场景的 AI 改造——AI 客服已是标配，AI 销售助手是下一阶段红利。' },
+  { n: 16, part: 4, title: '知识库工程化',           core: '企业最大的资产是"沉淀的 know-how"——AI 让这些资产第一次可被精确调用。这就是我们项目的核心。' },
+  { n: 17, part: 4, title: '安全 · 合规 · 隐私',     core: '生产级 AI 系统的"刹车系统"——脱敏、权限、审计、合规，每条都是上线前的必修课。' },
+  { n: 18, part: 4, title: 'AI 项目落地法',         core: '从 POC 到上线全流程方法论——选场景、组团队、做评估、迭代发布。失败的项目 80% 都死在前两步。' },
+  { n: 19, part: 5, title: '未来演进的几条路线',     core: 'AGI、ASI、Embodied AI、神经接口——4 条主路径的成熟度、风险、时间线对比。' },
+  { n: 20, part: 5, title: 'AGI 之后', core: '不是技术问题，是社会问题——工作、组织、教育、安全网、认知都被重塑。从函数拟合到一个新世界。' }
+];
+
+const recapGrid = document.getElementById('recapGrid');
+recapGrid.innerHTML = lessons.map(l => `
+  <div class="recap-cell p${l.part}" data-n="${l.n}">
+    <div class="num">L ${String(l.n).padStart(2, '0')}</div>
+    <div class="title">${l.title}</div>
+  </div>
+`).join('');
+
+function renderRecap(n) {
+  const l = lessons.find(x => x.n === n);
+  const partNames = { 1: 'PART 1 · 认知奠基', 2: 'PART 2 · 能力地图', 3: 'PART 3 · 工程落地', 4: 'PART 4 · 行业应用', 5: 'PART 5 · 未来推演' };
+  document.querySelectorAll('.recap-cell').forEach(c => c.classList.toggle('active', +c.dataset.n === n));
+  const linkHtml = n === 20 ? '<span style="color:#888;font-size:11px;font-family:IBM Plex Mono;letter-spacing:0.2em;">▸ 你正在这里</span>'
+    : `<a href="../lesson${String(n).padStart(2, '0')}/demo.html" class="link">▸ 打开第 ${n} 讲</a>`;
+  document.getElementById('recapDetail').innerHTML = `
+    <div class="head">
+      <div class="lesson-no">LESSON ${String(n).padStart(2, '0')} / 20</div>
+      <div class="lesson-part">${partNames[l.part]}</div>
+    </div>
+    <h4>${l.title}</h4>
+    <div class="core">${l.core}</div>
+    ${linkHtml}
+  `;
+}
+document.querySelectorAll('.recap-cell').forEach(c => {
+  c.addEventListener('click', () => renderRecap(+c.dataset.n));
+});
+renderRecap(1);
+</script>
+</body>
+</html>

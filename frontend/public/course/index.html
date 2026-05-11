@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 系列课程 · 14讲</title>
+<title>AI 系列课程 · 20讲</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -281,13 +281,19 @@
   .lesson-card.s1 { --accent: #d9b366; --accent-hover: #e9c376; }
   .lesson-card.s2 { --accent: #ad6cff; --accent-hover: #bd7cff; }
   .lesson-card.s3 { --accent: #00e676; --accent-hover: #20f696; }
-  
+  .lesson-card.s4 { --accent: #00d4ff; --accent-hover: #20e4ff; }
+  .lesson-card.s5 { --accent: #ff6b35; --accent-hover: #ff8855; }
+
   .section-group.s1 .section-num,
   .section-group.s1 .lesson-num { color: #d9b366; }
   .section-group.s2 .section-num,
   .section-group.s2 .lesson-num { color: #ad6cff; }
   .section-group.s3 .section-num,
   .section-group.s3 .lesson-num { color: #00e676; }
+  .section-group.s4 .section-num,
+  .section-group.s4 .lesson-num { color: #00d4ff; }
+  .section-group.s5 .section-num,
+  .section-group.s5 .lesson-num { color: #ff6b35; }
   
   /* 即将推出 */
   .coming-soon {
@@ -388,6 +394,8 @@
   .toc a.s1 .dot { background: #d9b366; }
   .toc a.s2 .dot { background: #ad6cff; }
   .toc a.s3 .dot { background: #00e676; }
+  .toc a.s4 .dot { background: #00d4ff; }
+  .toc a.s5 .dot { background: #ff6b35; }
 
   @media (max-width: 768px) {
     h1 { font-size: 56px; }
@@ -407,34 +415,36 @@
   <a href="#s1" class="s1"><span class="dot"></span>PART · 01</a>
   <a href="#s2" class="s2"><span class="dot"></span>PART · 02</a>
   <a href="#s3" class="s3"><span class="dot"></span>PART · 03</a>
+  <a href="#s4" class="s4"><span class="dot"></span>PART · 04</a>
+  <a href="#s5" class="s5"><span class="dot"></span>PART · 05</a>
 </nav>
 
 <header>
   <div class="hero">
     <div class="hero-tag">AI SERIES · INTERNAL TRAINING · v1.0</div>
-    <h1>AI 系列课程<br>14讲精讲</h1>
+    <h1>AI 系列课程<br>20讲全集</h1>
     <div class="hero-subtitle">
-      从最基础的"AI是什么"到企业级"评估与可观测性"——
-      <strong>20讲完整体系，已完成14讲</strong>。每讲30分钟，每讲一个交互式演示 + 一份完整讲稿。
-      给团队同事一份系统化的AI认知地图。
+      从最基础的"AI是什么"到 PART 5"AGI 之后的工作与社会推演"——
+      <strong>20 讲完整体系,5 个章节,全部上线</strong>。每讲 30 分钟,每讲一个交互式演示 + 一份完整讲稿。
+      给团队同事一份系统化的 AI 认知地图。
     </div>
-    
+
     <div class="hero-stats">
-      <div class="stat-block">
-        <div class="num">14</div>
-        <div class="label">已完成讲数</div>
-      </div>
       <div class="stat-block">
         <div class="num">20</div>
         <div class="label">总讲数</div>
       </div>
+      <div class="stat-block">
+        <div class="num">5</div>
+        <div class="label">章节</div>
+      </div>
       <div class="stat-block accent">
-        <div class="num">3</div>
-        <div class="label">已完成章节</div>
+        <div class="num">20</div>
+        <div class="label">交互演示</div>
       </div>
       <div class="stat-block">
-        <div class="num">~420min</div>
-        <div class="label">已完成时长</div>
+        <div class="num">~615min</div>
+        <div class="label">总时长</div>
       </div>
     </div>
   </div>
@@ -672,34 +682,112 @@
     </div>
   </div>
 
-  <!-- 即将推出 -->
-  <div class="coming-soon">
-    <h3>剩余6讲 · 进行中</h3>
-    <p>第四部分（企业级落地）和第五部分（未来推演）正在制作中。完成后这里会自动加上。</p>
-    <div class="coming-list">
-      <div class="coming-item">
-        <div class="n">15</div>
-        <div>AI在SaaS交付中的应用全景</div>
+  <!-- 第四部分 -->
+  <div class="section-group s4" id="s4">
+    <div class="section-header">
+      <div class="section-info">
+        <div class="section-num">PART · 04</div>
+        <div class="section-title">企业级落地</div>
       </div>
-      <div class="coming-item">
-        <div class="n">16</div>
-        <div>知识库工程化：从Demo到生产</div>
+      <div class="section-meta">3 LESSONS · ~90 MIN</div>
+    </div>
+    <div class="section-desc">
+      从单点能力到组织级系统。AI 怎么进 SaaS 交付的全链路、知识库怎么从 Demo 撑到生产、安全合规怎么不变成 blocker。这一部分回答的是:AI 真正进企业,要趟过哪些坎。
+    </div>
+
+    <div class="lessons-grid">
+      <div class="lesson-card s4" onclick="window.open('lesson15/demo.html?v=20260511', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 15</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">AI 在 SaaS 交付中的应用全景</div>
+        <div class="lesson-desc">以 CRM 为案例扫描:从售前 SDR、方案报价、实施交付、客户成功到客服支持,AI 在每个环节能做什么、有哪些 2025 标杆产品、ROI 怎么算。</div>
+        <div class="lesson-actions">
+          <a href="lesson15/demo.html?v=20260511" target="_blank" class="lesson-btn demo" onclick="event.stopPropagation()">演示 →</a>
+          <a href="script.html?lesson=15&v=20260511" target="_blank" class="lesson-btn script" onclick="event.stopPropagation()">讲稿</a>
+        </div>
       </div>
-      <div class="coming-item">
-        <div class="n">17</div>
-        <div>AI安全与合规</div>
+
+      <div class="lesson-card s4" onclick="window.open('lesson16/demo.html?v=20260511', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 16</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">知识库工程化:从 Demo 到生产</div>
+        <div class="lesson-desc">RAG Demo 跑通和企业级知识库之间隔着 9 大差距。数据接入、解析切片、向量库选型、GraphRAG、权限隔离、1→100 团队的扩展曲线。</div>
+        <div class="lesson-actions">
+          <a href="lesson16/demo.html?v=20260511" target="_blank" class="lesson-btn demo" onclick="event.stopPropagation()">演示 →</a>
+          <a href="script.html?lesson=16&v=20260511" target="_blank" class="lesson-btn script" onclick="event.stopPropagation()">讲稿</a>
+        </div>
       </div>
-      <div class="coming-item">
-        <div class="n">18</div>
-        <div>当前AI的根本局限</div>
+
+      <div class="lesson-card s4" onclick="window.open('lesson17/demo.html?v=20260511', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 17</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">AI 安全与合规</div>
+        <div class="lesson-desc">Prompt 注入、数据外泄、OWASP LLM Top 10 2025、EU AI Act、中国《生成式AI管理办法》、Anthropic RSP。从"能跑"到"敢跑"。</div>
+        <div class="lesson-actions">
+          <a href="lesson17/demo.html?v=20260511" target="_blank" class="lesson-btn demo" onclick="event.stopPropagation()">演示 →</a>
+          <a href="script.html?lesson=17&v=20260511" target="_blank" class="lesson-btn script" onclick="event.stopPropagation()">讲稿</a>
+        </div>
       </div>
-      <div class="coming-item">
-        <div class="n">19</div>
-        <div>未来演进的几条路线（核心收束讲）</div>
+    </div>
+  </div>
+
+  <!-- 第五部分 -->
+  <div class="section-group s5" id="s5">
+    <div class="section-header">
+      <div class="section-info">
+        <div class="section-num">PART · 05</div>
+        <div class="section-title">未来推演</div>
       </div>
-      <div class="coming-item">
-        <div class="n">20</div>
-        <div>AGI之后：工作、组织、社会推演</div>
+      <div class="section-meta">3 LESSONS · ~100 MIN</div>
+    </div>
+    <div class="section-desc">
+      合上工程的工具箱,抬头看一遍 5-10 年的路。当前 AI 的能力天花板在哪、接下来 7 条主要演进路线分别押什么、AGI 真到了对工作和组织意味着什么。这一部分回答的是:在不确定性中,怎么做判断和下注。
+    </div>
+
+    <div class="lessons-grid">
+      <div class="lesson-card s5" onclick="window.open('lesson18/demo.html?v=20260511', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 18</div>
+          <div class="lesson-duration">30 MIN</div>
+        </div>
+        <div class="lesson-title">当前 AI 的根本局限</div>
+        <div class="lesson-desc">幻觉、推理脆性、长上下文衰减、世界模型缺失、能耗墙、数据墙、对齐难题。把 2026 大模型的真实天花板讲清楚——不吹不踩。</div>
+        <div class="lesson-actions">
+          <a href="lesson18/demo.html?v=20260511" target="_blank" class="lesson-btn demo" onclick="event.stopPropagation()">演示 →</a>
+          <a href="script.html?lesson=18&v=20260511" target="_blank" class="lesson-btn script" onclick="event.stopPropagation()">讲稿</a>
+        </div>
+      </div>
+
+      <div class="lesson-card s5" onclick="window.open('lesson19/demo.html?v=20260511', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 19</div>
+          <div class="lesson-duration">35 MIN</div>
+        </div>
+        <div class="lesson-title">未来演进的几条路线</div>
+        <div class="lesson-desc">Scaling、推理时计算、合成数据、世界模型、新架构、神经符号、分布式智能。7 条路线 + 押注矩阵——给团队一个备选地图。</div>
+        <div class="lesson-actions">
+          <a href="lesson19/demo.html?v=20260511" target="_blank" class="lesson-btn demo" onclick="event.stopPropagation()">演示 →</a>
+          <a href="script.html?lesson=19&v=20260511" target="_blank" class="lesson-btn script" onclick="event.stopPropagation()">讲稿</a>
+        </div>
+      </div>
+
+      <div class="lesson-card s5" onclick="window.open('lesson20/demo.html?v=20260511', '_blank')">
+        <div class="lesson-num-row">
+          <div class="lesson-num">LESSON · 20</div>
+          <div class="lesson-duration">40 MIN</div>
+        </div>
+        <div class="lesson-title">AGI 之后:工作、组织、社会推演</div>
+        <div class="lesson-desc">岗位风险分层、组织结构重写、教育重构、UBI 实验、三个情境模拟。20 讲的总收束——从"AI 是函数拟合"到"判断力是你的最大资产"。</div>
+        <div class="lesson-actions">
+          <a href="lesson20/demo.html?v=20260511" target="_blank" class="lesson-btn demo" onclick="event.stopPropagation()">演示 →</a>
+          <a href="script.html?lesson=20&v=20260511" target="_blank" class="lesson-btn script" onclick="event.stopPropagation()">讲稿</a>
+        </div>
       </div>
     </div>
   </div>
@@ -707,7 +795,7 @@
 </div>
 
 <footer>
-  AI SYSTEM COURSE · 14 / 20 LESSONS · 每讲 30 MIN · DEMO + SCRIPT · INTERNAL TRAINING
+  AI SYSTEM COURSE · 20 / 20 LESSONS · 每讲 30 MIN · DEMO + SCRIPT · INTERNAL TRAINING
 </footer>
 
 </body>

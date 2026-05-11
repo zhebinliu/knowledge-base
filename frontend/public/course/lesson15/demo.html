@@ -1,0 +1,1480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第15讲｜AI在 SaaS 交付中的应用全景</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', 'IBM Plex Sans', sans-serif;
+    background: #fafafa;
+    color: #0f0f0f;
+    min-height: 100vh;
+    padding: 24px;
+    line-height: 1.6;
+  }
+  .container { max-width: 1280px; margin: 0 auto; }
+
+  header {
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 56px 56px;
+    margin-bottom: 24px;
+    border: 1px solid #1f1f1f;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(0deg, rgba(0, 212, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 212, 255, 0.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+
+  .lesson-tag {
+    display: inline-block;
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid #00d4ff;
+    color: #00d4ff;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    margin-bottom: 24px;
+    position: relative;
+    z-index: 1;
+  }
+  h1 {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 80px;
+    font-weight: 700;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    margin-bottom: 14px;
+    position: relative;
+    z-index: 1;
+  }
+  h1 .accent { color: #00d4ff; }
+  h1 .light { font-weight: 300; color: #888; }
+  .h1-cn {
+    font-size: 26px;
+    font-weight: 600;
+    margin-top: 12px;
+    color: #c0c0c0;
+    position: relative;
+    z-index: 1;
+  }
+  .subtitle {
+    margin-top: 22px;
+    font-size: 16px;
+    color: #888;
+    line-height: 1.85;
+    max-width: 720px;
+    position: relative;
+    z-index: 1;
+  }
+  .subtitle strong { color: #00d4ff; font-weight: 500; }
+
+  .section {
+    background: #fff;
+    padding: 44px 48px;
+    margin-bottom: 24px;
+    border: 1px solid #e8e8e8;
+  }
+  .section.dark {
+    background: #0f0f0f;
+    color: #fafafa;
+    border-color: #1f1f1f;
+  }
+  .section.tinted {
+    background: #f0f0f0;
+    border-color: #d8d8d8;
+  }
+
+  .section-marker {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #0099cc;
+    letter-spacing: 0.3em;
+    margin-bottom: 8px;
+  }
+  .section.dark .section-marker { color: #00d4ff; }
+
+  .section-title {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 44px;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    margin-bottom: 8px;
+  }
+  .section-title .accent { color: #0099cc; }
+  .section.dark .section-title .accent { color: #00d4ff; }
+  .section-title .light { font-weight: 300; color: #888; }
+
+  .section-cn {
+    font-size: 22px;
+    font-weight: 700;
+    margin-top: 4px;
+  }
+  .section-lead {
+    margin-top: 16px;
+    font-size: 15px;
+    line-height: 1.85;
+    max-width: 820px;
+    color: #555;
+  }
+  .section.dark .section-lead { color: #a0a0a0; }
+
+  /* 演示一：交付链路全景图 */
+  .pipeline {
+    margin-top: 36px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .pipeline-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .stage-node {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-left: 4px solid #c0c0c0;
+    padding: 18px 22px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .stage-node:hover { background: #f6fbff; border-left-color: #00d4ff; }
+  .stage-node.active {
+    background: #0f0f0f;
+    color: #fafafa;
+    border-left-color: #00d4ff;
+    border-color: #1f1f1f;
+  }
+  .stage-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+  }
+  .stage-name {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .stage-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .stage-node.active .stage-tag { color: #00d4ff; }
+  .stage-sub {
+    font-size: 12px;
+    color: #777;
+    line-height: 1.7;
+  }
+  .stage-node.active .stage-sub { color: #a0a0a0; }
+
+  .stage-detail {
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 28px 32px;
+    border-left: 4px solid #00d4ff;
+    min-height: 100%;
+  }
+  .stage-detail h4 {
+    font-size: 22px;
+    color: #00d4ff;
+    margin-bottom: 6px;
+  }
+  .stage-detail .sub-cn {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 18px;
+  }
+  .stage-block { margin-bottom: 18px; }
+  .stage-block h5 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: #00d4ff;
+    margin-bottom: 8px;
+  }
+  .stage-block ul { list-style: none; padding: 0; }
+  .stage-block li {
+    font-size: 13px;
+    line-height: 1.85;
+    color: #c0c0c0;
+    padding-left: 14px;
+    position: relative;
+  }
+  .stage-block li::before {
+    content: '▸';
+    color: #00d4ff;
+    position: absolute;
+    left: 0;
+  }
+  .stage-block li strong { color: #00d4ff; }
+  .stage-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .stage-tools span {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #fafafa;
+    background: #1f1f1f;
+    border: 1px solid #2a2a2a;
+    padding: 4px 9px;
+  }
+  .stage-roi {
+    background: rgba(0, 212, 255, 0.08);
+    border-left: 2px solid #00d4ff;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #c8eaff;
+    line-height: 1.7;
+  }
+  .stage-roi strong { color: #00d4ff; }
+
+  /* 演示二：售前 Agent 工作流 */
+  .agent-flow {
+    margin-top: 28px;
+    background: #0a0a0a;
+    border: 1px solid #1f1f1f;
+    padding: 28px;
+  }
+  .agent-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #1f1f1f;
+  }
+  .agent-progress {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.2em;
+  }
+  .agent-progress strong { color: #00d4ff; }
+  .agent-btns {
+    display: flex;
+    gap: 8px;
+  }
+  .agent-btn {
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid #2a2a2a;
+    color: #888;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    font-family: 'Noto Sans SC', sans-serif;
+  }
+  .agent-btn:hover { border-color: #00d4ff; color: #00d4ff; }
+  .agent-btn.primary {
+    background: #00d4ff;
+    color: #0f0f0f;
+    border-color: #00d4ff;
+    font-weight: 600;
+  }
+  .agent-btn.primary:hover { background: #00b8e0; color: #0f0f0f; border-color: #00b8e0; }
+  .agent-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .agent-step {
+    padding: 16px 20px;
+    margin-bottom: 8px;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-left: 3px solid #2a2a2a;
+    opacity: 0.35;
+    transition: all 0.3s;
+  }
+  .agent-step.done {
+    opacity: 1;
+    border-left-color: #00d4ff;
+    background: #121212;
+  }
+  .agent-step.active {
+    opacity: 1;
+    border-left-color: #00d4ff;
+    background: rgba(0, 212, 255, 0.06);
+    box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.2);
+  }
+  .agent-step-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+  .agent-step-title {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fafafa;
+  }
+  .agent-step.done .agent-step-title { color: #00d4ff; }
+  .agent-step-tool {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.18em;
+  }
+  .agent-step-desc {
+    font-size: 12px;
+    color: #a0a0a0;
+    line-height: 1.85;
+    margin-bottom: 6px;
+  }
+  .agent-step-output {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #80d8ff;
+    background: #0a0a0a;
+    padding: 8px 12px;
+    border-left: 2px solid #00d4ff;
+    line-height: 1.75;
+    margin-top: 8px;
+  }
+  .agent-step-output .key { color: #fafafa; }
+
+  .agent-summary {
+    margin-top: 18px;
+    padding: 18px 22px;
+    background: rgba(0, 212, 255, 0.06);
+    border-left: 3px solid #00d4ff;
+    display: none;
+  }
+  .agent-summary.show { display: block; }
+  .agent-summary h5 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: #00d4ff;
+    margin-bottom: 10px;
+  }
+  .agent-summary p {
+    font-size: 13px;
+    line-height: 1.85;
+    color: #c0c0c0;
+  }
+  .agent-summary p strong { color: #00d4ff; }
+
+  /* 演示三：ROI 计算器 */
+  .roi-calc {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 24px;
+  }
+  .roi-inputs {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    padding: 28px;
+  }
+  .input-row {
+    margin-bottom: 18px;
+  }
+  .input-row:last-child { margin-bottom: 0; }
+  .input-row label {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .input-row .input-cn {
+    font-size: 13px;
+    color: #0f0f0f;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+  .input-row input[type="range"] {
+    width: 100%;
+    accent-color: #0099cc;
+  }
+  .input-row .value-display {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 18px;
+    color: #0099cc;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  .input-row .value-display .unit {
+    font-size: 12px;
+    color: #888;
+    font-weight: 400;
+    margin-left: 4px;
+  }
+
+  .roi-output {
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 32px;
+    border-left: 4px solid #00d4ff;
+  }
+  .roi-output h4 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    color: #00d4ff;
+    margin-bottom: 18px;
+  }
+  .roi-tiers {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .roi-tier {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    padding: 18px;
+    text-align: center;
+  }
+  .roi-tier.featured {
+    background: rgba(0, 212, 255, 0.08);
+    border-color: #00d4ff;
+  }
+  .roi-tier .tier-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 8px;
+  }
+  .roi-tier.featured .tier-name { color: #00d4ff; }
+  .roi-tier .tier-cn {
+    font-size: 12px;
+    color: #c0c0c0;
+    margin-bottom: 10px;
+  }
+  .roi-tier .tier-num {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 36px;
+    font-weight: 700;
+    color: #fafafa;
+    line-height: 1;
+  }
+  .roi-tier.featured .tier-num { color: #00d4ff; }
+  .roi-tier .tier-unit {
+    font-size: 14px;
+    color: #888;
+    font-weight: 400;
+  }
+
+  .roi-detail {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    padding: 18px 22px;
+  }
+  .roi-detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 6px 0;
+    border-bottom: 1px dotted #2a2a2a;
+  }
+  .roi-detail-row:last-child { border-bottom: none; }
+  .roi-detail-row .label {
+    font-size: 12px;
+    color: #a0a0a0;
+  }
+  .roi-detail-row .val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: #00d4ff;
+    font-weight: 600;
+  }
+  .roi-detail-row .val.warn { color: #ff9933; }
+
+  /* 演示四：成熟度自评 */
+  .maturity {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 24px;
+  }
+  .maturity-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .mat-dim {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    padding: 16px 22px;
+  }
+  .mat-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+  }
+  .mat-name {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f0f0f;
+  }
+  .mat-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #0099cc;
+    letter-spacing: 0.2em;
+  }
+  .mat-desc {
+    font-size: 12px;
+    color: #888;
+    line-height: 1.7;
+    margin-bottom: 10px;
+  }
+  .mat-levels {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+  .mat-level {
+    padding: 10px 6px;
+    background: #f8f8f8;
+    border: 1px solid #e0e0e0;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .mat-level:hover { background: #e8f6ff; border-color: #00d4ff; }
+  .mat-level.selected {
+    background: #00d4ff;
+    color: #0f0f0f;
+    border-color: #00d4ff;
+    font-weight: 600;
+  }
+  .mat-level .lvl-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 2px;
+  }
+  .mat-level .lvl-cn { color: #555; }
+  .mat-level.selected .lvl-cn { color: #0f0f0f; }
+
+  .mat-result {
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 28px 24px;
+    border-left: 4px solid #00d4ff;
+    height: fit-content;
+    position: sticky;
+    top: 80px;
+  }
+  .mat-result h4 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    color: #00d4ff;
+    margin-bottom: 14px;
+  }
+  .mat-score {
+    text-align: center;
+    margin-bottom: 18px;
+    padding: 20px 0;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+  }
+  .mat-score .num {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 54px;
+    font-weight: 700;
+    color: #00d4ff;
+    line-height: 1;
+  }
+  .mat-score .total {
+    font-size: 18px;
+    color: #888;
+  }
+  .mat-score .stage {
+    margin-top: 8px;
+    font-size: 13px;
+    color: #c0c0c0;
+  }
+  .mat-result .advice {
+    background: rgba(0, 212, 255, 0.06);
+    border-left: 2px solid #00d4ff;
+    padding: 12px 14px;
+    font-size: 12px;
+    line-height: 1.85;
+    color: #c0c0c0;
+  }
+  .mat-result .advice strong { color: #00d4ff; }
+  .mat-bar {
+    margin-top: 14px;
+  }
+  .mat-bar-row {
+    display: grid;
+    grid-template-columns: 60px 1fr 28px;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 11px;
+  }
+  .mat-bar-row .lbl { color: #888; }
+  .mat-bar-row .track {
+    height: 6px;
+    background: #1a1a1a;
+    position: relative;
+  }
+  .mat-bar-row .fill {
+    position: absolute;
+    inset: 0;
+    background: #00d4ff;
+    width: 0%;
+    transition: width 0.3s;
+  }
+  .mat-bar-row .v {
+    font-family: 'IBM Plex Mono', monospace;
+    color: #00d4ff;
+    text-align: right;
+  }
+
+  /* 总结 */
+  .summary {
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 56px;
+    margin-bottom: 24px;
+    border: 1px solid #1f1f1f;
+    border-left: 4px solid #00d4ff;
+    position: relative;
+    overflow: hidden;
+  }
+  .summary::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(0deg, rgba(0, 212, 255, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 212, 255, 0.02) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+  .summary h3 {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 34px;
+    font-weight: 700;
+    margin-bottom: 22px;
+    color: #00d4ff;
+    line-height: 1.15;
+    position: relative;
+  }
+  .summary p {
+    font-size: 15px;
+    line-height: 1.9;
+    margin-bottom: 14px;
+    color: #c0c0c0;
+    position: relative;
+  }
+  .summary p strong { color: #00d4ff; }
+
+  .summary-quote {
+    background: rgba(0, 212, 255, 0.06);
+    border-left: 3px solid #00d4ff;
+    padding: 22px 28px;
+    margin: 22px 0;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 19px;
+    line-height: 1.6;
+    color: #fafafa;
+    font-weight: 500;
+    position: relative;
+  }
+
+  footer {
+    text-align: center;
+    margin-top: 36px;
+    padding: 22px;
+    background: #0f0f0f;
+    color: #555;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.2em;
+    border: 1px solid #1f1f1f;
+  }
+
+  @media (max-width: 900px) {
+    h1 { font-size: 56px; }
+    .section, .summary { padding: 28px 22px; }
+    .pipeline, .roi-calc, .maturity { grid-template-columns: 1fr; }
+    .roi-tiers { grid-template-columns: 1fr; }
+    .mat-levels { grid-template-columns: repeat(5, 1fr); font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+<!-- 课程系列统一导航条 · 由脚本注入 -->
+<div id="course-nav-bar">
+  <div class="course-nav-inner">
+    <a href="../lesson14/demo.html" class="course-nav-btn prev" title="AI应用的评估与可观测性"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
+    <a href="../index.html" class="course-nav-center" title="回到课程总览">
+      <span class="nav-current">LESSON 15 / 20</span>
+      <span class="nav-title">AI在 SaaS 交付中的应用全景</span>
+    </a>
+    <a href="../lesson16/demo.html" class="course-nav-btn next" title="知识库工程化:从Demo到生产"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
+  </div>
+</div>
+
+<style id="course-nav-style">
+  #course-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  .course-nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .course-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .course-nav-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .course-nav-btn.disabled {
+    color: #444;
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .course-nav-btn .nav-arrow {
+    font-size: 14px;
+    line-height: 1;
+  }
+  .course-nav-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+    padding: 4px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    min-width: 0;
+  }
+  .course-nav-center:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .nav-current {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .nav-title {
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+    letter-spacing: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body {
+    padding-top: 64px !important;
+  }
+
+  @media (max-width: 768px) {
+    .course-nav-inner {
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .course-nav-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .course-nav-btn .nav-label {
+      display: none;
+    }
+    .nav-title {
+      font-size: 11px;
+    }
+    .nav-current {
+      font-size: 9px;
+    }
+    body {
+      padding-top: 54px !important;
+    }
+  }
+</style>
+<!-- 课程系列统一导航条 · END -->
+
+<div class="container">
+  <header>
+    <div class="lesson-tag">LESSON 15 / 20</div>
+    <h1>AI ACROSS<br><span class="accent">SAAS DELIVERY</span></h1>
+    <div class="h1-cn">AI在 SaaS 交付中的应用全景</div>
+    <div class="subtitle">
+      第三部分讲完工程方法。第四部分要回到我们最熟悉的战场——
+      <strong>纷享销客 CRM 的真实交付生命周期</strong>，看一遍 AI 在售前、方案、实施、客户成功、客服、内部协同
+      <strong>六大场景</strong>里到底怎么落地、谁在领跑、ROI 范围多大、我们该投哪一档。
+    </div>
+  </header>
+
+  <!-- 演示一：交付链路全景图 -->
+  <div class="section">
+    <div class="section-marker">DEMO · 01</div>
+    <div class="section-title">DELIVERY <span class="accent">PIPELINE</span></div>
+    <div class="section-cn">交付链路全景图 · 点击 6 个阶段展开 AI 应用清单</div>
+    <div class="section-lead">
+      从一条线索进来到客户续费，企业 SaaS 走过 6 个阶段。<strong>2025 年每个阶段都有成熟的 AI 工具进场</strong>，
+      但成熟度、ROI、踩坑难度完全不同。点击左侧节点，右侧看真实工具名 + ROI 区间。
+    </div>
+
+    <div class="pipeline">
+      <div class="pipeline-flow">
+        <div class="stage-node active" data-stage="0">
+          <div class="stage-head">
+            <div class="stage-name">售前线索</div>
+            <div class="stage-tag">STAGE 01</div>
+          </div>
+          <div class="stage-sub">ICP 匹配 / 自动外联 / SDR Agent</div>
+        </div>
+        <div class="stage-node" data-stage="1">
+          <div class="stage-head">
+            <div class="stage-name">方案 & 报价</div>
+            <div class="stage-tag">STAGE 02</div>
+          </div>
+          <div class="stage-sub">自动出方案 / 配置 BoM / 智能定价</div>
+        </div>
+        <div class="stage-node" data-stage="2">
+          <div class="stage-head">
+            <div class="stage-name">实施交付</div>
+            <div class="stage-tag">STAGE 03</div>
+          </div>
+          <div class="stage-sub">需求提取 / 配置自动生成 / UAT</div>
+        </div>
+        <div class="stage-node" data-stage="3">
+          <div class="stage-head">
+            <div class="stage-name">客户成功</div>
+            <div class="stage-tag">STAGE 04</div>
+          </div>
+          <div class="stage-sub">健康分 / 续约预测 / 流失预警</div>
+        </div>
+        <div class="stage-node" data-stage="4">
+          <div class="stage-head">
+            <div class="stage-name">客服支持</div>
+            <div class="stage-tag">STAGE 05</div>
+          </div>
+          <div class="stage-sub">工单分配 / 回答推荐 / 自助解决</div>
+        </div>
+        <div class="stage-node" data-stage="5">
+          <div class="stage-head">
+            <div class="stage-name">内部协同</div>
+            <div class="stage-tag">STAGE 06</div>
+          </div>
+          <div class="stage-sub">销售教练 / 会话智能 / 复盘自动化</div>
+        </div>
+      </div>
+
+      <div class="stage-detail" id="stageDetail">
+      </div>
+    </div>
+  </div>
+
+  <!-- 演示二：售前 Agent 工作流 -->
+  <div class="section dark">
+    <div class="section-marker">DEMO · 02</div>
+    <div class="section-title" style="color: #fafafa;">SDR <span class="accent">AGENT</span> RUN</div>
+    <div class="section-cn" style="color: #fafafa;">售前 AI Agent 工作流 · 一条线索从匹配到 MQL 的完整 6 步</div>
+    <div class="section-lead">
+      看一遍 11x.ai / Artisan / Clay 这类售前 Agent 实际跑一条线索时背后做了什么。
+      <strong>点"下一步"逐步播放</strong>，每一步的工具调用、输入输出、耗时都看得见。
+    </div>
+
+    <div class="agent-flow">
+      <div class="agent-controls">
+        <div class="agent-progress">PROGRESS: <strong id="agentProgress">0 / 6</strong></div>
+        <div class="agent-btns">
+          <button class="agent-btn" id="agentReset">重置</button>
+          <button class="agent-btn primary" id="agentNext">下一步 ▸</button>
+        </div>
+      </div>
+
+      <div id="agentSteps"></div>
+
+      <div class="agent-summary" id="agentSummary">
+        <h5>▼ RUN SUMMARY</h5>
+        <p>
+          <strong>耗时</strong>：累计 18.4 秒（人工同类任务约 35-45 分钟）。
+          <strong>消耗</strong>：约 12,400 tokens，成本 ¥0.52。
+          <strong>产出</strong>：1 条 MQL，已自动同步到纷享销客 CRM，分配给 AE 李娜。
+          这就是 2025 年「Autopilot」级别的售前自动化——AI 不只是辅助，它<strong>完整跑完了一段业务流程</strong>。
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 演示三：ROI 计算器 -->
+  <div class="section tinted">
+    <div class="section-marker">DEMO · 03</div>
+    <div class="section-title">CRM IMPLEMENTATION <span class="accent">ROI</span></div>
+    <div class="section-cn">CRM 实施环节 ROI 计算器 · 拖一拖看 AI 介入能省多少</div>
+    <div class="section-lead">
+      实施是 CRM 厂商最重的活——一个中型项目动辄 80-200 人天，毛利稀薄。
+      <strong>调下面参数</strong>，看保守/中性/激进三档下 AI 介入后的节省幅度，输出三档分别对应的"该投到什么程度"。
+    </div>
+
+    <div class="roi-calc">
+      <div class="roi-inputs">
+        <div class="input-row">
+          <label>PROJECT MAN-DAYS</label>
+          <div class="input-cn">项目人天（实施 + 顾问）</div>
+          <input type="range" id="inMandays" min="40" max="400" value="120" step="10">
+          <div class="value-display"><span id="vMandays">120</span><span class="unit">人天</span></div>
+        </div>
+        <div class="input-row">
+          <label>DAY RATE</label>
+          <div class="input-cn">人天单价（含税）</div>
+          <input type="range" id="inRate" min="1500" max="6000" value="2800" step="100">
+          <div class="value-display">¥ <span id="vRate">2800</span><span class="unit">/ 人天</span></div>
+        </div>
+        <div class="input-row">
+          <label>CUSTOMER COUNT</label>
+          <div class="input-cn">年度交付客户数</div>
+          <input type="range" id="inCust" min="10" max="200" value="40" step="5">
+          <div class="value-display"><span id="vCust">40</span><span class="unit">家</span></div>
+        </div>
+        <div class="input-row">
+          <label>AI INVEST</label>
+          <div class="input-cn">AI 工具年度投入（含 token + 平台）</div>
+          <input type="range" id="inInvest" min="20" max="300" value="80" step="10">
+          <div class="value-display"><span id="vInvest">80</span><span class="unit">万 / 年</span></div>
+        </div>
+      </div>
+
+      <div class="roi-output">
+        <h4>▼ 三档 ROI 测算</h4>
+        <div class="roi-tiers">
+          <div class="roi-tier">
+            <div class="tier-name">CONSERVATIVE</div>
+            <div class="tier-cn">保守档</div>
+            <div class="tier-num"><span id="vSaveLow">--</span><span class="tier-unit">%</span></div>
+          </div>
+          <div class="roi-tier featured">
+            <div class="tier-name">MODERATE</div>
+            <div class="tier-cn">中性档（推荐）</div>
+            <div class="tier-num"><span id="vSaveMid">--</span><span class="tier-unit">%</span></div>
+          </div>
+          <div class="roi-tier">
+            <div class="tier-name">AGGRESSIVE</div>
+            <div class="tier-cn">激进档</div>
+            <div class="tier-num"><span id="vSaveHigh">--</span><span class="tier-unit">%</span></div>
+          </div>
+        </div>
+
+        <div class="roi-detail">
+          <div class="roi-detail-row">
+            <span class="label">原始年度交付成本</span>
+            <span class="val">¥ <span id="vCostBase">--</span> 万</span>
+          </div>
+          <div class="roi-detail-row">
+            <span class="label">中性档节省（人力）</span>
+            <span class="val">¥ <span id="vSaveAbs">--</span> 万 / 年</span>
+          </div>
+          <div class="roi-detail-row">
+            <span class="label">扣除 AI 投入后净收益</span>
+            <span class="val">¥ <span id="vNet">--</span> 万 / 年</span>
+          </div>
+          <div class="roi-detail-row">
+            <span class="label">投入回收期</span>
+            <span class="val" id="vPaybackEl">--</span>
+          </div>
+          <div class="roi-detail-row">
+            <span class="label">建议</span>
+            <span class="val" id="vAdvice" style="font-size: 12px;">--</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 演示四：成熟度自评 -->
+  <div class="section">
+    <div class="section-marker">DEMO · 04</div>
+    <div class="section-title">AI <span class="accent">MATURITY</span> SELF-CHECK</div>
+    <div class="section-cn">AI 应用成熟度自评 · 6 维 × 5 档，对照下一步该投哪里</div>
+    <div class="section-lead">
+      回到我们自己。对纷享销客（或任何企业级 SaaS）当前 AI 落地状态做一次结构化体检——
+      <strong>数据 / 流程 / 组织 / 技术 / 治理 / 文化</strong>六个维度，每个 5 档。
+      右侧实时给出总分 + 该投哪一档的建议。
+    </div>
+
+    <div class="maturity">
+      <div class="maturity-grid" id="matGrid">
+      </div>
+
+      <div class="mat-result">
+        <h4>▼ 总分 & 下一步</h4>
+        <div class="mat-score">
+          <span class="num" id="matScore">0</span><span class="total"> / 30</span>
+          <div class="stage" id="matStage">尚未选择任何维度</div>
+        </div>
+
+        <div class="mat-bar" id="matBars"></div>
+
+        <div class="advice" id="matAdvice" style="margin-top: 14px;">
+          点选 6 个维度后，这里会给出针对性建议。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 总结 -->
+  <div class="summary">
+    <div class="section-marker" style="color: #00d4ff;">RECAP</div>
+    <h3>核心收束 · CRM 厂商的护城河变了</h3>
+
+    <p>
+      过去 SaaS 厂商比的是<strong>功能广度</strong>——谁的字段多、谁的报表灵活、谁的工作流好画。
+      <strong>2025 年这个标尺失效了</strong>——Salesforce Agentforce、HubSpot Breeze、纷享销客也在补 AI。
+      所有人都在抢同一张牌：<strong>用 AI 把客户的业务流程跑起来</strong>。
+    </p>
+
+    <div class="summary-quote">
+      "AI 时代，CRM 厂商的护城河不再是功能。<br>
+      是<strong style="color: #fff;">数据飞轮</strong>加<strong style="color: #fff;">行业沉淀</strong>。"
+    </div>
+
+    <p>
+      <strong>数据飞轮</strong>——用户用得越多，AI 越懂这个行业的需求、对话、异议、决策路径。
+      纷享销客在快消、地产、SaaS 行业 12 年的数据，是 Salesforce 学不到的。
+      <strong>行业沉淀</strong>——配置模板、最佳实践、行业话术、ROI 模型——这些是 GPT 永远训练不出来的。
+    </p>
+
+    <p>
+      <strong>对我们项目最实用的 4 条决策建议</strong>：
+      ① <strong>优先实施 + 客户成功</strong>——这两个环节我们最痛、ROI 最直接；
+      ② <strong>售前用 SDR Agent 做增量</strong>——别和销售抢饭吃，做"原本不会做"的扩张；
+      ③ <strong>客服上自助解决 60% 是底线</strong>——Intercom Fin 行业基准是 72%，我们目标 60% 起；
+      ④ <strong>内部协同（会话智能）当作管理工具</strong>——不是 AI 替代销售，是让一线 Top 经验沉淀到全员。
+    </p>
+
+    <p>
+      下一讲我们走进<strong>知识库工程化</strong>。我们这一年踩的所有坑——文档预处理、切片策略、混合检索、Reranker、Trace
+      ——都会一次讲透。从 Demo 到生产，差的不是功能，是工程功夫。
+    </p>
+  </div>
+
+  <footer>
+    AI 系列课程 · 第 15 讲 · 共 20 讲 · 第四部分（企业级落地）· 下一讲：知识库工程化(从Demo到生产)
+  </footer>
+</div>
+
+<script>
+// ========== 演示一：交付链路全景 ==========
+const stages = [
+  {
+    name: '售前线索',
+    cn: 'Pre-Sales / Lead Generation',
+    apps: [
+      '<strong>ICP 匹配与线索打分</strong>——基于历史成单画像自动评分新线索',
+      '<strong>外联自动化</strong>——邮件 + 领英 + 电话三通道自动跟进序列',
+      '<strong>SDR Agent</strong>——24/7 自主完成线索初筛和 MQL 转化',
+      '<strong>需求扫描</strong>——从公开信息、官网、招聘信息推断客户 CRM 需求'
+    ],
+    tools: ['11x.ai (Alice)', 'Artisan Ava', 'Clay', 'Apollo AI', 'Regie.ai', 'Salesforce Agentforce 2.0'],
+    roi: '<strong>ROI 区间：5-15× 投入</strong>。SDR 人均产能可提升 3-8 倍，单条 MQL 成本从 ¥800-1200 降到 ¥150-300。Salesforce Atlas Reasoning Engine 2025 Q1 上线后，单 SDR 月均开发线索数 350+。'
+  },
+  {
+    name: '方案 & 报价',
+    cn: 'Solutioning & Quoting',
+    apps: [
+      '<strong>自动出方案</strong>——基于需求清单和行业模板生成 PPT / Word 方案',
+      '<strong>BoM 智能配置</strong>——根据客户规模 + 行业自动选模块、套餐、附加项',
+      '<strong>智能定价</strong>——结合 win/loss 数据和竞争对手价格推荐报价区间',
+      '<strong>话术与异议处理</strong>——基于对话记录推荐应答模板'
+    ],
+    tools: ['Microsoft Copilot for Sales', 'Gong', 'Chorus', 'Salesforce CPQ + Einstein', 'PandaDoc AI'],
+    roi: '<strong>ROI 区间：3-8× 投入</strong>。方案撰写时间从 8-16 小时压到 1-2 小时；折扣率因数据驱动定价可改善 2-5 个百分点。Gong 数据显示用了会话智能的销售团队，平均成单周期缩短 22%。'
+  },
+  {
+    name: '实施交付',
+    cn: 'Implementation & Delivery',
+    apps: [
+      '<strong>需求自动化提取</strong>——访谈记录 / 文档 / 邮件 → 结构化需求清单（<strong>纷享销客自家在做</strong>）',
+      '<strong>配置自动生成</strong>——需求清单 → 字段、工作流、报表的初稿配置',
+      '<strong>UAT 自动化</strong>——基于需求自动生成测试用例 + Agent 执行',
+      '<strong>实施项目助手</strong>——日报、风险、变更管理自动化'
+    ],
+    tools: ['纷享销客实施助手', 'GitHub Copilot Workspace', 'Devin', 'Cognition Labs', 'Asana AI'],
+    roi: '<strong>ROI 区间：2-5× 投入</strong>。中型项目交付周期 90 天 → 45-60 天；顾问人天降低 30-50%。这是 SaaS 厂商最直接的毛利改善，<strong>也是我们项目重点</strong>。'
+  },
+  {
+    name: '客户成功',
+    cn: 'Customer Success',
+    apps: [
+      '<strong>客户健康分</strong>——使用频率、功能覆盖、关键人活跃度合成实时健康分',
+      '<strong>续约预测</strong>——综合行为信号、合同条款、市场数据预测续约概率',
+      '<strong>流失预警</strong>——提前 60-90 天识别流失风险，触发 CSM 干预',
+      '<strong>使用洞察</strong>——给客户输出"你比同行多/少用了什么"的洞察报告'
+    ],
+    tools: ['Gainsight AI', 'Vitally', 'ChurnZero', 'Catalyst', 'HubSpot Breeze Intelligence'],
+    roi: '<strong>ROI 区间：4-10× 投入</strong>。流失率改善 15-30%；CSM 人均覆盖客户数从 30 提升到 60-100。我们项目里，2025 Q1 一个客户通过提前 2 个月预警救回 200 万 ARR——这就是 L4 业务评估能讲的故事。'
+  },
+  {
+    name: '客服支持',
+    cn: 'Customer Service',
+    apps: [
+      '<strong>智能工单分配</strong>——按问题类型 + 客户优先级 + 工程师负载自动派单',
+      '<strong>回答推荐</strong>——客服打字时实时弹出 KB 知识 + 推荐回复',
+      '<strong>自助解决（Deflection）</strong>——AI Agent 直接答简单问题，复杂的转人工',
+      '<strong>会话总结</strong>——通话/聊天结束自动写工单总结 + 下一步跟进'
+    ],
+    tools: ['Intercom Fin', 'Decagon', 'Sierra AI', 'Zendesk AI', 'Salesforce Service Cloud Einstein'],
+    roi: '<strong>ROI 区间：6-12× 投入</strong>。Intercom Fin 公开数据自助解决率 72%；典型 SaaS 客服节省 30-50% 一线人力。每张工单成本从 ¥35-50 降到 ¥8-15。'
+  },
+  {
+    name: '内部协同',
+    cn: 'Internal Enablement',
+    apps: [
+      '<strong>销售教练</strong>——分析每通销售电话，找出可改进点，给个性化反馈',
+      '<strong>会话智能</strong>——所有客户对话自动转写 + 关键时刻识别（异议、承诺、关心点）',
+      '<strong>复盘自动化</strong>——周会、月会数据自动出，省 60% 准备时间',
+      '<strong>知识管理</strong>——Top 销售的话术、异议处理、案例自动沉淀给全员'
+    ],
+    tools: ['Gong', 'Chorus.ai', 'MindTickle', 'Salesloft', '飞书智能伙伴', '钉钉 AI 助理'],
+    roi: '<strong>ROI 区间：3-7× 投入</strong>。新销售 Ramp-up 时间从 90 天压到 45 天；Top 销售经验复用率提升 3-5 倍。Gong 是这个赛道独角兽，2024 ARR 突破 3 亿美元。'
+  }
+];
+
+function renderStage(idx) {
+  const s = stages[idx];
+  const el = document.getElementById('stageDetail');
+  el.innerHTML = `
+    <h4>${s.name}</h4>
+    <div class="sub-cn">${s.cn}</div>
+    <div class="stage-block">
+      <h5>▼ AI 应用清单</h5>
+      <ul>${s.apps.map(a => `<li>${a}</li>`).join('')}</ul>
+    </div>
+    <div class="stage-block">
+      <h5>▼ 典型工具（2025 主流）</h5>
+      <div class="stage-tools">${s.tools.map(t => `<span>${t}</span>`).join('')}</div>
+    </div>
+    <div class="stage-roi">${s.roi}</div>
+  `;
+}
+document.querySelectorAll('.stage-node').forEach(n => {
+  n.addEventListener('click', () => {
+    document.querySelectorAll('.stage-node').forEach(x => x.classList.remove('active'));
+    n.classList.add('active');
+    renderStage(+n.dataset.stage);
+  });
+});
+renderStage(0);
+
+// ========== 演示二：SDR Agent 工作流 ==========
+const agentSteps = [
+  {
+    title: 'Step 01 · ICP 匹配',
+    tool: 'TOOL: enrich_company + score_icp',
+    desc: '从 CRM 拉取新线索"上海科达智能制造"，调用企业数据库（如天眼查 / Apollo）丰富工商、规模、业务标签，比对我们 12 年 CRM 成单画像。',
+    output: '<span class="key">company_size</span>: 600 人 · 制造业\n<span class="key">icp_score</span>: 82 / 100（高匹配）\n<span class="key">pain_signals</span>: 近期招了 8 个销售 + CRM 招标公告\n<span class="key">decision</span>: 通过 → 进入下一步'
+  },
+  {
+    title: 'Step 02 · 数据丰富与决策人挖掘',
+    tool: 'TOOL: find_decision_makers + linkedin_enrich',
+    desc: '基于公司域名识别销售 VP / 销售运营总监 / IT 总监三类关键决策人，分别拉领英资料、近期动态、共同关系链。',
+    output: '<span class="key">contacts</span>: 3 人\n  · 王晓东 - 销售 VP - 入职 6 个月\n  · 李娟 - 销售运营负责人\n  · 张磊 - 信息总监 - 关注 CRM 厂商 2 家\n<span class="key">priority</span>: 王晓东（新官上任，最可能推动）'
+  },
+  {
+    title: 'Step 03 · 个性化首封邮件生成',
+    tool: 'TOOL: claude_opus + personalize_email',
+    desc: '基于王晓东的近期发帖（提到"团队 SOP 落地难"）+ 行业案例库（同规模制造业客户案例 3 个），生成不像模板的个性化首封邮件。',
+    output: '<span class="key">subject</span>: 王总，关于团队 SOP 落地——上周看到您的分享\n<span class="key">opening</span>: 提到他上周的"团队管理"分享\n<span class="key">value_prop</span>: 引用同规模制造业案例 + 具体数字\n<span class="key">cta</span>: 提议 15 分钟简短交流\n<span class="key">tokens</span>: 480 tokens, $0.012'
+  },
+  {
+    title: 'Step 04 · 多通道自动跟进序列',
+    tool: 'TOOL: schedule_sequence + omnichannel',
+    desc: '邮件未回复后，按"邮件 D+3 → 领英 D+5 → 第二封邮件 D+8 → 电话 D+12"序列自动推进。每步根据用户行为动态调整文案。',
+    output: '<span class="key">D+3 email</span>: 已发送（打开率 100%，未回）\n<span class="key">D+5 linkedin</span>: 已发，王总已加好友\n<span class="key">D+8 email v2</span>: 内容切换到"实施落地经验"\n<span class="key">D+12 call</span>: 安排中，AI 自动拨打 + 转录'
+  },
+  {
+    title: 'Step 05 · 异议识别与处理',
+    tool: 'TOOL: call_transcript + objection_handle',
+    desc: '电话已接通 12 分钟，AI 实时转录并识别 3 个异议：① 已有 Salesforce ② 担心实施周期长 ③ 价格预算敏感。各自匹配最佳应答策略。',
+    output: '<span class="key">objection_1</span>: 已用 SF → "我们看到很多 SF 用户切到我们后实施周期降 40%..."\n<span class="key">objection_2</span>: 周期长 → 给中型项目 45 天案例\n<span class="key">objection_3</span>: 预算 → 推荐分阶段实施方案\n<span class="key">outcome</span>: 客户同意安排 Demo'
+  },
+  {
+    title: 'Step 06 · 转 MQL 并同步 CRM',
+    tool: 'TOOL: crm_sync + assign_ae',
+    desc: '线索符合 MQL 标准（决策人接触 + 明确兴趣 + 预算窗口），自动同步纷享销客 CRM、根据区域和行业分配 AE、推送整个交互历史。',
+    output: '<span class="key">crm_record</span>: 已创建商机 #2026-1142\n<span class="key">stage</span>: 需求确认（B 阶段）\n<span class="key">assigned_to</span>: AE 李娜（华东大客户组）\n<span class="key">handover</span>: 完整对话历史 + 异议库 + 决策人画像\n<span class="key">status</span>: ✓ MQL → SAL'
+  }
+];
+
+let agentCursor = 0;
+function renderAgentSteps() {
+  const wrap = document.getElementById('agentSteps');
+  wrap.innerHTML = agentSteps.map((s, i) => {
+    let cls = '';
+    if (i < agentCursor) cls = 'done';
+    else if (i === agentCursor) cls = 'active';
+    const outputHtml = (i <= agentCursor - 1) ? `<div class="agent-step-output">${s.output.replace(/\n/g, '<br>')}</div>` : '';
+    return `
+      <div class="agent-step ${cls}">
+        <div class="agent-step-head">
+          <div class="agent-step-title">${s.title}</div>
+          <div class="agent-step-tool">${s.tool}</div>
+        </div>
+        <div class="agent-step-desc">${s.desc}</div>
+        ${outputHtml}
+      </div>
+    `;
+  }).join('');
+  document.getElementById('agentProgress').textContent = `${agentCursor} / 6`;
+  document.getElementById('agentSummary').classList.toggle('show', agentCursor >= 6);
+  document.getElementById('agentNext').disabled = agentCursor >= 6;
+  document.getElementById('agentNext').textContent = agentCursor >= 6 ? '已跑完' : '下一步 ▸';
+}
+document.getElementById('agentNext').addEventListener('click', () => {
+  if (agentCursor < 6) { agentCursor += 1; renderAgentSteps(); }
+});
+document.getElementById('agentReset').addEventListener('click', () => {
+  agentCursor = 0; renderAgentSteps();
+});
+renderAgentSteps();
+
+// ========== 演示三：ROI 计算器 ==========
+const roiInputs = ['inMandays', 'inRate', 'inCust', 'inInvest'];
+const roiDisplays = { inMandays: 'vMandays', inRate: 'vRate', inCust: 'vCust', inInvest: 'vInvest' };
+
+function calcRoi() {
+  const md = +document.getElementById('inMandays').value;
+  const rate = +document.getElementById('inRate').value;
+  const cust = +document.getElementById('inCust').value;
+  const invest = +document.getElementById('inInvest').value;
+
+  document.getElementById('vMandays').textContent = md;
+  document.getElementById('vRate').textContent = rate;
+  document.getElementById('vCust').textContent = cust;
+  document.getElementById('vInvest').textContent = invest;
+
+  // 年度交付成本 = 人天 × 单价 × 客户数 / 10000 = 万元
+  const baseCost = md * rate * cust / 10000;
+  // 三档节省比例（基于行业基准 + AI 介入程度）
+  const lowPct = 18, midPct = 32, highPct = 48;
+  const saveAbs = baseCost * midPct / 100;
+  const net = saveAbs - invest;
+  const payback = invest > 0 && saveAbs > 0 ? (invest / saveAbs * 12) : null;
+
+  document.getElementById('vSaveLow').textContent = lowPct;
+  document.getElementById('vSaveMid').textContent = midPct;
+  document.getElementById('vSaveHigh').textContent = highPct;
+  document.getElementById('vCostBase').textContent = baseCost.toFixed(0);
+  document.getElementById('vSaveAbs').textContent = saveAbs.toFixed(0);
+  document.getElementById('vNet').textContent = net.toFixed(0);
+
+  const pbEl = document.getElementById('vPaybackEl');
+  if (payback !== null && payback > 0 && net > 0) {
+    pbEl.textContent = `${payback.toFixed(1)} 个月`;
+    pbEl.classList.remove('warn');
+  } else {
+    pbEl.textContent = '> 12 个月（不建议投入）';
+    pbEl.classList.add('warn');
+  }
+
+  const advEl = document.getElementById('vAdvice');
+  if (net <= 0) {
+    advEl.textContent = '客户量太小 / 投入过高，先小步试点';
+    advEl.classList.add('warn');
+  } else if (payback < 6) {
+    advEl.textContent = '强烈推荐——按中性档 All-in';
+    advEl.classList.remove('warn');
+  } else if (payback < 12) {
+    advEl.textContent = '推荐——保守档起步，3 月后扩到中性';
+    advEl.classList.remove('warn');
+  } else {
+    advEl.textContent = '谨慎——只做一个最高 ROI 场景';
+    advEl.classList.add('warn');
+  }
+}
+roiInputs.forEach(id => document.getElementById(id).addEventListener('input', calcRoi));
+calcRoi();
+
+// ========== 演示四：成熟度自评 ==========
+const matDims = [
+  {
+    name: '数据基础',
+    tag: 'DATA',
+    desc: '客户数据、业务数据、对话数据的完整度与可用性',
+    levels: ['Lv0 缺数据', 'Lv1 散乱', 'Lv2 已结构化', 'Lv3 已统一治理', 'Lv4 自动飞轮']
+  },
+  {
+    name: '流程梳理',
+    tag: 'PROCESS',
+    desc: '业务流程的标准化程度——AI 跑流程的前提',
+    levels: ['Lv0 无 SOP', 'Lv1 部分 SOP', 'Lv2 关键流程标准化', 'Lv3 全流程标准', 'Lv4 流程可观测']
+  },
+  {
+    name: '组织能力',
+    tag: 'TEAM',
+    desc: '是否有 AI 产品、AI 工程、数据角色，是否有跨部门拉通',
+    levels: ['Lv0 无人懂', 'Lv1 兼职探索', 'Lv2 设独立小组', 'Lv3 AI 产品+工程双轨', 'Lv4 全员 AI 文化']
+  },
+  {
+    name: '技术栈',
+    tag: 'TECH',
+    desc: 'LLM、RAG、Agent、可观测性平台的建设程度',
+    levels: ['Lv0 调外部 API', 'Lv1 自建 Prompt', 'Lv2 自建 RAG', 'Lv3 自建 Agent + 评估', 'Lv4 数据飞轮']
+  },
+  {
+    name: '治理与合规',
+    tag: 'GOV',
+    desc: '数据脱敏、权限隔离、审计日志、安全红线',
+    levels: ['Lv0 裸跑', 'Lv1 简单脱敏', 'Lv2 权限隔离', 'Lv3 全链路审计', 'Lv4 行业级合规']
+  },
+  {
+    name: '组织文化',
+    tag: 'CULTURE',
+    desc: '一线员工是否信任 AI、是否愿意贡献反馈给 AI',
+    levels: ['Lv0 抵触', 'Lv1 观望', 'Lv2 试点接受', 'Lv3 主动用', 'Lv4 共同迭代']
+  }
+];
+
+const matSelected = {};
+
+function renderMat() {
+  const grid = document.getElementById('matGrid');
+  grid.innerHTML = matDims.map((d, di) => `
+    <div class="mat-dim">
+      <div class="mat-head">
+        <div class="mat-name">${d.name}</div>
+        <div class="mat-tag">${d.tag}</div>
+      </div>
+      <div class="mat-desc">${d.desc}</div>
+      <div class="mat-levels">
+        ${d.levels.map((lv, li) => `
+          <div class="mat-level ${matSelected[di] === li ? 'selected' : ''}" data-dim="${di}" data-lvl="${li}">
+            <span class="lvl-num">${li}</span>
+            <span class="lvl-cn">${lv.replace(/^Lv\d\s/, '')}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  grid.querySelectorAll('.mat-level').forEach(el => {
+    el.addEventListener('click', () => {
+      const d = +el.dataset.dim, l = +el.dataset.lvl;
+      matSelected[d] = l;
+      renderMat();
+      renderMatResult();
+    });
+  });
+}
+
+function renderMatResult() {
+  const keys = Object.keys(matSelected);
+  let total = 0;
+  keys.forEach(k => total += matSelected[k]);
+  document.getElementById('matScore').textContent = total;
+
+  // bars
+  const bars = matDims.map((d, di) => {
+    const v = matSelected[di] !== undefined ? matSelected[di] : 0;
+    const pct = (v / 4) * 100;
+    return `
+      <div class="mat-bar-row">
+        <span class="lbl">${d.name.substring(0, 4)}</span>
+        <span class="track"><span class="fill" style="width: ${pct}%"></span></span>
+        <span class="v">${v}</span>
+      </div>
+    `;
+  }).join('');
+  document.getElementById('matBars').innerHTML = bars;
+
+  // stage advice
+  const stageEl = document.getElementById('matStage');
+  const advEl = document.getElementById('matAdvice');
+  if (keys.length < 6) {
+    stageEl.textContent = `已选 ${keys.length} / 6 个维度`;
+    advEl.innerHTML = '点选 6 个维度后，这里会给出针对性建议。';
+    return;
+  }
+  let stage, advice;
+  if (total <= 6) {
+    stage = '起步期（Lv1 总体）';
+    advice = '<strong>先打地基</strong>——数据治理 + 流程梳理优先于工具选型。投资单一场景试点（如客服自助解决），跑出可量化 ROI 再扩。';
+  } else if (total <= 12) {
+    stage = '试点期（Lv2 总体）';
+    advice = '<strong>扩到 2-3 个场景</strong>——选 ROI 最高的（实施需求提取、客户健康分）。开始建评估集，组建 3-5 人 AI 小组。';
+  } else if (total <= 18) {
+    stage = '推广期（Lv3 总体）';
+    advice = '<strong>建平台化能力</strong>——RAG、Agent、Trace 基础设施统一建。从单点工具走向 Agent 编排。建立每周指标 review 机制。';
+  } else if (total <= 24) {
+    stage = '系统期（Lv3.5 总体）';
+    advice = '<strong>追数据飞轮</strong>——用户行为数据持续反哺模型。打通行业 know-how 沉淀。建立护城河，开始对外输出能力。';
+  } else {
+    stage = '引领期（Lv4 总体）';
+    advice = '<strong>行业标准制定者</strong>——你已是行业 AI 的标杆。考虑开放平台、生态、行业大模型微调。守住数据飞轮的优势。';
+  }
+  stageEl.textContent = stage;
+  advEl.innerHTML = advice;
+}
+renderMat();
+renderMatResult();
+</script>
+</body>
+</html>
