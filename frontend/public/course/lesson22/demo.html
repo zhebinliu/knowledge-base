@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第19讲｜未来演进的几条路线</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', 'IBM Plex Sans', sans-serif;
+    background: #fafafa;
+    color: #0f0f0f;
+    min-height: 100vh;
+    padding: 24px;
+    line-height: 1.6;
+  }
+  .container { max-width: 1280px; margin: 0 auto; }
+
+  /* 工业控制台风格 */
+  header {
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 56px 56px;
+    margin-bottom: 24px;
+    border: 1px solid #1f1f1f;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(0deg, rgba(255, 107, 53, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 107, 53, 0.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+
+  .lesson-tag {
+    display: inline-block;
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid #ff6b35;
+    color: #ff6b35;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    margin-bottom: 24px;
+    position: relative;
+    z-index: 1;
+  }
+  h1 {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 80px;
+    font-weight: 700;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    margin-bottom: 14px;
+    position: relative;
+    z-index: 1;
+  }
+  h1 .accent { color: #ff6b35; }
+  h1 .light { font-weight: 300; color: #888; }
+  .h1-cn {
+    font-size: 26px;
+    font-weight: 600;
+    margin-top: 12px;
+    color: #c0c0c0;
+    position: relative;
+    z-index: 1;
+  }
+  .subtitle {
+    margin-top: 22px;
+    font-size: 16px;
+    color: #888;
+    line-height: 1.85;
+    max-width: 720px;
+    position: relative;
+    z-index: 1;
+  }
+  .subtitle strong { color: #ff6b35; font-weight: 500; }
+
+  .section {
+    background: #fff;
+    padding: 44px 48px;
+    margin-bottom: 24px;
+    border: 1px solid #e8e8e8;
+  }
+  .section.dark {
+    background: #0f0f0f;
+    color: #fafafa;
+    border-color: #1f1f1f;
+  }
+  .section.tinted {
+    background: #f0f0f0;
+    border-color: #d8d8d8;
+  }
+
+  .section-marker {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #c44519;
+    letter-spacing: 0.3em;
+    margin-bottom: 8px;
+  }
+  .section.dark .section-marker { color: #ff6b35; }
+
+  .section-title {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 44px;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    margin-bottom: 8px;
+  }
+  .section-title .accent { color: #c44519; }
+  .section.dark .section-title .accent { color: #ff6b35; }
+  .section-title .light { font-weight: 300; color: #888; }
+
+  .section-cn {
+    font-size: 22px;
+    font-weight: 700;
+    margin-top: 4px;
+  }
+  .section-lead {
+    margin-top: 16px;
+    font-size: 15px;
+    line-height: 1.85;
+    max-width: 800px;
+    color: #555;
+  }
+  .section.dark .section-lead { color: #a0a0a0; }
+
+  /* 演示一：7 条路线全景树 */
+  .route-tree {
+    margin-top: 32px;
+    background: #0a0a0a;
+    border: 1px solid #1f1f1f;
+    padding: 32px;
+  }
+  .tree-root {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .tree-root-node {
+    display: inline-block;
+    padding: 18px 36px;
+    background: #ff6b35;
+    color: #0f0f0f;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+  .tree-root-sub {
+    margin-top: 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.2em;
+  }
+  .tree-branches {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .tree-branch {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    padding: 18px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-top: 3px solid;
+  }
+  .tree-branch:hover {
+    background: #222;
+    transform: translateY(-2px);
+  }
+  .tree-branch.active {
+    background: #ff6b35;
+    color: #0f0f0f;
+    border-color: #ff6b35;
+  }
+  .tree-branch.A { border-top-color: #ff6b35; }
+  .tree-branch.B { border-top-color: #4d8eff; }
+  .tree-branch.C { border-top-color: #00aa55; }
+  .tree-branch.D { border-top-color: #aa55cc; }
+  .tree-branch.E { border-top-color: #ff9933; }
+  .tree-branch.F { border-top-color: #00bcd4; }
+  .tree-branch.G { border-top-color: #e91e63; }
+  .branch-letter {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    color: #888;
+    margin-bottom: 4px;
+  }
+  .tree-branch.active .branch-letter { color: #0f0f0f; }
+  .branch-name {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: #fafafa;
+    margin-bottom: 4px;
+    line-height: 1.3;
+  }
+  .tree-branch.active .branch-name { color: #0f0f0f; }
+  .branch-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.15em;
+  }
+  .tree-branch.active .branch-tag { color: #1a1a1a; }
+
+  .branch-detail {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    padding: 28px 32px;
+    min-height: 280px;
+    border-left: 4px solid #ff6b35;
+  }
+  .branch-detail h4 {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: #ff6b35;
+    margin-bottom: 16px;
+  }
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px 28px;
+  }
+  .detail-item {
+    border-left: 2px solid #ff6b35;
+    padding-left: 14px;
+  }
+  .detail-item .dlabel {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .detail-item .dvalue {
+    font-size: 13px;
+    line-height: 1.75;
+    color: #c0c0c0;
+  }
+  .detail-item .dvalue strong { color: #ff6b35; }
+  .detail-odds {
+    margin-top: 22px;
+    padding: 14px 18px;
+    background: rgba(255, 107, 53, 0.08);
+    border-left: 3px solid #ff6b35;
+  }
+  .detail-odds .olabel {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #ff6b35;
+    letter-spacing: 0.2em;
+    margin-bottom: 4px;
+  }
+  .detail-odds .ovalue {
+    font-size: 14px;
+    line-height: 1.7;
+    color: #fafafa;
+  }
+  .detail-odds .ovalue strong { color: #ff6b35; font-weight: 700; }
+
+  /* 演示二：Scaling Law 曲线 */
+  .scaling-demo {
+    margin-top: 32px;
+    background: #0a0a0a;
+    border: 1px solid #1f1f1f;
+    padding: 32px;
+  }
+  .scaling-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .scaling-btn {
+    padding: 10px 16px;
+    background: transparent;
+    border: 1px solid #1f1f1f;
+    color: #888;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+  }
+  .scaling-btn:hover { border-color: #ff6b35; color: #ff6b35; }
+  .scaling-btn.active {
+    background: #ff6b35;
+    color: #0f0f0f;
+    border-color: #ff6b35;
+    font-weight: 600;
+  }
+  .chart-wrap {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    padding: 20px;
+    position: relative;
+  }
+  .chart-svg {
+    width: 100%;
+    height: 360px;
+    display: block;
+  }
+  .chart-legend {
+    display: flex;
+    gap: 24px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #888;
+  }
+  .chart-legend .dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .scaling-readout {
+    margin-top: 16px;
+    padding: 16px 20px;
+    background: #1a1a1a;
+    border-left: 3px solid #ff6b35;
+    font-size: 13px;
+    color: #c0c0c0;
+    line-height: 1.85;
+  }
+  .scaling-readout strong { color: #ff6b35; }
+
+  /* 演示三：推理 vs 训练计算 trade-off */
+  .tradeoff-demo {
+    margin-top: 32px;
+    background: #0a0a0a;
+    border: 1px solid #1f1f1f;
+    padding: 32px;
+  }
+  .tradeoff-slider {
+    margin-bottom: 24px;
+  }
+  .slider-row {
+    display: grid;
+    grid-template-columns: 140px 1fr 140px;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+  .slider-row .stag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.2em;
+  }
+  .slider-row .stag.right { text-align: right; }
+  .slider-row input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: #2a2a2a;
+    outline: none;
+  }
+  .slider-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    background: #ff6b35;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  .slider-row input[type=range]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    background: #ff6b35;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+  }
+  .alloc-display {
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: #ff6b35;
+    margin-bottom: 24px;
+  }
+  .alloc-display strong { font-size: 18px; }
+  .tradeoff-bars {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .bar-card {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    padding: 18px 20px;
+  }
+  .bar-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .bar-value {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    color: #ff6b35;
+    line-height: 1;
+    margin-bottom: 10px;
+  }
+  .bar-track {
+    width: 100%;
+    height: 6px;
+    background: #2a2a2a;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff6b35, #ff9933);
+    transition: width 0.3s;
+  }
+  .bar-note {
+    margin-top: 10px;
+    font-size: 11px;
+    color: #888;
+    line-height: 1.6;
+  }
+  .tradeoff-readout {
+    margin-top: 20px;
+    padding: 16px 20px;
+    background: #1a1a1a;
+    border-left: 3px solid #ff6b35;
+    font-size: 13px;
+    color: #c0c0c0;
+    line-height: 1.85;
+  }
+  .tradeoff-readout strong { color: #ff6b35; }
+
+  /* 演示四：押注矩阵 */
+  .bet-demo {
+    margin-top: 32px;
+    background: #0a0a0a;
+    border: 1px solid #1f1f1f;
+    padding: 32px;
+  }
+  .bet-axes {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .bet-axis-box {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    padding: 16px 20px;
+  }
+  .bet-axis-box label {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.15em;
+    margin-bottom: 8px;
+  }
+  .bet-axis-box input {
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: #2a2a2a;
+    outline: none;
+  }
+  .bet-axis-box input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #ff6b35;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  .bet-axis-box input::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: #ff6b35;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+  }
+  .bet-axis-box .bvalue {
+    margin-top: 8px;
+    text-align: right;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    color: #ff6b35;
+    font-weight: 600;
+  }
+  .bet-total {
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 20px;
+  }
+  .bet-total.warn { color: #ff5555; }
+  .bet-total strong { color: #ff6b35; font-size: 16px; }
+
+  .bet-matrix {
+    display: grid;
+    grid-template-columns: 100px 1fr 1fr;
+    grid-template-rows: 40px 1fr 1fr;
+    gap: 4px;
+    margin-bottom: 24px;
+  }
+  .bet-corner {
+    grid-row: 1; grid-column: 1;
+  }
+  .bet-col-h1, .bet-col-h2 {
+    background: #1a1a1a;
+    padding: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.15em;
+    text-align: center;
+    border: 1px solid #2a2a2a;
+  }
+  .bet-row-h {
+    background: #1a1a1a;
+    padding: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.15em;
+    border: 1px solid #2a2a2a;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    text-align: center;
+  }
+  .bet-cell {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    padding: 16px 18px;
+    min-height: 110px;
+    position: relative;
+    transition: all 0.3s;
+  }
+  .bet-cell.hot {
+    border-color: #ff6b35;
+    background: rgba(255, 107, 53, 0.06);
+  }
+  .bet-cell .ckey {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 4px;
+  }
+  .bet-cell.hot .ckey { color: #ff6b35; }
+  .bet-cell .cprob {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 22px;
+    font-weight: 700;
+    color: #fafafa;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .bet-cell.hot .cprob { color: #ff6b35; }
+  .bet-cell .croutes {
+    font-size: 11px;
+    color: #888;
+    line-height: 1.65;
+  }
+  .bet-cell.hot .croutes { color: #c0c0c0; }
+  .bet-cell .croutes strong { color: #ff6b35; }
+
+  .bet-result {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-left: 4px solid #ff6b35;
+    padding: 24px 28px;
+  }
+  .bet-result h5 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #ff6b35;
+    letter-spacing: 0.25em;
+    margin-bottom: 14px;
+  }
+  .bet-result .picks {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .bet-pick {
+    padding: 8px 14px;
+    background: #ff6b35;
+    color: #0f0f0f;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+  }
+  .bet-pick.alt {
+    background: transparent;
+    border: 1px solid #ff6b35;
+    color: #ff6b35;
+  }
+  .bet-result p {
+    font-size: 13px;
+    line-height: 1.85;
+    color: #c0c0c0;
+  }
+  .bet-result p strong { color: #ff6b35; }
+
+  /* 总结 */
+  .summary {
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 56px;
+    margin-bottom: 24px;
+    border: 1px solid #1f1f1f;
+    border-left: 4px solid #ff6b35;
+    position: relative;
+    overflow: hidden;
+  }
+  .summary::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(0deg, rgba(255, 107, 53, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 107, 53, 0.02) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+  .summary h3 {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 34px;
+    font-weight: 700;
+    margin-bottom: 22px;
+    color: #ff6b35;
+    line-height: 1.15;
+    position: relative;
+  }
+  .summary p {
+    font-size: 15px;
+    line-height: 1.9;
+    margin-bottom: 14px;
+    color: #c0c0c0;
+    position: relative;
+  }
+  .summary p strong { color: #ff6b35; }
+
+  .summary-quote {
+    background: rgba(255, 107, 53, 0.06);
+    border-left: 3px solid #ff6b35;
+    padding: 22px 28px;
+    margin: 22px 0;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 19px;
+    line-height: 1.6;
+    color: #fafafa;
+    font-weight: 500;
+    position: relative;
+  }
+
+  footer {
+    text-align: center;
+    margin-top: 36px;
+    padding: 22px;
+    background: #0f0f0f;
+    color: #555;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.2em;
+    border: 1px solid #1f1f1f;
+  }
+
+  @media (max-width: 768px) {
+    h1 { font-size: 56px; }
+    .section, .summary { padding: 28px 22px; }
+    .tree-branches { grid-template-columns: repeat(2, 1fr); }
+    .detail-grid { grid-template-columns: 1fr; }
+    .tradeoff-bars { grid-template-columns: 1fr; }
+    .bet-axes { grid-template-columns: 1fr; }
+    .bet-matrix { grid-template-columns: 60px 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<!-- 课程系列统一导航条 -->
+<div id="course-nav-bar">
+  <div class="course-nav-inner">
+    <a href="../lesson21/demo.html" class="course-nav-btn prev" title="当前 AI 的根本局限"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
+    <a href="../index.html" class="course-nav-center" title="回到课程总览">
+      <span class="nav-current">LESSON 22 / 23</span>
+      <span class="nav-title">未来演进的几条路线</span>
+    </a>
+    <a href="../lesson23/demo.html" class="course-nav-btn next" title="AGI 之后:工作、组织、社会推演"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
+  </div>
+</div>
+
+<style id="course-nav-style">
+  #course-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  .course-nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .course-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: #aaa;
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .course-nav-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .course-nav-btn.disabled {
+    color: #444;
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+  .course-nav-btn .nav-arrow {
+    font-size: 14px;
+    line-height: 1;
+  }
+  .course-nav-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    color: inherit;
+    padding: 4px 12px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    min-width: 0;
+  }
+  .course-nav-center:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .nav-current {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .nav-title {
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 500;
+    letter-spacing: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body {
+    padding-top: 64px !important;
+  }
+
+  @media (max-width: 768px) {
+    .course-nav-inner {
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .course-nav-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+    }
+    .course-nav-btn .nav-label {
+      display: none;
+    }
+    .nav-title {
+      font-size: 11px;
+    }
+    .nav-current {
+      font-size: 9px;
+    }
+    body {
+      padding-top: 54px !important;
+    }
+  }
+</style>
+<!-- 课程系列统一导航条 · END -->
+
+<div class="container">
+  <header>
+    <div class="lesson-tag">LESSON 22 / 23</div>
+    <h1>SEVEN <span class="light">·</span><br><span class="accent">ROUTES</span></h1>
+    <div class="h1-cn">未来演进的几条路线</div>
+    <div class="subtitle">
+      上一讲我们说"当前 AI 的根本局限"——幻觉、上下文有限、推理薄弱、记忆缺失、能耗高企。
+      既然有这些局限，<strong>接下来5年怎么破？</strong>业界已经押出7条路：
+      Scaling、推理时计算、合成数据、世界模型、新架构、神经符号、分布式智能。
+      这一讲不预言，<strong>只把"押什么会赢"的备选路径讲清楚</strong>。
+    </div>
+  </header>
+
+  <!-- 第一节：7条路线全景树 -->
+  <div class="section dark">
+    <div class="section-marker">CHAPTER · 01</div>
+    <div class="section-title" style="color: #fafafa;">THE <span class="accent">SEVEN</span> ROUTES</div>
+    <div class="section-cn" style="color: #fafafa;">7条路线全景树：每条都有人在押</div>
+    <div class="section-lead">
+      AGI／通用智能是根节点，<strong>7条分支同时被不同阵营押注</strong>——
+      OpenAI押A+B、Meta押D+E、DeepMind同时押多条、Apple独自押G。
+      点击每条分支看：核心信念、押注玩家、技术里程碑、致命弱点、现在的赔率。
+    </div>
+
+    <div class="route-tree">
+      <div class="tree-root">
+        <div class="tree-root-node">AGI · 通用人工智能</div>
+        <div class="tree-root-sub">ROOT NODE · 2026 → 2030</div>
+      </div>
+
+      <div class="tree-branches">
+        <div class="tree-branch A active" data-route="0">
+          <div class="branch-letter">ROUTE · A</div>
+          <div class="branch-name">继续 Scaling</div>
+          <div class="branch-tag">PARAM × DATA × FLOPS</div>
+        </div>
+        <div class="tree-branch B" data-route="1">
+          <div class="branch-letter">ROUTE · B</div>
+          <div class="branch-name">推理时计算</div>
+          <div class="branch-tag">TEST-TIME COMPUTE</div>
+        </div>
+        <div class="tree-branch C" data-route="2">
+          <div class="branch-letter">ROUTE · C</div>
+          <div class="branch-name">合成数据 / 自我对弈</div>
+          <div class="branch-tag">SELF-PLAY</div>
+        </div>
+        <div class="tree-branch D" data-route="3">
+          <div class="branch-letter">ROUTE · D</div>
+          <div class="branch-name">世界模型 / 具身</div>
+          <div class="branch-tag">WORLD MODEL · EMBODIED</div>
+        </div>
+        <div class="tree-branch E" data-route="4">
+          <div class="branch-letter">ROUTE · E</div>
+          <div class="branch-name">架构革新</div>
+          <div class="branch-tag">POST-TRANSFORMER</div>
+        </div>
+        <div class="tree-branch F" data-route="5">
+          <div class="branch-letter">ROUTE · F</div>
+          <div class="branch-name">神经符号融合</div>
+          <div class="branch-tag">NEURO-SYMBOLIC</div>
+        </div>
+        <div class="tree-branch G" data-route="6">
+          <div class="branch-letter">ROUTE · G</div>
+          <div class="branch-name">分布式 / 边缘智能</div>
+          <div class="branch-tag">EDGE · FEDERATED</div>
+        </div>
+        <div class="tree-branch" style="background:#0a0a0a;border:1px dashed #2a2a2a;cursor:default;">
+          <div class="branch-letter" style="color:#555;">UNKNOWN</div>
+          <div class="branch-name" style="color:#555;font-style:italic;">未命名的第8条</div>
+          <div class="branch-tag" style="color:#444;">2027 ?</div>
+        </div>
+      </div>
+
+      <div class="branch-detail" id="branchDetail"></div>
+    </div>
+  </div>
+
+  <!-- 第二节：Scaling Law 曲线 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 02</div>
+    <div class="section-title"><span class="accent">SCALING LAW</span> · 真的还成立吗？</div>
+    <div class="section-cn">参数规模 vs 性能：曲线是否已经趋平</div>
+    <div class="section-lead">
+      Scaling Law（Kaplan 2020、Chinchilla 2022）告诉过我们：<strong>参数 × 数据 × 算力同步翻倍，性能就线性提升</strong>。
+      但 2024 起，GPT-4 → GPT-4.5 → GPT-5 的提升幅度肉眼可见在收窄。
+      切换模型系列看一下不同曲线——到底是 Scaling 撞墙了，还是只是被"推理时计算"借走了风头。
+    </div>
+
+    <div class="scaling-demo">
+      <div class="scaling-controls">
+        <button class="scaling-btn active" data-family="gpt">OpenAI · GPT 系列</button>
+        <button class="scaling-btn" data-family="claude">Anthropic · Claude 系列</button>
+        <button class="scaling-btn" data-family="llama">Meta · Llama 系列</button>
+        <button class="scaling-btn" data-family="deepseek">DeepSeek 系列</button>
+        <button class="scaling-btn" data-family="all">全部叠加</button>
+      </div>
+
+      <div class="chart-wrap">
+        <svg class="chart-svg" id="scalingChart" viewBox="0 0 800 360" preserveAspectRatio="none"></svg>
+        <div class="chart-legend" id="scalingLegend"></div>
+      </div>
+
+      <div class="scaling-readout" id="scalingReadout"></div>
+    </div>
+  </div>
+
+  <!-- 第三节：推理 vs 训练计算 trade-off -->
+  <div class="section dark">
+    <div class="section-marker">CHAPTER · 03</div>
+    <div class="section-title" style="color: #fafafa;"><span class="accent">TRAIN</span> vs <span class="accent">INFER</span> · 算力分配</div>
+    <div class="section-cn" style="color: #fafafa;">推理时计算 vs 训练时计算 trade-off</div>
+    <div class="section-lead">
+      o1 / o3 / R1 / Claude thinking 都在押同一件事——<strong>用更多推理算力换更高质量</strong>。
+      把固定 100 单位算力在"训练阶段"和"推理阶段"之间重新分配，<strong>同样的钱能买到的智能水位会怎么变</strong>？
+      下面的滑条基于 OpenAI o1 公开论文里的数据点做的模拟。
+    </div>
+
+    <div class="tradeoff-demo">
+      <div class="tradeoff-slider">
+        <div class="slider-row">
+          <div class="stag">TRAIN COMPUTE</div>
+          <input type="range" id="allocSlider" min="0" max="100" value="80" step="5">
+          <div class="stag right">INFER COMPUTE</div>
+        </div>
+        <div class="alloc-display">
+          训练算力 <strong id="trainPct">80%</strong> · 推理算力 <strong id="inferPct">20%</strong>
+        </div>
+      </div>
+
+      <div class="tradeoff-bars">
+        <div class="bar-card">
+          <div class="bar-name">AIME 2024 · 数学竞赛</div>
+          <div class="bar-value" id="aimeVal">42%</div>
+          <div class="bar-track"><div class="bar-fill" id="aimeBar" style="width: 42%"></div></div>
+          <div class="bar-note">推理算力越多，多步推理任务受益越明显</div>
+        </div>
+        <div class="bar-card">
+          <div class="bar-name">Codeforces · 编程</div>
+          <div class="bar-value" id="cfVal">1200</div>
+          <div class="bar-track"><div class="bar-fill" id="cfBar" style="width: 40%"></div></div>
+          <div class="bar-note">Elo 等级分。o1-preview 在重推理时达到 1800+</div>
+        </div>
+        <div class="bar-card">
+          <div class="bar-name">实际任务成功率</div>
+          <div class="bar-value" id="taskVal">68%</div>
+          <div class="bar-track"><div class="bar-fill" id="taskBar" style="width: 68%"></div></div>
+          <div class="bar-note">含日常问答、写作、客服等"低推理"任务</div>
+        </div>
+      </div>
+
+      <div class="tradeoff-readout" id="tradeoffReadout"></div>
+    </div>
+  </div>
+
+  <!-- 第四节：押注矩阵 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 04</div>
+    <div class="section-title">YOUR <span class="accent">BET</span> MATRIX</div>
+    <div class="section-cn">两轴决策器：算法突破 × 算力供给</div>
+    <div class="section-lead">
+      最后一个工具——<strong>把 7 条路线塞进一个 2×2 矩阵</strong>。
+      横轴是"算法突破程度"（增量改良 vs 范式突破），纵轴是"算力供给"（紧缺 vs 丰沛）。
+      你对 4 个象限的概率赋值（合计 100%），<strong>系统告诉你应该 hedge 哪几条路</strong>。
+    </div>
+
+    <div class="bet-demo">
+      <div class="bet-axes">
+        <div class="bet-axis-box">
+          <label>Q1 · 算法突破 + 算力丰沛 · 概率</label>
+          <input type="range" id="q1" min="0" max="100" value="25">
+          <div class="bvalue"><span id="q1v">25</span>%</div>
+        </div>
+        <div class="bet-axis-box">
+          <label>Q2 · 算法突破 + 算力紧缺 · 概率</label>
+          <input type="range" id="q2" min="0" max="100" value="25">
+          <div class="bvalue"><span id="q2v">25</span>%</div>
+        </div>
+        <div class="bet-axis-box">
+          <label>Q3 · 增量改良 + 算力丰沛 · 概率</label>
+          <input type="range" id="q3" min="0" max="100" value="25">
+          <div class="bvalue"><span id="q3v">25</span>%</div>
+        </div>
+        <div class="bet-axis-box">
+          <label>Q4 · 增量改良 + 算力紧缺 · 概率</label>
+          <input type="range" id="q4" min="0" max="100" value="25">
+          <div class="bvalue"><span id="q4v">25</span>%</div>
+        </div>
+      </div>
+
+      <div class="bet-total" id="betTotal">总和 <strong>100%</strong> · OK</div>
+
+      <div class="bet-matrix">
+        <div class="bet-corner"></div>
+        <div class="bet-col-h1">算力丰沛 (Compute Abundant)</div>
+        <div class="bet-col-h2">算力紧缺 (Compute Scarce)</div>
+        <div class="bet-row-h">算法突破</div>
+        <div class="bet-cell" id="cellQ1">
+          <div class="ckey">Q1 · BREAKTHROUGH + ABUNDANT</div>
+          <div class="cprob"><span id="cellQ1v">25</span>%</div>
+          <div class="croutes"><strong>路线 D · 世界模型</strong> 起飞<br><strong>路线 C · 合成数据</strong> 通杀</div>
+        </div>
+        <div class="bet-cell" id="cellQ2">
+          <div class="ckey">Q2 · BREAKTHROUGH + SCARCE</div>
+          <div class="cprob"><span id="cellQ2v">25</span>%</div>
+          <div class="croutes"><strong>路线 E · 新架构</strong> 颠覆<br><strong>路线 F · 神经符号</strong> 复兴</div>
+        </div>
+        <div class="bet-row-h">增量改良</div>
+        <div class="bet-cell" id="cellQ3">
+          <div class="ckey">Q3 · INCREMENTAL + ABUNDANT</div>
+          <div class="cprob"><span id="cellQ3v">25</span>%</div>
+          <div class="croutes"><strong>路线 A · Scaling</strong> 续命<br><strong>路线 B · 推理时计算</strong> 当王</div>
+        </div>
+        <div class="bet-cell" id="cellQ4">
+          <div class="ckey">Q4 · INCREMENTAL + SCARCE</div>
+          <div class="cprob"><span id="cellQ4v">25</span>%</div>
+          <div class="croutes"><strong>路线 G · 边缘智能</strong> 主导<br><strong>路线 E · 小型新架构</strong> 替代</div>
+        </div>
+      </div>
+
+      <div class="bet-result">
+        <h5>▼ YOUR HEDGED PORTFOLIO</h5>
+        <div class="picks" id="betPicks"></div>
+        <p id="betAdvice"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 第五节：给团队的建议 -->
+  <div class="section tinted">
+    <div class="section-marker">CHAPTER · 05</div>
+    <div class="section-title">FOR <span class="accent">YOUR TEAM</span></div>
+    <div class="section-cn">7条路线之外：团队真正该押的东西</div>
+    <div class="section-lead">
+      讲了这么多路线，回到企业团队视角——<strong>我们不是 OpenAI、不是 DeepMind，押路线没意义</strong>。
+      但 7 条路线背后<strong>有一件事是共识</strong>，是所有企业团队都应该立刻投入的真正护城河。
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 32px;">
+      <div style="background: #fff; border: 1px solid #e8e8e8; padding: 28px; border-top: 3px solid #ff6b35;">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #c44519; letter-spacing: 0.2em; margin-bottom: 6px;">MOAT · 01</div>
+        <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 14px;">数据沉淀</div>
+        <p style="font-size: 13px; line-height: 1.85; color: #555;">
+          模型每年换一代、Prompt 每月改一次、Agent 框架半年换一茬。
+          <strong style="color: #0f0f0f;">但你的私域业务数据、用户行为日志、领域 Know-how 是稳的</strong>。
+          这些数据无论 7 条路线最后哪一条赢，都是你的输入。
+        </p>
+        <div style="margin-top: 12px; padding: 10px 14px; background: #f8f8f8; border-left: 2px solid #ff6b35; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #0f0f0f;">
+          投入：知识库工程化、标注、私域 RAG
+        </div>
+      </div>
+
+      <div style="background: #fff; border: 1px solid #e8e8e8; padding: 28px; border-top: 3px solid #ff6b35;">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #c44519; letter-spacing: 0.2em; margin-bottom: 6px;">MOAT · 02</div>
+        <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 14px;">工程能力</div>
+        <p style="font-size: 13px; line-height: 1.85; color: #555;">
+          模型再强，落到企业场景都需要工程封装——评估、监控、灰度、降级、合规。
+          <strong style="color: #0f0f0f;">7 条路线再怎么变，工程化能力都是必须的</strong>。
+          这是技术团队能持续投入并复利的东西。
+        </p>
+        <div style="margin-top: 12px; padding: 10px 14px; background: #f8f8f8; border-left: 2px solid #ff6b35; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #0f0f0f;">
+          投入：Eval / Observability / MLOps
+        </div>
+      </div>
+
+      <div style="background: #fff; border: 1px solid #e8e8e8; padding: 28px; border-top: 3px solid #ff6b35;">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #c44519; letter-spacing: 0.2em; margin-bottom: 6px;">MOAT · 03</div>
+        <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 14px;">场景理解</div>
+        <p style="font-size: 13px; line-height: 1.85; color: #555;">
+          AI 公司不懂你的客户——客户怎么签单、合同怎么谈、SOW 怎么拆、交付怎么验收。
+          <strong style="color: #0f0f0f;">深耕场景的人，永远是把 AI 用好的人</strong>。
+          这是技术之外的"产业 Know-how"，是 AI 工具更新换代时唯一不贬值的资产。
+        </p>
+        <div style="margin-top: 12px; padding: 10px 14px; background: #f8f8f8; border-left: 2px solid #ff6b35; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #0f0f0f;">
+          投入：业务专家 × 工程师 的联合团队
+        </div>
+      </div>
+
+      <div style="background: #fff; border: 1px solid #e8e8e8; padding: 28px; border-top: 3px solid #ff6b35;">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #c44519; letter-spacing: 0.2em; margin-bottom: 6px;">MOAT · 04</div>
+        <div style="font-family: 'IBM Plex Sans', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 14px;">分发与信任</div>
+        <p style="font-size: 13px; line-height: 1.85; color: #555;">
+          AI 模型是同质化的，但<strong style="color: #0f0f0f;">把它送到客户手里、让客户用得放心</strong>不是。
+          客户信任、销售渠道、客户成功体系——这些都不会因为模型升级而消失。
+          老的 SaaS 公司在 AI 时代的最大底牌就是这个。
+        </p>
+        <div style="margin-top: 12px; padding: 10px 14px; background: #f8f8f8; border-left: 2px solid #ff6b35; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #0f0f0f;">
+          投入：客户成功 × 合规 × 安全
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 28px; padding: 22px 26px; background: #0f0f0f; color: #fafafa; border-left: 4px solid #ff6b35;">
+      <p style="font-size: 14px; line-height: 1.85;">
+        <strong style="color: #ff6b35;">核心判断</strong>：模型层和应用层都会剧烈变化——可能 12 个月就换一次范式。
+        <strong style="color: #ff6b35;">真正不变的是"数据 + 工程 + 场景 + 分发"这四件事</strong>。
+        押这四件事，无论 7 条路线最后哪条赢，你都赢。
+      </p>
+    </div>
+  </div>
+
+  <!-- 总结 -->
+  <div class="summary">
+    <div class="section-marker" style="color: #ff6b35;">RECAP</div>
+    <h3>核心收束 · 不押路、但有共识</h3>
+
+    <p>
+      这一讲我们走了一遍 7 条路线——
+      <strong>Scaling、推理时计算、合成数据、世界模型、新架构、神经符号、分布式智能</strong>。
+      每一条都有大玩家在重金押注，每一条都有可能在未来 5 年成为主线，也都有可能折戟沉沙。
+    </p>
+
+    <div class="summary-quote">
+      "不要押单条路线，但要相信一件事——<br>
+      模型在变，应用在变，<strong style="color:#ff6b35;">数据沉淀、工程能力、场景理解、分发信任</strong>不会变。"
+    </div>
+
+    <p>
+      <strong>对企业团队最实用的 3 条结论</strong>：
+      ① 用 2×2 矩阵给 4 个象限赋概率，hedge 2-3 条路线，<strong>不要 all-in 任何单条</strong>；
+      ② 模型层、Prompt、Agent 框架都把它当成"会被替换的薄层"——别为它建组织、别为它建团队；
+      ③ 把组织能力、数据资产、客户信任建在<strong>"4 条护城河"</strong>上——它们是 AI 时代真正复利的东西。
+    </p>
+
+    <p>
+      <strong>第四部分（未来推演）到此告一段落</strong>。我们看了 7 条技术演进路线、看了企业应该怎么 hedge。
+      但所有这些技术变化最终会落到一个更宏大的问题——
+      <strong>当 AI 真的接近 AGI 之后，工作怎么办？组织怎么办？社会怎么办？</strong>
+    </p>
+
+    <p>
+      <strong>下一讲（完结讲）</strong>：AGI 之后——工作、组织、社会推演。
+      这是整个课程的收束讲，<strong>把技术、产品、组织、社会这四层放在 2030 的时间点上一起看</strong>。
+    </p>
+  </div>
+
+  <footer>
+    AI 系列课程 · 第 19 讲 · 共 20 讲 · 第四部分（未来推演）· 下一讲完结
+  </footer>
+</div>
+
+<script>
+// ============ 第一节：7条路线全景 ============
+const routes = [
+  {
+    name: 'A · 继续 Scaling',
+    belief: '更大的参数 + 更多的数据 + 更多的算力 = 更强的智能。Kaplan/Chinchilla 定律仍然成立。',
+    players: 'OpenAI（GPT-5/6）、xAI（Grok 4/5、Colossus 集群）、Meta（Llama 4 系列）',
+    milestone: 'GPT-5（2025）、xAI Memphis 100k+ H100 集群（2024 投产）、Llama 4 405B+',
+    weakness: '<strong>数据墙</strong>——优质文本接近被穷尽；<strong>能耗墙</strong>——单次训练已数千万美元；<strong>边际收益递减</strong>——GPT-4 → GPT-5 提升幅度肉眼可见放缓。',
+    odds: '中等。Scaling 不会"撞墙归零"，但<strong>从主线退为辅线</strong>是 2026 共识。',
+    odds_pct: '30%'
+  },
+  {
+    name: 'B · 推理时计算（Test-Time Compute）',
+    belief: '与其在训练阶段把模型撑到极限，不如在推理阶段让模型"多想几遍"——用 RL 训练长 CoT，让模型自己搜索解空间。',
+    players: 'OpenAI（o1/o3/o4）、DeepSeek（R1/R2）、Anthropic（Claude Opus thinking）',
+    milestone: 'o1-preview（2024.9，AIME 83%）、DeepSeek R1（2025.1，开源复现）、Claude 3.7 / 4.7 thinking 模式',
+    weakness: '<strong>推理成本爆炸</strong>——单次 query 可能要 30 秒、几万 token；<strong>泛化未证</strong>——数学/代码很好，但写作/常识场景未必显著超越。',
+    odds: '高。目前最被看好的"近 2 年主线"。<strong>每一家头部 lab 都在押</strong>。',
+    odds_pct: '55%'
+  },
+  {
+    name: 'C · 合成数据 + 自我对弈',
+    belief: '真实数据有限，但模型可以自己生成数据——可验证领域（数学、代码、形式逻辑）用 RL 自我对弈，质量可以无限提升。',
+    players: 'DeepMind（AlphaGeometry、AlphaProof、Reasoner）、OpenAI（SCoRe）、Anthropic、DeepSeek',
+    milestone: 'AlphaGeometry（2024，IMO 银牌）、AlphaProof（2024，IMO 银牌）、SCoRe（2024，self-correction）',
+    weakness: '<strong>泛化是最大难点</strong>——数学/代码可以对弈，<strong>"写好一份方案"无法 self-play</strong>；可能只是"窄域突破"，撑不起 AGI。',
+    odds: '中高。在窄域已经验证；通用域如果通了，相当于解决了数据墙。',
+    odds_pct: '35%'
+  },
+  {
+    name: 'D · 世界模型 / 具身智能',
+    belief: '语言模型只懂"文字符号世界"，真正的智能必须懂"物理世界"——能预测下一秒会发生什么、能在真实环境里行动。',
+    players: 'DeepMind（Genie 3）、Nvidia（Cosmos）、Meta（V-JEPA、I-JEPA）、Tesla（FSD、Optimus）、Physical Intelligence（π0）、1X（NEO）、Figure',
+    milestone: 'Genie 3（2025 中，交互式世界模型）、Cosmos（2025.1 CES）、Sora 2、V-JEPA 2、Figure 02、1X NEO Beta（2025 量产）',
+    weakness: '<strong>硬件瓶颈</strong>——机器人成本、灵巧手、电池密度都没破；<strong>数据稀缺</strong>——具身数据采集成本是文本的 1000+ 倍。',
+    odds: '中高（5-10 年视角）。<strong>这是最像"下一代范式"的方向</strong>，但短期落地慢。',
+    odds_pct: '40%'
+  },
+  {
+    name: 'E · 架构革新（Post-Transformer）',
+    belief: 'Transformer 的 O(N²) attention 是根本瓶颈。新架构（SSM / Mamba / Hyena / RWKV / Liquid / Diffusion LLM）能在 long-context 和效率上甩开 Transformer。',
+    players: 'Albert Gu（Mamba）、Liquid AI（LFM）、RWKV 社区、Sakana AI（进化方法）、Together AI',
+    milestone: 'Mamba（2023.12）、Mamba-2（2024）、Liquid Foundation Models（2024.9）、Diffusion LLM 实验（2024-2025）',
+    weakness: '<strong>"在 long-context 上更好"≠"全方位更好"</strong>。综合基准依然是 Transformer 领先；生态完全不在一个量级。',
+    odds: '中等。<strong>会作为补充存在，全方位替换 Transformer 概率不高</strong>。但 hybrid 架构是大概率。',
+    odds_pct: '25%'
+  },
+  {
+    name: 'F · 神经符号融合（Neuro-Symbolic）',
+    belief: '纯神经网络的"幻觉"是结构性问题——必须把符号系统（逻辑、数学引擎、代码执行）和神经网络结合起来。',
+    players: 'Yann LeCun 阵营、Gary Marcus 阵营、DeepMind（AlphaGeometry）、Wolfram + LLM、Tool-augmented 流派',
+    milestone: 'AlphaGeometry（神经+符号引擎）、ChatGPT + Wolfram Alpha、Code Interpreter、各家 Function Calling',
+    weakness: '<strong>已经在 Function Calling 形态下普遍落地</strong>，但"深度融合"的范式（不只是工具调用）<strong>还没看到爆款</strong>。',
+    odds: '中等。<strong>已是事实主流</strong>（每个生产级 AI 都接工具），但作为"主架构"再升一级的可能性中等。',
+    odds_pct: '30%'
+  },
+  {
+    name: 'G · 分布式 / 边缘智能',
+    belief: '不是所有智能都需要云端千亿参数——本地小模型 + 边缘推理 + 联邦学习，能解决隐私、延迟、成本三大痛点。',
+    players: 'Apple（Apple Intelligence on-device）、Qualcomm、ARM、Mistral（7B/8B 小模型）、Microsoft（Phi 系列）',
+    milestone: 'Apple Intelligence（2024.10，3B 端侧 + 私有云）、Phi-4（2024.12，14B 超越 70B）、Mistral Small 3（2025）',
+    weakness: '<strong>"小模型 + 大模型协同"还没成熟</strong>；端侧硬件迭代慢；<strong>云端模型自身在变小变便宜，挤压了边缘智能的空间</strong>。',
+    odds: '中等。<strong>消费端会赢</strong>（手机、汽车、AR），<strong>企业端继续以云为主</strong>。',
+    odds_pct: '30%'
+  }
+];
+
+function renderBranch(idx) {
+  const r = routes[idx];
+  const html = `
+    <h4>路线 ${r.name}</h4>
+    <div class="detail-grid">
+      <div class="detail-item">
+        <div class="dlabel">CORE BELIEF · 核心信念</div>
+        <div class="dvalue">${r.belief}</div>
+      </div>
+      <div class="detail-item">
+        <div class="dlabel">PLAYERS · 押注玩家</div>
+        <div class="dvalue">${r.players}</div>
+      </div>
+      <div class="detail-item">
+        <div class="dlabel">MILESTONES · 技术里程碑</div>
+        <div class="dvalue">${r.milestone}</div>
+      </div>
+      <div class="detail-item">
+        <div class="dlabel">WEAKNESS · 致命弱点</div>
+        <div class="dvalue">${r.weakness}</div>
+      </div>
+    </div>
+    <div class="detail-odds">
+      <div class="olabel">▼ ODDS · 现在的赔率（"成为 2026-2030 主线之一"的主观概率）</div>
+      <div class="ovalue"><strong>${r.odds_pct}</strong> · ${r.odds}</div>
+    </div>
+  `;
+  document.getElementById('branchDetail').innerHTML = html;
+}
+
+document.querySelectorAll('.tree-branch[data-route]').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.tree-branch').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    renderBranch(+el.dataset.route);
+  });
+});
+renderBranch(0);
+
+// ============ 第二节：Scaling Law 曲线 ============
+const scalingData = {
+  gpt: {
+    name: 'OpenAI · GPT',
+    color: '#ff6b35',
+    points: [
+      { x: 1.5,  y: 28, label: 'GPT-2 · 1.5B (2019)' },
+      { x: 175,  y: 58, label: 'GPT-3 · 175B (2020)' },
+      { x: 1500, y: 78, label: 'GPT-4 · ~1.5T (2023)' },
+      { x: 3000, y: 84, label: 'GPT-4.5 · est. (2025)' },
+      { x: 5500, y: 87, label: 'GPT-5 · est. (2025)' }
+    ],
+    readout: 'GPT 系列从 GPT-3 → GPT-4 几乎翻倍提升，但 GPT-4 → GPT-4.5 → GPT-5 增幅明显收窄。<strong>从 78% → 87% 用了 4 倍参数</strong>——这就是 Scaling 边际递减的肉眼证据。OpenAI 自己用脚投票转向了路线 B（o1/o3）。'
+  },
+  claude: {
+    name: 'Anthropic · Claude',
+    color: '#4d8eff',
+    points: [
+      { x: 50,   y: 52, label: 'Claude 1 (2023)' },
+      { x: 200,  y: 71, label: 'Claude 2 (2023.7)' },
+      { x: 1000, y: 81, label: 'Claude 3 Opus (2024.3)' },
+      { x: 1500, y: 85, label: 'Claude 3.5 Sonnet (2024.6)' },
+      { x: 2200, y: 88, label: 'Claude 4 / 4.7 Opus (2025)' }
+    ],
+    readout: 'Claude 系列每代都有稳健提升，<strong>3.5 Sonnet 更小但更强</strong>——这是路线 B（推理时计算）和路线 C（合成数据 RL）共同发力的迹象，不再单押"堆参数"。Anthropic 的 Constitutional AI 也是路线 C 的早期实践。'
+  },
+  llama: {
+    name: 'Meta · Llama',
+    color: '#aa55cc',
+    points: [
+      { x: 7,    y: 38, label: 'Llama 1 7B (2023.2)' },
+      { x: 65,   y: 56, label: 'Llama 1 65B' },
+      { x: 70,   y: 68, label: 'Llama 2 70B (2023.7)' },
+      { x: 405,  y: 78, label: 'Llama 3.1 405B (2024.7)' },
+      { x: 600,  y: 81, label: 'Llama 4 · est. (2025)' }
+    ],
+    readout: 'Llama 系列代表"开源 Scaling"——靠规模 + 数据质量稳步追赶，但<strong>同等参数下落后闭源 1-1.5 代</strong>。Meta 实际押注是 D（世界模型 / JEPA），Llama 只是开源生态的护城河。'
+  },
+  deepseek: {
+    name: 'DeepSeek',
+    color: '#00aa55',
+    points: [
+      { x: 7,    y: 42, label: 'DeepSeek 7B (2023)' },
+      { x: 67,   y: 65, label: 'DeepSeek V2 67B (2024.5)' },
+      { x: 236,  y: 79, label: 'DeepSeek V3 (2024.12)' },
+      { x: 671,  y: 87, label: 'DeepSeek R1 (2025.1)' },
+      { x: 800,  y: 89, label: 'DeepSeek R2 · est. (2025)' }
+    ],
+    readout: 'DeepSeek 是<strong>"路线 B + 工程优化"的最强样板</strong>——R1 用 1/10 算力做出和 o1 同级的推理能力，证明了纯 RL on reasoning chains 路线可行。开源 + 低成本，对整个行业格局冲击巨大。'
+  },
+  all: {
+    name: '全部叠加',
+    color: '#ff6b35',
+    points: [],
+    readout: '把 4 个系列叠在一起看——<strong>所有曲线都在 log 横轴下越来越平</strong>。这是 2024-2025 整个行业的共识画面：单纯堆参数的边际收益已经显著递减，<strong>主线正在从 A 切到 B + C + D</strong>。'
+  }
+};
+
+function drawChart(family) {
+  const svg = document.getElementById('scalingChart');
+  const W = 800, H = 360, padL = 60, padR = 30, padT = 20, padB = 50;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+
+  // log scale X: 1 to 10000 (B params)
+  const xMin = Math.log10(1), xMax = Math.log10(10000);
+  const xScale = (v) => padL + (Math.log10(v) - xMin) / (xMax - xMin) * innerW;
+  const yScale = (v) => padT + (1 - v/100) * innerH;
+
+  let svgContent = '';
+
+  // Grid
+  for (let v of [20, 40, 60, 80, 100]) {
+    const y = yScale(v);
+    svgContent += `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#2a2a2a" stroke-width="1"/>`;
+    svgContent += `<text x="${padL-10}" y="${y+4}" fill="#666" font-family="IBM Plex Mono" font-size="10" text-anchor="end">${v}%</text>`;
+  }
+  for (let v of [1, 10, 100, 1000, 10000]) {
+    const x = xScale(v);
+    svgContent += `<line x1="${x}" y1="${padT}" x2="${x}" y2="${H-padB}" stroke="#2a2a2a" stroke-width="1"/>`;
+    svgContent += `<text x="${x}" y="${H-padB+18}" fill="#666" font-family="IBM Plex Mono" font-size="10" text-anchor="middle">${v}B</text>`;
+  }
+  // Axis labels
+  svgContent += `<text x="${W/2}" y="${H-8}" fill="#888" font-family="IBM Plex Mono" font-size="11" text-anchor="middle" letter-spacing="2">PARAMETERS (log) · billions</text>`;
+  svgContent += `<text x="20" y="${H/2}" fill="#888" font-family="IBM Plex Mono" font-size="11" text-anchor="middle" letter-spacing="2" transform="rotate(-90 20 ${H/2})">MMLU-PRO · benchmark</text>`;
+
+  const series = family === 'all' ? ['gpt', 'claude', 'llama', 'deepseek'] : [family];
+
+  series.forEach(s => {
+    const d = scalingData[s];
+    if (!d.points.length) return;
+    let path = '';
+    d.points.forEach((p, i) => {
+      path += (i === 0 ? 'M' : 'L') + xScale(p.x) + ',' + yScale(p.y) + ' ';
+    });
+    svgContent += `<path d="${path}" stroke="${d.color}" stroke-width="2.5" fill="none"/>`;
+    d.points.forEach(p => {
+      svgContent += `<circle cx="${xScale(p.x)}" cy="${yScale(p.y)}" r="4.5" fill="${d.color}" stroke="#0f0f0f" stroke-width="1.5"><title>${p.label}: ${p.y}%</title></circle>`;
+    });
+  });
+
+  svg.innerHTML = svgContent;
+
+  // Legend
+  const legendEl = document.getElementById('scalingLegend');
+  if (family === 'all') {
+    legendEl.innerHTML = ['gpt', 'claude', 'llama', 'deepseek'].map(s => {
+      const d = scalingData[s];
+      return `<span><span class="dot" style="background:${d.color}"></span>${d.name}</span>`;
+    }).join('');
+  } else {
+    const d = scalingData[family];
+    legendEl.innerHTML = `<span><span class="dot" style="background:${d.color}"></span>${d.name}</span>`;
+  }
+
+  // Readout
+  document.getElementById('scalingReadout').innerHTML = `<strong>READOUT</strong> · ${scalingData[family].readout || scalingData.all.readout}`;
+}
+
+document.querySelectorAll('.scaling-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.scaling-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    drawChart(btn.dataset.family);
+  });
+});
+drawChart('gpt');
+
+// ============ 第三节：推理 vs 训练 trade-off ============
+function updateTradeoff() {
+  const train = +document.getElementById('allocSlider').value;
+  const infer = 100 - train;
+  document.getElementById('trainPct').textContent = train + '%';
+  document.getElementById('inferPct').textContent = infer + '%';
+
+  // 基于 o1 论文趋势的模拟函数
+  // AIME：推理算力对 AIME 提升非线性（log）；训练算力到一定程度就饱和
+  // train=80, infer=20 → AIME ~42%（GPT-4o 水平）
+  // train=20, infer=80 → AIME ~88%（o1 重推理水平）
+  const aime = Math.round(20 + Math.log10(infer + 1) * 35 + train * 0.05);
+  const aimeClamped = Math.min(95, Math.max(15, aime));
+
+  // Codeforces Elo: 800-2200
+  const cf = Math.round(800 + Math.log10(infer + 1) * 600 + train * 1.5);
+  const cfClamped = Math.min(2400, Math.max(800, cf));
+
+  // 实际任务（含日常）：训练算力更重要，推理算力边际小
+  const task = Math.round(40 + train * 0.45 + infer * 0.15);
+  const taskClamped = Math.min(92, Math.max(40, task));
+
+  document.getElementById('aimeVal').textContent = aimeClamped + '%';
+  document.getElementById('aimeBar').style.width = aimeClamped + '%';
+  document.getElementById('cfVal').textContent = cfClamped;
+  document.getElementById('cfBar').style.width = ((cfClamped - 800) / 1400 * 100) + '%';
+  document.getElementById('taskVal').textContent = taskClamped + '%';
+  document.getElementById('taskBar').style.width = taskClamped + '%';
+
+  // Readout
+  let msg = '';
+  if (infer >= 70) {
+    msg = '<strong>极端推理时计算配置</strong>。AIME / Codeforces 推到极限，但日常任务（写邮件、客服回答）<strong>性价比极差</strong>——一次普通对话花你 10 秒 + 几毛钱。路线 B 的代表配置。';
+  } else if (infer >= 40) {
+    msg = '<strong>混合配置（o1 / R1 路线）</strong>。复杂任务用 thinking 模式重推理、简单任务走快速通道。<strong>2026 主流配置</strong>，每家头部 API 都在做。';
+  } else if (infer >= 15) {
+    msg = '<strong>训练为主、推理少量加成</strong>。这是 GPT-4 / Claude 3 时代的配置——训练阶段堆到极限，推理阶段就一次 forward。日常任务性价比最高。';
+  } else {
+    msg = '<strong>纯训练配置</strong>。一次推理一次 forward，没有 CoT、没有自我反思。<strong>这是 GPT-3 时代的范式</strong>——便宜、快、但复杂推理拉胯。';
+  }
+  document.getElementById('tradeoffReadout').innerHTML = msg;
+}
+
+document.getElementById('allocSlider').addEventListener('input', updateTradeoff);
+updateTradeoff();
+
+// ============ 第四节：押注矩阵 ============
+function updateBet() {
+  const q1 = +document.getElementById('q1').value;
+  const q2 = +document.getElementById('q2').value;
+  const q3 = +document.getElementById('q3').value;
+  const q4 = +document.getElementById('q4').value;
+  const total = q1 + q2 + q3 + q4;
+
+  document.getElementById('q1v').textContent = q1;
+  document.getElementById('q2v').textContent = q2;
+  document.getElementById('q3v').textContent = q3;
+  document.getElementById('q4v').textContent = q4;
+  document.getElementById('cellQ1v').textContent = q1;
+  document.getElementById('cellQ2v').textContent = q2;
+  document.getElementById('cellQ3v').textContent = q3;
+  document.getElementById('cellQ4v').textContent = q4;
+
+  const totalEl = document.getElementById('betTotal');
+  if (total === 100) {
+    totalEl.innerHTML = '总和 <strong>100%</strong> · OK';
+    totalEl.classList.remove('warn');
+  } else {
+    totalEl.innerHTML = '总和 <strong>' + total + '%</strong> · 调整滑条让总和 = 100%';
+    totalEl.classList.add('warn');
+  }
+
+  // 标记最大象限
+  ['Q1', 'Q2', 'Q3', 'Q4'].forEach(q => {
+    document.getElementById('cell' + q).classList.remove('hot');
+  });
+  const maxQ = Math.max(q1, q2, q3, q4);
+  const probs = { Q1: q1, Q2: q2, Q3: q3, Q4: q4 };
+  Object.keys(probs).forEach(q => {
+    if (probs[q] === maxQ && maxQ > 0) {
+      document.getElementById('cell' + q).classList.add('hot');
+    }
+  });
+
+  // 推荐路线：top 2 象限对应的路线
+  const routesByQ = {
+    Q1: ['D · 世界模型', 'C · 合成数据'],
+    Q2: ['E · 新架构', 'F · 神经符号'],
+    Q3: ['B · 推理时计算', 'A · Scaling'],
+    Q4: ['G · 边缘智能', 'E · 小型新架构']
+  };
+
+  const sorted = Object.entries(probs).sort((a, b) => b[1] - a[1]);
+  const top1 = sorted[0], top2 = sorted[1];
+
+  // 主推路线 = top1 的两条；次推 = top2 的第一条
+  const picks = [];
+  routesByQ[top1[0]].forEach(r => picks.push({ name: r, primary: true }));
+  picks.push({ name: routesByQ[top2[0]][0], primary: false });
+
+  const picksHtml = picks.map(p =>
+    `<span class="bet-pick${p.primary ? '' : ' alt'}">路线 ${p.name}</span>`
+  ).join('');
+  document.getElementById('betPicks').innerHTML = picksHtml;
+
+  // Advice
+  let advice = '';
+  if (top1[1] >= 50) {
+    advice = `<strong>你押的非常激进</strong>（${top1[0]} 占 ${top1[1]}%）。建议主投 <strong>${routesByQ[top1[0]].join(' + ')}</strong>，留 20-30% 现金或低风险路线对冲意外。`;
+  } else if (top1[1] >= 35) {
+    advice = `<strong>偏好已经明确但仍有 hedge 空间</strong>。主押 ${top1[0]} 的两条路线，但同步保留 ${top2[0]} 的位置——<strong>4 象限分布越均匀，hedge 越稳</strong>。`;
+  } else {
+    advice = `<strong>这是真正的 hedge 配置</strong>——4 象限概率接近均匀，意味着你认为<strong>未来高度不确定</strong>。建议 7 条路线都保留观察位置，重点投"在所有路线下都不亏"的能力：数据沉淀、工程化、场景理解。`;
+  }
+
+  document.getElementById('betAdvice').innerHTML = advice;
+}
+
+['q1', 'q2', 'q3', 'q4'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updateBet);
+});
+updateBet();
+</script>
+</body>
+</html>

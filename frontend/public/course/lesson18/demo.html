@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>第18讲｜当前 AI 的根本局限</title>
+<title>第15讲｜AI在 SaaS 交付中的应用全景</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -17,7 +17,6 @@
   }
   .container { max-width: 1280px; margin: 0 auto; }
 
-  /* 工业控制台风格 */
   header {
     background: #0f0f0f;
     color: #fafafa;
@@ -32,8 +31,8 @@
     position: absolute;
     inset: 0;
     background:
-      linear-gradient(0deg, rgba(255, 107, 53, 0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 107, 53, 0.04) 1px, transparent 1px);
+      linear-gradient(0deg, rgba(0, 212, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 212, 255, 0.04) 1px, transparent 1px);
     background-size: 24px 24px;
     pointer-events: none;
   }
@@ -42,8 +41,8 @@
     display: inline-block;
     padding: 6px 14px;
     background: transparent;
-    border: 1px solid #ff6b35;
-    color: #ff6b35;
+    border: 1px solid #00d4ff;
+    color: #00d4ff;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
     letter-spacing: 0.25em;
@@ -61,7 +60,7 @@
     position: relative;
     z-index: 1;
   }
-  h1 .accent { color: #ff6b35; }
+  h1 .accent { color: #00d4ff; }
   h1 .light { font-weight: 300; color: #888; }
   .h1-cn {
     font-size: 26px;
@@ -76,11 +75,11 @@
     font-size: 16px;
     color: #888;
     line-height: 1.85;
-    max-width: 760px;
+    max-width: 720px;
     position: relative;
     z-index: 1;
   }
-  .subtitle strong { color: #ff6b35; font-weight: 500; }
+  .subtitle strong { color: #00d4ff; font-weight: 500; }
 
   .section {
     background: #fff;
@@ -101,11 +100,11 @@
   .section-marker {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
-    color: #cc4d1a;
+    color: #0099cc;
     letter-spacing: 0.3em;
     margin-bottom: 8px;
   }
-  .section.dark .section-marker { color: #ff6b35; }
+  .section.dark .section-marker { color: #00d4ff; }
 
   .section-title {
     font-family: 'IBM Plex Sans', sans-serif;
@@ -115,8 +114,8 @@
     letter-spacing: -0.025em;
     margin-bottom: 8px;
   }
-  .section-title .accent { color: #cc4d1a; }
-  .section.dark .section-title .accent { color: #ff6b35; }
+  .section-title .accent { color: #0099cc; }
+  .section.dark .section-title .accent { color: #00d4ff; }
   .section-title .light { font-weight: 300; color: #888; }
 
   .section-cn {
@@ -133,544 +132,529 @@
   }
   .section.dark .section-lead { color: #a0a0a0; }
 
-  /* 七大局限概览表 */
-  .limit-grid {
-    margin-top: 32px;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 14px;
-  }
-  .limit-cell {
-    background: #fff;
-    border: 1px solid #e8e8e8;
-    border-left: 4px solid #ff6b35;
-    padding: 20px 22px;
-  }
-  .limit-cell .num {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.25em;
-    color: #ff6b35;
-    margin-bottom: 6px;
-  }
-  .limit-cell .name {
-    font-family: 'IBM Plex Sans', sans-serif;
-    font-size: 19px;
-    font-weight: 700;
-    margin-bottom: 4px;
-  }
-  .limit-cell .en {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    color: #888;
-    letter-spacing: 0.1em;
-    margin-bottom: 10px;
-  }
-  .limit-cell p {
-    font-size: 13px;
-    line-height: 1.75;
-    color: #555;
-  }
-  .limit-cell p strong { color: #cc4d1a; }
-
-  /* 演示一：幻觉触发实验 */
-  .hallucination-demo {
-    margin-top: 32px;
-    background: #0a0a0a;
-    border: 1px solid #1f1f1f;
-    padding: 28px;
-  }
-  .case-tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-  }
-  .case-btn {
-    padding: 10px 16px;
-    background: transparent;
-    border: 1px solid #1f1f1f;
-    color: #888;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.15em;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .case-btn:hover {
-    border-color: #ff6b35;
-    color: #ff6b35;
-  }
-  .case-btn.active {
-    background: #ff6b35;
-    color: #0f0f0f;
-    border-color: #ff6b35;
-    font-weight: 600;
-  }
-  .case-panel {
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    padding: 22px 24px;
-  }
-  .case-prompt {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 12px;
-    color: #888;
-    margin-bottom: 14px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid #2a2a2a;
-  }
-  .case-prompt .label {
-    color: #ff6b35;
-    letter-spacing: 0.2em;
-    font-size: 10px;
-    display: block;
-    margin-bottom: 6px;
-  }
-  .case-prompt .text {
-    color: #d0d0d0;
-    font-family: 'Noto Sans SC', sans-serif;
-    font-size: 14px;
-    line-height: 1.7;
-  }
-  .case-grid {
+  /* 演示一：交付链路全景图 */
+  .pipeline {
+    margin-top: 36px;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-top: 14px;
-  }
-  .case-box {
-    padding: 16px 18px;
-    background: #0f0f0f;
-    border: 1px solid #2a2a2a;
-  }
-  .case-box .head {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.25em;
-    margin-bottom: 10px;
-  }
-  .case-box.model .head { color: #ff8855; }
-  .case-box.truth .head { color: #66cc88; }
-  .case-box p {
-    font-size: 13px;
-    line-height: 1.75;
-    color: #c0c0c0;
-  }
-  .case-box.model p { border-left: 2px solid #ff6b35; padding-left: 12px; }
-  .case-box.truth p { border-left: 2px solid #66cc88; padding-left: 12px; }
-  .case-tag {
-    margin-top: 14px;
-    padding: 12px 16px;
-    background: rgba(255, 107, 53, 0.08);
-    border-left: 3px solid #ff6b35;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 12px;
-    color: #ffa580;
-    line-height: 1.7;
-  }
-  .case-tag .label {
-    color: #ff6b35;
-    letter-spacing: 0.2em;
-    font-size: 10px;
-    margin-right: 8px;
-  }
-
-  /* 演示二：GSM-Symbolic 推理脆性 */
-  .reasoning-demo {
-    margin-top: 32px;
-    background: #fff;
-    border: 1px solid #e8e8e8;
-    padding: 28px;
-  }
-  .reasoning-controls {
-    display: flex;
-    align-items: center;
-    gap: 18px;
-    margin-bottom: 22px;
-    flex-wrap: wrap;
-  }
-  .slider-wrap {
-    flex: 1;
-    min-width: 280px;
-  }
-  .slider-label {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    color: #555;
-    letter-spacing: 0.15em;
-    margin-bottom: 8px;
-    display: flex;
-    justify-content: space-between;
-  }
-  .slider-label .val {
-    color: #ff6b35;
-    font-weight: 600;
-    font-size: 13px;
-  }
-  input[type="range"] {
-    width: 100%;
-    height: 4px;
-    background: #e8e8e8;
-    -webkit-appearance: none;
-    appearance: none;
-    outline: none;
-  }
-  input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 18px;
-    height: 18px;
-    background: #ff6b35;
-    cursor: pointer;
-    border-radius: 0;
-  }
-  input[type="range"]::-moz-range-thumb {
-    width: 18px;
-    height: 18px;
-    background: #ff6b35;
-    cursor: pointer;
-    border-radius: 0;
-    border: none;
-  }
-  .question-pair {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-    margin-bottom: 22px;
-  }
-  .q-card {
-    padding: 18px 20px;
-    background: #f8f8f8;
-    border: 1px solid #e0e0e0;
-  }
-  .q-card .head {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.25em;
-    color: #888;
-    margin-bottom: 8px;
-  }
-  .q-card.original .head { color: #cc4d1a; }
-  .q-card.perturbed .head { color: #ff6b35; }
-  .q-card .text {
-    font-size: 13px;
-    line-height: 1.75;
-    color: #0f0f0f;
-  }
-  .q-card .text .changed {
-    background: #ffe5d6;
-    padding: 1px 4px;
-    color: #cc4d1a;
-    font-weight: 600;
-  }
-  .accuracy-chart {
-    height: 200px;
-    background: #f8f8f8;
-    border: 1px solid #e0e0e0;
-    position: relative;
-    padding: 20px;
-  }
-  .chart-y-label {
-    position: absolute;
-    left: 8px;
-    top: 50%;
-    transform: rotate(-90deg) translateX(50%);
-    transform-origin: left center;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #888;
-    letter-spacing: 0.15em;
-  }
-  .bars {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-around;
-    height: 100%;
     gap: 24px;
-    padding-left: 30px;
   }
-  .bar-group {
-    flex: 1;
+  .pipeline-flow {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    height: 100%;
-    justify-content: flex-end;
+    gap: 8px;
   }
-  .bar {
-    width: 70%;
-    background: linear-gradient(180deg, #ff6b35 0%, #ff8855 100%);
-    transition: height 0.4s ease;
+  .stage-node {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-left: 4px solid #c0c0c0;
+    padding: 18px 22px;
+    cursor: pointer;
+    transition: all 0.2s;
     position: relative;
   }
-  .bar.original {
-    background: linear-gradient(180deg, #cc4d1a 0%, #ee6633 100%);
-  }
-  .bar .pct {
-    position: absolute;
-    top: -22px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 12px;
-    font-weight: 600;
-    color: #0f0f0f;
-  }
-  .bar-label {
-    margin-top: 8px;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    color: #555;
-    letter-spacing: 0.1em;
-    text-align: center;
-  }
-  .reasoning-conclusion {
-    margin-top: 22px;
-    padding: 18px 22px;
+  .stage-node:hover { background: #f6fbff; border-left-color: #00d4ff; }
+  .stage-node.active {
     background: #0f0f0f;
     color: #fafafa;
-    border-left: 4px solid #ff6b35;
+    border-left-color: #00d4ff;
+    border-color: #1f1f1f;
+  }
+  .stage-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+  }
+  .stage-name {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .stage-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.25em;
+  }
+  .stage-node.active .stage-tag { color: #00d4ff; }
+  .stage-sub {
+    font-size: 12px;
+    color: #777;
+    line-height: 1.7;
+  }
+  .stage-node.active .stage-sub { color: #a0a0a0; }
+
+  .stage-detail {
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 28px 32px;
+    border-left: 4px solid #00d4ff;
+    min-height: 100%;
+  }
+  .stage-detail h4 {
+    font-size: 22px;
+    color: #00d4ff;
+    margin-bottom: 6px;
+  }
+  .stage-detail .sub-cn {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 18px;
+  }
+  .stage-block { margin-bottom: 18px; }
+  .stage-block h5 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: #00d4ff;
+    margin-bottom: 8px;
+  }
+  .stage-block ul { list-style: none; padding: 0; }
+  .stage-block li {
     font-size: 13px;
     line-height: 1.85;
+    color: #c0c0c0;
+    padding-left: 14px;
+    position: relative;
   }
-  .reasoning-conclusion strong { color: #ff6b35; }
+  .stage-block li::before {
+    content: '▸';
+    color: #00d4ff;
+    position: absolute;
+    left: 0;
+  }
+  .stage-block li strong { color: #00d4ff; }
+  .stage-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .stage-tools span {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #fafafa;
+    background: #1f1f1f;
+    border: 1px solid #2a2a2a;
+    padding: 4px 9px;
+  }
+  .stage-roi {
+    background: rgba(0, 212, 255, 0.08);
+    border-left: 2px solid #00d4ff;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #c8eaff;
+    line-height: 1.7;
+  }
+  .stage-roi strong { color: #00d4ff; }
 
-  /* 演示三：长上下文衰减 */
-  .context-demo {
-    margin-top: 32px;
+  /* 演示二：售前 Agent 工作流 */
+  .agent-flow {
+    margin-top: 28px;
     background: #0a0a0a;
     border: 1px solid #1f1f1f;
     padding: 28px;
   }
-  .context-meta {
+  .agent-controls {
     display: flex;
-    gap: 20px;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 18px;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    color: #888;
-    flex-wrap: wrap;
-  }
-  .context-meta strong { color: #ff6b35; }
-  .heatmap-wrap {
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    padding: 22px;
-  }
-  .heatmap-axis-top {
-    display: grid;
-    grid-template-columns: 120px 1fr;
-    margin-bottom: 6px;
-  }
-  .heatmap-axis-top .x-label {
-    text-align: center;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #888;
-    letter-spacing: 0.2em;
-  }
-  .heatmap-row {
-    display: grid;
-    grid-template-columns: 120px 1fr;
-    margin-bottom: 3px;
-    align-items: center;
-  }
-  .row-label {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    color: #c0c0c0;
-    padding-right: 12px;
-    text-align: right;
-  }
-  .row-cells {
-    display: grid;
-    grid-template-columns: repeat(10, 1fr);
-    gap: 2px;
-  }
-  .cell {
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #fff;
-    cursor: pointer;
-    transition: transform 0.1s;
-  }
-  .cell:hover { transform: scale(1.15); z-index: 2; }
-  .heatmap-axis-bottom {
-    display: grid;
-    grid-template-columns: 120px 1fr;
-    margin-top: 8px;
-  }
-  .heatmap-axis-bottom .x-ticks {
-    display: grid;
-    grid-template-columns: repeat(10, 1fr);
-    gap: 2px;
-  }
-  .x-ticks span {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 9px;
-    color: #666;
-    text-align: center;
-    letter-spacing: 0.05em;
-  }
-  .heatmap-legend {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 16px;
-    justify-content: center;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #888;
-    letter-spacing: 0.15em;
-  }
-  .legend-bar {
-    width: 200px;
-    height: 12px;
-    background: linear-gradient(90deg, #2a1a10, #cc4d1a, #ff6b35, #ffaa66, #ffe5d6);
-  }
-  .context-summary {
-    margin-top: 18px;
-    padding: 18px 22px;
-    background: rgba(255, 107, 53, 0.06);
-    border-left: 3px solid #ff6b35;
-    color: #ffd0b8;
-    font-size: 13px;
-    line-height: 1.85;
-  }
-  .context-summary strong { color: #ff6b35; }
-
-  /* 演示四：能力 vs 成本前沿曲线 */
-  .frontier-demo {
-    margin-top: 32px;
-    background: #fff;
-    border: 1px solid #e8e8e8;
-    padding: 28px;
-  }
-  .frontier-controls {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-  }
-  .task-btn {
-    padding: 10px 16px;
-    background: transparent;
-    border: 1px solid #e0e0e0;
-    color: #555;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.15em;
-    cursor: pointer;
-  }
-  .task-btn:hover { border-color: #ff6b35; color: #ff6b35; }
-  .task-btn.active {
-    background: #ff6b35;
-    color: #0f0f0f;
-    border-color: #ff6b35;
-    font-weight: 600;
-  }
-  .frontier-chart {
-    position: relative;
-    height: 420px;
-    background: #fafafa;
-    border: 1px solid #e8e8e8;
-    margin-bottom: 16px;
-  }
-  .frontier-chart svg { width: 100%; height: 100%; display: block; }
-  .axis-label-x {
-    position: absolute;
-    bottom: 8px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #888;
-    letter-spacing: 0.2em;
-  }
-  .axis-label-y {
-    position: absolute;
-    top: 50%;
-    left: 8px;
-    transform: rotate(-90deg) translateX(50%);
-    transform-origin: left center;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #888;
-    letter-spacing: 0.2em;
-  }
-  .frontier-table {
-    margin-top: 16px;
-    background: #0f0f0f;
-    color: #fafafa;
-  }
-  .frontier-row {
-    display: grid;
-    grid-template-columns: 60px 2fr 1fr 1fr 1fr;
+    padding-bottom: 14px;
     border-bottom: 1px solid #1f1f1f;
   }
-  .frontier-row.head {
-    background: #0a0a0a;
-  }
-  .frontier-row.head .fr-cell {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #ff6b35;
-    letter-spacing: 0.2em;
-    padding: 12px 14px;
-  }
-  .fr-cell {
-    padding: 12px 14px;
-    font-size: 12px;
-    color: #c0c0c0;
-    border-right: 1px solid #1f1f1f;
-  }
-  .fr-cell:last-child { border-right: none; }
-  .fr-cell.rank {
-    font-family: 'IBM Plex Mono', monospace;
-    color: #ff6b35;
-    font-weight: 600;
-  }
-  .fr-cell.score {
-    font-family: 'IBM Plex Mono', monospace;
-    color: #fff;
-    font-weight: 600;
-  }
-  .fr-cell.cost {
-    font-family: 'IBM Plex Mono', monospace;
-    color: #ffa580;
-  }
-  .fr-cell.value {
-    font-family: 'IBM Plex Mono', monospace;
-  }
-  .fr-cell.value.high { color: #66cc88; }
-  .fr-cell.value.mid { color: #ffcc66; }
-  .fr-cell.value.low { color: #ff7766; }
-
-  /* 论文引用块 */
-  .paper-block {
-    margin-top: 28px;
-    padding: 22px 26px;
-    background: #f0f0f0;
-    border-left: 4px solid #cc4d1a;
-  }
-  .paper-block p {
-    font-size: 13px;
-    line-height: 1.85;
-    color: #333;
-    margin-bottom: 8px;
-  }
-  .paper-block p strong { color: #cc4d1a; }
-  .paper-block .ref {
+  .agent-progress {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
-    color: #666;
-    margin-top: 10px;
-    letter-spacing: 0.05em;
+    color: #888;
+    letter-spacing: 0.2em;
+  }
+  .agent-progress strong { color: #00d4ff; }
+  .agent-btns {
+    display: flex;
+    gap: 8px;
+  }
+  .agent-btn {
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid #2a2a2a;
+    color: #888;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    font-family: 'Noto Sans SC', sans-serif;
+  }
+  .agent-btn:hover { border-color: #00d4ff; color: #00d4ff; }
+  .agent-btn.primary {
+    background: #00d4ff;
+    color: #0f0f0f;
+    border-color: #00d4ff;
+    font-weight: 600;
+  }
+  .agent-btn.primary:hover { background: #00b8e0; color: #0f0f0f; border-color: #00b8e0; }
+  .agent-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .agent-step {
+    padding: 16px 20px;
+    margin-bottom: 8px;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-left: 3px solid #2a2a2a;
+    opacity: 0.35;
+    transition: all 0.3s;
+  }
+  .agent-step.done {
+    opacity: 1;
+    border-left-color: #00d4ff;
+    background: #121212;
+  }
+  .agent-step.active {
+    opacity: 1;
+    border-left-color: #00d4ff;
+    background: rgba(0, 212, 255, 0.06);
+    box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.2);
+  }
+  .agent-step-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+  .agent-step-title {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fafafa;
+  }
+  .agent-step.done .agent-step-title { color: #00d4ff; }
+  .agent-step-tool {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.18em;
+  }
+  .agent-step-desc {
+    font-size: 12px;
+    color: #a0a0a0;
+    line-height: 1.85;
+    margin-bottom: 6px;
+  }
+  .agent-step-output {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #80d8ff;
+    background: #0a0a0a;
+    padding: 8px 12px;
+    border-left: 2px solid #00d4ff;
+    line-height: 1.75;
+    margin-top: 8px;
+  }
+  .agent-step-output .key { color: #fafafa; }
+
+  .agent-summary {
+    margin-top: 18px;
+    padding: 18px 22px;
+    background: rgba(0, 212, 255, 0.06);
+    border-left: 3px solid #00d4ff;
+    display: none;
+  }
+  .agent-summary.show { display: block; }
+  .agent-summary h5 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: #00d4ff;
+    margin-bottom: 10px;
+  }
+  .agent-summary p {
+    font-size: 13px;
+    line-height: 1.85;
+    color: #c0c0c0;
+  }
+  .agent-summary p strong { color: #00d4ff; }
+
+  /* 演示三：ROI 计算器 */
+  .roi-calc {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 24px;
+  }
+  .roi-inputs {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    padding: 28px;
+  }
+  .input-row {
+    margin-bottom: 18px;
+  }
+  .input-row:last-child { margin-bottom: 0; }
+  .input-row label {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .input-row .input-cn {
+    font-size: 13px;
+    color: #0f0f0f;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+  .input-row input[type="range"] {
+    width: 100%;
+    accent-color: #0099cc;
+  }
+  .input-row .value-display {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 18px;
+    color: #0099cc;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  .input-row .value-display .unit {
+    font-size: 12px;
+    color: #888;
+    font-weight: 400;
+    margin-left: 4px;
+  }
+
+  .roi-output {
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 32px;
+    border-left: 4px solid #00d4ff;
+  }
+  .roi-output h4 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    color: #00d4ff;
+    margin-bottom: 18px;
+  }
+  .roi-tiers {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .roi-tier {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    padding: 18px;
+    text-align: center;
+  }
+  .roi-tier.featured {
+    background: rgba(0, 212, 255, 0.08);
+    border-color: #00d4ff;
+  }
+  .roi-tier .tier-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 8px;
+  }
+  .roi-tier.featured .tier-name { color: #00d4ff; }
+  .roi-tier .tier-cn {
+    font-size: 12px;
+    color: #c0c0c0;
+    margin-bottom: 10px;
+  }
+  .roi-tier .tier-num {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 36px;
+    font-weight: 700;
+    color: #fafafa;
+    line-height: 1;
+  }
+  .roi-tier.featured .tier-num { color: #00d4ff; }
+  .roi-tier .tier-unit {
+    font-size: 14px;
+    color: #888;
+    font-weight: 400;
+  }
+
+  .roi-detail {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    padding: 18px 22px;
+  }
+  .roi-detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 6px 0;
+    border-bottom: 1px dotted #2a2a2a;
+  }
+  .roi-detail-row:last-child { border-bottom: none; }
+  .roi-detail-row .label {
+    font-size: 12px;
+    color: #a0a0a0;
+  }
+  .roi-detail-row .val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: #00d4ff;
+    font-weight: 600;
+  }
+  .roi-detail-row .val.warn { color: #ff9933; }
+
+  /* 演示四：成熟度自评 */
+  .maturity {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 24px;
+  }
+  .maturity-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .mat-dim {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    padding: 16px 22px;
+  }
+  .mat-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+  }
+  .mat-name {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f0f0f;
+  }
+  .mat-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #0099cc;
+    letter-spacing: 0.2em;
+  }
+  .mat-desc {
+    font-size: 12px;
+    color: #888;
+    line-height: 1.7;
+    margin-bottom: 10px;
+  }
+  .mat-levels {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+  .mat-level {
+    padding: 10px 6px;
+    background: #f8f8f8;
+    border: 1px solid #e0e0e0;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .mat-level:hover { background: #e8f6ff; border-color: #00d4ff; }
+  .mat-level.selected {
+    background: #00d4ff;
+    color: #0f0f0f;
+    border-color: #00d4ff;
+    font-weight: 600;
+  }
+  .mat-level .lvl-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 2px;
+  }
+  .mat-level .lvl-cn { color: #555; }
+  .mat-level.selected .lvl-cn { color: #0f0f0f; }
+
+  .mat-result {
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 28px 24px;
+    border-left: 4px solid #00d4ff;
+    height: fit-content;
+    position: sticky;
+    top: 80px;
+  }
+  .mat-result h4 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    color: #00d4ff;
+    margin-bottom: 14px;
+  }
+  .mat-score {
+    text-align: center;
+    margin-bottom: 18px;
+    padding: 20px 0;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+  }
+  .mat-score .num {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 54px;
+    font-weight: 700;
+    color: #00d4ff;
+    line-height: 1;
+  }
+  .mat-score .total {
+    font-size: 18px;
+    color: #888;
+  }
+  .mat-score .stage {
+    margin-top: 8px;
+    font-size: 13px;
+    color: #c0c0c0;
+  }
+  .mat-result .advice {
+    background: rgba(0, 212, 255, 0.06);
+    border-left: 2px solid #00d4ff;
+    padding: 12px 14px;
+    font-size: 12px;
+    line-height: 1.85;
+    color: #c0c0c0;
+  }
+  .mat-result .advice strong { color: #00d4ff; }
+  .mat-bar {
+    margin-top: 14px;
+  }
+  .mat-bar-row {
+    display: grid;
+    grid-template-columns: 60px 1fr 28px;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 11px;
+  }
+  .mat-bar-row .lbl { color: #888; }
+  .mat-bar-row .track {
+    height: 6px;
+    background: #1a1a1a;
+    position: relative;
+  }
+  .mat-bar-row .fill {
+    position: absolute;
+    inset: 0;
+    background: #00d4ff;
+    width: 0%;
+    transition: width 0.3s;
+  }
+  .mat-bar-row .v {
+    font-family: 'IBM Plex Mono', monospace;
+    color: #00d4ff;
+    text-align: right;
   }
 
   /* 总结 */
@@ -680,7 +664,7 @@
     padding: 56px;
     margin-bottom: 24px;
     border: 1px solid #1f1f1f;
-    border-left: 4px solid #ff6b35;
+    border-left: 4px solid #00d4ff;
     position: relative;
     overflow: hidden;
   }
@@ -689,8 +673,8 @@
     position: absolute;
     inset: 0;
     background:
-      linear-gradient(0deg, rgba(255, 107, 53, 0.02) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 107, 53, 0.02) 1px, transparent 1px);
+      linear-gradient(0deg, rgba(0, 212, 255, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 212, 255, 0.02) 1px, transparent 1px);
     background-size: 24px 24px;
     pointer-events: none;
   }
@@ -699,7 +683,7 @@
     font-size: 34px;
     font-weight: 700;
     margin-bottom: 22px;
-    color: #ff6b35;
+    color: #00d4ff;
     line-height: 1.15;
     position: relative;
   }
@@ -710,11 +694,11 @@
     color: #c0c0c0;
     position: relative;
   }
-  .summary p strong { color: #ff6b35; }
+  .summary p strong { color: #00d4ff; }
 
   .summary-quote {
-    background: rgba(255, 107, 53, 0.06);
-    border-left: 3px solid #ff6b35;
+    background: rgba(0, 212, 255, 0.06);
+    border-left: 3px solid #00d4ff;
     padding: 22px 28px;
     margin: 22px 0;
     font-family: 'IBM Plex Sans', sans-serif;
@@ -723,39 +707,6 @@
     color: #fafafa;
     font-weight: 500;
     position: relative;
-  }
-
-  .invest-map {
-    margin-top: 28px;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 14px;
-    position: relative;
-  }
-  .invest-card {
-    background: rgba(255, 107, 53, 0.05);
-    border: 1px solid rgba(255, 107, 53, 0.2);
-    padding: 22px 24px;
-  }
-  .invest-card .head {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    color: #ff6b35;
-    letter-spacing: 0.2em;
-    margin-bottom: 8px;
-  }
-  .invest-card .name {
-    font-family: 'IBM Plex Sans', sans-serif;
-    font-size: 18px;
-    font-weight: 700;
-    color: #fff;
-    margin-bottom: 10px;
-  }
-  .invest-card p {
-    font-size: 13px;
-    line-height: 1.75;
-    color: #c0c0c0;
-    margin: 0;
   }
 
   footer {
@@ -770,17 +721,12 @@
     border: 1px solid #1f1f1f;
   }
 
-  @media (max-width: 768px) {
+  @media (max-width: 900px) {
     h1 { font-size: 56px; }
     .section, .summary { padding: 28px 22px; }
-    .limit-grid { grid-template-columns: 1fr; }
-    .case-grid { grid-template-columns: 1fr; }
-    .question-pair { grid-template-columns: 1fr; }
-    .invest-map { grid-template-columns: 1fr; }
-    .frontier-row { grid-template-columns: 1fr; }
-    .heatmap-row, .heatmap-axis-top, .heatmap-axis-bottom { grid-template-columns: 80px 1fr; }
-    .row-cells { grid-template-columns: repeat(10, 1fr); }
-    .cell { height: 20px; font-size: 8px; }
+    .pipeline, .roi-calc, .maturity { grid-template-columns: 1fr; }
+    .roi-tiers { grid-template-columns: 1fr; }
+    .mat-levels { grid-template-columns: repeat(5, 1fr); font-size: 10px; }
   }
 </style>
 </head>
@@ -788,12 +734,12 @@
 <!-- 课程系列统一导航条 · 由脚本注入 -->
 <div id="course-nav-bar">
   <div class="course-nav-inner">
-    <a href="../lesson17/demo.html" class="course-nav-btn prev" title="AI安全与合规"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
+    <a href="../lesson17/demo.html" class="course-nav-btn prev" title="Claude Code 底层原理架构拆解"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
     <a href="../index.html" class="course-nav-center" title="回到课程总览">
-      <span class="nav-current">LESSON 18 / 20</span>
-      <span class="nav-title">当前 AI 的根本局限</span>
+      <span class="nav-current">LESSON 18 / 23</span>
+      <span class="nav-title">AI在 SaaS 交付中的应用全景</span>
     </a>
-    <a href="../lesson19/demo.html" class="course-nav-btn next" title="未来演进的几条路线"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
+    <a href="../lesson19/demo.html" class="course-nav-btn next" title="知识库工程化:从Demo到生产"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
   </div>
 </div>
 
@@ -915,812 +861,620 @@
 
 <div class="container">
   <header>
-    <div class="lesson-tag">LESSON 18 / 20 · PART 5 FUTURE</div>
-    <h1>THE <span class="light">HARD</span><br><span class="accent">LIMITS</span></h1>
-    <div class="h1-cn">当前 AI 的根本局限</div>
+    <div class="lesson-tag">LESSON 18 / 23</div>
+    <h1>AI ACROSS<br><span class="accent">SAAS DELIVERY</span></h1>
+    <div class="h1-cn">AI在 SaaS 交付中的应用全景</div>
     <div class="subtitle">
-      前面 17 讲我们一直在讲<strong>怎么用好 AI</strong>。第五部分换个视角——
-      讲讲 AI <strong>还不能做什么</strong>。不是泼冷水，而是让大家在投资决策里有一张
-      <strong>「局限地图」</strong>。今天把 2026 年大模型的能力天花板讲透——
-      幻觉、推理脆性、长上下文衰减、世界模型缺失、能耗、数据墙、对齐难题。
-      不吹不踩，<strong>用数据和论文说话</strong>。
+      第三部分讲完工程方法。第四部分要回到我们最熟悉的战场——
+      <strong>纷享销客 CRM 的真实交付生命周期</strong>，看一遍 AI 在售前、方案、实施、客户成功、客服、内部协同
+      <strong>六大场景</strong>里到底怎么落地、谁在领跑、ROI 范围多大、我们该投哪一档。
     </div>
   </header>
 
-  <!-- 第一节：七大局限概览 -->
+  <!-- 演示一：交付链路全景图 -->
   <div class="section">
-    <div class="section-marker">CHAPTER · 01 · OVERVIEW</div>
-    <div class="section-title">SEVEN <span class="accent">WALLS</span></div>
-    <div class="section-cn">2025-2026 年大模型的七堵墙</div>
+    <div class="section-marker">DEMO · 01</div>
+    <div class="section-title">DELIVERY <span class="accent">PIPELINE</span></div>
+    <div class="section-cn">交付链路全景图 · 点击 6 个阶段展开 AI 应用清单</div>
     <div class="section-lead">
-      过去三年模型能力跳跃式增长——MMLU 从 GPT-3 的 43% 涨到 Claude Opus 4.7 / GPT-5 的 90%+，
-      AIME 数学竞赛从 0 涨到 95%+。但<strong>有七个根本性问题至今没有彻底解决</strong>，
-      它们决定了"哪些场景能上 AI、哪些再等等"。先看全景。
+      从一条线索进来到客户续费，企业 SaaS 走过 6 个阶段。<strong>2025 年每个阶段都有成熟的 AI 工具进场</strong>，
+      但成熟度、ROI、踩坑难度完全不同。点击左侧节点，右侧看真实工具名 + ROI 区间。
     </div>
 
-    <div class="limit-grid">
-      <div class="limit-cell">
-        <div class="num">WALL · 01</div>
-        <div class="name">幻觉</div>
-        <div class="en">HALLUCINATION</div>
-        <p>模型会"自信地编造"——人物生平、数字、引用、合成名词。
-        <strong>这是结构性问题，不是工程 bug</strong>。Anthropic 2024 SAE 论文指出，
-        幻觉源自概率分布的固有特性，无法用更大模型彻底消除。</p>
+    <div class="pipeline">
+      <div class="pipeline-flow">
+        <div class="stage-node active" data-stage="0">
+          <div class="stage-head">
+            <div class="stage-name">售前线索</div>
+            <div class="stage-tag">STAGE 01</div>
+          </div>
+          <div class="stage-sub">ICP 匹配 / 自动外联 / SDR Agent</div>
+        </div>
+        <div class="stage-node" data-stage="1">
+          <div class="stage-head">
+            <div class="stage-name">方案 & 报价</div>
+            <div class="stage-tag">STAGE 02</div>
+          </div>
+          <div class="stage-sub">自动出方案 / 配置 BoM / 智能定价</div>
+        </div>
+        <div class="stage-node" data-stage="2">
+          <div class="stage-head">
+            <div class="stage-name">实施交付</div>
+            <div class="stage-tag">STAGE 03</div>
+          </div>
+          <div class="stage-sub">需求提取 / 配置自动生成 / UAT</div>
+        </div>
+        <div class="stage-node" data-stage="3">
+          <div class="stage-head">
+            <div class="stage-name">客户成功</div>
+            <div class="stage-tag">STAGE 04</div>
+          </div>
+          <div class="stage-sub">健康分 / 续约预测 / 流失预警</div>
+        </div>
+        <div class="stage-node" data-stage="4">
+          <div class="stage-head">
+            <div class="stage-name">客服支持</div>
+            <div class="stage-tag">STAGE 05</div>
+          </div>
+          <div class="stage-sub">工单分配 / 回答推荐 / 自助解决</div>
+        </div>
+        <div class="stage-node" data-stage="5">
+          <div class="stage-head">
+            <div class="stage-name">内部协同</div>
+            <div class="stage-tag">STAGE 06</div>
+          </div>
+          <div class="stage-sub">销售教练 / 会话智能 / 复盘自动化</div>
+        </div>
       </div>
-      <div class="limit-cell">
-        <div class="num">WALL · 02</div>
-        <div class="name">推理脆性</div>
-        <div class="en">REASONING BRITTLENESS</div>
-        <p>GSM-8K 改一个无关数字，准确率掉 25%。
-        <strong>模型在做"模式匹配"，不是真正的逻辑推理</strong>。
-        Apple GSM-Symbolic（2024.10）系统性证明了这一点。</p>
-      </div>
-      <div class="limit-cell">
-        <div class="num">WALL · 03</div>
-        <div class="name">长上下文衰减</div>
-        <div class="en">LONG CONTEXT DECAY</div>
-        <p>Claude 200K / Gemini 2M 是<strong>名义窗口</strong>。
-        信息埋在中间位置时召回率显著下降——"Lost in the Middle"。
-        RULER benchmark 显示真实可用容量约为名义的 40-60%。</p>
-      </div>
-      <div class="limit-cell">
-        <div class="num">WALL · 04</div>
-        <div class="name">世界模型缺失</div>
-        <div class="en">NO GROUNDED WORLD MODEL</div>
-        <p>LLM 不知道"杯子从桌上掉下来会怎样"。
-        <strong>缺少物理直觉、因果链、空间认知</strong>。
-        Yann LeCun 的 JEPA 路线正是要解决这一根本缺陷。</p>
-      </div>
-      <div class="limit-cell">
-        <div class="num">WALL · 05</div>
-        <div class="name">能耗 / 推理成本</div>
-        <div class="en">COMPUTE &amp; ENERGY</div>
-        <p>训练 GPT-4 估算 $100M+，单 query 推理成本在前沿模型上不便宜。
-        <strong>北美电网已成瓶颈</strong>——Microsoft 重启三里岛核电站，
-        Meta / Amazon 自建核反应堆。</p>
-      </div>
-      <div class="limit-cell">
-        <div class="num">WALL · 06</div>
-        <div class="name">数据墙</div>
-        <div class="en">DATA WALL</div>
-        <p>Epoch AI 估算高质量公开文本 2026-2028 年耗尽。
-        <strong>合成数据有 Model Collapse 风险</strong>——
-        用 AI 生成的数据训练 AI，几代之后分布坍塌。</p>
-      </div>
-      <div class="limit-cell">
-        <div class="num">WALL · 07</div>
-        <div class="name">对齐难题</div>
-        <div class="en">ALIGNMENT &amp; INTERPRETABILITY</div>
-        <p>RLHF 可能导致"伪对齐"——模型学会"看起来听话"。
-        Anthropic Sleeper Agents（2024.1）证明<strong>欺骗性对齐可以隐藏在权重里</strong>，
-        无法被现有方法发现。</p>
-      </div>
-      <div class="limit-cell" style="border-left-color: #cc4d1a; background: linear-gradient(135deg, #fff 0%, #fff5f0 100%);">
-        <div class="num" style="color: #cc4d1a;">WALL · 08 · 综合表现</div>
-        <div class="name">能力 vs 可靠性鸿沟</div>
-        <div class="en">DEMO 99% vs PROD 60%</div>
-        <p>所有上面的问题叠加，导致了那个著名现象——
-        <strong>Demo 99% 准确率，生产环境永远卡在 60%</strong>。
-        长尾问题不收敛是当下 AI 商业化最大的隐痛。</p>
+
+      <div class="stage-detail" id="stageDetail">
       </div>
     </div>
   </div>
 
-  <!-- 演示一：幻觉触发实验 -->
+  <!-- 演示二：售前 Agent 工作流 -->
   <div class="section dark">
-    <div class="section-marker">CHAPTER · 02 · DEMO ONE</div>
-    <div class="section-title" style="color: #fafafa;">DEMO 1 · <span class="accent">HALLUCINATION</span></div>
-    <div class="section-cn" style="color: #fafafa;">幻觉触发实验——四个真实失败案例</div>
+    <div class="section-marker">DEMO · 02</div>
+    <div class="section-title" style="color: #fafafa;">SDR <span class="accent">AGENT</span> RUN</div>
+    <div class="section-cn" style="color: #fafafa;">售前 AI Agent 工作流 · 一条线索从匹配到 MQL 的完整 6 步</div>
     <div class="section-lead">
-      口说无凭，看四类典型幻觉。我用前沿模型（Claude Opus 4.7 / GPT-5 / Gemini 3）
-      在 2025 年底实际跑过的提示——<strong>同一类失败模式在所有模型上都能复现</strong>。
-      点击切换案例，看模型的典型回答 vs 真实答案。
+      看一遍 11x.ai / Artisan / Clay 这类售前 Agent 实际跑一条线索时背后做了什么。
+      <strong>点"下一步"逐步播放</strong>，每一步的工具调用、输入输出、耗时都看得见。
     </div>
 
-    <div class="hallucination-demo">
-      <div class="case-tabs">
-        <button class="case-btn active" data-case="0">CASE 01 · 冷门人物</button>
-        <button class="case-btn" data-case="1">CASE 02 · 未发生事件</button>
-        <button class="case-btn" data-case="2">CASE 03 · 数字精度</button>
-        <button class="case-btn" data-case="3">CASE 04 · 合成名词</button>
+    <div class="agent-flow">
+      <div class="agent-controls">
+        <div class="agent-progress">PROGRESS: <strong id="agentProgress">0 / 6</strong></div>
+        <div class="agent-btns">
+          <button class="agent-btn" id="agentReset">重置</button>
+          <button class="agent-btn primary" id="agentNext">下一步 ▸</button>
+        </div>
       </div>
 
-      <div class="case-panel" id="casePanel">
-      </div>
+      <div id="agentSteps"></div>
 
-      <div style="margin-top: 22px; padding: 18px 22px; background: rgba(255, 107, 53, 0.05); border-left: 3px solid #ff6b35; color: #c0c0c0;">
-        <p style="font-size: 13px; line-height: 1.85;">
-          <strong style="color: #ff6b35;">为什么这是结构性问题？</strong>
-          LLM 本质是<strong style="color: #ff6b35;">下一个 token 的概率分布</strong>——
-          它优化的是"什么文本看起来合理"，不是"什么文本是真的"。
-          当训练数据里没有某个事实时，模型不会说"我不知道"，
-          它会按统计规律<strong style="color: #ff6b35;">编一个看起来合理的</strong>。
-          这是架构决定的，不是工程 bug。
+      <div class="agent-summary" id="agentSummary">
+        <h5>▼ RUN SUMMARY</h5>
+        <p>
+          <strong>耗时</strong>：累计 18.4 秒（人工同类任务约 35-45 分钟）。
+          <strong>消耗</strong>：约 12,400 tokens，成本 ¥0.52。
+          <strong>产出</strong>：1 条 MQL，已自动同步到纷享销客 CRM，分配给 AE 李娜。
+          这就是 2025 年「Autopilot」级别的售前自动化——AI 不只是辅助，它<strong>完整跑完了一段业务流程</strong>。
         </p>
       </div>
     </div>
-
-    <div class="paper-block" style="background: #1a1a1a; border-left-color: #ff6b35;">
-      <p style="color: #c0c0c0;"><strong style="color: #ff6b35;">参考研究</strong>：
-        <strong style="color: #ff6b35;">SelfCheckGPT</strong>（Manakul et al., EMNLP 2023）让模型多次采样回答，
-        如果回答间不一致，就是幻觉的强信号。<strong style="color: #ff6b35;">FACTSCORE</strong>（Min et al., EMNLP 2023）
-        把生成文本拆成原子事实，逐条用维基百科验证。
-        <strong style="color: #ff6b35;">Anthropic Interpretability</strong>（2024 SAE 论文）通过稀疏自动编码器
-        发现模型内部确实有"虚构特征"在被激活。</p>
-      <p class="ref">refs: Manakul et al. 2023 / Min et al. 2023 / Templeton et al. 2024 (Anthropic)</p>
-    </div>
   </div>
 
-  <!-- 演示二：GSM-Symbolic 推理脆性 -->
-  <div class="section">
-    <div class="section-marker">CHAPTER · 03 · DEMO TWO</div>
-    <div class="section-title">DEMO 2 · <span class="accent">BRITTLE REASONING</span></div>
-    <div class="section-cn">GSM-Symbolic——把数字改一改，准确率就崩了</div>
-    <div class="section-lead">
-      Apple 2024 年 10 月发了一篇引爆社区的论文《GSM-Symbolic: Understanding the Limitations of
-      Mathematical Reasoning in LLMs》。<strong>核心发现：把 GSM-8K 题目里的数字、名字、无关条款换一换，
-      所有主流大模型准确率都显著下降</strong>。下面是这个发现的可玩复现。
-    </div>
-
-    <div class="reasoning-demo">
-      <div class="reasoning-controls">
-        <div class="slider-wrap">
-          <div class="slider-label">
-            <span>扰动强度 · PERTURBATION LEVEL</span>
-            <span class="val" id="pertVal">L1 · 改数字</span>
-          </div>
-          <input type="range" id="pertSlider" min="0" max="4" value="1" step="1">
-        </div>
-      </div>
-
-      <div class="question-pair">
-        <div class="q-card original">
-          <div class="head">▸ ORIGINAL · 原题</div>
-          <div class="text" id="qOrig">
-            Liam 周一摘了 <span class="changed">44</span> 个猕猴桃，周二摘了 <span class="changed">58</span> 个。
-            周三摘的猕猴桃比周一的两倍少 <span class="changed">2</span> 个。
-            其中有 <span class="changed">5</span> 个猕猴桃比平均大小要小一点。
-            Liam 一共摘了多少个猕猴桃？
-          </div>
-        </div>
-        <div class="q-card perturbed">
-          <div class="head">▸ PERTURBED · 扰动版</div>
-          <div class="text" id="qPert">
-            Liam 周一摘了 <span class="changed">44</span> 个猕猴桃，周二摘了 <span class="changed">58</span> 个。
-            周三摘的猕猴桃比周一的两倍少 <span class="changed">2</span> 个。
-            其中有 <span class="changed">5</span> 个猕猴桃比平均大小要小一点。
-            Liam 一共摘了多少个猕猴桃？
-          </div>
-        </div>
-      </div>
-
-      <div class="accuracy-chart">
-        <div class="chart-y-label">ACCURACY %</div>
-        <div class="bars">
-          <div class="bar-group">
-            <div class="bar original" style="height: 95%;"><div class="pct">95%</div></div>
-            <div class="bar-label">GPT-4o · 原题</div>
-          </div>
-          <div class="bar-group">
-            <div class="bar" id="b-gpt4o" style="height: 78%;"><div class="pct" id="p-gpt4o">78%</div></div>
-            <div class="bar-label">GPT-4o · 扰动</div>
-          </div>
-          <div class="bar-group">
-            <div class="bar original" style="height: 96%;"><div class="pct">96%</div></div>
-            <div class="bar-label">Claude · 原题</div>
-          </div>
-          <div class="bar-group">
-            <div class="bar" id="b-claude" style="height: 82%;"><div class="pct" id="p-claude">82%</div></div>
-            <div class="bar-label">Claude · 扰动</div>
-          </div>
-          <div class="bar-group">
-            <div class="bar original" style="height: 70%;"><div class="pct">70%</div></div>
-            <div class="bar-label">小开源 · 原题</div>
-          </div>
-          <div class="bar-group">
-            <div class="bar" id="b-small" style="height: 45%;"><div class="pct" id="p-small">45%</div></div>
-            <div class="bar-label">小开源 · 扰动</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="reasoning-conclusion" id="reasonConclusion">
-        <strong>L1 · 改数字</strong>——把 44/58/2/5 改成 71/29/3/7。
-        准确率轻微下降（GPT-4o 95% → 78%，约 -17pp）。
-        这说明<strong>模型对具体数值有"记忆偏好"</strong>——某些数字组合在训练数据里出现过。
-      </div>
-    </div>
-
-    <div class="paper-block">
-      <p><strong>Apple GSM-Symbolic（Mirzadeh et al., 2024.10）的关键结论</strong>：
-        ① 所有主流 LLM 在符号化扰动下准确率都下降；
-        ② 加入「看起来相关但实际无关」的句子（如"其中 X 个比平均小"），
-        所有模型准确率下降 <strong>17.5% 到 65.7%</strong>；
-        ③ 模型大小不能完全弥补这一脆性——<strong>规模法则在推理上有边际递减</strong>。</p>
-      <p><strong>这给商业落地的启示</strong>：如果你的场景里输入数据有变化、有噪音、有"看起来无关的部分"——
-        模型的真实可靠性会显著低于 benchmark 分数。这就是为什么 <strong>OpenAI o1/o3 的"推理时计算"路线</strong>
-        （让模型多想几遍、做自我检查）能在这种 benchmark 上拿高分——
-        但单次推理成本翻 10-100 倍。</p>
-      <p class="ref">refs: Mirzadeh et al. 2024 (Apple) / ARC-AGI Prize 2024 Final Report / OpenAI o3 system card 2024.12</p>
-    </div>
-  </div>
-
-  <!-- 演示三：长上下文衰减 -->
-  <div class="section dark">
-    <div class="section-marker">CHAPTER · 04 · DEMO THREE</div>
-    <div class="section-title" style="color: #fafafa;">DEMO 3 · <span class="accent">LOST IN THE MIDDLE</span></div>
-    <div class="section-cn" style="color: #fafafa;">长上下文衰减——200K / 2M 窗口的真实可用部分</div>
-    <div class="section-lead">
-      Anthropic 宣传 Claude 200K 窗口，Google 宣传 Gemini 2M 窗口。
-      但<strong>"装得下"不等于"能用上"</strong>。Liu et al. 2023 的 "Lost in the Middle" 揭示了
-      一个反直觉现象：信息<strong>埋在开头和结尾时召回率最高，埋在中间时最低</strong>。
-      下面是 100K token 文档里，把同一个关键事实埋在不同位置时，各家模型的召回率热力图。
-    </div>
-
-    <div class="context-demo">
-      <div class="context-meta">
-        <span>DOC LENGTH: <strong>100,000 tokens</strong></span>
-        <span>NEEDLE TYPE: <strong>specific fact</strong></span>
-        <span>QUESTIONS: <strong>10 positions × 5 models</strong></span>
-        <span>BENCHMARK: <strong>NIAH 2.0 / RULER</strong></span>
-      </div>
-
-      <div class="heatmap-wrap">
-        <div class="heatmap-axis-top">
-          <div></div>
-          <div class="x-label">关键信息埋入位置（文档开头 → 结尾）</div>
-        </div>
-        <div id="heatmap"></div>
-        <div class="heatmap-axis-bottom">
-          <div></div>
-          <div class="x-ticks">
-            <span>5%</span><span>15%</span><span>25%</span><span>35%</span><span>45%</span>
-            <span>55%</span><span>65%</span><span>75%</span><span>85%</span><span>95%</span>
-          </div>
-        </div>
-        <div class="heatmap-legend">
-          <span>LOW</span>
-          <div class="legend-bar"></div>
-          <span>HIGH</span>
-          <span style="margin-left: 20px;">RECALL ACCURACY %</span>
-        </div>
-      </div>
-
-      <div class="context-summary">
-        <strong>三个关键观察</strong>：
-        ① <strong>U 型曲线无处不在</strong>——所有模型都是两端高、中间低，与 Liu 2023 论文吻合；
-        ② <strong>Gemini 2M 在 100K 已显著衰减</strong>——名义 2M ≠ 可用 2M；
-        ③ <strong>Claude Opus 4.7 表现最稳</strong>，但 50% 位置仍掉到 70% 左右。
-        <br><br>
-        <strong>对工程的启示</strong>：长文档场景<strong>不要指望"全塞进去就行"</strong>——
-        要做 RAG 切片、要把关键信息放头尾、要做多轮交叉提问验证。
-        把核心条款（如合同关键条款）<strong>显式放在文档开头</strong>而不是埋在中间。
-      </div>
-    </div>
-
-    <div class="paper-block" style="background: #1a1a1a; border-left-color: #ff6b35;">
-      <p style="color: #c0c0c0;">
-        <strong style="color: #ff6b35;">RULER benchmark</strong>（Hsieh et al., 2024）是当前最严肃的长上下文测评——
-        它定义了 13 个任务（多文档检索、变量追踪、聚合等），测出 Claude / Gemini / GPT 等的
-        <strong style="color: #ff6b35;">真实可用上下文都远小于宣传值</strong>。
-        例如 Claude 3.5 Sonnet 宣传 200K，RULER 测下来"有效上下文"约 64K——超过这个长度后性能急速下降。
-      </p>
-      <p class="ref" style="color: #888;">refs: Liu et al. 2023 (Lost in the Middle) / Hsieh et al. 2024 (RULER) / Greg Kamradt's NIAH 2024</p>
-    </div>
-  </div>
-
-  <!-- 演示四：能力 vs 成本前沿曲线 -->
-  <div class="section">
-    <div class="section-marker">CHAPTER · 05 · DEMO FOUR</div>
-    <div class="section-title">DEMO 4 · <span class="accent">PARETO FRONTIER</span></div>
-    <div class="section-cn">能力 vs 成本前沿——一张图看清主流模型的真实位置</div>
-    <div class="section-lead">
-      最后一个演示——把 2026 年初最强的 8 个前沿模型放到同一张「能力-成本」散点图上。
-      X 轴是 <strong>$ / 1M output tokens</strong>，Y 轴是基准任务得分。
-      切换不同任务（推理 / 长文本 / 多模态）<strong>排名会完全变样</strong>——
-      没有"最强模型"，只有"在特定任务+特定预算下最优的模型"。
-    </div>
-
-    <div class="frontier-demo">
-      <div class="frontier-controls">
-        <button class="task-btn active" data-task="reason">REASONING · AIME / GPQA</button>
-        <button class="task-btn" data-task="longctx">LONG CONTEXT · RULER</button>
-        <button class="task-btn" data-task="multi">MULTIMODAL · MMMU</button>
-        <button class="task-btn" data-task="cost">COST EFFICIENCY · 性价比</button>
-      </div>
-
-      <div class="frontier-chart" id="frontierChart">
-        <div class="axis-label-x">COST / 1M OUTPUT TOKENS (USD)</div>
-        <div class="axis-label-y">BENCHMARK SCORE %</div>
-      </div>
-
-      <div class="frontier-table" id="frontierTable">
-      </div>
-    </div>
-
-    <div class="paper-block">
-      <p><strong>这张图想说的三件事</strong>：
-        ① <strong>没有银弹</strong>——前沿模型各有所长，Claude Opus 4.7 推理强但贵，
-        Gemini 3 Pro 多模态和长文本好，DeepSeek V3 / o3-mini 性价比高；
-        ② <strong>"前沿曲线"在每个任务上都不一样</strong>——
-        做需求提取选 Claude，做合同审阅可能要 Gemini 长文本，做客服可以用 DeepSeek 节约成本；
-        ③ <strong>2024-2026 价格暴跌</strong>——
-        GPT-4 上线时单 query 几美元，现在同等能力 1 美分以下。但<strong>前沿模型价格在重新上涨</strong>，
-        因为推理时计算需要的算力越来越多。</p>
-      <p><strong>实际选型决策框架</strong>：
-        ① <strong>先定任务</strong>——你的核心场景是什么？②
-        <strong>再定 SLA</strong>——准确率要求多高、延迟要求多快、单次成本上限多少；
-        ③ <strong>对比前沿</strong>——只看符合 SLA 的模型，从中选最便宜的。
-        <strong>不要被"最强"营销词裹挟</strong>，跑过你自己的评估集才是真的。</p>
-      <p class="ref">价格数据来源：各家 API 官网公开报价（2026.01）；benchmark 数据来源：vellum.ai / Artificial Analysis / 厂商 system card</p>
-    </div>
-  </div>
-
-  <!-- 第六节：综合结论 · 能力 vs 可靠性鸿沟 -->
+  <!-- 演示三：ROI 计算器 -->
   <div class="section tinted">
-    <div class="section-marker">CHAPTER · 06 · SYNTHESIS</div>
-    <div class="section-title">THE <span class="accent">99-TO-60</span> GAP</div>
-    <div class="section-cn">能力 vs 可靠性的鸿沟——Demo 99% 为什么生产 60%</div>
+    <div class="section-marker">DEMO · 03</div>
+    <div class="section-title">CRM IMPLEMENTATION <span class="accent">ROI</span></div>
+    <div class="section-cn">CRM 实施环节 ROI 计算器 · 拖一拖看 AI 介入能省多少</div>
     <div class="section-lead">
-      所有局限叠加起来，形成了 AI 商业化最大的隐痛——
-      <strong>Demo 阶段 99% 准确率，进入生产环境永远卡在 60%</strong>。
-      不是工程师不够努力，是<strong>长尾分布的本质问题</strong>。
+      实施是 CRM 厂商最重的活——一个中型项目动辄 80-200 人天，毛利稀薄。
+      <strong>调下面参数</strong>，看保守/中性/激进三档下 AI 介入后的节省幅度，输出三档分别对应的"该投到什么程度"。
     </div>
 
-    <div style="margin-top: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-      <div style="background: #fff; border: 1px solid #e8e8e8; padding: 28px;">
-        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #cc4d1a; letter-spacing: 0.2em; margin-bottom: 10px;">DEMO 99% · 演示阶段</div>
-        <p style="font-size: 14px; line-height: 1.85; color: #555;">
-          <strong style="color: #0f0f0f;">Demo 阶段你做了什么？</strong>
-          挑了 10 个典型用户场景，每个都跑通了，准确率看起来 95%+。
-          客户被惊艳，老板拍板买单。一切完美。
-        </p>
-        <p style="font-size: 14px; line-height: 1.85; color: #555; margin-top: 10px;">
-          <strong style="color: #0f0f0f;">为什么这么准？</strong>
-          因为你<strong style="color: #cc4d1a;">挑的都是典型分布里的高频 case</strong>——
-          就是模型在训练数据里见过最多的那一段，召回最好、推理最稳、幻觉最少。
-        </p>
+    <div class="roi-calc">
+      <div class="roi-inputs">
+        <div class="input-row">
+          <label>PROJECT MAN-DAYS</label>
+          <div class="input-cn">项目人天（实施 + 顾问）</div>
+          <input type="range" id="inMandays" min="40" max="400" value="120" step="10">
+          <div class="value-display"><span id="vMandays">120</span><span class="unit">人天</span></div>
+        </div>
+        <div class="input-row">
+          <label>DAY RATE</label>
+          <div class="input-cn">人天单价（含税）</div>
+          <input type="range" id="inRate" min="1500" max="6000" value="2800" step="100">
+          <div class="value-display">¥ <span id="vRate">2800</span><span class="unit">/ 人天</span></div>
+        </div>
+        <div class="input-row">
+          <label>CUSTOMER COUNT</label>
+          <div class="input-cn">年度交付客户数</div>
+          <input type="range" id="inCust" min="10" max="200" value="40" step="5">
+          <div class="value-display"><span id="vCust">40</span><span class="unit">家</span></div>
+        </div>
+        <div class="input-row">
+          <label>AI INVEST</label>
+          <div class="input-cn">AI 工具年度投入（含 token + 平台）</div>
+          <input type="range" id="inInvest" min="20" max="300" value="80" step="10">
+          <div class="value-display"><span id="vInvest">80</span><span class="unit">万 / 年</span></div>
+        </div>
       </div>
-      <div style="background: #fff; border: 1px solid #e8e8e8; padding: 28px;">
-        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #ff6b35; letter-spacing: 0.2em; margin-bottom: 10px;">PROD 60% · 生产环境</div>
-        <p style="font-size: 14px; line-height: 1.85; color: #555;">
-          <strong style="color: #0f0f0f;">真实用户来了之后呢？</strong>
-          每天 1000 个 query，长尾里全是奇形怪状的 case——
-          错别字、行业黑话、嵌套引用、上下文断裂、罕见格式、对抗性提问。
-        </p>
-        <p style="font-size: 14px; line-height: 1.85; color: #555; margin-top: 10px;">
-          <strong style="color: #0f0f0f;">这些长尾 case 触发了什么？</strong>
-          幻觉、推理脆性、长上下文衰减——<strong style="color: #ff6b35;">前面讲的所有 7 堵墙都在长尾里集中爆发</strong>。
-          准确率从 99% 跌到 60%，永远卡在那里。
-        </p>
+
+      <div class="roi-output">
+        <h4>▼ 三档 ROI 测算</h4>
+        <div class="roi-tiers">
+          <div class="roi-tier">
+            <div class="tier-name">CONSERVATIVE</div>
+            <div class="tier-cn">保守档</div>
+            <div class="tier-num"><span id="vSaveLow">--</span><span class="tier-unit">%</span></div>
+          </div>
+          <div class="roi-tier featured">
+            <div class="tier-name">MODERATE</div>
+            <div class="tier-cn">中性档（推荐）</div>
+            <div class="tier-num"><span id="vSaveMid">--</span><span class="tier-unit">%</span></div>
+          </div>
+          <div class="roi-tier">
+            <div class="tier-name">AGGRESSIVE</div>
+            <div class="tier-cn">激进档</div>
+            <div class="tier-num"><span id="vSaveHigh">--</span><span class="tier-unit">%</span></div>
+          </div>
+        </div>
+
+        <div class="roi-detail">
+          <div class="roi-detail-row">
+            <span class="label">原始年度交付成本</span>
+            <span class="val">¥ <span id="vCostBase">--</span> 万</span>
+          </div>
+          <div class="roi-detail-row">
+            <span class="label">中性档节省（人力）</span>
+            <span class="val">¥ <span id="vSaveAbs">--</span> 万 / 年</span>
+          </div>
+          <div class="roi-detail-row">
+            <span class="label">扣除 AI 投入后净收益</span>
+            <span class="val">¥ <span id="vNet">--</span> 万 / 年</span>
+          </div>
+          <div class="roi-detail-row">
+            <span class="label">投入回收期</span>
+            <span class="val" id="vPaybackEl">--</span>
+          </div>
+          <div class="roi-detail-row">
+            <span class="label">建议</span>
+            <span class="val" id="vAdvice" style="font-size: 12px;">--</span>
+          </div>
+        </div>
       </div>
     </div>
+  </div>
 
-    <div style="margin-top: 24px; padding: 26px 30px; background: #0f0f0f; color: #fafafa; border-left: 4px solid #ff6b35;">
-      <p style="font-size: 14px; line-height: 1.9;">
-        <strong style="color: #ff6b35;">为什么"再优化一点"也不收敛？</strong>
-        因为长尾的厚度比你想象的厚得多。Power law 分布下，
-        优化 Top 10% 的 case 容易，<strong style="color: #ff6b35;">边际成本从第 11% 开始陡升</strong>——
-        从 60% 到 70% 准确率，可能要做 3 个月；从 70% 到 80%，可能要 1 年；
-        从 80% 到 90%，可能根本做不到（除非模型本身突破）。
-      </p>
-      <p style="font-size: 14px; line-height: 1.9; margin-top: 12px;">
-        <strong style="color: #ff6b35;">这就是为什么大量 AI 项目陷入"60% 死循环"</strong>——
-        准确率上不去、人工兜底成本下不来、ROI 算不正、最后悄无声息下线。
-        前面 14 讲教大家的所有工程手段（评估、Trace、Prompt 优化、RAG、Agent）都是<strong style="color: #ff6b35;">在 60-90% 这个区间提升效率</strong>，
-        但<strong style="color: #ff6b35;">没有任何工程手段能突破模型本身的能力天花板</strong>。
-      </p>
+  <!-- 演示四：成熟度自评 -->
+  <div class="section">
+    <div class="section-marker">DEMO · 04</div>
+    <div class="section-title">AI <span class="accent">MATURITY</span> SELF-CHECK</div>
+    <div class="section-cn">AI 应用成熟度自评 · 6 维 × 5 档，对照下一步该投哪里</div>
+    <div class="section-lead">
+      回到我们自己。对纷享销客（或任何企业级 SaaS）当前 AI 落地状态做一次结构化体检——
+      <strong>数据 / 流程 / 组织 / 技术 / 治理 / 文化</strong>六个维度，每个 5 档。
+      右侧实时给出总分 + 该投哪一档的建议。
+    </div>
+
+    <div class="maturity">
+      <div class="maturity-grid" id="matGrid">
+      </div>
+
+      <div class="mat-result">
+        <h4>▼ 总分 & 下一步</h4>
+        <div class="mat-score">
+          <span class="num" id="matScore">0</span><span class="total"> / 30</span>
+          <div class="stage" id="matStage">尚未选择任何维度</div>
+        </div>
+
+        <div class="mat-bar" id="matBars"></div>
+
+        <div class="advice" id="matAdvice" style="margin-top: 14px;">
+          点选 6 个维度后，这里会给出针对性建议。
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- 总结 -->
   <div class="summary">
-    <div class="section-marker" style="color: #ff6b35;">RECAP · 局限地图</div>
-    <h3>核心收束 · 这是地图，不是泼冷水</h3>
+    <div class="section-marker" style="color: #00d4ff;">RECAP</div>
+    <h3>核心收束 · CRM 厂商的护城河变了</h3>
 
     <p>
-      这一讲不是要让大家对 AI 失望——
-      <strong>恰恰相反，是要让大家在 AI 投资决策里有"局限地图"</strong>。
-      知道哪些场景能上、哪些再等一等、哪些干脆不上，才是成熟的认知。
+      过去 SaaS 厂商比的是<strong>功能广度</strong>——谁的字段多、谁的报表灵活、谁的工作流好画。
+      <strong>2025 年这个标尺失效了</strong>——Salesforce Agentforce、HubSpot Breeze、纷享销客也在补 AI。
+      所有人都在抢同一张牌：<strong>用 AI 把客户的业务流程跑起来</strong>。
     </p>
 
     <div class="summary-quote">
-      "盲目乐观和盲目悲观一样有害。<br>
-      地图不是为了让你不走，是为了让你知道哪里有坑。"
+      "AI 时代，CRM 厂商的护城河不再是功能。<br>
+      是<strong style="color: #fff;">数据飞轮</strong>加<strong style="color: #fff;">行业沉淀</strong>。"
     </div>
 
     <p>
-      <strong>七堵墙再过一遍</strong>——
-      幻觉是<strong>结构性</strong>的（不是工程 bug）；推理是<strong>脆性</strong>的（GSM-Symbolic 给的实证）；
-      长上下文是<strong>名义大于实际</strong>的（RULER 测出真实容量约 40-60%）；
-      世界模型是<strong>缺失</strong>的（物理直觉、空间认知）；
-      能耗是<strong>有天花板</strong>的（电网瓶颈）；
-      数据是<strong>有墙的</strong>（高质量文本 2026-2028 耗尽）；
-      对齐是<strong>未解的难题</strong>（Sleeper Agents 风险）。
+      <strong>数据飞轮</strong>——用户用得越多，AI 越懂这个行业的需求、对话、异议、决策路径。
+      纷享销客在快消、地产、SaaS 行业 12 年的数据，是 Salesforce 学不到的。
+      <strong>行业沉淀</strong>——配置模板、最佳实践、行业话术、ROI 模型——这些是 GPT 永远训练不出来的。
     </p>
 
     <p>
-      <strong>但我们也必须承认事实的另一面</strong>——
-      就算有这七堵墙，AI 在<strong>对应它能力分布的核心区</strong>已经能创造巨大价值。
-      销售助手、客服、内容生成、需求提取、文档摘要、代码辅助——
-      这些有人在监督、有兜底、可重做的场景里，AI 已经实实在在地改变生产关系。
+      <strong>对我们项目最实用的 4 条决策建议</strong>：
+      ① <strong>优先实施 + 客户成功</strong>——这两个环节我们最痛、ROI 最直接；
+      ② <strong>售前用 SDR Agent 做增量</strong>——别和销售抢饭吃，做"原本不会做"的扩张；
+      ③ <strong>客服上自助解决 60% 是底线</strong>——Intercom Fin 行业基准是 72%，我们目标 60% 起；
+      ④ <strong>内部协同（会话智能）当作管理工具</strong>——不是 AI 替代销售，是让一线 Top 经验沉淀到全员。
     </p>
 
-    <div class="invest-map">
-      <div class="invest-card">
-        <div class="head">▸ 能上 · GO</div>
-        <div class="name">高频场景 + 有人监督</div>
-        <p>客服辅助、销售提示、文档摘要、需求提取、代码补全、内容初稿——
-        AI 给候选，人最终决策，<strong>有兜底机制</strong>。</p>
-      </div>
-      <div class="invest-card">
-        <div class="head">▸ 慎重 · CAUTIOUS</div>
-        <div class="name">中频场景 + 流程化</div>
-        <p>合同审阅、医疗辅助诊断、金融研报——
-        必须有<strong>结构化兜底</strong>（规则、二次审核、人工抽样），
-        不能把"信任"建立在 AI 上。</p>
-      </div>
-      <div class="invest-card">
-        <div class="head">▸ 等等 · WAIT</div>
-        <div class="name">高风险 + 长尾密集</div>
-        <p>无人驾驶、自主交易、医疗自动诊断、法律自动判决——
-        长尾密集且单次失败代价巨大，<strong>2026 的 AI 还不到</strong>。</p>
-      </div>
-    </div>
-
-    <p style="margin-top: 22px;">
-      <strong>下一讲我们换个视角</strong>——
-      讲讲<strong>这些局限正在怎么被突破</strong>。OpenAI o3 的推理时计算、
-      Anthropic 的可解释性、LeCun 的 JEPA、世界模型、Embodied AI、合成数据新方法、
-      Mamba / SSM 新架构……<strong>未来 2-5 年 AI 还能走到哪</strong>，
-      我们一条一条讲清楚。
-    </p>
-
-    <p style="font-size: 17px; font-weight: 600; color: #ff6b35; margin-top: 24px;">
-      ▸ 下一讲：第19讲｜未来演进的几条路线
+    <p>
+      下一讲我们走进<strong>知识库工程化</strong>。我们这一年踩的所有坑——文档预处理、切片策略、混合检索、Reranker、Trace
+      ——都会一次讲透。从 Demo 到生产，差的不是功能，是工程功夫。
     </p>
   </div>
 
   <footer>
-    AI 系列课程 · 第 18 讲 · 共 20 讲 · PART 5 未来推演 · 局限地图
+    AI 系列课程 · 第 15 讲 · 共 20 讲 · 第四部分（企业级落地）· 下一讲：知识库工程化(从Demo到生产)
   </footer>
 </div>
 
 <script>
-// ============ 演示一：幻觉触发实验 ============
-const hallucinationCases = [
+// ========== 演示一：交付链路全景 ==========
+const stages = [
   {
-    prompt: '请简要介绍一下民国学者「钱观藩」的生平与主要著作。',
-    model: '钱观藩（1898-1962），江苏无锡人，民国时期著名史学家。1923 年毕业于北京大学历史系，曾任职于中央研究院历史语言研究所。主要著作有《明代漕运研究》《清初地方治理史》《江南士绅与明清易代》等。1949 年后任教于南京大学历史系，1962 年因病去世。其研究开创了明清经济史的若干新方向。',
-    truth: '历史上不存在「钱观藩」这个学者。这是一个完全虚构的名字。模型不会拒答"我不知道"，而是按"民国学者"这个语义场景，编造了符合统计规律的生平细节——名校毕业、研究所工作、几本研究专著、49 年后归宿——每一条都"看起来合理"。',
-    tag: 'CONFABULATION · 编造类幻觉（最危险的一类）'
+    name: '售前线索',
+    cn: 'Pre-Sales / Lead Generation',
+    apps: [
+      '<strong>ICP 匹配与线索打分</strong>——基于历史成单画像自动评分新线索',
+      '<strong>外联自动化</strong>——邮件 + 领英 + 电话三通道自动跟进序列',
+      '<strong>SDR Agent</strong>——24/7 自主完成线索初筛和 MQL 转化',
+      '<strong>需求扫描</strong>——从公开信息、官网、招聘信息推断客户 CRM 需求'
+    ],
+    tools: ['11x.ai (Alice)', 'Artisan Ava', 'Clay', 'Apollo AI', 'Regie.ai', 'Salesforce Agentforce 2.0'],
+    roi: '<strong>ROI 区间：5-15× 投入</strong>。SDR 人均产能可提升 3-8 倍，单条 MQL 成本从 ¥800-1200 降到 ¥150-300。Salesforce Atlas Reasoning Engine 2025 Q1 上线后，单 SDR 月均开发线索数 350+。'
   },
   {
-    prompt: '请总结一下 OpenAI 在 2025 年 9 月 18 日发布会上公布的所有新产品。',
-    model: 'OpenAI 在 2025 年 9 月 18 日的"DevDay 2025 Fall"发布会上公布了以下产品：① GPT-5 Pro（推理优化版）；② Sora 2.0 视频生成；③ Realtime API v2，支持原生多模态语音；④ Operator Pro 浏览器代理；⑤ ChatGPT Memory 2.0（长期记忆架构）；⑥ 企业级 Agent SDK，支持自定义工具链……',
-    truth: 'OpenAI 在 2025 年 9 月 18 日并没有发布会。这一天根本没有这场事件。模型对"近期事件 + 具体日期"的提问，倾向于编一个"看起来像真的"的活动议程——日期格式像、产品命名像、议程结构像，但全是假的。',
-    tag: 'TEMPORAL FABRICATION · 时间敏感的事件类幻觉'
+    name: '方案 & 报价',
+    cn: 'Solutioning & Quoting',
+    apps: [
+      '<strong>自动出方案</strong>——基于需求清单和行业模板生成 PPT / Word 方案',
+      '<strong>BoM 智能配置</strong>——根据客户规模 + 行业自动选模块、套餐、附加项',
+      '<strong>智能定价</strong>——结合 win/loss 数据和竞争对手价格推荐报价区间',
+      '<strong>话术与异议处理</strong>——基于对话记录推荐应答模板'
+    ],
+    tools: ['Microsoft Copilot for Sales', 'Gong', 'Chorus', 'Salesforce CPQ + Einstein', 'PandaDoc AI'],
+    roi: '<strong>ROI 区间：3-8× 投入</strong>。方案撰写时间从 8-16 小时压到 1-2 小时；折扣率因数据驱动定价可改善 2-5 个百分点。Gong 数据显示用了会话智能的销售团队，平均成单周期缩短 22%。'
   },
   {
-    prompt: 'Claude 3 Opus 模型的训练用了多少 H100 GPU？训练耗时多久？总计电费多少美元？',
-    model: 'Claude 3 Opus 的训练大约使用了 25,000 张 H100 GPU，训练总时长约 90 天。按 H100 平均 700W 功耗、训练期间 80% 利用率，加上散热和电源效率（PUE 1.2）估算，总耗电约 30.2 GWh。按数据中心商业电价 $0.08/kWh 计算，纯电费约 240 万美元。',
-    truth: 'Anthropic 从未公开 Claude 3 Opus 的训练 GPU 数量、训练时长或电费——这是商业机密。模型给的这些数字看起来很精确（25000 / 90天 / $2.4M），但都是<strong>编造的</strong>。它会用合理的物理常数（H100 功耗、PUE）做"看似严谨"的推算，但起点的两个数字是凭空捏的。',
-    tag: 'NUMERICAL HALLUCINATION · 数字精度类幻觉'
+    name: '实施交付',
+    cn: 'Implementation & Delivery',
+    apps: [
+      '<strong>需求自动化提取</strong>——访谈记录 / 文档 / 邮件 → 结构化需求清单（<strong>纷享销客自家在做</strong>）',
+      '<strong>配置自动生成</strong>——需求清单 → 字段、工作流、报表的初稿配置',
+      '<strong>UAT 自动化</strong>——基于需求自动生成测试用例 + Agent 执行',
+      '<strong>实施项目助手</strong>——日报、风险、变更管理自动化'
+    ],
+    tools: ['纷享销客实施助手', 'GitHub Copilot Workspace', 'Devin', 'Cognition Labs', 'Asana AI'],
+    roi: '<strong>ROI 区间：2-5× 投入</strong>。中型项目交付周期 90 天 → 45-60 天；顾问人天降低 30-50%。这是 SaaS 厂商最直接的毛利改善，<strong>也是我们项目重点</strong>。'
   },
   {
-    prompt: '请解释什么是「张氏熵-梯度对偶定理」（Zhang-Entropy-Gradient Duality Theorem）。',
-    model: '张氏熵-梯度对偶定理由清华大学张博士在 2019 年提出，是信息几何学中的重要定理。它指出：在 Riemannian 流形上的概率分布族中，Shannon 熵的负梯度与 Fisher 信息度量下的最速下降方向构成对偶关系。这一对偶性在 ICML 2020 年的论文中被严格证明，并已应用于变分推断、强化学习中的策略优化等多个领域……',
-    truth: '不存在「张氏熵-梯度对偶定理」。这是一个完全合成的术语。模型遇到这种"听起来像学术术语"的查询时，会编一个看起来有数学结构、有作者、有期刊出处、有应用场景的完整说明——所有信息都是凭空生成的。这类幻觉在面对"听起来专业但实际虚构"的概念时最容易触发。',
-    tag: 'CONCEPT FABRICATION · 合成名词类幻觉'
+    name: '客户成功',
+    cn: 'Customer Success',
+    apps: [
+      '<strong>客户健康分</strong>——使用频率、功能覆盖、关键人活跃度合成实时健康分',
+      '<strong>续约预测</strong>——综合行为信号、合同条款、市场数据预测续约概率',
+      '<strong>流失预警</strong>——提前 60-90 天识别流失风险，触发 CSM 干预',
+      '<strong>使用洞察</strong>——给客户输出"你比同行多/少用了什么"的洞察报告'
+    ],
+    tools: ['Gainsight AI', 'Vitally', 'ChurnZero', 'Catalyst', 'HubSpot Breeze Intelligence'],
+    roi: '<strong>ROI 区间：4-10× 投入</strong>。流失率改善 15-30%；CSM 人均覆盖客户数从 30 提升到 60-100。我们项目里，2025 Q1 一个客户通过提前 2 个月预警救回 200 万 ARR——这就是 L4 业务评估能讲的故事。'
+  },
+  {
+    name: '客服支持',
+    cn: 'Customer Service',
+    apps: [
+      '<strong>智能工单分配</strong>——按问题类型 + 客户优先级 + 工程师负载自动派单',
+      '<strong>回答推荐</strong>——客服打字时实时弹出 KB 知识 + 推荐回复',
+      '<strong>自助解决（Deflection）</strong>——AI Agent 直接答简单问题，复杂的转人工',
+      '<strong>会话总结</strong>——通话/聊天结束自动写工单总结 + 下一步跟进'
+    ],
+    tools: ['Intercom Fin', 'Decagon', 'Sierra AI', 'Zendesk AI', 'Salesforce Service Cloud Einstein'],
+    roi: '<strong>ROI 区间：6-12× 投入</strong>。Intercom Fin 公开数据自助解决率 72%；典型 SaaS 客服节省 30-50% 一线人力。每张工单成本从 ¥35-50 降到 ¥8-15。'
+  },
+  {
+    name: '内部协同',
+    cn: 'Internal Enablement',
+    apps: [
+      '<strong>销售教练</strong>——分析每通销售电话，找出可改进点，给个性化反馈',
+      '<strong>会话智能</strong>——所有客户对话自动转写 + 关键时刻识别（异议、承诺、关心点）',
+      '<strong>复盘自动化</strong>——周会、月会数据自动出，省 60% 准备时间',
+      '<strong>知识管理</strong>——Top 销售的话术、异议处理、案例自动沉淀给全员'
+    ],
+    tools: ['Gong', 'Chorus.ai', 'MindTickle', 'Salesloft', '飞书智能伙伴', '钉钉 AI 助理'],
+    roi: '<strong>ROI 区间：3-7× 投入</strong>。新销售 Ramp-up 时间从 90 天压到 45 天；Top 销售经验复用率提升 3-5 倍。Gong 是这个赛道独角兽，2024 ARR 突破 3 亿美元。'
   }
 ];
 
-function renderCase(idx) {
-  const c = hallucinationCases[idx];
-  document.getElementById('casePanel').innerHTML = `
-    <div class="case-prompt">
-      <span class="label">▸ PROMPT TO MODEL · 提示</span>
-      <div class="text">${c.prompt}</div>
+function renderStage(idx) {
+  const s = stages[idx];
+  const el = document.getElementById('stageDetail');
+  el.innerHTML = `
+    <h4>${s.name}</h4>
+    <div class="sub-cn">${s.cn}</div>
+    <div class="stage-block">
+      <h5>▼ AI 应用清单</h5>
+      <ul>${s.apps.map(a => `<li>${a}</li>`).join('')}</ul>
     </div>
-    <div class="case-grid">
-      <div class="case-box model">
-        <div class="head">▸ MODEL OUTPUT · 模型典型回答</div>
-        <p>${c.model}</p>
-      </div>
-      <div class="case-box truth">
-        <div class="head">▸ GROUND TRUTH · 真实情况</div>
-        <p>${c.truth}</p>
-      </div>
+    <div class="stage-block">
+      <h5>▼ 典型工具（2025 主流）</h5>
+      <div class="stage-tools">${s.tools.map(t => `<span>${t}</span>`).join('')}</div>
     </div>
-    <div class="case-tag">
-      <span class="label">▸ TYPE</span>${c.tag}
-    </div>
+    <div class="stage-roi">${s.roi}</div>
   `;
 }
-renderCase(0);
-document.querySelectorAll('.case-btn').forEach((btn, idx) => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.case-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    renderCase(idx);
+document.querySelectorAll('.stage-node').forEach(n => {
+  n.addEventListener('click', () => {
+    document.querySelectorAll('.stage-node').forEach(x => x.classList.remove('active'));
+    n.classList.add('active');
+    renderStage(+n.dataset.stage);
   });
 });
+renderStage(0);
 
-// ============ 演示二：GSM-Symbolic 推理脆性 ============
-const perturbations = [
+// ========== 演示二：SDR Agent 工作流 ==========
+const agentSteps = [
   {
-    name: 'L0 · 原题',
-    orig: 'Liam 周一摘了 <span class="changed">44</span> 个猕猴桃，周二摘了 <span class="changed">58</span> 个。周三摘的猕猴桃比周一的两倍少 <span class="changed">2</span> 个。其中有 5 个猕猴桃比平均大小要小一点。Liam 一共摘了多少个猕猴桃？',
-    pert: 'Liam 周一摘了 <span class="changed">44</span> 个猕猴桃，周二摘了 <span class="changed">58</span> 个。周三摘的猕猴桃比周一的两倍少 <span class="changed">2</span> 个。其中有 5 个猕猴桃比平均大小要小一点。Liam 一共摘了多少个猕猴桃？',
-    accGpt4o: 95, accClaude: 96, accSmall: 70,
-    text: '<strong>L0 · 原题</strong>——GSM-8K 标准题，所有主流模型在原题上准确率都很高（GPT-4o 95%，Claude 96%）。但注意"5 个比平均小"是<strong>无关条款</strong>——后面会派上用场。'
+    title: 'Step 01 · ICP 匹配',
+    tool: 'TOOL: enrich_company + score_icp',
+    desc: '从 CRM 拉取新线索"上海科达智能制造"，调用企业数据库（如天眼查 / Apollo）丰富工商、规模、业务标签，比对我们 12 年 CRM 成单画像。',
+    output: '<span class="key">company_size</span>: 600 人 · 制造业\n<span class="key">icp_score</span>: 82 / 100（高匹配）\n<span class="key">pain_signals</span>: 近期招了 8 个销售 + CRM 招标公告\n<span class="key">decision</span>: 通过 → 进入下一步'
   },
   {
-    name: 'L1 · 改数字',
-    orig: 'Liam 周一摘了 <span class="changed">44</span> 个猕猴桃，周二摘了 <span class="changed">58</span> 个。周三摘的猕猴桃比周一的两倍少 <span class="changed">2</span> 个。其中有 5 个猕猴桃比平均大小要小一点。Liam 一共摘了多少个猕猴桃？',
-    pert: 'Liam 周一摘了 <span class="changed">71</span> 个猕猴桃，周二摘了 <span class="changed">29</span> 个。周三摘的猕猴桃比周一的两倍少 <span class="changed">3</span> 个。其中有 5 个猕猴桃比平均大小要小一点。Liam 一共摘了多少个猕猴桃？',
-    accGpt4o: 78, accClaude: 82, accSmall: 45,
-    text: '<strong>L1 · 改数字</strong>——把 44/58/2 改成 71/29/3。题目本质完全没变，准确率却下降（GPT-4o 95% → 78%，约 -17pp）。这说明<strong>模型对训练集里的具体数字组合有记忆偏好</strong>——它不是在做"通用算术推理"，而是在做"近似模式匹配"。'
+    title: 'Step 02 · 数据丰富与决策人挖掘',
+    tool: 'TOOL: find_decision_makers + linkedin_enrich',
+    desc: '基于公司域名识别销售 VP / 销售运营总监 / IT 总监三类关键决策人，分别拉领英资料、近期动态、共同关系链。',
+    output: '<span class="key">contacts</span>: 3 人\n  · 王晓东 - 销售 VP - 入职 6 个月\n  · 李娟 - 销售运营负责人\n  · 张磊 - 信息总监 - 关注 CRM 厂商 2 家\n<span class="key">priority</span>: 王晓东（新官上任，最可能推动）'
   },
   {
-    name: 'L2 · 改名字',
-    orig: 'Liam 周一摘了 <span class="changed">44</span> 个猕猴桃，周二摘了 <span class="changed">58</span> 个。周三摘的猕猴桃比周一的两倍少 <span class="changed">2</span> 个。其中有 5 个猕猴桃比平均大小要小一点。Liam 一共摘了多少个猕猴桃？',
-    pert: '<span class="changed">Olivia</span> 周一摘了 71 个 <span class="changed">蓝莓</span>，周二摘了 29 个。周三摘的 <span class="changed">蓝莓</span> 比周一的两倍少 3 个。其中有 5 个 <span class="changed">蓝莓</span> 比平均大小要小一点。<span class="changed">Olivia</span> 一共摘了多少个 <span class="changed">蓝莓</span>？',
-    accGpt4o: 72, accClaude: 78, accSmall: 38,
-    text: '<strong>L2 · 改名字 + 改实体</strong>——人名从 Liam 改成 Olivia，水果从猕猴桃改成蓝莓。理论上完全无关的变化，准确率却继续下降（GPT-4o → 72%）。这进一步证明<strong>模型在做表层模式匹配</strong>——题目"长相"变了，它就不太确定怎么算了。'
+    title: 'Step 03 · 个性化首封邮件生成',
+    tool: 'TOOL: claude_opus + personalize_email',
+    desc: '基于王晓东的近期发帖（提到"团队 SOP 落地难"）+ 行业案例库（同规模制造业客户案例 3 个），生成不像模板的个性化首封邮件。',
+    output: '<span class="key">subject</span>: 王总，关于团队 SOP 落地——上周看到您的分享\n<span class="key">opening</span>: 提到他上周的"团队管理"分享\n<span class="key">value_prop</span>: 引用同规模制造业案例 + 具体数字\n<span class="key">cta</span>: 提议 15 分钟简短交流\n<span class="key">tokens</span>: 480 tokens, $0.012'
   },
   {
-    name: 'L3 · 加无关句',
-    orig: 'Liam 周一摘了 <span class="changed">44</span> 个猕猴桃，周二摘了 <span class="changed">58</span> 个。周三摘的猕猴桃比周一的两倍少 <span class="changed">2</span> 个。其中有 5 个猕猴桃比平均大小要小一点。Liam 一共摘了多少个猕猴桃？',
-    pert: 'Olivia 周一摘了 71 个蓝莓，周二摘了 29 个。周三摘的蓝莓比周一的两倍少 3 个。<span class="changed">其中有 5 个蓝莓比平均大小要小一点（这些小的不算）</span>。Olivia 一共摘了多少个蓝莓？',
-    accGpt4o: 57, accClaude: 65, accSmall: 25,
-    text: '<strong>L3 · 把无关条款变成"看起来相关"</strong>——加了一句"这些小的不算"。<strong>这句话其实不影响答案</strong>（问的是总数，不是"达标数"），但很多模型会被它误导，把 5 个减去——准确率暴跌到 57%。Apple 论文里这个扰动 GPT-4o 下降 32.7%，所有模型都掉。'
+    title: 'Step 04 · 多通道自动跟进序列',
+    tool: 'TOOL: schedule_sequence + omnichannel',
+    desc: '邮件未回复后，按"邮件 D+3 → 领英 D+5 → 第二封邮件 D+8 → 电话 D+12"序列自动推进。每步根据用户行为动态调整文案。',
+    output: '<span class="key">D+3 email</span>: 已发送（打开率 100%，未回）\n<span class="key">D+5 linkedin</span>: 已发，王总已加好友\n<span class="key">D+8 email v2</span>: 内容切换到"实施落地经验"\n<span class="key">D+12 call</span>: 安排中，AI 自动拨打 + 转录'
   },
   {
-    name: 'L4 · 多重扰动',
-    orig: 'Liam 周一摘了 <span class="changed">44</span> 个猕猴桃，周二摘了 <span class="changed">58</span> 个。周三摘的猕猴桃比周一的两倍少 <span class="changed">2</span> 个。其中有 5 个猕猴桃比平均大小要小一点。Liam 一共摘了多少个猕猴桃？',
-    pert: '<span class="changed">3 月 12 号</span>，Olivia 周一摘了 71 个蓝莓，周二摘了 29 个。<span class="changed">由于天气原因</span>，周三摘的蓝莓比周一的两倍少 3 个。其中有 5 个蓝莓比平均大小要小一点<span class="changed">（这些小的不算）</span>。<span class="changed">另外，她每天还会顺手摘一些草莓送给邻居</span>。Olivia 一共摘了多少个蓝莓？',
-    accGpt4o: 42, accClaude: 51, accSmall: 18,
-    text: '<strong>L4 · 多重扰动叠加</strong>——加日期、加天气、加"无关草莓"、改实体、变陷阱句。准确率断崖式下降（GPT-4o 42%）。<strong>这正是生产环境的真实分布</strong>——用户输入不会像 benchmark 那么干净，每多一点噪音，模型可靠性就掉一截。这就是 Demo 99% 进生产 60% 的根本原因之一。'
+    title: 'Step 05 · 异议识别与处理',
+    tool: 'TOOL: call_transcript + objection_handle',
+    desc: '电话已接通 12 分钟，AI 实时转录并识别 3 个异议：① 已有 Salesforce ② 担心实施周期长 ③ 价格预算敏感。各自匹配最佳应答策略。',
+    output: '<span class="key">objection_1</span>: 已用 SF → "我们看到很多 SF 用户切到我们后实施周期降 40%..."\n<span class="key">objection_2</span>: 周期长 → 给中型项目 45 天案例\n<span class="key">objection_3</span>: 预算 → 推荐分阶段实施方案\n<span class="key">outcome</span>: 客户同意安排 Demo'
+  },
+  {
+    title: 'Step 06 · 转 MQL 并同步 CRM',
+    tool: 'TOOL: crm_sync + assign_ae',
+    desc: '线索符合 MQL 标准（决策人接触 + 明确兴趣 + 预算窗口），自动同步纷享销客 CRM、根据区域和行业分配 AE、推送整个交互历史。',
+    output: '<span class="key">crm_record</span>: 已创建商机 #2026-1142\n<span class="key">stage</span>: 需求确认（B 阶段）\n<span class="key">assigned_to</span>: AE 李娜（华东大客户组）\n<span class="key">handover</span>: 完整对话历史 + 异议库 + 决策人画像\n<span class="key">status</span>: ✓ MQL → SAL'
   }
 ];
 
-function renderPerturb(level) {
-  const p = perturbations[level];
-  document.getElementById('pertVal').textContent = p.name;
-  document.getElementById('qOrig').innerHTML = p.orig;
-  document.getElementById('qPert').innerHTML = p.pert;
-
-  const bGpt = document.getElementById('b-gpt4o');
-  const bCla = document.getElementById('b-claude');
-  const bSm = document.getElementById('b-small');
-  bGpt.style.height = p.accGpt4o + '%';
-  bCla.style.height = p.accClaude + '%';
-  bSm.style.height = p.accSmall + '%';
-  document.getElementById('p-gpt4o').textContent = p.accGpt4o + '%';
-  document.getElementById('p-claude').textContent = p.accClaude + '%';
-  document.getElementById('p-small').textContent = p.accSmall + '%';
-
-  document.getElementById('reasonConclusion').innerHTML = p.text;
+let agentCursor = 0;
+function renderAgentSteps() {
+  const wrap = document.getElementById('agentSteps');
+  wrap.innerHTML = agentSteps.map((s, i) => {
+    let cls = '';
+    if (i < agentCursor) cls = 'done';
+    else if (i === agentCursor) cls = 'active';
+    const outputHtml = (i <= agentCursor - 1) ? `<div class="agent-step-output">${s.output.replace(/\n/g, '<br>')}</div>` : '';
+    return `
+      <div class="agent-step ${cls}">
+        <div class="agent-step-head">
+          <div class="agent-step-title">${s.title}</div>
+          <div class="agent-step-tool">${s.tool}</div>
+        </div>
+        <div class="agent-step-desc">${s.desc}</div>
+        ${outputHtml}
+      </div>
+    `;
+  }).join('');
+  document.getElementById('agentProgress').textContent = `${agentCursor} / 6`;
+  document.getElementById('agentSummary').classList.toggle('show', agentCursor >= 6);
+  document.getElementById('agentNext').disabled = agentCursor >= 6;
+  document.getElementById('agentNext').textContent = agentCursor >= 6 ? '已跑完' : '下一步 ▸';
 }
-document.getElementById('pertSlider').addEventListener('input', e => {
-  renderPerturb(+e.target.value);
+document.getElementById('agentNext').addEventListener('click', () => {
+  if (agentCursor < 6) { agentCursor += 1; renderAgentSteps(); }
 });
-renderPerturb(1);
+document.getElementById('agentReset').addEventListener('click', () => {
+  agentCursor = 0; renderAgentSteps();
+});
+renderAgentSteps();
 
-// ============ 演示三：长上下文衰减热力图 ============
-// 5 个模型 × 10 个位置 的召回率数据（基于 RULER / NIAH 2.0 的真实趋势模拟）
-const heatmapData = [
-  { model: 'Claude Opus 4.7', vals: [98, 96, 92, 85, 73, 70, 78, 88, 94, 97] },
-  { model: 'GPT-5',           vals: [97, 94, 88, 78, 65, 62, 70, 82, 91, 96] },
-  { model: 'Gemini 3 Pro',    vals: [96, 92, 84, 72, 58, 55, 64, 78, 88, 94] },
-  { model: 'DeepSeek V3',     vals: [94, 88, 75, 60, 45, 42, 52, 68, 82, 92] },
-  { model: 'Llama 3.3 70B',   vals: [92, 84, 68, 50, 35, 30, 40, 58, 76, 90] }
+// ========== 演示三：ROI 计算器 ==========
+const roiInputs = ['inMandays', 'inRate', 'inCust', 'inInvest'];
+const roiDisplays = { inMandays: 'vMandays', inRate: 'vRate', inCust: 'vCust', inInvest: 'vInvest' };
+
+function calcRoi() {
+  const md = +document.getElementById('inMandays').value;
+  const rate = +document.getElementById('inRate').value;
+  const cust = +document.getElementById('inCust').value;
+  const invest = +document.getElementById('inInvest').value;
+
+  document.getElementById('vMandays').textContent = md;
+  document.getElementById('vRate').textContent = rate;
+  document.getElementById('vCust').textContent = cust;
+  document.getElementById('vInvest').textContent = invest;
+
+  // 年度交付成本 = 人天 × 单价 × 客户数 / 10000 = 万元
+  const baseCost = md * rate * cust / 10000;
+  // 三档节省比例（基于行业基准 + AI 介入程度）
+  const lowPct = 18, midPct = 32, highPct = 48;
+  const saveAbs = baseCost * midPct / 100;
+  const net = saveAbs - invest;
+  const payback = invest > 0 && saveAbs > 0 ? (invest / saveAbs * 12) : null;
+
+  document.getElementById('vSaveLow').textContent = lowPct;
+  document.getElementById('vSaveMid').textContent = midPct;
+  document.getElementById('vSaveHigh').textContent = highPct;
+  document.getElementById('vCostBase').textContent = baseCost.toFixed(0);
+  document.getElementById('vSaveAbs').textContent = saveAbs.toFixed(0);
+  document.getElementById('vNet').textContent = net.toFixed(0);
+
+  const pbEl = document.getElementById('vPaybackEl');
+  if (payback !== null && payback > 0 && net > 0) {
+    pbEl.textContent = `${payback.toFixed(1)} 个月`;
+    pbEl.classList.remove('warn');
+  } else {
+    pbEl.textContent = '> 12 个月（不建议投入）';
+    pbEl.classList.add('warn');
+  }
+
+  const advEl = document.getElementById('vAdvice');
+  if (net <= 0) {
+    advEl.textContent = '客户量太小 / 投入过高，先小步试点';
+    advEl.classList.add('warn');
+  } else if (payback < 6) {
+    advEl.textContent = '强烈推荐——按中性档 All-in';
+    advEl.classList.remove('warn');
+  } else if (payback < 12) {
+    advEl.textContent = '推荐——保守档起步，3 月后扩到中性';
+    advEl.classList.remove('warn');
+  } else {
+    advEl.textContent = '谨慎——只做一个最高 ROI 场景';
+    advEl.classList.add('warn');
+  }
+}
+roiInputs.forEach(id => document.getElementById(id).addEventListener('input', calcRoi));
+calcRoi();
+
+// ========== 演示四：成熟度自评 ==========
+const matDims = [
+  {
+    name: '数据基础',
+    tag: 'DATA',
+    desc: '客户数据、业务数据、对话数据的完整度与可用性',
+    levels: ['Lv0 缺数据', 'Lv1 散乱', 'Lv2 已结构化', 'Lv3 已统一治理', 'Lv4 自动飞轮']
+  },
+  {
+    name: '流程梳理',
+    tag: 'PROCESS',
+    desc: '业务流程的标准化程度——AI 跑流程的前提',
+    levels: ['Lv0 无 SOP', 'Lv1 部分 SOP', 'Lv2 关键流程标准化', 'Lv3 全流程标准', 'Lv4 流程可观测']
+  },
+  {
+    name: '组织能力',
+    tag: 'TEAM',
+    desc: '是否有 AI 产品、AI 工程、数据角色，是否有跨部门拉通',
+    levels: ['Lv0 无人懂', 'Lv1 兼职探索', 'Lv2 设独立小组', 'Lv3 AI 产品+工程双轨', 'Lv4 全员 AI 文化']
+  },
+  {
+    name: '技术栈',
+    tag: 'TECH',
+    desc: 'LLM、RAG、Agent、可观测性平台的建设程度',
+    levels: ['Lv0 调外部 API', 'Lv1 自建 Prompt', 'Lv2 自建 RAG', 'Lv3 自建 Agent + 评估', 'Lv4 数据飞轮']
+  },
+  {
+    name: '治理与合规',
+    tag: 'GOV',
+    desc: '数据脱敏、权限隔离、审计日志、安全红线',
+    levels: ['Lv0 裸跑', 'Lv1 简单脱敏', 'Lv2 权限隔离', 'Lv3 全链路审计', 'Lv4 行业级合规']
+  },
+  {
+    name: '组织文化',
+    tag: 'CULTURE',
+    desc: '一线员工是否信任 AI、是否愿意贡献反馈给 AI',
+    levels: ['Lv0 抵触', 'Lv1 观望', 'Lv2 试点接受', 'Lv3 主动用', 'Lv4 共同迭代']
+  }
 ];
 
-function valToColor(v) {
-  // v: 0-100 → 渐变 from #2a1a10 to #ffe5d6
-  const stops = [
-    [0,   [42, 26, 16]],
-    [40,  [204, 77, 26]],
-    [65,  [255, 107, 53]],
-    [85,  [255, 170, 102]],
-    [100, [255, 229, 214]]
-  ];
-  for (let i = 0; i < stops.length - 1; i++) {
-    if (v >= stops[i][0] && v <= stops[i+1][0]) {
-      const t = (v - stops[i][0]) / (stops[i+1][0] - stops[i][0]);
-      const r = Math.round(stops[i][1][0] + t * (stops[i+1][1][0] - stops[i][1][0]));
-      const g = Math.round(stops[i][1][1] + t * (stops[i+1][1][1] - stops[i][1][1]));
-      const b = Math.round(stops[i][1][2] + t * (stops[i+1][1][2] - stops[i][1][2]));
-      return `rgb(${r},${g},${b})`;
-    }
-  }
-  return '#ff6b35';
-}
-function valToTextColor(v) {
-  return v >= 70 ? '#0f0f0f' : '#fff';
-}
+const matSelected = {};
 
-const heatmap = document.getElementById('heatmap');
-let heatmapHtml = '';
-heatmapData.forEach(row => {
-  heatmapHtml += `<div class="heatmap-row"><div class="row-label">${row.model}</div><div class="row-cells">`;
-  row.vals.forEach(v => {
-    heatmapHtml += `<div class="cell" style="background:${valToColor(v)};color:${valToTextColor(v)}" title="${v}% 召回率">${v}</div>`;
+function renderMat() {
+  const grid = document.getElementById('matGrid');
+  grid.innerHTML = matDims.map((d, di) => `
+    <div class="mat-dim">
+      <div class="mat-head">
+        <div class="mat-name">${d.name}</div>
+        <div class="mat-tag">${d.tag}</div>
+      </div>
+      <div class="mat-desc">${d.desc}</div>
+      <div class="mat-levels">
+        ${d.levels.map((lv, li) => `
+          <div class="mat-level ${matSelected[di] === li ? 'selected' : ''}" data-dim="${di}" data-lvl="${li}">
+            <span class="lvl-num">${li}</span>
+            <span class="lvl-cn">${lv.replace(/^Lv\d\s/, '')}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  grid.querySelectorAll('.mat-level').forEach(el => {
+    el.addEventListener('click', () => {
+      const d = +el.dataset.dim, l = +el.dataset.lvl;
+      matSelected[d] = l;
+      renderMat();
+      renderMatResult();
+    });
   });
-  heatmapHtml += `</div></div>`;
-});
-heatmap.innerHTML = heatmapHtml;
-
-// ============ 演示四：能力 vs 成本前沿曲线 ============
-// 各任务的模型表现数据（基于 2026.01 公开数据估算）
-const frontierData = {
-  reason: {
-    title: 'REASONING · AIME 2024 + GPQA Diamond',
-    metric: 'AIME / GPQA 综合分',
-    models: [
-      { name: 'Claude Opus 4.7 (1M)',  cost: 75,   score: 94, ratio: 'low' },
-      { name: 'GPT-5',                  cost: 60,   score: 92, ratio: 'low' },
-      { name: 'OpenAI o3',              cost: 90,   score: 96, ratio: 'low' },
-      { name: 'Gemini 3 Pro',           cost: 50,   score: 88, ratio: 'mid' },
-      { name: 'Claude Sonnet 4.5',      cost: 15,   score: 84, ratio: 'high' },
-      { name: 'o3-mini',                cost: 12,   score: 80, ratio: 'high' },
-      { name: 'DeepSeek V3',            cost: 1.1,  score: 72, ratio: 'high' },
-      { name: 'GPT-3.5 Turbo (基线)',   cost: 1.5,  score: 28, ratio: 'low' }
-    ]
-  },
-  longctx: {
-    title: 'LONG CONTEXT · RULER @ 128K',
-    metric: 'RULER 综合分 (128K)',
-    models: [
-      { name: 'Gemini 3 Pro',           cost: 50,   score: 92, ratio: 'mid' },
-      { name: 'Claude Opus 4.7 (1M)',  cost: 75,   score: 90, ratio: 'low' },
-      { name: 'GPT-5',                  cost: 60,   score: 84, ratio: 'low' },
-      { name: 'OpenAI o3',              cost: 90,   score: 82, ratio: 'low' },
-      { name: 'Claude Sonnet 4.5',      cost: 15,   score: 80, ratio: 'high' },
-      { name: 'o3-mini',                cost: 12,   score: 65, ratio: 'high' },
-      { name: 'DeepSeek V3',            cost: 1.1,  score: 60, ratio: 'high' },
-      { name: 'GPT-3.5 Turbo (基线)',   cost: 1.5,  score: 25, ratio: 'low' }
-    ]
-  },
-  multi: {
-    title: 'MULTIMODAL · MMMU + 视频理解',
-    metric: 'MMMU 综合分',
-    models: [
-      { name: 'Gemini 3 Pro',           cost: 50,   score: 88, ratio: 'high' },
-      { name: 'GPT-5',                  cost: 60,   score: 84, ratio: 'mid' },
-      { name: 'Claude Opus 4.7 (1M)',  cost: 75,   score: 82, ratio: 'low' },
-      { name: 'OpenAI o3',              cost: 90,   score: 80, ratio: 'low' },
-      { name: 'Claude Sonnet 4.5',      cost: 15,   score: 72, ratio: 'high' },
-      { name: 'o3-mini',                cost: 12,   score: 55, ratio: 'mid' },
-      { name: 'DeepSeek V3',            cost: 1.1,  score: 45, ratio: 'mid' },
-      { name: 'GPT-3.5 Turbo (基线)',   cost: 1.5,  score: 0,  ratio: 'low' }
-    ]
-  },
-  cost: {
-    title: 'COST EFFICIENCY · 性价比 (score ÷ cost)',
-    metric: '综合性价比指数',
-    models: [
-      { name: 'DeepSeek V3',            cost: 1.1,  score: 95, ratio: 'high' },
-      { name: 'o3-mini',                cost: 12,   score: 85, ratio: 'high' },
-      { name: 'Claude Sonnet 4.5',      cost: 15,   score: 80, ratio: 'high' },
-      { name: 'Gemini 3 Pro',           cost: 50,   score: 65, ratio: 'mid' },
-      { name: 'GPT-5',                  cost: 60,   score: 58, ratio: 'mid' },
-      { name: 'Claude Opus 4.7 (1M)',  cost: 75,   score: 50, ratio: 'low' },
-      { name: 'OpenAI o3',              cost: 90,   score: 45, ratio: 'low' },
-      { name: 'GPT-3.5 Turbo (基线)',   cost: 1.5,  score: 30, ratio: 'low' }
-    ]
-  }
-};
-
-function renderFrontier(task) {
-  const data = frontierData[task];
-  const chart = document.getElementById('frontierChart');
-  const W = chart.offsetWidth || 1080;
-  const H = 420;
-  const padL = 60, padR = 30, padT = 30, padB = 50;
-  const innerW = W - padL - padR;
-  const innerH = H - padT - padB;
-
-  // X 轴用 log scale（cost from 1 to 100）
-  const xLogMin = Math.log10(1);
-  const xLogMax = Math.log10(100);
-  const xScale = c => padL + ((Math.log10(c) - xLogMin) / (xLogMax - xLogMin)) * innerW;
-  const yScale = s => padT + (1 - s / 100) * innerH;
-
-  // 排序模型（先按 score 高的画在上层）
-  const sorted = [...data.models].sort((a, b) => a.score - b.score);
-
-  // SVG
-  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
-
-  // 网格
-  for (let s = 0; s <= 100; s += 25) {
-    const y = yScale(s);
-    svg += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#e8e8e8" stroke-width="1"/>`;
-    svg += `<text x="${padL - 10}" y="${y + 4}" text-anchor="end" font-family="IBM Plex Mono" font-size="10" fill="#888">${s}</text>`;
-  }
-  [1, 3, 10, 30, 100].forEach(c => {
-    const x = xScale(c);
-    svg += `<line x1="${x}" y1="${padT}" x2="${x}" y2="${H - padB}" stroke="#e8e8e8" stroke-width="1"/>`;
-    svg += `<text x="${x}" y="${H - padB + 15}" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#888">$${c}</text>`;
-  });
-
-  // Pareto 前沿曲线（按 score 排序画连线）
-  const frontier = data.models.filter(m => m.score > 0).sort((a, b) => a.cost - b.cost);
-  // 计算实际 Pareto 前沿
-  const pareto = [];
-  let maxScore = -Infinity;
-  frontier.slice().reverse().forEach(m => {
-    if (m.score > maxScore) {
-      pareto.unshift(m);
-      maxScore = m.score;
-    }
-  });
-  if (pareto.length > 1) {
-    let pathD = `M ${xScale(pareto[0].cost)} ${yScale(pareto[0].score)}`;
-    for (let i = 1; i < pareto.length; i++) {
-      pathD += ` L ${xScale(pareto[i].cost)} ${yScale(pareto[i].score)}`;
-    }
-    svg += `<path d="${pathD}" stroke="#ff6b35" stroke-width="2" fill="none" stroke-dasharray="4,3" opacity="0.5"/>`;
-  }
-
-  // 数据点
-  sorted.forEach(m => {
-    const x = xScale(m.cost);
-    const y = yScale(m.score);
-    const r = m.score > 80 ? 10 : 8;
-    const fill = m.ratio === 'high' ? '#66cc88' : m.ratio === 'mid' ? '#ffcc66' : '#ff6b35';
-    svg += `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" opacity="0.85" stroke="#0f0f0f" stroke-width="1.5"/>`;
-    const labelX = x + r + 6;
-    const labelY = y + 4;
-    svg += `<text x="${labelX}" y="${labelY}" font-family="IBM Plex Mono" font-size="11" fill="#0f0f0f" font-weight="500">${m.name}</text>`;
-  });
-
-  // 标题
-  svg += `<text x="${W / 2}" y="${padT - 8}" text-anchor="middle" font-family="IBM Plex Sans" font-size="13" fill="#0f0f0f" font-weight="600">${data.title}</text>`;
-
-  svg += `</svg>`;
-  // 把 SVG 放到 chart 里，注意保留两个 axis-label
-  chart.innerHTML = svg
-    + '<div class="axis-label-x">COST / 1M OUTPUT TOKENS (USD, log scale)</div>'
-    + '<div class="axis-label-y">' + data.metric + '</div>';
-
-  // 表格
-  const sortedByScore = [...data.models].sort((a, b) => b.score - a.score);
-  let tbl = `<div class="frontier-row head">
-    <div class="fr-cell">RANK</div>
-    <div class="fr-cell">MODEL</div>
-    <div class="fr-cell">SCORE</div>
-    <div class="fr-cell">COST</div>
-    <div class="fr-cell">PRICE/PERF</div>
-  </div>`;
-  sortedByScore.forEach((m, i) => {
-    const ratioLabel = m.ratio === 'high' ? '★ 高性价比' : m.ratio === 'mid' ? '◆ 中等' : '○ 偏贵';
-    tbl += `<div class="frontier-row">
-      <div class="fr-cell rank">#${i + 1}</div>
-      <div class="fr-cell">${m.name}</div>
-      <div class="fr-cell score">${m.score}</div>
-      <div class="fr-cell cost">$${m.cost}/M</div>
-      <div class="fr-cell value ${m.ratio}">${ratioLabel}</div>
-    </div>`;
-  });
-  document.getElementById('frontierTable').innerHTML = tbl;
 }
 
-document.querySelectorAll('.task-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.task-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    renderFrontier(btn.dataset.task);
-  });
-});
-renderFrontier('reason');
-window.addEventListener('resize', () => {
-  const active = document.querySelector('.task-btn.active');
-  if (active) renderFrontier(active.dataset.task);
-});
+function renderMatResult() {
+  const keys = Object.keys(matSelected);
+  let total = 0;
+  keys.forEach(k => total += matSelected[k]);
+  document.getElementById('matScore').textContent = total;
+
+  // bars
+  const bars = matDims.map((d, di) => {
+    const v = matSelected[di] !== undefined ? matSelected[di] : 0;
+    const pct = (v / 4) * 100;
+    return `
+      <div class="mat-bar-row">
+        <span class="lbl">${d.name.substring(0, 4)}</span>
+        <span class="track"><span class="fill" style="width: ${pct}%"></span></span>
+        <span class="v">${v}</span>
+      </div>
+    `;
+  }).join('');
+  document.getElementById('matBars').innerHTML = bars;
+
+  // stage advice
+  const stageEl = document.getElementById('matStage');
+  const advEl = document.getElementById('matAdvice');
+  if (keys.length < 6) {
+    stageEl.textContent = `已选 ${keys.length} / 6 个维度`;
+    advEl.innerHTML = '点选 6 个维度后，这里会给出针对性建议。';
+    return;
+  }
+  let stage, advice;
+  if (total <= 6) {
+    stage = '起步期（Lv1 总体）';
+    advice = '<strong>先打地基</strong>——数据治理 + 流程梳理优先于工具选型。投资单一场景试点（如客服自助解决），跑出可量化 ROI 再扩。';
+  } else if (total <= 12) {
+    stage = '试点期（Lv2 总体）';
+    advice = '<strong>扩到 2-3 个场景</strong>——选 ROI 最高的（实施需求提取、客户健康分）。开始建评估集，组建 3-5 人 AI 小组。';
+  } else if (total <= 18) {
+    stage = '推广期（Lv3 总体）';
+    advice = '<strong>建平台化能力</strong>——RAG、Agent、Trace 基础设施统一建。从单点工具走向 Agent 编排。建立每周指标 review 机制。';
+  } else if (total <= 24) {
+    stage = '系统期（Lv3.5 总体）';
+    advice = '<strong>追数据飞轮</strong>——用户行为数据持续反哺模型。打通行业 know-how 沉淀。建立护城河，开始对外输出能力。';
+  } else {
+    stage = '引领期（Lv4 总体）';
+    advice = '<strong>行业标准制定者</strong>——你已是行业 AI 的标杆。考虑开放平台、生态、行业大模型微调。守住数据飞轮的优势。';
+  }
+  stageEl.textContent = stage;
+  advEl.innerHTML = advice;
+}
+renderMat();
+renderMatResult();
 </script>
 </body>
 </html>

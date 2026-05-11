@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>第15讲｜AI在 SaaS 交付中的应用全景</title>
+<title>第15讲｜Context Engineering — 从 Prompt 到上下文系统</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -31,8 +31,8 @@
     position: absolute;
     inset: 0;
     background:
-      linear-gradient(0deg, rgba(0, 212, 255, 0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0, 212, 255, 0.04) 1px, transparent 1px);
+      linear-gradient(0deg, rgba(0, 230, 118, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 230, 118, 0.04) 1px, transparent 1px);
     background-size: 24px 24px;
     pointer-events: none;
   }
@@ -41,8 +41,8 @@
     display: inline-block;
     padding: 6px 14px;
     background: transparent;
-    border: 1px solid #00d4ff;
-    color: #00d4ff;
+    border: 1px solid #00e676;
+    color: #00e676;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
     letter-spacing: 0.25em;
@@ -60,7 +60,7 @@
     position: relative;
     z-index: 1;
   }
-  h1 .accent { color: #00d4ff; }
+  h1 .accent { color: #00e676; }
   h1 .light { font-weight: 300; color: #888; }
   .h1-cn {
     font-size: 26px;
@@ -75,11 +75,11 @@
     font-size: 16px;
     color: #888;
     line-height: 1.85;
-    max-width: 720px;
+    max-width: 760px;
     position: relative;
     z-index: 1;
   }
-  .subtitle strong { color: #00d4ff; font-weight: 500; }
+  .subtitle strong { color: #00e676; font-weight: 500; }
 
   .section {
     background: #fff;
@@ -100,11 +100,11 @@
   .section-marker {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
-    color: #0099cc;
+    color: #00aa55;
     letter-spacing: 0.3em;
     margin-bottom: 8px;
   }
-  .section.dark .section-marker { color: #00d4ff; }
+  .section.dark .section-marker { color: #00e676; }
 
   .section-title {
     font-family: 'IBM Plex Sans', sans-serif;
@@ -114,8 +114,8 @@
     letter-spacing: -0.025em;
     margin-bottom: 8px;
   }
-  .section-title .accent { color: #0099cc; }
-  .section.dark .section-title .accent { color: #00d4ff; }
+  .section-title .accent { color: #00aa55; }
+  .section.dark .section-title .accent { color: #00e676; }
   .section-title .light { font-weight: 300; color: #888; }
 
   .section-cn {
@@ -132,530 +132,726 @@
   }
   .section.dark .section-lead { color: #a0a0a0; }
 
-  /* 演示一：交付链路全景图 */
-  .pipeline {
-    margin-top: 36px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-  }
-  .pipeline-flow {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .stage-node {
+  /* 范式对比表 */
+  .compare-table {
+    margin-top: 32px;
     background: #fff;
-    border: 1px solid #e0e0e0;
-    border-left: 4px solid #c0c0c0;
-    padding: 18px 22px;
-    cursor: pointer;
-    transition: all 0.2s;
-    position: relative;
+    border: 1px solid #e8e8e8;
+    overflow-x: auto;
   }
-  .stage-node:hover { background: #f6fbff; border-left-color: #00d4ff; }
-  .stage-node.active {
+  .compare-row {
+    display: grid;
+    grid-template-columns: 200px 1fr 1fr;
+    border-bottom: 1px solid #e8e8e8;
+  }
+  .compare-row:last-child { border-bottom: none; }
+  .compare-row.header {
     background: #0f0f0f;
     color: #fafafa;
-    border-left-color: #00d4ff;
-    border-color: #1f1f1f;
   }
-  .stage-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: 4px;
+  .compare-cell {
+    padding: 16px 20px;
+    font-size: 13px;
+    line-height: 1.7;
+    border-right: 1px solid #e8e8e8;
   }
-  .stage-name {
-    font-family: 'IBM Plex Sans', sans-serif;
-    font-size: 18px;
-    font-weight: 700;
+  .compare-cell:last-child { border-right: none; }
+  .compare-row.header .compare-cell {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: #00e676;
+    border-right-color: #1f1f1f;
   }
-  .stage-tag {
+  .compare-cell.label {
+    background: #f8f8f8;
+    font-weight: 600;
+    color: #0f0f0f;
+  }
+  .compare-cell.old { color: #555; }
+  .compare-cell.old strong { color: #cc4444; }
+  .compare-cell.new { color: #555; background: #f0fff5; }
+  .compare-cell.new strong { color: #00aa55; }
+
+  /* 引用墙 */
+  .quote-wall {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .quote-card {
+    background: #0f0f0f;
+    color: #fafafa;
+    border: 1px solid #1f1f1f;
+    border-left: 3px solid #00e676;
+    padding: 22px 24px;
+  }
+  .quote-card blockquote {
+    font-size: 13px;
+    line-height: 1.8;
+    color: #d0d0d0;
+    font-style: italic;
+    margin-bottom: 14px;
+  }
+  .quote-card .quote-source {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
-    color: #888;
-    letter-spacing: 0.25em;
+    color: #00e676;
+    letter-spacing: 0.18em;
   }
-  .stage-node.active .stage-tag { color: #00d4ff; }
-  .stage-sub {
-    font-size: 12px;
-    color: #777;
-    line-height: 1.7;
+  .quote-card .quote-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fafafa;
+    margin-top: 4px;
   }
-  .stage-node.active .stage-sub { color: #a0a0a0; }
 
-  .stage-detail {
+  /* 演示一：7块组成可视化 */
+  .demo-wrapper {
+    margin-top: 32px;
     background: #0f0f0f;
     color: #fafafa;
-    padding: 28px 32px;
-    border-left: 4px solid #00d4ff;
-    min-height: 100%;
+    padding: 32px;
   }
-  .stage-detail h4 {
-    font-size: 22px;
-    color: #00d4ff;
+  .demo-wrapper .demo-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    color: #00e676;
     margin-bottom: 6px;
   }
-  .stage-detail .sub-cn {
-    font-size: 13px;
-    color: #888;
+  .demo-wrapper .demo-subtitle {
+    font-size: 18px;
+    font-weight: 700;
     margin-bottom: 18px;
   }
-  .stage-block { margin-bottom: 18px; }
-  .stage-block h5 {
+
+  .ctx-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding: 14px 18px;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+  }
+  .ctx-slider-row label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: #888;
+  }
+  .ctx-slider-row input[type=range] {
+    flex: 1;
+    accent-color: #00e676;
+  }
+  .ctx-slider-row .ctx-task-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #00e676;
+    letter-spacing: 0.15em;
+    min-width: 140px;
+    text-align: right;
+  }
+
+  .ctx-bar {
+    display: flex;
+    height: 72px;
+    border: 1px solid #2a2a2a;
+    margin-bottom: 18px;
+    overflow: hidden;
+  }
+  .ctx-bar-cell {
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
-    letter-spacing: 0.25em;
-    color: #00d4ff;
+    letter-spacing: 0.12em;
+    color: rgba(0,0,0,0.55);
+    font-weight: 600;
+    border-right: 1px solid rgba(0,0,0,0.18);
+    text-align: center;
+    padding: 0 4px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .ctx-bar-cell:last-child { border-right: none; }
+  .ctx-bar-cell:hover { filter: brightness(1.1); }
+  .ctx-bar-cell.active {
+    box-shadow: inset 0 0 0 3px #fafafa;
+  }
+
+  .ctx-legend {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+  .ctx-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    cursor: pointer;
+    font-size: 11px;
+  }
+  .ctx-legend-swatch {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+  .ctx-legend-name {
+    color: #c0c0c0;
+    font-weight: 500;
+  }
+  .ctx-legend-tokens {
+    margin-left: auto;
+    font-family: 'IBM Plex Mono', monospace;
+    color: #888;
+    font-size: 10px;
+  }
+
+  .ctx-detail {
+    background: #1a1a1a;
+    border-left: 3px solid #00e676;
+    padding: 22px 26px;
+    min-height: 160px;
+  }
+  .ctx-detail h4 {
+    font-size: 18px;
+    color: #00e676;
+    margin-bottom: 10px;
+  }
+  .ctx-detail .ctx-detail-meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 12px;
+    letter-spacing: 0.12em;
+  }
+  .ctx-detail p {
+    font-size: 13px;
+    color: #c0c0c0;
+    line-height: 1.85;
     margin-bottom: 8px;
   }
-  .stage-block ul { list-style: none; padding: 0; }
-  .stage-block li {
-    font-size: 13px;
-    line-height: 1.85;
-    color: #c0c0c0;
-    padding-left: 14px;
-    position: relative;
-  }
-  .stage-block li::before {
-    content: '▸';
-    color: #00d4ff;
-    position: absolute;
-    left: 0;
-  }
-  .stage-block li strong { color: #00d4ff; }
-  .stage-tools {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .stage-tools span {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    color: #fafafa;
-    background: #1f1f1f;
-    border: 1px solid #2a2a2a;
-    padding: 4px 9px;
-  }
-  .stage-roi {
-    background: rgba(0, 212, 255, 0.08);
-    border-left: 2px solid #00d4ff;
+  .ctx-detail p strong { color: #00e676; }
+  .ctx-detail .ctx-detail-warn {
+    margin-top: 10px;
     padding: 10px 14px;
+    background: rgba(255, 153, 51, 0.08);
+    border-left: 2px solid #ff9933;
+    color: #ffcc88;
     font-size: 12px;
-    color: #c8eaff;
-    line-height: 1.7;
+    line-height: 1.75;
   }
-  .stage-roi strong { color: #00d4ff; }
 
-  /* 演示二：售前 Agent 工作流 */
-  .agent-flow {
-    margin-top: 28px;
-    background: #0a0a0a;
-    border: 1px solid #1f1f1f;
-    padding: 28px;
+  /* 演示二：Budget 模拟器 */
+  .budget-wrapper {
+    margin-top: 32px;
+    background: #fff;
+    border: 1px solid #e8e8e8;
+    padding: 32px;
   }
-  .agent-controls {
+  .budget-row {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-bottom: 18px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid #1f1f1f;
+    gap: 14px;
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    border: 1px solid #e8e8e8;
+    background: #f8f8f8;
   }
-  .agent-progress {
+  .budget-row .b-color {
+    width: 14px;
+    height: 28px;
+    flex-shrink: 0;
+  }
+  .budget-row .b-name {
+    width: 140px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #0f0f0f;
+  }
+  .budget-row input[type=range] {
+    flex: 1;
+    accent-color: #00aa55;
+  }
+  .budget-row .b-value {
+    width: 90px;
+    text-align: right;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    color: #888;
-    letter-spacing: 0.2em;
+    font-size: 12px;
+    color: #00aa55;
+    font-weight: 600;
   }
-  .agent-progress strong { color: #00d4ff; }
-  .agent-btns {
+
+  .budget-controls {
     display: flex;
     gap: 8px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
   }
-  .agent-btn {
+  .budget-btn {
     padding: 8px 16px;
     background: transparent;
-    border: 1px solid #2a2a2a;
-    color: #888;
+    border: 1px solid #d0d0d0;
+    color: #555;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
     letter-spacing: 0.15em;
     cursor: pointer;
-    font-family: 'Noto Sans SC', sans-serif;
   }
-  .agent-btn:hover { border-color: #00d4ff; color: #00d4ff; }
-  .agent-btn.primary {
-    background: #00d4ff;
-    color: #0f0f0f;
-    border-color: #00d4ff;
-    font-weight: 600;
-  }
-  .agent-btn.primary:hover { background: #00b8e0; color: #0f0f0f; border-color: #00b8e0; }
-  .agent-btn:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
+  .budget-btn:hover { border-color: #00aa55; color: #00aa55; }
+  .budget-btn.active {
+    background: #0f0f0f;
+    color: #00e676;
+    border-color: #0f0f0f;
   }
 
-  .agent-step {
-    padding: 16px 20px;
-    margin-bottom: 8px;
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    border-left: 3px solid #2a2a2a;
-    opacity: 0.35;
-    transition: all 0.3s;
-  }
-  .agent-step.done {
-    opacity: 1;
-    border-left-color: #00d4ff;
-    background: #121212;
-  }
-  .agent-step.active {
-    opacity: 1;
-    border-left-color: #00d4ff;
-    background: rgba(0, 212, 255, 0.06);
-    box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.2);
-  }
-  .agent-step-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: 6px;
-  }
-  .agent-step-title {
-    font-family: 'IBM Plex Sans', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-    color: #fafafa;
-  }
-  .agent-step.done .agent-step-title { color: #00d4ff; }
-  .agent-step-tool {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #888;
-    letter-spacing: 0.18em;
-  }
-  .agent-step-desc {
-    font-size: 12px;
-    color: #a0a0a0;
-    line-height: 1.85;
-    margin-bottom: 6px;
-  }
-  .agent-step-output {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    color: #80d8ff;
-    background: #0a0a0a;
-    padding: 8px 12px;
-    border-left: 2px solid #00d4ff;
-    line-height: 1.75;
-    margin-top: 8px;
-  }
-  .agent-step-output .key { color: #fafafa; }
-
-  .agent-summary {
+  .budget-summary {
     margin-top: 18px;
-    padding: 18px 22px;
-    background: rgba(0, 212, 255, 0.06);
-    border-left: 3px solid #00d4ff;
-    display: none;
-  }
-  .agent-summary.show { display: block; }
-  .agent-summary h5 {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.2em;
-    color: #00d4ff;
-    margin-bottom: 10px;
-  }
-  .agent-summary p {
-    font-size: 13px;
-    line-height: 1.85;
-    color: #c0c0c0;
-  }
-  .agent-summary p strong { color: #00d4ff; }
-
-  /* 演示三：ROI 计算器 */
-  .roi-calc {
-    margin-top: 28px;
     display: grid;
-    grid-template-columns: 360px 1fr;
-    gap: 24px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
   }
-  .roi-inputs {
-    background: #fff;
-    border: 1px solid #e0e0e0;
-    padding: 28px;
+  .budget-stat {
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 16px 18px;
+    border-left: 3px solid #00e676;
   }
-  .input-row {
-    margin-bottom: 18px;
-  }
-  .input-row:last-child { margin-bottom: 0; }
-  .input-row label {
-    display: block;
+  .budget-stat .label {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
     color: #888;
     letter-spacing: 0.2em;
     margin-bottom: 6px;
   }
-  .input-row .input-cn {
-    font-size: 13px;
-    color: #0f0f0f;
-    font-weight: 500;
-    margin-bottom: 6px;
+  .budget-stat .value {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: #00e676;
+    line-height: 1;
   }
-  .input-row input[type="range"] {
-    width: 100%;
-    accent-color: #0099cc;
-  }
-  .input-row .value-display {
+  .budget-stat .value.warn { color: #ff9933; }
+  .budget-stat .value.bad { color: #ff5555; }
+  .budget-stat .sub {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 18px;
-    color: #0099cc;
-    font-weight: 600;
-    margin-top: 4px;
-  }
-  .input-row .value-display .unit {
-    font-size: 12px;
+    font-size: 10px;
     color: #888;
-    font-weight: 400;
-    margin-left: 4px;
+    margin-top: 6px;
   }
 
-  .roi-output {
+  .budget-advice {
+    margin-top: 18px;
+    background: #f0f0f0;
+    border-left: 3px solid #00aa55;
+    padding: 16px 20px;
+    font-size: 13px;
+    line-height: 1.85;
+    color: #0f0f0f;
+  }
+  .budget-advice strong { color: #00aa55; }
+
+  /* 演示三：Compaction */
+  .compact-wrapper {
+    margin-top: 32px;
     background: #0f0f0f;
     color: #fafafa;
     padding: 32px;
-    border-left: 4px solid #00d4ff;
   }
-  .roi-output h4 {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.25em;
-    color: #00d4ff;
+  .compact-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
     margin-bottom: 18px;
   }
-  .roi-tiers {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 14px;
-    margin-bottom: 22px;
+  .compact-btn {
+    padding: 10px 22px;
+    background: #00e676;
+    color: #0f0f0f;
+    border: none;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    font-weight: 700;
+    cursor: pointer;
   }
-  .roi-tier {
+  .compact-btn:hover { background: #4dff9a; }
+  .compact-btn.reset {
+    background: transparent;
+    color: #888;
+    border: 1px solid #2a2a2a;
+  }
+
+  .compact-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .compact-stat {
     background: #1a1a1a;
     border: 1px solid #2a2a2a;
-    padding: 18px;
-    text-align: center;
+    padding: 14px 16px;
   }
-  .roi-tier.featured {
-    background: rgba(0, 212, 255, 0.08);
-    border-color: #00d4ff;
-  }
-  .roi-tier .tier-name {
+  .compact-stat .label {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
     color: #888;
     letter-spacing: 0.2em;
-    margin-bottom: 8px;
-  }
-  .roi-tier.featured .tier-name { color: #00d4ff; }
-  .roi-tier .tier-cn {
-    font-size: 12px;
-    color: #c0c0c0;
-    margin-bottom: 10px;
-  }
-  .roi-tier .tier-num {
-    font-family: 'IBM Plex Sans', sans-serif;
-    font-size: 36px;
-    font-weight: 700;
-    color: #fafafa;
-    line-height: 1;
-  }
-  .roi-tier.featured .tier-num { color: #00d4ff; }
-  .roi-tier .tier-unit {
-    font-size: 14px;
-    color: #888;
-    font-weight: 400;
-  }
-
-  .roi-detail {
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    padding: 18px 22px;
-  }
-  .roi-detail-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    padding: 6px 0;
-    border-bottom: 1px dotted #2a2a2a;
-  }
-  .roi-detail-row:last-child { border-bottom: none; }
-  .roi-detail-row .label {
-    font-size: 12px;
-    color: #a0a0a0;
-  }
-  .roi-detail-row .val {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 13px;
-    color: #00d4ff;
-    font-weight: 600;
-  }
-  .roi-detail-row .val.warn { color: #ff9933; }
-
-  /* 演示四：成熟度自评 */
-  .maturity {
-    margin-top: 28px;
-    display: grid;
-    grid-template-columns: 1fr 320px;
-    gap: 24px;
-  }
-  .maturity-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-  .mat-dim {
-    background: #fff;
-    border: 1px solid #e0e0e0;
-    padding: 16px 22px;
-  }
-  .mat-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
     margin-bottom: 4px;
   }
-  .mat-name {
+  .compact-stat .value {
     font-family: 'IBM Plex Sans', sans-serif;
-    font-size: 15px;
+    font-size: 24px;
     font-weight: 700;
-    color: #0f0f0f;
+    color: #c0c0c0;
   }
-  .mat-tag {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    color: #0099cc;
-    letter-spacing: 0.2em;
-  }
-  .mat-desc {
-    font-size: 12px;
-    color: #888;
-    line-height: 1.7;
-    margin-bottom: 10px;
-  }
-  .mat-levels {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 6px;
-  }
-  .mat-level {
-    padding: 10px 6px;
-    background: #f8f8f8;
-    border: 1px solid #e0e0e0;
-    cursor: pointer;
-    text-align: center;
-    transition: all 0.15s;
-    font-size: 11px;
-    line-height: 1.4;
-  }
-  .mat-level:hover { background: #e8f6ff; border-color: #00d4ff; }
-  .mat-level.selected {
-    background: #00d4ff;
-    color: #0f0f0f;
-    border-color: #00d4ff;
-    font-weight: 600;
-  }
-  .mat-level .lvl-num {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 14px;
-    font-weight: 700;
-    display: block;
-    margin-bottom: 2px;
-  }
-  .mat-level .lvl-cn { color: #555; }
-  .mat-level.selected .lvl-cn { color: #0f0f0f; }
+  .compact-stat .value.good { color: #00e676; }
+  .compact-stat .value.bad { color: #ff9933; }
 
-  .mat-result {
-    background: #0f0f0f;
-    color: #fafafa;
-    padding: 28px 24px;
-    border-left: 4px solid #00d4ff;
-    height: fit-content;
-    position: sticky;
-    top: 80px;
+  .compact-view {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
   }
-  .mat-result h4 {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.25em;
-    color: #00d4ff;
-    margin-bottom: 14px;
-  }
-  .mat-score {
-    text-align: center;
-    margin-bottom: 18px;
-    padding: 20px 0;
+  .compact-col {
     background: #1a1a1a;
     border: 1px solid #2a2a2a;
+    max-height: 480px;
+    overflow-y: auto;
   }
-  .mat-score .num {
-    font-family: 'IBM Plex Sans', sans-serif;
-    font-size: 54px;
-    font-weight: 700;
-    color: #00d4ff;
-    line-height: 1;
-  }
-  .mat-score .total {
-    font-size: 18px;
-    color: #888;
-  }
-  .mat-score .stage {
-    margin-top: 8px;
-    font-size: 13px;
-    color: #c0c0c0;
-  }
-  .mat-result .advice {
-    background: rgba(0, 212, 255, 0.06);
-    border-left: 2px solid #00d4ff;
-    padding: 12px 14px;
-    font-size: 12px;
-    line-height: 1.85;
-    color: #c0c0c0;
-  }
-  .mat-result .advice strong { color: #00d4ff; }
-  .mat-bar {
-    margin-top: 14px;
-  }
-  .mat-bar-row {
-    display: grid;
-    grid-template-columns: 60px 1fr 28px;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
-    font-size: 11px;
-  }
-  .mat-bar-row .lbl { color: #888; }
-  .mat-bar-row .track {
-    height: 6px;
-    background: #1a1a1a;
-    position: relative;
-  }
-  .mat-bar-row .fill {
-    position: absolute;
-    inset: 0;
-    background: #00d4ff;
-    width: 0%;
-    transition: width 0.3s;
-  }
-  .mat-bar-row .v {
+  .compact-col-head {
+    background: #0a0a0a;
+    padding: 12px 16px;
     font-family: 'IBM Plex Mono', monospace;
-    color: #00d4ff;
-    text-align: right;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: #00e676;
+    border-bottom: 1px solid #2a2a2a;
+    position: sticky;
+    top: 0;
   }
+  .compact-line {
+    padding: 10px 16px;
+    border-bottom: 1px solid #2a2a2a;
+    font-size: 12px;
+    line-height: 1.7;
+    color: #c0c0c0;
+  }
+  .compact-line.user { border-left: 2px solid #4d8eff; color: #b4d2ff; background: rgba(77, 142, 255, 0.04); }
+  .compact-line.agent { border-left: 2px solid #00e676; color: #b4f0d0; background: rgba(0, 230, 118, 0.04); }
+  .compact-line.drop {
+    opacity: 0.32;
+    text-decoration: line-through;
+    text-decoration-color: #ff5555;
+  }
+  .compact-line.keep {
+    background: rgba(0, 230, 118, 0.08);
+    border-left-color: #00e676;
+  }
+  .compact-line .meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #555;
+    margin-right: 6px;
+  }
+  .compact-line.summary {
+    background: rgba(0, 230, 118, 0.06);
+    border-left: 2px solid #00e676;
+    color: #d0ffd0;
+    padding: 14px 18px;
+  }
+  .compact-line.summary strong { color: #00e676; }
+
+  /* 演示四：Bad vs Good */
+  .bg-wrapper {
+    margin-top: 32px;
+    background: #fff;
+    border: 1px solid #e8e8e8;
+    padding: 32px;
+  }
+  .bg-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 18px;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  .bg-tab {
+    padding: 12px 22px;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #888;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .bg-tab.bad.active { border-bottom-color: #cc4444; color: #cc4444; }
+  .bg-tab.good.active { border-bottom-color: #00aa55; color: #00aa55; }
+
+  .bg-panel {
+    display: none;
+  }
+  .bg-panel.active {
+    display: block;
+  }
+
+  .bg-question {
+    padding: 14px 18px;
+    background: #f0f0f0;
+    border-left: 3px solid #4d8eff;
+    margin-bottom: 14px;
+    font-size: 13px;
+    line-height: 1.75;
+    color: #0f0f0f;
+  }
+  .bg-question strong { color: #4d8eff; }
+
+  .bg-context-area {
+    background: #0f0f0f;
+    color: #fafafa;
+    padding: 20px 24px;
+    margin-bottom: 14px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+    max-height: 320px;
+    overflow-y: auto;
+    border-left: 3px solid #00e676;
+  }
+  .bg-context-area.bad {
+    border-left-color: #cc4444;
+  }
+  .bg-context-area .ctx-block {
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed #2a2a2a;
+  }
+  .bg-context-area .ctx-block:last-child { border-bottom: none; }
+  .bg-context-area .ctx-tag {
+    color: #00e676;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    display: block;
+    margin-bottom: 4px;
+  }
+  .bg-context-area.bad .ctx-tag { color: #ff5555; }
+  .bg-context-area .ctx-text { color: #c0c0c0; }
+
+  .bg-output {
+    padding: 16px 20px;
+    background: #f8f8f8;
+    border-left: 3px solid #00aa55;
+    font-size: 13px;
+    line-height: 1.85;
+    color: #0f0f0f;
+    margin-bottom: 14px;
+  }
+  .bg-output.bad { border-left-color: #cc4444; background: #fff3f0; }
+  .bg-output .out-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #00aa55;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .bg-output.bad .out-label { color: #cc4444; }
+
+  .bg-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .bg-metric {
+    background: #f8f8f8;
+    border-left: 3px solid #888;
+    padding: 12px 14px;
+  }
+  .bg-metric.bad { border-left-color: #cc4444; }
+  .bg-metric.good { border-left-color: #00aa55; }
+  .bg-metric .label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.2em;
+    margin-bottom: 4px;
+  }
+  .bg-metric .value {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: #0f0f0f;
+  }
+  .bg-metric.bad .value { color: #cc4444; }
+  .bg-metric.good .value { color: #00aa55; }
+
+  /* 反模式卡片 */
+  .anti-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin-top: 32px;
+  }
+  .anti-card {
+    background: #fff;
+    border: 1px solid #e8e8e8;
+    padding: 24px 26px;
+    border-top: 3px solid #cc4444;
+  }
+  .anti-card .anti-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #cc4444;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .anti-card .anti-name {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .anti-card .anti-en {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.15em;
+    margin-bottom: 12px;
+  }
+  .anti-card p {
+    font-size: 13px;
+    line-height: 1.8;
+    color: #555;
+    margin-bottom: 8px;
+  }
+  .anti-card p strong { color: #0f0f0f; }
+  .anti-card .anti-fix {
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: #f0fff5;
+    border-left: 2px solid #00aa55;
+    font-size: 12px;
+    color: #0f0f0f;
+    line-height: 1.75;
+  }
+  .anti-card .anti-fix strong { color: #00aa55; }
+
+  /* 工具对比表 */
+  .tools-compare {
+    margin-top: 32px;
+    background: #fff;
+    border: 1px solid #e8e8e8;
+    overflow-x: auto;
+  }
+  .tc-row {
+    display: grid;
+    grid-template-columns: 140px 1fr 1fr 1fr;
+    border-bottom: 1px solid #e8e8e8;
+  }
+  .tc-row:last-child { border-bottom: none; }
+  .tc-row.head {
+    background: #0f0f0f;
+    color: #fafafa;
+  }
+  .tc-cell {
+    padding: 14px 18px;
+    font-size: 12px;
+    line-height: 1.75;
+    border-right: 1px solid #e8e8e8;
+  }
+  .tc-cell:last-child { border-right: none; }
+  .tc-row.head .tc-cell {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: #00e676;
+    border-right-color: #1f1f1f;
+  }
+  .tc-cell.lab {
+    background: #f8f8f8;
+    font-weight: 700;
+    color: #0f0f0f;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+  }
+  .tc-cell .tc-en {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.15em;
+    display: block;
+    margin-top: 4px;
+  }
+
+  /* Memory 4 层 */
+  .mem-grid {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+  .mem-card {
+    background: #fff;
+    border: 1px solid #e8e8e8;
+    padding: 24px 28px;
+    border-left: 4px solid #00aa55;
+  }
+  .mem-card.l2 { border-left-color: #4d8eff; }
+  .mem-card.l3 { border-left-color: #ff9933; }
+  .mem-card.l4 { border-left-color: #aa55cc; }
+  .mem-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #00aa55;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+  .mem-card.l2 .mem-tag { color: #4d8eff; }
+  .mem-card.l3 .mem-tag { color: #ff9933; }
+  .mem-card.l4 .mem-tag { color: #aa55cc; }
+  .mem-name {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .mem-en {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.15em;
+    margin-bottom: 12px;
+  }
+  .mem-card p {
+    font-size: 13px;
+    line-height: 1.85;
+    color: #555;
+    margin-bottom: 8px;
+  }
+  .mem-card p strong { color: #0f0f0f; }
+  .mem-card .mem-eg {
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: #f8f8f8;
+    border-left: 2px solid #00aa55;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #0f0f0f;
+    line-height: 1.7;
+  }
+  .mem-card.l2 .mem-eg { border-left-color: #4d8eff; }
+  .mem-card.l3 .mem-eg { border-left-color: #ff9933; }
+  .mem-card.l4 .mem-eg { border-left-color: #aa55cc; }
 
   /* 总结 */
   .summary {
@@ -664,7 +860,7 @@
     padding: 56px;
     margin-bottom: 24px;
     border: 1px solid #1f1f1f;
-    border-left: 4px solid #00d4ff;
+    border-left: 4px solid #00e676;
     position: relative;
     overflow: hidden;
   }
@@ -673,8 +869,8 @@
     position: absolute;
     inset: 0;
     background:
-      linear-gradient(0deg, rgba(0, 212, 255, 0.02) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0, 212, 255, 0.02) 1px, transparent 1px);
+      linear-gradient(0deg, rgba(0, 230, 118, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 230, 118, 0.02) 1px, transparent 1px);
     background-size: 24px 24px;
     pointer-events: none;
   }
@@ -683,7 +879,7 @@
     font-size: 34px;
     font-weight: 700;
     margin-bottom: 22px;
-    color: #00d4ff;
+    color: #00e676;
     line-height: 1.15;
     position: relative;
   }
@@ -694,11 +890,11 @@
     color: #c0c0c0;
     position: relative;
   }
-  .summary p strong { color: #00d4ff; }
+  .summary p strong { color: #00e676; }
 
   .summary-quote {
-    background: rgba(0, 212, 255, 0.06);
-    border-left: 3px solid #00d4ff;
+    background: rgba(0, 230, 118, 0.06);
+    border-left: 3px solid #00e676;
     padding: 22px 28px;
     margin: 22px 0;
     font-family: 'IBM Plex Sans', sans-serif;
@@ -721,25 +917,26 @@
     border: 1px solid #1f1f1f;
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 768px) {
     h1 { font-size: 56px; }
     .section, .summary { padding: 28px 22px; }
-    .pipeline, .roi-calc, .maturity { grid-template-columns: 1fr; }
-    .roi-tiers { grid-template-columns: 1fr; }
-    .mat-levels { grid-template-columns: repeat(5, 1fr); font-size: 10px; }
+    .compare-row, .tc-row { grid-template-columns: 1fr; }
+    .quote-wall, .anti-grid, .mem-grid { grid-template-columns: 1fr; }
+    .ctx-legend, .budget-summary, .bg-metrics, .compact-stats { grid-template-columns: repeat(2, 1fr); }
+    .compact-view { grid-template-columns: 1fr; }
   }
 </style>
 </head>
 <body>
-<!-- 课程系列统一导航条 · 由脚本注入 -->
+<!-- 课程系列统一导航条 -->
 <div id="course-nav-bar">
   <div class="course-nav-inner">
     <a href="../lesson14/demo.html" class="course-nav-btn prev" title="AI应用的评估与可观测性"><span class="nav-arrow">←</span><span class="nav-label">上一讲</span></a>
     <a href="../index.html" class="course-nav-center" title="回到课程总览">
-      <span class="nav-current">LESSON 15 / 20</span>
-      <span class="nav-title">AI在 SaaS 交付中的应用全景</span>
+      <span class="nav-current">LESSON 15 / 23</span>
+      <span class="nav-title">Context Engineering — 从 Prompt 到上下文系统</span>
     </a>
-    <a href="../lesson16/demo.html" class="course-nav-btn next" title="知识库工程化:从Demo到生产"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
+    <a href="../lesson16/demo.html" class="course-nav-btn next" title="Harness Engineering"><span class="nav-label">下一讲</span><span class="nav-arrow">→</span></a>
   </div>
 </div>
 
@@ -861,620 +1058,913 @@
 
 <div class="container">
   <header>
-    <div class="lesson-tag">LESSON 15 / 20</div>
-    <h1>AI ACROSS<br><span class="accent">SAAS DELIVERY</span></h1>
-    <div class="h1-cn">AI在 SaaS 交付中的应用全景</div>
+    <div class="lesson-tag">LESSON 15 / 23</div>
+    <h1>CONTEXT<br><span class="accent">ENGINEERING</span></h1>
+    <div class="h1-cn">从 Prompt 到上下文系统</div>
     <div class="subtitle">
-      第三部分讲完工程方法。第四部分要回到我们最熟悉的战场——
-      <strong>纷享销客 CRM 的真实交付生命周期</strong>，看一遍 AI 在售前、方案、实施、客户成功、客服、内部协同
-      <strong>六大场景</strong>里到底怎么落地、谁在领跑、ROI 范围多大、我们该投哪一档。
+      上一讲我们说"没有评估和观测，生产环境就是黑盒"。但即使观测全装上、评估全跑过，
+      <strong>真正决定模型每次输出质量的，是上下文窗口里塞了什么、不塞什么、怎么排序、怎么压缩</strong>。
+      2024 Q4 业界给这件事正式命名——<strong>Context Engineering</strong>。
+      今天讲清楚 Prompt Engineering 到 Context Engineering 的范式升级。
     </div>
   </header>
 
-  <!-- 演示一：交付链路全景图 -->
+  <!-- 第一节：范式升级 -->
   <div class="section">
-    <div class="section-marker">DEMO · 01</div>
-    <div class="section-title">DELIVERY <span class="accent">PIPELINE</span></div>
-    <div class="section-cn">交付链路全景图 · 点击 6 个阶段展开 AI 应用清单</div>
+    <div class="section-marker">CHAPTER · 01</div>
+    <div class="section-title">FROM PROMPT <span class="light">TO</span> <span class="accent">CONTEXT</span></div>
+    <div class="section-cn">范式升级：从"写好一条话"到"设计上下文系统"</div>
     <div class="section-lead">
-      从一条线索进来到客户续费，企业 SaaS 走过 6 个阶段。<strong>2025 年每个阶段都有成熟的 AI 工具进场</strong>，
-      但成熟度、ROI、踩坑难度完全不同。点击左侧节点，右侧看真实工具名 + ROI 区间。
+      Prompt Engineering 关注的是<strong>一条 prompt 怎么写</strong>。
+      Context Engineering 关注的是<strong>每一次模型调用前，整个上下文窗口里塞什么、不塞什么、按什么顺序、压成多少</strong>——它把"写 prompt"从一门手艺变成了一门系统工程。
     </div>
 
-    <div class="pipeline">
-      <div class="pipeline-flow">
-        <div class="stage-node active" data-stage="0">
-          <div class="stage-head">
-            <div class="stage-name">售前线索</div>
-            <div class="stage-tag">STAGE 01</div>
-          </div>
-          <div class="stage-sub">ICP 匹配 / 自动外联 / SDR Agent</div>
-        </div>
-        <div class="stage-node" data-stage="1">
-          <div class="stage-head">
-            <div class="stage-name">方案 & 报价</div>
-            <div class="stage-tag">STAGE 02</div>
-          </div>
-          <div class="stage-sub">自动出方案 / 配置 BoM / 智能定价</div>
-        </div>
-        <div class="stage-node" data-stage="2">
-          <div class="stage-head">
-            <div class="stage-name">实施交付</div>
-            <div class="stage-tag">STAGE 03</div>
-          </div>
-          <div class="stage-sub">需求提取 / 配置自动生成 / UAT</div>
-        </div>
-        <div class="stage-node" data-stage="3">
-          <div class="stage-head">
-            <div class="stage-name">客户成功</div>
-            <div class="stage-tag">STAGE 04</div>
-          </div>
-          <div class="stage-sub">健康分 / 续约预测 / 流失预警</div>
-        </div>
-        <div class="stage-node" data-stage="4">
-          <div class="stage-head">
-            <div class="stage-name">客服支持</div>
-            <div class="stage-tag">STAGE 05</div>
-          </div>
-          <div class="stage-sub">工单分配 / 回答推荐 / 自助解决</div>
-        </div>
-        <div class="stage-node" data-stage="5">
-          <div class="stage-head">
-            <div class="stage-name">内部协同</div>
-            <div class="stage-tag">STAGE 06</div>
-          </div>
-          <div class="stage-sub">销售教练 / 会话智能 / 复盘自动化</div>
-        </div>
+    <div class="compare-table">
+      <div class="compare-row header">
+        <div class="compare-cell">维度</div>
+        <div class="compare-cell">Prompt Engineering</div>
+        <div class="compare-cell">Context Engineering</div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-cell label">关注对象</div>
+        <div class="compare-cell old">一条 prompt 的<strong>措辞、结构、范例</strong></div>
+        <div class="compare-cell new">每次调用前的<strong>整个上下文窗口（system + retrieved + history + tools + scratchpad）</strong></div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-cell label">工作产物</div>
+        <div class="compare-cell old">一段 <strong>静态 prompt 字符串</strong></div>
+        <div class="compare-cell new">一个<strong>运行时上下文组装器（dynamic context assembler）</strong>——根据任务动态拼装</div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-cell label">优化手段</div>
+        <div class="compare-cell old">改措辞、加 few-shot、调 CoT 触发词</div>
+        <div class="compare-cell new"><strong>retrieval gating、history compaction、subagent isolation、memory layering</strong></div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-cell label">质量瓶颈</div>
+        <div class="compare-cell old">prompt 写得不够清楚</div>
+        <div class="compare-cell new"><strong>上下文塞错了 / 塞多了 / 顺序错了 / 该删的没删</strong></div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-cell label">典型符号</div>
+        <div class="compare-cell old">一份 <code style="background:#f0f0f0;padding:2px 6px;font-family:'IBM Plex Mono'">prompt.txt</code></div>
+        <div class="compare-cell new">一个 <code style="background:#f0f0f0;padding:2px 6px;font-family:'IBM Plex Mono'">build_context(task, state) → str</code> 函数</div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-cell label">2025 代表实践</div>
+        <div class="compare-cell old">早期 OpenAI Cookbook、各种"prompt 工程指南"</div>
+        <div class="compare-cell new"><strong>Claude Code 的 /compact、Cursor Composer rules、Devin 的 episodic memory、Anthropic multi-agent research</strong></div>
+      </div>
+    </div>
+
+    <div class="quote-wall">
+      <div class="quote-card">
+        <blockquote>"I really like the term context engineering over prompt engineering. It describes the core skill better: the art of providing all the context for the task to be plausibly solvable by the LLM."</blockquote>
+        <div class="quote-source">SHOPIFY CEO · 2024.09</div>
+        <div class="quote-name">Tobias Lütke</div>
+      </div>
+      <div class="quote-card">
+        <blockquote>"+1 for context engineering over prompt engineering. People associate prompts with short instructions. Context engineering is the delicate art and science of filling the context window with just the right information for the next step."</blockquote>
+        <div class="quote-source">EX-TESLA AI · 2024.10</div>
+        <div class="quote-name">Andrej Karpathy</div>
+      </div>
+      <div class="quote-card">
+        <blockquote>"Context engineering is the new prompt engineering. The shift is from writing better prompts to systematically engineering what goes into the model's context window at each step."</blockquote>
+        <div class="quote-source">LANGCHAIN BLOG · 2025</div>
+        <div class="quote-name">Lance Martin</div>
+      </div>
+    </div>
+
+    <div style="margin-top: 28px; padding: 22px 26px; background: #0f0f0f; color: #fafafa; border-left: 4px solid #00e676;">
+      <p style="font-size: 14px; line-height: 1.85;">
+        <strong style="color: #00e676;">核心结论</strong>：
+        2023 我们靠"会写 prompt"做出第一批 demo；2024 我们靠"会接 RAG / 工具"做出第一批生产应用；
+        <strong style="color: #00e676;">2025 决定 AI 应用质量上限的是"会做 context engineering"</strong>——
+        谁能把每次调用前的上下文窗口设计成一个工程系统，谁就能把 AI 用稳。
+      </p>
+    </div>
+  </div>
+
+  <!-- 第二节：演示一 7 块组成 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 02</div>
+    <div class="section-title">SEVEN <span class="accent">BLOCKS</span></div>
+    <div class="section-cn">演示一：Context Window 的 7 大组成块</div>
+    <div class="section-lead">
+      上下文窗口不是一个袋子，是一个<strong>有结构的 7 层堆栈</strong>。
+      每一层有自己的作用、典型大小、注意事项。
+      拖动下方的"任务复杂度"滑条，看不同任务下 7 块占比怎么变；点击任意块查看详情。
+    </div>
+
+    <div class="demo-wrapper">
+      <div class="demo-title">DEMO · 01 · CONTEXT WINDOW VISUALIZATION</div>
+      <div class="demo-subtitle">200K Token 窗口 · 7 块结构 · 动态占比</div>
+
+      <div class="ctx-slider-row">
+        <label>任务复杂度</label>
+        <input type="range" min="0" max="3" step="1" value="1" id="ctxComplexity">
+        <span class="ctx-task-label" id="ctxTaskLabel">中等任务</span>
       </div>
 
-      <div class="stage-detail" id="stageDetail">
+      <div class="ctx-bar" id="ctxBar"></div>
+
+      <div class="ctx-legend" id="ctxLegend"></div>
+
+      <div class="ctx-detail" id="ctxDetail"></div>
+    </div>
+  </div>
+
+  <!-- 第三节：演示二 Budget 模拟器 -->
+  <div class="section dark">
+    <div class="section-marker">CHAPTER · 03</div>
+    <div class="section-title" style="color:#fafafa;">CONTEXT <span class="accent">BUDGET</span></div>
+    <div class="section-cn" style="color:#fafafa;">演示二：Budget 模拟器 · 200K 不是免费午餐</div>
+    <div class="section-lead">
+      200K token 不等于"想塞多少塞多少"。每多 1k token 你都要付出三笔账：
+      <strong>cost（更贵）、latency（更慢）、attention（注意力衰减、Lost in the Middle）</strong>。
+      自己拖滑条试试，看你的预算分配能拿到多少质量分。
+    </div>
+
+    <div class="budget-wrapper" style="background:#1a1a1a;border-color:#2a2a2a;">
+      <div class="budget-controls">
+        <button class="budget-btn active" data-budget="20000">总预算 20K · 短对话</button>
+        <button class="budget-btn" data-budget="50000">总预算 50K · 中等任务</button>
+        <button class="budget-btn" data-budget="200000">总预算 200K · 长 agent 任务</button>
+        <button class="budget-btn" data-budget="preset-bad">载入反面教材</button>
+        <button class="budget-btn" data-budget="preset-good">载入参考分配</button>
+      </div>
+
+      <div id="budgetRows"></div>
+
+      <div class="budget-summary" id="budgetSummary"></div>
+
+      <div class="budget-advice" id="budgetAdvice" style="background:#0f0f0f;color:#c0c0c0;border-left-color:#00e676;"></div>
+    </div>
+  </div>
+
+  <!-- 第四节：演示三 Compaction -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 04</div>
+    <div class="section-title">HISTORY <span class="accent">COMPACTION</span></div>
+    <div class="section-cn">演示三：长对话压缩 · 30 轮 → 4k 摘要</div>
+    <div class="section-lead">
+      长 agent 会话最大的敌人是<strong>对话历史的指数级膨胀</strong>。Claude Code 的 <code style="background:#f0f0f0;padding:2px 6px;font-family:'IBM Plex Mono'">/compact</code>、
+      Cursor 的 rules、ChatGPT 的 memory 都在解决同一件事——
+      <strong>把不重要的丢掉，把决策、约束、未完成项保留并升级为摘要</strong>。下面是我们项目"需求提取"场景的真实 30 轮对话。
+    </div>
+
+    <div class="compact-wrapper">
+      <div class="compact-controls">
+        <button class="compact-btn" id="compactRun">Compact Now</button>
+        <button class="compact-btn reset" id="compactReset">Reset</button>
+        <span style="font-family:'IBM Plex Mono';font-size:11px;color:#888;letter-spacing:0.15em;margin-left:auto;">/compact · KB-SYSTEM · CRM 需求提取</span>
+      </div>
+
+      <div class="compact-stats" id="compactStats"></div>
+
+      <div class="compact-view">
+        <div class="compact-col">
+          <div class="compact-col-head">压缩前 · 30 轮原始对话</div>
+          <div id="compactBefore"></div>
+        </div>
+        <div class="compact-col">
+          <div class="compact-col-head">压缩后 · /compact 输出</div>
+          <div id="compactAfter"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 24px; padding: 22px 26px; background: #f0f0f0; border-left: 4px solid #00aa55;">
+      <p style="font-size: 14px; line-height: 1.85; color: #0f0f0f;">
+        <strong>什么必须保留</strong>：决策（"用 P0/P1/P2 三级"）、约束（"不要 emoji"）、未完成项（"还差 2 个边界 case"）、关键变量（user_id、project_id）。
+        <strong>什么可以丢</strong>：寒暄、重复确认、已经完成且无后续依赖的中间步骤、模型的内部 chain-of-thought。
+        Claude Code 的 /compact 会把这些规则编码成一个 LLM-driven summarizer，定期对历史窗口做"语义重排"。
+      </p>
+    </div>
+  </div>
+
+  <!-- 第五节：Retrieval Gating / Subagent / Memory -->
+  <div class="section tinted">
+    <div class="section-marker">CHAPTER · 05</div>
+    <div class="section-title">THREE CORE <span class="accent">TECHNIQUES</span></div>
+    <div class="section-cn">三项核心技术：Retrieval Gating · Subagent 隔离 · Memory 分层</div>
+    <div class="section-lead">
+      Context Engineering 不是单一技巧，是三个核心技术构成的<strong>系统设计模式</strong>——
+      什么时候检索、什么时候独立开 subagent、什么时候沉淀进 memory，
+      这三个决定决定了上下文窗口的健康度。
+    </div>
+
+    <h4 style="font-size:20px;margin-top:28px;margin-bottom:12px;color:#0f0f0f;">① Retrieval Gating · 不再是无脑前置检索</h4>
+    <p style="font-size:14px;line-height:1.85;color:#444;margin-bottom:14px;">
+      早期 RAG 的设计是<strong>每次 query 都先检索</strong>。Context Engineering 时代我们承认：<strong>检索本身也是上下文污染</strong>——
+      召回 8 段不太相关的文档，远比"不检索"更糟糕（注意力被稀释、模型被无关材料带偏）。
+    </p>
+    <p style="font-size:14px;line-height:1.85;color:#444;margin-bottom:14px;">
+      2025 的做法是 <strong>retrieval gating</strong>——先让模型自问"这个问题需要外部知识吗？需要哪一类？"，
+      只在需要时才检索，并且检索的<strong>粒度、数量、是否拼回上下文都是动态决定的</strong>。
+      Cursor 的 Composer、Claude Code 的 Agentic Search 都是这个范式。
+    </p>
+
+    <h4 style="font-size:20px;margin-top:28px;margin-bottom:12px;color:#0f0f0f;">② Subagent 隔离 · 父 agent 的"上下文保护墙"</h4>
+    <p style="font-size:14px;line-height:1.85;color:#444;margin-bottom:14px;">
+      Anthropic 的 multi-agent research 系统给出了一个反直觉的结论：<strong>让 subagent 跑独立 context window，比让父 agent 直接读全部资料效果更好</strong>。
+      原因是 subagent 处理掉 50k 原始材料后只返回 2k 摘要给父 agent，<strong>父 agent 的窗口被"保护"了</strong>。
+    </p>
+    <p style="font-size:14px;line-height:1.85;color:#444;margin-bottom:14px;">
+      这就是为什么 Claude Code 默认每个 Task / Agent 子任务都跑独立 context——父 agent 永远看到的是<strong>"摘要后的世界"</strong>，
+      不是"全量原始材料"。Devin、Cline 也是同款架构。
+    </p>
+
+    <h4 style="font-size:20px;margin-top:28px;margin-bottom:12px;color:#0f0f0f;">③ Memory 分层 · 把上下文升级为持久状态</h4>
+
+    <div class="mem-grid">
+      <div class="mem-card">
+        <div class="mem-tag">LAYER · 01</div>
+        <div class="mem-name">工作记忆</div>
+        <div class="mem-en">WORKING MEMORY</div>
+        <p>当前几轮对话直接放在 context window 里。最快、最贵，<strong>容量上限 = 模型窗口</strong>。Claude Code 的 conversation buffer 就在这一层。</p>
+        <div class="mem-eg">scope: 当前 session<br>size: ~10-50K tokens<br>ttl: until /compact</div>
+      </div>
+      <div class="mem-card l2">
+        <div class="mem-tag">LAYER · 02</div>
+        <div class="mem-name">情景记忆</div>
+        <div class="mem-en">EPISODIC MEMORY</div>
+        <p>过去 session 的<strong>任务 trace 摘要</strong>——做过什么、用了什么工具、得出什么结论。Devin 的 episodic memory、Cursor 的 chat history 都属此类。</p>
+        <div class="mem-eg">scope: 跨 session, 同用户/同项目<br>size: ~每条 200-2k tokens<br>storage: vector DB + 元数据</div>
+      </div>
+      <div class="mem-card l3">
+        <div class="mem-tag">LAYER · 03</div>
+        <div class="mem-name">语义记忆</div>
+        <div class="mem-en">SEMANTIC MEMORY</div>
+        <p>沉淀下来的<strong>知识、概念、用户偏好</strong>。ChatGPT 的 memory、Claude 的 user preferences、我们项目的"用户画像"都在这一层。</p>
+        <div class="mem-eg">scope: 长期, 跨项目<br>size: ~50-500 条事实<br>example: "用户偏好 P0/P1/P2 三级优先级"</div>
+      </div>
+      <div class="mem-card l4">
+        <div class="mem-tag">LAYER · 04</div>
+        <div class="mem-name">程序记忆</div>
+        <div class="mem-en">PROCEDURAL MEMORY</div>
+        <p>"<strong>怎么做</strong>"的固化技能——Claude Code 的 Skills、Cursor rules、AGENTS.md。本质是把"经过验证的好上下文"打包复用。</p>
+        <div class="mem-eg">scope: 全局, 跨用户<br>size: 每条 100-3k tokens<br>example: CLAUDE.md / .cursorrules</div>
       </div>
     </div>
   </div>
 
-  <!-- 演示二：售前 Agent 工作流 -->
-  <div class="section dark">
-    <div class="section-marker">DEMO · 02</div>
-    <div class="section-title" style="color: #fafafa;">SDR <span class="accent">AGENT</span> RUN</div>
-    <div class="section-cn" style="color: #fafafa;">售前 AI Agent 工作流 · 一条线索从匹配到 MQL 的完整 6 步</div>
+  <!-- 第六节：演示四 Bad vs Good -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 06</div>
+    <div class="section-title">BAD <span class="light">vs</span> <span class="accent">GOOD</span></div>
+    <div class="section-cn">演示四：Bad Context vs Good Context · 同问题 · 两种上下文</div>
     <div class="section-lead">
-      看一遍 11x.ai / Artisan / Clay 这类售前 Agent 实际跑一条线索时背后做了什么。
-      <strong>点"下一步"逐步播放</strong>，每一步的工具调用、输入输出、耗时都看得见。
+      同一道题——让模型分析一段客户访谈记录。
+      左 tab：<strong>Bad context</strong>——只塞了原始访谈 + "请分析"；右 tab：<strong>Good context</strong>——系统提示 + few-shot + scratchpad + retrieved 行业先例。
+      看输出质量、token 成本、latency 三个维度的差距。
     </div>
 
-    <div class="agent-flow">
-      <div class="agent-controls">
-        <div class="agent-progress">PROGRESS: <strong id="agentProgress">0 / 6</strong></div>
-        <div class="agent-btns">
-          <button class="agent-btn" id="agentReset">重置</button>
-          <button class="agent-btn primary" id="agentNext">下一步 ▸</button>
-        </div>
+    <div class="bg-wrapper">
+      <div class="bg-tabs">
+        <button class="bg-tab bad active" data-tab="bad">▸ BAD CONTEXT · 裸塞</button>
+        <button class="bg-tab good" data-tab="good">▸ GOOD CONTEXT · 工程化组装</button>
       </div>
 
-      <div id="agentSteps"></div>
+      <!-- BAD -->
+      <div class="bg-panel active" id="bgPanelBad">
+        <div class="bg-question">
+          <strong>USER QUERY</strong>：分析下面这段客户访谈，给我有用的输出。
+        </div>
 
-      <div class="agent-summary" id="agentSummary">
-        <h5>▼ RUN SUMMARY</h5>
-        <p>
-          <strong>耗时</strong>：累计 18.4 秒（人工同类任务约 35-45 分钟）。
-          <strong>消耗</strong>：约 12,400 tokens，成本 ¥0.52。
-          <strong>产出</strong>：1 条 MQL，已自动同步到纷享销客 CRM，分配给 AE 李娜。
-          这就是 2025 年「Autopilot」级别的售前自动化——AI 不只是辅助，它<strong>完整跑完了一段业务流程</strong>。
+        <div class="bg-context-area bad">
+          <div class="ctx-block">
+            <span class="ctx-tag">[ CONTEXT BLOCK 1 / 1 · 整个上下文窗口只有这一块 ]</span>
+            <div class="ctx-text">
+              # 用户输入<br>
+              客户：我们现在销售管理特别乱，业务员每天都在抱怨 CRM 不好用。具体来说，<br>
+              我们打开商机列表要等 8 秒，移动端经常崩溃，审批流程要 5 个人签字...<br>
+              另外我们之前用钉钉做的审批，能不能直接对接进来？<br>
+              客户经理 Lily 说：上次客户 A 流失了就是因为漏掉一个跟进，能不能加个提醒？<br>
+              对了，我们还要管 300 个分销商，他们要登录看自己的提成报表，<br>
+              但又不能让他们看到别人的数据...<br>
+              （以下还有 3 页类似的混杂诉求）<br><br>
+
+              请分析。
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-output bad">
+          <div class="out-label">▼ MODEL OUTPUT · BAD CONTEXT</div>
+          根据您提供的访谈记录，客户提到了几个问题：<br><br>
+          1. CRM 不好用，业务员抱怨多<br>
+          2. 商机列表加载慢<br>
+          3. 移动端崩溃<br>
+          4. 审批流程复杂<br>
+          5. 想对接钉钉<br>
+          6. 需要跟进提醒<br>
+          7. 分销商管理需求<br><br>
+          建议您优化系统性能、简化审批流程，并考虑对接外部系统。如需进一步分析，请告诉我您具体想了解哪方面。
+        </div>
+
+        <div class="bg-metrics">
+          <div class="bg-metric bad"><div class="label">QUALITY</div><div class="value">3 / 10</div></div>
+          <div class="bg-metric bad"><div class="label">TOKENS IN</div><div class="value">1.2K</div></div>
+          <div class="bg-metric bad"><div class="label">LATENCY</div><div class="value">1.8s</div></div>
+          <div class="bg-metric bad"><div class="label">USABLE?</div><div class="value">NO</div></div>
+        </div>
+
+        <p style="margin-top:14px;font-size:13px;line-height:1.85;color:#555;">
+          <strong style="color:#cc4444;">为什么差</strong>：模型不知道你是销售、产品还是顾问；不知道要输出什么结构；不知道优先级怎么定；没看到任何参考样例。
+          它只能给一份<strong style="color:#cc4444;">罗列式、无优先级、无可执行性的复述</strong>。这就是大量"AI 回答看着对其实没用"的根源。
+        </p>
+      </div>
+
+      <!-- GOOD -->
+      <div class="bg-panel" id="bgPanelGood">
+        <div class="bg-question">
+          <strong>USER QUERY</strong>：分析下面这段客户访谈，给我有用的输出。<span style="color:#888;">（query 完全一样，区别只在上下文工程）</span>
+        </div>
+
+        <div class="bg-context-area">
+          <div class="ctx-block">
+            <span class="ctx-tag">[ BLOCK 1 · SYSTEM PROMPT · 800 tokens ]</span>
+            <div class="ctx-text">
+              你是 SaaS CRM 实施顾问。任务：从客户访谈记录里提取结构化的"需求池"。<br>
+              输出 JSON 数组，每条含: { 描述, 类别∈{性能,集成,业务功能,权限,体验}, 优先级∈{P0,P1,P2}, 是否影响留存 }<br>
+              规则: P0=客户已明确说会因此换厂商；P1=阻塞日常使用；P2=锦上添花
+            </div>
+          </div>
+          <div class="ctx-block">
+            <span class="ctx-tag">[ BLOCK 2 · FEW-SHOT · 1.4K tokens ]</span>
+            <div class="ctx-text">
+              示例输入: "审批流要 5 个人签字..."<br>
+              示例输出: [{描述:"5 级审批冗长", 类别:"业务功能", 优先级:"P1", 影响留存:false}]<br>
+              ——共 3 个 in-domain 示例
+            </div>
+          </div>
+          <div class="ctx-block">
+            <span class="ctx-tag">[ BLOCK 3 · RETRIEVED · 2.2K tokens ]</span>
+            <div class="ctx-text">
+              # 行业先例 (Top-3, retrieved)<br>
+              1. 某客户 2024 因为分销门户性能问题流失，损失 ¥ 380w ARR<br>
+              2. 钉钉集成是华东客户的高频诉求，2024 我们项目库共出现 17 次<br>
+              3. 漏跟进提醒 → P0：参考客户 B 的 CSM 流程
+            </div>
+          </div>
+          <div class="ctx-block">
+            <span class="ctx-tag">[ BLOCK 4 · SCRATCHPAD · 引导 ]</span>
+            <div class="ctx-text">
+              先在 &lt;thinking&gt; 标签里逐条扫描，识别"客户的核心痛点信号词"<br>
+              （流失、崩溃、抱怨、签不动单、被对手抢...），再产出 JSON。
+            </div>
+          </div>
+          <div class="ctx-block">
+            <span class="ctx-tag">[ BLOCK 5 · USER INPUT · 1.8K tokens ]</span>
+            <div class="ctx-text">客户：我们现在销售管理特别乱... （同 BAD 完整内容）</div>
+          </div>
+        </div>
+
+        <div class="bg-output">
+          <div class="out-label">▼ MODEL OUTPUT · GOOD CONTEXT</div>
+          <pre style="font-family:'IBM Plex Mono';font-size:12px;line-height:1.7;white-space:pre-wrap;margin:0;color:#0f0f0f;">[
+  { "描述": "商机列表加载 8 秒", "类别": "性能", "优先级": "P0", "影响留存": true,
+    "证据": "性能问题历史上导致过类似客户流失 ¥380w ARR" },
+  { "描述": "跟进提醒缺失", "类别": "业务功能", "优先级": "P0", "影响留存": true,
+    "证据": "客户 Lily 明确说 客户 A 流失 因为漏跟进" },
+  { "描述": "钉钉审批双向对接", "类别": "集成", "优先级": "P1", "影响留存": false,
+    "证据": "华东高频诉求，但非阻塞" },
+  { "描述": "分销商行级权限隔离", "类别": "权限", "优先级": "P0", "影响留存": true,
+    "证据": "涉及合规与商业机密" },
+  { "描述": "移动端稳定性", "类别": "性能", "优先级": "P1", "影响留存": false },
+  { "描述": "5 级审批精简", "类别": "业务功能", "优先级": "P2", "影响留存": false }
+]</pre>
+        </div>
+
+        <div class="bg-metrics">
+          <div class="bg-metric good"><div class="label">QUALITY</div><div class="value">9 / 10</div></div>
+          <div class="bg-metric good"><div class="label">TOKENS IN</div><div class="value">6.2K</div></div>
+          <div class="bg-metric good"><div class="label">LATENCY</div><div class="value">3.4s</div></div>
+          <div class="bg-metric good"><div class="label">USABLE?</div><div class="value">YES</div></div>
+        </div>
+
+        <p style="margin-top:14px;font-size:13px;line-height:1.85;color:#555;">
+          <strong style="color:#00aa55;">为什么好</strong>：上下文工程让模型从一个"自由回答机"变成"结构化抽取器"——
+          系统提示锚定身份和输出格式，few-shot 演示边界判断，retrieved 注入业务事实，scratchpad 引导推理路径，user input 才放在最后。
+          代价是上下文涨到 6.2K（5 倍），latency 涨到 3.4s（约 2 倍），<strong style="color:#00aa55;">但输出从"不能用"变成"可以直接进需求池"</strong>——这是 0→1 的差距，不是 +20%。
         </p>
       </div>
     </div>
   </div>
 
-  <!-- 演示三：ROI 计算器 -->
-  <div class="section tinted">
-    <div class="section-marker">DEMO · 03</div>
-    <div class="section-title">CRM IMPLEMENTATION <span class="accent">ROI</span></div>
-    <div class="section-cn">CRM 实施环节 ROI 计算器 · 拖一拖看 AI 介入能省多少</div>
+  <!-- 第七节：反模式 -->
+  <div class="section">
+    <div class="section-marker">CHAPTER · 07</div>
+    <div class="section-title">FOUR <span class="accent">ANTI-PATTERNS</span></div>
+    <div class="section-cn">四大反模式：你大概率正在踩坑</div>
     <div class="section-lead">
-      实施是 CRM 厂商最重的活——一个中型项目动辄 80-200 人天，毛利稀薄。
-      <strong>调下面参数</strong>，看保守/中性/激进三档下 AI 介入后的节省幅度，输出三档分别对应的"该投到什么程度"。
+      Context Engineering 80% 的工作是<strong>识别并拆除已经在系统里的反模式</strong>。
+      下面 4 个是 2024-2025 业界最常见的"上下文设计错误"，每条都来自真实生产事故。
     </div>
 
-    <div class="roi-calc">
-      <div class="roi-inputs">
-        <div class="input-row">
-          <label>PROJECT MAN-DAYS</label>
-          <div class="input-cn">项目人天（实施 + 顾问）</div>
-          <input type="range" id="inMandays" min="40" max="400" value="120" step="10">
-          <div class="value-display"><span id="vMandays">120</span><span class="unit">人天</span></div>
-        </div>
-        <div class="input-row">
-          <label>DAY RATE</label>
-          <div class="input-cn">人天单价（含税）</div>
-          <input type="range" id="inRate" min="1500" max="6000" value="2800" step="100">
-          <div class="value-display">¥ <span id="vRate">2800</span><span class="unit">/ 人天</span></div>
-        </div>
-        <div class="input-row">
-          <label>CUSTOMER COUNT</label>
-          <div class="input-cn">年度交付客户数</div>
-          <input type="range" id="inCust" min="10" max="200" value="40" step="5">
-          <div class="value-display"><span id="vCust">40</span><span class="unit">家</span></div>
-        </div>
-        <div class="input-row">
-          <label>AI INVEST</label>
-          <div class="input-cn">AI 工具年度投入（含 token + 平台）</div>
-          <input type="range" id="inInvest" min="20" max="300" value="80" step="10">
-          <div class="value-display"><span id="vInvest">80</span><span class="unit">万 / 年</span></div>
+    <div class="anti-grid">
+      <div class="anti-card">
+        <div class="anti-num">ANTI · 01</div>
+        <div class="anti-name">Lost in the Middle</div>
+        <div class="anti-en">中段遗忘</div>
+        <p>Stanford 2023 论文：<strong>模型对上下文开头和结尾的注意力强，中间段几乎被忽略</strong>。当你把关键事实塞在第 3-8 段 retrieved 的中间，模型经常看不见。</p>
+        <p>典型症状：检索召回是对的、模型输出却没用上。</p>
+        <div class="anti-fix">
+          <strong>修</strong>：把最关键事实放<strong>系统提示末尾或用户输入最后一段</strong>；retrieved 段数控制在 ≤5；重要信息 dedup 后放头部。
         </div>
       </div>
 
-      <div class="roi-output">
-        <h4>▼ 三档 ROI 测算</h4>
-        <div class="roi-tiers">
-          <div class="roi-tier">
-            <div class="tier-name">CONSERVATIVE</div>
-            <div class="tier-cn">保守档</div>
-            <div class="tier-num"><span id="vSaveLow">--</span><span class="tier-unit">%</span></div>
-          </div>
-          <div class="roi-tier featured">
-            <div class="tier-name">MODERATE</div>
-            <div class="tier-cn">中性档（推荐）</div>
-            <div class="tier-num"><span id="vSaveMid">--</span><span class="tier-unit">%</span></div>
-          </div>
-          <div class="roi-tier">
-            <div class="tier-name">AGGRESSIVE</div>
-            <div class="tier-cn">激进档</div>
-            <div class="tier-num"><span id="vSaveHigh">--</span><span class="tier-unit">%</span></div>
-          </div>
+      <div class="anti-card">
+        <div class="anti-num">ANTI · 02</div>
+        <div class="anti-name">Context Rot</div>
+        <div class="anti-en">上下文腐烂</div>
+        <p>长 agent 跑久了，<strong>历史里堆满了已经被推翻的决策、过期的中间状态、用户改过 3 次的需求</strong>。模型每次回答都被这些"垃圾上下文"误导。</p>
+        <p>典型症状：agent 在第 20 轮坚持要做用户 5 轮前已经否定的方案。</p>
+        <div class="anti-fix">
+          <strong>修</strong>：每 N 轮强制 <code style="background:#fff;padding:1px 5px;font-family:'IBM Plex Mono'">/compact</code>；显式标注"已推翻 / 已完成"；scratchpad 写入持久 memory 后从 working memory 清掉。
         </div>
+      </div>
 
-        <div class="roi-detail">
-          <div class="roi-detail-row">
-            <span class="label">原始年度交付成本</span>
-            <span class="val">¥ <span id="vCostBase">--</span> 万</span>
-          </div>
-          <div class="roi-detail-row">
-            <span class="label">中性档节省（人力）</span>
-            <span class="val">¥ <span id="vSaveAbs">--</span> 万 / 年</span>
-          </div>
-          <div class="roi-detail-row">
-            <span class="label">扣除 AI 投入后净收益</span>
-            <span class="val">¥ <span id="vNet">--</span> 万 / 年</span>
-          </div>
-          <div class="roi-detail-row">
-            <span class="label">投入回收期</span>
-            <span class="val" id="vPaybackEl">--</span>
-          </div>
-          <div class="roi-detail-row">
-            <span class="label">建议</span>
-            <span class="val" id="vAdvice" style="font-size: 12px;">--</span>
-          </div>
+      <div class="anti-card">
+        <div class="anti-num">ANTI · 03</div>
+        <div class="anti-name">Tool Soup</div>
+        <div class="anti-en">工具汤</div>
+        <p>给 agent 挂 30 个工具，每个工具的 schema 都 800 tokens——光<strong>工具定义就吃掉 24K 上下文</strong>，还没开始干活就把模型注意力耗尽了。</p>
+        <p>典型症状：agent 在简单任务上反复纠结选哪个工具，或选错工具。</p>
+        <div class="anti-fix">
+          <strong>修</strong>：分组挂载工具（按场景动态拼）；schema 压缩到 ≤150 tokens；用 <strong>tool retrieval</strong>——根据任务先选 5 个工具再传给模型。
+        </div>
+      </div>
+
+      <div class="anti-card">
+        <div class="anti-num">ANTI · 04</div>
+        <div class="anti-name">Prompt Drift</div>
+        <div class="anti-en">提示漂移</div>
+        <p>系统提示被 N 个人改了 N 次，里面有<strong>互相矛盾的指令</strong>："简洁" + "尽可能详细"、"用中文" + "always answer in English"。模型在矛盾里乱跳。</p>
+        <p>典型症状：相同问题不同时段给出风格完全不同的回答。</p>
+        <div class="anti-fix">
+          <strong>修</strong>：system prompt 进 git、每次改加 review；建立<strong>prompt regression 测试集</strong>；定期"对账"——把当前 prompt 和原始设计意图对比。
         </div>
       </div>
     </div>
   </div>
 
-  <!-- 演示四：成熟度自评 -->
-  <div class="section">
-    <div class="section-marker">DEMO · 04</div>
-    <div class="section-title">AI <span class="accent">MATURITY</span> SELF-CHECK</div>
-    <div class="section-cn">AI 应用成熟度自评 · 6 维 × 5 档，对照下一步该投哪里</div>
+  <!-- 第八节：2025 工具对比 -->
+  <div class="section tinted">
+    <div class="section-marker">CHAPTER · 08</div>
+    <div class="section-title">2025 <span class="accent">PRACTICES</span></div>
+    <div class="section-cn">主流工具的 Context 策略对比</div>
     <div class="section-lead">
-      回到我们自己。对纷享销客（或任何企业级 SaaS）当前 AI 落地状态做一次结构化体检——
-      <strong>数据 / 流程 / 组织 / 技术 / 治理 / 文化</strong>六个维度，每个 5 档。
-      右侧实时给出总分 + 该投哪一档的建议。
+      纸上谈兵不够，看看 2025 真正在生产里跑的产品——
+      Claude Code、Cursor、Devin、Aider、Cline——
+      <strong>每家的 context engineering 策略都不一样，但都是这 7 个块和 3 项技术的组合拳</strong>。
     </div>
 
-    <div class="maturity">
-      <div class="maturity-grid" id="matGrid">
+    <div class="tools-compare">
+      <div class="tc-row head">
+        <div class="tc-cell">产品</div>
+        <div class="tc-cell">Context 策略亮点</div>
+        <div class="tc-cell">压缩 / 隔离机制</div>
+        <div class="tc-cell">Memory 实现</div>
       </div>
-
-      <div class="mat-result">
-        <h4>▼ 总分 & 下一步</h4>
-        <div class="mat-score">
-          <span class="num" id="matScore">0</span><span class="total"> / 30</span>
-          <div class="stage" id="matStage">尚未选择任何维度</div>
-        </div>
-
-        <div class="mat-bar" id="matBars"></div>
-
-        <div class="advice" id="matAdvice" style="margin-top: 14px;">
-          点选 6 个维度后，这里会给出针对性建议。
-        </div>
+      <div class="tc-row">
+        <div class="tc-cell lab">Claude Code<span class="tc-en">ANTHROPIC</span></div>
+        <div class="tc-cell">CLAUDE.md（程序记忆）+ Agentic Search（按需检索）+ Sub-Task isolation</div>
+        <div class="tc-cell"><code style="background:#fff;padding:2px 6px;font-family:'IBM Plex Mono'">/compact</code> 命令 + Task 工具开 subagent 独立 window</div>
+        <div class="tc-cell">CLAUDE.md（program）+ skills（program）+ 待沉淀的 user prefs</div>
       </div>
+      <div class="tc-row">
+        <div class="tc-cell lab">Cursor Composer<span class="tc-en">CURSOR</span></div>
+        <div class="tc-cell">.cursorrules + indexed codebase + 主动 file-level retrieval gating</div>
+        <div class="tc-cell">chat 模式自动截断 + Composer 任务结束清空中间态</div>
+        <div class="tc-cell">.cursorrules（program）+ chat history（episodic）</div>
+      </div>
+      <div class="tc-row">
+        <div class="tc-cell lab">Devin<span class="tc-en">COGNITION</span></div>
+        <div class="tc-cell">长 agent loop · 显式 episodic memory · planner 与 executor 分窗口</div>
+        <div class="tc-cell">每个 plan step 走子 agent；plan 树本身就是压缩后的状态</div>
+        <div class="tc-cell">episodic（任务 trace）+ semantic（学到的项目知识）双层</div>
+      </div>
+      <div class="tc-row">
+        <div class="tc-cell lab">Aider<span class="tc-en">OPEN SOURCE</span></div>
+        <div class="tc-cell">repo-map（压缩版项目结构）+ /add /drop 显式管理上下文文件</div>
+        <div class="tc-cell">每次 commit 后清空非必要文件；repo-map 替代全量文件</div>
+        <div class="tc-cell">CONVENTIONS.md（program）— 简单但够用</div>
+      </div>
+      <div class="tc-row">
+        <div class="tc-cell lab">Cline / Roo<span class="tc-en">VS CODE</span></div>
+        <div class="tc-cell">显式 task 树 + .clinerules + token usage 实时可视化</div>
+        <div class="tc-cell">任务级 context 重置 + 用户手动 prune 工具</div>
+        <div class="tc-cell">.clinerules（program）+ 持久任务摘要（episodic）</div>
+      </div>
+      <div class="tc-row">
+        <div class="tc-cell lab">ChatGPT<span class="tc-en">OPENAI</span></div>
+        <div class="tc-cell">Memory 功能（用户偏好）+ Custom Instructions + 按会话自动 summarize</div>
+        <div class="tc-cell">长会话自动滚动窗口（Sliding Window）</div>
+        <div class="tc-cell">Memory（semantic）+ Custom Instructions（program）</div>
+      </div>
+    </div>
+
+    <div style="margin-top: 24px; padding: 22px 26px; background: #fff; border-left: 4px solid #00aa55;">
+      <p style="font-size: 14px; line-height: 1.85; color: #0f0f0f;">
+        <strong>共性观察</strong>：<strong style="color:#00aa55;">所有头部产品都不再"塞满 200K"，全都在做"窗口节流"</strong>。
+        它们的差异只是节流方式不同——Claude Code 靠 /compact + subagent，Cursor 靠 file gating，Devin 靠 plan-step 分窗。
+        但<strong>"上下文是稀缺资源、必须做工程化管理"这件事，2025 是行业共识</strong>。
+      </p>
     </div>
   </div>
 
   <!-- 总结 -->
   <div class="summary">
-    <div class="section-marker" style="color: #00d4ff;">RECAP</div>
-    <h3>核心收束 · CRM 厂商的护城河变了</h3>
+    <div class="section-marker" style="color: #00e676;">RECAP</div>
+    <h3>核心收束 · 上下文是 LLM 应用的真正"代码"</h3>
 
     <p>
-      过去 SaaS 厂商比的是<strong>功能广度</strong>——谁的字段多、谁的报表灵活、谁的工作流好画。
-      <strong>2025 年这个标尺失效了</strong>——Salesforce Agentforce、HubSpot Breeze、纷享销客也在补 AI。
-      所有人都在抢同一张牌：<strong>用 AI 把客户的业务流程跑起来</strong>。
+      Prompt Engineering 时代我们把模型当成"会答题的考生"——你给一个题目，它给一个答案。
+      Context Engineering 时代我们把模型当成"<strong>装在上下文里的 CPU</strong>"——它的能力上限取决于你给它的运行时环境。
     </p>
 
     <div class="summary-quote">
-      "AI 时代，CRM 厂商的护城河不再是功能。<br>
-      是<strong style="color: #fff;">数据飞轮</strong>加<strong style="color: #fff;">行业沉淀</strong>。"
+      "Prompt Engineering 是关心如何写好一句话；<br>
+      Context Engineering 是关心如何设计模型每次调用前的整个上下文系统。"
     </div>
 
     <p>
-      <strong>数据飞轮</strong>——用户用得越多，AI 越懂这个行业的需求、对话、异议、决策路径。
-      纷享销客在快消、地产、SaaS 行业 12 年的数据，是 Salesforce 学不到的。
-      <strong>行业沉淀</strong>——配置模板、最佳实践、行业话术、ROI 模型——这些是 GPT 永远训练不出来的。
+      <strong>今天讲清楚的 5 件事</strong>：
+      ① 上下文窗口的 <strong>7 块组成</strong>——system / retrieved / few-shot / tools / scratchpad / history / memory；
+      ② <strong>Budget 管控</strong>——200K 不是免费午餐，每多 1k 都是 cost + latency + attention 三重负担；
+      ③ <strong>三项核心技术</strong>——retrieval gating、history compaction、subagent isolation；
+      ④ <strong>Memory 四层</strong>——working / episodic / semantic / procedural；
+      ⑤ <strong>四大反模式</strong>——Lost in the Middle、Context Rot、Tool Soup、Prompt Drift。
     </p>
 
     <p>
-      <strong>对我们项目最实用的 4 条决策建议</strong>：
-      ① <strong>优先实施 + 客户成功</strong>——这两个环节我们最痛、ROI 最直接；
-      ② <strong>售前用 SDR Agent 做增量</strong>——别和销售抢饭吃，做"原本不会做"的扩张；
-      ③ <strong>客服上自助解决 60% 是底线</strong>——Intercom Fin 行业基准是 72%，我们目标 60% 起；
-      ④ <strong>内部协同（会话智能）当作管理工具</strong>——不是 AI 替代销售，是让一线 Top 经验沉淀到全员。
+      <strong>对我们项目最实用的 4 条建议</strong>：
+      ① 把"组装 prompt 的代码"<strong>独立成 build_context() 函数</strong>，纳入 review；
+      ② 长会话场景<strong>强制接入 /compact 或自建 summarizer</strong>，每 20 轮压一次；
+      ③ Agent 任务<strong>能拆 subagent 就拆</strong>，父 agent 永远只读摘要不读全量；
+      ④ 把 CLAUDE.md / .cursorrules / AGENTS.md 当成<strong>"程序记忆"严肃维护</strong>——它就是 2025 的代码。
     </p>
 
     <p>
-      下一讲我们走进<strong>知识库工程化</strong>。我们这一年踩的所有坑——文档预处理、切片策略、混合检索、Reranker、Trace
-      ——都会一次讲透。从 Demo 到生产，差的不是功能，是工程功夫。
+      第 14 讲我们装好了眼睛（评估和观测）。今天这一讲我们建立了大脑的"工作台"（context engineering）。
+      <strong>下一讲我们要谈 agent 的"骨骼"——Harness Engineering</strong>，
+      把长循环里的 agent 包进一层外壳，让它能持续运行而不崩溃、不失忆、不发散。
     </p>
   </div>
 
   <footer>
-    AI 系列课程 · 第 15 讲 · 共 20 讲 · 第四部分（企业级落地）· 下一讲：知识库工程化(从Demo到生产)
+    AI 系列课程 · 第 15 讲 · 共 22 讲 · PART 3 · 工程落地 · 下一讲：HARNESS ENGINEERING
   </footer>
 </div>
 
 <script>
-// ========== 演示一：交付链路全景 ==========
-const stages = [
-  {
-    name: '售前线索',
-    cn: 'Pre-Sales / Lead Generation',
-    apps: [
-      '<strong>ICP 匹配与线索打分</strong>——基于历史成单画像自动评分新线索',
-      '<strong>外联自动化</strong>——邮件 + 领英 + 电话三通道自动跟进序列',
-      '<strong>SDR Agent</strong>——24/7 自主完成线索初筛和 MQL 转化',
-      '<strong>需求扫描</strong>——从公开信息、官网、招聘信息推断客户 CRM 需求'
-    ],
-    tools: ['11x.ai (Alice)', 'Artisan Ava', 'Clay', 'Apollo AI', 'Regie.ai', 'Salesforce Agentforce 2.0'],
-    roi: '<strong>ROI 区间：5-15× 投入</strong>。SDR 人均产能可提升 3-8 倍，单条 MQL 成本从 ¥800-1200 降到 ¥150-300。Salesforce Atlas Reasoning Engine 2025 Q1 上线后，单 SDR 月均开发线索数 350+。'
-  },
-  {
-    name: '方案 & 报价',
-    cn: 'Solutioning & Quoting',
-    apps: [
-      '<strong>自动出方案</strong>——基于需求清单和行业模板生成 PPT / Word 方案',
-      '<strong>BoM 智能配置</strong>——根据客户规模 + 行业自动选模块、套餐、附加项',
-      '<strong>智能定价</strong>——结合 win/loss 数据和竞争对手价格推荐报价区间',
-      '<strong>话术与异议处理</strong>——基于对话记录推荐应答模板'
-    ],
-    tools: ['Microsoft Copilot for Sales', 'Gong', 'Chorus', 'Salesforce CPQ + Einstein', 'PandaDoc AI'],
-    roi: '<strong>ROI 区间：3-8× 投入</strong>。方案撰写时间从 8-16 小时压到 1-2 小时；折扣率因数据驱动定价可改善 2-5 个百分点。Gong 数据显示用了会话智能的销售团队，平均成单周期缩短 22%。'
-  },
-  {
-    name: '实施交付',
-    cn: 'Implementation & Delivery',
-    apps: [
-      '<strong>需求自动化提取</strong>——访谈记录 / 文档 / 邮件 → 结构化需求清单（<strong>纷享销客自家在做</strong>）',
-      '<strong>配置自动生成</strong>——需求清单 → 字段、工作流、报表的初稿配置',
-      '<strong>UAT 自动化</strong>——基于需求自动生成测试用例 + Agent 执行',
-      '<strong>实施项目助手</strong>——日报、风险、变更管理自动化'
-    ],
-    tools: ['纷享销客实施助手', 'GitHub Copilot Workspace', 'Devin', 'Cognition Labs', 'Asana AI'],
-    roi: '<strong>ROI 区间：2-5× 投入</strong>。中型项目交付周期 90 天 → 45-60 天；顾问人天降低 30-50%。这是 SaaS 厂商最直接的毛利改善，<strong>也是我们项目重点</strong>。'
-  },
-  {
-    name: '客户成功',
-    cn: 'Customer Success',
-    apps: [
-      '<strong>客户健康分</strong>——使用频率、功能覆盖、关键人活跃度合成实时健康分',
-      '<strong>续约预测</strong>——综合行为信号、合同条款、市场数据预测续约概率',
-      '<strong>流失预警</strong>——提前 60-90 天识别流失风险，触发 CSM 干预',
-      '<strong>使用洞察</strong>——给客户输出"你比同行多/少用了什么"的洞察报告'
-    ],
-    tools: ['Gainsight AI', 'Vitally', 'ChurnZero', 'Catalyst', 'HubSpot Breeze Intelligence'],
-    roi: '<strong>ROI 区间：4-10× 投入</strong>。流失率改善 15-30%；CSM 人均覆盖客户数从 30 提升到 60-100。我们项目里，2025 Q1 一个客户通过提前 2 个月预警救回 200 万 ARR——这就是 L4 业务评估能讲的故事。'
-  },
-  {
-    name: '客服支持',
-    cn: 'Customer Service',
-    apps: [
-      '<strong>智能工单分配</strong>——按问题类型 + 客户优先级 + 工程师负载自动派单',
-      '<strong>回答推荐</strong>——客服打字时实时弹出 KB 知识 + 推荐回复',
-      '<strong>自助解决（Deflection）</strong>——AI Agent 直接答简单问题，复杂的转人工',
-      '<strong>会话总结</strong>——通话/聊天结束自动写工单总结 + 下一步跟进'
-    ],
-    tools: ['Intercom Fin', 'Decagon', 'Sierra AI', 'Zendesk AI', 'Salesforce Service Cloud Einstein'],
-    roi: '<strong>ROI 区间：6-12× 投入</strong>。Intercom Fin 公开数据自助解决率 72%；典型 SaaS 客服节省 30-50% 一线人力。每张工单成本从 ¥35-50 降到 ¥8-15。'
-  },
-  {
-    name: '内部协同',
-    cn: 'Internal Enablement',
-    apps: [
-      '<strong>销售教练</strong>——分析每通销售电话，找出可改进点，给个性化反馈',
-      '<strong>会话智能</strong>——所有客户对话自动转写 + 关键时刻识别（异议、承诺、关心点）',
-      '<strong>复盘自动化</strong>——周会、月会数据自动出，省 60% 准备时间',
-      '<strong>知识管理</strong>——Top 销售的话术、异议处理、案例自动沉淀给全员'
-    ],
-    tools: ['Gong', 'Chorus.ai', 'MindTickle', 'Salesloft', '飞书智能伙伴', '钉钉 AI 助理'],
-    roi: '<strong>ROI 区间：3-7× 投入</strong>。新销售 Ramp-up 时间从 90 天压到 45 天；Top 销售经验复用率提升 3-5 倍。Gong 是这个赛道独角兽，2024 ARR 突破 3 亿美元。'
-  }
+// ===========================
+// 演示一：Context Window 7 块
+// ===========================
+const CTX_BLOCKS = [
+  { key: 'system', name: '系统提示', en: 'SYSTEM PROMPT', color: '#00e676',
+    desc: '定义角色、任务、输出格式、规则。是上下文的"宪法"——其他所有块都受它约束。',
+    size: '500 - 5K tokens',
+    warn: '修改 system prompt 等价于改一个未声明的全局变量——一行措辞调整可能让所有下游回答风格全变。' },
+  { key: 'retrieved', name: '检索注入', en: 'RETRIEVED KNOWLEDGE', color: '#4d8eff',
+    desc: 'RAG 召回的外部文档、知识库片段、行业先例。让模型能用"私有 / 实时"信息回答。',
+    size: '0 - 100K tokens',
+    warn: '不是越多越好。召回 8 段相关性 0.4 的文档不如召回 2 段 0.8 的——注意力被稀释比信息不足更糟。' },
+  { key: 'fewshot', name: '少样本范例', en: 'FEW-SHOT EXAMPLES', color: '#ffaa33',
+    desc: '给模型展示"输入-输出"的几对范例。比文字说明更有效——模型从范例里学结构和边界。',
+    size: '500 - 5K tokens',
+    warn: '范例选择本身是个工程问题。bad few-shot 会把模型带偏，比没有 few-shot 还糟。' },
+  { key: 'tools', name: '工具定义', en: 'TOOL SCHEMAS', color: '#aa55cc',
+    desc: 'function calling 的工具列表 + 每个工具的参数 schema + 描述。让模型知道"我能做什么"。',
+    size: '500 - 30K tokens',
+    warn: 'Tool Soup 反模式——挂 30 个工具时光 schema 就 24K，注意力被耗尽。生产里建议动态选工具。' },
+  { key: 'scratch', name: '工作记事本', en: 'SCRATCHPAD / CoT', color: '#00d4ff',
+    desc: '让模型在 <thinking> 里推理、列子目标、记笔记。提高复杂任务的成功率。',
+    size: '500 - 10K tokens',
+    warn: 'scratchpad 内容大部分应该在最终回答前被舍弃——它是"工作记忆"，不该污染下一轮历史。' },
+  { key: 'history', name: '对话历史', en: 'CONVERSATION HISTORY', color: '#ff5577',
+    desc: '前面 N 轮的 user / assistant 消息。让模型记得我们刚才在聊什么。',
+    size: '1K - 100K tokens',
+    warn: 'Lost in the Middle + Context Rot 主要发生在这一块。长会话必须接入 compaction。' },
+  { key: 'memory', name: '持久记忆', en: 'WORKING/EPISODIC/SEMANTIC MEMORY', color: '#888888',
+    desc: '跨 session 沉淀的偏好、知识、技能。从对话外部注入——通常从向量库或规则文件读取。',
+    size: '200 - 5K tokens',
+    warn: '语义记忆容易过时——用户改了偏好但旧 memory 还在，会让模型回到旧规则。需要 expire 机制。' }
 ];
 
-function renderStage(idx) {
-  const s = stages[idx];
-  const el = document.getElementById('stageDetail');
-  el.innerHTML = `
-    <h4>${s.name}</h4>
-    <div class="sub-cn">${s.cn}</div>
-    <div class="stage-block">
-      <h5>▼ AI 应用清单</h5>
-      <ul>${s.apps.map(a => `<li>${a}</li>`).join('')}</ul>
-    </div>
-    <div class="stage-block">
-      <h5>▼ 典型工具（2025 主流）</h5>
-      <div class="stage-tools">${s.tools.map(t => `<span>${t}</span>`).join('')}</div>
-    </div>
-    <div class="stage-roi">${s.roi}</div>
+const COMPLEXITY_PRESETS = [
+  { label: '简单单轮 QA', ratios: { system: 30, retrieved: 5, fewshot: 10, tools: 0, scratch: 5, history: 5, memory: 5 } },
+  { label: '中等任务', ratios: { system: 12, retrieved: 30, fewshot: 8, tools: 8, scratch: 7, history: 25, memory: 10 } },
+  { label: '复杂 RAG 问答', ratios: { system: 5, retrieved: 55, fewshot: 4, tools: 3, scratch: 8, history: 20, memory: 5 } },
+  { label: '长 Agent 任务', ratios: { system: 3, retrieved: 20, fewshot: 3, tools: 15, scratch: 12, history: 38, memory: 9 } }
+];
+
+function renderCtxDemo() {
+  const slider = document.getElementById('ctxComplexity');
+  const lvl = +slider.value;
+  const preset = COMPLEXITY_PRESETS[lvl];
+  document.getElementById('ctxTaskLabel').textContent = preset.label;
+
+  const bar = document.getElementById('ctxBar');
+  bar.innerHTML = '';
+  const legend = document.getElementById('ctxLegend');
+  legend.innerHTML = '';
+
+  CTX_BLOCKS.forEach((b, i) => {
+    const pct = preset.ratios[b.key];
+    const cell = document.createElement('div');
+    cell.className = 'ctx-bar-cell';
+    cell.style.background = b.color;
+    cell.style.flexBasis = pct + '%';
+    cell.dataset.idx = i;
+    cell.title = `${b.name} · ${pct}%`;
+    cell.textContent = pct >= 6 ? `${pct}%` : '';
+    cell.addEventListener('click', () => selectCtxBlock(i));
+    bar.appendChild(cell);
+
+    const lg = document.createElement('div');
+    lg.className = 'ctx-legend-item';
+    lg.innerHTML = `
+      <div class="ctx-legend-swatch" style="background:${b.color}"></div>
+      <div class="ctx-legend-name">${b.name}</div>
+      <div class="ctx-legend-tokens">${Math.round(pct * 2000)} tk · ${pct}%</div>
+    `;
+    lg.addEventListener('click', () => selectCtxBlock(i));
+    legend.appendChild(lg);
+  });
+
+  selectCtxBlock(window._ctxSel || 0);
+}
+
+function selectCtxBlock(i) {
+  window._ctxSel = i;
+  const b = CTX_BLOCKS[i];
+  document.querySelectorAll('.ctx-bar-cell').forEach((c, idx) => {
+    c.classList.toggle('active', idx === i);
+  });
+  document.getElementById('ctxDetail').innerHTML = `
+    <h4>${b.name} · ${b.en}</h4>
+    <div class="ctx-detail-meta">TYPICAL SIZE: ${b.size}</div>
+    <p>${b.desc}</p>
+    <div class="ctx-detail-warn">▸ ${b.warn}</div>
   `;
 }
-document.querySelectorAll('.stage-node').forEach(n => {
-  n.addEventListener('click', () => {
-    document.querySelectorAll('.stage-node').forEach(x => x.classList.remove('active'));
-    n.classList.add('active');
-    renderStage(+n.dataset.stage);
-  });
-});
-renderStage(0);
 
-// ========== 演示二：SDR Agent 工作流 ==========
-const agentSteps = [
-  {
-    title: 'Step 01 · ICP 匹配',
-    tool: 'TOOL: enrich_company + score_icp',
-    desc: '从 CRM 拉取新线索"上海科达智能制造"，调用企业数据库（如天眼查 / Apollo）丰富工商、规模、业务标签，比对我们 12 年 CRM 成单画像。',
-    output: '<span class="key">company_size</span>: 600 人 · 制造业\n<span class="key">icp_score</span>: 82 / 100（高匹配）\n<span class="key">pain_signals</span>: 近期招了 8 个销售 + CRM 招标公告\n<span class="key">decision</span>: 通过 → 进入下一步'
-  },
-  {
-    title: 'Step 02 · 数据丰富与决策人挖掘',
-    tool: 'TOOL: find_decision_makers + linkedin_enrich',
-    desc: '基于公司域名识别销售 VP / 销售运营总监 / IT 总监三类关键决策人，分别拉领英资料、近期动态、共同关系链。',
-    output: '<span class="key">contacts</span>: 3 人\n  · 王晓东 - 销售 VP - 入职 6 个月\n  · 李娟 - 销售运营负责人\n  · 张磊 - 信息总监 - 关注 CRM 厂商 2 家\n<span class="key">priority</span>: 王晓东（新官上任，最可能推动）'
-  },
-  {
-    title: 'Step 03 · 个性化首封邮件生成',
-    tool: 'TOOL: claude_opus + personalize_email',
-    desc: '基于王晓东的近期发帖（提到"团队 SOP 落地难"）+ 行业案例库（同规模制造业客户案例 3 个），生成不像模板的个性化首封邮件。',
-    output: '<span class="key">subject</span>: 王总，关于团队 SOP 落地——上周看到您的分享\n<span class="key">opening</span>: 提到他上周的"团队管理"分享\n<span class="key">value_prop</span>: 引用同规模制造业案例 + 具体数字\n<span class="key">cta</span>: 提议 15 分钟简短交流\n<span class="key">tokens</span>: 480 tokens, $0.012'
-  },
-  {
-    title: 'Step 04 · 多通道自动跟进序列',
-    tool: 'TOOL: schedule_sequence + omnichannel',
-    desc: '邮件未回复后，按"邮件 D+3 → 领英 D+5 → 第二封邮件 D+8 → 电话 D+12"序列自动推进。每步根据用户行为动态调整文案。',
-    output: '<span class="key">D+3 email</span>: 已发送（打开率 100%，未回）\n<span class="key">D+5 linkedin</span>: 已发，王总已加好友\n<span class="key">D+8 email v2</span>: 内容切换到"实施落地经验"\n<span class="key">D+12 call</span>: 安排中，AI 自动拨打 + 转录'
-  },
-  {
-    title: 'Step 05 · 异议识别与处理',
-    tool: 'TOOL: call_transcript + objection_handle',
-    desc: '电话已接通 12 分钟，AI 实时转录并识别 3 个异议：① 已有 Salesforce ② 担心实施周期长 ③ 价格预算敏感。各自匹配最佳应答策略。',
-    output: '<span class="key">objection_1</span>: 已用 SF → "我们看到很多 SF 用户切到我们后实施周期降 40%..."\n<span class="key">objection_2</span>: 周期长 → 给中型项目 45 天案例\n<span class="key">objection_3</span>: 预算 → 推荐分阶段实施方案\n<span class="key">outcome</span>: 客户同意安排 Demo'
-  },
-  {
-    title: 'Step 06 · 转 MQL 并同步 CRM',
-    tool: 'TOOL: crm_sync + assign_ae',
-    desc: '线索符合 MQL 标准（决策人接触 + 明确兴趣 + 预算窗口），自动同步纷享销客 CRM、根据区域和行业分配 AE、推送整个交互历史。',
-    output: '<span class="key">crm_record</span>: 已创建商机 #2026-1142\n<span class="key">stage</span>: 需求确认（B 阶段）\n<span class="key">assigned_to</span>: AE 李娜（华东大客户组）\n<span class="key">handover</span>: 完整对话历史 + 异议库 + 决策人画像\n<span class="key">status</span>: ✓ MQL → SAL'
-  }
+document.getElementById('ctxComplexity').addEventListener('input', renderCtxDemo);
+renderCtxDemo();
+
+// ===========================
+// 演示二：Budget 模拟器
+// ===========================
+const BUDGET_BLOCKS = [
+  { key: 'system', name: '系统提示', color: '#00e676', min: 200, default: 1200, max: 5000 },
+  { key: 'retrieved', name: '检索注入', color: '#4d8eff', min: 0, default: 8000, max: 100000 },
+  { key: 'fewshot', name: '少样本范例', color: '#ffaa33', min: 0, default: 1500, max: 5000 },
+  { key: 'tools', name: '工具定义', color: '#aa55cc', min: 0, default: 1500, max: 30000 },
+  { key: 'scratch', name: '工作记事本', color: '#00d4ff', min: 0, default: 1500, max: 10000 },
+  { key: 'history', name: '对话历史', color: '#ff5577', min: 0, default: 4000, max: 100000 },
+  { key: 'memory', name: '持久记忆', color: '#888888', min: 0, default: 800, max: 5000 }
 ];
 
-let agentCursor = 0;
-function renderAgentSteps() {
-  const wrap = document.getElementById('agentSteps');
-  wrap.innerHTML = agentSteps.map((s, i) => {
-    let cls = '';
-    if (i < agentCursor) cls = 'done';
-    else if (i === agentCursor) cls = 'active';
-    const outputHtml = (i <= agentCursor - 1) ? `<div class="agent-step-output">${s.output.replace(/\n/g, '<br>')}</div>` : '';
-    return `
-      <div class="agent-step ${cls}">
-        <div class="agent-step-head">
-          <div class="agent-step-title">${s.title}</div>
-          <div class="agent-step-tool">${s.tool}</div>
-        </div>
-        <div class="agent-step-desc">${s.desc}</div>
-        ${outputHtml}
-      </div>
+let budgetTotal = 20000;
+let budgetState = {};
+BUDGET_BLOCKS.forEach(b => budgetState[b.key] = b.default);
+
+function renderBudgetRows() {
+  const wrap = document.getElementById('budgetRows');
+  wrap.innerHTML = '';
+  BUDGET_BLOCKS.forEach(b => {
+    const row = document.createElement('div');
+    row.className = 'budget-row';
+    row.style.background = '#0f0f0f';
+    row.style.borderColor = '#2a2a2a';
+    row.innerHTML = `
+      <div class="b-color" style="background:${b.color}"></div>
+      <div class="b-name" style="color:#fafafa">${b.name}</div>
+      <input type="range" min="${b.min}" max="${b.max}" step="100" value="${budgetState[b.key]}" data-key="${b.key}">
+      <div class="b-value">${budgetState[b.key].toLocaleString()} tk</div>
     `;
-  }).join('');
-  document.getElementById('agentProgress').textContent = `${agentCursor} / 6`;
-  document.getElementById('agentSummary').classList.toggle('show', agentCursor >= 6);
-  document.getElementById('agentNext').disabled = agentCursor >= 6;
-  document.getElementById('agentNext').textContent = agentCursor >= 6 ? '已跑完' : '下一步 ▸';
-}
-document.getElementById('agentNext').addEventListener('click', () => {
-  if (agentCursor < 6) { agentCursor += 1; renderAgentSteps(); }
-});
-document.getElementById('agentReset').addEventListener('click', () => {
-  agentCursor = 0; renderAgentSteps();
-});
-renderAgentSteps();
-
-// ========== 演示三：ROI 计算器 ==========
-const roiInputs = ['inMandays', 'inRate', 'inCust', 'inInvest'];
-const roiDisplays = { inMandays: 'vMandays', inRate: 'vRate', inCust: 'vCust', inInvest: 'vInvest' };
-
-function calcRoi() {
-  const md = +document.getElementById('inMandays').value;
-  const rate = +document.getElementById('inRate').value;
-  const cust = +document.getElementById('inCust').value;
-  const invest = +document.getElementById('inInvest').value;
-
-  document.getElementById('vMandays').textContent = md;
-  document.getElementById('vRate').textContent = rate;
-  document.getElementById('vCust').textContent = cust;
-  document.getElementById('vInvest').textContent = invest;
-
-  // 年度交付成本 = 人天 × 单价 × 客户数 / 10000 = 万元
-  const baseCost = md * rate * cust / 10000;
-  // 三档节省比例（基于行业基准 + AI 介入程度）
-  const lowPct = 18, midPct = 32, highPct = 48;
-  const saveAbs = baseCost * midPct / 100;
-  const net = saveAbs - invest;
-  const payback = invest > 0 && saveAbs > 0 ? (invest / saveAbs * 12) : null;
-
-  document.getElementById('vSaveLow').textContent = lowPct;
-  document.getElementById('vSaveMid').textContent = midPct;
-  document.getElementById('vSaveHigh').textContent = highPct;
-  document.getElementById('vCostBase').textContent = baseCost.toFixed(0);
-  document.getElementById('vSaveAbs').textContent = saveAbs.toFixed(0);
-  document.getElementById('vNet').textContent = net.toFixed(0);
-
-  const pbEl = document.getElementById('vPaybackEl');
-  if (payback !== null && payback > 0 && net > 0) {
-    pbEl.textContent = `${payback.toFixed(1)} 个月`;
-    pbEl.classList.remove('warn');
-  } else {
-    pbEl.textContent = '> 12 个月（不建议投入）';
-    pbEl.classList.add('warn');
-  }
-
-  const advEl = document.getElementById('vAdvice');
-  if (net <= 0) {
-    advEl.textContent = '客户量太小 / 投入过高，先小步试点';
-    advEl.classList.add('warn');
-  } else if (payback < 6) {
-    advEl.textContent = '强烈推荐——按中性档 All-in';
-    advEl.classList.remove('warn');
-  } else if (payback < 12) {
-    advEl.textContent = '推荐——保守档起步，3 月后扩到中性';
-    advEl.classList.remove('warn');
-  } else {
-    advEl.textContent = '谨慎——只做一个最高 ROI 场景';
-    advEl.classList.add('warn');
-  }
-}
-roiInputs.forEach(id => document.getElementById(id).addEventListener('input', calcRoi));
-calcRoi();
-
-// ========== 演示四：成熟度自评 ==========
-const matDims = [
-  {
-    name: '数据基础',
-    tag: 'DATA',
-    desc: '客户数据、业务数据、对话数据的完整度与可用性',
-    levels: ['Lv0 缺数据', 'Lv1 散乱', 'Lv2 已结构化', 'Lv3 已统一治理', 'Lv4 自动飞轮']
-  },
-  {
-    name: '流程梳理',
-    tag: 'PROCESS',
-    desc: '业务流程的标准化程度——AI 跑流程的前提',
-    levels: ['Lv0 无 SOP', 'Lv1 部分 SOP', 'Lv2 关键流程标准化', 'Lv3 全流程标准', 'Lv4 流程可观测']
-  },
-  {
-    name: '组织能力',
-    tag: 'TEAM',
-    desc: '是否有 AI 产品、AI 工程、数据角色，是否有跨部门拉通',
-    levels: ['Lv0 无人懂', 'Lv1 兼职探索', 'Lv2 设独立小组', 'Lv3 AI 产品+工程双轨', 'Lv4 全员 AI 文化']
-  },
-  {
-    name: '技术栈',
-    tag: 'TECH',
-    desc: 'LLM、RAG、Agent、可观测性平台的建设程度',
-    levels: ['Lv0 调外部 API', 'Lv1 自建 Prompt', 'Lv2 自建 RAG', 'Lv3 自建 Agent + 评估', 'Lv4 数据飞轮']
-  },
-  {
-    name: '治理与合规',
-    tag: 'GOV',
-    desc: '数据脱敏、权限隔离、审计日志、安全红线',
-    levels: ['Lv0 裸跑', 'Lv1 简单脱敏', 'Lv2 权限隔离', 'Lv3 全链路审计', 'Lv4 行业级合规']
-  },
-  {
-    name: '组织文化',
-    tag: 'CULTURE',
-    desc: '一线员工是否信任 AI、是否愿意贡献反馈给 AI',
-    levels: ['Lv0 抵触', 'Lv1 观望', 'Lv2 试点接受', 'Lv3 主动用', 'Lv4 共同迭代']
-  }
-];
-
-const matSelected = {};
-
-function renderMat() {
-  const grid = document.getElementById('matGrid');
-  grid.innerHTML = matDims.map((d, di) => `
-    <div class="mat-dim">
-      <div class="mat-head">
-        <div class="mat-name">${d.name}</div>
-        <div class="mat-tag">${d.tag}</div>
-      </div>
-      <div class="mat-desc">${d.desc}</div>
-      <div class="mat-levels">
-        ${d.levels.map((lv, li) => `
-          <div class="mat-level ${matSelected[di] === li ? 'selected' : ''}" data-dim="${di}" data-lvl="${li}">
-            <span class="lvl-num">${li}</span>
-            <span class="lvl-cn">${lv.replace(/^Lv\d\s/, '')}</span>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `).join('');
-
-  grid.querySelectorAll('.mat-level').forEach(el => {
-    el.addEventListener('click', () => {
-      const d = +el.dataset.dim, l = +el.dataset.lvl;
-      matSelected[d] = l;
-      renderMat();
-      renderMatResult();
+    wrap.appendChild(row);
+  });
+  document.querySelectorAll('#budgetRows input[type=range]').forEach(inp => {
+    inp.addEventListener('input', e => {
+      const k = e.target.dataset.key;
+      budgetState[k] = +e.target.value;
+      e.target.nextElementSibling.textContent = (+e.target.value).toLocaleString() + ' tk';
+      updateBudgetSummary();
     });
   });
+  updateBudgetSummary();
 }
 
-function renderMatResult() {
-  const keys = Object.keys(matSelected);
-  let total = 0;
-  keys.forEach(k => total += matSelected[k]);
-  document.getElementById('matScore').textContent = total;
+function scoreBudget() {
+  const total = Object.values(budgetState).reduce((a, b) => a + b, 0);
+  let score = 100;
+  const warnings = [];
 
-  // bars
-  const bars = matDims.map((d, di) => {
-    const v = matSelected[di] !== undefined ? matSelected[di] : 0;
-    const pct = (v / 4) * 100;
-    return `
-      <div class="mat-bar-row">
-        <span class="lbl">${d.name.substring(0, 4)}</span>
-        <span class="track"><span class="fill" style="width: ${pct}%"></span></span>
-        <span class="v">${v}</span>
-      </div>
-    `;
-  }).join('');
-  document.getElementById('matBars').innerHTML = bars;
-
-  // stage advice
-  const stageEl = document.getElementById('matStage');
-  const advEl = document.getElementById('matAdvice');
-  if (keys.length < 6) {
-    stageEl.textContent = `已选 ${keys.length} / 6 个维度`;
-    advEl.innerHTML = '点选 6 个维度后，这里会给出针对性建议。';
-    return;
+  // 超预算扣分
+  if (total > budgetTotal) {
+    const over = (total - budgetTotal) / budgetTotal;
+    score -= Math.min(40, over * 100);
+    warnings.push(`超出预算 ${Math.round(over * 100)}%`);
   }
-  let stage, advice;
-  if (total <= 6) {
-    stage = '起步期（Lv1 总体）';
-    advice = '<strong>先打地基</strong>——数据治理 + 流程梳理优先于工具选型。投资单一场景试点（如客服自助解决），跑出可量化 ROI 再扩。';
-  } else if (total <= 12) {
-    stage = '试点期（Lv2 总体）';
-    advice = '<strong>扩到 2-3 个场景</strong>——选 ROI 最高的（实施需求提取、客户健康分）。开始建评估集，组建 3-5 人 AI 小组。';
-  } else if (total <= 18) {
-    stage = '推广期（Lv3 总体）';
-    advice = '<strong>建平台化能力</strong>——RAG、Agent、Trace 基础设施统一建。从单点工具走向 Agent 编排。建立每周指标 review 机制。';
-  } else if (total <= 24) {
-    stage = '系统期（Lv3.5 总体）';
-    advice = '<strong>追数据飞轮</strong>——用户行为数据持续反哺模型。打通行业 know-how 沉淀。建立护城河，开始对外输出能力。';
+  // 系统提示过小
+  if (budgetState.system < 300) { score -= 15; warnings.push('系统提示不足 300 token——模型缺少身份和规则锚点'); }
+  // 系统提示过大
+  if (budgetState.system > 3000 && budgetTotal < 50000) { score -= 10; warnings.push('系统提示过臃肿——容易引入 Prompt Drift'); }
+  // 检索太多
+  if (budgetState.retrieved > budgetTotal * 0.6) { score -= 20; warnings.push('检索占比 > 60%——注意力会被稀释 (Lost in the Middle)'); }
+  // scratchpad 过少（复杂任务）
+  if (budgetTotal >= 50000 && budgetState.scratch < 800) { score -= 12; warnings.push('复杂任务但 scratchpad 不足 — 推理链路容易断'); }
+  // history 过长
+  if (budgetState.history > budgetTotal * 0.5) { score -= 18; warnings.push('对话历史超 50% — Context Rot 高危'); }
+  // tool soup
+  if (budgetState.tools > 10000) { score -= 15; warnings.push('Tool Soup — 工具定义吃掉太多 token'); }
+  // few-shot 缺失
+  if (budgetState.fewshot < 200 && budgetTotal < 50000) { score -= 8; warnings.push('缺 few-shot — 抽取/分类任务质量难保证'); }
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  return { total, score, warnings };
+}
+
+function updateBudgetSummary() {
+  const r = scoreBudget();
+  const cost = (r.total / 1000 * 0.003 + r.total / 1000 * 0.015 * 0.3).toFixed(4);
+  const latency = (0.4 + r.total / 1000 * 0.025).toFixed(2);
+  const sumDiv = document.getElementById('budgetSummary');
+  let scoreClass = '';
+  if (r.score < 60) scoreClass = 'bad';
+  else if (r.score < 80) scoreClass = 'warn';
+  sumDiv.innerHTML = `
+    <div class="budget-stat">
+      <div class="label">TOTAL TOKENS</div>
+      <div class="value ${r.total > budgetTotal ? 'bad' : ''}">${(r.total/1000).toFixed(1)}K</div>
+      <div class="sub">/ ${budgetTotal/1000}K 预算</div>
+    </div>
+    <div class="budget-stat">
+      <div class="label">QUALITY SCORE</div>
+      <div class="value ${scoreClass}">${r.score}</div>
+      <div class="sub">基于经验规则</div>
+    </div>
+    <div class="budget-stat">
+      <div class="label">EST. COST</div>
+      <div class="value">$${cost}</div>
+      <div class="sub">claude opus 估算</div>
+    </div>
+    <div class="budget-stat">
+      <div class="label">EST. LATENCY</div>
+      <div class="value">${latency}s</div>
+      <div class="sub">含 retrieve + LLM</div>
+    </div>
+  `;
+  const adv = document.getElementById('budgetAdvice');
+  if (r.warnings.length === 0) {
+    adv.innerHTML = '<strong>✓ 上下文分配健康</strong> · 没有触发任何反模式规则。这是 production 级的预算结构。';
   } else {
-    stage = '引领期（Lv4 总体）';
-    advice = '<strong>行业标准制定者</strong>——你已是行业 AI 的标杆。考虑开放平台、生态、行业大模型微调。守住数据飞轮的优势。';
+    adv.innerHTML = '<strong>⚠ 检测到 ' + r.warnings.length + ' 个问题</strong>：<br>· ' + r.warnings.join('<br>· ');
   }
-  stageEl.textContent = stage;
-  advEl.innerHTML = advice;
 }
-renderMat();
-renderMatResult();
+
+document.querySelectorAll('.budget-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.budget-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const v = btn.dataset.budget;
+    if (v === 'preset-bad') {
+      budgetTotal = 50000;
+      budgetState = { system: 200, retrieved: 35000, fewshot: 0, tools: 12000, scratch: 200, history: 30000, memory: 0 };
+    } else if (v === 'preset-good') {
+      budgetTotal = 50000;
+      budgetState = { system: 1500, retrieved: 12000, fewshot: 1800, tools: 2500, scratch: 2000, history: 6000, memory: 1200 };
+    } else {
+      budgetTotal = +v;
+      // 按比例缩放默认值
+      const scale = budgetTotal / 20000;
+      BUDGET_BLOCKS.forEach(b => budgetState[b.key] = Math.min(b.max, Math.round(b.default * Math.min(scale, 3))));
+    }
+    renderBudgetRows();
+  });
+});
+renderBudgetRows();
+
+// ===========================
+// 演示三：History Compaction
+// ===========================
+const COMPACT_TURNS = [
+  { role: 'user', text: '我们想做一个 CRM 需求提取助手', keep: true, drop: false, t: 1 },
+  { role: 'agent', text: '好的，请提供访谈材料。建议先定义抽取的字段。', keep: false, drop: true, t: 2 },
+  { role: 'user', text: '字段就是：描述、类别、优先级、是否影响留存', keep: true, drop: false, t: 3 },
+  { role: 'agent', text: '收到。类别有哪些枚举？', keep: false, drop: true, t: 4 },
+  { role: 'user', text: '类别：性能、集成、业务功能、权限、体验', keep: true, drop: false, t: 5 },
+  { role: 'agent', text: '了解。优先级如何分级？', keep: false, drop: true, t: 6 },
+  { role: 'user', text: '用 P0/P1/P2 三级，P0 是会换厂商的', keep: true, drop: false, t: 7 },
+  { role: 'agent', text: '记住了，P0 = 流失风险。还有别的吗？', keep: false, drop: true, t: 8 },
+  { role: 'user', text: '不要 emoji，输出纯 JSON', keep: true, drop: false, t: 9 },
+  { role: 'agent', text: '好的。这是第一份访谈的抽取结果...[JSON]', keep: false, drop: true, t: 10 },
+  { role: 'user', text: '不错，但优先级判断弱了点', keep: false, drop: true, t: 11 },
+  { role: 'agent', text: '请提供更明确的 P0 边界定义', keep: false, drop: true, t: 12 },
+  { role: 'user', text: '客户已经说"再不解决就换"的=P0', keep: true, drop: false, t: 13 },
+  { role: 'agent', text: '理解，重新跑第一份...[JSON 修正版]', keep: false, drop: true, t: 14 },
+  { role: 'user', text: '现在好多了。继续第 2 份访谈', keep: false, drop: true, t: 15 },
+  { role: 'agent', text: '[ 第 2 份 JSON 输出 ]', keep: false, drop: true, t: 16 },
+  { role: 'user', text: '第 2 份里那个"钉钉对接"应该是 P1 不是 P2', keep: true, drop: false, t: 17 },
+  { role: 'agent', text: '记住：钉钉对接=P1。是否所有第三方集成都升 P1？', keep: false, drop: true, t: 18 },
+  { role: 'user', text: '不一定，看是否影响日常使用', keep: true, drop: false, t: 19 },
+  { role: 'agent', text: '了解。开始第 3 份访谈...', keep: false, drop: true, t: 20 },
+  { role: 'user', text: '哦对，所有结果都要加证据字段（引用原文）', keep: true, drop: false, t: 21 },
+  { role: 'agent', text: '收到。从这一份开始还是回去补前两份？', keep: false, drop: true, t: 22 },
+  { role: 'user', text: '回去补前两份', keep: true, drop: false, t: 23 },
+  { role: 'agent', text: '[ 补回的 v2 输出，含证据 ]', keep: false, drop: true, t: 24 },
+  { role: 'user', text: '完美。第 3、4、5 份继续这个格式', keep: false, drop: true, t: 25 },
+  { role: 'agent', text: '[ 第 3 份输出 ]', keep: false, drop: true, t: 26 },
+  { role: 'agent', text: '[ 第 4 份输出 ]', keep: false, drop: true, t: 27 },
+  { role: 'agent', text: '[ 第 5 份输出 ]', keep: false, drop: true, t: 28 },
+  { role: 'user', text: '第 5 份的权限类全都是 P0 对吧？分销商场景', keep: true, drop: false, t: 29 },
+  { role: 'agent', text: '是的。继续准备第 6 份。', keep: false, drop: true, t: 30 }
+];
+
+const COMPACT_SUMMARY = `# /compact 输出 · 6 份访谈后的对话状态摘要
+
+## DECISIONS · 已确认的决策
+- 抽取字段: { 描述, 类别, 优先级, 是否影响留存, 证据 }
+- 类别枚举: 性能/集成/业务功能/权限/体验
+- 优先级: P0 (客户明确说会换厂商) / P1 (阻塞日常使用) / P2 (锦上添花)
+- 第三方集成 (如钉钉对接) 默认 P1
+- 分销商权限类场景 = P0
+
+## CONSTRAINTS · 全局约束
+- 输出纯 JSON，无 emoji
+- 每条结论必须含证据字段（引用原文）
+
+## TODO · 未完成
+- 第 6 份访谈待开始
+- 后续按相同格式继续
+
+## DROPPED · 已舍弃
+- 所有中间确认对话、寒暄、临时疑问
+- 已完成且无后续依赖的 JSON 输出（保留在持久 store，不再占 context）`;
+
+function renderCompact(compacted = false) {
+  const before = document.getElementById('compactBefore');
+  before.innerHTML = '';
+  COMPACT_TURNS.forEach(t => {
+    const div = document.createElement('div');
+    let cls = 'compact-line ' + t.role;
+    if (compacted) {
+      if (t.keep) cls += ' keep';
+      if (t.drop) cls += ' drop';
+    }
+    div.className = cls;
+    div.innerHTML = `<span class="meta">[T${String(t.t).padStart(2,'0')}·${t.role.toUpperCase()}]</span> ${t.text}`;
+    before.appendChild(div);
+  });
+
+  const after = document.getElementById('compactAfter');
+  after.innerHTML = '';
+  if (!compacted) {
+    after.innerHTML = '<div style="padding:32px;color:#666;font-size:13px;text-align:center;font-style:italic;">尚未执行 /compact<br><br>点击左上 "Compact Now" 按钮触发压缩</div>';
+  } else {
+    const div = document.createElement('div');
+    div.className = 'compact-line summary';
+    div.innerHTML = '<pre style="font-family:\'IBM Plex Mono\';font-size:12px;line-height:1.7;color:#d0ffd0;white-space:pre-wrap;margin:0;">' + COMPACT_SUMMARY + '</pre>';
+    after.appendChild(div);
+  }
+
+  // stats
+  const stats = document.getElementById('compactStats');
+  if (!compacted) {
+    stats.innerHTML = `
+      <div class="compact-stat"><div class="label">BEFORE TOKENS</div><div class="value bad">~26.4K</div></div>
+      <div class="compact-stat"><div class="label">AFTER TOKENS</div><div class="value">--</div></div>
+      <div class="compact-stat"><div class="label">COMPRESSION</div><div class="value">--</div></div>
+    `;
+  } else {
+    stats.innerHTML = `
+      <div class="compact-stat"><div class="label">BEFORE TOKENS</div><div class="value bad">~26.4K</div></div>
+      <div class="compact-stat"><div class="label">AFTER TOKENS</div><div class="value good">~3.9K</div></div>
+      <div class="compact-stat"><div class="label">COMPRESSION</div><div class="value good">85%</div></div>
+    `;
+  }
+}
+
+document.getElementById('compactRun').addEventListener('click', () => renderCompact(true));
+document.getElementById('compactReset').addEventListener('click', () => renderCompact(false));
+renderCompact(false);
+
+// ===========================
+// 演示四：Bad vs Good tabs
+// ===========================
+document.querySelectorAll('.bg-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.bg-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.bg-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('bgPanel' + (tab === 'bad' ? 'Bad' : 'Good')).classList.add('active');
+  });
+});
 </script>
 </body>
 </html>
