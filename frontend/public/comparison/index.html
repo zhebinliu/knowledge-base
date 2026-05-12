@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="纷享销客 CRM 实施场景:专属工作台 vs 通用 AI Agent,公平客观对比 + 落地建议" />
+<title>工作台 vs 通用 AI Agent — 实施场景对比</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    color: #1c1917;
+    background: #fafaf9;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "tnum";
+  }
+  .container { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+
+  /* ── Header ─────────────────────────────────────────── */
+  header.top {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid #e7e5e4;
+  }
+  header.top .container {
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1c1917;
+  }
+  .brand-logo {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #FF8D1A, #D96400);
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    font-weight: 800;
+    box-shadow: 0 4px 12px rgba(217, 100, 0, 0.2);
+  }
+  .top-cta {
+    font-size: 12px;
+    color: #57534e;
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid #e7e5e4;
+    transition: all 0.2s;
+  }
+  .top-cta:hover { background: #fafaf9; color: #1c1917; }
+
+  /* ── Hero ───────────────────────────────────────────── */
+  section.hero {
+    padding: 80px 0 50px;
+    text-align: center;
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255, 141, 26, 0.1);
+    border: 1px solid rgba(255, 141, 26, 0.25);
+    color: #D96400;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-bottom: 20px;
+  }
+  .pill::before {
+    content: ""; width: 6px; height: 6px;
+    background: #FF8D1A;
+    border-radius: 50%;
+  }
+  h1 {
+    font-size: 44px;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.5px;
+    margin-bottom: 16px;
+  }
+  h1 .grad {
+    background: linear-gradient(135deg, #FF8D1A, #D96400);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .lead {
+    font-size: 17px;
+    color: #57534e;
+    max-width: 640px;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+
+  /* ── 段落公用 ───────────────────────────────────────── */
+  section.block { padding: 50px 0; }
+  section.block.alt { background: white; border-top: 1px solid #f5f5f4; border-bottom: 1px solid #f5f5f4; }
+  h2 {
+    font-size: 26px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    letter-spacing: -0.3px;
+  }
+  .h2-sub {
+    color: #78716c;
+    font-size: 14px;
+    margin-bottom: 28px;
+  }
+
+  /* ── 定调卡片 ───────────────────────────────────────── */
+  .verdict {
+    background: linear-gradient(135deg, #FFF8F0 0%, #FFF4E6 100%);
+    border: 1px solid rgba(255, 141, 26, 0.25);
+    border-radius: 16px;
+    padding: 28px 32px;
+    margin-bottom: 20px;
+  }
+  .verdict .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #D96400;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .verdict h3 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .verdict p { color: #292524; font-size: 14.5px; }
+  .verdict strong { color: #D96400; }
+
+  /* ── 双柱卡片 ───────────────────────────────────────── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .ab-card {
+    background: white;
+    border-radius: 14px;
+    padding: 22px 24px;
+    border: 1px solid #e7e5e4;
+  }
+  .ab-card.a-card { border-top: 3px solid #D96400; }
+  .ab-card.b-card { border-top: 3px solid #2563EB; }
+  .ab-label {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+  }
+  .a-card .ab-label { background: rgba(217, 100, 0, 0.1); color: #D96400; }
+  .b-card .ab-label { background: rgba(37, 99, 235, 0.1); color: #2563EB; }
+  .ab-card h4 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+  .ab-card p { font-size: 13px; color: #57534e; line-height: 1.7; }
+  @media (max-width: 720px) {
+    .two-col { grid-template-columns: 1fr; }
+  }
+
+  /* ── 对比表 ─────────────────────────────────────────── */
+  .compare-table {
+    background: white;
+    border-radius: 14px;
+    border: 1px solid #e7e5e4;
+    overflow: hidden;
+    overflow-x: auto;
+  }
+  .compare-table table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    min-width: 580px;
+  }
+  .compare-table thead {
+    background: #fafaf9;
+  }
+  .compare-table th {
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #78716c;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #e7e5e4;
+  }
+  .compare-table th.col-a { color: #D96400; }
+  .compare-table th.col-b { color: #2563EB; }
+  .compare-table td {
+    padding: 12px 16px;
+    border-top: 1px solid #f5f5f4;
+    vertical-align: top;
+    line-height: 1.55;
+  }
+  .compare-table .dim {
+    font-weight: 600;
+    color: #1c1917;
+    white-space: nowrap;
+    width: 26%;
+  }
+  .compare-table .cell { color: #44403c; }
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .badge.strong { background: #ECFDF5; color: #047857; }
+  .badge.medium { background: #FFFBEB; color: #B45309; }
+  .badge.weak { background: #FEF2F2; color: #BE123C; }
+
+  /* ── 场景卡片 ───────────────────────────────────────── */
+  .scenario {
+    background: white;
+    border-radius: 14px;
+    border: 1px solid #e7e5e4;
+    padding: 24px 28px;
+    margin-bottom: 14px;
+  }
+  .scenario-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1c1917;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .scenario-title .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    background: rgba(255, 141, 26, 0.1);
+    color: #D96400;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .scenario .opt {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 12px;
+    margin-bottom: 8px;
+    align-items: start;
+    font-size: 13.5px;
+  }
+  .scenario .opt .tag {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 0;
+    border-radius: 4px;
+  }
+  .scenario .opt .tag.a { background: rgba(217, 100, 0, 0.1); color: #D96400; }
+  .scenario .opt .tag.b { background: rgba(37, 99, 235, 0.1); color: #2563EB; }
+  .scenario .opt p { color: #44403c; line-height: 1.65; }
+  .scenario .verdict-line {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed #e7e5e4;
+    font-size: 12.5px;
+    color: #78716c;
+  }
+  .scenario .verdict-line strong { color: #1c1917; }
+
+  /* ── 三劣势 ─────────────────────────────────────────── */
+  .three-col {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .con-card {
+    background: white;
+    border: 1px solid #FECDD3;
+    border-radius: 12px;
+    padding: 18px 20px;
+    border-left: 3px solid #E11D48;
+  }
+  .con-card h4 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #BE123C;
+    margin-bottom: 8px;
+  }
+  .con-card p {
+    font-size: 13px;
+    color: #57534e;
+    line-height: 1.65;
+  }
+  @media (max-width: 720px) {
+    .three-col { grid-template-columns: 1fr; }
+  }
+
+  /* ── 建议组合 ───────────────────────────────────────── */
+  .rec-table {
+    background: white;
+    border-radius: 14px;
+    border: 1px solid #e7e5e4;
+    overflow: hidden;
+    overflow-x: auto;
+  }
+  .rec-table table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  .rec-table th {
+    text-align: left;
+    background: #fafaf9;
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #78716c;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #e7e5e4;
+  }
+  .rec-table td {
+    padding: 12px 16px;
+    border-top: 1px solid #f5f5f4;
+    vertical-align: middle;
+  }
+  .rec-table .choice {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .rec-table .choice.a { background: linear-gradient(135deg, #FF8D1A, #D96400); color: white; }
+  .rec-table .choice.b { background: linear-gradient(135deg, #2563EB, #1D4ED8); color: white; }
+  .rec-table .choice.mixed { background: linear-gradient(135deg, #7C3AED, #6D28D9); color: white; }
+
+  /* ── 总结 ───────────────────────────────────────────── */
+  .final {
+    background: linear-gradient(135deg, #1F2937 0%, #111827 100%);
+    border-radius: 16px;
+    padding: 40px 36px;
+    color: #f5f5f4;
+    margin-bottom: 16px;
+  }
+  .final h3 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: white;
+  }
+  .final .scenario-block {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    border-left: 3px solid #FF8D1A;
+  }
+  .final .scenario-block:last-child { margin-bottom: 0; }
+  .final .scenario-block strong { color: #FF8D1A; font-weight: 600; }
+  .final p { color: #d6d3d1; font-size: 14.5px; line-height: 1.75; }
+
+  footer {
+    text-align: center;
+    padding: 40px 0 60px;
+    color: #a8a29e;
+    font-size: 12px;
+  }
+  footer a { color: #D96400; text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="container">
+    <div class="brand">
+      <span class="brand-logo">KB</span>
+      <span>KB System</span>
+      <span style="color: #a8a29e; font-weight: 400; font-size: 12px;">· 工作台 vs Agent 对比</span>
+    </div>
+    <a class="top-cta" href="/">回到主站</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <span class="pill">实施工作流 · 公平客观对比</span>
+    <h1>用<span class="grad">专属工作台</span>,<br/>还是用<span class="grad">通用 AI Agent</span>?</h1>
+    <p class="lead">
+      纷享销客 CRM 实施场景下,kb-system 这套工作台 与 Claude Code / Cursor 这类通用 AI agent
+      各自的强项和短板,以及怎么混合才不亏。
+    </p>
+  </div>
+</section>
+
+<section class="block alt">
+  <div class="container">
+    <h2>定调:这不是二选一</h2>
+    <p class="h2-sub">两条路解决的不是同一个问题。把它们当对立面来比是错的。</p>
+
+    <div class="two-col">
+      <div class="ab-card a-card">
+        <span class="ab-label">A — 工作台</span>
+        <h4>实施工作流的标准化与团队化资产沉淀</h4>
+        <p>把"实施顾问的工作流程"写进系统:文档驱动洞察、顾问勾选式调研、会议 AI、纪要模板化、引用追溯、跨会议干系人合并、协作者权限…… 顾问点鼠标干活,团队 know-how 自动沉淀。</p>
+      </div>
+      <div class="ab-card b-card">
+        <span class="ab-label">B — 通用 Agent</span>
+        <h4>单人面对一次性、自由形态任务的探索能力</h4>
+        <p>Claude Code / Cursor / Devin 这类。自然语言驱动 + 工具调用,任何古怪的、新颖的、个性化的需求都能尝试。但缺标准化、缺团队协作、缺合规审计。</p>
+      </div>
+    </div>
+
+    <div class="verdict">
+      <div class="label">真正的问题</div>
+      <h3>不是「选 A 还是选 B」,而是「哪些环节给 A,哪些环节给 B」。</h3>
+      <p>本页给出 <strong>11 个维度对比表 + 3 个具体场景</strong>,以及作者自认为最尖锐的 <strong>实操建议</strong>。</p>
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="container">
+    <h2>十一个关键维度</h2>
+    <p class="h2-sub">绿色 = 显著占优,黄色 = 略胜,红色 = 明显短板。</p>
+
+    <div class="compare-table">
+      <table>
+        <thead>
+          <tr>
+            <th>维度</th>
+            <th class="col-a">A · 工作台</th>
+            <th class="col-b">B · 通用 Agent</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="dim">上手成本</td>
+            <td class="cell"><span class="badge strong">低</span>UI 引导,顾问点鼠标</td>
+            <td class="cell"><span class="badge weak">高</span>需会写 prompt + review 输出</td>
+          </tr>
+          <tr>
+            <td class="dim">流程一致性</td>
+            <td class="cell"><span class="badge strong">强</span>Critic + Challenger 双层评审 + 固定 schema + 模板</td>
+            <td class="cell"><span class="badge weak">弱</span>每次 prompt 不同,质量浮动</td>
+          </tr>
+          <tr>
+            <td class="dim">资产沉淀</td>
+            <td class="cell"><span class="badge strong">强</span>KB + chunks + project_briefs + 跨会议干系人合并</td>
+            <td class="cell"><span class="badge weak">弱</span>会话结束就散,需手动归档</td>
+          </tr>
+          <tr>
+            <td class="dim">灵活度 / 边角案例</td>
+            <td class="cell"><span class="badge weak">弱</span>系统不支持的功能要等开发</td>
+            <td class="cell"><span class="badge strong">强</span>自然语言任何古怪需求都能尝试</td>
+          </tr>
+          <tr>
+            <td class="dim">单次任务速度</td>
+            <td class="cell"><span class="badge medium">标准任务 2-5 分钟</span>确定性高</td>
+            <td class="cell"><span class="badge medium">新颖任务 3-30 分钟</span>方差大</td>
+          </tr>
+          <tr>
+            <td class="dim">可审计 / 合规</td>
+            <td class="cell"><span class="badge strong">强</span>[D1][K1] 引用追溯 + call_logs + 同步日志</td>
+            <td class="cell"><span class="badge weak">弱</span>中间推理可能丢,trace 不完整</td>
+          </tr>
+          <tr>
+            <td class="dim">多人协作</td>
+            <td class="cell"><span class="badge strong">强</span>owner/collaborator/read 权限 + 跨会议同步</td>
+            <td class="cell"><span class="badge weak">弱</span>单会话,共享靠文件 / MCP</td>
+          </tr>
+          <tr>
+            <td class="dim">首次上线时间</td>
+            <td class="cell"><span class="badge weak">几个月开发</span></td>
+            <td class="cell"><span class="badge strong">今天注册账号就用</span></td>
+          </tr>
+          <tr>
+            <td class="dim">长期 TCO</td>
+            <td class="cell"><span class="badge medium">服务器 + 维护 + 安全</span>固定成本高</td>
+            <td class="cell"><span class="badge medium">按 token 计费</span>用越多越贵</td>
+          </tr>
+          <tr>
+            <td class="dim">客户感知 / 销售</td>
+            <td class="cell"><span class="badge strong">强</span>专属系统 = 行业 know-how</td>
+            <td class="cell"><span class="badge weak">弱</span>谁都能用 Claude</td>
+          </tr>
+          <tr>
+            <td class="dim">跟随 AI 前沿</td>
+            <td class="cell"><span class="badge weak">慢</span>改 prompt + 测 + 部署</td>
+            <td class="cell"><span class="badge strong">快</span>平台升级直接享受</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="block alt">
+  <div class="container">
+    <h2>三个具体场景</h2>
+    <p class="h2-sub">不抽象,直接看每条路怎么做完同一件事。</p>
+
+    <div class="scenario">
+      <div class="scenario-title"><span class="num">1</span>客户调研访谈 → 输出纪要 + 需求清单</div>
+      <div class="opt">
+        <span class="tag a">A</span>
+        <p>上传音频 → 切片 ASR(100s)→ AI pipeline 出 12 字段纪要 + 12 条需求 + Stakeholder → docx 一键导出。<strong>全程顾问不写一句 prompt</strong>。</p>
+      </div>
+      <div class="opt">
+        <span class="tag b">B</span>
+        <p>Claude Code 跑 whisper → 让它读 transcript 写纪要 → 复制粘贴到 Word → 自己提需求。<strong>每次都得描述格式要求</strong>,跨会议合并干系人要自己写脚本。</p>
+      </div>
+      <div class="verdict-line"><strong>结论:</strong>A 完胜,这是 A 的主场。</div>
+    </div>
+
+    <div class="scenario">
+      <div class="scenario-title"><span class="num">2</span>客户提了个新奇要求"做个客户决策链路图"</div>
+      <div class="opt">
+        <span class="tag a">A</span>
+        <p>工作台没这个功能 → 等开发 → 2 周才能用上。</p>
+      </div>
+      <div class="opt">
+        <span class="tag b">B</span>
+        <p>Claude Code 五分钟生成 mermaid + 客户讨论后即时迭代。</p>
+      </div>
+      <div class="verdict-line"><strong>结论:</strong>B 完胜,A 的固化是真痛点。</div>
+    </div>
+
+    <div class="scenario">
+      <div class="scenario-title"><span class="num">3</span>复盘:这个客户半年里我们出过哪些产物?有哪些没兑现?</div>
+      <div class="opt">
+        <span class="tag a">A</span>
+        <p>三栏工作区点开项目 → 看到所有 insight / survey / meeting / brief / 引用追溯。</p>
+      </div>
+      <div class="opt">
+        <span class="tag b">B</span>
+        <p>翻三个月的聊天历史,各种文件夹找文档,要么记不起来要么散落。</p>
+      </div>
+      <div class="verdict-line"><strong>结论:</strong>A 完胜,资产化能力是壁垒。</div>
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="container">
+    <h2>三个 A 不愿承认的劣势</h2>
+    <p class="h2-sub">作者自我审视,不替 A 站台。</p>
+
+    <div class="three-col">
+      <div class="con-card">
+        <h4>1. 僵化</h4>
+        <p>系统设计成什么样,用户就得按那样用。「顾问勾选式调研」很 opinionated,如果客户场景不适合(比如非要发问卷给客户填),系统给不了好答案。</p>
+      </div>
+      <div class="con-card">
+        <h4>2. 改造成本</h4>
+        <p>加一个简单功能(比如「新增字段」)要改 backend schema / API / 前端类型 / UI 五处。同样改动 B 那边一句话搞定。</p>
+      </div>
+      <div class="con-card">
+        <h4>3. AI 进展时滞</h4>
+        <p>新模型(GPT-5 / Claude 4.x)能力升级,A 要走「评估 → 改 model_router → 测 → 部署」流程,B 是 Claude Code 直接帮你用上。短期内 A 总比前沿慢 1-3 个月。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block alt">
+  <div class="container">
+    <h2>实操建议:A 当主战场,B 当外挂</h2>
+    <p class="h2-sub">不要二选一。A 是工作流和资产,B 是探索能力,各司其职。</p>
+
+    <div class="rec-table">
+      <table>
+        <thead>
+          <tr>
+            <th>场景</th>
+            <th>用哪个</th>
+            <th>原因</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>客户会议纪要 / 需求 / 干系人 / 调研 / 洞察</td>
+            <td><span class="choice a">A</span></td>
+            <td>高频 + 标准化 + 需协作 + 客户能看到</td>
+          </tr>
+          <tr>
+            <td>项目库 / 历史复盘 / 资产搜索</td>
+            <td><span class="choice a">A</span></td>
+            <td>沉淀价值 + 合规审计</td>
+          </tr>
+          <tr>
+            <td>一次性任务:做个图、写个奇怪报告、调研三家竞品</td>
+            <td><span class="choice b">B</span></td>
+            <td>灵活 + 快,A 加不过来</td>
+          </tr>
+          <tr>
+            <td>个人辅助:写邮件、改文案、想方案</td>
+            <td><span class="choice b">B</span></td>
+            <td>私人助手,A 不解决这层</td>
+          </tr>
+          <tr>
+            <td>客户的临时古怪需求</td>
+            <td><span class="choice mixed">B 先试 → 反复出现就推动 A 加功能</span></td>
+            <td>用 B 作为 A 的"需求探针"</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-top: 24px;" class="verdict">
+      <div class="label">混合姿势已经预留</div>
+      <h3>A 的 MCP 接口 = 把 B 当成"合作伙伴"</h3>
+      <p>Claude Code / Cursor 配上 A 的 MCP Key,就能直接调 <code style="font-family: ui-monospace, Menlo, monospace; background: rgba(0,0,0,0.06); padding: 1px 6px; border-radius: 4px;">ask_kb</code> / <code style="font-family: ui-monospace, Menlo, monospace; background: rgba(0,0,0,0.06); padding: 1px 6px; border-radius: 4px;">get_project_status</code> / <code style="font-family: ui-monospace, Menlo, monospace; background: rgba(0,0,0,0.06); padding: 1px 6px; border-radius: 4px;">get_output</code> / <code style="font-family: ui-monospace, Menlo, monospace; background: rgba(0,0,0,0.06); padding: 1px 6px; border-radius: 4px;">get_brief</code> 等 8 个工具。<strong>A 给数据 + 工作流,B 给推理 + 灵活探索</strong>。</p>
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="container">
+    <div class="final">
+      <h3>最尖锐的判断</h3>
+      <div class="scenario-block">
+        <p>如果你只有 <strong>1-3 人在做实施,且没有合规需求</strong>:<strong>B 完全够用</strong>。投 A 的开发成本不划算,直接 Claude Code 跑起来,把流程跑顺再考虑系统化。</p>
+      </div>
+      <div class="scenario-block">
+        <p>如果你是 <strong>纷享销客这种规模</strong>(实施团队 50-200+ 人 + 客户交付有合规 + 跨项目复用 know-how):<strong>A 是护城河</strong>,B 替代不了。</p>
+      </div>
+      <div class="scenario-block">
+        <p>但<strong>别期望 A 取代 B 在新颖任务上的优势</strong>。把 B 当顾问的私人外挂用,跟 A 共存。两者一起,才是「工作流标准化 + 个人能力放大」的合力。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>KB System · 纷享销客 CRM 实施知识库 · <a href="https://kb.liii.in">kb.liii.in</a></p>
+</footer>
+
+</body>
+</html>
