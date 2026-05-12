@@ -284,7 +284,7 @@ function MinutesTab({ meeting }: { meeting: Meeting }) {
   const metaTitle = m.meeting_title || meeting.title || '(未命名会议)'
 
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-4">
       {/* Top bar:操作按钮 */}
       <div className="flex justify-end gap-2">
         {editing ? (
@@ -625,7 +625,7 @@ function RequirementsTab({ meeting }: { meeting: Meeting }) {
   for (const r of reqs) if (counts[r.priority] !== undefined) counts[r.priority]++
 
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-4">
       {/* Top bar:筛选 + 操作 */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex gap-1.5 flex-wrap">
