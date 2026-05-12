@@ -1,7 +1,7 @@
 {
   "name": "kb-desktop",
   "productName": "纷享 KB",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "纷享销客 KB 系统桌面客户端(Electron 壳子,加载 https://kb.liii.in)",
   "main": ".webpack/main",
   "private": true,
