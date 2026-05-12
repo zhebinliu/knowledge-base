@@ -241,19 +241,32 @@ jobs:
             docker compose pull backend celery_worker frontend
             docker compose up -d
 
-            # 等 30s 然后健康检查
-            sleep 30
-            if curl -fsS http://127.0.0.1:8000/health > /dev/null 2>&1; then
+            # 健康检查:最多等 120s,每 5s 轮一次(backend startup 跑 create_all + ALTER 慢)
+            HEALTHY=false
+            for i in $(seq 1 24); do
+              if curl -fsS http://127.0.0.1:8000/health > /dev/null 2>&1; then
+                HEALTHY=true
+                echo "✅ Healthy after $((i*5))s"
+                break
+              fi
+              sleep 5
+            done
+
+            if [ "$HEALTHY" = "true" ]; then
               echo "$SHORT_SHA" > .last-good-sha
               echo "✅ Deployed sha-${SHORT_SHA}"
             else
-              echo "❌ Health check failed for sha-${SHORT_SHA}"
+              echo "❌ Health check failed after 120s for sha-${SHORT_SHA}"
+              echo "--- backend logs ---"
+              docker compose logs --tail 50 backend || true
               if [ -f .prev-good-sha ]; then
                 PREV=$(cat .prev-good-sha)
                 echo "回滚到 sha-${PREV}"
                 export BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-${PREV}
                 export FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:sha-${PREV}
                 docker compose up -d
+              else
+                echo "⚠️  无 .prev-good-sha,跳过回滚(首次部署或人工已清)"
               fi
               exit 1
             fi

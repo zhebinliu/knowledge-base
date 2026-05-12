@@ -48,6 +48,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      # 2026-05-12:backend startup 跑 create_all + 一堆 ALTER 可能 20-40s,start_period 内不算 unhealthy
+      start_period: 60s
 
   celery_worker:
     image: ${BACKEND_IMAGE:-kb-backend:latest}
