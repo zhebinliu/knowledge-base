@@ -27,3 +27,5 @@ Pillow==11.0.*
 pypinyin==0.53.*
 # 错误监控(2026-05-12 加,SENTRY_DSN 空时不会初始化,无副作用)
 sentry-sdk[fastapi]==2.18.*
+# 音频转换(2026-05-12 加,会议切片 ASR 用 mp3/m4a → PCM,底层依赖 ffmpeg 系统二进制)
+pydub==0.25.*

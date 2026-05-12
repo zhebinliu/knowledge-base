@@ -101,11 +101,18 @@ def process_meeting(self, meeting_id: int):
 # ── ASR transcribe(Block C) ────────────────────────────────────────────
 
 async def _transcribe_meeting_async(meeting_id: int):
-    """从 MinIO 下载音频 → xiaomi ASR → 写 raw_transcript → 自动触发 process。"""
+    """MinIO 下载音频 → 切片并发 xiaomi ASR(边出边写 raw_transcript / done_chunks)
+    → 全部完成自动触发 process。
+
+    2026-05-12 改造:走 services.meeting.asr.transcribe_audio 切片版,每片完成
+    后增量更新 DB,前端可实时看到流式输出。
+    """
     from models import async_session_maker
     from models.meeting import Meeting
     from services.meeting.storage import download_audio
-    from services.meeting.asr import transcribe_audio
+    from services.meeting.asr import transcribe_audio, CHUNK_SIZE_BYTES
+    from services.meeting.audio_utils import convert_to_pcm
+    from services.meeting.asr import _format_from_filename
 
     async with async_session_maker() as session:
         meeting = await session.get(Meeting, meeting_id)
@@ -119,13 +126,43 @@ async def _transcribe_meeting_async(meeting_id: int):
             return
         meeting.status = "processing"
         meeting.asr_engine = "xiaomi"
+        meeting.done_chunks = 0
+        meeting.total_chunks = 0
+        meeting.raw_transcript = ""
         await session.commit()
         object_key = meeting.audio_object_key
         filename = object_key.split("/")[-1]
 
     try:
         audio_bytes = download_audio(object_key)
-        transcript = await transcribe_audio(audio_bytes, filename=filename)
+
+        # 先转 PCM + 算切片数,写 total_chunks(给前端 progress bar 用)
+        pcm = convert_to_pcm(audio_bytes, source_format=_format_from_filename(filename))
+        total_chunks = (len(pcm) + CHUNK_SIZE_BYTES - 1) // CHUNK_SIZE_BYTES
+        async with async_session_maker() as session:
+            m = await session.get(Meeting, meeting_id)
+            if m:
+                m.total_chunks = total_chunks
+                await session.commit()
+        logger.info("meeting_chunks_planned", meeting_id=meeting_id, total=total_chunks)
+
+        # 每片完成时,按 index 落位 + 增量写 DB,前端轮询拿到流式 transcript
+        parts: list[str] = [""] * total_chunks
+
+        async def _on_chunk(idx: int, text: str) -> None:
+            parts[idx] = text
+            async with async_session_maker() as session:
+                m = await session.get(Meeting, meeting_id)
+                if not m:
+                    return
+                m.done_chunks = (m.done_chunks or 0) + 1
+                # 按 index 顺序拼接(空片留空,保留顺序结构)
+                m.raw_transcript = "\n".join(p for p in parts if p)
+                await session.commit()
+
+        # 注:transcribe_audio 内部会再转一次 PCM,小冗余;为了 total_chunks 提前
+        # 拿到,这里先转一次。后续可优化让 transcribe_audio 接受 pcm bytes 直入。
+        transcript = await transcribe_audio(audio_bytes, filename=filename, on_chunk=_on_chunk)
     except Exception as e:
         logger.exception("meeting_transcribe_failed", meeting_id=meeting_id, error=str(e)[:200])
         async with async_session_maker() as session:
@@ -139,6 +176,7 @@ async def _transcribe_meeting_async(meeting_id: int):
         m = await session.get(Meeting, meeting_id)
         if not m:
             return
+        # 用最终拼接结果做最后一次覆盖(避免片间隔时序问题)
         m.raw_transcript = transcript
         await session.commit()
         logger.info("meeting_transcribed", meeting_id=meeting_id, chars=len(transcript))

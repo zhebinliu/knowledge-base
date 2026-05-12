@@ -6,11 +6,13 @@ WORKDIR /app
 #  - fonts-noto-cjk: matplotlib 渲染中文图表/标签必备
 #  - libreoffice + libreoffice-writer: 旧版 .doc / .ppt / .xls 转 .docx 等新格式
 #    (headless 模式),用于 converter_agent 把 OLE2 二进制 Office 文件转成可解析格式
+#  - ffmpeg(2026-05-12):pydub 转 mp3/m4a/webm → 16kHz PCM 用,会议切片 ASR 依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     fonts-noto-cjk \
     libreoffice \
     libreoffice-writer \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装 Python 依赖
