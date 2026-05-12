@@ -101,7 +101,7 @@ def run_async(coro):
         loop.close()
 
 
-@celery_app.task(name="process_document", bind=True, max_retries=5)
+@celery_app.task(name="process_document", bind=True, max_retries=5, soft_time_limit=900, time_limit=1200)
 def process_document(self, doc_id: str):
     # 先 import 所有有 FK 关系的模型，确保 SQLAlchemy mapper configure 时能解析 FK
     from models.user import User  # noqa: F401

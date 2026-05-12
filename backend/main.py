@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import structlog
 from slowapi import _rate_limit_exceeded_handler
@@ -6,24 +6,81 @@ from slowapi.errors import RateLimitExceeded
 
 from config import settings
 from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, research, admin_invite_codes
+from services.auth import get_current_user
 from services.rate_limit import limiter
 from services.vector_store import vector_store
 
 logger = structlog.get_logger()
 
+# 2026-05-12 生产 readiness 改造:
+# - 启动时校验 JWT secret 非默认值,不开放 /docs /openapi.json(防止泄露内部端点)
+if settings.jwt_secret_key.startswith("change-me"):
+    raise RuntimeError(
+        "JWT_SECRET_KEY 仍是默认值!请在 .env 配置 jwt_secret_key 为随机字符串(>= 32 字符)。"
+    )
+
+_IS_PROD = settings.kb_env != "development"
+
+# Sentry(2026-05-12):.env 配 SENTRY_DSN 时初始化错误监控,空则跳过
+if settings.sentry_dsn:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.starlette import StarletteIntegration
+
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            traces_sample_rate=0.1,  # 10% 采样性能,够看慢请求,不烧额度
+            send_default_pii=False,  # 不上传 user email / IP 等
+            integrations=[StarletteIntegration(), FastApiIntegration()],
+            environment=settings.kb_env,
+        )
+        logger.info("sentry_initialized")
+    except ImportError:
+        logger.warning("sentry_sdk_not_installed_but_dsn_configured")
+    except Exception as e:
+        logger.error("sentry_init_failed", error=str(e))
+
 app = FastAPI(
     title="KB System API",
     description="纷享销客 CRM 知识库管理系统",
     version="1.0.0",
+    docs_url=None if _IS_PROD else "/docs",
+    redoc_url=None if _IS_PROD else "/redoc",
+    openapi_url=None if _IS_PROD else "/openapi.json",
 )
+
+
+# request_id middleware(2026-05-12):全链路追踪,客户端可传 X-Request-ID 或我们生成 uuid。
+# 绑到 structlog.contextvars,各处 logger.info 自动带这个字段。
+@app.middleware("http")
+async def add_request_id(request, call_next):
+    import uuid as _uuid
+    from structlog.contextvars import bind_contextvars, clear_contextvars
+    rid = request.headers.get("X-Request-ID") or _uuid.uuid4().hex[:16]
+    bind_contextvars(request_id=rid)
+    try:
+        response = await call_next(request)
+    finally:
+        clear_contextvars()
+    response.headers["X-Request-ID"] = rid
+    return response
 
 # 限流：SlowAPI 需绑定到 app.state + 注册 429 处理器
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# CORS:固定到自有域名(2026-05-12 修复:此前 allow_origins=* 与 allow_credentials=True
+# 是错误组合,允许任意第三方站点带 Bearer 跨域调 API)
+_ALLOWED_ORIGINS = [
+    "https://kb.liii.in",
+    "https://kb.tokenwave.cloud",
+    "http://localhost:5173",  # 本地 vite dev
+    "http://localhost:3000",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -264,7 +321,10 @@ async def health_worker():
 
 
 @app.get("/api/stats")
-async def stats():
+async def stats(_user=Depends(get_current_user)):
+    """整库统计:文档/切片数、行业分布、类型分布。
+    2026-05-12:加鉴权(此前公网可看,属轻量侦察面)。
+    """
     from services.vector_store import vector_store
     from models.document import Document
     from models.chunk import Chunk

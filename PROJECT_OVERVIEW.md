@@ -373,13 +373,70 @@ ssh liu@34.45.112.217 "sudo docker exec kb-system-backend-1 python -m scripts.<m
 
 ---
 
+## 9.5 生产 readiness 改造(2026-05-12)
+
+经全面审查,完成 P0 全部 + P1 高收益项:
+
+**鉴权 / 权限隔离**
+- `/api/transfer/export` / `/api/chunks/*` / `/api/review/*` / `/api/coverage/gaps` 全部加 `Depends(get_current_user)` 或 `require_admin`
+- `/api/qa/ask` `/ask-stream` `/generate-doc` 不再支持匿名(此前匿名可刷 LLM 配额)
+- `/api/outputs/{id}/content` `/html` 写操作改 `"write"` 权限(此前误写 `"read"`,read-only 协作者可改报告)
+- `/api/mcp` 所有 8 个 tool handler 加 project 权限隔离,`_resolve_project_for(user, ref)` 取代 `_resolve_project(ref)`,非 admin 自动 404 无权项目
+- `/api/meeting` `_validate_project_link` 校 `write` 权限(此前只校项目存在)
+
+**配置 / 部署**
+- CORS allow_origins 收紧到自有 4 个域名,告别 `["*"]` + `allow_credentials=True` 错配
+- 启动时校验 `JWT_SECRET_KEY` 非默认值,默认 raise(`KB_ENV=development` 时跳过)
+- `/docs` `/openapi.json` 在生产关掉(`KB_ENV=production`)
+- backend `docker-compose ports` 改 `127.0.0.1:8000:8000`,公网走 nginx
+- nginx 加 4 个安全 header:CSP / X-Content-Type-Options / X-Frame-Options / Referrer-Policy / Permissions-Policy
+- nginx 加 `/health` 端点(给 frontend healthcheck 用)
+
+**备份 / 回滚**
+- `scripts/backup.sh` Postgres pg_dump + MinIO tar + Qdrant snapshot → GCS bucket(配 cron 0 4 * * *)
+- `scripts/restore.sh` 配套还原(交互式二次确认)
+- `deploy.yml` 用 `sha-${SHORT_SHA}` 标签取代 `:latest`,服务器保留 `.last-good-sha` + `.prev-good-sha`,健康检查失败自动回滚
+- `deploy.yml` 失败时 webhook 通知(`DEPLOY_WEBHOOK_URL`)
+
+**可靠性**
+- Celery 所有 task 加 `soft_time_limit` / `time_limit`(insight/survey 900/1200s,meeting 1500/1800s,document 900/1200s),不再单卡死任务吃满 worker
+- `model_router._call_chat` LLM 调用扩展重试覆盖 5xx + `TimeoutException` / `ConnectError` / `ReadError`
+- `services/rate_limit.py` key_func 改用 X-Forwarded-For 首段,SlowAPI 不再把所有请求并到一个限流桶
+
+**可观测性**
+- `main.py` 加 request_id middleware:`X-Request-ID` 头部透传,绑到 structlog.contextvars(各处日志自动带这个字段)
+- Sentry SDK 接入,`SENTRY_DSN` 空时跳过初始化(零成本可选)
+- `renew-ssl.sh` 加 healthchecks.io ping + 证书剩余 < 7 天时 webhook 告警
+
+**CI**
+- `deploy.yml` 加 `frontend-check` job(`tsc --noEmit` + `npm run build`)作为合并 gate
+- 容器 healthcheck:frontend(wget /health)、celery_worker(celery inspect ping)、qdrant(/healthz)、redis(redis-cli ping)、minio(/minio/health/live)
+- frontend 加 `mem_limit: 256m`
+
+**部署前必检 ⚠️**(主要给 admin):
+1. 生产 `.env` 的 `JWT_SECRET_KEY` 必须不是 `change-me-...` 否则 backend 启动 raise
+2. 备份脚本要部署后人手配 cron:`0 4 * * * /opt/kb-system/scripts/backup.sh >> /var/log/kb-backup.log 2>&1`
+3. 先在 GCS 建 bucket(`gs://kb-system-backup`)+ 配 lifecycle 7 天保留 + 给 GCE 服务账号加 Storage Object Admin
+4. 想接 Sentry,在 .env 配 `SENTRY_DSN=...`
+
+**延后单独立项的 P1**(LEARNING.md 留记号):
+- JWT HttpOnly cookie 改造(改前端所有 axios)
+- JWT `jti` + Redis 黑名单 revocation
+- Alembic 迁移基线接入(替代 `Base.metadata.create_all + ALTER`)
+- `pptx_codeexec` 独立沙箱容器
+- MCP key sha256 / `feishu_app_secret` Fernet 加密(涉及数据迁移)
+
+---
+
 ## 10. 当前状态 / 未完成项
 
 - ✅ v3 命名归一已上线(2026-05-02 提交)
 - ✅ 元页面 /ds /api /demo /help 已对齐 v3
 - ✅ skills roadmap 文档已交付
+- ✅ 生产 readiness P0+P1 高收益(2026-05-12,见 § 9.5)
 - 🔲 `skills_seed.py:137` "Challenger 7 维度 rubric" name 仍写 7 维(实际 6),下次动 skills_seed 时一并修
 - 🔲 `output_service.py:_get_brief_block` 历史 bug:`kind='kickoff_html'` 时找不到 brief(因 brief 入库归一成 kickoff_pptx 但读取没归一)
 - 🔲 StatusBadge 组件统一(7 处分散)+ Loading hook(5 处)+ to_dict mixin(16 处)— P3,本轮跳过
 - 🔲 GCP 服务器 9.7G 偏小,部署高频 OOM,长期需扩盘
 - 🔲 `ConsoleMeeting` 即将上线但 disabled
+- 🔲 上 § 9.5 末尾列的 5 个延后 P1(HttpOnly cookie / Alembic / sandbox 等)

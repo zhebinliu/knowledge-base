@@ -127,15 +127,18 @@ async def _load_meeting_owned(
 async def _validate_project_link(
     session: AsyncSession, project_id: Optional[str], user: User
 ) -> Optional[str]:
-    """校验项目存在且当前用户有权访问。返回 project_id(或 None)。
+    """校验项目存在且当前用户有 write 权限。返回 project_id(或 None)。
 
-    简化:目前只校验项目存在,后续可接 services/project_acl 做细粒度权限。
+    2026-05-12 修复:此前只校项目存在,任意登录用户可把 meeting 绑到他人项目然后
+    跑 AI pipeline 读他人项目数据并写回。现在调用 project_acl 做权限隔离。
     """
     if not project_id:
         return None
     p = await session.get(Project, project_id)
     if not p:
         raise HTTPException(400, "关联的项目不存在")
+    from services.project_acl import assert_project_access
+    await assert_project_access(user, project_id, "write")
     return project_id
 
 

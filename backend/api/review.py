@@ -8,11 +8,13 @@ from models import get_session
 from models.chunk import Chunk
 from models.review_queue import ReviewQueue
 from services.vector_store import vector_store
+from services.auth import require_admin
 from config import settings
 
 logger = structlog.get_logger()
 
-router = APIRouter()
+# 审核队列 + 批量 approve 是高权能操作:此前匿名可一键 approve 全部待审切片(2026-05-12 修复)
+router = APIRouter(dependencies=[Depends(require_admin)])
 
 
 class ReviewAction(BaseModel):

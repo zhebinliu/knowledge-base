@@ -25,3 +25,5 @@ slowapi==0.1.*
 captcha==0.6.*
 Pillow==11.0.*
 pypinyin==0.53.*
+# 错误监控(2026-05-12 加,SENTRY_DSN 空时不会初始化,无副作用)
+sentry-sdk[fastapi]==2.18.*

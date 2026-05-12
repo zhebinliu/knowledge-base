@@ -847,3 +847,75 @@ Insight v3 已达到预期。下一站是「需求调研」——把 insight 输
 - 不引入本地数据存储(纯壳子)
 - 不做自动更新(electron-updater 以后再说)
 - 不做代码签名(macOS $99/年,Windows $200+/年,自用阶段不值)
+
+---
+
+## 新迭代:生产 readiness 修复(2026-05-12)
+
+### 背景
+两个并行审查 agent 跑完,P0 13 项 + P1 ~15 项。逐项修。原则:
+- **P0 全做**(鉴权/CORS/JWT/端口/nginx/备份/sha tag)
+- **P1 低风险高收益做**(timeout/限流/fallback/healthcheck/CI gate/Sentry/request_id/通知)
+- **P1 高风险架构改动延后**(HttpOnly cookie / JWT revocation / Alembic / sandbox / 数据加密迁移)
+
+### 边界
+- 不改业务功能,不改 API 形状,只是加 dependencies / 加 header / 加 try-catch
+- Alembic / HttpOnly cookie 单独立项(此次仅在 LEARNING 记录原因)
+- 全程不分批 push,本地多个 commit,最后一次 push main 触发 1 次部署
+
+### Phase R1: 鉴权修复(8 端点)
+- [x] **R1.1** `backend/api/export.py` 加 `require_admin`
+- [x] **R1.2** `backend/api/chunks.py` 整体 `get_current_user`,写端点叠 `require_admin`
+- [x] **R1.3** `backend/api/review.py` 整体 `require_admin`
+- [x] **R1.4** `backend/api/qa.py` `/ask` `/ask-stream` `/generate-doc` optional → required
+- [x] **R1.5** `backend/api/outputs.py:561,594` write 操作的 `"read"` → `"write"`
+- [x] **R1.6** `backend/api/mcp.py` tool handler 加 project 权限隔离
+- [x] **R1.7** `backend/api/meeting.py` `_validate_project_link` 改 `assert_project_access`
+- [x] **R1.8** `backend/api/coverage.py` 加 `get_current_user`
+
+### Phase R2: 配置硬伤
+- [x] **R2.1** `backend/main.py` CORS allow_origins 收紧
+- [x] **R2.2** `backend/config.py` JWT 默认密钥启动校验(发现 `change-me-` 就 raise)
+- [x] **R2.3** `docker-compose.yml` backend ports `127.0.0.1:8000:8000`
+- [x] **R2.4** `frontend/nginx.conf` 加 4 个安全 header
+- [x] **R2.5** `backend/main.py` `docs_url=None` / `openapi_url=None`(prod 关掉)
+- [x] **R2.6** `/api/stats` 加鉴权
+
+### Phase R3: 备份 + 部署 sha tag
+- [x] **R3.1** `scripts/backup.sh`:`pg_dump | gzip` + `mc mirror minio` + `qdrant snapshot` → GCS
+- [x] **R3.2** `scripts/restore.sh` 配套
+- [x] **R3.3** 服务器 crontab 文档(写 PROJECT_OVERVIEW)— 实际 cron 需要在 prod 手动加
+- [x] **R3.4** `deploy.yml` 用 `${{ github.sha }}` 标签 + 服务器保留 `.last-good-sha` + 失败回滚思路
+
+### Phase R4: Celery / LLM / 限流容错
+- [x] **R4.1** `backend/tasks/output_tasks.py` 全部 task 加 `soft_time_limit=600 time_limit=900`
+- [x] **R4.2** `backend/services/model_router.py` LLM fallback 覆盖 5xx + timeout
+- [x] **R4.3** `backend/services/rate_limit.py` key_func 改用 X-Forwarded-For
+
+### Phase R5: 可观测性
+- [x] **R5.1** request_id middleware + `structlog.contextvars` 绑定
+- [x] **R5.2** Sentry(`sentry-sdk[fastapi,celery]`)+ DSN 从 .env 读,空 DSN 时跳过初始化
+- [x] **R5.3** `deploy.yml` 失败时发飞书 webhook 通知(secret 注入)
+- [x] **R5.4** `scripts/renew-ssl.sh` 末尾加 healthcheck.io ping
+
+### Phase R6: 容器健康检查 + CI gate
+- [x] **R6.1** `docker-compose.yml` 给每个服务加 healthcheck:
+- [x] **R6.2** frontend 加 mem_limit / cpus
+- [x] **R6.3** `nginx.conf` 加 `location = /health { return 200 'ok'; }`
+- [x] **R6.4** `deploy.yml` 加 frontend tsc + build job 作为 gate
+
+### Phase R7: 验证 + push
+- [x] **R7.1** 全部后端文件 `python -c "import ..."` 验证可加载
+- [x] **R7.2** `frontend && npx tsc --noEmit` 通过
+- [x] **R7.3** `docker compose config` 验证 yaml 合法
+- [x] **R7.4** PROJECT_OVERVIEW + LEARNING 更新(单独 section "生产 readiness 修复 2026-05-12")
+- [ ] **R7.5** push 触发 deploy
+
+### 明确延后(LEARNING.md 留记号)
+- ⏸️ JWT HttpOnly cookie 改造(改前端所有 axios,工作量 1-2 天)
+- ⏸️ JWT `jti` + Redis 黑名单 revocation
+- ⏸️ Alembic 接入(基线 + 切换 startup migration,需 dry-run 验证生产数据不丢)
+- ⏸️ `pptx_codeexec` 独立沙箱容器
+- ⏸️ MCP key sha256 / feishu_app_secret Fernet 加密(涉及数据迁移)
+- ⏸️ owner 模糊搜全部用户的 email 暴露(改 search 端点返回 username)
+

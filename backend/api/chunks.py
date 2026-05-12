@@ -4,8 +4,12 @@ from sqlalchemy import select, func
 from pydantic import BaseModel
 from models import get_session
 from models.chunk import Chunk
+from services.auth import get_current_user, require_admin
 
-router = APIRouter()
+# 切片是知识库真相源,匿名可读写曾导致整库泄露 + 任意污染(2026-05-12 修复):
+#   - 读端点(list / get / get_versions):需要登录
+#   - 写端点(update / patch tags):需要 admin(单独 Depends 叠加)
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 class ChunkUpdateRequest(BaseModel):
@@ -85,7 +89,7 @@ async def get_chunk(chunk_id: str, session: AsyncSession = Depends(get_session))
     }
 
 
-@router.put("/{chunk_id}")
+@router.put("/{chunk_id}", dependencies=[Depends(require_admin)])
 async def update_chunk(chunk_id: str, req: ChunkUpdateRequest, session: AsyncSession = Depends(get_session)):
     chunk = await session.get(Chunk, chunk_id)
     if not chunk:
@@ -116,7 +120,7 @@ async def update_chunk(chunk_id: str, req: ChunkUpdateRequest, session: AsyncSes
     return {"ok": True}
 
 
-@router.patch("/{chunk_id}/tags")
+@router.patch("/{chunk_id}/tags", dependencies=[Depends(require_admin)])
 async def update_tags(chunk_id: str, tags: list[str], session: AsyncSession = Depends(get_session)):
     chunk = await session.get(Chunk, chunk_id)
     if not chunk:

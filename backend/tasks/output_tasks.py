@@ -18,13 +18,13 @@ def _run(coro):
         loop.close()
 
 
-@celery_app.task(name="generate_kickoff_pptx", bind=True, max_retries=2)
+@celery_app.task(name="generate_kickoff_pptx", bind=True, max_retries=2, soft_time_limit=900, time_limit=1200)
 def generate_kickoff_pptx(self, bundle_id: str, project_id: str):
     from services.output_service import generate_kickoff_pptx as _gen
     _run(_gen(bundle_id, project_id))
 
 
-@celery_app.task(name="generate_kickoff_html", bind=True, max_retries=2)
+@celery_app.task(name="generate_kickoff_html", bind=True, max_retries=2, soft_time_limit=900, time_limit=1200)
 def generate_kickoff_html(self, bundle_id: str, project_id: str):
     from services.output_service import generate_kickoff_html as _gen
     _run(_gen(bundle_id, project_id))
@@ -32,19 +32,19 @@ def generate_kickoff_html(self, bundle_id: str, project_id: str):
 
 # ── agentic 生成器(insight / survey / survey_outline) ──────────────────────
 
-@celery_app.task(name="generate_insight", bind=True, max_retries=2)
+@celery_app.task(name="generate_insight", bind=True, max_retries=2, soft_time_limit=900, time_limit=1200)
 def generate_insight(self, bundle_id: str, project_id: str):
     from services.agentic.runner import generate_insight as _gen
     _run(_gen(bundle_id, project_id))
 
 
-@celery_app.task(name="generate_survey", bind=True, max_retries=2)
+@celery_app.task(name="generate_survey", bind=True, max_retries=2, soft_time_limit=900, time_limit=1200)
 def generate_survey(self, bundle_id: str, project_id: str):
     from services.agentic.runner import generate_survey as _gen
     _run(_gen(bundle_id, project_id))
 
 
-@celery_app.task(name="generate_survey_outline", bind=True, max_retries=2)
+@celery_app.task(name="generate_survey_outline", bind=True, max_retries=2, soft_time_limit=900, time_limit=1200)
 def generate_survey_outline(self, bundle_id: str, project_id: str):
     from services.agentic.runner import generate_survey_outline as _gen
     _run(_gen(bundle_id, project_id))

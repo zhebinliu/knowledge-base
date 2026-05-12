@@ -113,12 +113,10 @@ async def _log_question(
 async def ask_question(
     request: Request,
     req: AskRequest,
-    user: User | None = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     t0 = time.time()
     if req.project_id:
-        if not user:
-            raise HTTPException(401, "项目作用域问答需要登录")
         await assert_project_access(user, req.project_id, "read")
     history = [h.dict() for h in (req.history or [])]
     result = await answer_question(
@@ -147,18 +145,16 @@ async def ask_question(
 async def ask_question_stream_endpoint(
     request: Request,
     req: AskRequest,
-    user: User | None = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ):
     """SSE streaming endpoint. Events: data: {...}\n\n  Terminated with: data: [DONE]\n\n
 
     Extra final event: {"question_log_id": "..."} so client can bind feedback.
     """
     if req.project_id:
-        if not user:
-            raise HTTPException(401, "项目作用域问答需要登录")
         await assert_project_access(user, req.project_id, "read")
     history = [h.dict() for h in (req.history or [])]
-    user_id = user.id if user else None
+    user_id = user.id
 
     async def event_generator():
         t0 = time.time()
@@ -211,7 +207,11 @@ async def ask_question_stream_endpoint(
 
 @router.post("/generate-doc")
 @limiter.limit("30/minute")
-async def generate_document(request: Request, req: GenerateDocRequest):
+async def generate_document(
+    request: Request,
+    req: GenerateDocRequest,
+    _user: User = Depends(get_current_user),
+):
     content = await generate_doc(req.template, req.project_name, req.industry, req.query)
     return {"content": content}
 

@@ -35,6 +35,23 @@ env:
   DOCKER_BUILDKIT: 1
 
 jobs:
+  frontend-check:
+    name: Frontend tsc + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        run: cd frontend && npm ci
+      - name: Type check
+        run: cd frontend && npx tsc --noEmit -p tsconfig.json
+      - name: Build
+        run: cd frontend && npm run build
+
   test:
     name: Run Tests
     runs-on: ubuntu-latest
@@ -121,7 +138,7 @@ jobs:
 
   build-and-push:
     name: Build and Push Docker Images
-    needs: test
+    needs: [test, frontend-check]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -192,6 +209,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Compute short SHA
+        id: sha
+        run: echo "value=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -199,14 +220,48 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          # 2026-05-12 改进:用 sha-xxxxxxx 标签而非 latest,失败时能 docker compose up <旧 sha> 回滚
+          # 上一次成功的 sha 写到 .last-good-sha,人工或脚本回滚用
+          envs: BACKEND_IMAGE_TAG,FRONTEND_IMAGE_TAG
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
             git pull origin main || echo "Not a git repo or no changes"
 
-            export BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest
-            export FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest
+            SHORT_SHA="${{ steps.sha.outputs.value }}"
+            export BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-${SHORT_SHA}
+            export FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:sha-${SHORT_SHA}
+
+            # 备份当前 last-good 以便回滚
+            if [ -f .last-good-sha ]; then
+              cp .last-good-sha .prev-good-sha
+            fi
 
             docker compose pull backend celery_worker frontend
             docker compose up -d
 
+            # 等 30s 然后健康检查
+            sleep 30
+            if curl -fsS http://127.0.0.1:8000/health > /dev/null 2>&1; then
+              echo "$SHORT_SHA" > .last-good-sha
+              echo "✅ Deployed sha-${SHORT_SHA}"
+            else
+              echo "❌ Health check failed for sha-${SHORT_SHA}"
+              if [ -f .prev-good-sha ]; then
+                PREV=$(cat .prev-good-sha)
+                echo "回滚到 sha-${PREV}"
+                export BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-${PREV}
+                export FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:sha-${PREV}
+                docker compose up -d
+              fi
+              exit 1
+            fi
+
             docker compose ps
+
+      - name: Notify on failure
+        if: failure() && secrets.DEPLOY_WEBHOOK_URL != ''
+        run: |
+          curl -sS -X POST "${{ secrets.DEPLOY_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"❌ KB 部署失败 sha=${{ steps.sha.outputs.value }} ${{ github.event.head_commit.message }}\"}}" \
+          || echo "webhook 通知失败"

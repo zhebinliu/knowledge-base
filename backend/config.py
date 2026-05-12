@@ -59,6 +59,16 @@ class Settings(BaseSettings):
     admin_initial_username: str = "admin"
     admin_initial_password: str = "ChangeMe123!"
 
+    # 部署环境(2026-05-12 加):"production" 时关闭 /docs /openapi.json
+    # 默认 production,显式在 .env 设 KB_ENV=development 才打开 docs
+    kb_env: str = "production"
+
+    # Sentry DSN(2026-05-12):非空时初始化错误监控
+    sentry_dsn: str = ""
+
+    # 飞书部署失败通知 webhook(可选)
+    deploy_webhook_url: str = ""
+
     @property
     def database_url(self) -> str:
         pw = quote_plus(self.postgres_password)

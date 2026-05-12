@@ -16,7 +16,7 @@ import json
 
 import jwt
 import structlog
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, func as sa_func
 
@@ -27,6 +27,7 @@ from models.project import Project
 from models.document import Document
 from models.user import User
 from services.embedding_service import embedding_service
+from services.project_acl import assert_project_access, list_accessible_project_ids
 from services.vector_store import vector_store
 from services.call_log_service import log_call
 
@@ -235,7 +236,7 @@ TOOLS = [
 # ── Project resolution (id or case-insensitive name match) ───────────────────
 
 async def _resolve_project(ref: str) -> Project | None:
-    """接收 project ID 或名称，返回匹配的 Project 或 None。"""
+    """接收 project ID 或名称，返回匹配的 Project 或 None。**不做权限校验**(内部使用)。"""
     if not ref:
         return None
     ref = ref.strip()
@@ -262,6 +263,24 @@ async def _resolve_project(ref: str) -> Project | None:
         return None
 
 
+async def _resolve_project_for(user: User, ref: str) -> Project | None:
+    """带权限校验的 resolve。无权访问的项目返回 None(等同于不存在,避免侧信道枚举)。
+
+    2026-05-12 新增:此前 MCP tool handler 直接调 _resolve_project,任何 API key 用户
+    可读他人项目;现在统一走这个 helper,admin 仍可访问全部。
+    """
+    proj = await _resolve_project(ref)
+    if not proj:
+        return None
+    if getattr(user, "is_admin", False):
+        return proj
+    try:
+        await assert_project_access(user, proj.id, "read")
+        return proj
+    except HTTPException:
+        return None
+
+
 async def _document_ids_for_project(project_id: str) -> list[str]:
     async with async_session_maker() as session:
         rows = await session.execute(
@@ -272,7 +291,7 @@ async def _document_ids_for_project(project_id: str) -> list[str]:
 
 # ── Tool handlers ─────────────────────────────────────────────────────────────
 
-async def _handle_ask_kb(arguments: dict) -> str:
+async def _handle_ask_kb(arguments: dict, user: User) -> str:
     question = arguments["question"]
     ltc_stage = arguments.get("ltc_stage") or None
     persona = (arguments.get("persona") or "general").lower()
@@ -283,9 +302,9 @@ async def _handle_ask_kb(arguments: dict) -> str:
     if persona == "pm":
         if not project_ref:
             return "❌ persona=pm 时必须传 project 参数（项目 ID 或名称）。可先调 list_projects 查可用项目。"
-        proj = await _resolve_project(project_ref)
+        proj = await _resolve_project_for(user, project_ref)
         if not proj:
-            return f"❌ 未找到项目「{project_ref}」。可先调 list_projects 查可用项目。"
+            return f"❌ 未找到项目「{project_ref}」或无权访问。可先调 list_projects 查可用项目。"
         project_id = proj.id
         project_name = proj.name
 
@@ -313,17 +332,21 @@ async def _handle_ask_kb(arguments: dict) -> str:
     return header + text
 
 
-async def _handle_search_kb(arguments: dict) -> str:
+async def _handle_search_kb(arguments: dict, user: User) -> str:
     query     = arguments["query"]
     top_k     = min(int(arguments.get("top_k", 5)), 20)
     ltc_stage = arguments.get("ltc_stage") or None
     project_ref = arguments.get("project") or None
 
+    # 2026-05-12:非 admin 用户搜索必须指定 project,避免跨项目泄露切片内容
+    if not project_ref and not user.is_admin:
+        return "❌ 搜索切片需要指定 project 参数(项目 ID 或名称)。可先调 list_projects 查可用项目。"
+
     document_ids: list[str] | None = None
     if project_ref:
-        proj = await _resolve_project(project_ref)
+        proj = await _resolve_project_for(user, project_ref)
         if not proj:
-            return f"❌ 未找到项目「{project_ref}」。可先调 list_projects 查可用项目。"
+            return f"❌ 未找到项目「{project_ref}」或无权访问。可先调 list_projects 查可用项目。"
         document_ids = await _document_ids_for_project(proj.id)
         if not document_ids:
             return f"项目「{proj.name}」下暂无已入库文档。"
@@ -349,13 +372,19 @@ async def _handle_search_kb(arguments: dict) -> str:
     return "\n".join(lines)
 
 
-async def _handle_list_projects(arguments: dict) -> str:
+async def _handle_list_projects(arguments: dict, user: User) -> str:
     q = (arguments.get("query") or "").strip().lower()
+    # 2026-05-12:非 admin 用户只列自己 owned + 协作的项目
+    accessible_ids = await list_accessible_project_ids(user)
     async with async_session_maker() as session:
         stmt = select(
             Project.id, Project.name, Project.customer, Project.industry,
             sa_func.count(Document.id).label("doc_count"),
         ).outerjoin(Document, Document.project_id == Project.id)
+        if accessible_ids is not None:  # None 表示 admin,全部可见
+            if not accessible_ids:
+                return "您当前没有任何可访问的项目。"
+            stmt = stmt.where(Project.id.in_(accessible_ids))
         if q:
             stmt = stmt.where(
                 sa_func.lower(Project.name).contains(q)
@@ -377,11 +406,11 @@ async def _handle_list_projects(arguments: dict) -> str:
     return "\n".join(lines)
 
 
-async def _handle_get_project_status(arguments: dict) -> str:
+async def _handle_get_project_status(arguments: dict, user: User) -> str:
     project_ref = arguments["project"]
-    proj = await _resolve_project(project_ref)
+    proj = await _resolve_project_for(user, project_ref)
     if not proj:
-        return f"❌ 未找到项目「{project_ref}」。可先调 list_projects 查可用项目。"
+        return f"❌ 未找到项目「{project_ref}」或无权访问。可先调 list_projects 查可用项目。"
 
     from models.curated_bundle import CuratedBundle
     KINDS = ["insight", "survey_outline", "survey", "kickoff_pptx", "kickoff_html"]
@@ -435,11 +464,11 @@ async def _handle_get_project_status(arguments: dict) -> str:
     return "\n".join(lines)
 
 
-async def _handle_list_outputs(arguments: dict) -> str:
+async def _handle_list_outputs(arguments: dict, user: User) -> str:
     project_ref = arguments["project"]
-    proj = await _resolve_project(project_ref)
+    proj = await _resolve_project_for(user, project_ref)
     if not proj:
-        return f"❌ 未找到项目「{project_ref}」。"
+        return f"❌ 未找到项目「{project_ref}」或无权访问。"
 
     from models.curated_bundle import CuratedBundle
     kind_filter = arguments.get("kind")
@@ -464,13 +493,19 @@ async def _handle_list_outputs(arguments: dict) -> str:
     return "\n".join(lines)
 
 
-async def _handle_get_output(arguments: dict) -> str:
+async def _handle_get_output(arguments: dict, user: User) -> str:
     bundle_id = arguments["bundle_id"]
     from models.curated_bundle import CuratedBundle
     async with async_session_maker() as session:
         b = await session.get(CuratedBundle, bundle_id)
     if not b:
         return f"❌ 未找到产物 ID `{bundle_id}`。"
+    # 2026-05-12:校验 bundle 所属项目的访问权
+    if b.project_id and not user.is_admin:
+        try:
+            await assert_project_access(user, b.project_id, "read")
+        except HTTPException:
+            return f"❌ 未找到产物 ID `{bundle_id}` 或无权访问。"
 
     if b.status != "done":
         return (
@@ -504,11 +539,11 @@ async def _handle_get_output(arguments: dict) -> str:
     return "\n".join(lines)
 
 
-async def _handle_list_documents(arguments: dict) -> str:
+async def _handle_list_documents(arguments: dict, user: User) -> str:
     project_ref = arguments["project"]
-    proj = await _resolve_project(project_ref)
+    proj = await _resolve_project_for(user, project_ref)
     if not proj:
-        return f"❌ 未找到项目「{project_ref}」。"
+        return f"❌ 未找到项目「{project_ref}」或无权访问。"
 
     async with async_session_maker() as session:
         rows = (await session.execute(
@@ -527,12 +562,12 @@ async def _handle_list_documents(arguments: dict) -> str:
     return "\n".join(lines)
 
 
-async def _handle_get_brief(arguments: dict) -> str:
+async def _handle_get_brief(arguments: dict, user: User) -> str:
     project_ref = arguments["project"]
     kind = arguments["kind"]
-    proj = await _resolve_project(project_ref)
+    proj = await _resolve_project_for(user, project_ref)
     if not proj:
-        return f"❌ 未找到项目「{project_ref}」。"
+        return f"❌ 未找到项目「{project_ref}」或无权访问。"
 
     from models.project_brief import ProjectBrief
     from services.brief_service import get_schema
@@ -628,6 +663,7 @@ async def mcp_endpoint(request: Request):
     _log_uid: str | None = None
     _log_uname: str | None = None
     _log_ttype: str = "mcp_key"
+    acting_user: User | None = None  # 2026-05-12:tool handler 用它做 project 权限隔离
 
     if token.startswith("mcp_"):
         # API Key 模式：查库匹配
@@ -646,6 +682,7 @@ async def mcp_endpoint(request: Request):
         _log_uid = user.id
         _log_uname = user.username
         _log_ttype = "mcp_key"
+        acting_user = user
     else:
         # JWT 模式
         try:
@@ -676,6 +713,7 @@ async def mcp_endpoint(request: Request):
         _log_uid = jwt_user.id
         _log_uname = jwt_user.username
         _log_ttype = "jwt"
+        acting_user = jwt_user
 
     try:
         body = await request.json()
@@ -735,23 +773,26 @@ async def mcp_endpoint(request: Request):
 
         log_call(_log_uid, _log_uname, _log_ttype, "mcp", f"tools/call:{tool_name}")
 
+        # 2026-05-12:所有 handler 都接收 acting_user 做 project 权限隔离
+        # 上方鉴权流程已保证 acting_user 不为 None,这里 assert 为类型收窄
+        assert acting_user is not None
         try:
             if tool_name == "ask_kb":
-                text = await _handle_ask_kb(arguments)
+                text = await _handle_ask_kb(arguments, acting_user)
             elif tool_name == "search_kb":
-                text = await _handle_search_kb(arguments)
+                text = await _handle_search_kb(arguments, acting_user)
             elif tool_name == "list_projects":
-                text = await _handle_list_projects(arguments)
+                text = await _handle_list_projects(arguments, acting_user)
             elif tool_name == "get_project_status":
-                text = await _handle_get_project_status(arguments)
+                text = await _handle_get_project_status(arguments, acting_user)
             elif tool_name == "list_outputs":
-                text = await _handle_list_outputs(arguments)
+                text = await _handle_list_outputs(arguments, acting_user)
             elif tool_name == "get_output":
-                text = await _handle_get_output(arguments)
+                text = await _handle_get_output(arguments, acting_user)
             elif tool_name == "list_documents":
-                text = await _handle_list_documents(arguments)
+                text = await _handle_list_documents(arguments, acting_user)
             elif tool_name == "get_brief":
-                text = await _handle_get_brief(arguments)
+                text = await _handle_get_brief(arguments, acting_user)
             else:
                 return _err(req_id, -32602, f"未知工具: {tool_name}")
 

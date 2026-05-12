@@ -6,8 +6,10 @@ from sqlalchemy import select
 from pydantic import BaseModel
 from models import get_session
 from models.chunk import Chunk
+from services.auth import require_admin
 
-router = APIRouter()
+# 整库导出属敏感操作,强制 admin 鉴权(2026-05-12 修复:此前匿名可拉走所有 approved 切片)
+router = APIRouter(dependencies=[Depends(require_admin)])
 
 
 class ExportRequest(BaseModel):

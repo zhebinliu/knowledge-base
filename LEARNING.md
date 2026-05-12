@@ -439,3 +439,56 @@ sed -i '' 's|<span>Layer</span>|<span>层</span>|g' file.tsx
 - [skills_seed.py:137](backend/services/agentic/skills_seed.py:137) "Challenger 7 维度 rubric" 名字 + prompt 仍写 7 维(实际 6 维,timeliness 已下线)。下次动 skills_seed 时改名 + 改内容
 - [output_service.py:_get_brief_block](backend/services/output_service.py) 历史 bug:`kind='kickoff_html'` 时找不到 brief(brief 入库归一成 kickoff_pptx,但读取没归一)。本次 v3 重构没修
 - ApiDocs / DesignSystem 里很多文案是手写的,与代码同步靠 grep + audit;可考虑写一个 build 时校验 script(可选,投入产出比一般)
+
+---
+
+## 10. 生产 readiness 改造经验(2026-05-12)
+
+### 10.1 鉴权审查模板:"匿名能调么 + 写操作校 write 不是 read"
+
+审查每个路由文件时两条铁律:
+1. **router 创建即决定 baseline**:`APIRouter()` 等于全部公开。最低门槛 `APIRouter(dependencies=[Depends(get_current_user)])`,管理类直接 `require_admin`。
+2. **写操作必须 write,不能复用 read**:即使有 `assert_project_access(..., "read")` 看似"做了校验",但 PUT / PATCH / DELETE 等写操作要校 `write`。read-only 协作者可以看 = 不等于可以改。
+
+历史漏洞:`outputs.py:561,594` 一直写 `"read"`,read-only 协作者把团队报告改了我都不知道。
+
+### 10.2 CORS + credentials 的经典坑
+
+`allow_origins=["*"]` + `allow_credentials=True` 是错误组合。浏览器实际拒绝 `*` + credentials,但同时也意味着**任意 origin 都能带 Authorization header 跨域请求**(走 axios fetch,不靠 cookie)。固定列出所有合法 origin 才安全。
+
+### 10.3 启动校验 secret 必须随机
+
+`JWT_SECRET_KEY` 默认值是 `change-me-...`,看着像占位但 .env 漏配就跑默认密钥 = 任何人能伪造任意用户 token(签名密钥是公知的)。`backend/main.py` 启动时 raise:`if settings.jwt_secret_key.startswith("change-me"): raise RuntimeError(...)`。
+
+副作用:**部署前必须确认 prod .env 已改**,否则 backend 启动失败。这是 feature 不是 bug。
+
+### 10.4 SlowAPI 限流走 nginx 转发要看真实 IP
+
+默认 `get_remote_address` 在 nginx 反代后看到的全是 127.0.0.1,所有请求并到同一限流桶,限流形同虚设。改用自定义 `_real_client_ip` 优先取 `X-Forwarded-For` 首段,见 `services/rate_limit.py`。
+
+### 10.5 LLM 调用别只重试 429
+
+LLM 供应商抖动场景很多:超时(`httpx.TimeoutException`)/ 连接错误(`ConnectError` / `ReadError`)/ 5xx(供应商内部错)都需要重试。只重试 429 会让所有非 429 错误立即冒到 Celery 走 5 次 retry × 180s 超时 = 单文档最坏卡 15 分钟。
+
+### 10.6 Celery task 必设 time_limit
+
+`@celery_app.task` 默认无超时。LLM 卡死可吃满 worker 槽位(`--concurrency=2` 只 2 个槽),2 个卡死任务 = 全站生成停摆。所有 task 加 `soft_time_limit` / `time_limit`。具体值看任务性质,LLM 生成类用 900/1200s。
+
+### 10.7 备份 / 回滚 / 监控不是"以后再说"
+
+- **数据备份**:`scripts/backup.sh` Postgres + MinIO + Qdrant 三件套,目标 GCS bucket,7 天保留(用 GCS lifecycle 而不是脚本 prune,简单)
+- **部署回滚**:镜像标签用 `sha-xxxxxxx` 不用 `:latest`,服务器保留 `.last-good-sha`,健康检查失败自动回滚
+- **可观测**:`X-Request-ID` middleware 把 nginx → backend → celery 串起来,Sentry 用 `SENTRY_DSN` 空判断开关(零成本可选)
+- **SSL 续期**:`renew-ssl.sh` 加 healthchecks.io ping + 证书剩余 < 7 天 webhook 告警(沉默故障最致命)
+
+### 10.8 延后但要记着的 P1(架构改动,单独立项)
+
+| 项 | 工作量 | 风险 |
+|----|------|------|
+| JWT HttpOnly cookie 改造 | 1-2 天 | 改前端所有 axios + 后端 token 取处,容易漏 |
+| JWT `jti` + Redis 黑名单 revocation | 0.5 天 | 改 verify_token 解码后查黑名单 |
+| Alembic 接入 + 替代 `create_all + ALTER` | 1 天 | 基线 autogenerate 不一定对齐 prod schema,需要 dry-run |
+| `pptx_codeexec` 独立沙箱容器 | 0.5 天 | 新加 docker service,跨容器调用 |
+| MCP key sha256 / feishu_app_secret 加密 | 0.5 天 | 涉及现有用户 MCP key 数据迁移(老用户要重新生成) |
+
+每项都不"复杂",但**改动面广 + 影响在线用户**,所以本轮不动,单独 PR 推进。

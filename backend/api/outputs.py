@@ -558,9 +558,8 @@ async def save_content_md(
         raise HTTPException(404, "Bundle not found")
     if b.project_id and not current_user.is_admin:
         from services.project_acl import assert_project_access
-        await assert_project_access(current_user, b.project_id, "read")
-    if False:  # legacy guard removed
-        raise HTTPException(403, "无权编辑该产物")
+        # 写操作:必须 write 权限,read-only 协作者不能改报告(2026-05-12 修复:此前误写 "read")
+        await assert_project_access(current_user, b.project_id, "write")
     if b.kind not in ("insight", "survey_outline", "survey"):
         raise HTTPException(400, f"产物类型 {b.kind} 不支持 markdown 编辑")
     if b.status != "done":
@@ -591,9 +590,8 @@ async def save_html_output(
         raise HTTPException(404, "Bundle not found")
     if b.project_id and not current_user.is_admin:
         from services.project_acl import assert_project_access
-        await assert_project_access(current_user, b.project_id, "read")
-    if False:  # legacy guard removed
-        raise HTTPException(403, "Access denied")
+        # 写操作:必须 write 权限(2026-05-12 修复:此前误写 "read")
+        await assert_project_access(current_user, b.project_id, "write")
     if not b.file_key or not b.file_key.endswith(".html"):
         raise HTTPException(400, "仅 HTML 类型 bundle 支持就地编辑")
 

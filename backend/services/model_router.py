@@ -191,7 +191,9 @@ class ModelRouter:
         if response_format:
             payload["response_format"] = response_format
 
-        # 429 退避: 5s, 10s, 20s；其他错误不重试
+        # 退避策略(2026-05-12 改进):
+        #   - 429 / 5xx / 网络超时 / 连接错误 都退避重试,直到三轮失败
+        #   - 其他 4xx(401/403/400 等)是配置错误,立即 raise 触发上层 fallback
         backoffs = [5, 10, 20]
         attempt = 0
         while True:
@@ -205,12 +207,14 @@ class ModelRouter:
                     json=payload,
                     timeout=timeout,
                 )
-                if resp.status_code == 429 and attempt < len(backoffs):
-                    wait = backoffs[attempt]
-                    attempt += 1
-                    logger.warning("rate_limited_retrying", model=model_name, attempt=attempt, wait_s=wait)
-                    await asyncio.sleep(wait)
-                    continue
+                # 429 + 5xx:可重试
+                if resp.status_code in (429,) or 500 <= resp.status_code < 600:
+                    if attempt < len(backoffs):
+                        wait = backoffs[attempt]
+                        attempt += 1
+                        logger.warning("model_call_retrying", model=model_name, status=resp.status_code, attempt=attempt, wait_s=wait)
+                        await asyncio.sleep(wait)
+                        continue
                 resp.raise_for_status()
                 self._failure_counts[model_name] = 0
                 content = resp.json()["choices"][0]["message"]["content"]
@@ -219,9 +223,20 @@ class ModelRouter:
                     content = _strip_think(content)
                 return content, model_name
             except httpx.HTTPStatusError as e:
-                # 429 已在上面处理；到这里说明退避用完仍 429，或其他 4xx/5xx
+                # 退避用完仍失败,或非可重试 4xx
                 self._failure_counts[model_name] = self._failure_counts.get(model_name, 0) + 1
                 logger.error("model_call_failed", model=model_name, status=e.response.status_code, error=str(e)[:200])
+                raise
+            except (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError) as e:
+                # 网络层异常:同样可重试
+                if attempt < len(backoffs):
+                    wait = backoffs[attempt]
+                    attempt += 1
+                    logger.warning("model_call_network_retrying", model=model_name, error=type(e).__name__, attempt=attempt, wait_s=wait)
+                    await asyncio.sleep(wait)
+                    continue
+                self._failure_counts[model_name] = self._failure_counts.get(model_name, 0) + 1
+                logger.error("model_call_network_failed", model=model_name, error=type(e).__name__)
                 raise
             except Exception as e:
                 self._failure_counts[model_name] = self._failure_counts.get(model_name, 0) + 1

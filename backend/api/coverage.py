@@ -9,8 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models import get_session
 from models.coverage_gap import CoverageGap
 from prompts.ltc_taxonomy import INDUSTRY_TAGS, LTC_STAGES
+from services.auth import get_current_user
 
-router = APIRouter()
+# 覆盖缺口暴露的是「我们答不出哪类问题」的内部洞察,不应对公网开放(2026-05-12 修复)
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 def _stage_label(key: str | None) -> str | None:

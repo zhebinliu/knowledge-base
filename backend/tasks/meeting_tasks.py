@@ -92,7 +92,7 @@ async def _process_meeting_async(meeting_id: int):
         logger.info("meeting_processed", meeting_id=meeting_id, status="completed")
 
 
-@celery_app.task(name="process_meeting", bind=True, max_retries=1)
+@celery_app.task(name="process_meeting", bind=True, max_retries=1, soft_time_limit=1500, time_limit=1800)
 def process_meeting(self, meeting_id: int):
     """会议 AI pipeline:polish → minutes/requirements → stakeholders。"""
     _run(_process_meeting_async(meeting_id))
@@ -147,7 +147,7 @@ async def _transcribe_meeting_async(meeting_id: int):
     await _process_meeting_async(meeting_id)
 
 
-@celery_app.task(name="transcribe_meeting", bind=True, max_retries=1)
+@celery_app.task(name="transcribe_meeting", bind=True, max_retries=1, soft_time_limit=1800, time_limit=2100)
 def transcribe_meeting(self, meeting_id: int):
     """ASR 转写 + 自动触发后续 AI pipeline。"""
     _run(_transcribe_meeting_async(meeting_id))
