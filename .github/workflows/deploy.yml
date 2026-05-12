@@ -13,6 +13,8 @@ on:
       - 'task.md'
       - 'backend/services/agentic/skills_roadmap.md'
       - '.gitignore'
+      - 'desktop/**'
+      - '.github/workflows/desktop-build.yml'
   pull_request:
     branches: [ "main" ]
     paths-ignore:
@@ -23,6 +25,8 @@ on:
       - 'task.md'
       - 'backend/services/agentic/skills_roadmap.md'
       - '.gitignore'
+      - 'desktop/**'
+      - '.github/workflows/desktop-build.yml'
 
 env:
   REGISTRY: ghcr.io

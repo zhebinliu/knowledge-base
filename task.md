@@ -812,3 +812,38 @@ Insight v3 已达到预期。下一站是「需求调研」——把 insight 输
 - `backend/api/outputs.py` — KIND_TO_TASK 待加 survey_v2 / survey_outline_v2 映射
 - `frontend/src/pages/console/ConsoleProjectDetail.tsx:560` — InsightV3Workspace 三栏布局参考
 - `frontend/src/components/console/CenterWorkspace.tsx` — 中栏视图切换模式参考
+
+---
+
+## 新迭代:桌面 App 方案 1(Electron 壳子,2026-05-12)
+
+### 背景
+把 https://kb.liii.in 包成桌面应用。macOS 自用(不签名,右键-打开绕 Gatekeeper),Windows 通过 GitHub Actions 出包(SmartScreen 警告可接受)。本质是浏览器壳 + 独立窗口,后端依旧远程,壳子不引入本地存储。
+
+### 决策
+- **框架**:electron-forge(官方推,内置 dmg / squirrel / zip maker)
+- **目录**:仓库根 `desktop/`,跟 `backend/` `frontend/` 平级
+- **应用名**:"纷享 KB" / **Bundle ID**:`in.liii.kb`
+- **加载 URL**:`https://kb.liii.in`(写死,后续要可配再说)
+- **图标**:复用 `frontend/public/logo.png`(900×900,electron-forge 自动转 icns/ico)
+- **不动现有 `deploy.yml`**:新建 `.github/workflows/desktop-build.yml`,触发方式 `workflow_dispatch` + tag `desktop-v*`
+
+### 任务
+- [x] **D1** `desktop/` 初始化 electron-forge webpack-typescript 模板(模板 lock 的 typescript@4.5 与新 @types/node 不兼容,升级到 ~5.5)
+- [x] **D2** 主进程:`src/index.ts` loadURL https://kb.liii.in,1440×900,外链走系统浏览器,非 macOS 隐藏菜单栏
+- [x] **D3** 用 `electron-icon-builder` 从 `frontend/public/logo.png` 生成 `icons/icon.{icns,ico,png}`
+- [x] **D4** 本地 `npm run package` 跑通(代替 `npm start`,非交互验证);产物 `.app` 双击启动 OK
+- [x] **D5** 本地 `npm run make` 出 `.dmg`(109 MB)+ `.zip`(备用)
+- [x] **D6** `.github/workflows/desktop-build.yml`:双 runner,artifacts 上传,tag `desktop-v*` 推送时建 draft Release
+- [x] **D7** PROJECT_OVERVIEW.md 加节 5.5 "桌面 App",deploy.yml `paths-ignore` 加 `desktop/**` 避免误触发后端 CI
+
+### 验收
+1. `cd desktop && npm start` 能弹窗加载 https://kb.liii.in
+2. `cd desktop && npm run make` 生成 `.dmg`,本机装上能用
+3. GitHub Actions 手动触发后,两 runner 跑绿,artifacts 含 `.dmg` 和 `.exe`
+
+### 边界
+- 不改 backend / frontend 代码
+- 不引入本地数据存储(纯壳子)
+- 不做自动更新(electron-updater 以后再说)
+- 不做代码签名(macOS $99/年,Windows $200+/年,自用阶段不值)

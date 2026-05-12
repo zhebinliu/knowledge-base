@@ -240,6 +240,26 @@ axios 实例 + 全部后端 API 的 TypeScript 函数封装 + 类型定义(`Outp
 
 ---
 
+## 5.5 桌面 App(`desktop/`)
+
+Electron 7.x 壳子,本质上是 BrowserWindow 加载 `https://kb.liii.in`。**不内置后端,不存本地数据,网络断了就用不了。** 提供独立窗口图标、外链走系统浏览器、Dock/任务栏入口。
+
+| 文件 | 作用 |
+|----|----|
+| `src/index.ts` | 主进程:创建 1440×900 窗口,`loadURL('https://kb.liii.in')`,外链 host 不同则 `shell.openExternal` |
+| `forge.config.ts` | electron-forge 配置:`appBundleId: in.liii.kb`,macOS 出 `.dmg`+`.zip`,Windows 出 squirrel `.exe`,Linux 出 `.deb`+`.rpm` |
+| `icons/icon.{icns,ico,png}` | 多平台图标,从 `frontend/public/logo.png` 用 `electron-icon-builder` 生成 |
+| `.github/workflows/desktop-build.yml`(根) | 双 runner(macos-latest + windows-latest)出包,tag `desktop-v*` 推送时建 Release |
+
+**关键命令**(在 `desktop/` 下):
+- `npm start` — 本地开发,弹窗加载远程站点
+- `npm run package` — 出 `.app` 但不打安装器(`out/纷享 KB-darwin-arm64/`)
+- `npm run make` — 出完整安装器(`out/make/*.dmg`、`out/make/zip/...`)
+
+**未签名**:macOS 第一次打开要"右键 → 打开"绕 Gatekeeper;Windows 会弹 SmartScreen 警告。后续需要分发给客户再考虑买证书。
+
+---
+
 ## 6. 关键产品决策(已确认,勿轻易回退)
 
 ### 6.1 项目洞察走文档驱动,不走切片召回(2026-04-29)

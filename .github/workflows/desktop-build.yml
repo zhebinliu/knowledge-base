@@ -1,0 +1,88 @@
+name: Desktop App Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: '同时建 GitHub Release(只在打 tag 时勾)'
+        required: false
+        default: 'false'
+  push:
+    tags:
+      - 'desktop-v*'
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Make distributables
+        run: npm run make
+        env:
+          # 不签名:跳过 macOS notarize、Windows code sign
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Upload artifacts (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kb-desktop-macos
+          path: |
+            desktop/out/make/**/*.dmg
+            desktop/out/make/**/*.zip
+          if-no-files-found: error
+
+      - name: Upload artifacts (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kb-desktop-windows
+          path: |
+            desktop/out/make/squirrel.windows/**/*.exe
+            desktop/out/make/squirrel.windows/**/*.nupkg
+            desktop/out/make/squirrel.windows/**/RELEASES
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/desktop-v') || github.event.inputs.release == 'true'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          draft: true
+          generate_release_notes: true
+          files: |
+            artifacts/kb-desktop-macos/**/*
+            artifacts/kb-desktop-windows/**/*
