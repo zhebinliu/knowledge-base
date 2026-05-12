@@ -351,10 +351,8 @@ async def patch_requirement(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    """更新单条需求字段(模块 / 描述 / 优先级 / 提出人 / 状态等)。
-    用于前端表格 inline edit。
-    """
-    await _load_meeting_owned(meeting_id, session, user)  # 鉴权 + 校验所属
+    """更新单条需求字段。"""
+    await _load_meeting_owned(meeting_id, session, user)
     r = await session.get(Requirement, req_id)
     if not r or r.meeting_id != meeting_id:
         raise HTTPException(404, "需求不存在或不属于该会议")
@@ -364,6 +362,63 @@ async def patch_requirement(
     await session.commit()
     await session.refresh(r)
     return _requirement_dto(r)
+
+
+class RequirementCreate(BaseModel):
+    """新增需求(2026-05-12 加)。"""
+    module: str = ""
+    description: str = ""
+    priority: str = "P2"
+    source: Optional[str] = None
+    speaker: Optional[str] = None
+    status: str = "待确认"
+
+
+@router.post("/{meeting_id}/requirements", status_code=201)
+async def create_requirement(
+    meeting_id: int,
+    body: RequirementCreate,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """手动新增一条需求。"""
+    await _load_meeting_owned(meeting_id, session, user)
+    # 生成 req_id:取当前 max + 1
+    existing = (await session.scalars(
+        select(Requirement).where(Requirement.meeting_id == meeting_id)
+    )).all()
+    next_idx = len(existing) + 1
+    r = Requirement(
+        meeting_id=meeting_id,
+        req_id=f"REQ-{next_idx:03d}",
+        module=body.module,
+        description=body.description,
+        priority=body.priority,
+        source=body.source,
+        speaker=body.speaker,
+        status=body.status,
+    )
+    session.add(r)
+    await session.commit()
+    await session.refresh(r)
+    return _requirement_dto(r)
+
+
+@router.delete("/{meeting_id}/requirements/{req_id}", status_code=204)
+async def delete_requirement(
+    meeting_id: int,
+    req_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """删除单条需求。"""
+    await _load_meeting_owned(meeting_id, session, user)
+    r = await session.get(Requirement, req_id)
+    if not r or r.meeting_id != meeting_id:
+        raise HTTPException(404, "需求不存在或不属于该会议")
+    await session.delete(r)
+    await session.commit()
+    return None
 
 
 class StakeholderRenamePayload(BaseModel):
@@ -408,14 +463,17 @@ async def rename_stakeholder_references(
     # 1) meeting_minutes 各字段
     mm = dict(m.meeting_minutes or {})
     minutes_replaced = 0
-    # 元信息单字段
-    for key in ("meeting_host", "meeting_recorder", "organizer"):
+
+    # a. 元信息单字段(string)
+    for key in ("meeting_host", "meeting_recorder", "organizer", "summary"):
         v = mm.get(key)
         if isinstance(v, str):
             new_v, n = _replace_exact(v)
             if n:
-                mm[key], minutes_replaced = new_v, minutes_replaced + n
-    # attendees 数组(每项可能是"客户方:xxx、xxx"格式)
+                mm[key] = new_v
+                minutes_replaced += n
+
+    # b. attendees 数组
     if isinstance(mm.get("attendees"), list):
         new_attendees = []
         for s in mm["attendees"]:
@@ -426,31 +484,54 @@ async def rename_stakeholder_references(
             else:
                 new_attendees.append(s)
         mm["attendees"] = new_attendees
-    # decisions / action_items / unresolved 的 owner
-    for arr_key in ("decisions", "action_items", "unresolved"):
+
+    # c. key_points[] 的 topic / content(自由文本里可能提及名字)
+    if isinstance(mm.get("key_points"), list):
+        for item in mm["key_points"]:
+            if isinstance(item, dict):
+                for k in ("topic", "content"):
+                    if isinstance(item.get(k), str):
+                        new_v, n = _replace_exact(item[k])
+                        if n:
+                            item[k] = new_v
+                            minutes_replaced += n
+
+    # d. decisions[] / action_items[] / unresolved[] 所有文本字段 + owner
+    text_fields = {
+        "decisions": ("content", "owner"),
+        "action_items": ("task", "owner", "remark", "deadline"),
+        "unresolved": ("issue", "owner", "reason", "remark"),
+    }
+    for arr_key, fields in text_fields.items():
         arr = mm.get(arr_key)
         if not isinstance(arr, list):
             continue
         for item in arr:
-            if isinstance(item, dict) and isinstance(item.get("owner"), str):
-                new_v, n = _replace_exact(item["owner"])
-                if n:
-                    item["owner"], minutes_replaced = new_v, minutes_replaced + n
+            if not isinstance(item, dict):
+                continue
+            for f in fields:
+                if isinstance(item.get(f), str):
+                    new_v, n = _replace_exact(item[f])
+                    if n:
+                        item[f] = new_v
+                        minutes_replaced += n
 
     if minutes_replaced:
         m.meeting_minutes = mm
 
-    # 2) requirements.speaker
+    # 2) requirements:speaker + description + source + module
     reqs = (await session.scalars(
         select(Requirement).where(Requirement.meeting_id == meeting_id)
     )).all()
     req_replaced = 0
     for r in reqs:
-        if r.speaker:
-            new_v, n = _replace_exact(r.speaker)
-            if n:
-                r.speaker = new_v
-                req_replaced += n
+        for attr in ("speaker", "description", "source", "module"):
+            v = getattr(r, attr, None)
+            if isinstance(v, str):
+                new_v, n = _replace_exact(v)
+                if n:
+                    setattr(r, attr, new_v)
+                    req_replaced += n
 
     await session.commit()
     logger.info("stakeholder_renamed",

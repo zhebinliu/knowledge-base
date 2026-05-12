@@ -24,6 +24,7 @@ import Login     from './pages/Login'
 import Register  from './pages/Register'
 import ChangePassword from './pages/ChangePassword'
 import RequireAuth from './auth/RequireAuth'
+import Toaster from './components/Toaster'
 // Console 工作台（对外输出视图）
 import ConsoleHome from './pages/console/ConsoleHome'
 import ConsoleQA from './pages/console/ConsoleQA'
@@ -35,6 +36,8 @@ import ConsoleMeetingNew from './pages/console/ConsoleMeetingNew'
 
 export default function App() {
   return (
+    <>
+    <Toaster />
     <Routes>
       <Route path="/ds"       element={<DesignSystem />} />
       <Route path="/api"      element={<ApiDocs />} />
@@ -80,5 +83,6 @@ export default function App() {
         </Route>
       </Route>
     </Routes>
+    </>
   )
 }

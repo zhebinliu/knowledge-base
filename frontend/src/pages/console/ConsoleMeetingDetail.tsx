@@ -24,9 +24,11 @@ import {
   listProjects, getFeishuCredentials, putFeishuCredentials, deleteFeishuCredentials,
   exportMeetingDocxUrl,
   putMeetingStakeholderMap, patchMeetingRequirement, renameStakeholderRefs,
+  createMeetingRequirement, deleteMeetingRequirement,
   type Meeting, type MeetingStatus, type MeetingMinutes, type MeetingRequirement,
   type StakeholderItem,
 } from '../../api/client'
+import { toast } from '../../components/Toaster'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 type Tab = 'overview' | 'transcript' | 'minutes' | 'requirements' | 'stakeholders' | 'actions'
@@ -415,111 +417,365 @@ function MinutesTab({ meeting }: { meeting: Meeting }) {
               )}
             </div>
           )}
-          {m.key_points && m.key_points.length > 0 && (
+          {/* 会议主题(key_points)— edit 模式下支持增删改 */}
+          {(editing || (m.key_points && m.key_points.length > 0)) && (
             <div>
-              <div className="text-[11px] uppercase tracking-wider text-ink-muted font-medium mb-2">会议主题</div>
-              <ol className="space-y-2.5 list-none">
-                {m.key_points.map((kp, i) => (
-                  <li key={i} className="flex gap-2">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-orange-50 border border-orange-200 text-orange-700 text-[11px] font-bold inline-flex items-center justify-center">{i + 1}</span>
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold text-ink">{kp.topic}</div>
-                      <div className="text-[12.5px] text-ink-secondary mt-0.5 whitespace-pre-wrap">{kp.content}</div>
-                    </div>
-                  </li>
-                ))}
-              </ol>
+              <div className="text-[11px] uppercase tracking-wider text-ink-muted font-medium mb-2 flex items-center justify-between">
+                <span>会议主题</span>
+                {editing && (
+                  <button
+                    onClick={() => setDraft({ ...draft, key_points: [...(draft.key_points || []), { topic: '', content: '' }] })}
+                    className="text-[11px] text-orange-600 hover:text-orange-700 flex items-center gap-0.5 normal-case tracking-normal font-normal"
+                  >
+                    + 添加议题
+                  </button>
+                )}
+              </div>
+              {editing ? (
+                <ol className="space-y-2.5 list-none">
+                  {(draft.key_points || []).map((kp, i) => (
+                    <li key={i} className="flex gap-2 items-start group">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-orange-50 border border-orange-200 text-orange-700 text-[11px] font-bold inline-flex items-center justify-center mt-1">{i + 1}</span>
+                      <div className="flex-1 space-y-1">
+                        <input
+                          value={kp.topic}
+                          onChange={e => {
+                            const next = [...(draft.key_points || [])]
+                            next[i] = { ...next[i], topic: e.target.value }
+                            setDraft({ ...draft, key_points: next })
+                          }}
+                          placeholder="议题名称"
+                          className="w-full px-2 py-1 rounded border border-orange-200 text-sm font-semibold focus:outline-none focus:border-orange-400"
+                        />
+                        <textarea
+                          value={kp.content}
+                          onChange={e => {
+                            const next = [...(draft.key_points || [])]
+                            next[i] = { ...next[i], content: e.target.value }
+                            setDraft({ ...draft, key_points: next })
+                          }}
+                          rows={3}
+                          placeholder="讨论要点归纳"
+                          className="w-full px-2 py-1 rounded border border-orange-200 text-[12.5px] leading-relaxed focus:outline-none focus:border-orange-400"
+                        />
+                      </div>
+                      <button
+                        onClick={() => setDraft({ ...draft, key_points: (draft.key_points || []).filter((_, j) => j !== i) })}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 mt-1 text-ink-muted hover:text-rose-600"
+                        title="删除"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <ol className="space-y-2.5 list-none">
+                  {(m.key_points || []).map((kp, i) => (
+                    <li key={i} className="flex gap-2">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-orange-50 border border-orange-200 text-orange-700 text-[11px] font-bold inline-flex items-center justify-center">{i + 1}</span>
+                      <div className="flex-1">
+                        <div className="text-sm font-semibold text-ink">{kp.topic}</div>
+                        <div className="text-[12.5px] text-ink-secondary mt-0.5 whitespace-pre-wrap">{kp.content}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
           )}
-          {m.decisions && m.decisions.length > 0 && (
+
+          {/* 决议事项 */}
+          {(editing || (m.decisions && m.decisions.length > 0)) && (
             <div>
-              <div className="text-[11px] uppercase tracking-wider text-ink-muted font-medium mb-2">决议事项</div>
-              <ul className="space-y-1 text-[13px]">
-                {m.decisions.map((d, i) => (
-                  <li key={i} className="flex gap-2">
-                    <CheckCircle2 size={14} className="text-emerald-600 flex-shrink-0 mt-0.5" />
-                    <span className="flex-1 text-ink">
-                      {d.content}
-                      {d.owner && <span className="text-ink-muted text-[12px] ml-1">(负责人:{d.owner})</span>}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <div className="text-[11px] uppercase tracking-wider text-ink-muted font-medium mb-2 flex items-center justify-between">
+                <span>决议事项</span>
+                {editing && (
+                  <button
+                    onClick={() => setDraft({ ...draft, decisions: [...(draft.decisions || []), { content: '', owner: '' }] })}
+                    className="text-[11px] text-orange-600 hover:text-orange-700 normal-case tracking-normal font-normal"
+                  >
+                    + 添加决议
+                  </button>
+                )}
+              </div>
+              {editing ? (
+                <ul className="space-y-1.5 text-[13px]">
+                  {(draft.decisions || []).map((d, i) => (
+                    <li key={i} className="flex gap-2 items-start group">
+                      <CheckCircle2 size={14} className="text-emerald-600 flex-shrink-0 mt-2" />
+                      <textarea
+                        value={d.content}
+                        onChange={e => {
+                          const next = [...(draft.decisions || [])]
+                          next[i] = { ...next[i], content: e.target.value }
+                          setDraft({ ...draft, decisions: next })
+                        }}
+                        rows={2}
+                        placeholder="决议内容"
+                        className="flex-1 px-2 py-1 rounded border border-orange-200 text-[13px] focus:outline-none focus:border-orange-400"
+                      />
+                      <input
+                        value={d.owner || ''}
+                        onChange={e => {
+                          const next = [...(draft.decisions || [])]
+                          next[i] = { ...next[i], owner: e.target.value }
+                          setDraft({ ...draft, decisions: next })
+                        }}
+                        placeholder="负责人"
+                        className="w-24 px-2 py-1 rounded border border-orange-200 text-[12px] focus:outline-none focus:border-orange-400"
+                      />
+                      <button
+                        onClick={() => setDraft({ ...draft, decisions: (draft.decisions || []).filter((_, j) => j !== i) })}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-ink-muted hover:text-rose-600 mt-1"
+                        title="删除"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <ul className="space-y-1 text-[13px]">
+                  {(m.decisions || []).map((d, i) => (
+                    <li key={i} className="flex gap-2">
+                      <CheckCircle2 size={14} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <span className="flex-1 text-ink">
+                        {d.content}
+                        {d.owner && <span className="text-ink-muted text-[12px] ml-1">(负责人:{d.owner})</span>}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
         </div>
 
         {/* 待办项 */}
-        <div className="px-5 py-3 border-b border-line bg-canvas">
+        <div className="px-5 py-3 border-b border-line bg-canvas flex items-center justify-between">
           <h3 className="text-sm font-bold text-ink">待办项</h3>
+          {editing && (
+            <button
+              onClick={() => setDraft({ ...draft, action_items: [...(draft.action_items || []), { task: '', owner: '', deadline: '', priority: 'medium', remark: '' }] })}
+              className="text-[11px] text-orange-600 hover:text-orange-700"
+            >+ 添加待办</button>
+          )}
         </div>
-        {m.action_items && m.action_items.length > 0 ? (
-          <table className="w-full text-[12.5px] border-b border-line">
-            <thead className="bg-slate-50/60 text-ink-muted">
-              <tr>
-                <Th className="w-12 text-center">序号</Th>
-                <Th>事项</Th>
-                <Th className="w-28">负责人</Th>
-                <Th className="w-48">备注</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {m.action_items.map((a, i) => (
-                <tr key={i} className="border-t border-line/60 hover:bg-slate-50/30">
-                  <td className="px-3 py-2 text-center text-ink-muted tabular-nums">{i + 1}</td>
-                  <td className="px-3 py-2 text-ink">{a.task}</td>
-                  <td className="px-3 py-2 text-ink-secondary">{a.owner || '—'}</td>
-                  <td className="px-3 py-2 text-ink-secondary">
-                    {[
-                      a.deadline ? `截止 ${a.deadline}` : null,
-                      a.priority ? { high: '高优', medium: '中优', low: '低优' }[a.priority] : null,
-                      a.remark,
-                    ].filter(Boolean).join(' · ') || '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <div className="px-5 py-4 text-[12.5px] text-ink-muted text-center border-b border-line">暂无待办项</div>
-        )}
+        <ActionItemsList
+          items={editing ? (draft.action_items || []) : (m.action_items || [])}
+          editing={editing}
+          onChange={(next) => setDraft({ ...draft, action_items: next })}
+        />
 
         {/* 待确认项 */}
-        <div className="px-5 py-3 border-b border-line bg-canvas">
+        <div className="px-5 py-3 border-b border-line bg-canvas flex items-center justify-between">
           <h3 className="text-sm font-bold text-ink">待确认项</h3>
+          {editing && (
+            <button
+              onClick={() => setDraft({ ...draft, unresolved: [...(draft.unresolved || []), { issue: '', owner: '', reason: '', remark: '' }] })}
+              className="text-[11px] text-orange-600 hover:text-orange-700"
+            >+ 添加待确认</button>
+          )}
         </div>
-        {m.unresolved && m.unresolved.length > 0 ? (
-          <table className="w-full text-[12.5px]">
-            <thead className="bg-slate-50/60 text-ink-muted">
-              <tr>
-                <Th className="w-12 text-center">序号</Th>
-                <Th>事项</Th>
-                <Th className="w-28">负责人</Th>
-                <Th className="w-48">备注</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {m.unresolved.map((u, i) => (
-                <tr key={i} className="border-t border-line/60 hover:bg-slate-50/30">
-                  <td className="px-3 py-2 text-center text-ink-muted tabular-nums">{i + 1}</td>
-                  <td className="px-3 py-2 text-ink">{u.issue}</td>
-                  <td className="px-3 py-2 text-ink-secondary">{u.owner || '—'}</td>
-                  <td className="px-3 py-2 text-ink-secondary">
-                    {[u.reason ? `原因:${u.reason}` : null, u.remark].filter(Boolean).join(' · ') || '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <div className="px-5 py-4 text-[12.5px] text-ink-muted text-center">暂无待确认项</div>
-        )}
+        <UnresolvedList
+          items={editing ? (draft.unresolved || []) : (m.unresolved || [])}
+          editing={editing}
+          onChange={(next) => setDraft({ ...draft, unresolved: next })}
+        />
       </div>
 
       <p className="text-[11px] text-ink-muted text-center">
         以上信息为本次会议沟通概要,部分细节可在后续阶段进一步细化落地。
       </p>
     </div>
+  )
+}
+
+/** 待办项列表(view + edit 切换) */
+function ActionItemsList({
+  items, editing, onChange,
+}: {
+  items: NonNullable<MeetingMinutes['action_items']>
+  editing: boolean
+  onChange: (next: NonNullable<MeetingMinutes['action_items']>) => void
+}) {
+  if (!editing) {
+    if (items.length === 0) {
+      return <div className="px-5 py-4 text-[12.5px] text-ink-muted text-center border-b border-line">暂无待办项</div>
+    }
+    return (
+      <table className="w-full text-[12.5px] border-b border-line">
+        <thead className="bg-slate-50/60 text-ink-muted">
+          <tr>
+            <Th className="w-12 text-center">序号</Th>
+            <Th>事项</Th>
+            <Th className="w-28">负责人</Th>
+            <Th className="w-48">备注</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((a, i) => (
+            <tr key={i} className="border-t border-line/60 hover:bg-slate-50/30">
+              <td className="px-3 py-2 text-center text-ink-muted tabular-nums">{i + 1}</td>
+              <td className="px-3 py-2 text-ink">{a.task}</td>
+              <td className="px-3 py-2 text-ink-secondary">{a.owner || '—'}</td>
+              <td className="px-3 py-2 text-ink-secondary">
+                {[
+                  a.deadline ? `截止 ${a.deadline}` : null,
+                  a.priority ? { high: '高优', medium: '中优', low: '低优' }[a.priority] : null,
+                  a.remark,
+                ].filter(Boolean).join(' · ') || '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )
+  }
+  // edit mode
+  return (
+    <table className="w-full text-[12.5px] border-b border-line">
+      <thead className="bg-slate-50/60 text-ink-muted">
+        <tr>
+          <Th className="w-12 text-center">#</Th>
+          <Th>事项</Th>
+          <Th className="w-28">负责人</Th>
+          <Th className="w-24">截止</Th>
+          <Th className="w-24">优先级</Th>
+          <Th className="w-36">备注</Th>
+          <Th className="w-12">{' '}</Th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((a, i) => (
+          <tr key={i} className="border-t border-line/60 group">
+            <td className="px-2 py-1.5 text-center text-ink-muted tabular-nums">{i + 1}</td>
+            <td className="px-2 py-1.5">
+              <textarea value={a.task} onChange={e => { const next = [...items]; next[i] = { ...next[i], task: e.target.value }; onChange(next) }}
+                rows={2}
+                className="w-full px-2 py-1 rounded border border-orange-200 text-[12.5px] focus:outline-none focus:border-orange-400" />
+            </td>
+            <td className="px-2 py-1.5">
+              <input value={a.owner || ''} onChange={e => { const next = [...items]; next[i] = { ...next[i], owner: e.target.value }; onChange(next) }}
+                className="w-full px-2 py-1 rounded border border-orange-200 text-[12px] focus:outline-none focus:border-orange-400" />
+            </td>
+            <td className="px-2 py-1.5">
+              <input value={a.deadline || ''} onChange={e => { const next = [...items]; next[i] = { ...next[i], deadline: e.target.value }; onChange(next) }}
+                placeholder="如 5/20"
+                className="w-full px-2 py-1 rounded border border-orange-200 text-[12px] focus:outline-none focus:border-orange-400" />
+            </td>
+            <td className="px-2 py-1.5">
+              <select value={a.priority || 'medium'} onChange={e => { const next = [...items]; next[i] = { ...next[i], priority: e.target.value as 'high' | 'medium' | 'low' }; onChange(next) }}
+                className="w-full px-2 py-1 rounded border border-orange-200 text-[12px] bg-white focus:outline-none focus:border-orange-400">
+                <option value="high">高优</option>
+                <option value="medium">中优</option>
+                <option value="low">低优</option>
+              </select>
+            </td>
+            <td className="px-2 py-1.5">
+              <input value={a.remark || ''} onChange={e => { const next = [...items]; next[i] = { ...next[i], remark: e.target.value }; onChange(next) }}
+                className="w-full px-2 py-1 rounded border border-orange-200 text-[12px] focus:outline-none focus:border-orange-400" />
+            </td>
+            <td className="px-2 py-1.5 text-center">
+              <button onClick={() => onChange(items.filter((_, j) => j !== i))}
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-ink-muted hover:text-rose-600" title="删除">
+                <Trash2 size={13} />
+              </button>
+            </td>
+          </tr>
+        ))}
+        {items.length === 0 && (
+          <tr><td colSpan={7} className="px-3 py-4 text-center text-[12px] text-ink-muted">点上方「+ 添加待办」加一条</td></tr>
+        )}
+      </tbody>
+    </table>
+  )
+}
+
+/** 待确认项列表(同款 view/edit 切换) */
+function UnresolvedList({
+  items, editing, onChange,
+}: {
+  items: NonNullable<MeetingMinutes['unresolved']>
+  editing: boolean
+  onChange: (next: NonNullable<MeetingMinutes['unresolved']>) => void
+}) {
+  if (!editing) {
+    if (items.length === 0) {
+      return <div className="px-5 py-4 text-[12.5px] text-ink-muted text-center">暂无待确认项</div>
+    }
+    return (
+      <table className="w-full text-[12.5px]">
+        <thead className="bg-slate-50/60 text-ink-muted">
+          <tr>
+            <Th className="w-12 text-center">序号</Th>
+            <Th>事项</Th>
+            <Th className="w-28">负责人</Th>
+            <Th className="w-48">备注</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((u, i) => (
+            <tr key={i} className="border-t border-line/60 hover:bg-slate-50/30">
+              <td className="px-3 py-2 text-center text-ink-muted tabular-nums">{i + 1}</td>
+              <td className="px-3 py-2 text-ink">{u.issue}</td>
+              <td className="px-3 py-2 text-ink-secondary">{u.owner || '—'}</td>
+              <td className="px-3 py-2 text-ink-secondary">
+                {[u.reason ? `原因:${u.reason}` : null, u.remark].filter(Boolean).join(' · ') || '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )
+  }
+  return (
+    <table className="w-full text-[12.5px]">
+      <thead className="bg-slate-50/60 text-ink-muted">
+        <tr>
+          <Th className="w-12 text-center">#</Th>
+          <Th>问题</Th>
+          <Th className="w-28">负责人</Th>
+          <Th className="w-44">原因</Th>
+          <Th className="w-32">备注</Th>
+          <Th className="w-12">{' '}</Th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((u, i) => (
+          <tr key={i} className="border-t border-line/60 group">
+            <td className="px-2 py-1.5 text-center text-ink-muted tabular-nums">{i + 1}</td>
+            <td className="px-2 py-1.5">
+              <textarea value={u.issue} onChange={e => { const next = [...items]; next[i] = { ...next[i], issue: e.target.value }; onChange(next) }}
+                rows={2}
+                className="w-full px-2 py-1 rounded border border-orange-200 text-[12.5px] focus:outline-none focus:border-orange-400" />
+            </td>
+            <td className="px-2 py-1.5">
+              <input value={u.owner || ''} onChange={e => { const next = [...items]; next[i] = { ...next[i], owner: e.target.value }; onChange(next) }}
+                className="w-full px-2 py-1 rounded border border-orange-200 text-[12px] focus:outline-none focus:border-orange-400" />
+            </td>
+            <td className="px-2 py-1.5">
+              <input value={u.reason || ''} onChange={e => { const next = [...items]; next[i] = { ...next[i], reason: e.target.value }; onChange(next) }}
+                className="w-full px-2 py-1 rounded border border-orange-200 text-[12px] focus:outline-none focus:border-orange-400" />
+            </td>
+            <td className="px-2 py-1.5">
+              <input value={u.remark || ''} onChange={e => { const next = [...items]; next[i] = { ...next[i], remark: e.target.value }; onChange(next) }}
+                className="w-full px-2 py-1 rounded border border-orange-200 text-[12px] focus:outline-none focus:border-orange-400" />
+            </td>
+            <td className="px-2 py-1.5 text-center">
+              <button onClick={() => onChange(items.filter((_, j) => j !== i))}
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-ink-muted hover:text-rose-600" title="删除">
+                <Trash2 size={13} />
+              </button>
+            </td>
+          </tr>
+        ))}
+        {items.length === 0 && (
+          <tr><td colSpan={6} className="px-3 py-4 text-center text-[12px] text-ink-muted">点上方「+ 添加待确认」加一条</td></tr>
+        )}
+      </tbody>
+    </table>
   )
 }
 
@@ -598,6 +854,20 @@ function RequirementsTab({ meeting }: { meeting: Meeting }) {
     },
   })
 
+  const createMut = useMutation({
+    mutationFn: () => createMeetingRequirement(meeting.id, { description: '' }),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
+      // 新建后立即进入编辑模式
+      setEditingId(r.id)
+    },
+  })
+
+  const delMut = useMutation({
+    mutationFn: (id: number) => deleteMeetingRequirement(meeting.id, id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting', meeting.id] }),
+  })
+
   const filtered = useMemo(() =>
     filter === 'all' ? reqs : reqs.filter(r => r.priority === filter),
   [reqs, filter])
@@ -641,14 +911,25 @@ function RequirementsTab({ meeting }: { meeting: Meeting }) {
             </button>
           ))}
         </div>
-        <button
-          onClick={() => regenMut.mutate()}
-          disabled={regenMut.isPending}
-          className="px-3 py-1.5 rounded-md text-sm border border-line bg-white hover:bg-canvas inline-flex items-center gap-1.5"
-        >
-          {regenMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-          重新提取
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => createMut.mutate()}
+            disabled={createMut.isPending}
+            className="px-3 py-1.5 rounded-md text-sm text-white inline-flex items-center gap-1.5 disabled:opacity-50"
+            style={{ background: BRAND_GRAD }}
+            title="新增一条空需求,自动进入编辑"
+          >
+            {createMut.isPending ? <Loader2 size={13} className="animate-spin" /> : '+'} 新增需求
+          </button>
+          <button
+            onClick={() => regenMut.mutate()}
+            disabled={regenMut.isPending}
+            className="px-3 py-1.5 rounded-md text-sm border border-line bg-white hover:bg-canvas inline-flex items-center gap-1.5"
+          >
+            {regenMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            重新提取
+          </button>
+        </div>
       </div>
 
       {/* 需求清单:模板表格化 */}
@@ -678,12 +959,21 @@ function RequirementsTab({ meeting }: { meeting: Meeting }) {
                     req={r}
                     onCancel={() => setEditingId(null)}
                     onSave={(patch) => editMut.mutate({ id: r.id, patch })}
+                    onDelete={() => {
+                      if (window.confirm(`确认删除「${r.req_id}」?`)) {
+                        delMut.mutate(r.id)
+                        setEditingId(null)
+                      }
+                    }}
                     saving={editMut.isPending}
                   />
                 : <RequirementViewRow
                     key={r.id}
                     req={r}
                     onEdit={() => setEditingId(r.id)}
+                    onDelete={() => {
+                      if (window.confirm(`确认删除「${r.req_id}」?`)) delMut.mutate(r.id)
+                    }}
                   />
             )}
             {filtered.length === 0 && (
@@ -700,7 +990,7 @@ function RequirementsTab({ meeting }: { meeting: Meeting }) {
   )
 }
 
-function RequirementViewRow({ req: r, onEdit }: { req: MeetingRequirement; onEdit: () => void }) {
+function RequirementViewRow({ req: r, onEdit, onDelete }: { req: MeetingRequirement; onEdit: () => void; onDelete: () => void }) {
   return (
     <tr className="border-t border-line/60 hover:bg-slate-50/30 group">
       <td className="px-3 py-2.5 text-center text-ink-muted font-mono text-[11px]" title={r.req_id}>{r.req_id}</td>
@@ -727,24 +1017,34 @@ function RequirementViewRow({ req: r, onEdit }: { req: MeetingRequirement; onEdi
       </td>
       <td className="px-3 py-2.5 text-ink-secondary text-[12px]">{r.speaker || '—'}</td>
       <td className="px-3 py-2.5 text-center">
-        <button
-          onClick={onEdit}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-canvas text-ink-muted hover:text-orange-600"
-          title="编辑"
-        >
-          <Pencil size={13} />
-        </button>
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5 justify-center">
+          <button
+            onClick={onEdit}
+            className="p-1 rounded hover:bg-canvas text-ink-muted hover:text-orange-600"
+            title="编辑"
+          >
+            <Pencil size={13} />
+          </button>
+          <button
+            onClick={onDelete}
+            className="p-1 rounded hover:bg-canvas text-ink-muted hover:text-rose-600"
+            title="删除"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
       </td>
     </tr>
   )
 }
 
 function RequirementEditRow({
-  req: r, onCancel, onSave, saving,
+  req: r, onCancel, onSave, onDelete, saving,
 }: {
   req: MeetingRequirement
   onCancel: () => void
   onSave: (patch: Parameters<typeof patchMeetingRequirement>[2]) => void
+  onDelete: () => void
   saving: boolean
 }) {
   const [module, setModule] = useState(r.module || '')
@@ -795,22 +1095,21 @@ function RequirementEditRow({
         />
       </td>
       <td className="px-2 py-2">
-        <div className="flex gap-1 justify-center">
-          <button
-            onClick={onCancel}
-            disabled={saving}
+        <div className="flex gap-0.5 justify-center">
+          <button onClick={onDelete} disabled={saving}
+            className="p-1 rounded text-ink-muted hover:bg-canvas hover:text-rose-600"
+            title="删除">
+            <Trash2 size={13} />
+          </button>
+          <button onClick={onCancel} disabled={saving}
             className="p-1 rounded hover:bg-canvas text-ink-muted"
-            title="取消"
-          >
+            title="取消">
             <X size={13} />
           </button>
-          <button
-            onClick={() => onSave({ module, description, priority, speaker })}
+          <button onClick={() => onSave({ module, description, priority, speaker })}
             disabled={saving || !description.trim()}
             className="p-1 rounded text-white disabled:opacity-50"
-            style={{ background: BRAND_GRAD }}
-            title="保存"
-          >
+            style={{ background: BRAND_GRAD }} title="保存">
             {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
           </button>
         </div>
@@ -864,6 +1163,37 @@ function StakeholdersTab({ meeting }: { meeting: Meeting }) {
     },
   })
 
+  const delMut = useMutation({
+    mutationFn: (idx: number) => {
+      const newStakes = [...(smap.stakeholders || [])].filter((_, i) => i !== idx)
+      return putMeetingStakeholderMap(meeting.id, { ...smap, stakeholders: newStakes })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
+      setEditIdx(null)
+    },
+  })
+
+  const addMut = useMutation({
+    mutationFn: () => {
+      const newStakes = [...(smap.stakeholders || []), {
+        name: '新干系人',
+        aliases: [],
+        role: '',
+        organization: '',
+        side: 'unknown' as const,
+        key_points: [],
+        responsibilities: [],
+      }]
+      return putMeetingStakeholderMap(meeting.id, { ...smap, stakeholders: newStakes })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
+      // 自动跳到新加的最后一张进入编辑
+      setEditIdx((smap.stakeholders || []).length)
+    },
+  })
+
   if (!smap.stakeholders || smap.stakeholders.length === 0) {
     return (
       <div className="text-center py-12 text-ink-muted">
@@ -892,14 +1222,25 @@ function StakeholdersTab({ meeting }: { meeting: Meeting }) {
           )}
           <span className="ml-2 text-[12px] text-ink-muted">改名后会自动同步到纪要和需求</span>
         </p>
-        <button
-          onClick={() => regenMut.mutate()}
-          disabled={regenMut.isPending}
-          className="px-3 py-1.5 rounded-md text-sm border border-line bg-white hover:bg-canvas inline-flex items-center gap-1.5"
-        >
-          {regenMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-          重新提取
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => addMut.mutate()}
+            disabled={addMut.isPending}
+            className="px-3 py-1.5 rounded-md text-sm text-white inline-flex items-center gap-1.5 disabled:opacity-50"
+            style={{ background: BRAND_GRAD }}
+            title="新增一个空的干系人卡片,自动进入编辑"
+          >
+            {addMut.isPending ? <Loader2 size={13} className="animate-spin" /> : '+'} 新增干系人
+          </button>
+          <button
+            onClick={() => regenMut.mutate()}
+            disabled={regenMut.isPending}
+            className="px-3 py-1.5 rounded-md text-sm border border-line bg-white hover:bg-canvas inline-flex items-center gap-1.5"
+          >
+            {regenMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            重新提取
+          </button>
+        </div>
       </div>
 
       {/* Stakeholders */}
@@ -911,7 +1252,10 @@ function StakeholdersTab({ meeting }: { meeting: Meeting }) {
                 stake={s}
                 onCancel={() => setEditIdx(null)}
                 onSave={(next) => saveMut.mutate({ idx: i, old: s, next })}
-                saving={saveMut.isPending}
+                onDelete={() => {
+                  if (window.confirm(`确认删除干系人「${s.name}」?`)) delMut.mutate(i)
+                }}
+                saving={saveMut.isPending || delMut.isPending}
               />
             : <StakeholderViewCard
                 key={i}
@@ -992,11 +1336,12 @@ function StakeholderViewCard({ stake, onEdit }: { stake: StakeholderItem; onEdit
 }
 
 function StakeholderEditCard({
-  stake, onCancel, onSave, saving,
+  stake, onCancel, onSave, onDelete, saving,
 }: {
   stake: StakeholderItem
   onCancel: () => void
   onSave: (next: StakeholderItem) => void
+  onDelete: () => void
   saving: boolean
 }) {
   const [name, setName] = useState(stake.name || '')
@@ -1023,22 +1368,18 @@ function StakeholderEditCard({
     <div className="rounded-lg border-2 border-orange-300 bg-white p-3 shadow-sm space-y-2 text-[13px]">
       <div className="flex items-center justify-between gap-2 pb-1 border-b border-line/60">
         <span className="text-[11px] text-orange-700 font-medium">编辑干系人</span>
-        <div className="flex gap-1">
-          <button
-            onClick={onCancel}
-            disabled={saving}
-            className="p-1 rounded hover:bg-canvas text-ink-muted"
-            title="取消"
-          >
+        <div className="flex gap-0.5">
+          <button onClick={onDelete} disabled={saving}
+            className="p-1 rounded text-ink-muted hover:bg-canvas hover:text-rose-600" title="删除">
+            <Trash2 size={13} />
+          </button>
+          <button onClick={onCancel} disabled={saving}
+            className="p-1 rounded hover:bg-canvas text-ink-muted" title="取消">
             <X size={13} />
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || !name.trim()}
+          <button onClick={handleSave} disabled={saving || !name.trim()}
             className="p-1 rounded text-white disabled:opacity-50"
-            style={{ background: BRAND_GRAD }}
-            title="保存"
-          >
+            style={{ background: BRAND_GRAD }} title="保存">
             {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
           </button>
         </div>

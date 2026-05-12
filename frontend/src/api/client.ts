@@ -59,6 +59,20 @@ api.interceptors.response.use(
         _refreshing = false
       }
     }
+
+    // 2026-05-12:其他失败(非 401 / 非 auth 端点)统一弹 toast
+    // 避免重复弹:同一 url + status 在 1.5s 内只弹一次
+    if (status !== 401 && status !== 422 /* 表单校验由调用方自己处理 */) {
+      try {
+        const detail = err?.response?.data?.detail
+        const msg = (typeof detail === 'string' && detail) || err?.message || '请求失败'
+        // 静态 import 会形成循环依赖,用动态 import
+        import('../components/Toaster').then(({ toast }) => {
+          toast.error(status ? `[${status}] ${msg}` : msg)
+        }).catch(() => {})
+      } catch { /* ignore */ }
+    }
+
     return Promise.reject(err)
   },
 )
@@ -1685,6 +1699,29 @@ export const patchMeetingRequirement = async (
     body,
   )
   return data
+}
+
+/** 新增需求(2026-05-12) */
+export const createMeetingRequirement = async (
+  meetingId: number,
+  body: Partial<{
+    module: string
+    description: string
+    priority: 'P0' | 'P1' | 'P2' | 'P3'
+    source: string
+    speaker: string
+    status: string
+  }> = {},
+): Promise<MeetingRequirement> => {
+  const { data } = await api.post<MeetingRequirement>(
+    `/meeting/${meetingId}/requirements`, body,
+  )
+  return data
+}
+
+/** 删除单条需求(2026-05-12) */
+export const deleteMeetingRequirement = async (meetingId: number, reqId: number): Promise<void> => {
+  await api.delete(`/meeting/${meetingId}/requirements/${reqId}`)
 }
 
 /** 干系人改名同步到 minutes / requirements(2026-05-12) */
