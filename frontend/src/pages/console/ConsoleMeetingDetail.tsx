@@ -202,23 +202,30 @@ function TranscriptTab({ meeting }: { meeting: Meeting }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <div className="text-xs font-medium text-ink-muted mb-1.5">原始转写(ASR 输出)</div>
+      {/* 2026-05-12 加宽:用全宽 + 双栏 + 高 textarea(占据 viewport 65%) */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div className="flex flex-col">
+          <div className="text-xs font-medium text-ink-muted mb-1.5 flex items-center gap-1.5">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-400" />
+            原始转写(ASR 输出)
+          </div>
           <textarea
             value={raw}
             onChange={(e) => setRaw(e.target.value)}
-            rows={20}
-            className="w-full px-3 py-2 rounded-md border border-line text-sm font-mono leading-relaxed resize-y"
+            className="w-full px-3 py-2 rounded-md border border-line text-sm font-mono leading-relaxed resize-y bg-white focus:outline-none focus:border-orange-300 focus:ring-1 focus:ring-orange-200"
+            style={{ height: 'calc(100vh - 360px)', minHeight: 480 }}
           />
         </div>
-        <div>
-          <div className="text-xs font-medium text-ink-muted mb-1.5">润色版本</div>
+        <div className="flex flex-col">
+          <div className="text-xs font-medium text-ink-muted mb-1.5 flex items-center gap-1.5">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            润色版本
+          </div>
           <textarea
             value={polished}
             onChange={(e) => setPolished(e.target.value)}
-            rows={20}
-            className="w-full px-3 py-2 rounded-md border border-line text-sm leading-relaxed resize-y"
+            className="w-full px-3 py-2 rounded-md border border-line text-sm leading-relaxed resize-y bg-white focus:outline-none focus:border-orange-300 focus:ring-1 focus:ring-orange-200"
+            style={{ height: 'calc(100vh - 360px)', minHeight: 480 }}
           />
         </div>
       </div>
@@ -485,65 +492,90 @@ function RequirementsTab({ meeting }: { meeting: Meeting }) {
     )
   }
 
+  // 按 priority 分桶统计
+  const counts: Record<string, number> = { all: reqs.length, P0: 0, P1: 0, P2: 0, P3: 0 }
+  for (const r of reqs) if (counts[r.priority] !== undefined) counts[r.priority]++
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex gap-1.5">
+    <div className="space-y-4 max-w-5xl">
+      {/* Top bar:筛选 + 操作 */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex gap-1.5 flex-wrap">
           {(['all', 'P0', 'P1', 'P2', 'P3'] as const).map(p => (
             <button
               key={p}
               onClick={() => setFilter(p)}
-              className={`px-2.5 py-1 rounded-md text-[12px] border ${
-                filter === p ? 'border-brand text-brand bg-brand/5' : 'border-line text-ink-muted hover:text-ink'
+              className={`px-3 py-1.5 rounded-md text-[12px] font-medium border transition-colors ${
+                filter === p ? 'border-orange-300 text-orange-700 bg-orange-50' : 'border-line text-ink-muted hover:text-ink hover:bg-canvas/60 bg-white'
               }`}
             >
-              {p === 'all' ? `全部(${reqs.length})` : `${p}(${reqs.filter(r => r.priority === p).length})`}
+              {p === 'all' ? `全部` : p} <span className="ml-0.5 tabular-nums text-ink-muted">{counts[p]}</span>
             </button>
           ))}
         </div>
         <button
           onClick={() => regenMut.mutate()}
           disabled={regenMut.isPending}
-          className="px-3 py-1.5 rounded-md text-sm border border-line bg-canvas hover:bg-canvas-elevated inline-flex items-center gap-1.5"
+          className="px-3 py-1.5 rounded-md text-sm border border-line bg-white hover:bg-canvas inline-flex items-center gap-1.5"
         >
           {regenMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
           重新提取
         </button>
       </div>
 
-      <div className="rounded-md border border-line overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-canvas text-ink-muted text-[12px]">
+      {/* 需求清单:模板表格化 */}
+      <div className="border border-line rounded-lg overflow-hidden bg-white shadow-sm">
+        <div className="px-5 py-3 border-b-2 border-ink/10 text-center"
+             style={{ background: 'linear-gradient(135deg, #FFF8F0, #FFF4E6)' }}>
+          <h2 className="text-base font-bold text-ink tracking-wide">需求清单</h2>
+          <p className="text-[11px] text-ink-muted mt-0.5">本次会议提取的 {reqs.length} 条 CRM 实施需求</p>
+        </div>
+
+        <table className="w-full text-[13px]">
+          <thead className="bg-slate-50/60 text-ink-muted">
             <tr>
-              <th className="text-left px-3 py-2 font-medium">ID</th>
-              <th className="text-left px-3 py-2 font-medium">模块</th>
-              <th className="text-left px-3 py-2 font-medium">需求描述</th>
-              <th className="text-left px-3 py-2 font-medium w-16">优先级</th>
-              <th className="text-left px-3 py-2 font-medium w-20">提出人</th>
+              <Th className="w-20 text-center">编号</Th>
+              <Th className="w-28">模块</Th>
+              <Th>需求描述</Th>
+              <Th className="w-20 text-center">优先级</Th>
+              <Th className="w-24">提出人</Th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r: MeetingRequirement) => (
-              <tr key={r.id} className="border-t border-line">
-                <td className="px-3 py-2 text-ink-muted font-mono text-[12px]">{r.req_id}</td>
-                <td className="px-3 py-2 text-ink">{r.module || '-'}</td>
-                <td className="px-3 py-2 text-ink leading-relaxed">
+            {filtered.map((r: MeetingRequirement, i) => (
+              <tr key={r.id} className="border-t border-line/60 hover:bg-slate-50/30">
+                <td className="px-3 py-2.5 text-center text-ink-muted font-mono text-[11px]" title={r.req_id}>{r.req_id}</td>
+                <td className="px-3 py-2.5">
+                  {r.module ? (
+                    <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 text-[11px]">{r.module}</span>
+                  ) : '—'}
+                </td>
+                <td className="px-3 py-2.5 text-ink leading-relaxed">
                   {r.description}
                   {r.source && (
-                    <div className="text-[11px] text-ink-muted italic mt-0.5">"{r.source}"</div>
+                    <div className="text-[11px] text-ink-muted italic mt-1 pl-2 border-l-2 border-line">
+                      原文:{r.source}
+                    </div>
                   )}
                 </td>
-                <td className="px-3 py-2">
-                  <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${
+                <td className="px-3 py-2.5 text-center">
+                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold ${
                     r.priority === 'P0' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
                     r.priority === 'P1' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
                     r.priority === 'P2' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
                     'bg-gray-50 text-ink-muted border border-line'
                   }`}>{r.priority}</span>
                 </td>
-                <td className="px-3 py-2 text-ink-secondary text-[12px]">{r.speaker || '-'}</td>
+                <td className="px-3 py-2.5 text-ink-secondary text-[12px]">{r.speaker || '—'}</td>
               </tr>
             ))}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-3 py-8 text-center text-[12px] text-ink-muted">
+                  没有匹配当前筛选条件的需求
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -941,84 +973,89 @@ export default function ConsoleMeetingDetail() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-6">
-      {/* Header */}
-      <button
-        onClick={() => nav('/console/meeting')}
-        className="inline-flex items-center gap-1 text-ink-muted hover:text-ink text-sm mb-3"
-      >
-        <ChevronLeft size={16} /> 返回列表
-      </button>
+    <div className="min-h-screen bg-white">
+      <div className="max-w-screen-2xl mx-auto px-6 py-5">
+        {/* 返回列表 */}
+        <button
+          onClick={() => nav('/console/meeting')}
+          className="inline-flex items-center gap-1 text-ink-muted hover:text-ink text-sm mb-3"
+        >
+          <ChevronLeft size={16} /> 返回列表
+        </button>
 
-      <div className="flex items-start justify-between gap-4 mb-2">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold text-ink truncate">{meeting.title}</h1>
-          <div className="flex items-center gap-3 mt-1 text-[12px] text-ink-muted">
-            <StatusBadge status={meeting.status} />
-            <span>·</span>
-            <span>{fmt(meeting.created_at)}</span>
-            {meeting.project_name && (
-              <>
-                <span>·</span>
-                <span className="inline-flex items-center gap-1">
-                  <FolderKanban size={11} />
-                  {meeting.project_name}
-                </span>
-              </>
-            )}
+        {/* Header 卡片 */}
+        <div className="bg-white border border-line rounded-xl shadow-sm px-6 py-4 flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-bold text-ink truncate">{meeting.title}</h1>
+            <div className="flex items-center gap-3 mt-1 text-[12px] text-ink-muted">
+              <StatusBadge status={meeting.status} />
+              <span>·</span>
+              <span>{fmt(meeting.created_at)}</span>
+              {meeting.project_name && (
+                <>
+                  <span>·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <FolderKanban size={11} />
+                    {meeting.project_name}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="shrink-0 flex gap-2">
+            <button
+              onClick={() => processMut.mutate()}
+              disabled={processMut.isPending || !meeting.raw_transcript}
+              className="px-3 py-1.5 rounded-md text-sm border border-line bg-white hover:bg-canvas disabled:opacity-50 inline-flex items-center gap-1.5"
+              title="重新跑完整 AI pipeline"
+            >
+              {processMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              重新处理
+            </button>
+            <button
+              onClick={() => {
+                if (window.confirm(`确认删除「${meeting.title}」?`)) delMut.mutate()
+              }}
+              className="px-3 py-1.5 rounded-md text-sm border border-line text-ink-muted hover:text-rose-600 hover:border-rose-200 bg-white"
+              title="删除"
+            >
+              <Trash2 size={13} />
+            </button>
           </div>
         </div>
-        <div className="shrink-0 flex gap-2">
-          <button
-            onClick={() => processMut.mutate()}
-            disabled={processMut.isPending || !meeting.raw_transcript}
-            className="px-3 py-1.5 rounded-md text-sm border border-line bg-canvas hover:bg-canvas-elevated disabled:opacity-50 inline-flex items-center gap-1.5"
-            title="重新跑完整 AI pipeline"
-          >
-            {processMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-            重新处理
-          </button>
-          <button
-            onClick={() => {
-              if (window.confirm(`确认删除「${meeting.title}」?`)) delMut.mutate()
-            }}
-            className="px-3 py-1.5 rounded-md text-sm border border-line text-ink-muted hover:text-rose-600 hover:border-rose-200"
-            title="删除"
-          >
-            <Trash2 size={13} />
-          </button>
-        </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="border-b border-line mt-4">
-        <div className="flex overflow-x-auto">
-          {TABS.map(t => {
-            const Icon = t.Icon
-            return (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap inline-flex items-center gap-1.5 ${
-                  tab === t.key
-                    ? 'border-brand text-brand'
-                    : 'border-transparent text-ink-muted hover:text-ink'
-                }`}
-              >
-                <Icon size={14} /> {t.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
+        {/* Tabs(独立条,白底) */}
+        <div className="mt-4 bg-white border border-line rounded-xl shadow-sm overflow-hidden">
+          <div className="border-b border-line">
+            <div className="flex overflow-x-auto">
+              {TABS.map(t => {
+                const Icon = t.Icon
+                return (
+                  <button
+                    key={t.key}
+                    onClick={() => setTab(t.key)}
+                    className={`px-5 py-3 text-sm font-medium border-b-2 -mb-px whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
+                      tab === t.key
+                        ? 'border-brand text-brand bg-brand/5'
+                        : 'border-transparent text-ink-muted hover:text-ink hover:bg-canvas/60'
+                    }`}
+                  >
+                    <Icon size={14} /> {t.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
 
-      <div className="py-6">
-        {tab === 'overview' && <OverviewTab meeting={meeting} />}
-        {tab === 'transcript' && <TranscriptTab meeting={meeting} />}
-        {tab === 'minutes' && <MinutesTab meeting={meeting} />}
-        {tab === 'requirements' && <RequirementsTab meeting={meeting} />}
-        {tab === 'stakeholders' && <StakeholdersTab meeting={meeting} />}
-        {tab === 'actions' && <ActionsTab meeting={meeting} />}
+          <div className="p-6">
+            {tab === 'overview' && <OverviewTab meeting={meeting} />}
+            {tab === 'transcript' && <TranscriptTab meeting={meeting} />}
+            {tab === 'minutes' && <MinutesTab meeting={meeting} />}
+            {tab === 'requirements' && <RequirementsTab meeting={meeting} />}
+            {tab === 'stakeholders' && <StakeholdersTab meeting={meeting} />}
+            {tab === 'actions' && <ActionsTab meeting={meeting} />}
+          </div>
+        </div>
       </div>
     </div>
   )

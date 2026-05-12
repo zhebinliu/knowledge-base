@@ -23,10 +23,11 @@ from __future__ import annotations
 import copy
 import io
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import structlog
 from docx import Document
+from docx.shared import Pt
 from docx.table import _Row, Table
 
 logger = structlog.get_logger()
@@ -34,43 +35,44 @@ logger = structlog.get_logger()
 _TEMPLATE_PATH = Path(__file__).parent / "templates" / "minutes_template.docx"
 
 
-def _set_cell_text(cell, text: str) -> None:
+def _set_cell_text(cell, text: str, force_size: Optional[Pt] = None) -> None:
     """安全替换单元格文字,保留 cell 第一个 paragraph 的字体格式。
 
     text 含 \\n 时按 paragraph 拆分,每段独立成段(模板的换行风格)。
+    force_size:不为 None 时强制用该字号,适合 R7 那种模板 cell 用了大号
+    标题字体但我们要写正文的场景(2026-05-12 修复用户反馈"主题内容字体太大")。
     """
     text = text or ""
-    # 用第一个 run 的字体设置作为模板
     p0 = cell.paragraphs[0]
     run_fmt = None
     if p0.runs:
         run_fmt = p0.runs[0].font
 
-    # 1) 删 p0 之后的所有 paragraph(模板某些 cell 预留几十个空段,不删干净会把新内容顶下去)
+    # 删 p0 之后的所有 paragraph(模板某些 cell 预留几十个空段)
     for p in cell.paragraphs[1:]:
         p._element.getparent().remove(p._element)
-    # 2) 清空 p0 的所有 run
+    # 清空 p0 的所有 run
     for r in list(p0.runs):
         r._element.getparent().remove(r._element)
 
     parts = text.split("\n") if text else [""]
 
-    # 第一段写到 p0(保留段落级格式)
-    r = p0.add_run(parts[0])
-    if run_fmt is not None:
-        if run_fmt.size is not None:
-            r.font.size = run_fmt.size
-        if run_fmt.name:
-            r.font.name = run_fmt.name
+    def _apply_fmt(run) -> None:
+        # force_size 优先于继承
+        if force_size is not None:
+            run.font.size = force_size
+        elif run_fmt is not None and run_fmt.size is not None:
+            run.font.size = run_fmt.size
+        if run_fmt is not None and run_fmt.name:
+            run.font.name = run_fmt.name
 
-    # 其余段:append paragraph
+    r = p0.add_run(parts[0])
+    _apply_fmt(r)
+
     for extra in parts[1:]:
         p = cell.add_paragraph(extra)
-        if run_fmt is not None and p.runs:
-            if run_fmt.size is not None:
-                p.runs[0].font.size = run_fmt.size
-            if run_fmt.name:
-                p.runs[0].font.name = run_fmt.name
+        if p.runs:
+            _apply_fmt(p.runs[0])
 
 
 def _ensure_rows(table: Table, after_idx: int, needed_count: int, template_row_idx: int) -> list[_Row]:
@@ -241,13 +243,13 @@ def render_minutes_docx(
     # Row 5: 参会人员
     _set_cell_text(rows[5].cells[2], attendees_text)
 
-    # Row 7: 会议主题及内容(大块)
+    # Row 7: 会议主题及内容(大块)— 强制用 10.5pt 五号,模板原 cell 字体偏大
     main_content = _format_main_content(
         summary=(minutes.get("summary") or "").strip(),
         key_points=minutes.get("key_points") or [],
         decisions=minutes.get("decisions") or [],
     )
-    _set_cell_text(rows[7].cells[0], main_content)
+    _set_cell_text(rows[7].cells[0], main_content, force_size=Pt(10.5))
 
     # 待办项:Row 10-14 是 5 行默认,超出 append。表头在 row 9。
     action_rows_data = _format_action_items(minutes.get("action_items") or [])
