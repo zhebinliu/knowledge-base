@@ -565,21 +565,62 @@
 <section class="block">
   <div class="container">
     <h2>三个 A 不愿承认的劣势</h2>
-    <p class="h2-sub">作者自我审视,不替 A 站台。</p>
+    <p class="h2-sub">作者自我审视,不替 A 站台。<span style="color: #B45309;">⚠️ 但下面有重要补充 — 这三条在「Claude 辅助开发」模式下被改写了。</span></p>
 
     <div class="three-col">
-      <div class="con-card">
-        <h4>1. 僵化</h4>
-        <p>系统设计成什么样,用户就得按那样用。「顾问勾选式调研」很 opinionated,如果客户场景不适合(比如非要发问卷给客户填),系统给不了好答案。</p>
+      <div class="con-card" style="opacity: 0.55;">
+        <h4>1. 僵化 <span style="font-size: 10px; color: #78716c; font-weight: 400;">(仍然成立)</span></h4>
+        <p>系统设计成什么样,用户就得按那样用。「顾问勾选式调研」很 opinionated,如果客户场景不适合(比如非要发问卷给客户填),系统给不了好答案。<strong style="color: #B45309;">即使开发再快,用户在 UI 里仍然只能干被设计过的事</strong>。</p>
       </div>
-      <div class="con-card">
-        <h4>2. 改造成本</h4>
-        <p>加一个简单功能(比如「新增字段」)要改 backend schema / API / 前端类型 / UI 五处。同样改动 B 那边一句话搞定。</p>
+      <div class="con-card" style="opacity: 0.55;">
+        <h4>2. 改造成本 <span style="font-size: 10px; color: #B45309; font-weight: 400;">(被改写,见下节)</span></h4>
+        <p style="text-decoration: line-through; color: #a8a29e;">加一个简单功能(比如「新增字段」)要改 backend schema / API / 前端类型 / UI 五处。同样改动 B 那边一句话搞定。</p>
+        <p style="font-size: 12px; color: #B45309; margin-top: 6px;">↑ 这是「人手开发」节奏。Claude 辅助下 5 处一起改,半小时端到端 commit。</p>
       </div>
-      <div class="con-card">
-        <h4>3. AI 进展时滞</h4>
-        <p>新模型(GPT-5 / Claude 4.x)能力升级,A 要走「评估 → 改 model_router → 测 → 部署」流程,B 是 Claude Code 直接帮你用上。短期内 A 总比前沿慢 1-3 个月。</p>
+      <div class="con-card" style="opacity: 0.55;">
+        <h4>3. AI 进展时滞 <span style="font-size: 10px; color: #B45309; font-weight: 400;">(被改写,见下节)</span></h4>
+        <p style="text-decoration: line-through; color: #a8a29e;">新模型(GPT-5 / Claude 4.x)能力升级,A 要走「评估 → 改 model_router → 测 → 部署」流程,B 是 Claude Code 直接帮你用上。短期内 A 总比前沿慢 1-3 个月。</p>
+        <p style="font-size: 12px; color: #B45309; margin-top: 6px;">↑ 改 model_router 是 Claude 几分钟的事,跟前沿基本同步。</p>
       </div>
+    </div>
+  </div>
+</section>
+
+<section class="block alt" id="claude-rewrites">
+  <div class="container">
+    <h2>但 Claude 改写了规则</h2>
+    <p class="h2-sub">A 工作台的「改造成本 + AI 时滞」前提是「人手开发」。Claude 辅助开发把这个前提颠覆掉了。</p>
+
+    <div class="verdict" style="background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%); border-color: rgba(5, 150, 105, 0.3);">
+      <div class="label" style="color: #047857;">证据 · 今天这一个会话</div>
+      <h3 style="color: #064E3B;">7 小时,12 个 commit,0 生产事故</h3>
+      <p style="color: #166534;">
+        从 P0 视觉改造 + 议题/决议/待办增删改,到 P1 沉淀项目资产 + 跨会议改名同步 + 项目级 Drawer + 进度条 + Cmd+S + 列表搜索 + collaborator 权限,再到这个对比页本身 —— <strong>全部落生产,CI 全绿</strong>。按传统节奏这是 2-3 周的 sprint。
+      </p>
+    </div>
+
+    <div class="two-col">
+      <div class="ab-card" style="border-top-color: #047857;">
+        <span class="ab-label" style="background: #ECFDF5; color: #047857;">改写后:改造成本</span>
+        <h4>Claude 5 处一起改,半小时端到端</h4>
+        <p>backend schema → API → 前端类型 → UI → 测试 → commit → push → CI → 部署。今天加项目级干系人(新表 + 4 endpoints + Drawer + 跨会议同步)从 0 到生产 <strong>1.5 小时</strong>。人手做同样工作约 3-5 天。</p>
+      </div>
+      <div class="ab-card" style="border-top-color: #047857;">
+        <span class="ab-label" style="background: #ECFDF5; color: #047857;">改写后:AI 时滞</span>
+        <h4>跟前沿基本同步</h4>
+        <p>新模型出来,改 <code style="font-family: ui-monospace, Menlo, monospace; background: rgba(0,0,0,0.06); padding: 1px 6px; border-radius: 4px;">model_router</code> 加一行配置,Claude 帮你做 + 测,小时级上线。今天 minimax-m2.5 / xiaomi mimo-v2-omni 在不同 task 各用各的,model_router 整套基础设施已成熟。</p>
+      </div>
+    </div>
+
+    <div class="verdict" style="margin-top: 12px;">
+      <div class="label">所以真正的结论变了</div>
+      <h3>A 工作台的"开发门槛"被 Claude 拉低,B 单一工具的"个人助手"价值仍在</h3>
+      <p>
+        组合公式更新:
+        <br>· <strong>A(工作台)+ Claude(开发外挂)</strong>= 标准化工作流 / 资产沉淀 / 合规 + 快速迭代
+        <br>· <strong>B(用户级 agent)</strong>= 顾问个人探索 + 一次性新颖任务
+        <br>· 两者一起,通过 <strong>MCP 接口</strong>互通(A 给数据,B 给推理)
+      </p>
     </div>
   </div>
 </section>
@@ -639,15 +680,18 @@
 <section class="block">
   <div class="container">
     <div class="final">
-      <h3>最尖锐的判断</h3>
+      <h3>最尖锐的判断(Claude 辅助开发版)</h3>
       <div class="scenario-block">
-        <p>如果你只有 <strong>1-3 人在做实施,且没有合规需求</strong>:<strong>B 完全够用</strong>。投 A 的开发成本不划算,直接 Claude Code 跑起来,把流程跑顺再考虑系统化。</p>
+        <p>如果你只有 <strong>1-2 人 + 没有团队协作 + 没有合规要求</strong>:<strong>B 完全够用</strong>。流程跑顺再说,投开发不划算。</p>
       </div>
       <div class="scenario-block">
-        <p>如果你是 <strong>纷享销客这种规模</strong>(实施团队 50-200+ 人 + 客户交付有合规 + 跨项目复用 know-how):<strong>A 是护城河</strong>,B 替代不了。</p>
+        <p>如果你是 <strong>5-10+ 人的实施团队</strong> 且打算长期做这件事:<strong>A 是值得投入的</strong>。临界点从过去的「50-200 人才划算」<strong style="color: #FF8D1A;">大幅左移</strong> —— 因为 Claude 辅助开发把 A 的建设成本压到原来的 1/5-1/10。今天我们 7 小时干完原来 2-3 周的活就是证据。</p>
       </div>
       <div class="scenario-block">
-        <p>但<strong>别期望 A 取代 B 在新颖任务上的优势</strong>。把 B 当顾问的私人外挂用,跟 A 共存。两者一起,才是「工作流标准化 + 个人能力放大」的合力。</p>
+        <p>如果你是 <strong>纷享销客这种规模</strong>:<strong>A 不是选择题,是护城河</strong>。专属系统 + 行业 know-how 沉淀 + 客户交付一致性是 B 永远做不到的。</p>
+      </div>
+      <div class="scenario-block">
+        <p>但<strong>无论多大规模,都别期望 A 取代 B</strong>。两者通过 MCP 互通:<strong>A 给标准化 + 资产 + 合规,B 给灵活探索 + 个人助手</strong>。 Claude 同时还是 A 的开发外挂,让 A 不再僵化。三者合力才是终局。</p>
       </div>
     </div>
   </div>
