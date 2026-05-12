@@ -42,14 +42,16 @@ def test_minio_direct():
 
 
 def test_stats_endpoint():
+    # 2026-05-12:/api/stats 加了 get_current_user 鉴权(轻量侦察面收口),
+    # 匿名请求返回 401。这里仅校 endpoint 存在 + 鉴权层正常工作。
     r = httpx.get(f"{BASE_URL}/api/stats", timeout=10)
-    assert r.status_code == 200
-    data = r.json()
-    assert "documents" in data
-    assert "chunks" in data
+    assert r.status_code == 401, f"预期 401,实际 {r.status_code}"
 
 
 def test_docs_endpoint():
-    """FastAPI 自动文档"""
+    """FastAPI 自动文档:KB_ENV=development 才开,production 关掉(2026-05-12)"""
     r = httpx.get(f"{BASE_URL}/docs", timeout=10)
-    assert r.status_code == 200
+    if os.getenv("KB_ENV", "production") == "development":
+        assert r.status_code == 200
+    else:
+        assert r.status_code == 404

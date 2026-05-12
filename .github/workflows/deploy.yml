@@ -117,6 +117,9 @@ jobs:
           echo "RERANK_API_KEY=dummy" >> $GITHUB_ENV
           echo "ZHIPU_API_KEY=dummy" >> $GITHUB_ENV
           echo "MINIMAX_API_KEY=dummy" >> $GITHUB_ENV
+          # 2026-05-12:main.py 启动时校验 JWT_SECRET_KEY 非默认值,CI 给个一次性随机值即可
+          echo "JWT_SECRET_KEY=ci-test-$(openssl rand -hex 16)" >> $GITHUB_ENV
+          echo "KB_ENV=development" >> $GITHUB_ENV
 
       - name: Initialize Infrastructure
         run: |
