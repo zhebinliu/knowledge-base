@@ -77,6 +77,10 @@ async def get_current_user(
     # 支持 MCP API Key 走 REST
     mcp_user = await _user_from_mcp_key(session, token)
     if mcp_user:
+        # 2026-05-12:把鉴权结果挂到 request.state,供调用日志 middleware 读取
+        request.state.user_id = mcp_user.id
+        request.state.username = mcp_user.username
+        request.state.token_type = "mcp_key"
         return mcp_user
 
     try:
@@ -93,6 +97,9 @@ async def get_current_user(
     user = await session.get(User, user_id)
     if not user or not user.is_active:
         raise HTTPException(401, "用户不存在或已禁用")
+    request.state.user_id = user.id
+    request.state.username = user.username
+    request.state.token_type = "jwt"
     return user
 
 
@@ -109,6 +116,9 @@ async def get_current_user_optional(
 
     mcp_user = await _user_from_mcp_key(session, token)
     if mcp_user:
+        request.state.user_id = mcp_user.id
+        request.state.username = mcp_user.username
+        request.state.token_type = "mcp_key"
         return mcp_user
 
     try:
@@ -119,7 +129,12 @@ async def get_current_user_optional(
     if not user_id:
         return None
     user = await session.get(User, user_id)
-    return user if user and user.is_active else None
+    if user and user.is_active:
+        request.state.user_id = user.id
+        request.state.username = user.username
+        request.state.token_type = "jwt"
+        return user
+    return None
 
 
 async def require_admin(user: User = Depends(get_current_user)) -> User:

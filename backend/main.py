@@ -66,6 +66,58 @@ async def add_request_id(request, call_next):
     response.headers["X-Request-ID"] = rid
     return response
 
+
+# ── 调用日志 middleware(2026-05-12) ─────────────────────────────────────────
+# 哪个用户、什么时候、用了什么 endpoint、结果 status_code,自动写 ApiCallLog 表。
+# Admin 在 /settings → 调用日志 tab 查询。
+#
+# 过滤策略(避免噪声 + 攻击面):
+# - 跳过 OPTIONS / HEAD / 静态资源 / 高频探活(/health, /api/auth/captcha)
+# - 跳过 /api/mcp(mcp.py 自己写 log_call,含 tool_name 更细)
+# - 跳过 /api/call-logs(自循环)
+# - 跳过匿名失败请求(401/403)——攻击者可能刷日志撑爆表
+_LOG_SKIP_PREFIXES = (
+    "/health",
+    "/api/mcp",
+    "/api/call-logs",
+    "/api/auth/captcha",
+    "/api/auth/me",  # 前端每次切页都打,价值低
+    "/docs", "/openapi.json", "/redoc",
+    "/maintenance.html",
+)
+
+
+@app.middleware("http")
+async def log_api_calls(request, call_next):
+    response = await call_next(request)
+    try:
+        method = request.method
+        if method in ("OPTIONS", "HEAD"):
+            return response
+        path = request.url.path
+        if any(path.startswith(p) for p in _LOG_SKIP_PREFIXES):
+            return response
+        # 只对 /api/* 记录
+        if not path.startswith("/api/"):
+            return response
+
+        uid = getattr(request.state, "user_id", None)
+        uname = getattr(request.state, "username", None)
+        ttype = getattr(request.state, "token_type", "anonymous")
+        status = response.status_code
+
+        # 匿名 + 401/403:大概率是攻击 / 探测,不记
+        if uid is None and status in (401, 403):
+            return response
+
+        from services.call_log_service import log_call
+        # endpoint 字段:METHOD path,如 "POST /api/qa/ask"
+        log_call(uid, uname, ttype, "rest", f"{method} {path}", status_code=status)
+    except Exception:
+        # 日志失败绝不影响正常请求
+        pass
+    return response
+
 # 限流：SlowAPI 需绑定到 app.state + 注册 429 处理器
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
