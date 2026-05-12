@@ -25,6 +25,7 @@ import {
   exportMeetingDocxUrl,
   putMeetingStakeholderMap, patchMeetingRequirement, renameStakeholderRefs,
   createMeetingRequirement, deleteMeetingRequirement,
+  syncMeetingStakeholdersToProject,
   type Meeting, type MeetingStatus, type MeetingMinutes, type MeetingRequirement,
   type StakeholderItem,
 } from '../../api/client'
@@ -1230,6 +1231,17 @@ function StakeholdersTab({ meeting }: { meeting: Meeting }) {
     },
   })
 
+  const syncToProjectMut = useMutation({
+    mutationFn: () => {
+      if (!meeting.project_id) throw new Error('请先关联项目')
+      return syncMeetingStakeholdersToProject(meeting.project_id, meeting.id)
+    },
+    onSuccess: (r) => {
+      toast.success(`已沉淀到项目资产:${r.merged} 条合并 / ${r.created} 条新增 / 共 ${r.total} 人`)
+      qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
+    },
+  })
+
   if (!smap.stakeholders || smap.stakeholders.length === 0) {
     return (
       <div className="text-center py-12 text-ink-muted">
@@ -1258,7 +1270,18 @@ function StakeholdersTab({ meeting }: { meeting: Meeting }) {
           )}
           <span className="ml-2 text-[12px] text-ink-muted">改名后会自动同步到纪要和需求</span>
         </p>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {meeting.project_id && (
+            <button
+              onClick={() => syncToProjectMut.mutate()}
+              disabled={syncToProjectMut.isPending}
+              className="px-3 py-1.5 rounded-md text-sm border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 inline-flex items-center gap-1.5 disabled:opacity-50"
+              title="把本会议干系人合并到项目级资产"
+            >
+              {syncToProjectMut.isPending ? <Loader2 size={13} className="animate-spin" /> : '⇪'}
+              沉淀到项目
+            </button>
+          )}
           <button
             onClick={() => addMut.mutate()}
             disabled={addMut.isPending}

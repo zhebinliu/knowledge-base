@@ -1736,6 +1736,61 @@ export const renameStakeholderRefs = async (
   return data
 }
 
+// ── 项目级干系人资产(2026-05-12) ────────────────────────────────────────
+
+export interface ProjectStakeholder {
+  id: string
+  project_id: string
+  name: string
+  aliases: string[]
+  role: string
+  organization: string
+  side: 'internal' | 'customer' | 'vendor' | 'unknown'
+  contact: string
+  key_points: string[]
+  responsibilities: string[]
+  source_meeting_ids: number[]
+  created_at: string
+  updated_at: string
+}
+
+export const listProjectStakeholders = async (projectId: string): Promise<ProjectStakeholder[]> => {
+  const { data } = await api.get<{ stakeholders: ProjectStakeholder[] }>(`/projects/${projectId}/stakeholders`)
+  return data.stakeholders
+}
+
+export const createProjectStakeholder = async (
+  projectId: string,
+  body: Partial<ProjectStakeholder> & { name: string },
+): Promise<ProjectStakeholder> => {
+  const { data } = await api.post<ProjectStakeholder>(`/projects/${projectId}/stakeholders`, body)
+  return data
+}
+
+export const patchProjectStakeholder = async (
+  projectId: string,
+  stakeholderId: string,
+  body: Partial<Omit<ProjectStakeholder, 'id' | 'project_id' | 'created_at' | 'updated_at'>>,
+): Promise<{ stakeholder: ProjectStakeholder; sync: { meetings_synced: number; minutes_replaced: number; requirements_replaced: number } }> => {
+  const { data } = await api.patch(`/projects/${projectId}/stakeholders/${stakeholderId}`, body)
+  return data
+}
+
+export const deleteProjectStakeholder = async (projectId: string, stakeholderId: string): Promise<void> => {
+  await api.delete(`/projects/${projectId}/stakeholders/${stakeholderId}`)
+}
+
+/** 把会议的干系人合并到项目资产 */
+export const syncMeetingStakeholdersToProject = async (
+  projectId: string,
+  meetingId: number,
+): Promise<{ created: number; merged: number; total: number }> => {
+  const { data } = await api.post<{ created: number; merged: number; total: number }>(
+    `/projects/${projectId}/stakeholders/sync-from-meeting/${meetingId}`,
+  )
+  return data
+}
+
 // ── 上传 + 流水线触发 ────────────────────────────────────────────────────
 
 export const uploadMeetingAudio = async (

@@ -13,4 +13,5 @@ from models import (  # noqa: F401
     output_conversation, project_brief, challenge_round,
     research_response, research_ltc_module_map, invite_code,
     captcha_challenge, project_collaborator, meeting,
+    project_stakeholder,
 )
