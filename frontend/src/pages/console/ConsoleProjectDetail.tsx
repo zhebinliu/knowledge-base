@@ -8,6 +8,7 @@ import {
   Bot, ShieldAlert, ChevronDown, ChevronRight, Users, Eye,
 } from 'lucide-react'
 import CollaboratorsModal from '../../components/console/CollaboratorsModal'
+import ProjectStakeholdersDrawer from '../../components/console/ProjectStakeholdersDrawer'
 import {
   getProject, updateProject, generateCustomerProfile, generateOutput,
   listProjectDocuments, getDocumentMarkdown, listOutputs, downloadOutputUrl, viewOutputUrl,
@@ -99,6 +100,7 @@ export default function ConsoleProjectDetail() {
   const [chatMode, setChatMode] = useState<ChatMode>({ type: 'pm' })
   const [editing, setEditing] = useState(false)
   const [collabOpen, setCollabOpen] = useState(false)
+  const [stakesOpen, setStakesOpen] = useState(false)
   const [previewDocId, setPreviewDocId] = useState<string | null>(null)
   // v3.2: stage 可以从 URL ?stage=insight 初始化(给 P 类引用 chip 跳转上游 stage 用)
   const [activeStageKey, setActiveStageKey] = useState<string>(() => searchParams.get('stage') || 'insight')
@@ -328,6 +330,14 @@ export default function ConsoleProjectDetail() {
           <span className="hidden sm:inline">成员</span>
         </button>
         <button
+          onClick={() => setStakesOpen(true)}
+          className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-line text-ink-secondary hover:bg-canvas transition-colors"
+          title="项目级干系人(跨会议合并)"
+        >
+          <Users size={11} />
+          <span className="hidden sm:inline">干系人</span>
+        </button>
+        <button
           onClick={() => setEditing(v => !v)}
           className={`shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
             editing ? 'border-orange-300 text-orange-700 bg-orange-50' : 'border-line text-ink-secondary hover:bg-canvas'
@@ -345,6 +355,13 @@ export default function ConsoleProjectDetail() {
         projectId={project.id}
         myRole={(project.my_role === 'none' ? 'read' : (project.my_role || 'read'))}
         onClose={() => setCollabOpen(false)}
+      />
+
+      {/* 项目级干系人 Drawer(2026-05-12) */}
+      <ProjectStakeholdersDrawer
+        open={stakesOpen}
+        projectId={project.id}
+        onClose={() => setStakesOpen(false)}
       />
 
       {editing && (
