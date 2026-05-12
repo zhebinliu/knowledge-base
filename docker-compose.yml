@@ -9,6 +9,9 @@ services:
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
+      # 2026-05-12:维护标志 host 目录 → 容器 /var/run/kb-deploy/.maintenance
+      # 部署开始时 deploy.yml touch 这个文件,nginx 立刻返回 503 + maintenance.html
+      - /opt/kb-system/run:/var/run/kb-deploy:ro
     depends_on:
       backend:
         condition: service_healthy

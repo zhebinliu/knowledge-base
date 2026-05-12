@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>升级中 — 纷享 KB</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #1c1917;
+    background: linear-gradient(135deg, #FFF4E6 0%, #FFE8CC 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    width: 100%;
+    max-width: 480px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 141, 26, 0.2);
+    border-radius: 24px;
+    padding: 40px 32px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(217, 100, 0, 0.08);
+  }
+  .logo {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 20px;
+    background: linear-gradient(135deg, #FF8D1A, #D96400);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 24px;
+    font-weight: 800;
+    box-shadow: 0 6px 20px rgba(217, 100, 0, 0.3);
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    background: linear-gradient(135deg, #FF8D1A, #D96400);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .sub {
+    color: #57534e;
+    font-size: 14px;
+    line-height: 1.7;
+    margin-bottom: 28px;
+  }
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 141, 26, 0.1);
+    border: 1px solid rgba(255, 141, 26, 0.25);
+    color: #D96400;
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 16px;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    background: #FF8D1A;
+    border-radius: 50%;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.4); opacity: 0.4; }
+  }
+  .meta {
+    color: #a8a29e;
+    font-size: 12px;
+    margin-top: 24px;
+    font-variant-numeric: tabular-nums;
+  }
+  .meta code {
+    background: rgba(0, 0, 0, 0.04);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .back {
+    display: inline-block;
+    margin-top: 14px;
+    color: #D96400;
+    font-size: 12px;
+    text-decoration: none;
+  }
+  .back:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">KB</div>
+    <div class="status"><span class="dot"></span>系统升级中</div>
+    <h1>正在部署新版本</h1>
+    <p class="sub">
+      我们正在更新 KB 系统,通常需要 1-2 分钟。<br>
+      页面会在升级完成后自动恢复。
+    </p>
+    <p class="meta">
+      已等待 <code id="elapsed">0</code> 秒 · 自动检测中
+    </p>
+    <a class="back" href="https://kb.liii.in" id="manual">手动刷新</a>
+  </div>
+
+<script>
+(function() {
+  var start = Date.now();
+  var el = document.getElementById('elapsed');
+  var manual = document.getElementById('manual');
+  function tick() {
+    var s = Math.floor((Date.now() - start) / 1000);
+    el.textContent = s;
+  }
+  setInterval(tick, 1000);
+
+  // 每 5 秒 ping 一次主页 — 拿到非 503 就跳回去
+  // 给 /health 加 cache-buster,避免 service worker 或 CDN 缓存
+  function check() {
+    fetch('/health?t=' + Date.now(), { cache: 'no-store' })
+      .then(function(r) {
+        if (r.status === 200) {
+          // 再 ping 一次根路径确认 SPA 也回来了
+          return fetch('/?t=' + Date.now(), { cache: 'no-store' }).then(function(r2) {
+            if (r2.status === 200 && r2.headers.get('content-type') && r2.headers.get('content-type').indexOf('text/html') >= 0) {
+              window.location.href = '/';
+            }
+          });
+        }
+      })
+      .catch(function() { /* 网络抖动忽略 */ });
+  }
+  setInterval(check, 5000);
+  // 也允许手动刷新(默认行为)
+  manual.addEventListener('click', function(e) {
+    e.preventDefault();
+    window.location.href = '/';
+  });
+})();
+</script>
+</body>
+</html>

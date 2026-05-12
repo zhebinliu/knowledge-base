@@ -238,6 +238,12 @@ jobs:
               cp .last-good-sha .prev-good-sha
             fi
 
+            # 2026-05-12:打开维护开关,nginx 立刻给前端返回 503 + maintenance.html
+            # (旧 frontend 容器若已挂 /opt/kb-system/run volume 就立即生效;
+            #  首次部署带本 volume 时此 flag 在新容器起来后才被 nginx 看到)
+            sudo mkdir -p /opt/kb-system/run
+            sudo touch /opt/kb-system/run/.maintenance
+
             docker compose pull backend celery_worker frontend
             docker compose up -d
 
@@ -254,7 +260,9 @@ jobs:
 
             if [ "$HEALTHY" = "true" ]; then
               echo "$SHORT_SHA" > .last-good-sha
-              echo "✅ Deployed sha-${SHORT_SHA}"
+              # 健康通过 → 关闭维护开关,前端恢复正常
+              sudo rm -f /opt/kb-system/run/.maintenance
+              echo "✅ Deployed sha-${SHORT_SHA},维护页已关闭"
             else
               echo "❌ Health check failed after 120s for sha-${SHORT_SHA}"
               echo "--- backend logs ---"
@@ -265,8 +273,13 @@ jobs:
                 export BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-${PREV}
                 export FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:sha-${PREV}
                 docker compose up -d
+                # 回滚后等 30s 再清维护标志(给老镜像启动期)
+                sleep 30
+                sudo rm -f /opt/kb-system/run/.maintenance
               else
                 echo "⚠️  无 .prev-good-sha,跳过回滚(首次部署或人工已清)"
+                # 仍然清维护标志,否则站点永远显示升级中
+                sudo rm -f /opt/kb-system/run/.maintenance
               fi
               exit 1
             fi
