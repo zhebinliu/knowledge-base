@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { NavLink, Outlet, Link, useLocation } from 'react-router-dom'
+import { NavLink, Navigate, Outlet, Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Brain, MessageSquare,
   ClipboardCheck, BookOpen, Settings, Sliders, ChevronDown, LogOut, KeyRound, Shield, Folder,
@@ -9,7 +9,7 @@ import {
 import { useAuth } from '../auth/AuthContext'
 import { TOKEN_STORAGE_KEY, refreshToken, getMcpKeyStatus, generateMcpKey, revokeMcpKey } from '../api/client'
 
-/** path → module key 映射 */
+/** path → module key 映射(用于 nav 显隐 + 路由守卫) */
 const pathToModule: Record<string, string> = {
   '/': 'dashboard',
   '/projects': 'projects',
@@ -19,8 +19,12 @@ const pathToModule: Record<string, string> = {
   '/review': 'review',
   '/challenge': 'challenge',
   '/settings': 'settings',
-  '/system-config': 'system-config',
+  '/system-config': 'settings',  // 归到 settings
+  '/invite-codes': 'settings',
 }
+
+/** 所有"后台"模块(用于判断用户是否完全没有后台权限,如果没有则跳 /console) */
+const BACKEND_MODULES = ['dashboard', 'projects', 'documents', 'chunks', 'qa', 'review', 'challenge', 'settings']
 
 const allNavGroups = [
   {
@@ -153,6 +157,13 @@ export default function Layout() {
       return canAccess(i.to)
     }) }))
     .filter(g => g.items.length > 0)
+
+  // 2026-05-12 路由守卫:hooks 全部声明完后做 early return,避免触发 hooks 顺序错位
+  // 用户没有任何后台模块权限(只有 console 模块或 allowed_modules=['']) → 自动跳转 /console
+  if (user && !user.is_admin && user.allowed_modules &&
+      !user.allowed_modules.some(m => BACKEND_MODULES.includes(m))) {
+    return <Navigate to="/console" replace />
+  }
 
   return (
     <div className="shell">

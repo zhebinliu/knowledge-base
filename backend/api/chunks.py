@@ -4,12 +4,12 @@ from sqlalchemy import select, func
 from pydantic import BaseModel
 from models import get_session
 from models.chunk import Chunk
-from services.auth import get_current_user, require_admin
+from services.auth import require_admin, require_module
 
-# 切片是知识库真相源,匿名可读写曾导致整库泄露 + 任意污染(2026-05-12 修复):
-#   - 读端点(list / get / get_versions):需要登录
-#   - 写端点(update / patch tags):需要 admin(单独 Depends 叠加)
-router = APIRouter(dependencies=[Depends(get_current_user)])
+# 切片是知识库真相源(2026-05-12):
+#   - 读端点:需要 chunks 模块权限(allowed_modules 控制 + admin 一律放行)
+#   - 写端点(update / patch tags):额外需要 admin(单独 Depends 叠加)
+router = APIRouter(dependencies=[Depends(require_module("chunks"))])
 
 
 class ChunkUpdateRequest(BaseModel):

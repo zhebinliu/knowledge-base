@@ -128,6 +128,36 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+def require_module(module_name: str):
+    """Depends 工厂:确保用户有访问指定模块的权限(细粒度后台权限)。
+
+    规则:
+    - `is_admin=True` 一律放行
+    - `allowed_modules=None` 视为「全部模块开放」(默认值,向后兼容)
+    - 否则检查 `allowed_modules` 是否包含指定模块名
+
+    模块清单见前端 ALL_MODULES:
+      后台:dashboard / projects / documents / chunks / qa / review / challenge / settings
+      前台:console
+
+    2026-05-12 加:把"细粒度模块权限"从前端 nav 显隐延伸到后端 API 鉴权层,
+    防止有权限的用户绕过 UI 直接调 API。
+    """
+    async def _check(user: User = Depends(get_current_user)) -> User:
+        if user.is_admin:
+            return user
+        if user.allowed_modules is None:
+            return user
+        if module_name not in user.allowed_modules:
+            raise HTTPException(
+                403,
+                f"未获得「{module_name}」模块授权,请联系管理员开启",
+            )
+        return user
+
+    return _check
+
+
 # ── Seed admin on startup ─────────────────────────────────────────────────────
 
 async def seed_admin_if_empty() -> None:

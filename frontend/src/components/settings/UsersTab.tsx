@@ -10,15 +10,19 @@ import { formatTime } from '../../utils/datetime'
 
 const gradientStyle = { background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' }
 
-// 所有可控模块
+// 所有可控模块。前缀分组在 UI 上自动按字段 group 展示。
+// 注:settings 模块本身仍仅 admin 可见(三个系统页 nav 上有 adminOnly 标志,跟模块无关)
 const ALL_MODULES = [
-  { key: 'dashboard',  label: '总览' },
-  { key: 'projects',   label: '项目库' },
-  { key: 'documents',  label: '文档管理' },
-  { key: 'chunks',     label: '知识库' },
-  { key: 'qa',         label: '智能问答' },
-  { key: 'review',     label: '审核队列' },
-  { key: 'challenge',  label: '知识挑战' },
+  // 前台:对外工作台(顾问 / 客户接触视图)
+  { key: 'console',    label: '工作台(前台)', group: '前台' },
+  // 后台:业务模块
+  { key: 'dashboard',  label: '总览',         group: '后台' },
+  { key: 'projects',   label: '项目库',       group: '后台' },
+  { key: 'documents',  label: '文档管理',     group: '后台' },
+  { key: 'chunks',     label: '知识库',       group: '后台' },
+  { key: 'qa',         label: '智能问答',     group: '后台' },
+  { key: 'review',     label: '审核队列',     group: '后台' },
+  { key: 'challenge',  label: '知识挑战',     group: '后台' },
 ]
 
 export default function UsersTab() {

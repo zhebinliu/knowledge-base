@@ -9,10 +9,11 @@ from models.challenge_schedule import ChallengeSchedule
 from models.challenge_run import ChallengeRun
 from models.chunk import Chunk
 from models.user import User
-from services.auth import get_current_user_optional, decode_access_token
+from services.auth import get_current_user_optional, decode_access_token, require_module
 from agents.challenger_agent import run_challenge_stream
 
-router = APIRouter()
+# 2026-05-12:知识挑战属后台治理模块,加 require_module("challenge") 控制访问
+router = APIRouter(dependencies=[Depends(require_module("challenge"))])
 
 
 class ChallengeRunRequest(BaseModel):

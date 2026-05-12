@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { NavLink, Outlet, Link, useLocation } from 'react-router-dom'
+import { NavLink, Navigate, Outlet, Link, useLocation } from 'react-router-dom'
 import {
   MessageSquare, FolderKanban, Mic, BookOpen, ChevronDown, LogOut, KeyRound, Shield, Home,
 } from 'lucide-react'
@@ -37,6 +37,13 @@ export default function ConsoleLayout() {
 
   const initial = (user?.full_name || user?.username || 'U').trim().charAt(0).toUpperCase()
   const display = user?.full_name || user?.username || '访客'
+
+  // 2026-05-12 路由守卫:user 显式没有 console 模块权限 → 跳回 / (走 Layout 那条线)
+  // 注:allowed_modules=null 视为「全部模块开放」,允许进入;admin 一律放行
+  if (user && !user.is_admin && user.allowed_modules &&
+      !user.allowed_modules.includes('console')) {
+    return <Navigate to="/" replace />
+  }
 
   return (
     <div className="min-h-screen bg-canvas">

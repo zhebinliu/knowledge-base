@@ -7,11 +7,14 @@ from models import get_session
 from models.document import Document
 from models.project import DOC_TYPES, DOC_TYPE_LABELS, Project
 from models.user import User
-from services.auth import get_current_user, get_current_user_optional
+from services.auth import get_current_user
 from services.project_acl import assert_project_access, list_accessible_project_ids
 from services.rate_limit import limiter
 
 logger = structlog.get_logger()
+
+# 文档 API 前台 console 也用(项目下上传/删除),不在 router 级守 module;
+# 端点级走 get_current_user + 项目 ACL,UI 入口的显隐由前端 allowed_modules 控制。
 router = APIRouter()
 
 SUPPORTED_FORMATS = {".doc", ".docx", ".pdf", ".ppt", ".pptx", ".xls", ".xlsx", ".csv", ".md", ".txt"}
@@ -26,8 +29,10 @@ async def upload_document(
     project_id: str | None = Form(default=None),
     doc_type: str | None = Form(default=None),
     session: AsyncSession = Depends(get_session),
-    current_user: User | None = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
+    # 2026-05-12:此前用 get_current_user_optional 允许匿名上传(文件灌满 minio 隐患),
+    # 现强制登录;documents 模块权限由 router 级 dep 兜底
     filename = file.filename or "unnamed"
     ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if ext not in SUPPORTED_FORMATS:
