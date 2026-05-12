@@ -1667,6 +1667,38 @@ export const putMeetingStakeholderMap = async (
   return data
 }
 
+/** 单条 requirement 字段编辑(2026-05-12) */
+export const patchMeetingRequirement = async (
+  meetingId: number,
+  reqId: number,
+  body: Partial<{
+    module: string
+    description: string
+    priority: 'P0' | 'P1' | 'P2' | 'P3'
+    source: string
+    speaker: string
+    status: string
+  }>,
+): Promise<MeetingRequirement> => {
+  const { data } = await api.patch<MeetingRequirement>(
+    `/meeting/${meetingId}/requirements/${reqId}`,
+    body,
+  )
+  return data
+}
+
+/** 干系人改名同步到 minutes / requirements(2026-05-12) */
+export const renameStakeholderRefs = async (
+  meetingId: number,
+  body: { old_name: string; new_name: string; old_aliases?: string[] },
+): Promise<{ replaced_in_minutes: number; replaced_in_requirements: number }> => {
+  const { data } = await api.post<{
+    replaced_in_minutes: number
+    replaced_in_requirements: number
+  }>(`/meeting/${meetingId}/stakeholders/rename`, body)
+  return data
+}
+
 // ── 上传 + 流水线触发 ────────────────────────────────────────────────────
 
 export const uploadMeetingAudio = async (

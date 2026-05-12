@@ -331,6 +331,135 @@ async def put_stakeholder_map(
     return _meeting_dto(m)
 
 
+# 2026-05-12:单条 requirement 编辑 + 改名同步
+
+class RequirementPatch(BaseModel):
+    """单条需求 PATCH:仅传需要改的字段。"""
+    module: Optional[str] = None
+    description: Optional[str] = None
+    priority: Optional[str] = None  # P0/P1/P2/P3
+    source: Optional[str] = None
+    speaker: Optional[str] = None
+    status: Optional[str] = None
+
+
+@router.patch("/{meeting_id}/requirements/{req_id}")
+async def patch_requirement(
+    meeting_id: int,
+    req_id: int,
+    body: RequirementPatch,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """更新单条需求字段(模块 / 描述 / 优先级 / 提出人 / 状态等)。
+    用于前端表格 inline edit。
+    """
+    await _load_meeting_owned(meeting_id, session, user)  # 鉴权 + 校验所属
+    r = await session.get(Requirement, req_id)
+    if not r or r.meeting_id != meeting_id:
+        raise HTTPException(404, "需求不存在或不属于该会议")
+    data = body.model_dump(exclude_unset=True)
+    for k, v in data.items():
+        setattr(r, k, v)
+    await session.commit()
+    await session.refresh(r)
+    return _requirement_dto(r)
+
+
+class StakeholderRenamePayload(BaseModel):
+    """改名同步:把 minutes / requirements 里 old_name(及别名)的引用换成 new_name。"""
+    old_name: str
+    new_name: str
+    old_aliases: list[str] = []  # 旧别名也一起替换(可选)
+
+
+@router.post("/{meeting_id}/stakeholders/rename")
+async def rename_stakeholder_references(
+    meeting_id: int,
+    body: StakeholderRenamePayload,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """把改了名的干系人引用同步到 meeting_minutes 各字段 + requirements.speaker。
+
+    匹配规则:对 old_name + 所有 old_aliases 做精确字符串替换(全字匹配)。
+    "全字"指:仅当目标字段值与匹配项完全相等、或被「、」「,」「;」「 」分隔
+    时才替换,避免把"张总"误改成"新名总"。
+    """
+    m = await _load_meeting_owned(meeting_id, session, user)
+    candidates = {body.old_name, *body.old_aliases}
+    candidates.discard("")
+    if not candidates or not body.new_name.strip():
+        return {"replaced_in_minutes": 0, "replaced_in_requirements": 0}
+
+    def _replace_exact(text: str | None) -> tuple[str | None, int]:
+        if not text:
+            return text, 0
+        replaced = 0
+        for cand in candidates:
+            # 全字匹配:cand 前后必须是分隔符或字符串边界
+            import re
+            pattern = r"(?<![\w一-鿿])" + re.escape(cand) + r"(?![\w一-鿿])"
+            new_text, n = re.subn(pattern, body.new_name, text)
+            text = new_text
+            replaced += n
+        return text, replaced
+
+    # 1) meeting_minutes 各字段
+    mm = dict(m.meeting_minutes or {})
+    minutes_replaced = 0
+    # 元信息单字段
+    for key in ("meeting_host", "meeting_recorder", "organizer"):
+        v = mm.get(key)
+        if isinstance(v, str):
+            new_v, n = _replace_exact(v)
+            if n:
+                mm[key], minutes_replaced = new_v, minutes_replaced + n
+    # attendees 数组(每项可能是"客户方:xxx、xxx"格式)
+    if isinstance(mm.get("attendees"), list):
+        new_attendees = []
+        for s in mm["attendees"]:
+            if isinstance(s, str):
+                new_s, n = _replace_exact(s)
+                minutes_replaced += n
+                new_attendees.append(new_s)
+            else:
+                new_attendees.append(s)
+        mm["attendees"] = new_attendees
+    # decisions / action_items / unresolved 的 owner
+    for arr_key in ("decisions", "action_items", "unresolved"):
+        arr = mm.get(arr_key)
+        if not isinstance(arr, list):
+            continue
+        for item in arr:
+            if isinstance(item, dict) and isinstance(item.get("owner"), str):
+                new_v, n = _replace_exact(item["owner"])
+                if n:
+                    item["owner"], minutes_replaced = new_v, minutes_replaced + n
+
+    if minutes_replaced:
+        m.meeting_minutes = mm
+
+    # 2) requirements.speaker
+    reqs = (await session.scalars(
+        select(Requirement).where(Requirement.meeting_id == meeting_id)
+    )).all()
+    req_replaced = 0
+    for r in reqs:
+        if r.speaker:
+            new_v, n = _replace_exact(r.speaker)
+            if n:
+                r.speaker = new_v
+                req_replaced += n
+
+    await session.commit()
+    logger.info("stakeholder_renamed",
+                meeting_id=meeting_id,
+                old=body.old_name, new=body.new_name,
+                minutes=minutes_replaced, requirements=req_replaced)
+    return {"replaced_in_minutes": minutes_replaced, "replaced_in_requirements": req_replaced}
+
+
 # ── 音频上传 + ASR(Block C) ───────────────────────────────────────────
 
 @router.post("/upload", status_code=202)
