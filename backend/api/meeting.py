@@ -449,6 +449,50 @@ async def action_summarize(
     return {"meeting_minutes": minutes}
 
 
+@router.get("/{meeting_id}/export-docx")
+async def export_meeting_docx(
+    meeting_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """按「纷享销客 CRM 实施纪要模板」生成 docx。2026-05-12。
+
+    返回 application/vnd.openxmlformats-officedocument.wordprocessingml.document
+    流,前端 a[download] 即可下载。
+    """
+    from fastapi.responses import Response
+    from urllib.parse import quote
+    from services.meeting.docx_export import render_minutes_docx
+
+    m = await _load_meeting_owned(meeting_id, session, user)
+    if not m.meeting_minutes:
+        raise HTTPException(400, "纪要尚未生成,无法导出")
+
+    # 兜底字段:模板缺会议时间时尝试用 meeting.start_time
+    fallback_time = ""
+    if m.start_time:
+        fallback_time = m.start_time.strftime("%Y年%m月%d日 %H:%M")
+        if m.end_time:
+            fallback_time += "~" + m.end_time.strftime("%H:%M")
+
+    try:
+        docx_bytes = render_minutes_docx(
+            meeting_title=m.title,
+            minutes=m.meeting_minutes,
+            fallback_time=fallback_time,
+        )
+    except Exception as e:
+        logger.exception("export_minutes_docx_failed", meeting_id=meeting_id, error=str(e)[:200])
+        raise HTTPException(500, f"生成 docx 失败:{e}")
+
+    safe_name = quote(f"{m.title or '会议纪要'}.docx")
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_name}"},
+    )
+
+
 @router.post("/{meeting_id}/actions/extract_requirements")
 async def action_extract_requirements(
     meeting_id: int,

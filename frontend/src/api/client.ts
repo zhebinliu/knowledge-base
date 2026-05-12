@@ -1499,6 +1499,14 @@ export type MeetingStatus = 'recording' | 'processing' | 'completed' | 'failed'
 
 export interface MeetingMinutes {
   meeting_title?: string
+  // 2026-05-12:对齐纷享销客实施纪要模板表头字段
+  meeting_time?: string
+  meeting_location?: string
+  meeting_host?: string
+  meeting_recorder?: string
+  meeting_format?: string
+  organizer?: string
+  // 正文
   summary?: string
   attendees?: string[]
   key_points?: Array<{ topic: string; content: string }>
@@ -1508,9 +1516,18 @@ export interface MeetingMinutes {
     owner?: string
     deadline?: string
     priority?: 'high' | 'medium' | 'low'
+    remark?: string
   }>
-  unresolved?: Array<{ issue: string; reason?: string }>
+  unresolved?: Array<{
+    issue: string
+    owner?: string
+    reason?: string
+    remark?: string
+  }>
 }
+
+/** 纪要导出 docx 下载 URL(2026-05-12) */
+export const exportMeetingDocxUrl = (id: number) => `/api/meeting/${id}/export-docx`
 
 export interface StakeholderItem {
   name: string

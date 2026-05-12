@@ -85,6 +85,15 @@ async def polish_transcript(raw_transcript: str) -> str:
 # ── 阶段 2:纪要 ─────────────────────────────────────────────────────────
 
 _EMPTY_MINUTES = {
+    # 元信息(2026-05-12 加,对齐纷享销客实施纪要模板表头字段)
+    "meeting_title": "",
+    "meeting_time": "",
+    "meeting_location": "",
+    "meeting_host": "",
+    "meeting_recorder": "",
+    "meeting_format": "",
+    "organizer": "",
+    # 正文内容
     "summary": "",
     "attendees": [],
     "key_points": [],

@@ -15,12 +15,14 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   ChevronLeft, Loader2, RefreshCw, Trash2, FolderKanban, CheckCircle2, AlertCircle, Mic,
   FileText, ListChecks, Users, Settings as SettingsIcon, Info, ExternalLink, Save,
+  Download,
 } from 'lucide-react'
 import {
   getMeeting, deleteMeeting, processMeeting, patchMeeting, linkMeetingProject,
   runMeetingAction, syncMeetingToKB, syncMeetingStakeholdersToKB,
   exportMeetingToFeishu, syncMeetingRequirementsToBitable,
   listProjects, getFeishuCredentials, putFeishuCredentials, deleteFeishuCredentials,
+  exportMeetingDocxUrl,
   type Meeting, type MeetingStatus, type MeetingMinutes, type MeetingRequirement,
 } from '../../api/client'
 
@@ -253,101 +255,200 @@ function MinutesTab({ meeting }: { meeting: Meeting }) {
     )
   }
 
+  // 元信息字段(模板表头):优先 minutes 抽取的,缺时回退 meeting 自带
+  const metaTime = m.meeting_time || (meeting.start_time
+    ? new Date(meeting.start_time).toLocaleString('zh-CN', { hour12: false })
+    : '')
+  const metaTitle = m.meeting_title || meeting.title || '(未命名会议)'
+
   return (
-    <div className="space-y-5 max-w-3xl">
-      <div className="flex justify-end">
+    <div className="space-y-4 max-w-4xl">
+      {/* Top bar:操作按钮 */}
+      <div className="flex justify-end gap-2">
+        <a
+          href={exportMeetingDocxUrl(meeting.id)}
+          download
+          className="px-3 py-1.5 rounded-md text-sm text-white inline-flex items-center gap-1.5 hover:opacity-90"
+          style={{ background: BRAND_GRAD }}
+          title="按模板生成 docx 下载"
+        >
+          <Download size={13} /> 导出 docx
+        </a>
         <button
           onClick={() => regenMut.mutate()}
           disabled={regenMut.isPending}
-          className="px-3 py-1.5 rounded-md text-sm border border-line bg-canvas hover:bg-canvas-elevated inline-flex items-center gap-1.5"
+          className="px-3 py-1.5 rounded-md text-sm border border-line bg-white hover:bg-canvas inline-flex items-center gap-1.5"
         >
           {regenMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
           重新生成
         </button>
       </div>
 
-      {m.summary && (
-        <Section title="会议摘要">
-          <p className="text-sm leading-relaxed text-ink">{m.summary}</p>
-        </Section>
-      )}
+      {/* 纪要主体:模板风格的表格化展示 */}
+      <div className="border border-line rounded-lg overflow-hidden bg-white shadow-sm">
+        {/* 标题栏 */}
+        <div className="px-5 py-4 border-b-2 border-ink/10 text-center"
+             style={{ background: 'linear-gradient(135deg, #FFF8F0, #FFF4E6)' }}>
+          <h2 className="text-base font-bold text-ink tracking-wide">{metaTitle}</h2>
+        </div>
 
-      {m.attendees && m.attendees.length > 0 && (
-        <Section title="参会人员">
-          <div className="flex flex-wrap gap-1.5">
-            {m.attendees.map((a, i) => (
-              <span key={i} className="px-2 py-0.5 rounded-full bg-canvas border border-line text-[12px] text-ink">{a}</span>
-            ))}
-          </div>
-        </Section>
-      )}
+        {/* 元信息表(2 列 × 多行) */}
+        <div className="grid grid-cols-[120px_1fr_120px_1fr] text-[13px] border-b border-line">
+          <MetaCell label="会议名称">{metaTitle}</MetaCell>
+          <MetaCell label="召集人员">{m.organizer || '—'}</MetaCell>
+          <MetaCell label="会议时间">{metaTime || '—'}</MetaCell>
+          <MetaCell label="会议地点">{m.meeting_location || '—'}</MetaCell>
+          <MetaCell label="会议主持">{m.meeting_host || '—'}</MetaCell>
+          <MetaCell label="会议记录">{m.meeting_recorder || '—'}</MetaCell>
+          <MetaCell label="会议形式" span={3}>{m.meeting_format || '—'}</MetaCell>
+          <MetaCell label="参会人员" span={3}>
+            {m.attendees && m.attendees.length > 0
+              ? <div className="flex flex-wrap gap-1.5">
+                  {m.attendees.map((a, i) => (
+                    <span key={i} className="px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200 text-[12px] text-ink">{a}</span>
+                  ))}
+                </div>
+              : '—'}
+          </MetaCell>
+        </div>
 
-      {m.key_points && m.key_points.length > 0 && (
-        <Section title="关键议题">
-          <ul className="space-y-2">
-            {m.key_points.map((kp, i) => (
-              <li key={i}>
-                <div className="text-sm font-medium text-ink">{kp.topic}</div>
-                <div className="text-sm text-ink-secondary mt-0.5">{kp.content}</div>
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
+        {/* 会议主题及内容 */}
+        <div className="px-5 py-3 border-b border-line bg-canvas">
+          <h3 className="text-sm font-bold text-ink">会议主题及内容</h3>
+        </div>
+        <div className="px-5 py-4 border-b border-line space-y-4 text-[13px] leading-relaxed">
+          {m.summary && (
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-ink-muted font-medium mb-1">会议摘要</div>
+              <p className="text-ink">{m.summary}</p>
+            </div>
+          )}
+          {m.key_points && m.key_points.length > 0 && (
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-ink-muted font-medium mb-2">会议主题</div>
+              <ol className="space-y-2.5 list-none">
+                {m.key_points.map((kp, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-orange-50 border border-orange-200 text-orange-700 text-[11px] font-bold inline-flex items-center justify-center">{i + 1}</span>
+                    <div className="flex-1">
+                      <div className="text-sm font-semibold text-ink">{kp.topic}</div>
+                      <div className="text-[12.5px] text-ink-secondary mt-0.5 whitespace-pre-wrap">{kp.content}</div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+          {m.decisions && m.decisions.length > 0 && (
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-ink-muted font-medium mb-2">决议事项</div>
+              <ul className="space-y-1 text-[13px]">
+                {m.decisions.map((d, i) => (
+                  <li key={i} className="flex gap-2">
+                    <CheckCircle2 size={14} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                    <span className="flex-1 text-ink">
+                      {d.content}
+                      {d.owner && <span className="text-ink-muted text-[12px] ml-1">(负责人:{d.owner})</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
 
-      {m.decisions && m.decisions.length > 0 && (
-        <Section title="决议事项">
-          <ul className="space-y-1.5 text-sm">
-            {m.decisions.map((d, i) => (
-              <li key={i} className="text-ink">
-                ✓ {d.content}
-                {d.owner && <span className="text-ink-muted text-[12px]">(负责人:{d.owner})</span>}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
+        {/* 待办项 */}
+        <div className="px-5 py-3 border-b border-line bg-canvas">
+          <h3 className="text-sm font-bold text-ink">待办项</h3>
+        </div>
+        {m.action_items && m.action_items.length > 0 ? (
+          <table className="w-full text-[12.5px] border-b border-line">
+            <thead className="bg-slate-50/60 text-ink-muted">
+              <tr>
+                <Th className="w-12 text-center">序号</Th>
+                <Th>事项</Th>
+                <Th className="w-28">负责人</Th>
+                <Th className="w-48">备注</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {m.action_items.map((a, i) => (
+                <tr key={i} className="border-t border-line/60 hover:bg-slate-50/30">
+                  <td className="px-3 py-2 text-center text-ink-muted tabular-nums">{i + 1}</td>
+                  <td className="px-3 py-2 text-ink">{a.task}</td>
+                  <td className="px-3 py-2 text-ink-secondary">{a.owner || '—'}</td>
+                  <td className="px-3 py-2 text-ink-secondary">
+                    {[
+                      a.deadline ? `截止 ${a.deadline}` : null,
+                      a.priority ? { high: '高优', medium: '中优', low: '低优' }[a.priority] : null,
+                      a.remark,
+                    ].filter(Boolean).join(' · ') || '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="px-5 py-4 text-[12.5px] text-ink-muted text-center border-b border-line">暂无待办项</div>
+        )}
 
-      {m.action_items && m.action_items.length > 0 && (
-        <Section title="待办事项">
-          <ul className="space-y-1.5 text-sm">
-            {m.action_items.map((a, i) => (
-              <li key={i} className="text-ink">
-                ▸ {a.task}
-                <span className="text-[12px] text-ink-muted ml-1">
-                  {a.owner && ` · 负责人 ${a.owner}`}
-                  {a.deadline && ` · 截止 ${a.deadline}`}
-                  {a.priority && ` · ${a.priority}`}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
+        {/* 待确认项 */}
+        <div className="px-5 py-3 border-b border-line bg-canvas">
+          <h3 className="text-sm font-bold text-ink">待确认项</h3>
+        </div>
+        {m.unresolved && m.unresolved.length > 0 ? (
+          <table className="w-full text-[12.5px]">
+            <thead className="bg-slate-50/60 text-ink-muted">
+              <tr>
+                <Th className="w-12 text-center">序号</Th>
+                <Th>事项</Th>
+                <Th className="w-28">负责人</Th>
+                <Th className="w-48">备注</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {m.unresolved.map((u, i) => (
+                <tr key={i} className="border-t border-line/60 hover:bg-slate-50/30">
+                  <td className="px-3 py-2 text-center text-ink-muted tabular-nums">{i + 1}</td>
+                  <td className="px-3 py-2 text-ink">{u.issue}</td>
+                  <td className="px-3 py-2 text-ink-secondary">{u.owner || '—'}</td>
+                  <td className="px-3 py-2 text-ink-secondary">
+                    {[u.reason ? `原因:${u.reason}` : null, u.remark].filter(Boolean).join(' · ') || '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="px-5 py-4 text-[12.5px] text-ink-muted text-center">暂无待确认项</div>
+        )}
+      </div>
 
-      {m.unresolved && m.unresolved.length > 0 && (
-        <Section title="未决问题">
-          <ul className="space-y-1.5 text-sm">
-            {m.unresolved.map((u, i) => (
-              <li key={i} className="text-ink">
-                ⚠ {u.issue}
-                {u.reason && <span className="text-[12px] text-ink-muted ml-1">(原因:{u.reason})</span>}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
+      <p className="text-[11px] text-ink-muted text-center">
+        以上信息为本次会议沟通概要,部分细节可在后续阶段进一步细化落地。
+      </p>
     </div>
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function MetaCell({ label, children, span }: { label: string; children: React.ReactNode; span?: number }) {
   return (
-    <div>
-      <h3 className="text-sm font-semibold text-ink mb-2">{title}</h3>
-      {children}
-    </div>
+    <>
+      <div className="px-4 py-2.5 bg-canvas/80 text-ink-muted font-medium border-r border-line text-[12px] flex items-center">
+        {label}
+      </div>
+      <div
+        className={`px-4 py-2.5 text-ink ${span && span > 1 ? `col-span-${span}` : ''} border-r border-line last:border-r-0`}
+        style={span && span > 1 ? { gridColumn: `span ${span}` } : {}}
+      >
+        {children}
+      </div>
+    </>
   )
+}
+
+function Th({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <th className={`px-3 py-2 text-left font-medium text-[11px] uppercase tracking-wider ${className || ''}`}>{children}</th>
 }
 
 // ── Tab: Requirements ────────────────────────────────────────────────────
