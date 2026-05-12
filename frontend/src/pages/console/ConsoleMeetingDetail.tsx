@@ -171,15 +171,34 @@ function TranscriptTab({ meeting }: { meeting: Meeting }) {
 
   const saveMut = useMutation({
     mutationFn: () => patchMeeting(meeting.id, { raw_transcript: raw, polished_transcript: polished }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting', meeting.id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
+      toast.success('转写已保存')
+    },
   })
 
   const polishMut = useMutation({
     mutationFn: () => runMeetingAction(meeting.id, 'polish'),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting', meeting.id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
+      toast.success('润色任务已触发')
+    },
   })
 
   const dirty = raw !== (meeting.raw_transcript || '') || polished !== (meeting.polished_transcript || '')
+
+  // Cmd/Ctrl+S 保存(2026-05-12)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault()
+        if (dirty && !saveMut.isPending) saveMut.mutate()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty, saveMut.isPending])
 
   return (
     <div className="space-y-4">
@@ -258,8 +277,25 @@ function MinutesTab({ meeting }: { meeting: Meeting }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
       setEditing(false)
+      toast.success('纪要已保存')
     },
   })
+
+  // Cmd/Ctrl+S 触发保存,Esc 退出编辑(2026-05-12)
+  useEffect(() => {
+    if (!editing) return
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault()
+        if (!saveMut.isPending) saveMut.mutate()
+      } else if (e.key === 'Escape') {
+        setDraft(m); setEditing(false)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing, saveMut.isPending])
 
   if (!meeting.meeting_minutes) {
     return (
@@ -1350,9 +1386,11 @@ function StakeholderEditCard({
   const [organization, setOrganization] = useState(stake.organization || '')
   const [side, setSide] = useState<StakeholderItem['side']>(stake.side || 'unknown')
   const [respText, setRespText] = useState((stake.responsibilities || []).join('、'))
+  const [keyPointsText, setKeyPointsText] = useState((stake.key_points || []).join('\n'))
 
   const handleSave = () => {
     const splitList = (s: string) => s.split(/[、,;\s]+/).map(x => x.trim()).filter(Boolean)
+    const splitLines = (s: string) => s.split(/\n+/).map(x => x.trim()).filter(Boolean)
     onSave({
       ...stake,
       name: name.trim() || stake.name,
@@ -1361,6 +1399,7 @@ function StakeholderEditCard({
       organization: organization.trim(),
       side,
       responsibilities: splitList(respText),
+      key_points: splitLines(keyPointsText),
     })
   }
 
@@ -1438,6 +1477,15 @@ function StakeholderEditCard({
         <input
           value={respText}
           onChange={e => setRespText(e.target.value)}
+          className="w-full px-2 py-1 rounded border border-line text-[13px] focus:outline-none focus:border-orange-300"
+        />
+      </Field2>
+
+      <Field2 label="关键观点 / 表述" hint="每行一条,如「希望 5 月底前完成」">
+        <textarea
+          value={keyPointsText}
+          onChange={e => setKeyPointsText(e.target.value)}
+          rows={2}
           className="w-full px-2 py-1 rounded border border-line text-[13px] focus:outline-none focus:border-orange-300"
         />
       </Field2>
@@ -1790,6 +1838,37 @@ export default function ConsoleMeetingDetail() {
             </button>
           </div>
         </div>
+
+        {/* 转写进度条(2026-05-12 加):processing + total_chunks > 0 才显示 */}
+        {meeting.status === 'processing' && meeting.total_chunks > 0 && (
+          <div className="mt-3 bg-white border border-line rounded-xl shadow-sm px-5 py-3">
+            <div className="flex items-center justify-between mb-2 text-[12px]">
+              <span className="text-ink-secondary flex items-center gap-1.5">
+                <Loader2 size={12} className="animate-spin text-orange-600" />
+                正在切片并发转写 · {meeting.asr_engine || 'xiaomi'} ASR
+              </span>
+              <span className="font-mono text-ink-muted tabular-nums">
+                {meeting.done_chunks} / {meeting.total_chunks} 片
+                ({Math.round((meeting.done_chunks / meeting.total_chunks) * 100)}%)
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full overflow-hidden bg-orange-100">
+              <div
+                className="h-full transition-all duration-500"
+                style={{
+                  width: `${(meeting.done_chunks / meeting.total_chunks) * 100}%`,
+                  background: BRAND_GRAD,
+                }}
+              />
+            </div>
+            {meeting.raw_transcript && (
+              <div className="mt-2 text-[12px] text-ink-secondary max-h-24 overflow-y-auto bg-canvas/40 rounded p-2 leading-relaxed border border-line">
+                {meeting.raw_transcript.slice(-400)}
+                <span className="inline-block w-0.5 h-3 bg-orange-500 ml-0.5 animate-pulse align-middle" />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Tabs(独立条,白底) */}
         <div className="mt-4 bg-white border border-line rounded-xl shadow-sm overflow-hidden">

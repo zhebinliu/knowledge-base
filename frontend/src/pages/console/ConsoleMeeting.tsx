@@ -5,10 +5,11 @@
  * 状态机:recording / processing / completed / failed
  * 自动刷新:存在 processing 状态时 8s 轮询一次。
  */
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
-  Mic, Plus, Trash2, FolderKanban, CheckCircle2, Loader2, AlertCircle, Clock,
+  Mic, Plus, Trash2, FolderKanban, CheckCircle2, Loader2, AlertCircle, Clock, Search,
 } from 'lucide-react'
 import { listMeetings, deleteMeeting, type Meeting, type MeetingStatus } from '../../api/client'
 
@@ -46,6 +47,8 @@ function formatTime(iso: string | null | undefined) {
 export default function ConsoleMeeting() {
   const nav = useNavigate()
   const qc = useQueryClient()
+  const [keyword, setKeyword] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'' | MeetingStatus>('')
 
   const { data: meetings, isLoading } = useQuery({
     queryKey: ['meetings'],
@@ -55,6 +58,21 @@ export default function ConsoleMeeting() {
       return items.some(m => m.status === 'processing' || m.status === 'recording') ? 8000 : false
     },
   })
+
+  const filtered = (meetings || []).filter(m => {
+    if (statusFilter && m.status !== statusFilter) return false
+    if (keyword.trim()) {
+      const k = keyword.trim().toLowerCase()
+      const hay = `${m.title || ''} ${m.project_name || ''}`.toLowerCase()
+      if (!hay.includes(k)) return false
+    }
+    return true
+  })
+
+  const statusCounts = (meetings || []).reduce<Record<string, number>>((acc, m) => {
+    acc[m.status] = (acc[m.status] || 0) + 1
+    return acc
+  }, {})
 
   const delMutation = useMutation({
     mutationFn: (id: number) => deleteMeeting(id),
@@ -84,6 +102,41 @@ export default function ConsoleMeeting() {
           <Plus size={16} /> 新建会议
         </button>
       </div>
+
+      {/* Search + filter bar */}
+      {meetings && meetings.length > 0 && (
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <div className="relative flex-1 min-w-[200px] max-w-md">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted" />
+            <input
+              value={keyword}
+              onChange={e => setKeyword(e.target.value)}
+              placeholder="搜标题 / 项目名"
+              className="w-full text-sm border border-line rounded-md pl-7 pr-3 py-1.5 bg-white focus:outline-none focus:border-orange-300"
+            />
+          </div>
+          <div className="flex gap-1">
+            {(['', 'processing', 'completed', 'failed', 'recording'] as const).map(s => {
+              const count = s === '' ? (meetings.length) : (statusCounts[s] || 0)
+              if (s !== '' && count === 0) return null
+              return (
+                <button
+                  key={s || 'all'}
+                  onClick={() => setStatusFilter(s)}
+                  className={`px-2.5 py-1.5 rounded-md text-[12px] font-medium border transition-colors ${
+                    statusFilter === s
+                      ? 'border-orange-300 text-orange-700 bg-orange-50'
+                      : 'border-line text-ink-muted hover:text-ink bg-white hover:bg-canvas/60'
+                  }`}
+                >
+                  {s === '' ? '全部' : STATUS_LABEL[s as MeetingStatus]}
+                  <span className="ml-1 tabular-nums text-ink-muted">{count}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* List */}
       {isLoading ? (
@@ -116,7 +169,14 @@ export default function ConsoleMeeting() {
               </tr>
             </thead>
             <tbody>
-              {meetings.map(m => (
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-[12px] text-ink-muted">
+                    没有匹配「{keyword || statusFilter}」的会议
+                  </td>
+                </tr>
+              )}
+              {filtered.map(m => (
                 <tr key={m.id} className="border-b border-line last:border-0 hover:bg-canvas/50">
                   <td className="px-4 py-3">
                     <button

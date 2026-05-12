@@ -115,13 +115,24 @@ def _requirement_dto(r: Requirement) -> dict:
 async def _load_meeting_owned(
     meeting_id: int, session: AsyncSession, user: User
 ) -> Meeting:
-    """加载会议并校验访问权限。admin 看全部,普通用户只能看自己的。"""
+    """加载会议并校验访问权限。
+    - admin 看全部
+    - 会议 owner 看自己的
+    - 2026-05-12 加:会议绑定了 project 时,该 project 的协作者也可访问
+      (顾问、运营常常需要看 / 编辑别人主持的会议)
+    """
     m = await session.get(Meeting, meeting_id)
     if not m:
         raise HTTPException(404, "会议不存在")
-    if not user.is_admin and m.owner_id != user.id:
-        raise HTTPException(403, "无权访问该会议")
-    return m
+    if user.is_admin or m.owner_id == user.id:
+        return m
+    # 项目协作者权限
+    if m.project_id:
+        from services.project_acl import get_user_project_access
+        access = await get_user_project_access(user, m.project_id)
+        if access is not None:  # owner / read_write / read 都允许进会议详情
+            return m
+    raise HTTPException(403, "无权访问该会议")
 
 
 async def _validate_project_link(
