@@ -492,3 +492,82 @@ LLM 供应商抖动场景很多:超时(`httpx.TimeoutException`)/ 连接错误(`
 | MCP key sha256 / feishu_app_secret 加密 | 0.5 天 | 涉及现有用户 MCP key 数据迁移(老用户要重新生成) |
 
 每项都不"复杂",但**改动面广 + 影响在线用户**,所以本轮不动,单独 PR 推进。
+
+---
+
+## 11. 会议模块切片 ASR + 在线编辑 + 跨会议改名同步(2026-05-12)
+
+### 11.1 长音频走切片并发,不要走 inline 一把传
+
+mimo-v2-omni 的 chat.completions `input_audio` 字段是 base64 inline,**单次请求**对体积非常敏感。20 MB mp3 → base64 27 MB → POST body 上传超 10 分钟(`httpx.WriteTimeout`),不是 ASR 推理慢,**是上传管道撑不住**。
+
+正确姿势(从 meeting-ai 原项目搬):
+1. 收完整音频 → `pydub` 转 16 kHz / 16-bit / mono raw PCM(底层走 ffmpeg)
+2. 切 20 秒一片(640 KB / 片)
+3. 每片 PCM → wave 容器 → base64 → xiaomi `input_audio` chat.completions
+4. `asyncio.Semaphore(8)` 并发 8 路,30 min 会议 90 片 → ~110s 全转完
+5. 每片完成 `await on_chunk(idx, text)`,调用方按 index 增量写 DB,前端轮 `done_chunks/total_chunks` 出流式
+
+代码在 `services/meeting/asr.py:transcribe_audio` + `services/meeting/audio_utils.py`。pydub 依赖 ffmpeg 系统二进制,`backend/Dockerfile` apt 加。
+
+### 11.2 部署窗口里的 task 会丢
+
+`docker compose recreate celery_worker` 期间,Redis 队列里的 task 如果还没被 worker 拉走,**worker 重启时直接被 ack 掉**(默认 `task_acks_late=False`)。结果:用户上传后状态卡在 `processing`,日志里完全没 `transcribe_meeting received`。
+
+应对:部署后 SSH `docker exec backend python -c "from tasks.meeting_tasks import transcribe_meeting; transcribe_meeting.delay(<id>)"` 手动补提交。长期方案:`task_acks_late=True` + 幂等性。
+
+### 11.3 Celery worker 必须 import 所有 model
+
+`tasks/__init__.py` 只 import 自己定义的 task 不够,SQLAlchemy 跨表 ForeignKey 需要**目标表 metadata 也加载**。否则 commit 时报:
+
+```
+NoReferencedTableError: Foreign key 'meetings.project_id' could not find table 'projects'
+```
+
+修复:`tasks/__init__.py` 显式 import 全部 model 模块(跟 `main.py` startup 那段保持一致)。
+
+### 11.4 改名同步要扫"自由文本字段"
+
+`stakeholder_map` 改了名,只替换 `attendees / decisions.owner / action_items.owner` 这种结构化字段**不够**——AI 抽取的 `summary` / `key_points.content` / `requirements.description` 里也可能提到名字。`POST /api/meeting/{id}/stakeholders/rename` 扫这些自由文本字段,中英文全字边界识别(`[一-鿿]`)。
+
+项目级 `PATCH /api/projects/{pid}/stakeholders/{sid}` 改名时,跨该 project 所有 meeting 循环调一次该端点。
+
+### 11.5 docx 模板 cell 用 `_set_cell_text` 加 `force_size`
+
+python-docx 直接赋值 `cell.text = "..."` 会清掉所有 paragraph 格式 + 模板预留的空段落不会自动收起,导致新内容被"顶下去"看不见。
+
+正确做法:
+1. 删 `cell.paragraphs[1:]` 所有空段(走底层 XML `_element.getparent().remove(_element)`)
+2. 清 `p0` 的所有 `run`
+3. 用 `p0.add_run(...)` 写第一段,后续 `cell.add_paragraph(...)`
+4. 字体格式从 `p0.runs[0].font` 继承
+
+特殊场景:模板某 cell(如「会议主题及内容」)字体本身偏大,继承会导致正文也大。`_set_cell_text` 加 `force_size: Pt | None`,强制覆盖。代码在 `services/meeting/docx_export.py`。
+
+### 11.6 沉淀到项目级的合并策略
+
+`POST /api/projects/{pid}/stakeholders/sync-from-meeting/{mid}`:
+- **同名(忽略大小写)** → 合并到现有 record
+- **alias 重叠** → 合并(把对方的 name 也加进 alias)
+- **不重叠** → 新建
+- 数组字段(aliases / key_points / responsibilities)累加去重
+- 标量字段(role / organization / contact)空字段才覆盖
+- side 当前是 `unknown` 才覆盖
+- `source_meeting_ids` 累加 meeting_id
+
+意义:同一个客户的张总在 N 个会议都被识别,沉淀到项目级只会有一条 record,所有别名 / 关键观点合并。
+
+### 11.7 React error #310 — 路由守卫不能放 hooks 前
+
+`Layout.tsx` / `ConsoleLayout.tsx` 加 `<Navigate to=... />` 守卫时,**必须放在所有 hooks 声明之后**。否则两次渲染 hooks 数量不一致,触发 React error #310。
+
+正确:
+```tsx
+const { user } = useAuth()
+const [foo, setFoo] = useState(...)  // 所有 hooks 先声明
+useEffect(...)
+// ...
+// 守卫放在 return 前
+if (user && condition) return <Navigate to="/console" replace />
+return <NormalRender />
+```

@@ -294,6 +294,29 @@ agentic 生成流水线必须过两道审:
 
 项目阶段栏(insight / kickoff / survey / 等)由 `agent_configs(config_type='stage_flow')` 配置,管理员通过 `/api/settings/stage-flow` 改,前端实时拉。代码层有 `DEFAULT_STAGES` 兜底。
 
+### 6.9 会议模块全链路(2026-05-12 完成)
+
+`backend/api/meeting.py` + `backend/services/meeting/` + `frontend/src/pages/console/ConsoleMeetingDetail.tsx`,以下能力**已上线**:
+
+| 能力 | 实现 |
+|---|---|
+| **音频上传 → 切片 ASR** | mp3/m4a → pydub/ffmpeg 转 16kHz PCM → 切 20s/片 → `asyncio.Semaphore(8)` 并发调 xiaomi mimo-v2-omni → on_chunk 回调增量写 `done_chunks/raw_transcript` → 前端轮询展示流式进度条 + 转写预览 |
+| **AI pipeline** | polish(润色)→ minutes / requirements / stakeholders 并发(`services/meeting/pipeline.py`)|
+| **纪要 schema 模板对齐** | 12 字段(7 元信息 + summary + attendees + key_points + decisions + action_items + unresolved),对齐「02003 纷享销客实施纪要模板」|
+| **docx 导出** | `services/meeting/docx_export.py` 用 python-docx 套模板 + 切片填空,GET `/api/meeting/{id}/export-docx`|
+| **在线编辑(全输出物)** | 纪要(MetaCell 元信息 + summary + key_points/decisions/action_items/unresolved 增删改)/ 需求(行级 PATCH + 新增/删除)/ 干系人卡片(姓名+昵称+角色+立场+组织+职责+关键观点)/ 转写(双栏 textarea) |
+| **改名同步** | 干系人改名 → `POST /api/meeting/{id}/stakeholders/rename` 全字匹配替换 minutes 所有文本字段 + requirements 所有字段。中英文边界识别 |
+| **项目级干系人资产** | 新表 `project_stakeholders`,GET/POST/PATCH/DELETE + `sync-from-meeting` 合并(name / alias 重叠 → 合并 + 累加;不重叠 → 新建)。ConsoleProjectDetail 顶部「干系人」Drawer 编辑,改名 → 跨该项目所有 meeting 自动同步 |
+| **协作者权限** | `_load_meeting_owned` 支持 project.collaborator(owner/read_write/read 都能进会议详情)|
+| **快捷键 + Toast** | 编辑模式 `Cmd+S` 保存 / `Esc` 取消;全局 `components/Toaster.tsx`(纯 CustomEvent,无依赖)+ axios 拦截器 401 走 refresh / 其他错误自动 toast |
+| **会议列表搜索过滤** | `ConsoleMeeting` 顶部加搜索框 + 状态 chip(全部 / 处理中 / 完成 / 失败 / 录制中,带计数) |
+
+**未完成 / 单独立项**:
+- meeting 级 `relations` 可视化(项目级已有 `StakeholderCanvas`,meeting 级 relations 当前只渲染为列表;后续可在 `sync-from-meeting` 把 relations 一起搬到 stakeholder_graph 节点)
+- 跨**项目** 干系人合并(同一人在 N 个项目都出现 → 全局视图)
+
+---
+
 ### 6.8 三套 kind 列表必须同步
 
 加新 kind 时改这三处:
