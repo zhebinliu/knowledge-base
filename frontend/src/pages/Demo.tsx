@@ -37,9 +37,9 @@ function StatBadge({ value, label }: { value: string; label: string }) {
 }
 
 // 章节标题 + 编号
-function SectionTitle({ idx, tag, title, sub }: { idx: string; tag: string; title: string; sub: string }) {
+function SectionTitle({ idx, tag, title, sub, anchor }: { idx: string; tag: string; title: string; sub: string; anchor?: string }) {
   return (
-    <div className="text-center mb-8">
+    <div id={anchor} className="text-center mb-8 scroll-mt-20">
       <div className="inline-flex items-center gap-2 mb-3">
         <span className="font-mono text-[11px] text-ink-muted">{idx}</span>
         <Tag>{tag}</Tag>
@@ -47,6 +47,85 @@ function SectionTitle({ idx, tag, title, sub }: { idx: string; tag: string; titl
       <h2 className="text-2xl font-bold text-ink mb-2">{title}</h2>
       <p className="text-ink-secondary text-sm max-w-2xl mx-auto leading-relaxed">{sub}</p>
     </div>
+  )
+}
+
+// 浮动 TOC: 桌面端固定右侧, 点击跳转, 当前可见段高亮
+const TOC_ITEMS: { id: string; label: string }[] = [
+  { id: 'hero',         label: '概览' },
+  { id: 'insight',      label: '项目洞察' },
+  { id: 'survey',       label: '需求调研' },
+  { id: 'meeting',      label: '会议智能' },
+  { id: 'workspace',    label: '三栏工作区' },
+  { id: 'mcp',          label: 'MCP 调用' },
+  { id: 'flywheel',     label: '知识飞轮' },
+  { id: 'memory',       label: '记忆体系' },
+  { id: 'qa-demo',      label: '实时演示' },
+  { id: 'architecture', label: '整体架构' },
+  { id: 'roadmap',      label: '产品路线图' },
+  { id: 'story',        label: '开发故事' },
+]
+
+function FloatingTOC() {
+  const [active, setActive] = useState<string>('hero')
+  useEffect(() => {
+    const targets = TOC_ITEMS
+      .map((t) => document.getElementById(t.id))
+      .filter((el): el is HTMLElement => !!el)
+    if (targets.length === 0) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        // 取离顶部最近的可见段作为 active
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+        if (visible[0]) setActive(visible[0].target.id)
+      },
+      { rootMargin: '-15% 0px -70% 0px', threshold: 0 },
+    )
+    targets.forEach((el) => io.observe(el))
+    return () => io.disconnect()
+  }, [])
+
+  const jump = (id: string) => {
+    const el = document.getElementById(id)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  return (
+    <nav
+      className="hidden xl:flex flex-col fixed right-6 top-1/2 -translate-y-1/2 z-20 max-h-[80vh] overflow-y-auto"
+      aria-label="页面快速导航"
+    >
+      <div className="rounded-2xl bg-surface/80 backdrop-blur border border-line shadow-sm p-2 w-[148px]">
+        <p className="text-[10px] uppercase tracking-[3px] text-ink-muted font-bold px-2 pt-1.5 pb-2">章节</p>
+        <ul className="space-y-0.5">
+          {TOC_ITEMS.map((t, i) => {
+            const isActive = active === t.id
+            return (
+              <li key={t.id}>
+                <button
+                  type="button"
+                  onClick={() => jump(t.id)}
+                  className={[
+                    'w-full text-left px-2 py-1.5 rounded-lg text-[11px] flex items-center gap-2 transition-colors',
+                    isActive
+                      ? 'bg-brand-light text-[#D96400] font-semibold'
+                      : 'text-ink-secondary hover:bg-canvas hover:text-ink',
+                  ].join(' ')}
+                >
+                  <span className={[
+                    'font-mono text-[9px] w-4 text-right',
+                    isActive ? 'text-[#D96400]' : 'text-ink-muted',
+                  ].join(' ')}>{String(i).padStart(2, '0')}</span>
+                  <span className="flex-1 truncate">{t.label}</span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+    </nav>
   )
 }
 
@@ -203,6 +282,8 @@ export default function Demo() {
   return (
     <div className="min-h-screen bg-canvas">
 
+      <FloatingTOC />
+
       {/* ── Top nav bar ──────────────────────────────────────────────── */}
       <header className="sticky top-0 z-10 bg-surface/90 backdrop-blur border-b border-line">
         <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
@@ -226,7 +307,7 @@ export default function Demo() {
       <div className="max-w-6xl mx-auto px-6 py-14">
 
         {/* ── Hero ─────────────────────────────────────────────────── */}
-        <div className="text-center mb-16">
+        <div id="hero" className="text-center mb-16 scroll-mt-20">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-light border border-orange-200 text-[#D96400] text-xs font-medium mb-5">
             <Sparkles size={11} /> 纷享销客 CRM 实施团队专属 AI 工作台
           </div>
@@ -296,6 +377,7 @@ export default function Demo() {
             ════════════════════════════════════════════════════════════════ */}
         <div className="mb-24">
           <SectionTitle
+            anchor="insight"
             idx="01"
             tag="Insight · 项目洞察"
             title="不切片,把核心文档整篇喂给 LLM"
@@ -400,6 +482,7 @@ export default function Demo() {
             ════════════════════════════════════════════════════════════════ */}
         <div className="mb-24">
           <SectionTitle
+            anchor="survey"
             idx="02"
             tag="Survey · 需求调研"
             title="不发问卷给客户填,顾问当场屏上勾选"
@@ -465,6 +548,7 @@ export default function Demo() {
             ════════════════════════════════════════════════════════════════ */}
         <div className="mb-24">
           <SectionTitle
+            anchor="meeting"
             idx="03"
             tag="Meeting · 会议智能"
             title="从录音到飞书多维表,一条流水线"
@@ -520,6 +604,7 @@ export default function Demo() {
             ════════════════════════════════════════════════════════════════ */}
         <div className="mb-24">
           <SectionTitle
+            anchor="workspace"
             idx="04"
             tag="Workspace · 三栏工作区"
             title="左文档、中报告、右引用 —— 点 [D1] 跳原文"
@@ -582,6 +667,7 @@ export default function Demo() {
             ════════════════════════════════════════════════════════════════ */}
         <div className="mb-24">
           <SectionTitle
+            anchor="mcp"
             idx="05"
             tag="MCP · 外部 AI 调用"
             title="让 Claude / Cursor 直接读项目快照"
@@ -648,6 +734,7 @@ export default function Demo() {
             ════════════════════════════════════════════════════════════════ */}
         <div className="mb-24">
           <SectionTitle
+            anchor="flywheel"
             idx="06"
             tag="Flywheel · 知识飞轮"
             title="每一次 👎 都能指向「该补什么」"
@@ -729,6 +816,7 @@ export default function Demo() {
             ════════════════════════════════════════════════════════════════ */}
         <div className="mb-20">
           <SectionTitle
+            anchor="memory"
             idx="ARCH"
             tag="架构基础"
             title="多层知识记忆体系 · L1 → L4"
@@ -767,6 +855,7 @@ export default function Demo() {
         {/* ── Live QA demo ──────────────────────────────────────────── */}
         <div className="mb-20">
           <SectionTitle
+            anchor="qa-demo"
             idx="DEMO"
             tag="实时演示"
             title="向知识库提问"
@@ -780,6 +869,7 @@ export default function Demo() {
         {/* ── 整体架构 · 后台沉淀 + 前台消费 ──────────────────────── */}
         <div className="mb-20">
           <SectionTitle
+            anchor="architecture"
             idx="ARCH"
             tag="Architecture · 整体架构"
             title="后台沉淀 + 前台消费 · 一体化设计"
@@ -874,6 +964,7 @@ export default function Demo() {
         {/* ── 产品路线图 ──────────────────────────────────────────── */}
         <div className="mb-20">
           <SectionTitle
+            anchor="roadmap"
             idx="ROADMAP"
             tag="Roadmap · 产品路线图"
             title="当前是独立工作台,下一步接入行业 know-how,远期融入大黄蜂"
@@ -919,6 +1010,7 @@ export default function Demo() {
         {/* ── 开发故事 · 一个月做出来 ─────────────────────────────── */}
         <div className="mb-20">
           <SectionTitle
+            anchor="story"
             idx="STORY"
             tag="Story · 开发故事"
             title="一个月,从零到上线"
