@@ -121,7 +121,7 @@ function QaDemo() {
         <span className="w-3 h-3 rounded-full bg-red-400" />
         <span className="w-3 h-3 rounded-full bg-yellow-400" />
         <span className="w-3 h-3 rounded-full bg-green-400" />
-        <span className="ml-3 text-xs text-ink-muted font-mono">KB System — 智能问答</span>
+        <span className="ml-3 text-xs text-ink-muted font-mono">实施工作台 — 智能问答</span>
       </div>
 
       <div className="flex gap-1 px-4 py-2 bg-canvas border-b border-line overflow-x-auto">
@@ -196,7 +196,7 @@ function QaDemo() {
 
 export default function Demo() {
   useEffect(() => {
-    document.title = '产品演示 — KB System'
+    document.title = '产品演示 — 实施工作台'
     return () => { document.title = '实施知识综合管理' }
   }, [])
 
@@ -210,7 +210,7 @@ export default function Demo() {
             <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: BRAND_GRAD }}>
               <BookOpen size={13} className="text-white" />
             </div>
-            <span className="text-sm font-bold text-ink">KB System</span>
+            <span className="text-sm font-bold text-ink">实施工作台</span>
             <span className="hidden sm:block text-xs text-ink-muted ml-1">纷享销客 CRM 实施知识库</span>
           </div>
           <div className="flex items-center gap-2">
@@ -228,18 +228,18 @@ export default function Demo() {
         {/* ── Hero ─────────────────────────────────────────────────── */}
         <div className="text-center mb-16">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-light border border-orange-200 text-[#D96400] text-xs font-medium mb-5">
-            <Sparkles size={11} /> CRM 实施团队专属 AI 工作台
+            <Sparkles size={11} /> 纷享销客 CRM 实施团队专属 AI 工作台
           </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-ink leading-tight mb-4">
-            不是又一个 RAG 知识库
+            把咨询师从文档工里解放出来
             <br />
             <span style={{ background: BRAND_GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              是把实施顾问的工作流写进系统
+              把更多时间还给客户
             </span>
           </h1>
           <p className="text-ink-secondary text-base max-w-2xl mx-auto leading-relaxed mb-8">
-            文档驱动的项目洞察、顾问勾选式调研、会议 AI 全链路、引用即原文 ——
-            六个区别于普通知识库的核心创新,让每一份产物都有据可查、稳得住质量。
+            实施顾问每天大量时间在写启动会 PPT、整理调研问卷、翻历史方案找参考、给客户出洞察报告。
+            这些工作机械、重复, 但又跑不掉。我们做的是把这条工作流写进系统, 让 AI 把机械的部分接过来。
           </p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <a href="/" className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl transition-all hover:opacity-90 shadow-sm" style={{ background: BRAND_GRAD }}>
@@ -248,6 +248,38 @@ export default function Demo() {
             <a href="/help" className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-ink rounded-xl border border-line bg-surface hover:bg-canvas transition-colors">
               <BookOpen size={14} /> 查看手册
             </a>
+          </div>
+        </div>
+
+        {/* ── 痛点 & 工作流主线 ─────────────────────────────────────── */}
+        <div className="card p-6 sm:p-8 mb-16">
+          <div className="text-center mb-6">
+            <p className="text-[11px] uppercase tracking-[6px] text-ink-muted mb-2">Workflow</p>
+            <h3 className="text-xl font-bold text-ink">围绕咨询师的项目主线设计</h3>
+            <p className="text-xs text-ink-muted mt-1">立项 → 调研 → 蓝图 → 上线 每一步都有 AI 辅助</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-3">
+            {[
+              { phase: '01', name: '立项', sub: '项目洞察报告 · SOW/方案整篇喂入', color: '#D96400' },
+              { phase: '02', name: '调研', sub: '勾选式访谈 · 大纲 + 6 题型问卷',  color: '#2563EB' },
+              { phase: '03', name: '蓝图', sub: '启动会 PPT/HTML 自动生成',         color: '#7C3AED' },
+              { phase: '04', name: '上线', sub: '知识沉淀 + 对抗式审查兜底',         color: '#059669' },
+            ].map((s, i, arr) => (
+              <div key={s.phase} className="relative">
+                <div className="rounded-xl border border-line bg-canvas p-3 h-full">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-mono font-bold" style={{ color: s.color }}>{s.phase}</span>
+                    <p className="text-sm font-semibold text-ink">{s.name}</p>
+                  </div>
+                  <p className="text-[11px] text-ink-muted leading-relaxed">{s.sub}</p>
+                </div>
+                {i < arr.length - 1 && (
+                  <div className="hidden sm:flex absolute top-1/2 -right-2 -translate-y-1/2 z-10 bg-canvas">
+                    <ChevronRight size={14} className="text-ink-muted" />
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
 
@@ -745,6 +777,169 @@ export default function Demo() {
           </div>
         </div>
 
+        {/* ── 整体架构 · 后台沉淀 + 前台消费 ──────────────────────── */}
+        <div className="mb-20">
+          <SectionTitle
+            idx="ARCH"
+            tag="Architecture · 整体架构"
+            title="后台沉淀 + 前台消费 · 一体化设计"
+            sub="后台是知识的沉淀积累——文档进来 → 切片 → 向量化 → 审核 → 挑战 → 入库。前台是咨询师日常的工具——洞察 / 调研 / 问答 / 会议,所有产出都从后台知识库召回 + 反向写回沉淀。"
+          />
+
+          <div className="rounded-2xl border border-line bg-surface shadow-sm overflow-hidden">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr]">
+              {/* 后台 · 知识沉淀 */}
+              <div className="p-5 sm:p-6 bg-gradient-to-br from-blue-50/60 to-indigo-50/60 border-b md:border-b-0 md:border-r border-line">
+                <div className="flex items-center gap-2 mb-1">
+                  <Layers size={14} className="text-blue-700" />
+                  <span className="text-[10px] uppercase tracking-[4px] text-blue-700 font-bold">Backend</span>
+                </div>
+                <p className="text-lg font-bold text-ink mb-0.5">知识的沉淀积累</p>
+                <p className="text-[11px] text-ink-muted mb-4">从原始资料到结构化、可检索的项目知识</p>
+
+                <div className="space-y-1.5">
+                  {[
+                    { icon: Upload,      label: '文档上传',   sub: 'SOW / 方案 / 合同 / 纪要' },
+                    { icon: Layers,      label: 'LLM 智能切片', sub: '按业务语义,不按段落' },
+                    { icon: Brain,       label: '向量化索引',  sub: 'Qdrant 语义检索 + rerank' },
+                    { icon: Edit3,       label: '人工审核',    sub: 'review queue · 质量第一关' },
+                    { icon: ShieldCheck, label: '对抗式挑战',  sub: '一攻一守 · 知识质量底线' },
+                    { icon: Folder,      label: '行业 know-how', sub: '方法论 / 案例库(下一步接入)' },
+                  ].map(({ icon: Icon, label, sub }) => (
+                    <div key={label} className="flex items-center gap-2.5 px-3 py-2 bg-white/70 rounded-lg border border-blue-100">
+                      <Icon size={13} className="text-blue-700 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-ink">{label}</p>
+                        <p className="text-[10px] text-ink-muted leading-tight">{sub}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-blue-200 text-[10px] font-mono text-blue-700">
+                  PostgreSQL · Qdrant · MinIO · Celery
+                </div>
+              </div>
+
+              {/* 中间桥梁 */}
+              <div className="flex md:flex-col items-center justify-center gap-3 px-3 py-4 md:py-0 md:w-[140px]">
+                <div className="flex md:flex-col items-center gap-1.5">
+                  <ArrowRight size={20} className="text-ink-muted md:rotate-0 rotate-0 hidden md:block" />
+                  <ArrowRight size={20} className="text-ink-muted md:hidden rotate-90" />
+                  <span className="text-[10px] text-ink-muted whitespace-nowrap font-medium">召回 · 引用</span>
+                </div>
+                <div className="flex md:flex-col items-center gap-1.5">
+                  <ArrowRight size={20} className="text-blue-700 rotate-180 md:rotate-180 hidden md:block" />
+                  <ArrowRight size={20} className="text-blue-700 md:hidden -rotate-90" />
+                  <span className="text-[10px] text-blue-700 whitespace-nowrap font-medium">沉淀 · 写回</span>
+                </div>
+              </div>
+
+              {/* 前台 · 知识消费 */}
+              <div className="p-5 sm:p-6 bg-gradient-to-br from-orange-50/60 to-amber-50/60">
+                <div className="flex items-center gap-2 mb-1">
+                  <Sparkles size={14} className="text-[#D96400]" />
+                  <span className="text-[10px] uppercase tracking-[4px] text-[#D96400] font-bold">Frontend</span>
+                </div>
+                <p className="text-lg font-bold text-ink mb-0.5">知识消费</p>
+                <p className="text-[11px] text-ink-muted mb-4">咨询师日常的实战工具 · 一切产出都带证据溯源</p>
+
+                <div className="space-y-1.5">
+                  {[
+                    { icon: Bot,           label: '项目洞察生成', sub: '10 模块报告 · Critic + Challenger 评审' },
+                    { icon: ClipboardList, label: '需求调研',     sub: '顾问主导勾选式 · 大纲 + 6 题型问卷' },
+                    { icon: MessageSquare, label: '智能问答',     sub: 'RAG 检索 · 答案带原文引用' },
+                    { icon: Mic,           label: '会议纪要',     sub: 'ASR → 打磨 → 纪要 → 飞书多维表' },
+                    { icon: Wand2,         label: '启动会 PPT',    sub: '一键生成可编辑 PPT/HTML' },
+                    { icon: Network,       label: '三栏工作区',   sub: '左文档 · 中报告 · 右引用 一键跳转' },
+                  ].map(({ icon: Icon, label, sub }) => (
+                    <div key={label} className="flex items-center gap-2.5 px-3 py-2 bg-white/70 rounded-lg border border-orange-100">
+                      <Icon size={13} className="text-[#D96400] flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-ink">{label}</p>
+                        <p className="text-[10px] text-ink-muted leading-tight">{sub}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-orange-200 text-[10px] font-mono text-[#D96400]">
+                  React · 三栏工作区 · 引用即原文
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── 产品路线图 ──────────────────────────────────────────── */}
+        <div className="mb-20">
+          <SectionTitle
+            idx="ROADMAP"
+            tag="Roadmap · 产品路线图"
+            title="当前是独立工作台,下一步接入行业 know-how,远期融入大黄蜂"
+            sub="诚实呈现现状, 不把愿景吹成现状。当前阶段顾问各自上传文档积累知识库,验证产品力;后续接入公司方法论 / 案例库,再作为 agent 接入大黄蜂平台。"
+          />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-2xl p-6 text-white shadow-md" style={{ background: BRAND_GRAD }}>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[10px] font-mono uppercase tracking-[4px] opacity-90">Phase 1 · Now</span>
+                <span className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-sm font-bold">1</span>
+              </div>
+              <p className="text-xl font-bold mb-2">独立工作台</p>
+              <p className="text-[12px] leading-relaxed opacity-95">
+                顾问各自上传积累 · 验证产品力<br/>
+                <span className="opacity-80">— 这是你现在看到的版本</span>
+              </p>
+            </div>
+            <div className="rounded-2xl p-6 border" style={{ background: 'rgba(59,130,246,0.06)', borderColor: 'rgba(96,165,250,0.4)' }}>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[10px] font-mono uppercase tracking-[4px] text-blue-700">Phase 2 · Next</span>
+                <span className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border border-dashed border-blue-400 text-blue-700">2</span>
+              </div>
+              <p className="text-xl font-bold text-ink mb-2">接入行业 know-how</p>
+              <p className="text-[12px] leading-relaxed text-ink-secondary">
+                沉淀公司方法论库<br/>
+                统一行业案例资产
+              </p>
+            </div>
+            <div className="rounded-2xl p-6 border-2 border-dashed border-line">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[10px] font-mono uppercase tracking-[4px] text-ink-muted">Phase 3 · Future</span>
+                <span className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 border-dashed border-line text-ink-muted">3</span>
+              </div>
+              <p className="text-xl font-bold text-ink-secondary mb-2">融入大黄蜂平台</p>
+              <p className="text-[12px] leading-relaxed text-ink-muted">
+                作为 agent 接入<br/>
+                探索一线落地路径
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── 开发故事 · 一个月做出来 ─────────────────────────────── */}
+        <div className="mb-20">
+          <SectionTitle
+            idx="STORY"
+            tag="Story · 开发故事"
+            title="一个月,从零到上线"
+            sub="2026 年 4 月 14 日第一次提交,5 月 12 日完成产品 readiness 改造,期间持续高频迭代,平均每天 16 次提交。"
+          />
+          <div className="card p-6 sm:p-8">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 divide-x divide-line">
+              <StatBadge value="357" label="次 Git 提交" />
+              <StatBadge value="22" label="个开发日" />
+              <StatBadge value="40" label="单日峰值提交" />
+              <StatBadge value="29 天" label="从 0 到上线" />
+            </div>
+            <div className="mt-6 pt-5 border-t border-line text-[12px] text-ink-secondary leading-relaxed space-y-1.5">
+              <p>📅 <span className="font-semibold text-ink">2026-04-14</span> 首次提交,搭好 FastAPI + Postgres + Qdrant + Celery 五件套</p>
+              <p>🔥 <span className="font-semibold text-ink">2026-04-20</span> 单日 40 次提交,完成切片分页 / 上传队列 / 文档分页 / 设计系统 v1.1 / MCP API Key</p>
+              <p>⚡️ <span className="font-semibold text-ink">2026-05-01 ~ 05-02</span> 连续两天各 32 / 31 次提交,完成 v3 命名归一 + agentic 重构</p>
+              <p>🛡️ <span className="font-semibold text-ink">2026-05-12</span> 完成生产 readiness 改造(鉴权 / 备份 / 回滚 / 可观测性)</p>
+            </div>
+          </div>
+        </div>
+
         {/* ── CTA ──────────────────────────────────────────────────── */}
         <div className="rounded-2xl p-8 sm:p-12 text-center mb-8" style={{ background: 'linear-gradient(135deg,#FFF4E6,#FFE8CC)' }}>
           <h2 className="text-2xl font-extrabold text-ink mb-2">开始构建你的知识库</h2>
@@ -763,8 +958,7 @@ export default function Demo() {
         </div>
 
         <p className="text-center text-xs text-ink-muted">
-          KB System · 纷享销客 CRM 实施知识库 ·{' '}
-          <a href="https://kb.tokenwave.cloud" className="hover:text-ink transition-colors">kb.tokenwave.cloud</a>
+          实施工作台 · 纷享销客 CRM 实施团队专属 AI 工作台
         </p>
 
       </div>

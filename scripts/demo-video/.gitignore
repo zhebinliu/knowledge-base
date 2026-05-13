@@ -1,0 +1,5 @@
+# 录屏 / 配音 / 合成产物 (build artifacts)
+output/
+recon.js
+recon-stages.js
+test-cursor.js
