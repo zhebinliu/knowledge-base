@@ -34,7 +34,7 @@ fi
 
 # 续期成功时（证书文件被替换）reload nginx 加载新证书
 reload_needed=false
-for domain in kb.liii.in kb.tokenwave.cloud; do
+for domain in kb.liii.in kb.tokenwave.cloud uat.tokenwave.cloud; do
     cert_path="/etc/letsencrypt/live/${domain}/fullchain.pem"
     if [ -f "$cert_path" ] && [ -n "$(find "$cert_path" -mtime -1 2>/dev/null)" ]; then
         echo "$(date -Iseconds) cert renewed for ${domain}"

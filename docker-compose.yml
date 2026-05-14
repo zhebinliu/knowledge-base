@@ -1,7 +1,14 @@
 services:
+  # ── frontend-prod ────────────────────────────────────────────────────────
+  # 持有 80/443 + 三域名 TLS;kb.liii.in/kb.tokenwave.cloud 服务自己 dist;
+  # uat.tokenwave.cloud 反代到 frontend-uat。
+  # 镜像名仍叫 frontend(向后兼容老 deploy 脚本)。
   frontend:
-    image: ${FRONTEND_IMAGE:-kb-frontend:latest}
-    build: ./frontend
+    image: ${FRONTEND_IMAGE:-kb-frontend-prod:latest}
+    build:
+      context: ./frontend
+      args:
+        ENV: prod
     ports:
       - "80:80"
       - "443:443"
@@ -10,7 +17,33 @@ services:
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
       # 2026-05-12:维护标志 host 目录 → 容器 /var/run/kb-deploy/.maintenance
-      # 部署开始时 deploy.yml touch 这个文件,nginx 立刻返回 503 + maintenance.html
+      - /opt/kb-system/run:/var/run/kb-deploy:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      # frontend-prod 反代 uat 域名,uat 容器要先起来(否则 nginx upstream fail)
+      frontend-uat:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── frontend-uat ─────────────────────────────────────────────────────────
+  # 只对 docker 内网暴露 :80,由 frontend-prod 反代进来。无 SSL。
+  # 每次推 main 自动重建/重启,影响仅限 uat.tokenwave.cloud。
+  frontend-uat:
+    image: ${FRONTEND_UAT_IMAGE:-kb-frontend-uat:latest}
+    build:
+      context: ./frontend
+      args:
+        ENV: uat
+    mem_limit: 256m
+    expose:
+      - "80"
+    volumes:
       - /opt/kb-system/run:/var/run/kb-deploy:ro
     depends_on:
       backend:

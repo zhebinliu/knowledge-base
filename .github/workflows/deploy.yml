@@ -1,10 +1,13 @@
-name: CI/CD Workflow
+name: CI Checks
 
+# 纯 CI 文件 — 只跑 frontend tsc/build + backend tests,不部署
+# 部署逻辑拆到:
+#   - .github/workflows/deploy-uat.yml  (push main 自动)
+#   - .github/workflows/deploy-prod.yml (workflow_dispatch 手动)
+# PR / 非 main 分支推送也走这里,验证后再合 main
 on:
   push:
     branches: [ "main" ]
-    # 纯文档改动不触发 CI(deploy 占盘 + 慢)
-    # 注:backend/prompts/**.md 是 LLM 提示词,改了影响生产,要触发,所以不在这里 ignore
     paths-ignore:
       - 'LEARNING.md'
       - 'PROJECT_OVERVIEW.md'
@@ -28,12 +31,6 @@ on:
       - 'desktop/**'
       - '.github/workflows/desktop-build.yml'
 
-env:
-  REGISTRY: ghcr.io
-  BACKEND_IMAGE:  ${{ github.repository }}-backend
-  FRONTEND_IMAGE: ${{ github.repository }}-frontend
-  DOCKER_BUILDKIT: 1
-
 jobs:
   frontend-check:
     name: Frontend tsc + build
@@ -46,7 +43,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
       - name: Install
-        run: cd frontend && npm ci
+        run: cd frontend && npm ci --legacy-peer-deps
       - name: Type check
         run: cd frontend && npx tsc --noEmit -p tsconfig.json
       - name: Build
@@ -138,166 +135,3 @@ jobs:
         run: |
           export PYTHONPATH=$PYTHONPATH:$(pwd)/backend
           pytest backend/tests/test_phase0.py -v
-
-  build-and-push:
-    name: Build and Push Docker Images
-    needs: [test, frontend-check]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata for backend
-        id: meta-backend
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}
-          tags: |
-            type=ref,event=branch
-            type=sha,format=short
-            latest
-
-      - name: Build and push backend image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          push: true
-          tags: ${{ steps.meta-backend.outputs.tags }}
-          labels: ${{ steps.meta-backend.outputs.labels }}
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
-
-      - name: Extract metadata for frontend
-        id: meta-frontend
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}
-          tags: |
-            type=ref,event=branch
-            type=sha,format=short
-            latest
-
-      - name: Build and push frontend image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          push: true
-          tags: ${{ steps.meta-frontend.outputs.tags }}
-          labels: ${{ steps.meta-frontend.outputs.labels }}
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,mode=max,scope=frontend
-
-  deploy:
-    name: Deploy to Server
-    needs: build-and-push
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Compute short SHA
-        id: sha
-        run: echo "value=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
-
-      - name: Deploy via SSH
-        # 2026-05-12 改进:用 sha-xxxxxxx 标签而非 latest,失败时能 docker compose up <旧 sha> 回滚
-        # 上一次成功的 sha 写到 .last-good-sha,人工或脚本回滚用
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          script: |
-            cd ${{ secrets.DEPLOY_PATH }}
-            git pull origin main || echo "Not a git repo or no changes"
-
-            SHORT_SHA="${{ steps.sha.outputs.value }}"
-            export BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-${SHORT_SHA}
-            export FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:sha-${SHORT_SHA}
-
-            # 备份当前 last-good 以便回滚
-            if [ -f .last-good-sha ]; then
-              cp .last-good-sha .prev-good-sha
-            fi
-
-            # 2026-05-12:打开维护开关,nginx 立刻给前端返回 503 + maintenance.html
-            # (旧 frontend 容器若已挂 /opt/kb-system/run volume 就立即生效;
-            #  首次部署带本 volume 时此 flag 在新容器起来后才被 nginx 看到)
-            sudo mkdir -p /opt/kb-system/run
-            sudo touch /opt/kb-system/run/.maintenance
-
-            docker compose pull backend celery_worker frontend
-            docker compose up -d
-
-            # 健康检查:最多等 120s,每 5s 轮一次(backend startup 跑 create_all + ALTER 慢)
-            HEALTHY=false
-            for i in $(seq 1 24); do
-              if curl -fsS http://127.0.0.1:8000/health > /dev/null 2>&1; then
-                HEALTHY=true
-                echo "✅ Healthy after $((i*5))s"
-                break
-              fi
-              sleep 5
-            done
-
-            if [ "$HEALTHY" = "true" ]; then
-              echo "$SHORT_SHA" > .last-good-sha
-              # 健康通过 → 关闭维护开关,前端恢复正常
-              sudo rm -f /opt/kb-system/run/.maintenance
-              echo "✅ Deployed sha-${SHORT_SHA},维护页已关闭"
-            else
-              echo "❌ Health check failed after 120s for sha-${SHORT_SHA}"
-              echo "--- backend logs ---"
-              docker compose logs --tail 50 backend || true
-              if [ -f .prev-good-sha ]; then
-                PREV=$(cat .prev-good-sha)
-                echo "回滚到 sha-${PREV}"
-                export BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-${PREV}
-                export FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:sha-${PREV}
-                docker compose up -d
-                # 回滚后等 30s 再清维护标志(给老镜像启动期)
-                sleep 30
-                sudo rm -f /opt/kb-system/run/.maintenance
-              else
-                echo "⚠️  无 .prev-good-sha,跳过回滚(首次部署或人工已清)"
-                # 仍然清维护标志,否则站点永远显示升级中
-                sudo rm -f /opt/kb-system/run/.maintenance
-              fi
-              exit 1
-            fi
-
-            docker compose ps
-
-      - name: Notify on failure
-        if: failure()
-        env:
-          WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
-          SHORT_SHA: ${{ steps.sha.outputs.value }}
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
-        run: |
-          if [ -z "$WEBHOOK_URL" ]; then
-            echo "DEPLOY_WEBHOOK_URL 未配置,跳过通知"
-            exit 0
-          fi
-          curl -sS -X POST "$WEBHOOK_URL" \
-            -H "Content-Type: application/json" \
-            -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"❌ KB 部署失败 sha=${SHORT_SHA} ${COMMIT_MSG}\"}}" \
-          || echo "webhook 通知失败"

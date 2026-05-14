@@ -1,0 +1,287 @@
+name: Deploy PROD
+
+# 生产部署:
+#   - 仅手动触发(workflow_dispatch),避免误推 main 把 prod 改了
+#   - 构建 / 推送 backend + frontend-prod 镜像
+#   - SSH 部署:全栈滚动重启(maintenance flag + 健康检查 + 回滚)
+#   - 影响域名:kb.liii.in / kb.tokenwave.cloud
+#   - 不动 frontend-uat 容器(uat 走自己的 deploy-uat workflow)
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: '部署到生产 kb.liii.in,确认请填 "deploy"'
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE:       ${{ github.repository }}-backend
+  FRONTEND_PROD_IMAGE: ${{ github.repository }}-frontend-prod
+  DOCKER_BUILDKIT: 1
+
+jobs:
+  guard:
+    name: Confirm input
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirm string
+        run: |
+          if [ "${{ inputs.confirm }}" != "deploy" ]; then
+            echo "❌ 必须填 'deploy' 才能触发,当前是 '${{ inputs.confirm }}'"
+            exit 1
+          fi
+          echo "✅ Confirmed: deploying to PROD"
+
+  test:
+    name: Run Tests
+    needs: guard
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: kb_system
+          POSTGRES_USER: kb_admin
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+      qdrant:
+        image: qdrant/qdrant:latest
+        ports:
+          - 6333:6333
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start MinIO manually
+        run: |
+          docker run -d -p 9000:9000 -p 9001:9001 --name minio \
+            -e "MINIO_ROOT_USER=minioadmin" \
+            -e "MINIO_ROOT_PASSWORD=minioadmin" \
+            minio/minio server /data
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pytest pytest-asyncio
+
+      - name: Set up Environment Variables
+        run: |
+          echo "POSTGRES_HOST=localhost" >> $GITHUB_ENV
+          echo "POSTGRES_PORT=5432" >> $GITHUB_ENV
+          echo "POSTGRES_DB=kb_system" >> $GITHUB_ENV
+          echo "POSTGRES_USER=kb_admin" >> $GITHUB_ENV
+          echo "POSTGRES_PASSWORD=password" >> $GITHUB_ENV
+          echo "QDRANT_HOST=localhost" >> $GITHUB_ENV
+          echo "REDIS_URL=redis://localhost:6379/0" >> $GITHUB_ENV
+          echo "MINIO_ENDPOINT=localhost:9000" >> $GITHUB_ENV
+          echo "MINIO_USER=minioadmin" >> $GITHUB_ENV
+          echo "MINIO_PASSWORD=minioadmin" >> $GITHUB_ENV
+          echo "MINIO_BUCKET=kb-documents" >> $GITHUB_ENV
+          echo "EMBEDDING_API_KEY=dummy" >> $GITHUB_ENV
+          echo "RERANK_API_KEY=dummy" >> $GITHUB_ENV
+          echo "ZHIPU_API_KEY=dummy" >> $GITHUB_ENV
+          echo "MINIMAX_API_KEY=dummy" >> $GITHUB_ENV
+          echo "JWT_SECRET_KEY=ci-test-$(openssl rand -hex 16)" >> $GITHUB_ENV
+          echo "KB_ENV=development" >> $GITHUB_ENV
+
+      - name: Initialize Infrastructure
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)/backend
+          python scripts/init_db.py
+          python scripts/init_qdrant.py
+          python scripts/init_minio.py
+
+      - name: Start API Service in background
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)/backend
+          cd backend && uvicorn main:app --host 0.0.0.0 --port 8000 &
+          sleep 5
+
+      - name: Run Tests
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)/backend
+          pytest backend/tests/test_phase0.py -v
+
+  frontend-check:
+    name: Frontend tsc + build
+    needs: guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - run: cd frontend && npm ci --legacy-peer-deps
+      - run: cd frontend && npx tsc --noEmit -p tsconfig.json
+      - run: cd frontend && npm run build
+
+  build-and-push:
+    name: Build & push backend + frontend-prod
+    needs: [test, frontend-check]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=sha,format=short
+            latest
+
+      - name: Build & push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Extract metadata for frontend-prod
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.FRONTEND_PROD_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=sha,format=short
+            latest
+
+      - name: Build & push frontend-prod
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          build-args: |
+            ENV=prod
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha,scope=frontend-prod
+          cache-to: type=gha,mode=max,scope=frontend-prod
+
+  deploy:
+    name: Deploy PROD to server
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute short SHA
+        id: sha
+        run: echo "value=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH }}
+            git pull origin main || echo "Not a git repo or no changes"
+
+            SHORT_SHA="${{ steps.sha.outputs.value }}"
+            export BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-${SHORT_SHA}
+            export FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.FRONTEND_PROD_IMAGE }}:sha-${SHORT_SHA}
+
+            # 备份当前 last-good 以便回滚
+            if [ -f .last-good-sha ]; then
+              cp .last-good-sha .prev-good-sha
+            fi
+
+            # 维护开关
+            sudo mkdir -p /opt/kb-system/run
+            sudo touch /opt/kb-system/run/.maintenance
+
+            # 拉 + 重启 backend / celery_worker / frontend(uat 不动)
+            sudo docker compose pull backend celery_worker frontend
+            sudo docker compose up -d --no-deps backend celery_worker frontend
+
+            # 健康检查
+            HEALTHY=false
+            for i in $(seq 1 24); do
+              if curl -fsS http://127.0.0.1:8000/health > /dev/null 2>&1; then
+                HEALTHY=true
+                echo "✅ Healthy after $((i*5))s"
+                break
+              fi
+              sleep 5
+            done
+
+            if [ "$HEALTHY" = "true" ]; then
+              echo "$SHORT_SHA" > .last-good-sha
+              sudo rm -f /opt/kb-system/run/.maintenance
+              echo "✅ PROD deployed sha-${SHORT_SHA}"
+            else
+              echo "❌ Health check failed after 120s for sha-${SHORT_SHA}"
+              echo "--- backend logs ---"
+              sudo docker compose logs --tail 50 backend || true
+              if [ -f .prev-good-sha ]; then
+                PREV=$(cat .prev-good-sha)
+                echo "回滚到 sha-${PREV}"
+                export BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-${PREV}
+                export FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.FRONTEND_PROD_IMAGE }}:sha-${PREV}
+                sudo docker compose up -d --no-deps backend celery_worker frontend
+                sleep 30
+                sudo rm -f /opt/kb-system/run/.maintenance
+              else
+                echo "⚠️  无 .prev-good-sha,跳过回滚"
+                sudo rm -f /opt/kb-system/run/.maintenance
+              fi
+              exit 1
+            fi
+
+            sudo docker compose ps
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+          SHORT_SHA: ${{ steps.sha.outputs.value }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "DEPLOY_WEBHOOK_URL 未配置,跳过通知"
+            exit 0
+          fi
+          curl -sS -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"❌ KB PROD 部署失败 sha=${SHORT_SHA} ${COMMIT_MSG}\"}}" \
+          || echo "webhook 通知失败"
