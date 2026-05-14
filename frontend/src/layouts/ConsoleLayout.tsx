@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { NavLink, Navigate, Outlet, Link, useLocation } from 'react-router-dom'
 import {
-  MessageSquare, FolderKanban, Mic, BookOpen, ChevronDown, LogOut, KeyRound, Shield, Home,
+  MessageSquare, FolderKanban, Mic, BookOpen, ChevronDown, LogOut, KeyRound, Shield, Home, Search,
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
+import GlobalSearchModal from '../redesign/console/GlobalSearchModal'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -24,6 +25,7 @@ const NAV: NavItem[] = [
 export default function ConsoleLayout() {
   const { user, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const loc = useLocation()
 
@@ -33,6 +35,18 @@ export default function ConsoleLayout() {
     }
     document.addEventListener('mousedown', onClick)
     return () => document.removeEventListener('mousedown', onClick)
+  }, [])
+
+  // ⌘K / Ctrl+K 打开全局搜索
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   const initial = (user?.full_name || user?.username || 'U').trim().charAt(0).toUpperCase()
@@ -80,6 +94,16 @@ export default function ConsoleLayout() {
               </NavLink>
             ))}
           </nav>
+
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            title="全局搜索(⌘K)"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-ink-secondary hover:bg-canvas hover:text-ink rounded-lg transition-colors border border-line"
+          >
+            <Search size={13} />
+            <span className="hidden md:inline text-xs text-ink-muted">⌘K</span>
+          </button>
 
           <div className="relative" ref={menuRef}>
             <button
@@ -172,6 +196,8 @@ export default function ConsoleLayout() {
       >
         <Outlet />
       </main>
+
+      <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   )
 }

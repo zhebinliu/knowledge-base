@@ -3,11 +3,12 @@ import { NavLink, Navigate, Outlet, Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Brain, MessageSquare,
   ClipboardCheck, BookOpen, Settings, Sliders, ChevronDown, LogOut, KeyRound, Shield, Folder,
-  Copy, RefreshCw, Check, Plug, Trash2, AlertCircle, Menu, Sparkles,
+  Copy, RefreshCw, Check, Plug, Trash2, AlertCircle, Menu, Sparkles, Search,
 } from 'lucide-react'
 // BookOpen kept for chunks nav icon
 import { useAuth } from '../auth/AuthContext'
 import { TOKEN_STORAGE_KEY, refreshToken, getMcpKeyStatus, generateMcpKey, revokeMcpKey } from '../api/client'
+import GlobalSearchModal from '../redesign/console/GlobalSearchModal'
 
 /** path → module key 映射(用于 nav 显隐 + 路由守卫) */
 const pathToModule: Record<string, string> = {
@@ -55,8 +56,21 @@ export default function Layout() {
   const [copied, setCopied] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const location = useLocation()
+
+  // ⌘K / Ctrl+K 打开全局搜索
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // Close mobile drawer when route changes
   useEffect(() => { setSidebarOpen(false) }, [location.pathname])
@@ -216,6 +230,15 @@ export default function Layout() {
           >
             <Menu size={18} />
           </button>
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            title="全局搜索(⌘K)"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors border border-gray-200 mr-2"
+          >
+            <Search size={13} />
+            <span className="hidden md:inline text-xs text-gray-400">⌘K</span>
+          </button>
           <div className="relative" ref={ref}>
             <button
               type="button" onClick={() => setOpen((o) => !o)}
@@ -348,6 +371,8 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   )
 }

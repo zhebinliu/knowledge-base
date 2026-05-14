@@ -3,6 +3,14 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  // 防止 liquid-glass-react(CJS 包)被 Vite 预打包时塞入第二份 React,
+  // 导致 "Invalid hook call / mismatching versions" 错误
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+  },
+  optimizeDeps: {
+    include: ['liquid-glass-react'],
+  },
   server: {
     proxy: {
       '/api': {

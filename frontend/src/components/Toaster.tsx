@@ -35,10 +35,10 @@ export const toast = {
   info: (text: string, duration?: number) => emit('info', text, duration),
 }
 
-const KIND_STYLE: Record<ToastKind, { Icon: typeof CheckCircle2; cls: string }> = {
-  success: { Icon: CheckCircle2, cls: 'border-emerald-300 bg-emerald-50 text-emerald-900' },
-  error:   { Icon: AlertCircle,  cls: 'border-rose-300 bg-rose-50 text-rose-900' },
-  info:    { Icon: Info,         cls: 'border-blue-300 bg-blue-50 text-blue-900' },
+const KIND_STYLE: Record<ToastKind, { Icon: typeof CheckCircle2; bg: string; border: string; color: string }> = {
+  success: { Icon: CheckCircle2, bg: 'rgba(236, 253, 245, 0.78)', border: 'rgba(16, 185, 129, 0.40)', color: '#047857' },
+  error:   { Icon: AlertCircle,  bg: 'rgba(255, 241, 242, 0.78)', border: 'rgba(244, 63, 94, 0.40)',  color: '#9F1239' },
+  info:    { Icon: Info,         bg: 'rgba(239, 246, 255, 0.78)', border: 'rgba(59, 130, 246, 0.40)', color: '#1E3A8A' },
 }
 
 export default function Toaster() {
@@ -61,17 +61,27 @@ export default function Toaster() {
   return (
     <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
       {messages.map(m => {
-        const { Icon, cls } = KIND_STYLE[m.kind]
+        const { Icon, bg, border, color } = KIND_STYLE[m.kind]
         return (
           <div
             key={m.id}
-            className={`pointer-events-auto flex items-start gap-2 px-3 py-2.5 rounded-lg border shadow-md max-w-md text-sm ${cls} animate-in slide-in-from-right`}
+            className="pointer-events-auto flex items-start gap-2 px-3 py-2.5 max-w-md text-sm animate-in slide-in-from-right"
+            style={{
+              background: bg,
+              backdropFilter: 'blur(24px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+              border: `1px solid ${border}`,
+              borderRadius: 10,
+              color,
+              boxShadow: '0 12px 28px -8px rgba(15, 18, 36, 0.18), inset 0 1px 0 rgba(255,255,255,0.55)',
+            }}
           >
             <Icon size={15} className="shrink-0 mt-0.5" />
             <span className="flex-1 leading-relaxed whitespace-pre-wrap break-words">{m.text}</span>
             <button
               onClick={() => setMessages(prev => prev.filter(x => x.id !== m.id))}
               className="shrink-0 opacity-50 hover:opacity-100 transition-opacity"
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit' }}
             >
               <X size={13} />
             </button>

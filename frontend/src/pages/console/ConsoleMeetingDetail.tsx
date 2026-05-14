@@ -43,7 +43,7 @@ const TABS: Array<{ key: Tab; label: string; Icon: typeof Info }> = [
   { key: 'actions',      label: '操作',     Icon: SettingsIcon },
 ]
 
-function StatusBadge({ status }: { status: MeetingStatus }) {
+export function StatusBadge({ status }: { status: MeetingStatus }) {
   const cfg = {
     recording:  { cls: 'bg-amber-50 border-amber-200 text-amber-700',     Icon: Mic,           label: '录制中' },
     processing: { cls: 'bg-blue-50 border-blue-200 text-blue-700',         Icon: Loader2,       label: '处理中' },
@@ -60,7 +60,7 @@ function StatusBadge({ status }: { status: MeetingStatus }) {
   )
 }
 
-function fmt(iso: string | null | undefined) {
+export function fmt(iso: string | null | undefined) {
   if (!iso) return '-'
   const d = new Date(iso)
   return d.toLocaleString('zh-CN', { hour12: false })
@@ -68,7 +68,7 @@ function fmt(iso: string | null | undefined) {
 
 // ── Tab: Overview ─────────────────────────────────────────────────────────
 
-function OverviewTab({ meeting }: { meeting: Meeting }) {
+export function OverviewTab({ meeting }: { meeting: Meeting }) {
   const qc = useQueryClient()
   const [projectId, setProjectId] = useState(meeting.project_id || '')
   useEffect(() => { setProjectId(meeting.project_id || '') }, [meeting.project_id])
@@ -161,7 +161,7 @@ function Field({ label, value, children }: { label: string; value?: string; chil
 
 // ── Tab: Transcript ──────────────────────────────────────────────────────
 
-function TranscriptTab({ meeting }: { meeting: Meeting }) {
+export function TranscriptTab({ meeting }: { meeting: Meeting }) {
   const qc = useQueryClient()
   const [raw, setRaw] = useState(meeting.raw_transcript || '')
   const [polished, setPolished] = useState(meeting.polished_transcript || '')
@@ -259,7 +259,7 @@ function TranscriptTab({ meeting }: { meeting: Meeting }) {
 
 // ── Tab: Minutes ─────────────────────────────────────────────────────────
 
-function MinutesTab({ meeting }: { meeting: Meeting }) {
+export function MinutesTab({ meeting }: { meeting: Meeting }) {
   const qc = useQueryClient()
   const m: MeetingMinutes = meeting.meeting_minutes || {}
   const [editing, setEditing] = useState(false)
@@ -871,7 +871,7 @@ function Th({ children, className }: { children: React.ReactNode; className?: st
 
 // ── Tab: Requirements ────────────────────────────────────────────────────
 
-function RequirementsTab({ meeting }: { meeting: Meeting }) {
+export function RequirementsTab({ meeting }: { meeting: Meeting }) {
   const qc = useQueryClient()
   const reqs = meeting.requirements || []
   const [filter, setFilter] = useState<string>('all')
@@ -1164,7 +1164,7 @@ const SIDE_LABEL: Record<string, { label: string; cls: string }> = {
   unknown:  { label: '未知',  cls: 'bg-gray-50 text-ink-muted border-line' },
 }
 
-function StakeholdersTab({ meeting }: { meeting: Meeting }) {
+export function StakeholdersTab({ meeting }: { meeting: Meeting }) {
   const qc = useQueryClient()
   const smap = meeting.stakeholder_map || { stakeholders: [], relations: [] }
   const [editIdx, setEditIdx] = useState<number | null>(null)
@@ -1632,7 +1632,7 @@ function FeishuCredsCard() {
   )
 }
 
-function ActionsTab({ meeting }: { meeting: Meeting }) {
+export function ActionsTab({ meeting }: { meeting: Meeting }) {
   const qc = useQueryClient()
   const [bitableToken, setBitableToken] = useState('')
   const [bitableTable, setBitableTable] = useState('')

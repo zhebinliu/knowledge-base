@@ -54,6 +54,39 @@ const DIMENSION_LABEL: Record<string, string> = {
   jargon:       '黑话',
 }
 
+/** 模块 key → 中文标题(跟后端 insight_modules.py / outline_modules.py / survey_modules.py 对齐) */
+const MODULE_TITLE: Record<string, string> = {
+  // 项目洞察 M1–M10
+  M1_exec_summary: '执行摘要',
+  M2_project_snapshot: '项目快照',
+  M3_health_radar: '健康度雷达',
+  M4_stakeholder_map: '干系人画像',
+  M5_industry_context: '行业上下文',
+  M6_key_findings: '关键发现',
+  M7_risk_raid: '风险与议题',
+  M8_dependency_milestone: '依赖与里程碑',
+  M9_industry_benchmark: '行业最佳实践对照',
+  M10_next_actions: '下一步建议',
+  // 调研大纲 M1–M7
+  M1_outline_objective: '调研目标与范围',
+  M2_outline_method: '调研方法与节奏',
+  M3_outline_schedule: '调研日程表',
+  M4_outline_customer_materials: '客户准备材料',
+  M5_outline_team_raci: '我方团队分工',
+  M6_outline_deliverables: '调研产出物清单',
+  M7_outline_handoff: '衔接方案设计',
+  // 调研问卷
+  L1_exec_alignment: '高管战略对齐',
+}
+
+function parseModuleKey(key: string): { prefix: string; title: string } | null {
+  const m = key.match(/^([ML])(\d+)_/)
+  if (!m) return null
+  const title = MODULE_TITLE[key]
+  if (!title) return null
+  return { prefix: `${m[1]}${m[2]}`, title }
+}
+
 export default function ChallengeRoundsPanel({ bundleId, challengeSummary }: Props) {
   // 一律默认折叠 — 顶部 bar 已显示轮数 + 最终 verdict,详情按需展开
   // (原 v3.4 行为:not pass 时默认展开,实测太占位置)
@@ -160,10 +193,19 @@ function RoundCard({
   }
 
   return (
-    <div className="px-4 py-3 border-b border-line last:border-b-0">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs font-bold text-ink">第 {round.round_idx + 1} 轮</span>
-        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${meta.bg}`}
+    <div className="px-4 py-3.5 border-b border-line last:border-b-0">
+      {/* ── Round header:橙色圆形编号 + verdict 胶囊 ── */}
+      <div className="flex items-center gap-2.5 mb-1.5">
+        <span
+          className="shrink-0 inline-flex items-center justify-center text-white text-xs font-bold"
+          style={{
+            width: 22, height: 22, borderRadius: '50%',
+            background: 'linear-gradient(135deg, #FF8D1A, #B5500A)',
+            boxShadow: '0 2px 6px rgba(255,141,26,0.30)',
+          }}
+        >{round.round_idx + 1}</span>
+        <span className="text-[13px] font-bold text-ink">第 {round.round_idx + 1} 轮</span>
+        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${meta.bg}`}
               style={{ color: meta.color }}>
           {meta.label}
         </span>
@@ -177,13 +219,23 @@ function RoundCard({
         )}
       </div>
 
+      {/* ── Summary 引言:左侧橙色色带 + 浅橙底 ── */}
       {c?.summary && (
-        <p className="text-[12px] text-ink-secondary leading-snug mb-2 italic">「{c.summary}」</p>
+        <div
+          className="px-3 py-2.5 mb-3 rounded-lg text-[13px] leading-relaxed text-ink-secondary"
+          style={{
+            background: 'rgba(255,141,26,0.05)',
+            border: '1px solid rgba(255,141,26,0.15)',
+            borderLeft: '3px solid #FF8D1A',
+          }}
+        >
+          {c.summary}
+        </div>
       )}
 
       {/* parse_failed 时展示原始 LLM 输出供 debug */}
       {round.critique_raw && (
-        <details className="mb-2 text-[11px]">
+        <details className="mb-2.5 text-[11px]">
           <summary className="cursor-pointer text-amber-700 hover:text-amber-900 select-none">
             🔍 查看挑战器原始输出 (debug)
           </summary>
@@ -194,53 +246,104 @@ function RoundCard({
       )}
 
       {grouped.size === 0 && c && c.verdict === 'pass' && (
-        <div className="text-[11px] text-emerald-700 flex items-center gap-1">
-          <CheckCircle2 size={11} /> 本轮挑战者认为没有显著问题。
+        <div className="text-[12.5px] text-emerald-700 flex items-center gap-1.5">
+          <CheckCircle2 size={14} /> 本轮挑战者认为没有显著问题。
         </div>
       )}
 
-      {Array.from(grouped.entries()).map(([mk, issues]) => (
-        <div key={mk} className="mb-2 last:mb-0">
-          <div className="text-[11px] font-semibold text-ink mb-1 font-mono">
-            {mk === '_global' ? '🌐 全局' : mk}
-          </div>
-          <div className="space-y-1.5 pl-3">
-            {issues.map((it, i) => {
-              const sev = SEVERITY_META[it.severity] ?? SEVERITY_META['minor']
-              const SevIcon = it.severity === 'blocker' ? AlertCircle :
-                              it.severity === 'major'   ? AlertTriangle : Lightbulb
-              const fixed = isFixed(it)
-              return (
-                <div key={i} className={`text-[11px] leading-snug ${fixed ? 'opacity-60' : ''}`}>
-                  <div className="flex items-start gap-1.5">
-                    <span className={`px-1 py-0.5 rounded text-[9px] font-medium ${sev.bg} shrink-0 mt-0.5`}
-                          style={{ color: sev.color }}>
-                      <SevIcon size={9} className="inline mr-0.5" />{sev.label}
-                    </span>
-                    <span className="px-1 py-0.5 rounded bg-slate-100 text-slate-600 text-[9px] shrink-0 mt-0.5">
-                      {DIMENSION_LABEL[it.dimension] || it.dimension}
-                    </span>
-                    {fixed && (
-                      <span className="px-1 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[9px] shrink-0 mt-0.5 font-medium"
-                            title="该问题在最后一轮挑战中未再出现,视为已修复">
-                        ✓ 已修复
-                      </span>
-                    )}
-                  </div>
-                  <div className={`mt-1 ${fixed ? 'text-ink-muted line-through decoration-emerald-300' : 'text-ink-secondary'}`}>
-                    {it.text}
-                  </div>
-                  {it.suggestion && !fixed && (
-                    <div className="mt-0.5 pl-2 border-l-2 border-orange-200 text-ink-muted">
-                      改写建议: {it.suggestion}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+      {/* ── Module 分组 ── */}
+      <div className="flex flex-col gap-3.5">
+        {Array.from(grouped.entries()).map(([mk, issues]) => (
+          <ModuleGroup key={mk} moduleKey={mk} issues={issues} isFixed={isFixed} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** 单 module 分组:模块名做小标题 + 下方 issue 列表 */
+function ModuleGroup({ moduleKey, issues, isFixed }: {
+  moduleKey: string
+  issues: ChallengeIssue[]
+  isFixed: (it: ChallengeIssue) => boolean
+}) {
+  const isGlobal = moduleKey === '_global'
+  const parsed = parseModuleKey(moduleKey)
+  return (
+    <div>
+      <div
+        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 mb-2 rounded text-[11px] font-semibold border ${
+          isGlobal ? 'text-violet-700 bg-violet-50 border-violet-200' : 'text-ink bg-slate-50 border-slate-200'
+        }`}
+      >
+        {isGlobal ? (
+          <span>🌐 全局</span>
+        ) : parsed ? (
+          <>
+            <span
+              className="text-ink-muted font-medium"
+              style={{ fontFamily: 'ui-monospace, monospace', letterSpacing: '-0.01em' }}
+            >{parsed.prefix}</span>
+            <span className="text-ink font-semibold">{parsed.title}</span>
+          </>
+        ) : (
+          <span style={{ fontFamily: 'ui-monospace, monospace', letterSpacing: '-0.01em' }}>{moduleKey}</span>
+        )}
+        <span className="text-ink-muted font-normal">· {issues.length} 项</span>
+      </div>
+      <div className="flex flex-col gap-2.5 pl-0.5">
+        {issues.map((it, i) => <IssueRow key={i} issue={it} fixed={isFixed(it)} />)}
+      </div>
+    </div>
+  )
+}
+
+/** 单条 issue:左侧 severity 色带 → 问题主文 → 翠绿建议条 */
+function IssueRow({ issue, fixed }: { issue: ChallengeIssue; fixed: boolean }) {
+  const sev = SEVERITY_META[issue.severity] ?? SEVERITY_META['minor']
+  const SevIcon = issue.severity === 'blocker' ? AlertCircle :
+                  issue.severity === 'major'   ? AlertTriangle : Lightbulb
+  const dimLabel = DIMENSION_LABEL[issue.dimension] || issue.dimension
+
+  return (
+    <div
+      className={fixed ? 'opacity-65' : ''}
+      style={{
+        position: 'relative',
+        paddingLeft: 12,
+        borderLeft: `3px solid ${fixed ? 'rgba(5,150,105,.45)' : sev.color}`,
+      }}
+    >
+      {/* 顶行:severity icon + 标签 · 维度 */}
+      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+        <SevIcon size={12} style={{ color: fixed ? '#047857' : sev.color }} className="shrink-0" />
+        <span
+          className="text-[11.5px] font-semibold"
+          style={{ color: fixed ? '#047857' : sev.color }}
+        >{fixed ? '已修复' : sev.label}</span>
+        <span className="text-ink-muted">·</span>
+        <span className="text-[11.5px] text-ink-muted">{dimLabel}</span>
+      </div>
+
+      {/* 问题正文 */}
+      <div className={`text-[12.5px] leading-relaxed ${fixed ? 'text-ink-muted line-through decoration-emerald-300' : 'text-ink'}`}>
+        {issue.text}
+      </div>
+
+      {/* 改写建议:翠绿待办高亮条 */}
+      {issue.suggestion && !fixed && (
+        <div
+          className="mt-1.5 px-2.5 py-2 rounded text-[12px] leading-relaxed flex gap-1.5"
+          style={{
+            background: 'rgba(16,185,129,0.06)',
+            border: '1px solid rgba(16,185,129,0.20)',
+            color: '#065F46',
+          }}
+        >
+          <Lightbulb size={12} style={{ flexShrink: 0, marginTop: 2, color: '#10B981' }} />
+          <span><span className="font-semibold">改写建议</span> · {issue.suggestion}</span>
         </div>
-      ))}
+      )}
     </div>
   )
 }
