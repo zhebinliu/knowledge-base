@@ -148,24 +148,33 @@ def _row_to_dict(row: SmartAdvice, is_fresh: bool) -> dict:
 
 
 async def _gather_context(s: AsyncSession, project_id: str) -> dict[str, Any]:
-    """收集生成 advice 所需的所有 inputs。"""
+    """收集生成 advice 所需的 inputs — 核心是「项目状态(stage flow)」+「行业包详细 spec」, 其他作辅助。"""
     proj = await s.get(Project, project_id)
     if not proj:
         raise ValueError(f"project not found: {project_id}")
 
-    # Brief 各 kind
-    briefs_res = await s.execute(
-        select(ProjectBrief).where(ProjectBrief.project_id == project_id)
-    )
-    briefs = {b.output_kind: b.fields for b in briefs_res.scalars()}
-
-    # 已生成的 outputs (CuratedBundle)
+    # ── 1. 已生成 outputs (用于推算 stage status) ──
     bundles_res = await s.execute(
         select(CuratedBundle)
         .where(CuratedBundle.project_id == project_id, CuratedBundle.status == "done")
         .order_by(CuratedBundle.created_at.desc())
     )
     bundles = bundles_res.scalars().all()
+    done_kinds = {b.kind for b in bundles}
+
+    # ── 2. 项目状态(完整 stage flow + 当前阶段)── 核心 context #1
+    stage_flow_status = await _gather_stage_flow_status(done_kinds)
+
+    # ── 3. 行业包(详细字段 spec)── 核心 context #2
+    industry_pack_detail = _gather_industry_pack_detail(proj.industry)
+
+    # ── 4. 辅助 inputs ──
+    # Brief 各 kind
+    briefs_res = await s.execute(
+        select(ProjectBrief).where(ProjectBrief.project_id == project_id)
+    )
+    briefs = {b.output_kind: b.fields for b in briefs_res.scalars()}
+
     outputs_summary = [
         {
             "kind": b.kind,
@@ -187,30 +196,6 @@ async def _gather_context(s: AsyncSession, project_id: str) -> dict[str, Any]:
         for r in docs_res.all()
     ]
 
-    # 行业包
-    industry_pack = None
-    if proj.industry:
-        pack = get_pack(proj.industry)
-        if pack:
-            industry_pack = {
-                "industry": pack.industry,
-                "display_name": pack.display_name,
-                "fields": list(pack.field_patches.keys()) if pack.field_patches else [],
-            }
-
-    # 当前 LTC 阶段判定:基于已生成的输出物粗略判断(insight done → 在调研; survey done → 在蓝图; ...)
-    has = {b.kind for b in bundles}
-    if "kickoff_pptx" in has or "kickoff_html" in has:
-        current_stage = "蓝图阶段"
-    elif "survey" in has:
-        current_stage = "需求调研完成 → 进入蓝图设计"
-    elif "insight" in has:
-        current_stage = "项目洞察完成 → 进入需求调研"
-    elif docs:
-        current_stage = "立项资料整理中 → 待生成项目洞察"
-    else:
-        current_stage = "项目刚启动 → 待上传资料"
-
     return {
         "project": {
             "id": proj.id,
@@ -223,13 +208,99 @@ async def _gather_context(s: AsyncSession, project_id: str) -> dict[str, Any]:
             "customer_profile": proj.customer_profile,
             "kickoff_date": proj.kickoff_date.isoformat() if proj.kickoff_date else None,
         },
-        "current_stage": current_stage,
-        "industry_pack": industry_pack,
+        # —— 核心 context #1:项目状态(完整阶段流程 + 当前位于哪一步)——
+        "project_status": stage_flow_status,
+        # —— 核心 context #2:行业包(详细字段 spec)——
+        "industry_pack": industry_pack_detail,
+        # —— 辅助 ——
         "briefs_kinds": list(briefs.keys()),
         "outputs": outputs_summary,
         "docs_count": len(docs),
         "docs_by_type": _count_by(docs, "doc_type"),
         "docs_recent": docs[:10],
+    }
+
+
+async def _gather_stage_flow_status(done_kinds: set[str]) -> dict[str, Any]:
+    """读 stage_flow 配置, 算每个 stage 的状态, 返回完整列表 + 当前活跃 stage。"""
+    # 复用 stage_flow API 的 _read (内部 helper)
+    try:
+        from api.stage_flow import _read as _read_stage_flow
+        stages, _is_default = await _read_stage_flow()
+    except Exception:
+        stages = []
+
+    stages_with_status: list[dict] = []
+    current_idx: int | None = None  # 第一个非 done 的 active stage
+
+    for i, st in enumerate(stages):
+        if not st.get("active"):
+            stages_with_status.append({**st, "status": "locked"})
+            continue
+        # 该 stage 涉及的 kinds
+        kinds: list[str] = []
+        if st.get("kind"):
+            kinds.append(st["kind"])
+        for sk in (st.get("sub_kinds") or []):
+            if sk.get("kind"):
+                kinds.append(sk["kind"])
+        # 推算 status
+        if not kinds:
+            status = "idle"
+        elif all(k in done_kinds for k in kinds):
+            status = "done"
+        elif any(k in done_kinds for k in kinds):
+            status = "partial"
+        else:
+            status = "idle"
+        stages_with_status.append({
+            "key": st.get("key"),
+            "label": st.get("label"),
+            "kinds": kinds,
+            "active": True,
+            "status": status,
+        })
+        if current_idx is None and status != "done":
+            current_idx = len(stages_with_status) - 1
+
+    # 当前阶段:第一个非 done 的 active;若全 done, 则取最后一个
+    current_stage = None
+    if stages_with_status:
+        active_idx = current_idx if current_idx is not None else (len(stages_with_status) - 1)
+        current_stage = stages_with_status[active_idx]
+
+    return {
+        "stages": stages_with_status,
+        "current_stage": current_stage,
+        "summary": _stage_summary(current_stage, stages_with_status),
+    }
+
+
+def _stage_summary(current: dict | None, all_stages: list[dict]) -> str:
+    """生成一句人话的状态摘要, 给 LLM 一个简洁的入手描述。"""
+    if not current:
+        return "项目尚未配置阶段"
+    if current.get("status") == "done":
+        return f"全部阶段已完成(最后阶段:{current.get('label')})"
+    done_count = sum(1 for s in all_stages if s.get("status") == "done")
+    total_active = sum(1 for s in all_stages if s.get("active"))
+    return f"当前停留在「{current.get('label')}」阶段(状态={current.get('status')}, 已完成 {done_count}/{total_active} 个阶段)"
+
+
+def _gather_industry_pack_detail(industry: str | None) -> dict | None:
+    """暴露完整 field_patches spec, 不只是字段名 — 给 LLM 用 ask 提示推断该问的方向。"""
+    if not industry:
+        return None
+    pack = get_pack(industry)
+    if not pack:
+        return None
+    return {
+        "industry": pack.industry,
+        "display_name": pack.display_name,
+        "fields": pack.field_patches or {},          # 完整 dict {key: {label, ask, options?}}
+        "pain_points": pack.pain_points or [],
+        "must_visit_departments": pack.must_visit_departments or [],
+        "typical_cases": [c.get("name") for c in (pack.cases or []) if isinstance(c, dict)],
     }
 
 
@@ -252,21 +323,27 @@ def _compute_hash(ctx: dict) -> str:
 # ────────────────────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = """你是 CRM 实施项目的资深咨询顾问 (MBB 风格, 10 年以上经验)。
-你的任务: 综合项目目前所有信息 + 行业最佳实践, 给项目经理 (PM) 一段「下一步该做什么」的清晰建议, 同时列出当前最值得关注的风险。
+你的任务: 综合「项目状态」+「行业包」两个核心维度, 给项目经理 (PM) 「下一步该做什么 + 当前关注的风险」。
 
-输出格式严格按 JSON, 字段如下:
+输出格式严格按 JSON:
 {
-  "advice_md": "<200-400 字的 markdown 主建议正文, 围绕「当前阶段 + 下一步动作 + 为什么」展开>",
-  "next_steps": ["<下一步动作 1>", "<下一步动作 2>", "<动作 3, 共 3-5 条>"],
-  "risks": ["<风险 1>", "<风险 2, 共 2-4 条>"]
+  "advice_md": "<200-400 字 markdown 主建议, 围绕「当前阶段 + 下一步动作 + 为什么」>",
+  "next_steps": ["<动作 1>", "<动作 2>", "<动作 3, 3-5 条>"],
+  "risks": ["<风险 1>", "<风险 2, 2-4 条>"]
 }
 
-要求:
-- 紧贴项目当前阶段 (current_stage), 不要说项目还没到的事
-- 行业相关建议优先用 industry_pack 提到的字段方向
+核心 context 优先级:
+- **project_status.current_stage**: 当前停在哪个阶段, 状态如何 — 建议必须紧贴这个阶段, 不要谈未来阶段
+- **industry_pack.fields**: 行业专属字段(每个有 label + ask), 这是该行业必问 / 必关注的方向, 优先围绕这些给建议和风险
+- **industry_pack.pain_points / typical_cases**: 行业典型痛点 / 标杆案例, 用于推断风险
+
+辅助 context (作支撑, 不主导):
+- briefs_kinds / outputs / docs_count: 已有材料情况 — 缺料时建议 PM 先去补
+
+写作要求:
+- 中文, 简洁实用, 避免空话套话
 - 没有信息支撑的事不要瞎猜 — 实在没料就建议 PM 先去补什么资料
-- 中文输出, 简洁实用, 避免空话套话
-- 严格输出 JSON, 不要加 markdown 围栏 (```), 不要加任何解释"""
+- 严格输出 JSON, 不要加 markdown 围栏 ```, 不要加任何解释"""
 
 
 async def _generate_with_llm(ctx: dict) -> tuple[str, list[str], list[str]]:
