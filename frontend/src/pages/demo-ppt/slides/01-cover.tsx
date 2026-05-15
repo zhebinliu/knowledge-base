@@ -36,9 +36,9 @@ export default function Slide01Cover() {
           className="ppt-stagger-row font-extrabold leading-[0.95] tracking-tight"
           style={{ fontSize: fz.hero, marginBottom: '6cqi' }}
         >
-          实施侧 AI 提效
+          北区 AI 工具
           <br />
-          <GradText>经营汇报</GradText>
+          <GradText>建设成果分享</GradText>
         </h1>
 
         {/* 汇报背景三段 */}
