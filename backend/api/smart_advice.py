@@ -30,7 +30,8 @@ async def _ensure_project_access(
     proj = await session.get(Project, project_id)
     if not proj:
         raise HTTPException(404, "project not found")
-    await assert_project_access(session, project_id, user)
+    # signature: assert_project_access(user, project_id, level)
+    await assert_project_access(user, project_id, "read")
     return proj
 
 
