@@ -175,14 +175,15 @@
   align-items: center;
   gap: 12px;
   font-size: 12.5px !important;
-  color: #1A1D2E !important;
+  color: #FFFFFF !important;
   font-weight: 700 !important;
   line-height: 1;
   white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
   font-family: inherit !important;
   text-shadow: 0 0 4px rgba(255, 255, 255, 0.9);
 }
-.rd-floatbar-inner strong { color: #000 !important; font-weight: 800 !important; }
+.rd-floatbar-inner strong { color: #FFFFFF !important; font-weight: 800 !important; }
 .rd-floatbar-logo {
   width: 26px; height: 26px;
   border-radius: 8px;
@@ -201,14 +202,14 @@
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
-  color: #1A1D2E;
+  color: var(--rd-text);
   text-decoration: none;
   transition: color .2s, background .2s;
 }
-.rd-floatbar-link:hover { color: var(--rd-text); background: rgba(15, 18, 36, 0.06); }
+.rd-floatbar-link:hover { color: var(--rd-text); background: rgba(255, 255, 255, 0.08); }
 .rd-floatbar-link.is-active {
   color: var(--rd-accent-2);
-  background: rgba(255, 141, 26, .14);
+  background: rgba(255, 141, 26, .18);
 }
 
 .rd-dock-item {
@@ -220,9 +221,8 @@
   gap: 4px;
   padding: 10px 16px 9px;
   border-radius: 999px;
-  /* !important 是必须 — LiquidGlass 内部 children wrapper 用 inline style 设了 text-white + font shorthand。
-     对齐"项目卡标题"的视觉密度:color #1A1D2E + font-weight 700,无 text-shadow */
-  color: #1A1D2E !important;
+  /* 深色 PPT 风:白色文字 + 轻微 text-shadow 防字虚 */
+  color: #FFFFFF !important;
   font-size: 12.5px !important;
   font-weight: 700 !important;
   letter-spacing: 0.01em;
@@ -234,17 +234,19 @@
   min-width: 64px;
   font-family: inherit !important;
   white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 .rd-dock-item svg {
-  stroke: #1A1D2E;
+  stroke: #FFFFFF;
   stroke-width: 2.2;
   width: 19px !important;
   height: 19px !important;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
 }
 .rd-dock-item:hover {
   transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.55);
-  box-shadow: inset 0 0 0 1px rgba(15, 18, 36, 0.06);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
 }
 .rd-dock-item.is-active {
   color: #FFFFFF !important;
