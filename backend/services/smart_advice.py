@@ -178,8 +178,6 @@ async def _gather_context(s: AsyncSession, project_id: str) -> dict[str, Any]:
     outputs_summary = [
         {
             "kind": b.kind,
-            "agentic_version": b.agentic_version,
-            "validity_status": b.validity_status,
             "created_at": b.created_at.isoformat() if b.created_at else None,
         }
         for b in bundles
