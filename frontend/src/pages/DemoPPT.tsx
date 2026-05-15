@@ -50,13 +50,59 @@ const SLIDES: SlideDef[] = [
   { id: '15', title: '收尾 · 呼应两目的',             component: Slide15 },
 ]
 
+// ── 选页持久化 ──────────────────────────────────────────────────────────────
+const SELECTED_LS_KEY = 'demo-ppt-selected-v1'
+
+function loadSelected(): Set<string> {
+  try {
+    const raw = localStorage.getItem(SELECTED_LS_KEY)
+    if (!raw) return new Set(SLIDES.map((s) => s.id))   // 默认全选
+    const arr = JSON.parse(raw)
+    if (Array.isArray(arr) && arr.length > 0) return new Set(arr)
+    return new Set(SLIDES.map((s) => s.id))
+  } catch {
+    return new Set(SLIDES.map((s) => s.id))
+  }
+}
+
+function saveSelected(ids: Set<string>) {
+  try {
+    localStorage.setItem(SELECTED_LS_KEY, JSON.stringify([...ids]))
+  } catch {}
+}
+
+// 内置预设
+const PRESETS: { name: string; ids: string[] }[] = [
+  { name: '完整 15 页',    ids: SLIDES.map((s) => s.id) },
+  { name: '核心叙事 (5)',   ids: ['01', '02', '03', '11', '15'] },
+  { name: '人效段 (4)',     ids: ['01', '04', '05', '06'] },
+  { name: '专业性段 (5)',   ids: ['01', '07', '08', '09', '10'] },
+  { name: '仅创新点 (3)',   ids: ['09', '10', '11'] },
+  { name: '5 分钟简版 (6)', ids: ['01', '02', '06', '11', '14', '15'] },
+]
+
 export default function DemoPPT() {
   const [idx, setIdx] = useState(0)
   const [direction, setDirection] = useState<1 | -1>(1)
   const [showToolbar, setShowToolbar] = useState(true)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => loadSelected())
   const stageRef = useRef<HTMLDivElement>(null)
   const slideRefs = useRef<Array<HTMLDivElement | null>>([])
   const toolbarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 派生 visibleSlides — 只渲染选中的, 按原 SLIDES 顺序
+  const visibleSlides = SLIDES.filter((s) => selectedIds.has(s.id))
+  const total = visibleSlides.length || SLIDES.length          // 一个都没选时回退到全部(避免空白)
+  const effectiveSlides = visibleSlides.length ? visibleSlides : SLIDES
+
+  // 持久化 + 越界保护
+  useEffect(() => {
+    saveSelected(selectedIds)
+  }, [selectedIds])
+  useEffect(() => {
+    if (idx >= total) setIdx(Math.max(0, total - 1))
+  }, [total, idx])
 
   // ── 文档标题 + 隐藏滚动条 ─────────────────────────────────────────────
   useEffect(() => {
@@ -74,11 +120,11 @@ export default function DemoPPT() {
   // ── 切换函数 ───────────────────────────────────────────────────────────
   const go = useCallback((next: number) => {
     setIdx((cur) => {
-      const clamped = Math.max(0, Math.min(SLIDES.length - 1, next))
+      const clamped = Math.max(0, Math.min(total - 1, next))
       setDirection(clamped >= cur ? 1 : -1)
       return clamped
     })
-  }, [])
+  }, [total])
 
   const next = useCallback(() => go(idx + 1), [go, idx])
   const prev = useCallback(() => go(idx - 1), [go, idx])
@@ -87,6 +133,11 @@ export default function DemoPPT() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      // picker 打开时 Esc 关掉, 不切页
+      if (pickerOpen && e.key === 'Escape') {
+        e.preventDefault(); setPickerOpen(false); return
+      }
+      if (pickerOpen) return                                  // picker 打开时不响应翻页
       switch (e.key) {
         case 'ArrowRight':
         case 'PageDown':
@@ -98,10 +149,13 @@ export default function DemoPPT() {
         case 'Home':
           e.preventDefault(); go(0); break
         case 'End':
-          e.preventDefault(); go(SLIDES.length - 1); break
+          e.preventDefault(); go(total - 1); break
         case 'f':
         case 'F':
           e.preventDefault(); toggleFullscreen(); break
+        case 'p':
+        case 'P':
+          e.preventDefault(); setPickerOpen((v) => !v); break
         default:
           // 数字键 1-9 跳页
           if (/^[1-9]$/.test(e.key)) {
@@ -112,7 +166,7 @@ export default function DemoPPT() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [next, prev, go])
+  }, [next, prev, go, total, pickerOpen])
 
   // ── 进场后, 给当前 slide 内所有 stagger 节点分配 animationDelay ──────
   useEffect(() => {
@@ -167,15 +221,15 @@ export default function DemoPPT() {
       className={`ppt-stage ${showToolbar ? 'show-toolbar' : ''}`}
       tabIndex={0}
     >
-      {/* 顶部进度条(贴 stage 顶, 不是 frame)*/}
+      {/* 顶部进度条 — 按可见页计算 */}
       <div
         className="ppt-progress-bar"
-        style={{ width: `${((idx + 1) / SLIDES.length) * 100}%` }}
+        style={{ width: `${((idx + 1) / total) * 100}%` }}
       />
 
-      {/* 16:9 容器 — 纯净, 不放任何 UI chrome */}
+      {/* 16:9 容器 — 纯净, 只渲染选中的页 */}
       <div className="ppt-frame">
-        {SLIDES.map((s, i) => {
+        {effectiveSlides.map((s, i) => {
           const isActive = i === idx
           const isLeavingBack = !isActive && i < idx && direction === 1
           const Comp = s.component
@@ -205,12 +259,12 @@ export default function DemoPPT() {
       <div className="ppt-toolbar">
         <button onClick={prev} aria-label="上一页">←</button>
         <span className="font-mono">
-          {String(idx + 1).padStart(2, '0')} / {String(SLIDES.length).padStart(2, '0')}
+          {String(idx + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}
         </span>
         <button onClick={next} aria-label="下一页">→</button>
         <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.15)' }} />
         <div className="ppt-dots">
-          {SLIDES.map((s, i) => (
+          {effectiveSlides.map((s, i) => (
             <button
               key={s.id}
               onClick={() => go(i)}
@@ -221,8 +275,221 @@ export default function DemoPPT() {
           ))}
         </div>
         <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.15)' }} />
+        <button onClick={() => setPickerOpen(true)} title="选择展示的页 (P)">☰ 选页</button>
         <button onClick={toggleFullscreen} title="全屏 (F)">⛶</button>
       </div>
+
+      {/* ── 选页 drawer ── */}
+      {pickerOpen && (
+        <SlidePicker
+          allSlides={SLIDES}
+          selectedIds={selectedIds}
+          onChange={setSelectedIds}
+          onClose={() => setPickerOpen(false)}
+          onJumpTo={(slideId) => {
+            // 跳到该页(若它已被勾选);未勾选则先勾上
+            setSelectedIds((cur) => {
+              if (cur.has(slideId)) return cur
+              const next = new Set(cur)
+              next.add(slideId)
+              return next
+            })
+            // 等下一个 effect tick 再算 idx
+            setTimeout(() => {
+              const newVisible = SLIDES.filter((s) => {
+                const ids = loadSelected()
+                return ids.has(s.id) || s.id === slideId
+              })
+              const targetIdx = newVisible.findIndex((s) => s.id === slideId)
+              if (targetIdx >= 0) setIdx(targetIdx)
+              setPickerOpen(false)
+            }, 50)
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+// ── SlidePicker ─────────────────────────────────────────────────────────────
+
+function SlidePicker({
+  allSlides, selectedIds, onChange, onClose, onJumpTo,
+}: {
+  allSlides: SlideDef[]
+  selectedIds: Set<string>
+  onChange: (next: Set<string>) => void
+  onClose: () => void
+  onJumpTo: (slideId: string) => void
+}) {
+  const toggle = (id: string) => {
+    const next = new Set(selectedIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    onChange(next)
+  }
+  const selectedCount = allSlides.filter((s) => selectedIds.has(s.id)).length
+  const applyPreset = (ids: string[]) => onChange(new Set(ids))
+
+  return (
+    <>
+      {/* 遮罩 */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+          backdropFilter: 'blur(4px)', zIndex: 90, animation: 'ppt-stagger-in 200ms ease',
+        }}
+      />
+      {/* 抽屉 */}
+      <div
+        style={{
+          position: 'fixed', top: 0, right: 0, bottom: 0,
+          width: 'min(420px, 90vw)',
+          background: 'rgba(20, 25, 40, 0.96)',
+          backdropFilter: 'blur(24px)',
+          borderLeft: '1px solid rgba(255, 141, 26, 0.30)',
+          zIndex: 95, color: '#fff',
+          display: 'flex', flexDirection: 'column',
+          fontFamily: 'inherit',
+          boxShadow: '-12px 0 48px rgba(0,0,0,0.7)',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: '16px 20px',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 11, letterSpacing: '0.3em', color: '#FFB066', fontWeight: 700, marginBottom: 4 }}>
+              选 择 展 示 的 页
+            </div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>
+              已选 <strong style={{ color: '#fff' }}>{selectedCount}</strong> / {allSlides.length} 页
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)',
+              color: 'rgba(255,255,255,0.85)', padding: '4px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12,
+            }}
+          >
+            ✕ 关闭
+          </button>
+        </div>
+
+        {/* Presets */}
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.45)', marginBottom: 8, fontWeight: 700 }}>
+            预 设
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {PRESETS.map((p) => (
+              <button
+                key={p.name}
+                onClick={() => applyPreset(p.ids)}
+                style={{
+                  padding: '4px 10px', fontSize: 11,
+                  background: 'rgba(255,141,26,0.10)',
+                  color: '#FFB066', border: '1px solid rgba(255,141,26,0.35)',
+                  borderRadius: 999, cursor: 'pointer', fontWeight: 500,
+                }}
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 列表 */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
+          {allSlides.map((s) => {
+            const checked = selectedIds.has(s.id)
+            return (
+              <div
+                key={s.id}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 8px',
+                  borderRadius: 8,
+                  background: checked ? 'rgba(255,141,26,0.08)' : 'transparent',
+                  cursor: 'pointer',
+                  marginBottom: 2,
+                }}
+                onClick={() => toggle(s.id)}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggle(s.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ accentColor: '#FF8D1A', cursor: 'pointer' }}
+                />
+                <span
+                  className="font-mono"
+                  style={{ width: 28, fontSize: 11, color: 'rgba(255,255,255,0.45)', fontWeight: 700 }}
+                >
+                  P{s.id}
+                </span>
+                <span style={{ flex: 1, fontSize: 13, color: checked ? '#fff' : 'rgba(255,255,255,0.65)' }}>
+                  {s.title}
+                </span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onJumpTo(s.id) }}
+                  title="跳到这一页(若未选会自动勾上)"
+                  style={{
+                    padding: '2px 8px', fontSize: 11,
+                    background: 'transparent', border: '1px solid rgba(255,255,255,0.15)',
+                    color: 'rgba(255,255,255,0.65)', borderRadius: 6, cursor: 'pointer',
+                  }}
+                >
+                  跳转 →
+                </button>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Footer 操作区 */}
+        <div
+          style={{
+            padding: '12px 20px',
+            borderTop: '1px solid rgba(255,255,255,0.08)',
+            display: 'flex', gap: 8,
+          }}
+        >
+          <button
+            onClick={() => onChange(new Set(allSlides.map((s) => s.id)))}
+            style={{
+              flex: 1, padding: '8px', fontSize: 12,
+              background: 'rgba(255,255,255,0.06)',
+              color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.10)',
+              borderRadius: 8, cursor: 'pointer',
+            }}
+          >
+            全选
+          </button>
+          <button
+            onClick={() => onChange(new Set([allSlides[0].id]))}
+            style={{
+              flex: 1, padding: '8px', fontSize: 12,
+              background: 'rgba(255,255,255,0.06)',
+              color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.10)',
+              borderRadius: 8, cursor: 'pointer',
+            }}
+          >
+            清空(留封面)
+          </button>
+        </div>
+
+        <div style={{ padding: '4px 20px 12px', fontSize: 10, color: 'rgba(255,255,255,0.30)', textAlign: 'center' }}>
+          快捷键: P 打开 / 关闭此面板 · Esc 关闭
+        </div>
+      </div>
+    </>
   )
 }
