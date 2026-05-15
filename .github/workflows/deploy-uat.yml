@@ -111,16 +111,30 @@ jobs:
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
-            git pull origin main || echo "Not a git repo or no changes"
+            # git pull 仅做 best-effort 同步,失败不阻断(部署只靠 image,不依赖 host 源码)
+            git pull origin main 2>&1 | tail -5 || echo "git pull failed (likely local uncommitted changes), continuing with docker images only"
 
             SHORT_SHA="${{ steps.sha.outputs.value }}"
-            export FRONTEND_UAT_IMAGE=${{ env.REGISTRY }}/${{ env.FRONTEND_UAT_IMAGE }}:sha-${SHORT_SHA}
+            FRONTEND_UAT_IMAGE_FULL="${{ env.REGISTRY }}/${{ env.FRONTEND_UAT_IMAGE }}:sha-${SHORT_SHA}"
+            echo "→ target image: ${FRONTEND_UAT_IMAGE_FULL}"
 
+            # sudo 默认清环境变量 — 用 sudo VAR=val 显式透传,否则 docker-compose.yml 里
+            # ${FRONTEND_UAT_IMAGE:-kb-frontend-uat:latest} 会 fall back 到本地 :latest tag
             echo "→ pulling frontend-uat sha-${SHORT_SHA}"
-            sudo docker compose pull frontend-uat
+            sudo FRONTEND_UAT_IMAGE="${FRONTEND_UAT_IMAGE_FULL}" docker compose pull frontend-uat
 
             echo "→ recreating frontend-uat (frontend / backend / celery_worker 不动)"
-            sudo docker compose up -d --no-deps frontend-uat
+            sudo FRONTEND_UAT_IMAGE="${FRONTEND_UAT_IMAGE_FULL}" docker compose up -d --no-deps frontend-uat
+
+            # 验证容器真的换成了目标 image(防止 pull / up 静默失败用了旧 image)
+            sleep 3
+            RUNNING_IMAGE=$(sudo docker inspect kb-system-frontend-uat-1 --format '{{.Config.Image}}' 2>/dev/null || echo "")
+            if [ "$RUNNING_IMAGE" != "$FRONTEND_UAT_IMAGE_FULL" ]; then
+              echo "❌ 容器 image 错误: 预期 $FRONTEND_UAT_IMAGE_FULL 实际 $RUNNING_IMAGE"
+              sudo docker compose ps frontend-uat
+              exit 1
+            fi
+            echo "✓ 容器 image 已对齐:${RUNNING_IMAGE}"
 
             # 等 30s 验证健康(uat 容器 :80 内部端口)
             HEALTHY=false

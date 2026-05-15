@@ -215,11 +215,13 @@ jobs:
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
-            git pull origin main || echo "Not a git repo or no changes"
+            git pull origin main 2>&1 | tail -5 || echo "git pull failed, continuing with docker images only"
 
             SHORT_SHA="${{ steps.sha.outputs.value }}"
-            export BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-${SHORT_SHA}
-            export FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.FRONTEND_PROD_IMAGE }}:sha-${SHORT_SHA}
+            BACKEND_IMAGE_FULL="${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-${SHORT_SHA}"
+            FRONTEND_IMAGE_FULL="${{ env.REGISTRY }}/${{ env.FRONTEND_PROD_IMAGE }}:sha-${SHORT_SHA}"
+            echo "→ target backend:  ${BACKEND_IMAGE_FULL}"
+            echo "→ target frontend: ${FRONTEND_IMAGE_FULL}"
 
             # 备份当前 last-good 以便回滚
             if [ -f .last-good-sha ]; then
@@ -230,9 +232,29 @@ jobs:
             sudo mkdir -p /opt/kb-system/run
             sudo touch /opt/kb-system/run/.maintenance
 
-            # 拉 + 重启 backend / celery_worker / frontend(uat 不动)
-            sudo docker compose pull backend celery_worker frontend
-            sudo docker compose up -d --no-deps backend celery_worker frontend
+            # sudo 默认清环境变量 — 用 sudo VAR=val 显式透传,否则 docker-compose.yml 的
+            # ${BACKEND_IMAGE:-kb-backend:latest} 会 fall back 到本地老 image
+            sudo \
+              BACKEND_IMAGE="${BACKEND_IMAGE_FULL}" \
+              FRONTEND_IMAGE="${FRONTEND_IMAGE_FULL}" \
+              docker compose pull backend celery_worker frontend
+            sudo \
+              BACKEND_IMAGE="${BACKEND_IMAGE_FULL}" \
+              FRONTEND_IMAGE="${FRONTEND_IMAGE_FULL}" \
+              docker compose up -d --no-deps backend celery_worker frontend
+
+            # 验证容器 image 对齐(防 pull/up 静默没换)
+            sleep 3
+            FE_IMAGE=$(sudo docker inspect kb-system-frontend-1 --format '{{.Config.Image}}' 2>/dev/null || echo "")
+            BE_IMAGE=$(sudo docker inspect kb-system-backend-1 --format '{{.Config.Image}}' 2>/dev/null || echo "")
+            if [ "$FE_IMAGE" != "$FRONTEND_IMAGE_FULL" ] || [ "$BE_IMAGE" != "$BACKEND_IMAGE_FULL" ]; then
+              echo "❌ 容器 image 对齐失败:"
+              echo "  frontend  预期=$FRONTEND_IMAGE_FULL  实际=$FE_IMAGE"
+              echo "  backend   预期=$BACKEND_IMAGE_FULL   实际=$BE_IMAGE"
+              sudo rm -f /opt/kb-system/run/.maintenance
+              exit 1
+            fi
+            echo "✓ 容器 image 已对齐"
 
             # 健康检查
             HEALTHY=false
@@ -256,9 +278,12 @@ jobs:
               if [ -f .prev-good-sha ]; then
                 PREV=$(cat .prev-good-sha)
                 echo "回滚到 sha-${PREV}"
-                export BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-${PREV}
-                export FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.FRONTEND_PROD_IMAGE }}:sha-${PREV}
-                sudo docker compose up -d --no-deps backend celery_worker frontend
+                PREV_BE="${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-${PREV}"
+                PREV_FE="${{ env.REGISTRY }}/${{ env.FRONTEND_PROD_IMAGE }}:sha-${PREV}"
+                sudo \
+                  BACKEND_IMAGE="${PREV_BE}" \
+                  FRONTEND_IMAGE="${PREV_FE}" \
+                  docker compose up -d --no-deps backend celery_worker frontend
                 sleep 30
                 sudo rm -f /opt/kb-system/run/.maintenance
               else
