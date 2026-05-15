@@ -217,14 +217,23 @@ function PreparationView({
                   </button>
                 ) : (
                   <button
-                    onClick={() => genMut.mutate()}
-                    disabled={genMut.isPending || !allReady}
+                    onClick={() => {
+                      // 必备资料不全 → 弹警告确认; 确认后强制生成
+                      if (!allReady) {
+                        const ok = window.confirm(
+                          `文档不全,洞察不一定准确,部分模块可能因缺少信息无法输出。\n\n还差 ${reqTotal - reqDone} 项必备资料。\n\n确定继续生成?`
+                        )
+                        if (!ok) return
+                      }
+                      genMut.mutate()
+                    }}
+                    disabled={genMut.isPending}
                     className="flex items-center justify-center gap-2 px-5 py-2.5 text-white rounded-lg text-sm font-semibold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ background: BRAND_GRAD }}
-                    title={!allReady ? '必备资料未齐,请先到左栏补齐' : ''}
+                    title={!allReady ? '资料未齐, 点击会先弹警告' : ''}
                   >
                     {genMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                    {allReady ? '开始生成洞察' : '请先补齐必备资料'}
+                    {allReady ? '开始生成洞察' : '资料未齐 · 仍要生成'}
                   </button>
                 )}
               </div>

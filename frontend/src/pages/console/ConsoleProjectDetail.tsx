@@ -474,7 +474,10 @@ export default function ConsoleProjectDetail() {
            `${activeKindLabel} · 尚未生成`}
         </span>
         <div className="flex items-center gap-1.5 ml-auto shrink-0">
-          {activeStage.active && activeKind && BRIEF_KINDS.includes(activeKind) && !activeInflight && (
+          {/* 「要点」按钮 — V3 文档驱动 kind (insight / survey / survey_outline) 在中央 CenterWorkspace 有更好的 brief 入口, 这里就不重复显示 */}
+          {activeStage.active && activeKind && BRIEF_KINDS.includes(activeKind)
+            && !V3_DOC_DRIVEN_KINDS.includes(activeKind)
+            && !activeInflight && (
             <button
               onClick={openBriefForActive}
               className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md text-ink-secondary hover:bg-white hover:text-ink"
@@ -517,18 +520,19 @@ export default function ConsoleProjectDetail() {
                   <MessageSquare size={11} /> 对话
                 </button>
               )}
-              <button
-                onClick={startGeneration}
-                className="flex items-center gap-1 px-3 py-1 text-xs font-semibold text-white rounded-md shadow-sm"
-                style={{ background: BRAND_GRAD }}
-              >
-                <Sparkles size={11} />
-                {activeKind && V3_DOC_DRIVEN_KINDS.includes(activeKind)
-                  ? '开始生成'
-                  : activeKind && BRIEF_KINDS.includes(activeKind)
+              {/* 「开始生成」按钮 — V3 文档驱动 kind 在中央 CenterWorkspace 有"开始生成洞察"主按钮, 这里就不重复 */}
+              {!(activeKind && V3_DOC_DRIVEN_KINDS.includes(activeKind)) && (
+                <button
+                  onClick={startGeneration}
+                  className="flex items-center gap-1 px-3 py-1 text-xs font-semibold text-white rounded-md shadow-sm"
+                  style={{ background: BRAND_GRAD }}
+                >
+                  <Sparkles size={11} />
+                  {activeKind && BRIEF_KINDS.includes(activeKind)
                     ? '填写 Brief 并生成'
                     : '开始生成'}
-              </button>
+                </button>
+              )}
             </>
           ) : null}
         </div>
