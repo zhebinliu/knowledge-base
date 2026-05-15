@@ -26,7 +26,7 @@ function ConfidenceBar({ value }: { value: number }) {
   const color = value >= 0.85 ? '#059669' : value >= 0.6 ? '#D97706' : '#DC2626'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <div style={{ flex: 1, height: 4, background: 'rgba(15, 18, 36, .06)', borderRadius: 2, overflow: 'hidden' }}>
+      <div style={{ flex: 1, height: 4, background: 'rgba(0,0,0,0.25)', borderRadius: 2, overflow: 'hidden' }}>
         <div style={{ width: `${pct}%`, height: '100%', background: color, boxShadow: `0 0 4px ${color}` }} />
       </div>
       <span className="rd-mono" style={{ fontSize: 10, color: 'var(--rd-text-3)' }}>{pct}%</span>
@@ -124,7 +124,7 @@ export default function NewReview() {
                 onClick={() => setCursor(i)}
                 style={{
                   flex: 1, height: 5, borderRadius: 999, border: 'none',
-                  background: active ? 'var(--rd-accent)' : 'rgba(15, 18, 36, .12)',
+                  background: active ? 'var(--rd-accent)' : 'rgba(0,0,0,0.40)',
                   boxShadow: active ? '0 0 6px var(--rd-accent)' : 'none',
                   cursor: 'pointer', transition: 'background .15s',
                 }}
@@ -210,7 +210,7 @@ export default function NewReview() {
           <div style={{
             padding: '12px 20px',
             borderTop: '1px solid var(--rd-line)',
-            background: 'rgba(15, 18, 36, .02)',
+            background: 'rgba(0,0,0,0.25)',
             display: 'flex', alignItems: 'center', gap: 8,
           }}>
             <button

@@ -174,7 +174,7 @@ export default function NewOutputChatPanel({ kind, projectId, stageTitle, onGene
       <div style={{
         padding: '10px 16px', borderBottom: '1px solid var(--rd-line)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
-        background: 'rgba(255,255,255,0.55)',
+        background: 'rgba(255,255,255,0.06)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           <Sparkles size={13} color="var(--rd-accent-2)" />
@@ -223,9 +223,9 @@ export default function NewOutputChatPanel({ kind, projectId, stageTitle, onGene
                 padding: '8px 12px', borderRadius: 16,
                 background: isUser
                   ? 'linear-gradient(135deg, rgba(255, 141, 26, .12), rgba(255, 141, 26, .04))'
-                  : 'rgba(255,255,255,0.55)',
+                  : 'rgba(255,255,255,0.06)',
                 border: `1px solid ${isUser ? 'rgba(255, 141, 26, .22)' : 'var(--rd-line)'}`,
-                boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, .6)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)',
               }}>
                 {m.role === 'assistant' && m.tool_uses && m.tool_uses.length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
@@ -236,7 +236,7 @@ export default function NewOutputChatPanel({ kind, projectId, stageTitle, onGene
                         <span key={i} style={{
                           display: 'inline-flex', alignItems: 'center', gap: 3,
                           fontSize: 12, color: 'var(--rd-text-3)',
-                          background: 'rgba(15, 18, 36, .05)', border: '1px solid var(--rd-line)',
+                          background: 'rgba(0,0,0,0.25)', border: '1px solid var(--rd-line)',
                           borderRadius: 999, padding: '1px 8px',
                         }}>
                           <Search size={9} /> {q || t.name}
@@ -296,7 +296,7 @@ export default function NewOutputChatPanel({ kind, projectId, stageTitle, onGene
 
       <div style={{
         padding: '10px 16px', borderTop: '1px solid var(--rd-line)', flexShrink: 0,
-        background: 'rgba(255,255,255,0.55)',
+        background: 'rgba(255,255,255,0.06)',
       }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
           <textarea

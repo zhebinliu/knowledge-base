@@ -51,7 +51,7 @@ export default function CenterWorkspace({
           className="flex-shrink-0 px-4 py-2 flex items-center gap-2"
           style={{
             borderBottom: '1px solid var(--rd-line)',
-            background: 'rgba(255,255,255,0.55)',
+            background: 'rgba(255,255,255,0.06)',
           }}
         >
           <button
@@ -163,7 +163,7 @@ function PreparationView({
               className="px-6 py-5 flex items-start gap-4"
               style={{
                 borderBottom: '1px solid var(--rd-line)',
-                background: 'linear-gradient(to right, rgba(255,141,26,0.10) 0%, rgba(255,255,255,0.55) 60%)',
+                background: 'linear-gradient(to right, rgba(255,141,26,0.10) 0%, rgba(255,255,255,0.06) 60%)',
               }}
             >
               <div
@@ -196,7 +196,7 @@ function PreparationView({
             <div className="px-6 py-4">
               <div
                 className="h-2 rounded-full overflow-hidden mb-3"
-                style={{ background: 'rgba(255,255,255,0.55)', border: '1px solid var(--rd-line)' }}
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--rd-line)' }}
               >
                 <div
                   className="h-full transition-all rounded-full"
@@ -289,7 +289,7 @@ function PreparationView({
                   style={{
                     borderTop: idx === 0 ? 'none' : '1px solid var(--rd-line)',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.55)' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
                 >
                   <FileText size={12} className="shrink-0" style={{ color: 'var(--rd-text-3)' }} />
@@ -350,7 +350,7 @@ function PreparationView({
             }}
           >
             <strong>下一步:</strong> 在<strong>左侧文档清单</strong>里补齐带「★ 必需」的资料 —
-            上传文档点 <span className="px-1 py-0.5 rounded text-xs" style={{ background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,141,26,0.30)' }}>+</span>
+            上传文档点 <span className="px-1 py-0.5 rounded text-xs" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,141,26,0.30)' }}>+</span>
              按钮、问卷点对应行打开作答。补完后回到这里点「开始生成」。
           </div>
         )}
@@ -505,7 +505,7 @@ function ReportReadView({
               className="flex items-center justify-end px-4 py-2"
               style={{
                 borderBottom: '1px solid var(--rd-line)',
-                background: 'rgba(255,255,255,0.55)',
+                background: 'rgba(255,255,255,0.06)',
               }}
             >
               <button
@@ -608,8 +608,8 @@ function VirtualForm({ vkey, projectId, onDone }: {
         className="flex-shrink-0 px-6 py-3 flex items-center gap-3"
         style={{
           borderTop: '1px solid var(--rd-line)',
-          background: 'rgba(255,255,255,0.55)',
-          boxShadow: '0 -2px 10px rgba(20,20,40,0.05), inset 0 1px 0 rgba(255,255,255,0.55)',
+          background: 'rgba(255,255,255,0.06)',
+          boxShadow: '0 -2px 10px rgba(20,20,40,0.05), inset 0 1px 0 rgba(255,255,255,0.06)',
         }}
       >
         {error && <span className="text-xs" style={{ color: '#dc2626' }}>{error}</span>}
@@ -676,7 +676,7 @@ function PromptCard({ prompt, value, onChange }: {
                 }}
                 className="px-2.5 py-1 text-xs rounded-md transition"
                 style={{
-                  background: sel ? 'rgba(255,141,26,0.10)' : 'rgba(255,255,255,0.55)',
+                  background: sel ? 'rgba(255,141,26,0.10)' : 'rgba(255,255,255,0.06)',
                   border: sel ? '1px solid rgba(255,141,26,0.45)' : '1px solid var(--rd-line)',
                   color: sel ? 'var(--rd-accent)' : 'var(--rd-text-2)',
                   fontWeight: sel ? 600 : 400,
@@ -784,7 +784,7 @@ function InsightCheckupDrawer({
           className="flex-shrink-0 px-5 py-3 flex items-center gap-2"
           style={{
             borderBottom: '1px solid var(--rd-line)',
-            background: 'rgba(255,255,255,0.55)',
+            background: 'rgba(255,255,255,0.06)',
           }}
         >
           <Search size={14} style={{ color: 'var(--rd-accent)' }} />
@@ -841,7 +841,7 @@ function InsightCheckupDrawer({
               >
                 <div
                   className="px-3 py-2 text-xs"
-                  style={{ background: 'rgba(255,255,255,0.55)', color: 'var(--rd-text-3)' }}
+                  style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--rd-text-3)' }}
                 >
                   按章节看 — 点击展开看每个字段的状态
                 </div>
@@ -885,7 +885,7 @@ function InsightCheckupDrawer({
           className="flex-shrink-0 px-5 py-3 flex items-center gap-2"
           style={{
             borderTop: '1px solid var(--rd-line)',
-            background: 'rgba(255,255,255,0.55)',
+            background: 'rgba(255,255,255,0.06)',
           }}
         >
           <span className="text-xs flex-1" style={{ color: 'var(--rd-text-3)' }}>
@@ -912,14 +912,14 @@ function CheckupModuleRow({ module: m }: { module: InsightCheckupResult['modules
   const missingN = m.fields.filter(f => f.status === 'missing').length
   const necessityBadge = m.necessity === 'critical'
     ? <span className="text-xs font-semibold px-1 rounded" style={{ color: '#b91c1c', background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.20)' }}>关键</span>
-    : <span className="text-xs font-semibold px-1 rounded" style={{ color: 'var(--rd-text-3)', background: 'rgba(255,255,255,0.55)', border: '1px solid var(--rd-line)' }}>可选</span>
+    : <span className="text-xs font-semibold px-1 rounded" style={{ color: 'var(--rd-text-3)', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--rd-line)' }}>可选</span>
 
   return (
     <div>
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full px-3 py-2 flex items-center gap-2 text-xs text-left transition"
-        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.55)' }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
       >
         <span className="w-2 h-2 rounded-full shrink-0" style={{ background: meta.dot }} />
@@ -932,7 +932,7 @@ function CheckupModuleRow({ module: m }: { module: InsightCheckupResult['modules
         <span className="text-xs shrink-0" style={{ color: 'var(--rd-text-3)' }}>{open ? '收起' : '展开'}</span>
       </button>
       {open && (
-        <div className="px-3 pb-2.5 pt-0.5" style={{ background: 'rgba(255,255,255,0.55)' }}>
+        <div className="px-3 pb-2.5 pt-0.5" style={{ background: 'rgba(255,255,255,0.06)' }}>
           <table className="w-full text-xs">
             <tbody>
               {m.fields.map((f, idx) => (

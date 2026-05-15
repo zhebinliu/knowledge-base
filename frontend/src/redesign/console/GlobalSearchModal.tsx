@@ -176,12 +176,12 @@ export default function GlobalSearchModal({ open, onClose }: Props) {
           width: 'min(680px, 92vw)',
           maxHeight: '70vh',
           display: 'flex', flexDirection: 'column',
-          background: 'rgba(255, 255, 255, 0.65)',
+          background: 'rgba(255,255,255,0.08)',
           backdropFilter: 'blur(40px) saturate(180%)',
           WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-          border: '1px solid rgba(255,255,255,0.65)',
+          border: '1px solid rgba(255,255,255,0.08)',
           borderRadius: 18,
-          boxShadow: '0 30px 60px -14px rgba(15, 18, 36, .30), inset 0 1px 0 rgba(255,255,255,.85)',
+          boxShadow: '0 30px 60px -14px rgba(15, 18, 36, .30), inset 0 1px 0 rgba(255,255,255,0.10)',
           overflow: 'hidden',
         }}
       >
@@ -189,7 +189,7 @@ export default function GlobalSearchModal({ open, onClose }: Props) {
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10,
           padding: '14px 18px',
-          borderBottom: '1px solid rgba(15,18,36,0.06)',
+          borderBottom: '1px solid rgba(0,0,0,0.25)',
         }}>
           <Search size={16} color="var(--rd-text-2)" />
           <input
@@ -211,7 +211,7 @@ export default function GlobalSearchModal({ open, onClose }: Props) {
           <kbd style={{
             fontSize: 12, color: 'var(--rd-text-3)',
             padding: '2px 6px', borderRadius: 4,
-            background: 'rgba(15,18,36,0.05)',
+            background: 'rgba(0,0,0,0.25)',
             border: '1px solid var(--rd-line)',
             fontFamily: 'ui-monospace, monospace',
           }}>ESC</kbd>
@@ -313,7 +313,7 @@ export default function GlobalSearchModal({ open, onClose }: Props) {
         <div style={{
           flexShrink: 0,
           padding: '8px 18px',
-          borderTop: '1px solid rgba(15,18,36,0.06)',
+          borderTop: '1px solid rgba(0,0,0,0.25)',
           display: 'flex', alignItems: 'center', gap: 14,
           fontSize: 12, color: 'var(--rd-text-3)',
         }}>
@@ -335,7 +335,7 @@ const kbdStyle: React.CSSProperties = {
   fontSize: 11,
   fontFamily: 'ui-monospace, monospace',
   color: 'var(--rd-text-2)',
-  background: 'rgba(15,18,36,0.05)',
+  background: 'rgba(0,0,0,0.25)',
   border: '1px solid var(--rd-line)',
   borderRadius: 4,
 }

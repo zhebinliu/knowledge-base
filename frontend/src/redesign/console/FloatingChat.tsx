@@ -49,7 +49,7 @@ export default function NewFloatingChat({ projectId, state, onChange }: Props) {
           background: 'linear-gradient(135deg, var(--rd-accent), var(--rd-accent-2))',
           color: '#fff', border: 'none', cursor: 'pointer',
           fontSize: 12, fontWeight: 600,
-          boxShadow: '0 8px 24px -4px rgba(255,141,26,.55), inset 0 1px 0 rgba(255,255,255,.4)',
+          boxShadow: '0 8px 24px -4px rgba(255,141,26,.55), inset 0 1px 0 rgba(255,255,255,0.05)',
           fontFamily: 'inherit',
         }}
         title="展开项目问答"
@@ -80,12 +80,12 @@ export default function NewFloatingChat({ projectId, state, onChange }: Props) {
     <div
       style={{
         ...containerStyle,
-        background: 'rgba(255,255,255,0.55)',
+        background: 'rgba(255,255,255,0.06)',
         backdropFilter: 'blur(32px) saturate(180%)',
         WebkitBackdropFilter: 'blur(32px) saturate(180%)',
-        border: '1px solid rgba(255,255,255,0.65)',
+        border: '1px solid rgba(255,255,255,0.08)',
         borderRadius: state.fullscreen ? 0 : 16,
-        boxShadow: '0 25px 50px -12px rgba(15, 18, 36, .25), inset 0 1px 0 rgba(255, 255, 255, .85)',
+        boxShadow: '0 25px 50px -12px rgba(15, 18, 36, .25), inset 0 1px 0 rgba(255,255,255,0.10)',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }}
     >

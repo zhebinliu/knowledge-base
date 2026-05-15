@@ -149,7 +149,7 @@ export default function NewAgenticGapFiller({ bundle, kind, projectId, onSubmitt
         {/* 进度 */}
         <div style={{
           marginBottom: 20, padding: '10px 16px', borderRadius: 10,
-          background: 'rgba(255,255,255,0.55)',
+          background: 'rgba(255,255,255,0.06)',
           border: '1px solid var(--rd-line)',
           display: 'flex', alignItems: 'center', gap: 12,
         }}>
@@ -160,7 +160,7 @@ export default function NewAgenticGapFiller({ bundle, kind, projectId, onSubmitt
                 <span style={{ color: 'var(--rd-text-3)' }}>(共 {prompts.length} 题,{prompts.length - requiredKeys.length} 选答)</span>
               )}
             </div>
-            <div style={{ marginTop: 4, height: 4, background: 'rgba(15, 18, 36, .06)', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{ marginTop: 4, height: 4, background: 'rgba(0,0,0,0.25)', borderRadius: 2, overflow: 'hidden' }}>
               <div style={{
                 height: '100%',
                 width: requiredKeys.length ? `${(requiredFilled / requiredKeys.length) * 100}%` : '0%',
@@ -177,13 +177,13 @@ export default function NewAgenticGapFiller({ bundle, kind, projectId, onSubmitt
           {grouped.map(([moduleKey, { title, prompts: ps }]) => (
             <div key={moduleKey} style={{
               borderRadius: 12, overflow: 'hidden',
-              background: 'rgba(255,255,255,0.55)',
-              border: '1px solid rgba(255,255,255,0.55)',
-              boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, .75), 0 1px 3px rgba(15, 18, 36, .04)',
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10), 0 1px 3px rgba(0,0,0,0.25)',
             }}>
               <div style={{
                 padding: '10px 16px',
-                background: 'rgba(15, 18, 36, .03)',
+                background: 'rgba(0,0,0,0.25)',
                 borderBottom: '1px solid var(--rd-line)',
                 display: 'flex', alignItems: 'center', gap: 8,
               }}>

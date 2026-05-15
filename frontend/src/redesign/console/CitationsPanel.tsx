@@ -31,11 +31,11 @@ export default function NewCitationsPanel({ bundle, highlightedRefId, onPreviewD
   return (
     <div style={{
       height: '100%', display: 'flex', flexDirection: 'column',
-      background: 'rgba(255,255,255,0.50)',
+      background: 'rgba(255,255,255,0.06)',
       backdropFilter: 'blur(32px) saturate(180%)',
       WebkitBackdropFilter: 'blur(32px) saturate(180%)',
-      borderLeft: '1px solid rgba(255,255,255,0.55)',
-      boxShadow: 'inset 1px 0 0 rgba(255,255,255,0.80)',
+      borderLeft: '1px solid rgba(255,255,255,0.06)',
+      boxShadow: 'inset 1px 0 0 rgba(255,255,255,0.10)',
     }}>
       <div style={{
         flexShrink: 0, padding: '10px 14px',
@@ -72,7 +72,7 @@ export default function NewCitationsPanel({ bundle, highlightedRefId, onPreviewD
               <div style={{
                 position: 'sticky', top: 0, zIndex: 1,
                 padding: '8px 14px',
-                background: 'rgba(15, 18, 36, .04)',
+                background: 'rgba(0,0,0,0.25)',
                 borderBottom: '1px solid var(--rd-line)',
               }}>
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--rd-text-2)' }}>{moduleKey}</span>
@@ -129,13 +129,13 @@ function CitationItem({ moduleKey, refId, entry, highlighted, onPreviewDoc }: {
         cursor: clickable ? 'pointer' : 'default',
         transition: 'background .15s',
       }}
-      onMouseEnter={e => { if (clickable && !highlighted) e.currentTarget.style.background = 'rgba(15, 18, 36, .03)' }}
+      onMouseEnter={e => { if (clickable && !highlighted) e.currentTarget.style.background = 'rgba(0,0,0,0.25)' }}
       onMouseLeave={e => { if (!highlighted) e.currentTarget.style.background = 'transparent' }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
         <span className="rd-mono" style={{
           padding: '1px 6px', fontSize: 12, fontWeight: 700,
-          borderRadius: 4, background: 'rgba(15, 18, 36, .06)', color: 'var(--rd-text-2)',
+          borderRadius: 4, background: 'rgba(0,0,0,0.25)', color: 'var(--rd-text-2)',
           flexShrink: 0,
         }}>{refId}</span>
         <Icon size={11} color={typeColor} style={{ marginTop: 2, flexShrink: 0 }} />

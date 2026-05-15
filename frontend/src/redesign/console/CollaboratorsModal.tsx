@@ -119,11 +119,11 @@ export default function NewCollaboratorsModal({ open, projectId, myRole, onClose
           transform: 'translate(-50%, -50%)',
           width: 640, maxHeight: '85vh',
           borderRadius: 16,
-          background: 'rgba(255, 255, 255, 0.65)',
+          background: 'rgba(255,255,255,0.08)',
           backdropFilter: 'blur(40px) saturate(180%)',
           WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-          border: '1px solid rgba(255,255,255,0.55)',
-          boxShadow: '0 25px 50px -12px rgba(15, 18, 36, .25), inset 0 1px 0 rgba(255, 255, 255, .85)',
+          border: '1px solid rgba(255,255,255,0.06)',
+          boxShadow: '0 25px 50px -12px rgba(15, 18, 36, .25), inset 0 1px 0 rgba(255,255,255,0.10)',
           display: 'flex', flexDirection: 'column',
         }}
       >
@@ -134,7 +134,7 @@ export default function NewCollaboratorsModal({ open, projectId, myRole, onClose
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
               fontSize: 12, color: 'var(--rd-text-3)',
-              background: 'rgba(15, 18, 36, .04)', padding: '1px 8px', borderRadius: 4,
+              background: 'rgba(0,0,0,0.25)', padding: '1px 8px', borderRadius: 4,
             }}>
               <Eye size={10} /> 只读模式
             </span>
@@ -241,7 +241,7 @@ export default function NewCollaboratorsModal({ open, projectId, myRole, onClose
                   marginTop: 8, borderRadius: 8,
                   border: '1px solid var(--rd-line)',
                   maxHeight: 180, overflowY: 'auto',
-                  background: 'rgba(255, 255, 255, .7)',
+                  background: 'rgba(255,255,255,0.10)',
                 }}>
                   {results.map((u, idx) => {
                     const already = collabUserIds.has(u.id)
@@ -265,7 +265,7 @@ export default function NewCollaboratorsModal({ open, projectId, myRole, onClose
                           fontFamily: 'inherit',
                           transition: 'background .15s',
                         }}
-                        onMouseEnter={e => { if (!already && !isOwner) e.currentTarget.style.background = 'rgba(15, 18, 36, .03)' }}
+                        onMouseEnter={e => { if (!already && !isOwner) e.currentTarget.style.background = 'rgba(0,0,0,0.25)' }}
                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -302,7 +302,7 @@ export default function NewCollaboratorsModal({ open, projectId, myRole, onClose
 
         <div style={{
           padding: '10px 20px', borderTop: '1px solid var(--rd-line)',
-          background: 'rgba(15, 18, 36, .02)',
+          background: 'rgba(0,0,0,0.25)',
           fontSize: 12, color: 'var(--rd-text-3)',
         }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -338,15 +338,15 @@ function CollaboratorRow({ coll, canManage, onChangeRole, onRemove, busy }: {
       display: 'flex', alignItems: 'center', gap: 10,
       padding: '8px 12px', borderRadius: 10,
       border: '1px solid var(--rd-line)',
-      background: 'rgba(255, 255, 255, .45)',
+      background: 'rgba(255,255,255,0.05)',
       transition: 'background .15s',
     }}
       onMouseEnter={e => e.currentTarget.style.background = 'rgba(15, 18, 36, .025)'}
-      onMouseLeave={e => e.currentTarget.style.background = 'rgba(255, 255, 255, .45)'}
+      onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
     >
       <span style={{
         width: 28, height: 28, borderRadius: '50%',
-        background: 'rgba(15, 18, 36, .06)',
+        background: 'rgba(0,0,0,0.25)',
         color: 'var(--rd-text-2)',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 12, fontWeight: 600, flexShrink: 0,
@@ -408,9 +408,9 @@ function RoleSelect({ value, onChange, compact }: {
         <div style={{
           position: 'absolute', right: 0, bottom: '100%', marginBottom: 4, zIndex: 50,
           minWidth: 110,
-          background: 'rgba(255, 255, 255, .95)',
+          background: 'rgba(255,255,255,0.12)',
           border: '1px solid var(--rd-line)', borderRadius: 6,
-          boxShadow: '0 8px 24px -8px rgba(15, 18, 36, .15)',
+          boxShadow: '0 8px 24px -8px rgba(0,0,0,0.40)',
           padding: '4px 0',
         }}>
           {(['read', 'read_write'] as const).map(r => (
@@ -425,7 +425,7 @@ function RoleSelect({ value, onChange, compact }: {
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 fontFamily: 'inherit',
               }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(15, 18, 36, .04)'}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.25)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
               {r === value && <Check size={9} />} {ROLE_BADGE[r].label}
@@ -479,8 +479,8 @@ function TransferOwnerSubModal({ owner, collaborators, onClose, onConfirm, busy,
           position: 'fixed', left: '50%', top: '50%', zIndex: 61,
           transform: 'translate(-50%, -50%)',
           width: 520, maxHeight: '80vh', borderRadius: 16,
-          background: 'rgba(255, 255, 255, 0.92)',
-          border: '1px solid rgba(255,255,255,0.55)',
+          background: 'rgba(255,255,255,0.12)',
+          border: '1px solid rgba(255,255,255,0.06)',
           boxShadow: '0 25px 50px -12px rgba(15, 18, 36, .25)',
           display: 'flex', flexDirection: 'column',
         }}
@@ -529,12 +529,12 @@ function TransferOwnerSubModal({ owner, collaborators, onClose, onConfirm, busy,
                         textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
                         transition: 'background .15s',
                       }}
-                      onMouseEnter={e => { if (!sel) e.currentTarget.style.background = 'rgba(15, 18, 36, .03)' }}
+                      onMouseEnter={e => { if (!sel) e.currentTarget.style.background = 'rgba(0,0,0,0.25)' }}
                       onMouseLeave={e => { if (!sel) e.currentTarget.style.background = 'transparent' }}
                     >
                       <span style={{
                         width: 28, height: 28, borderRadius: '50%',
-                        background: 'rgba(15, 18, 36, .06)', color: 'var(--rd-text-2)',
+                        background: 'rgba(0,0,0,0.25)', color: 'var(--rd-text-2)',
                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 12, fontWeight: 600,
                       }}>{(c.full_name || c.username || '?').slice(0, 1).toUpperCase()}</span>

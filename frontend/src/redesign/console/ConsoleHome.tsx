@@ -158,7 +158,7 @@ export default function NewConsoleHome() {
               <div style={{
                 width: 44, height: 44, borderRadius: 12,
                 background: e.disabled
-                  ? 'linear-gradient(135deg, rgba(15, 18, 36, 0.06), rgba(15, 18, 36, 0.02))'
+                  ? 'linear-gradient(135deg, rgba(0,0,0,0.25), rgba(0,0,0,0.25))'
                   : 'linear-gradient(135deg, rgba(255, 141, 26, 0.18), rgba(255, 141, 26, 0.06))',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: e.disabled ? 'var(--rd-text-3)' : 'var(--rd-accent-2)',
@@ -321,7 +321,7 @@ export default function NewConsoleHome() {
         </ul>
         {user?.is_admin && (
           <p style={{ marginTop: 12, fontSize: 12, color: 'var(--rd-text-3)' }}>
-            你是管理员,随时可从右下角头像菜单进入 <span className="rd-mono" style={{ background: 'rgba(15, 18, 36, .05)', padding: '1px 6px', borderRadius: 4, color: 'var(--rd-text)' }}>/</span> 知识库后台管理文档与切片。
+            你是管理员,随时可从右下角头像菜单进入 <span className="rd-mono" style={{ background: 'rgba(0,0,0,0.25)', padding: '1px 6px', borderRadius: 4, color: 'var(--rd-text)' }}>/</span> 知识库后台管理文档与切片。
           </p>
         )}
       </GlowCard>

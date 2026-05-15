@@ -53,7 +53,7 @@ export default function GenerationProgressCard({ bundle }: Props) {
       {/* 顶部:当前阶段 + 一句话 message */}
       <div style={{
         padding: '18px 22px',
-        borderBottom: '1px solid rgba(15,18,36,0.06)',
+        borderBottom: '1px solid rgba(0,0,0,0.25)',
         background: 'linear-gradient(135deg, rgba(255,141,26,0.12) 0%, rgba(255,255,255,0.05) 60%)',
       }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -61,10 +61,10 @@ export default function GenerationProgressCard({ bundle }: Props) {
             width: 40, height: 40, borderRadius: 12, flexShrink: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
             background: 'linear-gradient(135deg, var(--rd-accent), var(--rd-accent-deep))',
-            boxShadow: '0 6px 18px rgba(255,141,26,0.30), inset 0 1px 0 rgba(255,255,255,0.4)',
+            boxShadow: '0 6px 18px rgba(255,141,26,0.30), inset 0 1px 0 rgba(255,255,255,0.05)',
           }}>
             <StageIcon size={18} color="#fff" />
-            <Loader2 size={42} style={{ position: 'absolute', inset: 0, margin: 'auto', color: 'rgba(255,255,255,0.40)' }} className="animate-spin" />
+            <Loader2 size={42} style={{ position: 'absolute', inset: 0, margin: 'auto', color: 'rgba(255,255,255,0.05)' }} className="animate-spin" />
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
@@ -88,8 +88,8 @@ export default function GenerationProgressCard({ bundle }: Props) {
                 {inFlight.map(mk => (
                   <span key={mk} style={{
                     fontSize: 12, padding: '2px 8px', borderRadius: 6,
-                    background: 'rgba(255,255,255,0.55)',
-                    border: '1px solid rgba(255,255,255,0.55)',
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.06)',
                     color: 'var(--rd-text-2)',
                     fontFamily: 'ui-monospace, monospace',
                   }}>{mk}</span>
@@ -107,7 +107,7 @@ export default function GenerationProgressCard({ bundle }: Props) {
       }}>
         <div style={{
           height: 5, borderRadius: 999, overflow: 'hidden', marginBottom: 8,
-          background: 'rgba(15,18,36,0.06)',
+          background: 'rgba(0,0,0,0.25)',
         }}>
           <div style={{
             height: '100%', width: `${pct}%`, borderRadius: 999,
@@ -138,7 +138,7 @@ export default function GenerationProgressCard({ bundle }: Props) {
       {showChallengeStream && (roundsData?.rounds?.length ?? 0) > 0 && (
         <div style={{
           padding: '12px 22px',
-          borderTop: '1px solid rgba(15,18,36,0.06)',
+          borderTop: '1px solid rgba(0,0,0,0.25)',
           background: 'linear-gradient(180deg, rgba(255,141,26,0.06) 0%, rgba(255,255,255,0.02) 100%)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
@@ -163,7 +163,7 @@ function ChallengeRoundLive({ round }: { round: import('../../api/client').Chall
     pass:          { label: '✓ 通过',   bg: 'rgba(16,185,129,0.15)',  color: '#047857' },
     minor_issues:  { label: '☑ 可放行', bg: 'rgba(245,158,11,0.15)',  color: '#92400E' },
     major_issues:  { label: '🚫 需返工', bg: 'rgba(220,38,38,0.15)',   color: '#B91C1C' },
-  }[verdict as 'pass' | 'minor_issues' | 'major_issues'] ?? { label: '处理中…', bg: 'rgba(15,18,36,0.06)', color: 'var(--rd-text-2)' }
+  }[verdict as 'pass' | 'minor_issues' | 'major_issues'] ?? { label: '处理中…', bg: 'rgba(0,0,0,0.25)', color: 'var(--rd-text-2)' }
 
   const issuesByModule: Record<string, number> = {}
   for (const it of c?.issues ?? []) {
@@ -173,11 +173,11 @@ function ChallengeRoundLive({ round }: { round: import('../../api/client').Chall
   return (
     <div style={{
       fontSize: 12,
-      background: 'rgba(255,255,255,0.55)',
-      border: '1px solid rgba(255,255,255,0.55)',
+      background: 'rgba(255,255,255,0.06)',
+      border: '1px solid rgba(255,255,255,0.06)',
       borderRadius: 8,
       padding: 10,
-      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.70)',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
         <span style={{ fontWeight: 600, color: 'var(--rd-text)' }}>第 {round.round_idx + 1} 轮</span>
@@ -204,7 +204,7 @@ function ChallengeRoundLive({ round }: { round: import('../../api/client').Chall
           {Object.entries(issuesByModule).slice(0, 4).map(([mk, cnt]) => (
             <span key={mk} style={{
               padding: '0 4px', borderRadius: 3, fontSize: 12,
-              background: 'rgba(15,18,36,0.05)', color: 'var(--rd-text-2)',
+              background: 'rgba(0,0,0,0.25)', color: 'var(--rd-text-2)',
               fontFamily: 'ui-monospace, monospace',
             }}>{mk}({cnt})</span>
           ))}

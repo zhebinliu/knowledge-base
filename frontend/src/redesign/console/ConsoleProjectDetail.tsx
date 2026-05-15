@@ -100,8 +100,8 @@ type StageStatus = 'locked' | 'idle' | 'inflight' | 'done'
 // 改用浅色 hairline 分隔 + 微透白底,让里面的 rd-btn 直接看到页面 mesh
 const GLASS_PANEL: React.CSSProperties = {
   background: 'rgba(255,255,255,0.22)',
-  borderBottom: '1px solid rgba(255,255,255,0.55)',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65)',
+  borderBottom: '1px solid rgba(255,255,255,0.06)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)',
 }
 
 export default function NewConsoleProjectDetail() {
@@ -268,7 +268,7 @@ export default function NewConsoleProjectDetail() {
       {/* ── 顶部信息条:返回 + 项目名 + 元信息 + 操作 ── */}
       <div style={{
         padding: '10px 20px',
-        borderBottom: '1px solid rgba(15,18,36,0.06)',
+        borderBottom: '1px solid rgba(0,0,0,0.25)',
         display: 'flex', alignItems: 'center', gap: 12,
       }}>
         <button
@@ -318,15 +318,15 @@ export default function NewConsoleProjectDetail() {
       </div>
 
       {/* ── 阶段流程栏 ── */}
-      <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(15,18,36,0.06)' }}>
+      <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(0,0,0,0.25)' }}>
         <div style={{ display: 'flex', alignItems: 'stretch', gap: 6, overflowX: 'auto' }}>
           {STAGES.map((s, i) => {
             const status = stageStatus(s)
             const isActive = activeStageKey === s.key
 
-            let bg = 'rgba(255,255,255,0.55)'
+            let bg = 'rgba(255,255,255,0.06)'
             let color = 'var(--rd-text-2)'
-            let borderColor = 'rgba(255,255,255,0.55)'
+            let borderColor = 'rgba(255,255,255,0.06)'
             if (isActive) {
               bg = 'linear-gradient(135deg, #FF8D1A, #D96400)'
               color = '#fff'
@@ -340,7 +340,7 @@ export default function NewConsoleProjectDetail() {
               color = '#0E7490'
               borderColor = 'rgba(14, 116, 144, 0.28)'
             } else if (status === 'locked') {
-              bg = 'rgba(15, 18, 36, 0.04)'
+              bg = 'rgba(0,0,0,0.25)'
               color = 'var(--rd-text-3)'
               borderColor = 'var(--rd-line)'
             }
@@ -361,8 +361,8 @@ export default function NewConsoleProjectDetail() {
                   fontSize: 12, fontWeight: isActive ? 700 : 500,
                   whiteSpace: 'nowrap', cursor: s.active ? 'pointer' : 'not-allowed',
                   boxShadow: isActive
-                    ? '0 4px 12px -2px rgba(255, 141, 26, 0.45), inset 0 1px 0 rgba(255,255,255,0.55)'
-                    : 'inset 0 1px 0 rgba(255,255,255,0.55)',
+                    ? '0 4px 12px -2px rgba(255, 141, 26, 0.45), inset 0 1px 0 rgba(255,255,255,0.06)'
+                    : 'inset 0 1px 0 rgba(255,255,255,0.06)',
                   transition: 'all .22s',
                   fontFamily: 'inherit',
                 }}
@@ -381,7 +381,7 @@ export default function NewConsoleProjectDetail() {
 
       {/* ── subKinds 切换 ── */}
       {activeStage.subKinds && (
-        <div style={{ padding: '8px 20px', borderBottom: '1px solid rgba(15,18,36,0.06)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ padding: '8px 20px', borderBottom: '1px solid rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 12, color: 'var(--rd-text-3)' }}>本阶段产物:</span>
           {activeStage.subKinds.map(sk => {
             const has = !!bundleByKind(sk.kind)
@@ -594,7 +594,7 @@ export default function NewConsoleProjectDetail() {
             width: 50, height: 50, borderRadius: '50%',
             background: 'linear-gradient(135deg, var(--rd-accent), var(--rd-accent-2))',
             color: '#fff', border: 'none', cursor: 'pointer',
-            boxShadow: '0 8px 24px -4px rgba(255,141,26,.55), inset 0 1px 0 rgba(255,255,255,.4)',
+            boxShadow: '0 8px 24px -4px rgba(255,141,26,.55), inset 0 1px 0 rgba(255,255,255,0.05)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             transition: 'transform .2s, box-shadow .2s',
           }}
@@ -686,7 +686,7 @@ function InsightWorkspace({
             position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
             zIndex: 10,
             padding: '12px 8px',
-            background: 'rgba(255,255,255,0.55)',
+            background: 'rgba(255,255,255,0.06)',
             border: '1px solid var(--rd-line)',
             borderRight: 'none',
             borderRadius: '8px 0 0 8px',
@@ -795,7 +795,7 @@ function AgenticValidityBanner({ bundle }: { bundle: CuratedBundle }) {
       backdropFilter: 'blur(20px) saturate(180%)',
       WebkitBackdropFilter: 'blur(20px) saturate(180%)',
       borderBottom: `1px solid ${C.border}`,
-      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.50)',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
       color: C.text,
     }}>
       <button
@@ -908,7 +908,7 @@ function ChatTabs({ mode, setMode, docCount, onOpenDocs }: {
         title="查看关联文档"
       >
         <Files size={11} /> 关联文档
-        <span style={{ fontSize: 12, padding: '1px 7px', borderRadius: 999, background: 'rgba(15, 18, 36, .06)', color: 'var(--rd-text-3)' }}>{docCount}</span>
+        <span style={{ fontSize: 12, padding: '1px 7px', borderRadius: 999, background: 'rgba(0,0,0,0.25)', color: 'var(--rd-text-3)' }}>{docCount}</span>
       </button>
     </div>
   )
@@ -989,10 +989,10 @@ function BundleInlinePreview({ bundle }: { bundle: CuratedBundle }) {
     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
       <div style={{
         maxWidth: 420, width: '100%', borderRadius: 16,
-        background: 'rgba(255,255,255,0.55)',
-        border: '1px solid rgba(255,255,255,0.55)',
+        background: 'rgba(255,255,255,0.06)',
+        border: '1px solid rgba(255,255,255,0.06)',
         padding: '24px 28px', textAlign: 'center',
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.55)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
       }}>
         <div style={{
           width: 48, height: 48, borderRadius: 12,
@@ -1058,7 +1058,7 @@ function DocsDrawer({ docs, onClose, onSelect, previewDocId }: {
         onClick={e => e.stopPropagation()}
         style={{
           width: 'min(420px, 100vw)', height: '100%',
-          background: 'rgba(255, 255, 255, 0.85)',
+          background: 'rgba(255,255,255,0.10)',
           display: 'flex', flexDirection: 'column',
           boxShadow: '0 25px 50px -12px rgba(15, 18, 36, .25)',
         }}
@@ -1109,13 +1109,13 @@ function DocsDrawer({ docs, onClose, onSelect, previewDocId }: {
                       background: active ? 'rgba(255, 141, 26, .10)' : 'transparent',
                       transition: 'all .15s',
                     }}
-                    onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(15, 18, 36, .04)' }}
+                    onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(0,0,0,0.25)' }}
                     onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
                   >
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                       <div style={{
                         width: 28, height: 28, borderRadius: 8,
-                        background: 'rgba(15, 18, 36, .04)',
+                        background: 'rgba(0,0,0,0.25)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         flexShrink: 0,
                       }}>
@@ -1177,11 +1177,11 @@ function ProjectEditPanel({ project, onClose, onSaved }: {
   return (
     <div style={{ flexShrink: 0, padding: '14px 20px', borderBottom: '1px solid var(--rd-line)' }}>
       <div style={{
-        background: 'rgba(255,255,255,0.55)',
-        border: '1px solid rgba(255,255,255,0.55)',
+        background: 'rgba(255,255,255,0.06)',
+        border: '1px solid rgba(255,255,255,0.06)',
         borderRadius: 16,
         padding: 18,
-        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, .8), 0 4px 14px -6px rgba(15, 18, 36, .08)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10), 0 4px 14px -6px rgba(0,0,0,0.25)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <h3 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--rd-text)', margin: 0 }}>
@@ -1234,7 +1234,7 @@ function ProjectEditPanel({ project, onClose, onSaved }: {
           {profile.trim() && (
             <details style={{ marginTop: 6 }}>
               <summary style={{ fontSize: 12, color: 'var(--rd-text-3)', cursor: 'pointer' }}>预览渲染</summary>
-              <div style={{ marginTop: 6, padding: 12, borderRadius: 10, background: 'rgba(15, 18, 36, .03)', border: '1px solid var(--rd-line)' }}>
+              <div style={{ marginTop: 6, padding: 12, borderRadius: 10, background: 'rgba(0,0,0,0.25)', border: '1px solid var(--rd-line)' }}>
                 <MarkdownView content={profile} size="sm" toolbar={false} />
               </div>
             </details>
@@ -1322,7 +1322,7 @@ function DocPreviewDrawer({ docId, docs, onClose }: {
         onClick={e => e.stopPropagation()}
         style={{
           width: 'min(680px, 100vw)', height: '100%',
-          background: 'rgba(255, 255, 255, 0.88)',
+          background: 'rgba(255,255,255,0.10)',
           display: 'flex', flexDirection: 'column',
           boxShadow: '0 25px 50px -12px rgba(15, 18, 36, .25)',
         }}

@@ -59,10 +59,11 @@ const SLOT = {
   orb:      { width: 56,  height: 56 },
   floatbar: { width: 240, height: 46 },
 }
+// overLight: false — 深色底,LiquidGlass 走暗模式(2026-05-15 切 PPT 风)
 const GLASS = {
-  dock:     { blurAmount: 0.14, saturation: 150, aberrationIntensity: 2, elasticity: 0.20, displacementScale: 40, overLight: true },
-  orb:      { blurAmount: 0.14, saturation: 150, aberrationIntensity: 2, elasticity: 0.35, displacementScale: 55, overLight: true },
-  floatbar: { blurAmount: 0.12, saturation: 140, aberrationIntensity: 2, elasticity: 0.18, displacementScale: 35, overLight: true },
+  dock:     { blurAmount: 0.14, saturation: 130, aberrationIntensity: 2, elasticity: 0.20, displacementScale: 40, overLight: false },
+  orb:      { blurAmount: 0.14, saturation: 130, aberrationIntensity: 2, elasticity: 0.35, displacementScale: 55, overLight: false },
+  floatbar: { blurAmount: 0.12, saturation: 120, aberrationIntensity: 2, elasticity: 0.18, displacementScale: 35, overLight: false },
 }
 
 export default function NewLayout() {
@@ -279,12 +280,12 @@ export default function NewLayout() {
               <div ref={moreRef} style={{
                 position: 'absolute', bottom: 'calc(100% + 12px)', right: 0,
                 width: 220,
-                background: 'rgba(255, 255, 255, 0.55)',
+                background: 'rgba(255,255,255,0.06)',
                 backdropFilter: 'blur(28px) saturate(180%)',
                 WebkitBackdropFilter: 'blur(28px) saturate(180%)',
-                border: '1px solid rgba(255, 255, 255, 0.55)',
+                border: '1px solid rgba(255,255,255,0.06)',
                 borderRadius: 16,
-                boxShadow: '0 16px 40px -12px rgba(15, 18, 36, 0.18), inset 0 1px 0 rgba(255,255,255,.85)',
+                boxShadow: '0 16px 40px -12px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.10)',
                 padding: 6,
                 animation: 'rd-fade-up .25s var(--rd-ease) both',
                 zIndex: 100,
@@ -329,9 +330,9 @@ export default function NewLayout() {
             >
               <Search
                 size={20}
-                color="#1A1D2E"
+                color="#FFFFFF"
                 strokeWidth={2.4}
-                style={{ filter: 'drop-shadow(0 1px 2px rgba(255,255,255,.7))' }}
+                style={{ filter: 'drop-shadow(0 1px 4px rgba(255,141,26,0.5))' }}
               />
             </LiquidGlass>
           </div>
@@ -353,7 +354,7 @@ export default function NewLayout() {
                   textAlign: 'center', letterSpacing: '-0.02em',
                   background: 'linear-gradient(135deg, var(--rd-accent), var(--rd-accent-2))',
                   borderRadius: '50%',
-                  boxShadow: '0 2px 8px rgba(255,141,26,.45), inset 0 1px 0 rgba(255,255,255,.4)',
+                  boxShadow: '0 2px 8px rgba(255,141,26,.45), inset 0 1px 0 rgba(255,255,255,0.05)',
                 }}>{initial}</span>
               </LiquidGlass>
             </div>
@@ -362,12 +363,12 @@ export default function NewLayout() {
               <div style={{
                 position: 'absolute', bottom: 'calc(100% + 14px)', right: 0,
                 width: 240,
-                background: 'rgba(255, 255, 255, 0.65)',
+                background: 'rgba(255,255,255,0.08)',
                 backdropFilter: 'blur(28px) saturate(180%)',
                 WebkitBackdropFilter: 'blur(28px) saturate(180%)',
-                border: '1px solid rgba(255, 255, 255, 0.55)',
+                border: '1px solid rgba(255,255,255,0.06)',
                 borderRadius: 16,
-                boxShadow: '0 16px 40px -12px rgba(15, 18, 36, 0.18), inset 0 1px 0 rgba(255,255,255,.85)',
+                boxShadow: '0 16px 40px -12px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.10)',
                 padding: 6,
                 animation: 'rd-fade-up .25s var(--rd-ease) both',
                 zIndex: 100,
@@ -406,12 +407,12 @@ export default function NewLayout() {
               <div style={{
                 position: 'absolute', bottom: 'calc(100% + 14px)', right: 0,
                 width: 300,
-                background: 'rgba(255, 255, 255, 0.85)',
+                background: 'rgba(255,255,255,0.10)',
                 backdropFilter: 'blur(28px) saturate(180%)',
                 WebkitBackdropFilter: 'blur(28px) saturate(180%)',
-                border: '1px solid rgba(255, 255, 255, 0.55)',
+                border: '1px solid rgba(255,255,255,0.06)',
                 borderRadius: 16,
-                boxShadow: '0 16px 40px -12px rgba(15, 18, 36, 0.18), inset 0 1px 0 rgba(255,255,255,.85)',
+                boxShadow: '0 16px 40px -12px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.10)',
                 padding: 6,
                 animation: 'rd-fade-up .25s var(--rd-ease) both',
                 zIndex: 100,
@@ -439,7 +440,7 @@ export default function NewLayout() {
                     <div style={{ fontSize: 11, color: 'var(--rd-text-3)', marginBottom: 4 }}>当前 Key</div>
                     <div className="rd-mono" style={{
                       fontSize: 11, padding: '4px 8px', borderRadius: 6,
-                      background: 'rgba(15, 18, 36, .04)',
+                      background: 'rgba(0,0,0,0.25)',
                       color: 'var(--rd-text)',
                     }}>{mcpPreview}</div>
                   </div>
@@ -532,7 +533,7 @@ function MenuItem({ icon: Icon, label, onClick, danger, accent, disabled, spin }
         opacity: disabled ? 0.5 : 1,
       }}
       onMouseEnter={e => !disabled && (e.currentTarget.style.background = danger
-        ? 'rgba(220, 38, 38, .08)' : accent ? 'rgba(255, 141, 26, .10)' : 'rgba(15, 18, 36, .04)')}
+        ? 'rgba(220, 38, 38, .08)' : accent ? 'rgba(255, 141, 26, .10)' : 'rgba(0,0,0,0.25)')}
       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
     >
       <Icon size={14} className={spin ? 'animate-spin' : ''} /> {label}

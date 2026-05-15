@@ -42,10 +42,11 @@ const SLOT = {
   floatbar:{ width: 260, height: 46 },
 }
 
+// overLight: false — 深色底,LiquidGlass 走暗模式(2026-05-15 切 PPT 风)
 const GLASS = {
-  dock:     { blurAmount: 0.14, saturation: 150, aberrationIntensity: 2, elasticity: 0.20, displacementScale: 40, overLight: true },
-  orb:      { blurAmount: 0.14, saturation: 150, aberrationIntensity: 2, elasticity: 0.35, displacementScale: 55, overLight: true },
-  floatbar: { blurAmount: 0.12, saturation: 140, aberrationIntensity: 2, elasticity: 0.18, displacementScale: 35, overLight: true },
+  dock:     { blurAmount: 0.14, saturation: 130, aberrationIntensity: 2, elasticity: 0.20, displacementScale: 40, overLight: false },
+  orb:      { blurAmount: 0.14, saturation: 130, aberrationIntensity: 2, elasticity: 0.35, displacementScale: 55, overLight: false },
+  floatbar: { blurAmount: 0.12, saturation: 120, aberrationIntensity: 2, elasticity: 0.18, displacementScale: 35, overLight: false },
 }
 
 export default function NewConsoleLayout() {
@@ -184,9 +185,9 @@ export default function NewConsoleLayout() {
             >
               <Search
                 size={20}
-                color="#1A1D2E"
+                color="#FFFFFF"
                 strokeWidth={2.4}
-                style={{ filter: 'drop-shadow(0 1px 2px rgba(255,255,255,.7))' }}
+                style={{ filter: 'drop-shadow(0 1px 4px rgba(255,141,26,0.5))' }}
               />
             </LiquidGlass>
           </div>

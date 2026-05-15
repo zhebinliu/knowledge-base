@@ -1,34 +1,40 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   KB System Redesign — 深色霓虹辉光 设计原型
-   独立 CSS,所有类名以 .rd- 前缀,仅在 RedesignShell 内生效。
+   KB System Redesign — 深色 PPT 风(navy + 橙色发光玻璃)
+   2026-05-15 对齐 DemoPPT slide 5 风格 — 整站统一切深色
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 .rd-root {
-  /* ── Light Liquid Glass tokens ─────────────────────────────────────── */
-  --rd-bg:              #F4F5F8;            /* 浅灰底 — 跟现有项目 canvas 一致 */
-  --rd-bg-2:            #ECEDF2;
-  --rd-surface:         rgba(255, 255, 255, 0.42);   /* 玻璃卡:更通透 */
-  --rd-surface-solid:   #FFFFFF;
-  --rd-surface-elev:    rgba(255, 255, 255, 0.78);
+  /* ── Dark PPT tokens(对齐 backend/src/pages/demo-ppt/theme.ts)──────── */
+  --rd-bg:              #0A0F1E;            /* deep navy */
+  --rd-bg-2:            #050810;            /* 更深(全屏遮罩用) */
+  --rd-surface:         rgba(255, 255, 255, 0.04);   /* 玻璃卡:极淡白 */
+  --rd-surface-2:       rgba(255, 255, 255, 0.06);
+  --rd-surface-solid:   #161A2A;
+  --rd-surface-elev:    rgba(255, 255, 255, 0.08);
 
-  --rd-line:            rgba(15, 18, 36, 0.08);
-  --rd-line-strong:     rgba(15, 18, 36, 0.14);
-  --rd-line-glow:       rgba(255, 141, 26, 0.45);
+  --rd-line:            rgba(255, 255, 255, 0.10);
+  --rd-line-strong:     rgba(255, 255, 255, 0.18);
+  --rd-line-glow:       rgba(255, 141, 26, 0.35);
 
   --rd-accent:          #FF8D1A;
-  --rd-accent-2:        #D96400;     /* 浅色下用更深的橙作为强调,对比度高 */
-  --rd-accent-deep:     #B5500A;
-  --rd-violet:          #7C3AED;
-  --rd-cyan:            #0E7490;
-  --rd-green:           #059669;
-  --rd-red:             #DC2626;
+  --rd-accent-2:        #FFB066;     /* 深色下用更浅的橙做强调,对比够 */
+  --rd-accent-deep:     #D96400;
+  --rd-accent-soft:     rgba(255, 141, 26, 0.18);
+  --rd-violet:          #C084FC;
+  --rd-cyan:            #38BDF8;
+  --rd-green:           #34D399;
+  --rd-red:             #FB7185;
+  --rd-amber:           #FBBF24;
+  --rd-blue:            #60A5FA;
 
-  --rd-accent-glow:     0 0 22px rgba(255, 141, 26, 0.42);
-  --rd-accent-glow-lg:  0 0 44px rgba(255, 141, 26, 0.50);
+  --rd-accent-glow:     0 0 28px rgba(255, 141, 26, 0.55);
+  --rd-accent-glow-lg:  0 0 80px -20px rgba(255, 141, 26, 0.55), 0 0 30px -10px rgba(255, 141, 26, 0.35);
 
-  --rd-text:            #1A1D2E;
-  --rd-text-2:          #5C6273;
-  --rd-text-3:          #9097A6;
+  /* 文字层级:深色背景上用白色透明度梯度 */
+  --rd-text:            #FFFFFF;
+  --rd-text-2:          rgba(255, 255, 255, 0.62);
+  --rd-text-3:          rgba(255, 255, 255, 0.38);
+  --rd-text-faint:      rgba(255, 255, 255, 0.22);
 
   --rd-radius-sm:       8px;
   --rd-radius:          12px;
@@ -56,29 +62,29 @@
   flex-direction: column;
 }
 
-/* 背景渐变 + 氛围光球(柔和但足够色彩让玻璃有透过感) */
+/* 深色 navy 底 + 橙/蓝径向光晕(对齐 PPT SlideBackdrop) */
 .rd-shell::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -2;
   background:
-    radial-gradient(ellipse 70% 55% at 15% -5%, rgba(255, 141, 26, .35), transparent 55%),
-    radial-gradient(ellipse 60% 55% at 95% 10%,  rgba(124, 58, 237, .28), transparent 55%),
-    radial-gradient(ellipse 70% 45% at 50% 110%, rgba(14, 165, 233, .26), transparent 50%),
-    radial-gradient(ellipse 50% 40% at 80% 70%,  rgba(236, 72, 153, .18), transparent 50%),
-    linear-gradient(180deg, #FFF3E3 0%, #ECE6FA 45%, #DDF0FB 100%);
+    radial-gradient(ellipse 70% 55% at 15% -5%, rgba(255, 141, 26, 0.20), transparent 55%),
+    radial-gradient(ellipse 60% 55% at 95% 10%, rgba(96, 165, 250, 0.14), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 50% 110%, rgba(96, 165, 250, 0.10), transparent 50%),
+    #0A0F1E;
 }
+/* 微弱网格点(深色专属,对齐 PPT) */
 .rd-shell::after {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
+  opacity: 0.18;
   background-image:
-    linear-gradient(rgba(15, 18, 36, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 18, 36, 0.025) 1px, transparent 1px);
-  background-size: 56px 56px;
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.18) 1px, transparent 0);
+  background-size: 32px 32px;
   mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
 }
 
@@ -86,14 +92,15 @@
   position: fixed;
   border-radius: 50%;
   filter: blur(110px);
-  opacity: 0.55;
+  opacity: 0.45;
   z-index: -1;
   pointer-events: none;
   will-change: transform;
 }
-.rd-orb-1 { top: -60px;  left: 5%;   width: 520px; height: 520px; background: #FB923C; animation: rd-orb-float 18s ease-in-out infinite; }
-.rd-orb-2 { top: 20%;    right: 8%;  width: 600px; height: 600px; background: #A78BFA; animation: rd-orb-float 22s ease-in-out infinite reverse; }
-.rd-orb-3 { bottom: 5%; left: 30%; width: 540px; height: 540px; background: #38BDF8; opacity: 0.45; animation: rd-orb-float 30s ease-in-out infinite; }
+/* 橙色 / 橙色 / 蓝色 — 跟 PPT brand 调一致 */
+.rd-orb-1 { top: -80px;  left: 8%;   width: 520px; height: 520px; background: #FF8D1A; animation: rd-orb-float 18s ease-in-out infinite; }
+.rd-orb-2 { top: 18%;    right: 6%;  width: 580px; height: 580px; background: #D96400; opacity: 0.35; animation: rd-orb-float 22s ease-in-out infinite reverse; }
+.rd-orb-3 { bottom: 8%;  left: 30%;  width: 540px; height: 540px; background: #60A5FA; opacity: 0.28; animation: rd-orb-float 30s ease-in-out infinite; }
 
 @keyframes rd-orb-float {
   0%, 100% { transform: translate(0, 0) scale(1); }
@@ -400,45 +407,44 @@
   letter-spacing: 0.04em;
 }
 
-/* ── Liquid Glass 卡片:半透白 + backdrop-filter + 顶高光 ──────────── */
+/* ── PPT Glass 卡片:深色底极淡白 + blur + 微弱顶高光 ──────────────── */
 .rd-card {
-  background: rgba(255, 255, 255, 0.55);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-          backdrop-filter: blur(28px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.65);
+  background: var(--rd-surface);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+          backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--rd-line);
   border-radius: var(--rd-radius-lg);
   padding: 20px;
   position: relative;
   transition: transform .25s var(--rd-ease), border-color .2s, box-shadow .25s var(--rd-ease);
   box-shadow:
-    0 1px 2px rgba(15, 18, 36, 0.04),
-    0 8px 24px -10px rgba(15, 18, 36, 0.10),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 30px 60px -20px rgba(0, 0, 0, 0.45);
 }
 .rd-card > * { position: relative; }
 
 .rd-card.is-interactive { cursor: pointer; }
 .rd-card.is-interactive:hover {
   transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.85);
+  border-color: var(--rd-line-glow);
   box-shadow:
-    0 12px 28px -8px rgba(15, 18, 36, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 30px 60px -20px rgba(0, 0, 0, 0.55),
+    0 0 24px -6px rgba(255, 141, 26, 0.35);
 }
 
 .rd-card.is-glow {
-  border-color: rgba(255, 141, 26, 0.30);
+  border-color: var(--rd-line-glow);
   box-shadow:
-    0 1px 2px rgba(15, 18, 36, 0.04),
-    0 8px 24px -8px rgba(255, 141, 26, 0.30),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    var(--rd-accent-glow-lg);
 }
 
 .rd-card.is-shimmer { position: relative; }
 
 @keyframes rd-spin { to { transform: rotate(360deg); } }
 
-/* ── Liquid Glass 按钮 ──────────────────────────────────────────────── */
+/* ── PPT Glass 按钮:深色玻璃面 + 橙色 hover 描边 ──────────────────── */
 .rd-btn {
   display: inline-flex;
   align-items: center;
@@ -449,46 +455,59 @@
   font-weight: 500;
   letter-spacing: 0.01em;
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.70);
-  background: rgba(255, 255, 255, 0.68);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-          backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--rd-line);
+  background: rgba(255, 255, 255, 0.04);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+          backdrop-filter: blur(16px) saturate(140%);
   color: var(--rd-text);
-  transition: background .15s, border-color .15s;
+  transition: background .15s, border-color .15s, box-shadow .15s;
   font-family: inherit;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
-.rd-btn:hover { background: rgba(255, 255, 255, 0.82); border-color: rgba(255, 255, 255, 0.90); }
-.rd-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.rd-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--rd-line-glow);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 16px -6px rgba(255, 141, 26, 0.45);
+}
+.rd-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .rd-btn-primary {
-  background: linear-gradient(135deg, var(--rd-accent), var(--rd-accent-deep));
-  border-color: rgba(255, 141, 26, 0.50);
+  background: linear-gradient(135deg, #FFB066 0%, #FF8D1A 50%, #D96400 100%);
+  border-color: rgba(255, 141, 26, 0.55);
   color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.30);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.30),
+    0 0 24px -6px rgba(255, 141, 26, 0.55);
 }
 .rd-btn-primary:hover {
-  background: linear-gradient(135deg, var(--rd-accent-2), var(--rd-accent-deep));
-  border-color: rgba(255, 141, 26, 0.65);
+  background: linear-gradient(135deg, #FFC388 0%, #FFA040 50%, #E47200 100%);
+  border-color: rgba(255, 141, 26, 0.70);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 0 32px -4px rgba(255, 141, 26, 0.65);
 }
 
-.rd-btn-ghost { background: transparent; border-color: transparent; color: var(--rd-text-2); backdrop-filter: none; }
-.rd-btn-ghost:hover { color: var(--rd-text); background: rgba(15, 18, 36, 0.05); }
+.rd-btn-ghost { background: transparent; border-color: transparent; color: var(--rd-text-2); backdrop-filter: none; box-shadow: none; }
+.rd-btn-ghost:hover { color: var(--rd-text); background: rgba(255, 255, 255, 0.06); }
 
 .rd-icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 32px; height: 32px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  background: rgba(255, 255, 255, 0.45);
-  -webkit-backdrop-filter: blur(18px) saturate(180%);
-          backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid var(--rd-line);
+  background: rgba(255, 255, 255, 0.04);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+          backdrop-filter: blur(16px) saturate(140%);
   color: var(--rd-text-2);
   cursor: pointer;
-  transition: background .15s, border-color .15s;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.70);
+  transition: background .15s, border-color .15s, box-shadow .15s;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
-.rd-icon-btn:hover { color: var(--rd-text); background: rgba(255, 255, 255, 0.65); border-color: rgba(255, 255, 255, 0.80); }
+.rd-icon-btn:hover {
+  color: var(--rd-text);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--rd-line-glow);
+}
 
 /* ── Pills / chips ───────────────────────────────────────────────────── */
 .rd-chip {
@@ -496,21 +515,28 @@
   padding: 6px 12px;
   border-radius: 999px;
   font-size: 12.5px; font-weight: 500;
-  background: rgba(255, 255, 255, 0.45);
-  -webkit-backdrop-filter: blur(18px) saturate(180%);
-          backdrop-filter: blur(18px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.04);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+          backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--rd-line);
   color: var(--rd-text-2);
   cursor: pointer;
-  transition: background .15s, border-color .15s;
+  transition: background .15s, border-color .15s, box-shadow .15s;
   font-family: inherit;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.70);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
-.rd-chip:hover { color: var(--rd-text); background: rgba(255, 255, 255, 0.65); border-color: rgba(255, 255, 255, 0.80); }
+.rd-chip:hover {
+  color: var(--rd-text);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--rd-line-glow);
+}
 .rd-chip.is-active {
-  background: linear-gradient(135deg, rgba(255,141,26,.25), rgba(255,141,26,.10));
-  border-color: rgba(255, 141, 26, 0.55);
+  background: var(--rd-accent-soft);
+  border-color: var(--rd-line-glow);
   color: var(--rd-accent-2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 16px -4px rgba(255, 141, 26, 0.40);
 }
 
 /* ── Stagger entry ──────────────────────────────────────────────────── */
@@ -522,13 +548,13 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Input / search ─────────────────────────────────────────────────── */
+/* ── Input / search(深色玻璃)──────────────────────────────────────── */
 .rd-input {
   width: 100%;
-  background: rgba(255, 255, 255, 0.55);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-          backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.60);
+  background: rgba(255, 255, 255, 0.04);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+          backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--rd-line);
   border-radius: var(--rd-radius);
   padding: 10px 14px;
   font-size: 13px;
@@ -536,14 +562,14 @@
   transition: border-color .15s, box-shadow .15s, background .15s;
   outline: none;
   font-family: inherit;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.70);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 .rd-input::placeholder { color: var(--rd-text-3); }
 .rd-input:focus,
 .rd-input:focus-visible {
-  border-color: rgba(255, 141, 26, 0.60);
-  background: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 0 0 3px rgba(255, 141, 26, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  border-color: var(--rd-line-glow);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 3px rgba(255, 141, 26, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .rd-search-hero {
@@ -832,119 +858,191 @@
 /* Scrollbar */
 .rd-root ::-webkit-scrollbar { width: 8px; height: 8px; }
 .rd-root ::-webkit-scrollbar-track { background: transparent; }
-.rd-root ::-webkit-scrollbar-thumb { background: rgba(15, 18, 36, 0.12); border-radius: 4px; }
-.rd-root ::-webkit-scrollbar-thumb:hover { background: rgba(15, 18, 36, 0.22); }
+.rd-root ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 4px; }
+.rd-root ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.22); }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   在 .rd-root 内嵌入的老组件 → 自动 Liquid Glass 化
-   覆盖常用 Tailwind utility:bg-white / bg-slate-50 / bg-gray-50 / 中性边框
+   在 .rd-root 内嵌入的老组件 → 自动深色 PPT 化
+   覆盖常用 Tailwind utility:bg-white / bg-slate-50 / bg-gray-50 / 中性边框 + 文字色
    保留语义色(orange / red / amber / emerald / blue 等)的色调,只加 blur
    想跳过覆盖的元素可以加 .rd-no-glass class
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-.rd-root .bg-white:not(.rd-no-glass) {
-  background: rgba(255,255,255,0.55) !important;
-  backdrop-filter: blur(20px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.70);
+.rd-root .bg-white:not(.rd-no-glass),
+.rd-root [class*="bg-white"]:not(.rd-no-glass) {
+  background: rgba(255, 255, 255, 0.04) !important;
+  backdrop-filter: blur(18px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(140%) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  color: var(--rd-text);
 }
 
 .rd-root .bg-slate-50:not(.rd-no-glass),
 .rd-root .bg-gray-50:not(.rd-no-glass),
 .rd-root .bg-canvas:not(.rd-no-glass) {
-  background: rgba(255,255,255,0.30) !important;
-  backdrop-filter: blur(14px) saturate(160%) !important;
-  -webkit-backdrop-filter: blur(14px) saturate(160%) !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  backdrop-filter: blur(14px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(140%) !important;
 }
 
 .rd-root .bg-slate-100:not(.rd-no-glass),
 .rd-root .bg-gray-100:not(.rd-no-glass) {
-  background: rgba(15,18,36,0.05) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
 }
 
 .rd-root .border-line,
 .rd-root .border-slate-100,
 .rd-root .border-slate-200,
 .rd-root .border-gray-100,
-.rd-root .border-gray-200 {
-  border-color: rgba(15,18,36,0.08) !important;
+.rd-root .border-gray-200,
+.rd-root .border-gray-300 {
+  border-color: var(--rd-line) !important;
 }
 
-/* 语义色背景:保留色调,加 blur 让它跟着玻璃化 */
-.rd-root .bg-orange-50, .rd-root .bg-amber-50, .rd-root .bg-yellow-50,
-.rd-root .bg-emerald-50, .rd-root .bg-green-50,
-.rd-root .bg-red-50, .rd-root .bg-rose-50,
-.rd-root .bg-blue-50, .rd-root .bg-sky-50,
-.rd-root .bg-purple-50, .rd-root .bg-violet-50,
-.rd-root .bg-cyan-50, .rd-root .bg-teal-50 {
-  backdrop-filter: blur(16px) saturate(160%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(160%) !important;
+/* 老 UI 文字色变量 — 深色底下统一翻转 */
+.rd-root .text-ink, .rd-root .text-gray-900, .rd-root .text-slate-900,
+.rd-root .text-gray-800, .rd-root .text-slate-800,
+.rd-root .text-black {
+  color: var(--rd-text) !important;
+}
+.rd-root .text-ink-secondary, .rd-root .text-gray-700, .rd-root .text-slate-700,
+.rd-root .text-gray-600, .rd-root .text-slate-600 {
+  color: var(--rd-text-2) !important;
+}
+.rd-root .text-ink-muted, .rd-root .text-gray-500, .rd-root .text-slate-500,
+.rd-root .text-gray-400, .rd-root .text-slate-400 {
+  color: var(--rd-text-3) !important;
 }
 
-/* 表单输入:老 input/textarea 用 bg-white border-line 居多,覆盖到玻璃 */
+/* 语义色背景:深色底下要加重 alpha 才能透出色调(浅底 alpha .05 在深底看不见) */
+.rd-root .bg-orange-50  { background: rgba(255, 141, 26, 0.14) !important; }
+.rd-root .bg-amber-50   { background: rgba(245, 158, 11, 0.14) !important; }
+.rd-root .bg-yellow-50  { background: rgba(234, 179, 8, 0.14) !important; }
+.rd-root .bg-emerald-50 { background: rgba(16, 185, 129, 0.14) !important; }
+.rd-root .bg-green-50   { background: rgba(34, 197, 94, 0.14) !important; }
+.rd-root .bg-red-50     { background: rgba(244, 63, 94, 0.14) !important; }
+.rd-root .bg-rose-50    { background: rgba(251, 113, 133, 0.14) !important; }
+.rd-root .bg-blue-50    { background: rgba(96, 165, 250, 0.14) !important; }
+.rd-root .bg-sky-50     { background: rgba(56, 189, 248, 0.14) !important; }
+.rd-root .bg-purple-50  { background: rgba(192, 132, 252, 0.14) !important; }
+.rd-root .bg-violet-50  { background: rgba(167, 139, 250, 0.14) !important; }
+.rd-root .bg-cyan-50    { background: rgba(34, 211, 238, 0.14) !important; }
+.rd-root .bg-teal-50    { background: rgba(45, 212, 191, 0.14) !important; }
+.rd-root [class*="bg-orange-50"], .rd-root [class*="bg-amber-50"],
+.rd-root [class*="bg-emerald-50"], .rd-root [class*="bg-red-50"],
+.rd-root [class*="bg-blue-50"], .rd-root [class*="bg-purple-50"] {
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+
+/* 表单输入:深色玻璃 */
 .rd-root input:not(.rd-no-glass):not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 .rd-root textarea:not(.rd-no-glass),
 .rd-root select:not(.rd-no-glass) {
-  background: rgba(255,255,255,0.55);
-  backdrop-filter: blur(18px) saturate(180%);
-  -webkit-backdrop-filter: blur(18px) saturate(180%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.70);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  color: var(--rd-text);
+  border-color: var(--rd-line);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 .rd-root input:focus:not(.rd-no-glass),
 .rd-root textarea:focus:not(.rd-no-glass),
 .rd-root select:focus:not(.rd-no-glass) {
-  background: rgba(255,255,255,0.85);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--rd-line-glow);
 }
+.rd-root input::placeholder, .rd-root textarea::placeholder { color: var(--rd-text-3); }
+/* select option 在 native popup 里展示,需要深色 */
+.rd-root select option { background: var(--rd-surface-solid); color: var(--rd-text); }
 
-/* Modal / Drawer 容器 — 老组件经常用 fixed inset-0 + bg-white */
+/* Modal / Drawer 容器 — 深色玻璃 */
 .rd-root [role="dialog"]:not(.rd-no-glass) {
-  backdrop-filter: blur(40px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(40px) saturate(180%) !important;
+  background: rgba(22, 26, 42, 0.85) !important;
+  backdrop-filter: blur(40px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(40px) saturate(140%) !important;
+  border-color: var(--rd-line) !important;
 }
 
-/* ── 所有 button 元素自动玻璃化 ────────────────────────────────────────────
-   规则:有 border 的 button(看起来像 chip / btn)→ 玻璃化
-   没有 border 的(纯文字 / icon 按钮)→ 不动,避免破坏 nav 风格
-   语义色按钮(bg-orange-*, bg-red-* 等)走前面的语义色规则
-   想跳过加 .rd-no-glass */
+/* ── 所有 button 自动深色玻璃化 ──────────────────────────────────────── */
 .rd-root button:not(.rd-no-glass):where(
   [class*="border"],
   [class*="rounded"]
 ):not([class*="bg-orange"]):not([class*="bg-red"]):not([class*="bg-emerald"]):not([class*="bg-amber"]):not([class*="bg-blue"]):not([class*="bg-purple"]):not([class*="bg-violet"]):not([class*="bg-cyan"]) {
-  background: rgba(255, 255, 255, 0.68);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-color: rgba(255, 255, 255, 0.70);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
-  transition: background .15s, border-color .15s, transform .15s;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border-color: var(--rd-line);
+  color: var(--rd-text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: background .15s, border-color .15s, transform .15s, box-shadow .15s;
 }
 .rd-root button:not(.rd-no-glass):where([class*="border"], [class*="rounded"]):hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.82) !important;
-  border-color: rgba(255, 255, 255, 0.90) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: var(--rd-line-glow) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 16px -6px rgba(255, 141, 26, 0.45) !important;
 }
 
-/* 主 CTA(老 UI 用 bg-orange-600 / bg-orange-500 表示主按钮)— 保留橙色但加玻璃感 */
+/* 主 CTA(老 UI 用 bg-orange-600 / bg-orange-500)— 保留橙色渐变 + 增强发光 */
 .rd-root button:not(.rd-no-glass):where(
   [class*="bg-orange-500"],
   [class*="bg-orange-600"],
   [class*="bg-orange-700"]
 ) {
-  background: linear-gradient(135deg, #FF8D1A, #B5500A) !important;
+  background: linear-gradient(135deg, #FFB066 0%, #FF8D1A 50%, #D96400 100%) !important;
   border: 1px solid rgba(255, 141, 26, 0.55) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.30), 0 4px 12px -2px rgba(255, 141, 26, 0.30) !important;
+  color: #fff !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.30),
+    0 0 24px -6px rgba(255, 141, 26, 0.55) !important;
 }
 
-/* prose markdown(MarkdownView 用的)— 不要给 inline code / pre 加 blur(看不清) */
-.rd-root .prose code:not(.rd-no-glass),
-.rd-root .prose pre:not(.rd-no-glass) {
+/* prose markdown — 翻成深色可读 */
+.rd-root .prose {
+  color: var(--rd-text-2);
+}
+.rd-root .prose h1, .rd-root .prose h2, .rd-root .prose h3,
+.rd-root .prose h4, .rd-root .prose h5, .rd-root .prose h6 {
+  color: var(--rd-text);
+}
+.rd-root .prose strong { color: var(--rd-text); }
+.rd-root .prose a { color: var(--rd-accent-2); }
+.rd-root .prose code:not(.rd-no-glass) {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #FFB066 !important;
+  border-color: var(--rd-line) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+.rd-root .prose pre:not(.rd-no-glass) {
+  background: rgba(0, 0, 0, 0.30) !important;
+  color: var(--rd-text) !important;
+  border-color: var(--rd-line) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.rd-root .prose th { background: rgba(255, 255, 255, 0.04) !important; color: var(--rd-text) !important; border-color: var(--rd-line) !important; }
+.rd-root .prose td { border-color: var(--rd-line) !important; color: var(--rd-text-2); }
+.rd-root .prose blockquote { border-color: var(--rd-line-glow); color: var(--rd-text-2); }
 
-/* 老组件依旧用 .rd-questionnaire-glass 的兼容样式 */
+/* 引用角标 [D1] / [K1] / [W1] —— 跟 PPT slide 5 风格对齐 */
+.rd-root .citation-doc {
+  background: rgba(255, 141, 26, 0.20);
+  color: var(--rd-accent-2);
+  border: 1px solid var(--rd-line-glow);
+  box-shadow: 0 0 10px rgba(255, 141, 26, 0.30);
+}
+.rd-root .citation-kb {
+  background: rgba(96, 165, 250, 0.18);
+  color: #93C5FD;
+  border: 1px solid rgba(96, 165, 250, 0.40);
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.30);
+}
+
+/* 老 questionnaire glass 覆盖 */
 .rd-questionnaire-glass .sticky.top-0 {
-  background: rgba(255,255,255,0.65) !important;
-  backdrop-filter: blur(28px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.85), 0 1px 0 rgba(15,18,36,0.04);
+  background: rgba(22, 26, 42, 0.85) !important;
+  backdrop-filter: blur(28px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(140%) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 0 rgba(255, 255, 255, 0.08);
 }

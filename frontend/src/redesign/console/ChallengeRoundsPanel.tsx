@@ -24,8 +24,8 @@ const VERDICT_META: Record<string, { label: string; color: string; bg: string; b
   minor_issues:   { label: '☑ 可放行',   color: '#92400E', bg: 'rgba(245, 158, 11, .10)', border: 'rgba(245, 158, 11, .28)' },
   major_issues:   { label: '🚫 需返工',  color: '#B91C1C', bg: 'rgba(220, 38, 38, .10)',  border: 'rgba(220, 38, 38, .28)' },
   parse_failed:   { label: '⚠ 解析失败 · 未确认质量', color: '#92400E', bg: 'rgba(245, 158, 11, .15)', border: 'rgba(245, 158, 11, .35)' },
-  skipped:        { label: '— 跳过',     color: '#475569', bg: 'rgba(15, 18, 36, .05)',   border: 'rgba(15, 18, 36, .12)' },
-  skipped_invalid:{ label: '— 信息不足跳过', color: '#475569', bg: 'rgba(15, 18, 36, .05)', border: 'rgba(15, 18, 36, .12)' },
+  skipped:        { label: '— 跳过',     color: '#475569', bg: 'rgba(0,0,0,0.25)',   border: 'rgba(0,0,0,0.40)' },
+  skipped_invalid:{ label: '— 信息不足跳过', color: '#475569', bg: 'rgba(0,0,0,0.25)', border: 'rgba(0,0,0,0.40)' },
 }
 
 const SEVERITY_META: Record<string, { color: string; bg: string; label: string }> = {
@@ -88,9 +88,9 @@ export default function NewChallengeRoundsPanel({ bundleId, challengeSummary }: 
   return (
     <div style={{
       borderRadius: 12, marginBottom: 12, overflow: 'hidden',
-      background: 'rgba(255,255,255,0.55)',
-      border: '1px solid rgba(255,255,255,0.55)',
-      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, .75), 0 4px 14px -6px rgba(15, 18, 36, .08)',
+      background: 'rgba(255,255,255,0.06)',
+      border: '1px solid rgba(255,255,255,0.06)',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10), 0 4px 14px -6px rgba(0,0,0,0.25)',
     }}>
       <button
         onClick={() => setOpen(o => !o)}
@@ -257,8 +257,8 @@ function ModuleGroup({ moduleKey, issues, isFixed }: {
         borderRadius: 6,
         fontSize: 12, fontWeight: 600,
         color: isGlobal ? '#7C3AED' : 'var(--rd-text)',
-        background: isGlobal ? 'rgba(124,58,237,0.08)' : 'rgba(15,18,36,0.05)',
-        border: `1px solid ${isGlobal ? 'rgba(124,58,237,0.20)' : 'rgba(15,18,36,0.10)'}`,
+        background: isGlobal ? 'rgba(124,58,237,0.08)' : 'rgba(0,0,0,0.25)',
+        border: `1px solid ${isGlobal ? 'rgba(124,58,237,0.20)' : 'rgba(0,0,0,0.40)'}`,
         fontFamily: 'inherit',
       }}>
         {isGlobal ? (

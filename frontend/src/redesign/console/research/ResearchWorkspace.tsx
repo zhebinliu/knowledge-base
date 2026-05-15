@@ -144,18 +144,18 @@ export default function ResearchWorkspace({
       <div
         className="w-[280px] flex-shrink-0 flex flex-col"
         style={{
-          background: 'rgba(255,255,255,0.50)',
+          background: 'rgba(255,255,255,0.06)',
           backdropFilter: 'blur(32px) saturate(180%)',
           WebkitBackdropFilter: 'blur(32px) saturate(180%)',
-          borderRight: '1px solid rgba(255,255,255,0.55)',
-          boxShadow: 'inset 1px 0 0 rgba(255,255,255,0.80), inset -1px 0 0 rgba(255,255,255,0.30)',
+          borderRight: '1px solid rgba(255,255,255,0.06)',
+          boxShadow: 'inset 1px 0 0 rgba(255,255,255,0.10), inset -1px 0 0 rgba(255,255,255,0.30)',
         }}
       >
         <div className="flex-shrink-0 px-3 pt-3 pb-2" style={{ borderBottom: '1px solid var(--rd-line)' }}>
           <div className="text-xs mb-1.5" style={{ color: 'var(--rd-text-2)' }}>问卷分组方式</div>
           <div
             className="flex gap-1 p-0.5 rounded-lg"
-            style={{ background: 'rgba(255,255,255,0.55)', border: '1px solid var(--rd-line)' }}
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--rd-line)' }}
           >
             <GroupTabBtn
               active={groupBy === 'role'}
@@ -233,13 +233,13 @@ export default function ResearchWorkspace({
                             color: selected ? 'var(--rd-accent)' : 'var(--rd-text-2)',
                             border: selected ? '1px solid rgba(255,141,26,0.25)' : '1px solid transparent',
                           }}
-                          onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'rgba(255,255,255,0.55)' }}
+                          onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
                           onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent' }}
                         >
                           <span className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: '#a78bfa' }} />
                           <span className="truncate flex-1">{sowTerm}</span>
                           {answeredCount > 0 && (
-                            <span className="text-xs shrink-0 px-1 rounded" style={{ color: 'var(--rd-text-3)', background: 'rgba(255,255,255,0.55)' }}>
+                            <span className="text-xs shrink-0 px-1 rounded" style={{ color: 'var(--rd-text-3)', background: 'rgba(255,255,255,0.06)' }}>
                               {answeredCount} 题
                             </span>
                           )}
@@ -261,11 +261,11 @@ export default function ResearchWorkspace({
         <div
           className="flex-shrink-0 px-3 py-2 flex items-center gap-1"
           style={{
-            borderBottom: '1px solid rgba(255,255,255,0.55)',
-            background: 'rgba(255,255,255,0.45)',
+            borderBottom: '1px solid rgba(255,255,255,0.06)',
+            background: 'rgba(255,255,255,0.05)',
             backdropFilter: 'blur(24px) saturate(180%)',
             WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.80)',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10)',
           }}
         >
           <ViewTab active={view === 'preparation'} onClick={() => setView('preparation')}
@@ -346,7 +346,7 @@ export default function ResearchWorkspace({
                         className="flex items-center justify-end px-4 py-2"
                         style={{
                           borderBottom: '1px solid var(--rd-line)',
-                          background: 'rgba(255,255,255,0.55)',
+                          background: 'rgba(255,255,255,0.06)',
                         }}
                       >
                         <button
@@ -403,11 +403,11 @@ export default function ResearchWorkspace({
           <div
             className="w-[320px] flex-shrink-0"
             style={{
-              borderLeft: '1px solid rgba(255,255,255,0.55)',
-              background: 'rgba(255,255,255,0.50)',
+              borderLeft: '1px solid rgba(255,255,255,0.06)',
+              background: 'rgba(255,255,255,0.06)',
               backdropFilter: 'blur(32px) saturate(180%)',
               WebkitBackdropFilter: 'blur(32px) saturate(180%)',
-              boxShadow: 'inset 1px 0 0 rgba(255,255,255,0.80)',
+              boxShadow: 'inset 1px 0 0 rgba(255,255,255,0.10)',
             }}
           >
             <CitationsPanel
@@ -423,7 +423,7 @@ export default function ResearchWorkspace({
             className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1.5 px-2 py-3 rounded-l-md text-xs"
             style={{
               writingMode: 'vertical-rl' as any,
-              background: 'rgba(255,255,255,0.55)',
+              background: 'rgba(255,255,255,0.06)',
               border: '1px solid var(--rd-line)',
               boxShadow: '0 4px 16px rgba(20,20,40,0.06)',
               color: 'var(--rd-text-2)',
@@ -453,7 +453,7 @@ function GroupTabBtn({
       onClick={onClick}
       className="flex-1 flex items-center justify-center gap-1 px-1.5 py-1 text-xs rounded-md transition"
       style={{
-        background: active ? 'rgba(255,255,255,0.55)' : 'transparent',
+        background: active ? 'rgba(255,255,255,0.06)' : 'transparent',
         color: active ? 'var(--rd-text)' : 'var(--rd-text-2)',
         fontWeight: active ? 600 : 400,
         boxShadow: active ? '0 1px 4px rgba(20,20,40,0.08)' : 'none',
@@ -484,7 +484,7 @@ function AudienceRoleRow({
         border: selected ? '1px solid rgba(255,141,26,0.25)' : '1px solid transparent',
         color: selected ? 'var(--rd-accent)' : 'var(--rd-text)',
       }}
-      onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'rgba(255,255,255,0.55)' }}
+      onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
       onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent' }}
     >
       <div className="flex items-center justify-between gap-2">
@@ -492,7 +492,7 @@ function AudienceRoleRow({
         {total > 0 ? (
           <span
             className="shrink-0 text-xs px-1 rounded"
-            style={{ color: 'var(--rd-text-2)', background: 'rgba(255,255,255,0.55)' }}
+            style={{ color: 'var(--rd-text-2)', background: 'rgba(255,255,255,0.06)' }}
           >
             {total} 题
           </span>
@@ -531,7 +531,7 @@ function LtcModuleRow({
         border: selected ? '1px solid rgba(255,141,26,0.25)' : '1px solid transparent',
         color: selected ? 'var(--rd-accent)' : 'var(--rd-text)',
       }}
-      onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'rgba(255,255,255,0.55)' }}
+      onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
       onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent' }}
     >
       <span
@@ -543,7 +543,7 @@ function LtcModuleRow({
       {answeredCount > 0 && (
         <span
           className="text-xs shrink-0 px-1 rounded"
-          style={{ color: 'var(--rd-text-2)', background: 'rgba(255,255,255,0.55)' }}
+          style={{ color: 'var(--rd-text-2)', background: 'rgba(255,255,255,0.06)' }}
         >
           {answeredCount} 题
         </span>
@@ -569,7 +569,7 @@ function ViewTab({
       title={disabled ? '正在重新生成,请稍候…' : undefined}
       className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition"
       style={{
-        background: active ? 'rgba(255,255,255,0.85)' : 'transparent',
+        background: active ? 'rgba(255,255,255,0.10)' : 'transparent',
         border: active ? '1px solid var(--rd-line)' : '1px solid transparent',
         color: active ? 'var(--rd-text)' : (muted ? 'var(--rd-text-3)' : 'var(--rd-text-2)'),
         boxShadow: active ? '0 1px 4px rgba(20,20,40,0.06)' : 'none',

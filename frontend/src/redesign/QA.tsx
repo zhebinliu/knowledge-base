@@ -109,8 +109,8 @@ function saveHistory(convs: Conversation[]) {
 const markdownComponents = {
   code: ({ children, className }: any) =>
     className
-      ? <code style={{ display: 'block', background: 'rgba(15, 18, 36, .05)', border: '1px solid var(--rd-line)', borderRadius: 8, padding: '10px 12px', fontSize: 12, fontFamily: 'ui-monospace, monospace', overflowX: 'auto', whiteSpace: 'pre', margin: '8px 0' }}>{children}</code>
-      : <code style={{ background: 'rgba(15, 18, 36, .06)', color: 'var(--rd-text)', borderRadius: 4, padding: '1px 5px', fontSize: 12, fontFamily: 'ui-monospace, monospace' }}>{children}</code>,
+      ? <code style={{ display: 'block', background: 'rgba(0,0,0,0.25)', border: '1px solid var(--rd-line)', borderRadius: 8, padding: '10px 12px', fontSize: 12, fontFamily: 'ui-monospace, monospace', overflowX: 'auto', whiteSpace: 'pre', margin: '8px 0' }}>{children}</code>
+      : <code style={{ background: 'rgba(0,0,0,0.25)', color: 'var(--rd-text)', borderRadius: 4, padding: '1px 5px', fontSize: 12, fontFamily: 'ui-monospace, monospace' }}>{children}</code>,
   a: ({ href, children }: any) =>
     <a href={href} target="_blank" rel="noreferrer" style={{ color: 'var(--rd-accent-2)', textDecoration: 'underline' }}>{children}</a>,
   ul: ({ children }: any) => <ul style={{ listStyle: 'disc', paddingLeft: 22, margin: '6px 0' }}>{children}</ul>,
@@ -125,7 +125,7 @@ const markdownComponents = {
   table: ({ children }: any) =>
     <div style={{ overflowX: 'auto', margin: '8px 0' }}><table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>{children}</table></div>,
   th: ({ children }: any) =>
-    <th style={{ border: '1px solid var(--rd-line)', background: 'rgba(15, 18, 36, .03)', padding: '6px 10px', textAlign: 'left', fontWeight: 600 }}>{children}</th>,
+    <th style={{ border: '1px solid var(--rd-line)', background: 'rgba(0,0,0,0.25)', padding: '6px 10px', textAlign: 'left', fontWeight: 600 }}>{children}</th>,
   td: ({ children }: any) =>
     <td style={{ border: '1px solid var(--rd-line)', padding: '6px 10px' }}>{children}</td>,
   hr: () => <hr style={{ margin: '10px 0', border: 0, borderTop: '1px solid var(--rd-line)' }} />,
@@ -167,7 +167,7 @@ function SourcePanel({ sources, hasMessages }: { sources: QASource[]; hasMessage
     <aside style={{
       width: 300, flexShrink: 0,
       borderLeft: '1px solid var(--rd-line)',
-      background: 'rgba(255,255,255,0.95)',
+      background: 'rgba(255,255,255,0.12)',
       backdropFilter: 'blur(20px) saturate(180%)',
       WebkitBackdropFilter: 'blur(20px) saturate(180%)',
       display: 'flex', flexDirection: 'column',
@@ -198,10 +198,10 @@ function SourcePanel({ sources, hasMessages }: { sources: QASource[]; hasMessage
             <div key={s.id} style={{
               marginBottom: 8,
               borderRadius: 12,
-              background: 'rgba(255,255,255,0.95)',
-              border: '1px solid rgba(255,255,255,0.95)',
+              background: 'rgba(255,255,255,0.12)',
+              border: '1px solid rgba(255,255,255,0.12)',
               overflow: 'hidden',
-              boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, .7)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10)',
             }}>
               <div
                 onClick={() => s.content && toggle(s.id)}
@@ -211,7 +211,7 @@ function SourcePanel({ sources, hasMessages }: { sources: QASource[]; hasMessage
                   cursor: s.content ? 'pointer' : 'default',
                   transition: 'background .15s',
                 }}
-                onMouseEnter={e => s.content && (e.currentTarget.style.background = 'rgba(15, 18, 36, .03)')}
+                onMouseEnter={e => s.content && (e.currentTarget.style.background = 'rgba(0,0,0,0.25)')}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
                 <span className="rd-mono" style={{ fontSize: 12, color: 'var(--rd-text-3)', flexShrink: 0 }}>#{i + 1}</span>
@@ -287,7 +287,7 @@ function DocGen() {
       <div style={{
         padding: '14px 24px',
         borderBottom: '1px solid var(--rd-line)',
-        background: 'rgba(255,255,255,0.95)',
+        background: 'rgba(255,255,255,0.12)',
         backdropFilter: 'blur(18px)',
         WebkitBackdropFilter: 'blur(18px)',
         flexShrink: 0,
@@ -577,7 +577,7 @@ export default function NewQA({ lockedProjectId, compact = false }: QAProps = {}
         <aside style={{
           width: 220, flexShrink: 0,
           borderRight: '1px solid var(--rd-line)',
-          background: 'rgba(255,255,255,0.95)',
+          background: 'rgba(255,255,255,0.12)',
           backdropFilter: 'blur(20px) saturate(180%)',
           WebkitBackdropFilter: 'blur(20px) saturate(180%)',
           display: 'flex', flexDirection: 'column',
@@ -617,7 +617,7 @@ export default function NewQA({ lockedProjectId, compact = false }: QAProps = {}
                     transition: 'background .15s',
                     marginBottom: 1,
                   }}
-                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(15, 18, 36, .04)' }}
+                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(0,0,0,0.25)' }}
                   onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
                 >
                   <MessageSquare size={12} color={active ? 'var(--rd-accent-2)' : 'var(--rd-text-3)'} />
@@ -651,7 +651,7 @@ export default function NewQA({ lockedProjectId, compact = false }: QAProps = {}
           <div style={{
             padding: '12px 24px',
             borderBottom: '1px solid var(--rd-line)',
-            background: 'rgba(255,255,255,0.95)',
+            background: 'rgba(255,255,255,0.12)',
             backdropFilter: 'blur(18px)',
             WebkitBackdropFilter: 'blur(18px)',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -680,7 +680,7 @@ export default function NewQA({ lockedProjectId, compact = false }: QAProps = {}
                 <>
                   <div style={{
                     display: 'inline-flex', alignItems: 'center',
-                    background: 'rgba(15, 18, 36, .04)',
+                    background: 'rgba(0,0,0,0.25)',
                     borderRadius: 999, padding: 2,
                   }}>
                     {[
@@ -700,7 +700,7 @@ export default function NewQA({ lockedProjectId, compact = false }: QAProps = {}
                             color: active ? p.color : 'var(--rd-text-3)',
                             fontSize: 12, fontWeight: active ? 600 : 500,
                             border: 'none', cursor: 'pointer',
-                            boxShadow: active ? '0 1px 4px rgba(15, 18, 36, .08)' : 'none',
+                            boxShadow: active ? '0 1px 4px rgba(0,0,0,0.25)' : 'none',
                             transition: 'all .15s',
                             fontFamily: 'inherit',
                           }}
@@ -802,9 +802,9 @@ export default function NewQA({ lockedProjectId, compact = false }: QAProps = {}
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     background: isUser
                       ? 'linear-gradient(135deg, var(--rd-accent), var(--rd-accent-2))'
-                      : 'rgba(255,255,255,0.95)',
+                      : 'rgba(255,255,255,0.12)',
                     border: isUser ? 'none' : '1px solid var(--rd-line)',
-                    boxShadow: isUser ? '0 4px 12px -2px rgba(255,141,26,.4)' : 'inset 0 1px 0 rgba(255,255,255,.6)',
+                    boxShadow: isUser ? '0 4px 12px -2px rgba(255,141,26,.4)' : 'inset 0 1px 0 rgba(255,255,255,0.08)',
                     color: isUser ? '#fff' : 'var(--rd-text-2)',
                   }}>
                     {isUser ? <span style={{ fontSize: 13, fontWeight: 700 }}>我</span> : <Bot size={14} />}
@@ -826,11 +826,11 @@ export default function NewQA({ lockedProjectId, compact = false }: QAProps = {}
                     } : {
                       borderRadius: 16, borderTopLeftRadius: 6,
                       padding: '12px 18px',
-                      background: 'rgba(255,255,255,0.95)',
+                      background: 'rgba(255,255,255,0.12)',
                       backdropFilter: 'blur(20px) saturate(180%)',
                       WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-                      border: '1px solid rgba(255,255,255,0.95)',
-                      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, .7), 0 1px 3px rgba(15, 18, 36, .05)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10), 0 1px 3px rgba(0,0,0,0.25)',
                       color: 'var(--rd-text)',
                       fontSize: 13.5, lineHeight: 1.7,
                     }}>
@@ -889,7 +889,7 @@ export default function NewQA({ lockedProjectId, compact = false }: QAProps = {}
                 <div style={{
                   width: 32, height: 32, borderRadius: 10, flexShrink: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'rgba(255,255,255,0.95)',
+                  background: 'rgba(255,255,255,0.12)',
                   border: '1px solid var(--rd-line)',
                   color: 'var(--rd-text-2)',
                 }}>
@@ -898,10 +898,10 @@ export default function NewQA({ lockedProjectId, compact = false }: QAProps = {}
                 <div style={{
                   borderRadius: 16, borderTopLeftRadius: 6,
                   padding: '12px 16px',
-                  background: 'rgba(255,255,255,0.95)',
+                  background: 'rgba(255,255,255,0.12)',
                   backdropFilter: 'blur(20px) saturate(180%)',
                   WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-                  border: '1px solid rgba(255,255,255,0.95)',
+                  border: '1px solid rgba(255,255,255,0.12)',
                   display: 'flex', alignItems: 'center', gap: 10,
                 }}>
                   <span className="rd-dots"><span /><span /><span /></span>
@@ -916,7 +916,7 @@ export default function NewQA({ lockedProjectId, compact = false }: QAProps = {}
           <div style={{
             padding: '14px 24px',
             borderTop: '1px solid var(--rd-line)',
-            background: 'rgba(255,255,255,0.95)',
+            background: 'rgba(255,255,255,0.12)',
             backdropFilter: 'blur(18px)',
             WebkitBackdropFilter: 'blur(18px)',
             flexShrink: 0,
@@ -938,7 +938,7 @@ export default function NewQA({ lockedProjectId, compact = false }: QAProps = {}
                     position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
                     height: 36,
                     padding: '0 14px', borderRadius: 10,
-                    background: 'rgba(15, 18, 36, .08)',
+                    background: 'rgba(0,0,0,0.25)',
                     color: 'var(--rd-text)',
                     border: 'none', cursor: 'pointer',
                     fontSize: 12, fontWeight: 600,

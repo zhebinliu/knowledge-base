@@ -69,12 +69,12 @@ export default function NewProjectStakeholdersDrawer({
       <div style={{
         position: 'fixed', right: 0, top: 0, bottom: 0, zIndex: 50,
         width: 'min(720px, 100vw)',
-        background: 'rgba(255, 255, 255, 0.65)',
+        background: 'rgba(255,255,255,0.08)',
         backdropFilter: 'blur(40px) saturate(180%)',
         WebkitBackdropFilter: 'blur(40px) saturate(180%)',
         display: 'flex', flexDirection: 'column',
-        borderLeft: '1px solid rgba(255,255,255,0.55)',
-        boxShadow: '0 25px 50px -12px rgba(15, 18, 36, .25), inset 1px 0 0 rgba(255,255,255,0.80)',
+        borderLeft: '1px solid rgba(255,255,255,0.06)',
+        boxShadow: '0 25px 50px -12px rgba(15, 18, 36, .25), inset 1px 0 0 rgba(255,255,255,0.10)',
         animation: 'rd-fade-up .25s var(--rd-ease) both',
       }}>
         <div style={{
@@ -152,13 +152,13 @@ function StakeholderView({ stake: s, onEdit, onDelete }: {
       className="group"
       style={{
         borderRadius: 12, padding: 12,
-        background: 'rgba(255,255,255,0.55)',
-        border: '1px solid rgba(255,255,255,0.55)',
-        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, .7), 0 1px 3px rgba(15, 18, 36, .04)',
+        background: 'rgba(255,255,255,0.06)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10), 0 1px 3px rgba(0,0,0,0.25)',
         transition: 'border-color .15s',
       }}
       onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(255, 141, 26, .25)'}
-      onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255, 255, 255, .55)'}
+      onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 5 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -183,7 +183,7 @@ function StakeholderView({ stake: s, onEdit, onDelete }: {
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--rd-text-3)', marginBottom: 4 }}>
           <span>昵称:</span>
           {s.aliases.map((a, j) => (
-            <span key={j} style={{ padding: '1px 6px', borderRadius: 4, background: 'rgba(15, 18, 36, .05)', border: '1px solid var(--rd-line)' }}>{a}</span>
+            <span key={j} style={{ padding: '1px 6px', borderRadius: 4, background: 'rgba(0,0,0,0.25)', border: '1px solid var(--rd-line)' }}>{a}</span>
           ))}
         </div>
       )}
@@ -238,9 +238,9 @@ function StakeholderEdit({ projectId, stake, onCancel, onDeleted }: {
   return (
     <div style={{
       borderRadius: 12, padding: 12,
-      background: 'rgba(255,255,255,0.55)',
+      background: 'rgba(255,255,255,0.06)',
       border: '2px solid rgba(255, 141, 26, .35)',
-      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, .8), 0 4px 14px -6px rgba(255, 141, 26, .25)',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10), 0 4px 14px -6px rgba(255, 141, 26, .25)',
       display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 4, borderBottom: '1px solid var(--rd-line)' }}>

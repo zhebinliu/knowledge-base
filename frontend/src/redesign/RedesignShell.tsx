@@ -137,7 +137,7 @@ export default function RedesignShell() {
                 size={20}
                 color="#1A1D2E"
                 strokeWidth={2.4}
-                style={{ filter: 'drop-shadow(0 1px 2px rgba(255,255,255,.7))' }}
+                style={{ filter: 'drop-shadow(0 1px 2px rgba(255,255,255,0.10))' }}
               />
             </LiquidGlass>
           </div>
@@ -162,7 +162,7 @@ export default function RedesignShell() {
                 textAlign: 'center',
                 background: 'linear-gradient(135deg, var(--rd-accent), var(--rd-accent-2))',
                 borderRadius: '50%',
-                boxShadow: '0 2px 8px rgba(255,141,26,.45), inset 0 1px 0 rgba(255,255,255,.4)',
+                boxShadow: '0 2px 8px rgba(255,141,26,.45), inset 0 1px 0 rgba(255,255,255,0.05)',
                 letterSpacing: '-0.02em',
               }}>Z</span>
             </LiquidGlass>

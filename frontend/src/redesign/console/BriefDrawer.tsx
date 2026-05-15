@@ -131,12 +131,12 @@ export default function NewBriefDrawer({ open, kind, projectId, stageTitle, onCl
     }}>
       <div onClick={e => e.stopPropagation()} style={{
         width: 'min(720px, 100vw)', height: '100%',
-        background: 'rgba(255, 255, 255, 0.65)',
+        background: 'rgba(255,255,255,0.08)',
         backdropFilter: 'blur(40px) saturate(180%)',
         WebkitBackdropFilter: 'blur(40px) saturate(180%)',
         display: 'flex', flexDirection: 'column',
-        borderLeft: '1px solid rgba(255,255,255,0.55)',
-        boxShadow: '0 25px 50px -12px rgba(15, 18, 36, .25), inset 1px 0 0 rgba(255,255,255,0.80)',
+        borderLeft: '1px solid rgba(255,255,255,0.06)',
+        boxShadow: '0 25px 50px -12px rgba(15, 18, 36, .25), inset 1px 0 0 rgba(255,255,255,0.10)',
       }}>
         {/* Header */}
         <div style={{
@@ -199,14 +199,14 @@ export default function NewBriefDrawer({ open, kind, projectId, stageTitle, onCl
           {extracting && (
             <div style={{
               position: 'absolute', inset: 0, zIndex: 10,
-              background: 'rgba(255, 255, 255, .80)',
+              background: 'rgba(255,255,255,0.10)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <div style={{
                 width: 360, borderRadius: 16,
-                background: 'rgba(255, 255, 255, 0.9)',
+                background: 'rgba(255,255,255,0.12)',
                 border: '1px solid rgba(255, 141, 26, .25)',
-                boxShadow: '0 16px 40px -12px rgba(15, 18, 36, .18), inset 0 1px 0 rgba(255, 255, 255, .85)',
+                boxShadow: '0 16px 40px -12px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.10)',
                 padding: '18px 22px',
                 display: 'flex', flexDirection: 'column', gap: 12,
               }}>
@@ -283,15 +283,15 @@ export default function NewBriefDrawer({ open, kind, projectId, stageTitle, onCl
             return (
               <section key={groupName} style={{
                 borderRadius: 12, overflow: 'hidden',
-                background: 'rgba(255,255,255,0.55)',
-                border: '1px solid rgba(255,255,255,0.55)',
-                boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, .7)',
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10)',
               }}>
                 <button
                   onClick={() => setCollapsedGroups(prev => ({ ...prev, [groupName]: !collapsed }))}
                   style={{
                     width: '100%', padding: '10px 14px',
-                    background: 'rgba(15, 18, 36, .03)', borderBottom: '1px solid var(--rd-line)',
+                    background: 'rgba(0,0,0,0.25)', borderBottom: '1px solid var(--rd-line)',
                     display: 'flex', alignItems: 'center', gap: 5,
                     fontSize: 12, fontWeight: 700, color: 'var(--rd-text)',
                     border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
@@ -322,7 +322,7 @@ export default function NewBriefDrawer({ open, kind, projectId, stageTitle, onCl
         <div style={{
           padding: '12px 20px', borderTop: '1px solid var(--rd-line)',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
-          background: 'rgba(255,255,255,0.55)',
+          background: 'rgba(255,255,255,0.06)',
         }}>
           <div style={{ fontSize: 12, color: 'var(--rd-text-3)' }}>
             {requiredMissing.length > 0 ? (
@@ -377,7 +377,7 @@ function FieldEditor({ def, cell, onChange }: {
     <div style={{
       borderRadius: 10,
       border: `1px solid ${requiredMissing ? 'rgba(245, 158, 11, .35)' : 'var(--rd-line)'}`,
-      background: requiredMissing ? 'rgba(245, 158, 11, .06)' : lowConfidence && !edited ? 'rgba(15, 18, 36, .02)' : 'transparent',
+      background: requiredMissing ? 'rgba(245, 158, 11, .06)' : lowConfidence && !edited ? 'rgba(0,0,0,0.25)' : 'transparent',
     }}>
       <div style={{
         padding: '7px 12px', borderBottom: '1px solid var(--rd-line)',
@@ -401,12 +401,12 @@ function FieldEditor({ def, cell, onChange }: {
               position: 'absolute', right: 0, top: 'calc(100% + 4px)', zIndex: 10,
               width: 280, padding: 8,
               background: '#fff', border: '1px solid var(--rd-line)', borderRadius: 10,
-              boxShadow: '0 8px 24px -8px rgba(15, 18, 36, .15)',
+              boxShadow: '0 8px 24px -8px rgba(0,0,0,0.40)',
               display: 'flex', flexDirection: 'column', gap: 6,
             }}>
               {sources.map((s, i) => (
                 <div key={i} style={{ fontSize: 12, color: 'var(--rd-text-2)' }}>
-                  <span style={{ display: 'inline-block', padding: '1px 6px', borderRadius: 4, background: 'rgba(15, 18, 36, .04)', color: 'var(--rd-text-3)', fontSize: 12, marginRight: 4 }}>{s.type}</span>
+                  <span style={{ display: 'inline-block', padding: '1px 6px', borderRadius: 4, background: 'rgba(0,0,0,0.25)', color: 'var(--rd-text-3)', fontSize: 12, marginRight: 4 }}>{s.type}</span>
                   <span style={{ fontWeight: 500 }}>{s.ref || '—'}</span>
                   {s.snippet && <p style={{ margin: '2px 0 0', color: 'var(--rd-text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.snippet}</p>}
                 </div>

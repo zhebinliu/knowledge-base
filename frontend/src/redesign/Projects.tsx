@@ -117,7 +117,7 @@ export default function NewBackendProjects() {
           <h1>项目库</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', border: '1px solid var(--rd-line)', borderRadius: 10, padding: 2, background: 'rgba(255, 255, 255, 0.4)', backdropFilter: 'blur(10px)' }}>
+          <div style={{ display: 'flex', border: '1px solid var(--rd-line)', borderRadius: 10, padding: 2, background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(10px)' }}>
             {(['grid', 'table'] as const).map(v => {
               const Icon = v === 'grid' ? LayoutGrid : TableIcon
               const isActive = view === v

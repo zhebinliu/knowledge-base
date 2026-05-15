@@ -149,7 +149,7 @@ function RunDetailDrawer({ runId, onClose }: { runId: string; onClose: () => voi
     }}>
       <div onClick={e => e.stopPropagation()} style={{
         width: 'min(840px, 100vw)', height: '100%',
-        background: 'rgba(255, 255, 255, 0.88)',
+        background: 'rgba(255,255,255,0.10)',
         backdropFilter: 'blur(28px) saturate(180%)',
         WebkitBackdropFilter: 'blur(28px) saturate(180%)',
         display: 'flex', flexDirection: 'column',
@@ -159,7 +159,7 @@ function RunDetailDrawer({ runId, onClose }: { runId: string; onClose: () => voi
           position: 'sticky', top: 0, zIndex: 10,
           padding: '16px 22px', borderBottom: '1px solid var(--rd-line)',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: 'rgba(255, 255, 255, .92)', backdropFilter: 'blur(20px)',
+          background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(20px)',
         }}>
           <div>
             <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--rd-text)', margin: 0 }}>挑战详情</h2>
@@ -215,11 +215,11 @@ function RunDetailDrawer({ runId, onClose }: { runId: string; onClose: () => voi
                   return (
                     <div key={q.chunk_id} style={{
                       border: '1px solid var(--rd-line)', borderRadius: 12, overflow: 'hidden',
-                      background: 'rgba(255, 255, 255, .55)',
+                      background: 'rgba(255,255,255,0.06)',
                     }}>
                       <div style={{
                         padding: '8px 14px',
-                        background: 'rgba(15, 18, 36, .03)',
+                        background: 'rgba(0,0,0,0.25)',
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                         fontSize: 11.5,
                       }}>

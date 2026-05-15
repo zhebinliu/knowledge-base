@@ -61,7 +61,7 @@ export default function NewDocChecklist({ projectId, stage, onOpenDocPreview, on
       height: '100%', display: 'flex', flexDirection: 'column',
       // 不要给外层 backdrop-filter — 玻璃叠玻璃只剩白,会阻止子 row 看到颜色
       background: 'transparent',
-      borderRight: '1px solid rgba(255,255,255,0.40)',
+      borderRight: '1px solid rgba(255,255,255,0.05)',
     }}>
       {/* 头部:完成度 */}
       <div style={{
@@ -135,7 +135,7 @@ function ProgressLine({ label, done, total, color }: { label: string; done: numb
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       <span style={{ fontSize: 12, color: 'var(--rd-text-3)', width: 28, flexShrink: 0 }}>{label}</span>
-      <div style={{ flex: 1, height: 4, background: 'rgba(15, 18, 36, .06)', borderRadius: 2, overflow: 'hidden' }}>
+      <div style={{ flex: 1, height: 4, background: 'rgba(0,0,0,0.25)', borderRadius: 2, overflow: 'hidden' }}>
         <div style={{ width: `${pct}%`, height: '100%', background: color, boxShadow: `0 0 4px ${color}`, transition: 'width .3s' }} />
       </div>
       <span className="rd-mono" style={{ fontSize: 12, color: 'var(--rd-text-3)', flexShrink: 0 }}>{done}/{total}</span>
@@ -186,7 +186,7 @@ function DocRow({ item, projectId, onPreview, onUploaded, onCanvas }: {
     ? { border: 'rgba(16, 185, 129, .45)', glow: 'rgba(110, 231, 183, 0.75)', tint: 'rgba(16, 185, 129, 0.10)' }
     : item.necessity === 'required'
       ? { border: 'rgba(220, 38, 38, .35)', glow: 'rgba(252, 165, 165, 0.65)', tint: 'rgba(220, 38, 38, 0.07)' }
-      : { border: 'rgba(255, 255, 255, 0.80)', glow: 'rgba(255, 255, 255, 0.95)', tint: 'rgba(255, 255, 255, 0.20)' }
+      : { border: 'rgba(255,255,255,0.10)', glow: 'rgba(255,255,255,0.12)', tint: 'rgba(255, 255, 255, 0.20)' }
 
   return (
     <div
@@ -195,14 +195,14 @@ function DocRow({ item, projectId, onPreview, onUploaded, onCanvas }: {
         padding: '10px 11px', borderRadius: 12,
         border: `1px solid ${tint.border}`,
         // 半透叠加色调:linear-gradient 从顶部高亮白到底部色调
-        background: `linear-gradient(135deg, rgba(255,255,255,0.62) 0%, ${tint.tint} 100%), rgba(255,255,255,0.45)`,
+        background: `linear-gradient(135deg, rgba(255,255,255,0.08) 0%, ${tint.tint} 100%), rgba(255,255,255,0.05)`,
         backdropFilter: 'blur(22px) saturate(180%)',
         WebkitBackdropFilter: 'blur(22px) saturate(180%)',
         // 顶高光 + 底阴影 + 外发光(玻璃片的层次)
         boxShadow: `
           inset 0 1px 0 ${tint.glow},
-          inset 0 -1px 0 rgba(15,18,36,0.04),
-          0 4px 14px -4px rgba(15,18,36,0.10)
+          inset 0 -1px 0 rgba(0,0,0,0.25),
+          0 4px 14px -4px rgba(0,0,0,0.40)
         `,
         transition: 'transform .22s var(--rd-ease), border-color .18s, box-shadow .22s',
         position: 'relative',
@@ -211,16 +211,16 @@ function DocRow({ item, projectId, onPreview, onUploaded, onCanvas }: {
         e.currentTarget.style.transform = 'translateY(-2px)'
         e.currentTarget.style.boxShadow = `
           inset 0 1px 0 ${tint.glow},
-          inset 0 -1px 0 rgba(15,18,36,0.04),
-          0 12px 24px -6px rgba(15,18,36,0.16)
+          inset 0 -1px 0 rgba(0,0,0,0.25),
+          0 12px 24px -6px rgba(0,0,0,0.40)
         `
       }}
       onMouseLeave={e => {
         e.currentTarget.style.transform = 'translateY(0)'
         e.currentTarget.style.boxShadow = `
           inset 0 1px 0 ${tint.glow},
-          inset 0 -1px 0 rgba(15,18,36,0.04),
-          0 4px 14px -4px rgba(15,18,36,0.10)
+          inset 0 -1px 0 rgba(0,0,0,0.25),
+          0 4px 14px -4px rgba(0,0,0,0.40)
         `
       }}
     >
@@ -355,7 +355,7 @@ function VirtualRow({ item, onClick }: { item: VirtualChecklistItem; onClick: ()
     ? { border: 'rgba(16, 185, 129, .45)', glow: 'rgba(110, 231, 183, 0.75)', tint: 'rgba(16, 185, 129, 0.10)' }
     : item.necessity === 'required'
       ? { border: 'rgba(124, 58, 237, .42)', glow: 'rgba(196, 181, 253, 0.70)', tint: 'rgba(124, 58, 237, 0.09)' }
-      : { border: 'rgba(255, 255, 255, 0.80)', glow: 'rgba(255, 255, 255, 0.95)', tint: 'rgba(255, 255, 255, 0.20)' }
+      : { border: 'rgba(255,255,255,0.10)', glow: 'rgba(255,255,255,0.12)', tint: 'rgba(255, 255, 255, 0.20)' }
 
   return (
     <button
@@ -364,13 +364,13 @@ function VirtualRow({ item, onClick }: { item: VirtualChecklistItem; onClick: ()
       style={{
         width: '100%', textAlign: 'left', padding: '10px 11px', borderRadius: 12,
         border: `1px solid ${tint.border}`,
-        background: `linear-gradient(135deg, rgba(255,255,255,0.62) 0%, ${tint.tint} 100%), rgba(255,255,255,0.45)`,
+        background: `linear-gradient(135deg, rgba(255,255,255,0.08) 0%, ${tint.tint} 100%), rgba(255,255,255,0.05)`,
         backdropFilter: 'blur(22px) saturate(180%)',
         WebkitBackdropFilter: 'blur(22px) saturate(180%)',
         boxShadow: `
           inset 0 1px 0 ${tint.glow},
-          inset 0 -1px 0 rgba(15,18,36,0.04),
-          0 4px 14px -4px rgba(15,18,36,0.10)
+          inset 0 -1px 0 rgba(0,0,0,0.25),
+          0 4px 14px -4px rgba(0,0,0,0.40)
         `,
         cursor: 'pointer', fontFamily: 'inherit',
         transition: 'transform .22s var(--rd-ease), border-color .18s, box-shadow .22s',
@@ -379,16 +379,16 @@ function VirtualRow({ item, onClick }: { item: VirtualChecklistItem; onClick: ()
         e.currentTarget.style.transform = 'translateY(-2px)'
         e.currentTarget.style.boxShadow = `
           inset 0 1px 0 ${tint.glow},
-          inset 0 -1px 0 rgba(15,18,36,0.04),
-          0 12px 24px -6px rgba(15,18,36,0.16)
+          inset 0 -1px 0 rgba(0,0,0,0.25),
+          0 12px 24px -6px rgba(0,0,0,0.40)
         `
       }}
       onMouseLeave={e => {
         e.currentTarget.style.transform = 'translateY(0)'
         e.currentTarget.style.boxShadow = `
           inset 0 1px 0 ${tint.glow},
-          inset 0 -1px 0 rgba(15,18,36,0.04),
-          0 4px 14px -4px rgba(15,18,36,0.10)
+          inset 0 -1px 0 rgba(0,0,0,0.25),
+          0 4px 14px -4px rgba(0,0,0,0.40)
         `
       }}
     >
@@ -618,8 +618,8 @@ function AttachExistingPicker({ candidates, onClose, onConfirm }: {
         onClick={e => e.stopPropagation()}
         style={{
           width: 480, maxHeight: '70vh', borderRadius: 16,
-          background: 'rgba(255, 255, 255, 0.92)',
-          border: '1px solid rgba(255,255,255,0.55)',
+          background: 'rgba(255,255,255,0.12)',
+          border: '1px solid rgba(255,255,255,0.06)',
           boxShadow: '0 25px 50px -12px rgba(15, 18, 36, .25)',
           display: 'flex', flexDirection: 'column',
         }}
@@ -629,7 +629,7 @@ function AttachExistingPicker({ candidates, onClose, onConfirm }: {
           <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--rd-text)' }}>关联项目里的已有文档</span>
           <button onClick={onClose} className="rd-icon-btn" style={{ marginLeft: 'auto', width: 26, height: 26 }}><X size={13} /></button>
         </div>
-        <div style={{ padding: '8px 16px', fontSize: 12, color: 'var(--rd-text-3)', background: 'rgba(15, 18, 36, .03)', borderBottom: '1px solid var(--rd-line)' }}>
+        <div style={{ padding: '8px 16px', fontSize: 12, color: 'var(--rd-text-3)', background: 'rgba(0,0,0,0.25)', borderBottom: '1px solid var(--rd-line)' }}>
           选中后这些文档会被作为「附加参考」喂给项目洞察生成。
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
