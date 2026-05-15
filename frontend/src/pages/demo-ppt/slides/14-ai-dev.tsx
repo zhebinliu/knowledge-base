@@ -12,7 +12,7 @@ export default function Slide14AiDev() {
   return (
     <SlideShell>
       <SlideHeader
-        index="14 / 15"
+        index="14 / 16"
         tag="META · AI 助产品迭代"
         title={<>这套系统本身, 也是 <GradText>AI 助产品迭代</GradText> 的样本</>}
         sub="20 天 4 轮迭代从零到生产上线 · 用 Claude Code 协作开发 · 把「AI 接管基础工序, 人做判断」也用到自己身上"

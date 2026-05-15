@@ -28,7 +28,8 @@ import Slide11 from './demo-ppt/slides/11-workflow'             // NEW · PM 工
 import Slide12 from './demo-ppt/slides/12-meeting'              // 会议纪要 (旧 P12)
 import Slide13 from './demo-ppt/slides/13-architecture'         // 架构 (旧 P13)
 import Slide14 from './demo-ppt/slides/14-ai-dev'               // NEW · AI 助产品迭代 单页
-import Slide15 from './demo-ppt/slides/15-closing'              // 收尾(已重写)
+import Slide15 from './demo-ppt/slides/14-roadmap'              // NEW · 迭代路线图 三阶段
+import Slide16 from './demo-ppt/slides/15-closing'              // 收尾(已重写)
 
 type SlideDef = { id: string; title: string; component: () => ReactNode }
 
@@ -47,7 +48,8 @@ const SLIDES: SlideDef[] = [
   { id: '12', title: '整合 · 会议纪要联动',           component: Slide12 },
   { id: '13', title: '整体架构',                      component: Slide13 },
   { id: '14', title: 'AI 助产品迭代',                 component: Slide14 },
-  { id: '15', title: '收尾 · 呼应两目的',             component: Slide15 },
+  { id: '15', title: '迭代路线图 · 三阶段',           component: Slide15 },
+  { id: '16', title: '收尾 · 呼应两目的',             component: Slide16 },
 ]
 
 // ── 选页持久化 ──────────────────────────────────────────────────────────────
@@ -73,12 +75,12 @@ function saveSelected(ids: Set<string>) {
 
 // 内置预设
 const PRESETS: { name: string; ids: string[] }[] = [
-  { name: '完整 15 页',    ids: SLIDES.map((s) => s.id) },
-  { name: '核心叙事 (5)',   ids: ['01', '02', '03', '11', '15'] },
+  { name: '完整 16 页',    ids: SLIDES.map((s) => s.id) },
+  { name: '核心叙事 (5)',   ids: ['01', '02', '03', '11', '16'] },
   { name: '人效段 (4)',     ids: ['01', '04', '05', '06'] },
   { name: '专业性段 (5)',   ids: ['01', '07', '08', '09', '10'] },
   { name: '仅创新点 (3)',   ids: ['09', '10', '11'] },
-  { name: '5 分钟简版 (6)', ids: ['01', '02', '06', '11', '14', '15'] },
+  { name: '5 分钟简版 (7)', ids: ['01', '02', '06', '11', '14', '15', '16'] },
 ]
 
 export default function DemoPPT() {

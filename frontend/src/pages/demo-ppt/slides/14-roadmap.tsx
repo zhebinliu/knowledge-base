@@ -1,6 +1,6 @@
 /**
- * P14 — 路线图 · 三阶段
- * 当前 → 接入行业 know-how → 融入大黄蜂
+ * P15 — 路线图 · 三阶段
+ * 当前 → 第二战场行业 Know-How → 融入大黄蜂
  */
 import { SlideShell, SlideHeader, GradText } from '../Shell'
 import { PPT, fz } from '../theme'
@@ -23,19 +23,19 @@ const PHASES: {
   {
     phase: 'Phase 2',
     when:  'Next · 2026 下半年',
-    title: '接入行业 know-how',
-    sub:   '从个人工作台到公司资产',
-    desc:  '沉淀公司方法论库, 统一行业案例资产, 让所有 PM 共享同一份知识底座',
-    deliverables: ['方法论库', '行业案例', '跨项目复用', '知识资产中台'],
+    title: '第二战场 · 行业 Know-How',
+    sub:   '从个人工作台到公司知识资产',
+    desc:  '开辟第二战场 — 沉淀公司行业方法论, 统一案例资产, 让所有 PM 共享同一份行业知识底座',
+    deliverables: ['行业方法论库', '案例资产沉淀', '跨项目复用', '知识资产中台'],
     state: 'next',
   },
   {
     phase: 'Phase 3',
     when:  'Future · 2027+',
-    title: '融入大黄蜂平台',
-    sub:   '从工具到 agent',
-    desc:  '作为 agent 接入大黄蜂, 探索一线落地路径, 与 CRM 业务深度联动',
-    deliverables: ['Agent 接入', '业务联动', '一线落地', '客户侧能力'],
+    title: '融入大黄蜂生态',
+    sub:   '寻求大黄蜂的落地方案',
+    desc:  '作为能力模块接入大黄蜂生态, 探索 Agent 在一线业务的落地路径, 与 CRM 深度联动',
+    deliverables: ['大黄蜂接入', '落地方案', '业务联动', 'Agent 能力输出'],
     state: 'future',
   },
 ]
@@ -44,9 +44,9 @@ export default function Slide14Roadmap() {
   return (
     <SlideShell>
       <SlideHeader
-        index="14 / 15"
+        index="15 / 16"
         tag="ROADMAP · 路线图"
-        title={<>从独立工作台 → 公司方法论库 → <GradText>融入大黄蜂</GradText></>}
+        title={<>从独立工作台 → 第二战场行业 Know-How → <GradText>融入大黄蜂</GradText></>}
         sub="诚实呈现现状 · 不把愿景吹成现状 · 当前阶段在跑通产品力, 后续才是规模化和业务融合"
       />
 

@@ -19,7 +19,7 @@ export default function Slide15Closing() {
             className="font-mono"
             style={{ fontSize: fz.tiny, color: PPT.fgDim, letterSpacing: '0.4em' }}
           >
-            15 / 15 · CLOSING
+            16 / 16 · CLOSING
           </span>
         </div>
 
