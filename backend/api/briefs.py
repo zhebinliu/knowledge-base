@@ -220,4 +220,13 @@ async def put_brief(
         session.add(brief)
     await session.commit()
     await session.refresh(brief)
+
+    # 问卷 / brief 答案保存 → 智能建议过期
+    try:
+        from services.smart_advice import mark_stale
+        await mark_stale(project_id)
+    except Exception:
+        # 不影响主流程
+        pass
+
     return _dto(brief, kind, project_id)

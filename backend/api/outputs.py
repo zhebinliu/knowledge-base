@@ -1,7 +1,10 @@
 """API for output center: generate and retrieve CuratedBundles."""
 import io
+import structlog
 from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+
+logger = structlog.get_logger()
 
 
 def _content_disposition(filename: str) -> str:
@@ -573,6 +576,15 @@ async def save_content_md(
 
     b.content_md = md
     await session.commit()
+
+    # 在线编辑保存 → 智能建议过期
+    if b.project_id:
+        try:
+            from services.smart_advice import mark_stale
+            await mark_stale(b.project_id)
+        except Exception as _e:
+            logger.warning("smart_advice_mark_stale_failed", project_id=b.project_id, error=str(_e)[:200])
+
     return {"ok": True, "bytes": len(md.encode("utf-8"))}
 
 
@@ -615,6 +627,15 @@ async def save_html_output(
         )
     except Exception as e:
         raise HTTPException(500, f"Failed to save file: {e}")
+
+    # 在线编辑保存 → 智能建议过期
+    if b.project_id:
+        try:
+            from services.smart_advice import mark_stale
+            await mark_stale(b.project_id)
+        except Exception as _e:
+            logger.warning("smart_advice_mark_stale_failed", project_id=b.project_id, error=str(_e)[:200])
+
     return {"ok": True, "bytes": len(body)}
 
 

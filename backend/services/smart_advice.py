@@ -1,0 +1,326 @@
+"""项目智能建议 service —— 综合所有项目信息 + 行业 know-how, 生成"下一步建议 + 风险"。
+
+调用方式:
+    advice = await get_or_generate_advice(project_id, force=False)
+
+cache 策略:
+    1. 算 inputs_hash(brief + outputs + docs + industry + LTC stage)
+    2. 如 hash 跟现有一致且不 stale → 直接返回 cache
+    3. 否则跑 LLM(deepseek-v4-pro)→ 写回 + 清 stale flag
+
+mark_stale(project_id) 由外部事件调用(文档上传 / 输出物完成 / 编辑 / 问卷),
+只标记 is_stale=True, 不立即跑 LLM(懒生成)。
+"""
+import hashlib
+import json
+import structlog
+from datetime import datetime
+from typing import Any
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from models import async_session_maker
+from models.project import Project
+from models.project_brief import ProjectBrief
+from models.project_smart_advice import SmartAdvice
+from models.curated_bundle import CuratedBundle
+from models.document import Document
+from services._time import utcnow_naive
+from services.model_router import model_router
+from services.agentic.industry_packs import get_pack
+from prompts.ltc_taxonomy import INDUSTRY_TAGS
+
+logger = structlog.get_logger()
+
+# ────────────────────────────────────────────────────────────────────────
+# 公共入口
+# ────────────────────────────────────────────────────────────────────────
+
+DEFAULT_MODEL = "deepseek-v4-pro"
+
+
+async def get_or_generate_advice(project_id: str, force: bool = False) -> dict:
+    """获取项目智能建议(带 cache)。
+
+    返回 dict 而非 SmartAdvice 对象, 以便 API 直接序列化:
+        {
+            "project_id", "advice_md", "next_steps", "risks",
+            "is_stale", "model_used", "generated_at", "error",
+            "is_fresh"  # bool 此次调用是否真的跑了 LLM
+        }
+    """
+    async with async_session_maker() as s:
+        # 取现有 advice (如有)
+        existing = await _get_advice_row(s, project_id)
+        # 算最新 inputs hash
+        ctx = await _gather_context(s, project_id)
+        new_hash = _compute_hash(ctx)
+
+        # 决策:跑还是不跑 LLM
+        need_run = force or existing is None or existing.is_stale or existing.inputs_hash != new_hash
+
+        if not need_run and existing:
+            return _row_to_dict(existing, is_fresh=False)
+
+        # 跑 LLM
+        try:
+            advice_md, next_steps, risks = await _generate_with_llm(ctx)
+            error = None
+        except Exception as e:
+            logger.warning("smart_advice_llm_failed", project_id=project_id, error=str(e)[:200])
+            # 失败 — 如果已有旧 advice, 返回旧的并打 error 标记;否则返回空
+            advice_md = existing.advice_md if existing else ""
+            next_steps = existing.next_steps if existing else []
+            risks = existing.risks if existing else []
+            error = str(e)[:500]
+
+        # 写回
+        if existing:
+            existing.advice_md = advice_md
+            existing.next_steps = next_steps
+            existing.risks = risks
+            existing.inputs_hash = new_hash
+            existing.is_stale = False
+            existing.model_used = DEFAULT_MODEL
+            existing.error = error
+            existing.generated_at = utcnow_naive()
+            row = existing
+        else:
+            row = SmartAdvice(
+                project_id=project_id,
+                advice_md=advice_md,
+                next_steps=next_steps,
+                risks=risks,
+                inputs_hash=new_hash,
+                is_stale=False,
+                model_used=DEFAULT_MODEL,
+                error=error,
+            )
+            s.add(row)
+
+        await s.commit()
+        await s.refresh(row)
+        return _row_to_dict(row, is_fresh=True)
+
+
+async def get_advice_only(project_id: str) -> dict | None:
+    """只读取(不触发生成)。前端首次轮询用 — 没有就返 None, 让前端决定是否触发生成。"""
+    async with async_session_maker() as s:
+        existing = await _get_advice_row(s, project_id)
+        if not existing:
+            return None
+        return _row_to_dict(existing, is_fresh=False)
+
+
+async def mark_stale(project_id: str) -> None:
+    """外部事件调用:标记 advice 已过期, 下次 GET 会触发重生成。
+    幂等;如该 project 还没 advice, 不报错。"""
+    async with async_session_maker() as s:
+        existing = await _get_advice_row(s, project_id)
+        if existing and not existing.is_stale:
+            existing.is_stale = True
+            await s.commit()
+            logger.info("smart_advice_marked_stale", project_id=project_id)
+
+
+# ────────────────────────────────────────────────────────────────────────
+# 内部 helper
+# ────────────────────────────────────────────────────────────────────────
+
+
+async def _get_advice_row(s: AsyncSession, project_id: str) -> SmartAdvice | None:
+    res = await s.execute(select(SmartAdvice).where(SmartAdvice.project_id == project_id))
+    return res.scalar_one_or_none()
+
+
+def _row_to_dict(row: SmartAdvice, is_fresh: bool) -> dict:
+    return {
+        "project_id": row.project_id,
+        "advice_md": row.advice_md,
+        "next_steps": row.next_steps or [],
+        "risks": row.risks or [],
+        "is_stale": row.is_stale,
+        "model_used": row.model_used,
+        "error": row.error,
+        "generated_at": row.generated_at.isoformat() if row.generated_at else None,
+        "is_fresh": is_fresh,
+    }
+
+
+async def _gather_context(s: AsyncSession, project_id: str) -> dict[str, Any]:
+    """收集生成 advice 所需的所有 inputs。"""
+    proj = await s.get(Project, project_id)
+    if not proj:
+        raise ValueError(f"project not found: {project_id}")
+
+    # Brief 各 kind
+    briefs_res = await s.execute(
+        select(ProjectBrief).where(ProjectBrief.project_id == project_id)
+    )
+    briefs = {b.output_kind: b.fields for b in briefs_res.scalars()}
+
+    # 已生成的 outputs (CuratedBundle)
+    bundles_res = await s.execute(
+        select(CuratedBundle)
+        .where(CuratedBundle.project_id == project_id, CuratedBundle.status == "done")
+        .order_by(CuratedBundle.created_at.desc())
+    )
+    bundles = bundles_res.scalars().all()
+    outputs_summary = [
+        {
+            "kind": b.kind,
+            "agentic_version": b.agentic_version,
+            "validity_status": b.validity_status,
+            "created_at": b.created_at.isoformat() if b.created_at else None,
+        }
+        for b in bundles
+    ]
+
+    # 已上传文档
+    docs_res = await s.execute(
+        select(Document.id, Document.filename, Document.doc_type, Document.created_at)
+        .where(Document.project_id == project_id)
+        .order_by(Document.created_at.desc())
+    )
+    docs = [
+        {"filename": r.filename, "doc_type": r.doc_type, "created_at": r.created_at.isoformat() if r.created_at else None}
+        for r in docs_res.all()
+    ]
+
+    # 行业包
+    industry_pack = None
+    if proj.industry:
+        pack = get_pack(proj.industry)
+        if pack:
+            industry_pack = {
+                "industry": pack.industry,
+                "display_name": pack.display_name,
+                "fields": list(pack.field_patches.keys()) if pack.field_patches else [],
+            }
+
+    # 当前 LTC 阶段判定:基于已生成的输出物粗略判断(insight done → 在调研; survey done → 在蓝图; ...)
+    has = {b.kind for b in bundles}
+    if "kickoff_pptx" in has or "kickoff_html" in has:
+        current_stage = "蓝图阶段"
+    elif "survey" in has:
+        current_stage = "需求调研完成 → 进入蓝图设计"
+    elif "insight" in has:
+        current_stage = "项目洞察完成 → 进入需求调研"
+    elif docs:
+        current_stage = "立项资料整理中 → 待生成项目洞察"
+    else:
+        current_stage = "项目刚启动 → 待上传资料"
+
+    return {
+        "project": {
+            "id": proj.id,
+            "name": proj.name,
+            "customer": proj.customer,
+            "industry": proj.industry,
+            "industry_label": INDUSTRY_TAGS.get(proj.industry or "", proj.industry or ""),
+            "modules": proj.modules,
+            "description": proj.description,
+            "customer_profile": proj.customer_profile,
+            "kickoff_date": proj.kickoff_date.isoformat() if proj.kickoff_date else None,
+        },
+        "current_stage": current_stage,
+        "industry_pack": industry_pack,
+        "briefs_kinds": list(briefs.keys()),
+        "outputs": outputs_summary,
+        "docs_count": len(docs),
+        "docs_by_type": _count_by(docs, "doc_type"),
+        "docs_recent": docs[:10],
+    }
+
+
+def _count_by(items: list[dict], key: str) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for it in items:
+        v = it.get(key) or "未知"
+        out[v] = out.get(v, 0) + 1
+    return out
+
+
+def _compute_hash(ctx: dict) -> str:
+    """规范化上下文成 deterministic JSON 后哈希, 用于判断 inputs 是否真的变了。"""
+    blob = json.dumps(ctx, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+# ────────────────────────────────────────────────────────────────────────
+# LLM 调用
+# ────────────────────────────────────────────────────────────────────────
+
+SYSTEM_PROMPT = """你是 CRM 实施项目的资深咨询顾问 (MBB 风格, 10 年以上经验)。
+你的任务: 综合项目目前所有信息 + 行业最佳实践, 给项目经理 (PM) 一段「下一步该做什么」的清晰建议, 同时列出当前最值得关注的风险。
+
+输出格式严格按 JSON, 字段如下:
+{
+  "advice_md": "<200-400 字的 markdown 主建议正文, 围绕「当前阶段 + 下一步动作 + 为什么」展开>",
+  "next_steps": ["<下一步动作 1>", "<下一步动作 2>", "<动作 3, 共 3-5 条>"],
+  "risks": ["<风险 1>", "<风险 2, 共 2-4 条>"]
+}
+
+要求:
+- 紧贴项目当前阶段 (current_stage), 不要说项目还没到的事
+- 行业相关建议优先用 industry_pack 提到的字段方向
+- 没有信息支撑的事不要瞎猜 — 实在没料就建议 PM 先去补什么资料
+- 中文输出, 简洁实用, 避免空话套话
+- 严格输出 JSON, 不要加 markdown 围栏 (```), 不要加任何解释"""
+
+
+async def _generate_with_llm(ctx: dict) -> tuple[str, list[str], list[str]]:
+    """调 LLM 生成建议。返回 (advice_md, next_steps, risks)。"""
+    user_prompt = f"""【项目信息】
+{json.dumps(ctx, ensure_ascii=False, indent=2)}
+
+请基于以上信息, 给出当前阶段下一步建议 + 关键风险, 严格按要求 JSON 输出。"""
+
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user_prompt},
+    ]
+    content, _used = await model_router.chat(
+        DEFAULT_MODEL, messages, max_tokens=2000, temperature=0.4, timeout=60.0,
+    )
+    # 解析 JSON
+    parsed = _parse_json_loose(content)
+    advice_md = str(parsed.get("advice_md") or "").strip()
+    next_steps = _ensure_str_list(parsed.get("next_steps"))
+    risks = _ensure_str_list(parsed.get("risks"))
+    return advice_md, next_steps, risks
+
+
+def _parse_json_loose(text: str) -> dict:
+    """容忍 LLM 偶尔给 markdown 围栏。"""
+    if not text:
+        return {}
+    s = text.strip()
+    # 去掉可能的 ```json ... ``` 围栏
+    if s.startswith("```"):
+        nl = s.find("\n")
+        if nl >= 0:
+            s = s[nl + 1:]
+        if s.endswith("```"):
+            s = s[: -3]
+        s = s.strip()
+    try:
+        return json.loads(s)
+    except Exception:
+        # 再试:截取第一个 { 到最后一个 } 之间
+        l = s.find("{")
+        r = s.rfind("}")
+        if l >= 0 and r > l:
+            try:
+                return json.loads(s[l : r + 1])
+            except Exception:
+                return {}
+        return {}
+
+
+def _ensure_str_list(v: Any) -> list[str]:
+    if isinstance(v, list):
+        return [str(x).strip() for x in v if x is not None and str(x).strip()]
+    if isinstance(v, str) and v.strip():
+        return [v.strip()]
+    return []

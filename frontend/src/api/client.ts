@@ -902,6 +902,31 @@ export interface DocChecklistDto {
 export const getDocChecklist = (projectId: string, stage = 'insight') =>
   api.get<DocChecklistDto>(`/doc-checklist/${projectId}`, { params: { stage } }).then(r => r.data)
 
+
+// ── Smart Advice (项目级 AI 智能建议) ────────────────────────────────────────
+
+export interface SmartAdviceDto {
+  exists?: boolean
+  project_id?: string
+  advice_md?: string
+  next_steps?: string[]
+  risks?: string[]
+  is_stale?: boolean
+  is_fresh?: boolean
+  model_used?: string | null
+  error?: string | null
+  generated_at?: string | null
+}
+
+/** GET 智能建议 — 默认 cache miss 时同步生成(可能等几秒);fresh_only=true 仅读不触发 */
+export const getSmartAdvice = (projectId: string, freshOnly = false) =>
+  api.get<SmartAdviceDto>(`/projects/${projectId}/smart-advice`, { params: freshOnly ? { fresh_only: true } : {} }).then(r => r.data)
+
+/** 强制刷新智能建议(用户手动点) */
+export const refreshSmartAdvice = (projectId: string) =>
+  api.post<SmartAdviceDto>(`/projects/${projectId}/smart-advice/refresh`).then(r => r.data)
+
+
 // ── Virtual Artifacts (成功指标 / 风险预警 等问卷型虚拟物) ──────────────────
 
 export interface VirtualArtifactDto {

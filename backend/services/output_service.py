@@ -106,6 +106,7 @@ async def _llm_call(prompt: str, system: str = "", model: str | None = None, max
 
 
 async def _mark_bundle(bundle_id: str, status: str, **kwargs):
+    project_id_for_advice: str | None = None
     async with async_session_maker() as s:
         b = await s.get(CuratedBundle, bundle_id)
         if b:
@@ -113,6 +114,17 @@ async def _mark_bundle(bundle_id: str, status: str, **kwargs):
             for k, v in kwargs.items():
                 setattr(b, k, v)
             await s.commit()
+            if status == "done":
+                project_id_for_advice = b.project_id
+
+    # bundle 生成完成 → 智能建议过期(懒生成, 下次 GET 重算)
+    if project_id_for_advice:
+        try:
+            from services.smart_advice import mark_stale
+            await mark_stale(project_id_for_advice)
+        except Exception:
+            # 不影响主流程
+            pass
 
 
 async def _mark_conversation(bundle_id: str, status: str):

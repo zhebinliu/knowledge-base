@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import CollaboratorsModal from '../../components/console/CollaboratorsModal'
 import ProjectStakeholdersDrawer from '../../components/console/ProjectStakeholdersDrawer'
+import SmartAdviceBanner, { smartAdviceQueryKey } from '../../components/console/SmartAdviceBanner'
 import {
   getProject, updateProject, generateCustomerProfile, generateOutput,
   listProjectDocuments, getDocumentMarkdown, listOutputs, downloadOutputUrl, viewOutputUrl,
@@ -347,6 +348,11 @@ export default function ConsoleProjectDetail() {
           <Pencil size={11} />
           <span className="hidden sm:inline">项目信息</span>
         </button>
+      </div>
+
+      {/* AI 智能建议(常驻 — 综合所有项目信息 + 行业 know-how, 给 PM 下一步动作 + 风险) */}
+      <div className="flex-shrink-0 bg-white border-b border-line px-4 sm:px-6 py-2.5">
+        <SmartAdviceBanner projectId={project.id} />
       </div>
 
       {/* 协作者管理弹窗 */}

@@ -92,6 +92,15 @@ async def upload_document(
         project_id=project_id,
         doc_type=doc_type,
     )
+
+    # 文档变化 → 智能建议过期(懒生成, 下次 GET 重算)
+    if project_id:
+        try:
+            from services.smart_advice import mark_stale
+            await mark_stale(project_id)
+        except Exception as _e:
+            logger.warning("smart_advice_mark_stale_failed", project_id=project_id, error=str(_e)[:200])
+
     return {"id": doc.id, "filename": filename, "status": "pending"}
 
 

@@ -5,7 +5,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, research, admin_invite_codes, project_stakeholders
+from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, research, admin_invite_codes, project_stakeholders, smart_advice
 from services.auth import get_current_user
 from services.rate_limit import limiter
 from services.vector_store import vector_store
@@ -164,6 +164,7 @@ app.include_router(web_suggest.router, prefix="/api/web-suggest", tags=["web-sug
 app.include_router(stakeholder_graph.router, prefix="/api/stakeholder-graph", tags=["stakeholder-graph"])
 app.include_router(research.router, prefix="/api/research", tags=["research"])
 app.include_router(project_stakeholders.router, prefix="/api/projects/{project_id}/stakeholders", tags=["project-stakeholders"])
+app.include_router(smart_advice.router, prefix="/api", tags=["smart-advice"])
 
 
 @app.on_event("startup")
@@ -195,6 +196,7 @@ async def startup():
     from models.project_collaborator import ProjectCollaborator  # noqa: F401
     from models.meeting import Meeting, Requirement  # noqa: F401  会议纪要(2026-05-11 接入)
     from models.project_stakeholder import ProjectStakeholder  # noqa: F401  项目级干系人资产(2026-05-12)
+    from models.project_smart_advice import SmartAdvice  # noqa: F401  项目智能建议(2026-05-15)
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
