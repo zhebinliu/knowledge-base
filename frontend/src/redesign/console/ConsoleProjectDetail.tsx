@@ -333,11 +333,11 @@ export default function NewConsoleProjectDetail() {
               borderColor = 'transparent'
             } else if (status === 'done') {
               bg = 'rgba(5, 150, 105, 0.12)'
-              color = '#047857'
+              color = '#34D399'
               borderColor = 'rgba(5, 150, 105, 0.28)'
             } else if (status === 'inflight') {
               bg = 'rgba(14, 116, 144, 0.12)'
-              color = '#0E7490'
+              color = '#38BDF8'
               borderColor = 'rgba(14, 116, 144, 0.28)'
             } else if (status === 'locked') {
               bg = 'rgba(0,0,0,0.25)'
@@ -395,8 +395,8 @@ export default function NewConsoleProjectDetail() {
                 style={{ fontSize: 12, padding: '5px 12px' }}
                 title={sk.label}
               >
-                {has ? <CheckCircle2 size={10} color="#059669" /> :
-                 inflight ? <Loader2 size={10} className="animate-spin" color="#0E7490" /> :
+                {has ? <CheckCircle2 size={10} color="#34D399" /> :
+                 inflight ? <Loader2 size={10} className="animate-spin" color="#38BDF8" /> :
                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--rd-text-3)' }} />}
                 {sk.label}
               </button>
@@ -425,7 +425,7 @@ export default function NewConsoleProjectDetail() {
               <BundlePreviewBtn b={activeBundle} />
               <BundleDownloadBtn b={activeBundle} />
               {activeInflight ? (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px', fontSize: 12, color: '#0E7490' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px', fontSize: 12, color: '#38BDF8' }}>
                   <Loader2 size={11} className="animate-spin" /> 重新生成中…
                 </span>
               ) : (
@@ -435,7 +435,7 @@ export default function NewConsoleProjectDetail() {
               )}
             </>
           ) : activeInflight ? (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px', fontSize: 12, color: '#0E7490' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px', fontSize: 12, color: '#38BDF8' }}>
               <Loader2 size={11} className="animate-spin" /> 后台任务进行中
             </span>
           ) : activeStage.active ? (
@@ -769,10 +769,10 @@ function AgenticValidityBanner({ bundle }: { bundle: CuratedBundle }) {
   else { mainColor = 'emerald'; mainText = '已通过质量评审'; mainIcon = CheckCircle2 }
 
   const COLOR_MAP: Record<Color, { bg: string; text: string; border: string }> = {
-    red:     { bg: 'rgba(220, 38, 38, .08)',  text: '#B91C1C', border: 'rgba(220, 38, 38, .25)' },
-    amber:   { bg: 'rgba(245, 158, 11, .10)', text: '#92400E', border: 'rgba(245, 158, 11, .28)' },
-    sky:     { bg: 'rgba(14, 116, 144, .08)', text: '#0E7490', border: 'rgba(14, 116, 144, .25)' },
-    emerald: { bg: 'rgba(5, 150, 105, .08)',  text: '#047857', border: 'rgba(5, 150, 105, .25)' },
+    red:     { bg: 'rgba(220, 38, 38, .08)',  text: '#FB7185', border: 'rgba(220, 38, 38, .25)' },
+    amber:   { bg: 'rgba(245, 158, 11, .10)', text: '#FBBF24', border: 'rgba(245, 158, 11, .28)' },
+    sky:     { bg: 'rgba(14, 116, 144, .08)', text: '#38BDF8', border: 'rgba(14, 116, 144, .25)' },
+    emerald: { bg: 'rgba(5, 150, 105, .08)',  text: '#34D399', border: 'rgba(5, 150, 105, .25)' },
   }
   const C = COLOR_MAP[mainColor]
   const MainIcon = mainIcon
@@ -1264,7 +1264,7 @@ function ProjectEditPanel({ project, onClose, onSaved }: {
             padding: '8px 12px', borderRadius: 10,
             background: 'rgba(220, 38, 38, .08)',
             border: '1px solid rgba(220, 38, 38, .25)',
-            color: '#B91C1C', fontSize: 12,
+            color: '#FB7185', fontSize: 12,
             marginBottom: 8,
           }}>
             <AlertCircle size={12} /> {err}
@@ -1350,7 +1350,7 @@ function DocPreviewDrawer({ docId, docs, onClose }: {
               <Loader2 size={13} className="animate-spin" /> 加载中…
             </div>
           ) : error ? (
-            <div style={{ fontSize: 12, color: '#DC2626' }}>加载失败</div>
+            <div style={{ fontSize: 12, color: '#F87171' }}>加载失败</div>
           ) : !data?.markdown_content ? (
             <div style={{ fontSize: 12, color: 'var(--rd-text-3)', textAlign: 'center', padding: '32px 0' }}>该文档尚未转换为 Markdown 或内容为空</div>
           ) : (

@@ -20,7 +20,7 @@ import ProjectFormModal from '../../components/ProjectFormModal'
 import GlowCard from '../components/GlowCard'
 
 const STAGES = [
-  { kind: 'insight',       label: '项目洞察', icon: Lightbulb,     color: '#7C3AED' },
+  { kind: 'insight',       label: '项目洞察', icon: Lightbulb,     color: '#A78BFA' },
   { kind: 'kickoff_pptx',  label: '启动会',   icon: FileText,      color: '#D96400' },
   { kind: 'survey',        label: '需求调研', icon: ClipboardList, color: '#2563EB' },
 ] as const

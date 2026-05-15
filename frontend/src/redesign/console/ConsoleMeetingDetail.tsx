@@ -78,7 +78,7 @@ export default function NewConsoleMeetingDetail() {
     )
   }
   if (error || !meeting) {
-    return <div className="rd-page" style={{ textAlign: 'center', color: '#DC2626', fontSize: 13 }}>会议不存在或无权访问</div>
+    return <div className="rd-page" style={{ textAlign: 'center', color: '#F87171', fontSize: 13 }}>会议不存在或无权访问</div>
   }
 
   return (
@@ -137,7 +137,7 @@ export default function NewConsoleMeetingDetail() {
                 if (window.confirm(`确认删除「${meeting.title}」?`)) delMut.mutate()
               }}
               className="rd-btn"
-              style={{ fontSize: 12, padding: '7px 12px', color: '#DC2626' }}
+              style={{ fontSize: 12, padding: '7px 12px', color: '#F87171' }}
               title="删除"
             >
               <Trash2 size={13} />

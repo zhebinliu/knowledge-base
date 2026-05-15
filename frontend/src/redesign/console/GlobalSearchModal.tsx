@@ -31,8 +31,8 @@ type Hit =
 
 const KIND_META = {
   project:  { label: '项目', icon: FolderKanban, color: '#FF8D1A' },
-  meeting:  { label: '会议', icon: Mic,          color: '#7C3AED' },
-  document: { label: '文档', icon: FileText,     color: '#0E7490' },
+  meeting:  { label: '会议', icon: Mic,          color: '#A78BFA' },
+  document: { label: '文档', icon: FileText,     color: '#38BDF8' },
 } as const
 
 export default function GlobalSearchModal({ open, onClose }: Props) {

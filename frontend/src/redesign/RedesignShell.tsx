@@ -135,7 +135,7 @@ export default function RedesignShell() {
             >
               <Search
                 size={20}
-                color="#1A1D2E"
+                color="#FFFFFF"
                 strokeWidth={2.4}
                 style={{ filter: 'drop-shadow(0 1px 2px rgba(255,255,255,0.10))' }}
               />

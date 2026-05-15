@@ -234,7 +234,7 @@ export default function NewBriefDrawer({ open, kind, projectId, stageTitle, onCl
                         {gather.map(s => (
                           <li key={s.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12 }}>
                             <span style={{ marginTop: 2, flexShrink: 0 }}>
-                              {s.status === 'done' ? <CheckCircle2 size={13} color="#059669" />
+                              {s.status === 'done' ? <CheckCircle2 size={13} color="#34D399" />
                                 : s.status === 'running' ? <Loader2 size={13} className="animate-spin" color="var(--rd-accent)" />
                                 : <span style={{ display: 'inline-block', width: 13, height: 13, borderRadius: '50%', border: '1px solid var(--rd-line)' }} />}
                             </span>
@@ -257,7 +257,7 @@ export default function NewBriefDrawer({ open, kind, projectId, stageTitle, onCl
                         <div style={{ paddingTop: 10, borderTop: '1px solid var(--rd-line)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
                             {llm?.status === 'done'
-                              ? <CheckCircle2 size={13} color="#059669" />
+                              ? <CheckCircle2 size={13} color="#34D399" />
                               : <Loader2 size={13} className="animate-spin" color="var(--rd-accent)" />}
                             <span style={{ fontWeight: 600, color: 'var(--rd-accent-2)' }}>
                               {llm?.status === 'done' ? '生成完成' : 'AI 生成中…'}
@@ -326,15 +326,15 @@ export default function NewBriefDrawer({ open, kind, projectId, stageTitle, onCl
         }}>
           <div style={{ fontSize: 12, color: 'var(--rd-text-3)' }}>
             {requiredMissing.length > 0 ? (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#92400E' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#FBBF24' }}>
                 <AlertCircle size={11} /> {requiredMissing.length} 项必填未完成
               </span>
             ) : (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#047857' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#34D399' }}>
                 <CheckCircle2 size={11} /> 必填项已就绪
               </span>
             )}
-            {err && <span style={{ marginLeft: 10, color: '#DC2626' }}>{err}</span>}
+            {err && <span style={{ marginLeft: 10, color: '#F87171' }}>{err}</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <button onClick={() => saveMut.mutate()} disabled={saveMut.isPending} className="rd-btn" style={{ padding: '6px 12px', fontSize: 12 }}>
@@ -386,8 +386,8 @@ function FieldEditor({ def, cell, onChange }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
           <ConfidenceDot c={cell.confidence} />
           <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--rd-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{def.label}</span>
-          {def.required && <span style={{ fontSize: 12, color: '#92400E' }}>*</span>}
-          {edited && <span style={{ fontSize: 12, color: '#047857', marginLeft: 3 }}>已编辑</span>}
+          {def.required && <span style={{ fontSize: 12, color: '#FBBF24' }}>*</span>}
+          {edited && <span style={{ fontSize: 12, color: '#34D399', marginLeft: 3 }}>已编辑</span>}
         </div>
         {sources.length > 0 && (
           <details style={{ position: 'relative' }}>
@@ -460,7 +460,7 @@ function ListEditor({ value, onChange }: { value: string[]; onChange: (v: string
             className="rd-input"
             style={{ flex: 1, fontSize: 12, padding: '4px 8px', resize: 'vertical' }}
           />
-          <button onClick={() => remove(i)} className="rd-icon-btn" style={{ width: 24, height: 24, color: '#DC2626' }} title="删除">
+          <button onClick={() => remove(i)} className="rd-icon-btn" style={{ width: 24, height: 24, color: '#F87171' }} title="删除">
             <X size={11} />
           </button>
         </div>

@@ -23,7 +23,7 @@ function ageDays(iso: string): number {
 
 function ConfidenceBar({ value }: { value: number }) {
   const pct = Math.round(value * 100)
-  const color = value >= 0.85 ? '#059669' : value >= 0.6 ? '#D97706' : '#DC2626'
+  const color = value >= 0.85 ? '#34D399' : value >= 0.6 ? '#D97706' : '#F87171'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       <div style={{ flex: 1, height: 4, background: 'rgba(0,0,0,0.25)', borderRadius: 2, overflow: 'hidden' }}>
@@ -86,7 +86,7 @@ export default function NewReview() {
               }}
               disabled={acting}
               className="rd-btn"
-              style={{ padding: '6px 12px', fontSize: 11.5, color: '#047857', borderColor: 'rgba(5, 150, 105, .35)' }}
+              style={{ padding: '6px 12px', fontSize: 11.5, color: '#34D399', borderColor: 'rgba(5, 150, 105, .35)' }}
               title="批量通过当前队列"
             >
               <CheckCheck size={12} /> 全部通过
@@ -147,7 +147,7 @@ export default function NewReview() {
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
               <AlertTriangle size={13} color="var(--rd-accent)" style={{ flexShrink: 0, marginTop: 2 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 11.5, color: '#92400E', fontWeight: 600, margin: '0 0 8px' }}>{item.reason}</p>
+                <p style={{ fontSize: 11.5, color: '#FBBF24', fontWeight: 600, margin: '0 0 8px' }}>{item.reason}</p>
 
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 16px' }}>
                   {item.chunk_ltc_stage && (
@@ -219,7 +219,7 @@ export default function NewReview() {
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 padding: '9px 20px', borderRadius: 10,
-                background: 'linear-gradient(135deg, #10B981, #059669)',
+                background: 'linear-gradient(135deg, #10B981, #34D399)',
                 color: '#fff', border: 'none', cursor: acting ? 'not-allowed' : 'pointer',
                 fontSize: 13, fontWeight: 600, opacity: acting ? 0.5 : 1,
                 boxShadow: '0 4px 12px -2px rgba(5, 150, 105, .45), inset 0 1px 0 rgba(255, 255, 255, .25)',
@@ -232,7 +232,7 @@ export default function NewReview() {
               onClick={() => reject.mutate({ id: item.id })}
               disabled={acting}
               className="rd-btn"
-              style={{ padding: '8px 18px', fontSize: 13, color: '#DC2626', borderColor: 'rgba(220, 38, 38, .25)' }}
+              style={{ padding: '8px 18px', fontSize: 13, color: '#F87171', borderColor: 'rgba(220, 38, 38, .25)' }}
             >
               <XCircle size={14} /> 拒绝
             </button>

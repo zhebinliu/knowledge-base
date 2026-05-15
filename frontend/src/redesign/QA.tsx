@@ -151,8 +151,8 @@ function FeedbackBar({ questionLogId, current, onChange }: {
   })
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginTop: 6 }}>
-      <button onClick={() => click('up')} style={buttonStyle('up', '#059669')} title="有用"><ThumbsUp size={12} /></button>
-      <button onClick={() => click('down')} style={buttonStyle('down', '#DC2626')} title="没帮上忙(进未解决队列)"><ThumbsDown size={12} /></button>
+      <button onClick={() => click('up')} style={buttonStyle('up', '#34D399')} title="有用"><ThumbsUp size={12} /></button>
+      <button onClick={() => click('down')} style={buttonStyle('down', '#F87171')} title="没帮上忙(进未解决队列)"><ThumbsDown size={12} /></button>
       <button onClick={() => click('star')} style={buttonStyle('star', '#D97706')} title="收藏为金句"><Star size={12} /></button>
     </div>
   )
@@ -331,7 +331,7 @@ function DocGen() {
             {gen.isPending ? '生成中…' : '生成文档'}
           </button>
           {gen.isError && (
-            <span style={{ fontSize: 12, color: '#DC2626' }}>生成失败:{String(gen.error)}</span>
+            <span style={{ fontSize: 12, color: '#F87171' }}>生成失败:{String(gen.error)}</span>
           )}
         </div>
 
@@ -346,7 +346,7 @@ function DocGen() {
                 className="rd-btn"
                 style={{ fontSize: 12, padding: '5px 10px' }}
               >
-                {copied ? <Check size={11} color="#059669" /> : <Copy size={11} />}
+                {copied ? <Check size={11} color="#34D399" /> : <Copy size={11} />}
                 {copied ? '已复制' : '复制全文'}
               </button>
             </div>
@@ -854,7 +854,7 @@ export default function NewQA({ lockedProjectId, compact = false }: QAProps = {}
                         display: 'inline-flex', alignItems: 'center', gap: 4,
                         padding: '1px 8px', borderRadius: 999,
                         background: 'rgba(124, 58, 237, .10)',
-                        color: '#6D28D9',
+                        color: '#C084FC',
                         fontSize: 12,
                         border: '1px solid rgba(124, 58, 237, .20)',
                       }}>

@@ -9,8 +9,8 @@ import CountUp from '../components/CountUp'
 // 真实生产数据形态(mock):活跃项目 / 已生成交付物 / 处理中
 const STATS = [
   { label: '活跃项目',     value: 18,  Icon: Building2,    color: '#D96400' },
-  { label: '已生成交付物', value: 247, Icon: CheckCircle2, color: '#059669' },
-  { label: '处理中',       value: 3,   Icon: Loader2,      color: '#0E7490', spin: true },
+  { label: '已生成交付物', value: 247, Icon: CheckCircle2, color: '#34D399' },
+  { label: '处理中',       value: 3,   Icon: Loader2,      color: '#38BDF8', spin: true },
 ]
 
 // 与生产 ConsoleHome 三入口一致:知识问答 / 项目管理 / 会议纪要

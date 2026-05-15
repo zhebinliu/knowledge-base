@@ -14,9 +14,9 @@ type Project = {
 
 const PROJECTS: Project[] = [
   { name: '海尔智家全渠道项目', client: '海尔智家',   start: '2026-04-12', docs: 38, ratio: 0.82, modules: ['销售', 'BI', '审批'], hue: 'linear-gradient(90deg, #FF8D1A, #D96400)' },
-  { name: '美的集团 CRM 升级',   client: '美的集团',   start: '2026-03-30', docs: 24, ratio: 0.61, modules: ['销售', '客服'],       hue: 'linear-gradient(90deg, #8B5CF6, #6D28D9)' },
-  { name: '蒙牛乳业渠道改造',     client: '蒙牛乳业',   start: '2026-02-18', docs: 17, ratio: 0.94, modules: ['销售', '渠道', '订单'], hue: 'linear-gradient(90deg, #22D3EE, #0E7490)' },
-  { name: '伊利股份配额管理',     client: '伊利股份',   start: '2026-05-02', docs: 9,  ratio: 0.32, modules: ['订单', '财务'],       hue: 'linear-gradient(90deg, #34D399, #059669)' },
+  { name: '美的集团 CRM 升级',   client: '美的集团',   start: '2026-03-30', docs: 24, ratio: 0.61, modules: ['销售', '客服'],       hue: 'linear-gradient(90deg, #8B5CF6, #C084FC)' },
+  { name: '蒙牛乳业渠道改造',     client: '蒙牛乳业',   start: '2026-02-18', docs: 17, ratio: 0.94, modules: ['销售', '渠道', '订单'], hue: 'linear-gradient(90deg, #22D3EE, #38BDF8)' },
+  { name: '伊利股份配额管理',     client: '伊利股份',   start: '2026-05-02', docs: 9,  ratio: 0.32, modules: ['订单', '财务'],       hue: 'linear-gradient(90deg, #34D399, #34D399)' },
   { name: '中粮集团验收试点',     client: '中粮集团',   start: '2026-01-12', docs: 28, ratio: 0.75, modules: ['销售', 'BI'],         hue: 'linear-gradient(90deg, #FF8D1A, #FFB066)' },
   { name: '光明乳业 BI 接入',     client: '光明乳业',   start: '2026-05-08', docs: 6,  ratio: 0.18, modules: ['BI', '数据'],        hue: 'linear-gradient(90deg, #F472B6, #BE185D)' },
 ]

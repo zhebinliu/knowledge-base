@@ -928,6 +928,48 @@
 .rd-root .bg-violet-50  { background: rgba(167, 139, 250, 0.14) !important; }
 .rd-root .bg-cyan-50    { background: rgba(34, 211, 238, 0.14) !important; }
 .rd-root .bg-teal-50    { background: rgba(45, 212, 191, 0.14) !important; }
+
+/* bg-100 系列(老 UI 用做轻强调,深底要加重) */
+.rd-root .bg-orange-100  { background: rgba(255, 141, 26, 0.20) !important; }
+.rd-root .bg-amber-100   { background: rgba(245, 158, 11, 0.20) !important; }
+.rd-root .bg-emerald-100 { background: rgba(16, 185, 129, 0.20) !important; }
+.rd-root .bg-red-100     { background: rgba(244, 63, 94, 0.20) !important; }
+.rd-root .bg-rose-100    { background: rgba(251, 113, 133, 0.20) !important; }
+.rd-root .bg-blue-100    { background: rgba(96, 165, 250, 0.20) !important; }
+.rd-root .bg-purple-100  { background: rgba(192, 132, 252, 0.20) !important; }
+.rd-root .bg-cyan-100    { background: rgba(34, 211, 238, 0.20) !important; }
+
+/* ── 语义色文字翻浅(深底上 700/800/900 段都看不清,统一翻成 400 段)──── */
+.rd-root .text-orange-700, .rd-root .text-orange-800, .rd-root .text-orange-900,
+.rd-root [class*="text-orange-7"], .rd-root [class*="text-orange-8"] { color: #FFB066 !important; }
+.rd-root .text-orange-600, .rd-root [class*="text-orange-6"] { color: #FB923C !important; }
+.rd-root .text-amber-700, .rd-root .text-amber-800, .rd-root .text-amber-900,
+.rd-root [class*="text-amber-7"], .rd-root [class*="text-amber-8"] { color: #FBBF24 !important; }
+.rd-root .text-yellow-700, .rd-root .text-yellow-800 { color: #FBBF24 !important; }
+.rd-root .text-emerald-700, .rd-root .text-emerald-800, .rd-root .text-emerald-900,
+.rd-root [class*="text-emerald-7"], .rd-root [class*="text-emerald-8"] { color: #34D399 !important; }
+.rd-root .text-green-700, .rd-root .text-green-800 { color: #34D399 !important; }
+.rd-root .text-red-700, .rd-root .text-red-800, .rd-root .text-red-900,
+.rd-root [class*="text-red-7"], .rd-root [class*="text-red-8"] { color: #FB7185 !important; }
+.rd-root .text-rose-700, .rd-root .text-rose-800, .rd-root .text-rose-900 { color: #FB7185 !important; }
+.rd-root .text-blue-700, .rd-root .text-blue-800, .rd-root .text-blue-900,
+.rd-root [class*="text-blue-7"], .rd-root [class*="text-blue-8"] { color: #60A5FA !important; }
+.rd-root .text-sky-700, .rd-root .text-sky-800 { color: #38BDF8 !important; }
+.rd-root .text-purple-700, .rd-root .text-purple-800, .rd-root .text-purple-900,
+.rd-root [class*="text-purple-7"], .rd-root [class*="text-purple-8"] { color: #C084FC !important; }
+.rd-root .text-violet-700, .rd-root .text-violet-800 { color: #A78BFA !important; }
+.rd-root .text-cyan-700, .rd-root .text-cyan-800 { color: #22D3EE !important; }
+.rd-root .text-teal-700, .rd-root .text-teal-800 { color: #2DD4BF !important; }
+
+/* 边框语义色同步处理 */
+.rd-root .border-orange-200, .rd-root .border-orange-300 { border-color: rgba(255, 141, 26, 0.35) !important; }
+.rd-root .border-amber-200,  .rd-root .border-amber-300  { border-color: rgba(245, 158, 11, 0.35) !important; }
+.rd-root .border-emerald-200,.rd-root .border-emerald-300{ border-color: rgba(16, 185, 129, 0.35) !important; }
+.rd-root .border-red-200,    .rd-root .border-red-300    { border-color: rgba(244, 63, 94, 0.35) !important; }
+.rd-root .border-rose-200,   .rd-root .border-rose-300   { border-color: rgba(251, 113, 133, 0.35) !important; }
+.rd-root .border-blue-200,   .rd-root .border-blue-300   { border-color: rgba(96, 165, 250, 0.35) !important; }
+.rd-root .border-purple-200, .rd-root .border-purple-300 { border-color: rgba(192, 132, 252, 0.35) !important; }
+.rd-root .border-cyan-200,   .rd-root .border-cyan-300   { border-color: rgba(34, 211, 238, 0.35) !important; }
 .rd-root [class*="bg-orange-50"], .rd-root [class*="bg-amber-50"],
 .rd-root [class*="bg-emerald-50"], .rd-root [class*="bg-red-50"],
 .rd-root [class*="bg-blue-50"], .rd-root [class*="bg-purple-50"] {

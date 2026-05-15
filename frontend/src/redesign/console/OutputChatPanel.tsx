@@ -163,7 +163,7 @@ export default function NewOutputChatPanel({ kind, projectId, stageTitle, onGene
               {starting ? '开启中…' : '开始对话'}
             </button>
           </div>
-          {error && <div style={{ marginTop: 12, fontSize: 12, color: '#DC2626' }}>{error}</div>}
+          {error && <div style={{ marginTop: 12, fontSize: 12, color: '#F87171' }}>{error}</div>}
         </div>
       </div>
     )
@@ -291,7 +291,7 @@ export default function NewOutputChatPanel({ kind, projectId, stageTitle, onGene
             <span className="rd-dots"><span /><span /><span /></span> 智能体思考中…
           </div>
         )}
-        {error && <div style={{ fontSize: 12, color: '#DC2626' }}>{error}</div>}
+        {error && <div style={{ fontSize: 12, color: '#F87171' }}>{error}</div>}
       </div>
 
       <div style={{

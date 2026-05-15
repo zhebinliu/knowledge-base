@@ -95,7 +95,7 @@ export default function Insight() {
           flex-shrink: 0;
         }
         .rd-stage.is-done .rd-stage-dot {
-          background: linear-gradient(135deg, var(--rd-green), #059669);
+          background: linear-gradient(135deg, var(--rd-green), #34D399);
           color: #fff;
           box-shadow: 0 0 8px rgba(52,211,153,.4);
         }

@@ -89,7 +89,7 @@ export default function Survey() {
           font-size: 10px; font-weight: 700;
         }
         .rd-outline-item.is-done .rd-outline-check {
-          background: linear-gradient(135deg, var(--rd-green), #059669);
+          background: linear-gradient(135deg, var(--rd-green), #34D399);
           color: #fff;
           box-shadow: 0 0 6px rgba(52,211,153,.45);
         }
@@ -290,7 +290,7 @@ export default function Survey() {
                     width: 26, height: 26, borderRadius: 8, flexShrink: 0,
                     background: m.kind === 'ai'
                       ? 'linear-gradient(135deg, var(--rd-accent), var(--rd-accent-deep))'
-                      : 'linear-gradient(135deg, #8B5CF6, #6D28D9)',
+                      : 'linear-gradient(135deg, #8B5CF6, #C084FC)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     boxShadow: m.kind === 'ai'
                       ? '0 0 10px rgba(255,141,26,.4)'

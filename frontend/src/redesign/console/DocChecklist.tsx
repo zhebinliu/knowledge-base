@@ -76,7 +76,7 @@ export default function NewDocChecklist({ projectId, stage, onOpenDocPreview, on
             <span style={{
               marginLeft: 'auto', padding: '1px 8px', borderRadius: 4,
               fontSize: 12, fontWeight: 600,
-              color: '#047857', background: 'rgba(5, 150, 105, .15)',
+              color: '#34D399', background: 'rgba(5, 150, 105, .15)',
             }}>
               <CheckCircle2 size={9} style={{ display: 'inline', marginRight: 2 }} />可生成
             </span>
@@ -226,7 +226,7 @@ function DocRow({ item, projectId, onPreview, onUploaded, onCanvas }: {
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5 }}>
         {item.uploaded ? (
-          <CheckCircle2 size={13} color="#059669" style={{ marginTop: 2, flexShrink: 0 }} />
+          <CheckCircle2 size={13} color="#34D399" style={{ marginTop: 2, flexShrink: 0 }} />
         ) : (
           <span style={{
             width: 12, height: 12, borderRadius: '50%',
@@ -239,7 +239,7 @@ function DocRow({ item, projectId, onPreview, onUploaded, onCanvas }: {
             <FileText size={11} color="var(--rd-text-3)" style={{ flexShrink: 0 }} />
             <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--rd-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
             {item.necessity === 'required' && !item.uploaded && (
-              <span style={{ fontSize: 12, color: '#DC2626', fontWeight: 600 }}>必需</span>
+              <span style={{ fontSize: 12, color: '#F87171', fontWeight: 600 }}>必需</span>
             )}
           </div>
           {item.documents.length > 0 && (
@@ -260,7 +260,7 @@ function DocRow({ item, projectId, onPreview, onUploaded, onCanvas }: {
                     onMouseLeave={e => e.currentTarget.style.color = 'var(--rd-text-2)'}
                   >
                     {doc.status === 'retrying' && <Clock size={8} color="#D97706" style={{ display: 'inline', marginRight: 2 }} />}
-                    {doc.status === 'failed' && <Clock size={8} color="#DC2626" style={{ display: 'inline', marginRight: 2 }} />}
+                    {doc.status === 'failed' && <Clock size={8} color="#F87171" style={{ display: 'inline', marginRight: 2 }} />}
                     {(doc.status === 'converting' || doc.status === 'slicing' || doc.status === 'pending') &&
                       <Clock size={8} color="#2563EB" style={{ display: 'inline', marginRight: 2 }} />}
                     · {doc.filename}
@@ -282,7 +282,7 @@ function DocRow({ item, projectId, onPreview, onUploaded, onCanvas }: {
                       color: 'var(--rd-text-3)', flexShrink: 0,
                       opacity: 0, transition: 'opacity .15s, color .15s',
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#DC2626' }}
+                    onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#F87171' }}
                     onMouseLeave={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = 'var(--rd-text-3)' }}
                     className="group-hover-visible"
                     title="删除文档"
@@ -294,7 +294,7 @@ function DocRow({ item, projectId, onPreview, onUploaded, onCanvas }: {
               {item.documents.some(d => d.error || d.progress) && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 }}>
                   {item.documents.filter(d => d.error).map(d => (
-                    <div key={`err-${d.doc_id}`} style={{ fontSize: 9.5, color: '#DC2626', paddingLeft: 12, lineHeight: 1.4 }} title={d.error || ''}>
+                    <div key={`err-${d.doc_id}`} style={{ fontSize: 9.5, color: '#F87171', paddingLeft: 12, lineHeight: 1.4 }} title={d.error || ''}>
                       ⚠ {(d.error || '').length > 80 ? (d.error || '').slice(0, 80) + '…' : d.error}
                     </div>
                   ))}
@@ -308,7 +308,7 @@ function DocRow({ item, projectId, onPreview, onUploaded, onCanvas }: {
               )}
             </div>
           )}
-          {error && <div style={{ fontSize: 12, color: '#DC2626', marginTop: 4 }}>{error}</div>}
+          {error && <div style={{ fontSize: 12, color: '#F87171', marginTop: 4 }}>{error}</div>}
         </div>
         {onCanvas && (
           <button
@@ -318,7 +318,7 @@ function DocRow({ item, projectId, onPreview, onUploaded, onCanvas }: {
               padding: 4, background: 'transparent', border: 'none', cursor: 'pointer',
               color: '#A78BFA', flexShrink: 0,
             }}
-            onMouseEnter={e => e.currentTarget.style.color = '#7C3AED'}
+            onMouseEnter={e => e.currentTarget.style.color = '#A78BFA'}
             onMouseLeave={e => e.currentTarget.style.color = '#A78BFA'}
             title="在画布上手动编辑组织架构 / 干系人"
           >
@@ -394,7 +394,7 @@ function VirtualRow({ item, onClick }: { item: VirtualChecklistItem; onClick: ()
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5 }}>
         {item.filled ? (
-          <CheckCircle2 size={13} color="#059669" style={{ marginTop: 2, flexShrink: 0 }} />
+          <CheckCircle2 size={13} color="#34D399" style={{ marginTop: 2, flexShrink: 0 }} />
         ) : (
           <span style={{
             width: 12, height: 12, borderRadius: '50%',
@@ -404,11 +404,11 @@ function VirtualRow({ item, onClick }: { item: VirtualChecklistItem; onClick: ()
         )}
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Icon size={11} color="#7C3AED" style={{ flexShrink: 0 }} />
+            <Icon size={11} color="#A78BFA" style={{ flexShrink: 0 }} />
             <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--rd-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
             <span style={{ fontSize: 12, color: 'var(--rd-text-3)' }}>问卷</span>
             {item.necessity === 'required' && !item.filled && (
-              <span style={{ fontSize: 12, color: '#7C3AED', fontWeight: 600 }}>必填</span>
+              <span style={{ fontSize: 12, color: '#A78BFA', fontWeight: 600 }}>必填</span>
             )}
           </div>
           <div style={{
@@ -476,7 +476,7 @@ function ExtraReferencesSection({ projectId, extraRefs, candidates, onPreview, o
             background: 'rgba(124, 58, 237, .04)',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <FileText size={11} color="#7C3AED" style={{ flexShrink: 0 }} />
+              <FileText size={11} color="#A78BFA" style={{ flexShrink: 0 }} />
               <button
                 onClick={() => onPreview(d.doc_id)}
                 style={{
@@ -497,7 +497,7 @@ function ExtraReferencesSection({ projectId, extraRefs, candidates, onPreview, o
                   </span>
                 )}
               </button>
-              {d.status !== 'completed' && <Clock size={9} color={d.status === 'failed' ? '#DC2626' : '#D97706'} style={{ flexShrink: 0 }} />}
+              {d.status !== 'completed' && <Clock size={9} color={d.status === 'failed' ? '#F87171' : '#D97706'} style={{ flexShrink: 0 }} />}
               <button onClick={() => onDetach(d.doc_id)} style={{
                 padding: 2, background: 'transparent', border: 'none', cursor: 'pointer',
                 color: 'var(--rd-text-3)', flexShrink: 0,
@@ -512,7 +512,7 @@ function ExtraReferencesSection({ projectId, extraRefs, candidates, onPreview, o
               </button>
             </div>
             {d.error && (
-              <div style={{ fontSize: 12, color: '#DC2626', marginTop: 2, lineHeight: 1.4 }} title={d.error}>
+              <div style={{ fontSize: 12, color: '#F87171', marginTop: 2, lineHeight: 1.4 }} title={d.error}>
                 ⚠ {d.error.length > 100 ? d.error.slice(0, 100) + '…' : d.error}
               </div>
             )}
@@ -564,7 +564,7 @@ function ExtraReferencesSection({ projectId, extraRefs, candidates, onPreview, o
           关联已有 {candidates.length > 0 && <span style={{ color: 'var(--rd-text-3)', opacity: 0.6 }}>({candidates.length})</span>}
         </button>
       </div>
-      {error && <div style={{ fontSize: 12, color: '#DC2626', marginTop: 4, paddingLeft: 4 }}>{error}</div>}
+      {error && <div style={{ fontSize: 12, color: '#F87171', marginTop: 4, paddingLeft: 4 }}>{error}</div>}
       <input
         ref={fileRef} type="file" style={{ display: 'none' }}
         accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls,.csv,.md,.txt"
@@ -625,7 +625,7 @@ function AttachExistingPicker({ candidates, onClose, onConfirm }: {
         }}
       >
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--rd-line)', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Link2 size={13} color="#7C3AED" />
+          <Link2 size={13} color="#A78BFA" />
           <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--rd-text)' }}>关联项目里的已有文档</span>
           <button onClick={onClose} className="rd-icon-btn" style={{ marginLeft: 'auto', width: 26, height: 26 }}><X size={13} /></button>
         </div>
@@ -646,7 +646,7 @@ function AttachExistingPicker({ candidates, onClose, onConfirm }: {
                 background: sel ? 'rgba(124, 58, 237, .06)' : 'transparent',
                 cursor: 'pointer',
               }}>
-                <input type="checkbox" checked={sel} onChange={() => toggle(c.doc_id)} style={{ accentColor: '#7C3AED' }} />
+                <input type="checkbox" checked={sel} onChange={() => toggle(c.doc_id)} style={{ accentColor: '#A78BFA' }} />
                 <FileText size={11} color="var(--rd-text-3)" style={{ flexShrink: 0 }} />
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div title={c.filename} style={{

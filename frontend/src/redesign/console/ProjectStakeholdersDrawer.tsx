@@ -174,7 +174,7 @@ function StakeholderView({ stake: s, onEdit, onDelete }: {
           )}
           <div style={{ display: 'flex', gap: 2 }}>
             <button onClick={onEdit} className="rd-icon-btn" style={{ width: 24, height: 24, opacity: 0.7 }} title="编辑"><Pencil size={11} /></button>
-            <button onClick={onDelete} className="rd-icon-btn" style={{ width: 24, height: 24, color: '#DC2626', opacity: 0.7 }} title="删除"><Trash2 size={11} /></button>
+            <button onClick={onDelete} className="rd-icon-btn" style={{ width: 24, height: 24, color: '#F87171', opacity: 0.7 }} title="删除"><Trash2 size={11} /></button>
           </div>
         </div>
       </div>
@@ -246,7 +246,7 @@ function StakeholderEdit({ projectId, stake, onCancel, onDeleted }: {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 4, borderBottom: '1px solid var(--rd-line)' }}>
         <span style={{ fontSize: 12, color: 'var(--rd-accent-2)', fontWeight: 600 }}>编辑项目干系人</span>
         <div style={{ display: 'flex', gap: 2 }}>
-          <button onClick={onDeleted} disabled={saveMut.isPending} className="rd-icon-btn" style={{ width: 26, height: 26, color: '#DC2626' }} title="删除"><Trash2 size={12} /></button>
+          <button onClick={onDeleted} disabled={saveMut.isPending} className="rd-icon-btn" style={{ width: 26, height: 26, color: '#F87171' }} title="删除"><Trash2 size={12} /></button>
           <button onClick={onCancel} disabled={saveMut.isPending} className="rd-icon-btn" style={{ width: 26, height: 26 }} title="取消"><X size={12} /></button>
           <button onClick={() => saveMut.mutate()} disabled={saveMut.isPending || !name.trim()} className="rd-btn rd-btn-primary" style={{ padding: '4px 8px' }} title="保存(姓名变了会同步所有会议)">
             {saveMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}

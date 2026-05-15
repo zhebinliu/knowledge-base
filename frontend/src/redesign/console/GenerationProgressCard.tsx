@@ -76,7 +76,7 @@ export default function GenerationProgressCard({ bundle }: Props) {
               {typeof roundIdx === 'number' && (
                 <span style={{
                   padding: '2px 8px', fontSize: 12, borderRadius: 999, fontWeight: 600,
-                  background: 'rgba(124,58,237,0.15)', color: '#6D28D9',
+                  background: 'rgba(124,58,237,0.15)', color: '#C084FC',
                 }}>
                   第 {roundIdx + 1}/3 轮挑战
                 </span>
@@ -160,9 +160,9 @@ function ChallengeRoundLive({ round }: { round: import('../../api/client').Chall
   const c = round.critique
   const verdict = c?.verdict ?? '?'
   const verdictMeta = {
-    pass:          { label: '✓ 通过',   bg: 'rgba(16,185,129,0.15)',  color: '#047857' },
-    minor_issues:  { label: '☑ 可放行', bg: 'rgba(245,158,11,0.15)',  color: '#92400E' },
-    major_issues:  { label: '🚫 需返工', bg: 'rgba(220,38,38,0.15)',   color: '#B91C1C' },
+    pass:          { label: '✓ 通过',   bg: 'rgba(16,185,129,0.15)',  color: '#34D399' },
+    minor_issues:  { label: '☑ 可放行', bg: 'rgba(245,158,11,0.15)',  color: '#FBBF24' },
+    major_issues:  { label: '🚫 需返工', bg: 'rgba(220,38,38,0.15)',   color: '#FB7185' },
   }[verdict as 'pass' | 'minor_issues' | 'major_issues'] ?? { label: '处理中…', bg: 'rgba(0,0,0,0.25)', color: 'var(--rd-text-2)' }
 
   const issuesByModule: Record<string, number> = {}
@@ -211,7 +211,7 @@ function ChallengeRoundLive({ round }: { round: import('../../api/client').Chall
         </div>
       )}
       {round.modules_regenerated.length > 0 && (
-        <div style={{ marginTop: 4, fontSize: 12, color: '#047857' }}>
+        <div style={{ marginTop: 4, fontSize: 12, color: '#34D399' }}>
           已重生成: {round.modules_regenerated.join(', ')}
           {typeof round.regen_chars === 'number' && (
             <span style={{ color: 'var(--rd-text-3)', marginLeft: 4 }}>({round.regen_chars} 字)</span>

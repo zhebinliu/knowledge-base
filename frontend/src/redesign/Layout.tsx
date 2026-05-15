@@ -214,7 +214,7 @@ export default function NewLayout() {
                     display: 'inline-flex', alignItems: 'center', gap: 4,
                     padding: '2px 8px', borderRadius: 999,
                     background: 'rgba(245, 158, 11, .15)',
-                    color: '#B45309',
+                    color: '#FCD34D',
                     fontSize: 10.5, fontWeight: 600,
                   }}>
                     <Shield size={9} /> 管理员
@@ -453,7 +453,7 @@ export default function NewLayout() {
                     borderTop: '1px solid rgba(5, 150, 105, .15)',
                     borderBottom: '1px solid rgba(5, 150, 105, .15)',
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#047857', fontWeight: 600, marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#34D399', fontWeight: 600, marginBottom: 6 }}>
                       <Check size={11} /> 已生成,请立即复制(仅显示一次)
                     </div>
                     <div className="rd-mono" style={{ fontSize: 11, wordBreak: 'break-all', color: 'var(--rd-text)', marginBottom: 8 }}>
@@ -465,7 +465,7 @@ export default function NewLayout() {
                       className="rd-chip"
                       style={{ fontSize: 11, padding: '4px 10px' }}
                     >
-                      {mcpCopied ? <Check size={10} color="#059669" /> : <Copy size={10} />}
+                      {mcpCopied ? <Check size={10} color="#34D399" /> : <Copy size={10} />}
                       {mcpCopied ? '已复制' : '复制 Key'}
                     </button>
                   </div>
@@ -493,7 +493,7 @@ export default function NewLayout() {
                       onClick={handleRevokeMcpKey}
                       disabled={mcpLoading}
                       className="rd-btn"
-                      style={{ fontSize: 12, padding: '7px 10px', color: '#DC2626' }}
+                      style={{ fontSize: 12, padding: '7px 10px', color: '#F87171' }}
                     >
                       <Trash2 size={11} /> 撤销
                     </button>
@@ -524,7 +524,7 @@ function MenuItem({ icon: Icon, label, onClick, danger, accent, disabled, spin }
         borderRadius: 10,
         border: 'none',
         background: 'transparent',
-        color: danger ? '#DC2626' : accent ? 'var(--rd-accent-2)' : 'var(--rd-text)',
+        color: danger ? '#F87171' : accent ? 'var(--rd-accent-2)' : 'var(--rd-text)',
         fontSize: 13, fontWeight: accent ? 600 : 500,
         cursor: disabled ? 'not-allowed' : 'pointer',
         textAlign: 'left',

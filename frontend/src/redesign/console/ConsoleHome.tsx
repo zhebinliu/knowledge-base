@@ -99,8 +99,8 @@ export default function NewConsoleHome() {
 
   const STATS = [
     { label: '活跃项目',     value: projectCount, Icon: Building2,                                   color: '#D96400' },
-    { label: '已生成交付物', value: doneCount,    Icon: CheckCircle2,                                color: '#059669' },
-    { label: '处理中',       value: inflightCount, Icon: inflightCount > 0 ? Loader2 : Sparkles,    color: '#0E7490', spin: inflightCount > 0 },
+    { label: '已生成交付物', value: doneCount,    Icon: CheckCircle2,                                color: '#34D399' },
+    { label: '处理中',       value: inflightCount, Icon: inflightCount > 0 ? Loader2 : Sparkles,    color: '#38BDF8', spin: inflightCount > 0 },
   ]
 
   return (
@@ -279,7 +279,7 @@ export default function NewConsoleHome() {
                     width: 32, height: 32, borderRadius: 10, flexShrink: 0,
                     background: 'linear-gradient(135deg, rgba(5, 150, 105, .18), rgba(5, 150, 105, .06))',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#059669',
+                    color: '#34D399',
                   }}>
                     <CheckCircle2 size={13} />
                   </div>

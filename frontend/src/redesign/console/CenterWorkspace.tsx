@@ -346,7 +346,7 @@ function PreparationView({
             style={{
               background: 'rgba(255,141,26,0.10)',
               border: '1px solid rgba(255,141,26,0.25)',
-              color: '#92400E',
+              color: '#FBBF24',
             }}
           >
             <strong>下一步:</strong> 在<strong>左侧文档清单</strong>里补齐带「★ 必需」的资料 —
@@ -699,7 +699,7 @@ function PromptCard({ prompt, value, onChange }: {
               style={{
                 background: 'rgba(16,185,129,0.10)',
                 border: '1px solid rgba(16,185,129,0.30)',
-                color: '#047857',
+                color: '#34D399',
               }}
             >
               <span>{item}</span>
@@ -821,7 +821,7 @@ function InsightCheckupDrawer({
                 style={{
                   background: data.sufficient_critical ? 'rgba(16,185,129,0.10)' : 'rgba(245,158,11,0.10)',
                   border: data.sufficient_critical ? '1px solid rgba(16,185,129,0.25)' : '1px solid rgba(245,158,11,0.25)',
-                  color: data.sufficient_critical ? '#047857' : '#92400E',
+                  color: data.sufficient_critical ? '#34D399' : '#FBBF24',
                 }}
               >
                 <div className="flex items-center gap-2 font-semibold">
@@ -861,7 +861,7 @@ function InsightCheckupDrawer({
                 >
                   <div
                     className="px-3 py-2 text-xs font-semibold flex items-center gap-2"
-                    style={{ background: 'rgba(245,158,11,0.10)', color: '#92400E' }}
+                    style={{ background: 'rgba(245,158,11,0.10)', color: '#FBBF24' }}
                   >
                     <AlertCircle size={12} />
                     需要你补充的字段({data.gap_actions.filter(g => g.action === 'ask_user').length} 项)
@@ -903,7 +903,7 @@ function InsightCheckupDrawer({
 function CheckupModuleRow({ module: m }: { module: InsightCheckupResult['modules'][number] }) {
   const [open, setOpen] = useState(false)
   const STATUS_META: Record<string, { label: string; color: string; dot: string }> = {
-    ready:   { label: '就绪',     color: '#047857', dot: '#10B981' },
+    ready:   { label: '就绪',     color: '#34D399', dot: '#10B981' },
     blocked: { label: '关键缺失', color: '#b91c1c', dot: '#ef4444' },
     skipped: { label: '跳过',     color: 'var(--rd-text-3)', dot: '#cbd5e1' },
     planned: { label: '规划中',   color: '#1d4ed8', dot: '#60a5fa' },
@@ -943,10 +943,10 @@ function CheckupModuleRow({ module: m }: { module: InsightCheckupResult['modules
                       className="px-1.5 py-0.5 rounded text-xs"
                       style={
                         f.status === 'available'
-                          ? { background: 'rgba(16,185,129,0.15)', color: '#047857' }
+                          ? { background: 'rgba(16,185,129,0.15)', color: '#34D399' }
                           : f.status === 'deferred'
                           ? { background: 'rgba(59,130,246,0.15)', color: '#1d4ed8' }
-                          : { background: 'rgba(245,158,11,0.15)', color: '#92400E' }
+                          : { background: 'rgba(245,158,11,0.15)', color: '#FBBF24' }
                       }
                     >
                       {f.status === 'available' ? '已有' : f.status === 'deferred' ? '推迟抽取' : '缺失'}

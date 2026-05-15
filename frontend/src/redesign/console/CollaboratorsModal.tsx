@@ -157,7 +157,7 @@ export default function NewCollaboratorsModal({ open, projectId, myRole, onClose
               }}>
                 <span style={{
                   width: 28, height: 28, borderRadius: '50%',
-                  background: 'rgba(245, 158, 11, .18)', color: '#92400E',
+                  background: 'rgba(245, 158, 11, .18)', color: '#FBBF24',
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
                   <Crown size={12} />
@@ -173,7 +173,7 @@ export default function NewCollaboratorsModal({ open, projectId, myRole, onClose
                   <button
                     onClick={() => setTransferOpen(true)}
                     className="rd-btn"
-                    style={{ fontSize: 12, padding: '4px 10px', color: '#92400E', borderColor: 'rgba(245, 158, 11, .35)' }}
+                    style={{ fontSize: 12, padding: '4px 10px', color: '#FBBF24', borderColor: 'rgba(245, 158, 11, .35)' }}
                     title="转让所有权 — 旧 owner 自动降为读写协作者"
                   >
                     <ArrowRightLeft size={10} /> 转让
@@ -276,7 +276,7 @@ export default function NewCollaboratorsModal({ open, projectId, myRole, onClose
                             {u.username}{u.email ? ` · ${u.email}` : ''}
                           </div>
                         </div>
-                        {isOwner ? <span style={{ fontSize: 12, color: '#92400E' }}>Owner</span>
+                        {isOwner ? <span style={{ fontSize: 12, color: '#FBBF24' }}>Owner</span>
                           : already ? <span style={{ fontSize: 12, color: 'var(--rd-text-3)' }}>已添加</span>
                           : pendingAdd === u.id ? <Loader2 size={11} className="animate-spin" color="var(--rd-accent-2)" />
                           : <Plus size={11} color="var(--rd-accent-2)" />}
@@ -289,7 +289,7 @@ export default function NewCollaboratorsModal({ open, projectId, myRole, onClose
               {error && (
                 <div style={{
                   marginTop: 8, padding: '4px 8px', borderRadius: 4,
-                  fontSize: 12, color: '#B91C1C',
+                  fontSize: 12, color: '#FB7185',
                   background: 'rgba(220, 38, 38, .08)',
                   display: 'inline-flex', alignItems: 'center', gap: 4,
                 }}>
@@ -365,7 +365,7 @@ function CollaboratorRow({ coll, canManage, onChangeRole, onRemove, busy }: {
         <button
           onClick={onRemove} disabled={busy}
           className="rd-icon-btn"
-          style={{ width: 26, height: 26, color: '#DC2626' }}
+          style={{ width: 26, height: 26, color: '#F87171' }}
           title="移除协作者"
         >
           <UserMinus size={11} />
@@ -496,7 +496,7 @@ function TransferOwnerSubModal({ owner, collaborators, onClose, onConfirm, busy,
             padding: '10px 14px', borderRadius: 10,
             background: 'rgba(245, 158, 11, .08)',
             border: '1px solid rgba(245, 158, 11, .25)',
-            fontSize: 12, color: '#78350F', lineHeight: 1.6,
+            fontSize: 12, color: '#FBBF24', lineHeight: 1.6,
           }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
               <AlertTriangle size={12} style={{ marginTop: 2, flexShrink: 0 }} />
@@ -605,7 +605,7 @@ function TransferOwnerSubModal({ owner, collaborators, onClose, onConfirm, busy,
                           {u.username}{u.email ? ` · ${u.email}` : ''}
                         </div>
                       </div>
-                      {isOwner ? <span style={{ fontSize: 12, color: '#92400E' }}>当前 Owner</span>
+                      {isOwner ? <span style={{ fontSize: 12, color: '#FBBF24' }}>当前 Owner</span>
                         : sel ? <Check size={12} color="#D97706" /> : null}
                     </button>
                   )
@@ -617,7 +617,7 @@ function TransferOwnerSubModal({ owner, collaborators, onClose, onConfirm, busy,
           {error && (
             <div style={{
               padding: '4px 8px', borderRadius: 4,
-              fontSize: 12, color: '#B91C1C',
+              fontSize: 12, color: '#FB7185',
               background: 'rgba(220, 38, 38, .08)',
               display: 'inline-flex', alignItems: 'center', gap: 4,
             }}>
@@ -642,7 +642,7 @@ function TransferOwnerSubModal({ owner, collaborators, onClose, onConfirm, busy,
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 fontSize: 12, padding: '6px 14px', borderRadius: 8, fontWeight: 600,
                 color: '#fff', background: 'linear-gradient(135deg, #F59E0B, #D97706)',
-                border: '1px solid #B45309',
+                border: '1px solid #FCD34D',
                 cursor: (!pickedId || busy) ? 'not-allowed' : 'pointer',
                 opacity: (!pickedId || busy) ? 0.5 : 1,
                 fontFamily: 'inherit',

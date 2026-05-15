@@ -213,7 +213,7 @@ export default function NewConsoleMeetingNew() {
               borderRadius: 10,
               background: 'rgba(220, 38, 38, .08)',
               border: '1px solid rgba(220, 38, 38, .25)',
-              color: '#B91C1C',
+              color: '#FB7185',
               fontSize: 12.5,
             }}>
               <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />

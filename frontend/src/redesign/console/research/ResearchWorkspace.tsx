@@ -697,7 +697,7 @@ function ProductCard({
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium"
                 style={{
                   background: 'rgba(16,185,129,0.10)',
-                  color: '#047857',
+                  color: '#34D399',
                   border: '1px solid rgba(16,185,129,0.25)',
                 }}
               >

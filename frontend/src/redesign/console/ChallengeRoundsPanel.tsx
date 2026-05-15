@@ -20,18 +20,18 @@ interface Props {
 }
 
 const VERDICT_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  pass:           { label: '✓ 通过',     color: '#047857', bg: 'rgba(5, 150, 105, .10)',  border: 'rgba(5, 150, 105, .28)' },
-  minor_issues:   { label: '☑ 可放行',   color: '#92400E', bg: 'rgba(245, 158, 11, .10)', border: 'rgba(245, 158, 11, .28)' },
-  major_issues:   { label: '🚫 需返工',  color: '#B91C1C', bg: 'rgba(220, 38, 38, .10)',  border: 'rgba(220, 38, 38, .28)' },
-  parse_failed:   { label: '⚠ 解析失败 · 未确认质量', color: '#92400E', bg: 'rgba(245, 158, 11, .15)', border: 'rgba(245, 158, 11, .35)' },
-  skipped:        { label: '— 跳过',     color: '#475569', bg: 'rgba(0,0,0,0.25)',   border: 'rgba(0,0,0,0.40)' },
-  skipped_invalid:{ label: '— 信息不足跳过', color: '#475569', bg: 'rgba(0,0,0,0.25)', border: 'rgba(0,0,0,0.40)' },
+  pass:           { label: '✓ 通过',     color: '#34D399', bg: 'rgba(5, 150, 105, .10)',  border: 'rgba(5, 150, 105, .28)' },
+  minor_issues:   { label: '☑ 可放行',   color: '#FBBF24', bg: 'rgba(245, 158, 11, .10)', border: 'rgba(245, 158, 11, .28)' },
+  major_issues:   { label: '🚫 需返工',  color: '#FB7185', bg: 'rgba(220, 38, 38, .10)',  border: 'rgba(220, 38, 38, .28)' },
+  parse_failed:   { label: '⚠ 解析失败 · 未确认质量', color: '#FBBF24', bg: 'rgba(245, 158, 11, .15)', border: 'rgba(245, 158, 11, .35)' },
+  skipped:        { label: '— 跳过',     color: '#94A3B8', bg: 'rgba(0,0,0,0.25)',   border: 'rgba(0,0,0,0.40)' },
+  skipped_invalid:{ label: '— 信息不足跳过', color: '#94A3B8', bg: 'rgba(0,0,0,0.25)', border: 'rgba(0,0,0,0.40)' },
 }
 
 const SEVERITY_META: Record<string, { color: string; bg: string; label: string }> = {
-  blocker: { color: '#B91C1C', bg: 'rgba(220, 38, 38, .15)', label: '🚫 阻断' },
-  major:   { color: '#92400E', bg: 'rgba(245, 158, 11, .18)', label: '⚠ 重大' },
-  minor:   { color: '#0E7490', bg: 'rgba(14, 116, 144, .15)', label: '💡 小问题' },
+  blocker: { color: '#FB7185', bg: 'rgba(220, 38, 38, .15)', label: '🚫 阻断' },
+  major:   { color: '#FBBF24', bg: 'rgba(245, 158, 11, .18)', label: '⚠ 重大' },
+  minor:   { color: '#38BDF8', bg: 'rgba(14, 116, 144, .15)', label: '💡 小问题' },
 }
 
 const DIMENSION_LABEL: Record<string, string> = {
@@ -117,7 +117,7 @@ export default function NewChallengeRoundsPanel({ bundleId, challengeSummary }: 
         {challengeSummary.issues_remaining > 0 && (
           <span style={{
             padding: '1px 8px', borderRadius: 6,
-            fontSize: 12, color: '#92400E',
+            fontSize: 12, color: '#FBBF24',
             background: 'rgba(245, 158, 11, .18)',
           }}>⚠ 仍有 {challengeSummary.issues_remaining} 个重大问题未解决</span>
         )}
@@ -214,18 +214,18 @@ function RoundCard({ round, isLastRound, lastFingerprints }: {
 
       {round.critique_raw && (
         <details style={{ marginBottom: 10, fontSize: 12 }}>
-          <summary style={{ cursor: 'pointer', color: '#92400E', userSelect: 'none' }}>🔍 查看挑战器原始输出 (debug)</summary>
+          <summary style={{ cursor: 'pointer', color: '#FBBF24', userSelect: 'none' }}>🔍 查看挑战器原始输出 (debug)</summary>
           <pre className="rd-mono" style={{
             marginTop: 6, padding: 8, borderRadius: 6,
             background: 'rgba(245, 158, 11, .08)', border: '1px solid rgba(245, 158, 11, .28)',
-            fontSize: 12, color: '#78350F', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+            fontSize: 12, color: '#FBBF24', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
             maxHeight: 400, overflow: 'auto',
           }}>{round.critique_raw}</pre>
         </details>
       )}
 
       {grouped.size === 0 && c && c.verdict === 'pass' && (
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#047857' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#34D399' }}>
           <CheckCircle2 size={14} /> 本轮挑战者认为没有显著问题。
         </div>
       )}
@@ -256,7 +256,7 @@ function ModuleGroup({ moduleKey, issues, isFixed }: {
         marginBottom: 8,
         borderRadius: 6,
         fontSize: 12, fontWeight: 600,
-        color: isGlobal ? '#7C3AED' : 'var(--rd-text)',
+        color: isGlobal ? '#A78BFA' : 'var(--rd-text)',
         background: isGlobal ? 'rgba(124,58,237,0.08)' : 'rgba(0,0,0,0.25)',
         border: `1px solid ${isGlobal ? 'rgba(124,58,237,0.20)' : 'rgba(0,0,0,0.40)'}`,
         fontFamily: 'inherit',
@@ -303,10 +303,10 @@ function IssueRow({ issue, fixed }: { issue: ChallengeIssue; fixed: boolean }) {
     }}>
       {/* 顶部:维度标签 + severity icon + 已修复(如果) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
-        <SevIcon size={12} color={fixed ? '#047857' : sev.color} style={{ flexShrink: 0 }} />
+        <SevIcon size={12} color={fixed ? '#34D399' : sev.color} style={{ flexShrink: 0 }} />
         <span style={{
           fontSize: 12, fontWeight: 600,
-          color: fixed ? '#047857' : sev.color,
+          color: fixed ? '#34D399' : sev.color,
         }}>{fixed ? '已修复' : sev.label}</span>
         <span style={{ color: 'var(--rd-text-3)' }}>·</span>
         <span style={{ fontSize: 12, color: 'var(--rd-text-3)' }}>{dimLabel}</span>
@@ -328,7 +328,7 @@ function IssueRow({ issue, fixed }: { issue: ChallengeIssue; fixed: boolean }) {
           border: '1px solid rgba(16,185,129,0.20)',
           borderRadius: 6,
           fontSize: 12.5,
-          color: '#065F46',
+          color: '#34D399',
           lineHeight: 1.55,
           display: 'flex',
           gap: 6,

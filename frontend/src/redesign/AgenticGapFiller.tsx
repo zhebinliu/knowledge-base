@@ -95,7 +95,7 @@ export default function NewAgenticGapFiller({ bundle, kind, projectId, onSubmitt
         margin: 16, padding: 16, borderRadius: 12,
         background: 'rgba(245, 158, 11, .08)',
         border: '1px solid rgba(245, 158, 11, .28)',
-        color: '#92400E', fontSize: 13,
+        color: '#FBBF24', fontSize: 13,
       }}>
         <AlertCircle size={14} style={{ display: 'inline', marginRight: 4 }} />
         系统标本次为信息不足,但没产出可作答问题清单。请检查访谈记录或联系管理员。
@@ -110,12 +110,12 @@ export default function NewAgenticGapFiller({ bundle, kind, projectId, onSubmitt
         <div style={{
           marginBottom: 20, padding: 14, borderRadius: 12,
           background: 'rgba(220, 38, 38, .07)',
-          borderLeft: '4px solid #DC2626',
+          borderLeft: '4px solid #F87171',
         }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-            <ShieldAlert size={15} color="#B91C1C" style={{ marginTop: 2, flexShrink: 0 }} />
+            <ShieldAlert size={15} color="#FB7185" style={{ marginTop: 2, flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#B91C1C' }}>关键信息不足 · 本次未生成报告</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#FB7185' }}>关键信息不足 · 本次未生成报告</div>
               <div style={{ marginTop: 4, fontSize: 12, color: 'var(--rd-text-2)', lineHeight: 1.6 }}>
                 系统检测到关键模块缺少必要信息,直接拦截了生成 — 避免输出无依据的洞察 / 浪费算力。
                 请在下方逐题作答,有选项的优先选,选不对就用「其他」自填。提交后会自动用你的答案更新项目要点并重新生成。
@@ -164,7 +164,7 @@ export default function NewAgenticGapFiller({ bundle, kind, projectId, onSubmitt
               <div style={{
                 height: '100%',
                 width: requiredKeys.length ? `${(requiredFilled / requiredKeys.length) * 100}%` : '0%',
-                background: 'linear-gradient(90deg, #10B981, #059669)',
+                background: 'linear-gradient(90deg, #10B981, #34D399)',
                 boxShadow: '0 0 6px rgba(5, 150, 105, .55)',
                 transition: 'width .3s',
               }} />
@@ -214,7 +214,7 @@ export default function NewAgenticGapFiller({ bundle, kind, projectId, onSubmitt
           display: 'flex', alignItems: 'center', gap: 12,
           background: 'linear-gradient(to top, var(--rd-bg) 50%, transparent)',
         }}>
-          {error && <span style={{ fontSize: 12, color: '#B91C1C' }}>{error}</span>}
+          {error && <span style={{ fontSize: 12, color: '#FB7185' }}>{error}</span>}
           <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--rd-text-3)' }}>提交会保存到项目要点并触发新一轮生成</span>
           <button
             onClick={onSubmit}
@@ -280,14 +280,14 @@ function QuestionItem({ prompt, answer, onChange, projectId }: {
     <div style={{ padding: '14px 16px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginBottom: 6 }}>
         <span style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--rd-text)' }}>{prompt.field_label || prompt.field_key}</span>
-        {prompt.required && <span style={{ fontSize: 12, color: '#DC2626', fontWeight: 600 }}>必答</span>}
+        {prompt.required && <span style={{ fontSize: 12, color: '#F87171', fontWeight: 600 }}>必答</span>}
         <button
           type="button"
           onClick={onTryWeb}
           style={{
             marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 3,
             padding: '2px 8px', borderRadius: 4,
-            fontSize: 12, color: '#7C3AED',
+            fontSize: 12, color: '#A78BFA',
             background: 'transparent', border: 'none', cursor: 'pointer',
             fontFamily: 'inherit', transition: 'background .15s',
           }}
@@ -307,11 +307,11 @@ function QuestionItem({ prompt, answer, onChange, projectId }: {
           border: '1px solid rgba(124, 58, 237, .25)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>
-            <Globe size={11} color="#7C3AED" />
-            <span style={{ fontSize: 12, fontWeight: 500, color: '#5B21B6' }}>网络候选答案</span>
+            <Globe size={11} color="#A78BFA" />
+            <span style={{ fontSize: 12, fontWeight: 500, color: '#C084FC' }}>网络候选答案</span>
             <button
               onClick={() => setWebOpen(false)}
-              style={{ marginLeft: 'auto', background: 'transparent', border: 'none', cursor: 'pointer', color: '#7C3AED' }}
+              style={{ marginLeft: 'auto', background: 'transparent', border: 'none', cursor: 'pointer', color: '#A78BFA' }}
             ><X size={11} /></button>
           </div>
           {webLoading && (
@@ -321,7 +321,7 @@ function QuestionItem({ prompt, answer, onChange, projectId }: {
           )}
           {webError && (
             <div style={{
-              fontSize: 12, color: '#B91C1C',
+              fontSize: 12, color: '#FB7185',
               background: 'rgba(220, 38, 38, .08)', border: '1px solid rgba(220, 38, 38, .25)',
               borderRadius: 4, padding: 8,
             }}>{webError}</div>
@@ -340,7 +340,7 @@ function QuestionItem({ prompt, answer, onChange, projectId }: {
                   <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <a href={c.source_url} target="_blank" rel="noopener noreferrer" style={{
                       display: 'inline-flex', alignItems: 'center', gap: 3,
-                      fontSize: 12, color: '#7C3AED', textDecoration: 'none',
+                      fontSize: 12, color: '#A78BFA', textDecoration: 'none',
                       maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>
                       <ExternalLink size={9} /> {c.source_domain}
@@ -349,8 +349,8 @@ function QuestionItem({ prompt, answer, onChange, projectId }: {
                       onClick={() => adoptCandidate(c)}
                       style={{
                         marginLeft: 'auto', padding: '2px 8px', borderRadius: 4,
-                        fontSize: 12, color: '#7C3AED',
-                        background: 'transparent', border: '1px solid #7C3AED',
+                        fontSize: 12, color: '#A78BFA',
+                        background: 'transparent', border: '1px solid #A78BFA',
                         cursor: 'pointer', fontFamily: 'inherit',
                       }}
                     >

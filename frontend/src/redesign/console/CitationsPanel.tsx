@@ -105,8 +105,8 @@ function CitationItem({ moduleKey, refId, entry, highlighted, onPreviewDoc }: {
   const Icon = TYPE_ICON[entry.type] || Database
   const typeColor = entry.type === 'doc' ? 'var(--rd-accent-2)' :
                     entry.type === 'kb'    ? '#2563EB' :
-                    entry.type === 'prior' ? '#059669' :
-                                              '#7C3AED'
+                    entry.type === 'prior' ? '#34D399' :
+                                              '#A78BFA'
   const onClick = () => {
     if (entry.type === 'doc' && entry.doc_id) onPreviewDoc(entry.doc_id)
     else if (entry.type === 'web' && entry.url) window.open(entry.url, '_blank', 'noopener,noreferrer')
@@ -152,12 +152,12 @@ function CitationItem({ moduleKey, refId, entry, highlighted, onPreviewDoc }: {
             }}>{entry.snippet}</div>
           )}
           {entry.type === 'web' && entry.url && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, color: '#7C3AED', marginTop: 4 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, color: '#A78BFA', marginTop: 4 }}>
               <ExternalLink size={9} /> {entry.domain}
             </div>
           )}
           {entry.type === 'prior' && entry.stage_label && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, color: '#047857', marginTop: 4 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, color: '#34D399', marginTop: 4 }}>
               <GitBranch size={9} /> 跳转 · {entry.stage_label}
             </div>
           )}

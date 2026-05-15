@@ -98,7 +98,7 @@ export default function NewChallengeHistory() {
                   <td style={{ textAlign: 'right' }}>
                     <span className="rd-mono" style={{
                       fontSize: 13, fontWeight: 600,
-                      color: run.pass_rate >= 0.8 ? '#047857' : run.pass_rate >= 0.5 ? '#92400E' : '#B91C1C',
+                      color: run.pass_rate >= 0.8 ? '#34D399' : run.pass_rate >= 0.5 ? '#FBBF24' : '#FB7185',
                     }}>{run.total > 0 ? `${Math.round(run.pass_rate * 100)}%` : '—'}</span>
                   </td>
                   <td className="rd-mono" style={{ fontSize: 11, color: 'var(--rd-text-3)', textAlign: 'right' }}>
@@ -198,8 +198,8 @@ function RunDetailDrawer({ runId, onClose }: { runId: string; onClose: () => voi
               <Field label="每阶段题数" value={String(data.questions_per_stage)} />
               {data.error_message && (
                 <div style={{ gridColumn: 'span 2' }}>
-                  <p style={{ fontSize: 11, color: '#DC2626', margin: '0 0 2px' }}>错误信息</p>
-                  <p style={{ fontSize: 13, color: '#B91C1C', background: 'rgba(220, 38, 38, .08)', padding: '6px 10px', borderRadius: 6, margin: 0 }}>{data.error_message}</p>
+                  <p style={{ fontSize: 11, color: '#F87171', margin: '0 0 2px' }}>错误信息</p>
+                  <p style={{ fontSize: 13, color: '#FB7185', background: 'rgba(220, 38, 38, .08)', padding: '6px 10px', borderRadius: 6, margin: 0 }}>{data.error_message}</p>
                 </div>
               )}
             </div>

@@ -115,7 +115,7 @@ export default function NewConsoleLayout() {
                     display: 'inline-flex', alignItems: 'center', gap: 4,
                     padding: '2px 8px', borderRadius: 999,
                     background: 'rgba(245, 158, 11, .15)',
-                    color: '#B45309',
+                    color: '#FCD34D',
                     fontSize: 10.5, fontWeight: 600,
                     letterSpacing: '0.02em',
                   }}>
@@ -236,7 +236,7 @@ export default function NewConsoleLayout() {
                   <div style={{ fontSize: 11, color: 'var(--rd-text-3)', marginBottom: 3 }}>已登录</div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--rd-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {display}
-                    {user?.is_admin && <span style={{ fontSize: 10, color: '#B45309', marginLeft: 6, fontWeight: 500 }}>管理员</span>}
+                    {user?.is_admin && <span style={{ fontSize: 10, color: '#FCD34D', marginLeft: 6, fontWeight: 500 }}>管理员</span>}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--rd-text-3)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     @{user?.username}
@@ -272,7 +272,7 @@ function MenuItem({ icon: Icon, label, onClick, danger }: {
         borderRadius: 10,
         border: 'none',
         background: 'transparent',
-        color: danger ? '#DC2626' : 'var(--rd-text)',
+        color: danger ? '#F87171' : 'var(--rd-text)',
         fontSize: 13, fontWeight: 500,
         cursor: 'pointer',
         textAlign: 'left',
