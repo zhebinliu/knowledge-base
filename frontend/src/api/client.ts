@@ -548,10 +548,16 @@ export const deleteApiKey = (key: string) => api.delete(`/settings/api-keys/${ke
 
 // ── Projects ─────────────────────────────────────────────────────────────────
 
+/** 四级行业树:L1 → L2 → L3 → L4 名称列表(后端 backend/prompts/industry_tree.py) */
+export type IndustryTree = Record<string, Record<string, Record<string, string[]>>>
+
 export interface ProjectMeta {
   modules: string[]
   doc_types: { value: string; label: string }[]
+  /** 老一级行业枚举,向后兼容(已有项目 / 文档打标用) */
   industries: { value: string; label: string }[]
+  /** 新四级行业树(2026-05 起新建项目走这个);项目 industry 字段存 "L1/L2/L3/L4" */
+  industry_tree?: IndustryTree
 }
 
 export type ProjectRole = 'owner' | 'read_write' | 'read' | 'admin' | 'none'

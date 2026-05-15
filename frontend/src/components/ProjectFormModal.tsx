@@ -7,6 +7,7 @@ import {
   updateProject,
 } from '../api/client'
 import Modal from './Modal'
+import IndustryCascadePicker from './IndustryCascadePicker'
 
 export interface ProjectFormModalProps {
   open: boolean
@@ -97,14 +98,13 @@ export default function ProjectFormModal({ open, meta, initial, onClose, onSaved
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">所属行业</label>
-          <select value={industry} onChange={(e) => setIndustry(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-            <option value="">— 不指定 —</option>
-            {(meta?.industries ?? []).map((ind) => (
-              <option key={ind.value} value={ind.value}>{ind.label}</option>
-            ))}
-          </select>
-          <p className="text-[11px] text-gray-400 mt-1">行业标签会自动同步到该项目下的文档，用于向量检索过滤。</p>
+          <IndustryCascadePicker
+            tree={meta?.industry_tree}
+            value={industry}
+            onChange={setIndustry}
+            legacyIndustries={meta?.industries}
+          />
+          <p className="text-[11px] text-gray-400 mt-1">四级行业分类(纷享销客 2024 版),四级选齐才生效。行业会自动同步到该项目文档,用于检索过滤。</p>
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">立项日期</label>

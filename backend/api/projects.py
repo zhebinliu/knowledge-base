@@ -126,12 +126,17 @@ def _validate_industry(industry: str | None) -> str | None:
 
 @router.get("/meta")
 async def project_meta():
-    """前端下拉用：合法模块 + 文档类型枚举 + 行业枚举。"""
+    """前端下拉用:合法模块 + 文档类型枚举 + 行业(一级老枚举 + 四级树)。"""
     from prompts.ltc_taxonomy import INDUSTRY_TAGS
+    from prompts.industry_tree import INDUSTRY_TREE
     return {
         "modules": list(MODULE_TAGS),
         "doc_types": [{"value": v, "label": DOC_TYPE_LABELS[v]} for v in DOC_TYPES],
+        # 老一级行业枚举(向后兼容,文档打标 / 已有项目仍可用)
         "industries": [{"value": k, "label": v} for k, v in INDUSTRY_TAGS.items()],
+        # 新四级行业树:前端 IndustryCascadePicker 用,
+        # 项目 Project.industry 字段存 "L1/L2/L3/L4" 斜杠拼接路径
+        "industry_tree": INDUSTRY_TREE,
     }
 
 
