@@ -117,52 +117,100 @@ function CitationItem({ moduleKey, refId, entry, highlighted, onPreviewDoc }: {
                  || (entry.type === 'web' && !!entry.url)
                  || (entry.type === 'prior' && !!entry.prior_kind && !!projectId)
 
+  // PPT slide 5 风格 — 按 type 给出 accent 色 + accentBg + 类型中文标签
+  const accent = entry.type === 'doc'   ? 'var(--rd-accent)' :
+                 entry.type === 'kb'    ? '#60A5FA' :
+                 entry.type === 'prior' ? '#34D399' :
+                                          '#C084FC'   // web
+  const accentRgb = entry.type === 'doc'   ? '255,141,26' :
+                    entry.type === 'kb'    ? '96,165,250' :
+                    entry.type === 'prior' ? '52,211,153' :
+                                             '192,132,252'
+  const typeLabel = entry.type === 'doc'   ? '文档' :
+                    entry.type === 'kb'    ? '知识库' :
+                    entry.type === 'prior' ? '上游阶段' :
+                                             'Web'
+
   return (
     <div
       data-ref={`${moduleKey}:${refId}`}
       onClick={clickable ? onClick : undefined}
+      className={highlighted ? 'ppt-pulse-border' : ''}
       style={{
-        padding: '10px 14px',
-        borderBottom: '1px solid var(--rd-line)',
-        borderLeft: highlighted ? '2px solid var(--rd-accent)' : '2px solid transparent',
-        background: highlighted ? 'rgba(255, 141, 26, .08)' : 'transparent',
+        margin: '0 12px 12px',
+        padding: '10px 12px',
+        borderRadius: 10,
+        background: 'rgba(0,0,0,0.25)',
+        border: `1px solid rgba(${accentRgb}, ${highlighted ? 0.55 : 0.30})`,
+        boxShadow: highlighted
+          ? `0 0 18px -4px rgba(${accentRgb}, 0.55), inset 0 1px 0 rgba(255,255,255,0.05)`
+          : `0 0 12px -6px rgba(${accentRgb}, 0.35), inset 0 1px 0 rgba(255,255,255,0.04)`,
         cursor: clickable ? 'pointer' : 'default',
-        transition: 'background .15s',
+        transition: 'background .15s, border-color .15s, box-shadow .15s',
       }}
-      onMouseEnter={e => { if (clickable && !highlighted) e.currentTarget.style.background = 'rgba(0,0,0,0.25)' }}
-      onMouseLeave={e => { if (!highlighted) e.currentTarget.style.background = 'transparent' }}
+      onMouseEnter={e => {
+        if (clickable) {
+          e.currentTarget.style.background = 'rgba(0,0,0,0.35)'
+          e.currentTarget.style.borderColor = `rgba(${accentRgb}, 0.55)`
+        }
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.background = 'rgba(0,0,0,0.25)'
+        e.currentTarget.style.borderColor = `rgba(${accentRgb}, ${highlighted ? 0.55 : 0.30})`
+      }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-        <span className="rd-mono" style={{
-          padding: '1px 6px', fontSize: 12, fontWeight: 700,
-          borderRadius: 4, background: 'rgba(0,0,0,0.25)', color: 'var(--rd-text-2)',
-          flexShrink: 0,
-        }}>{refId}</span>
-        <Icon size={11} color={typeColor} style={{ marginTop: 2, flexShrink: 0 }} />
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div title={entry.label} style={{
-            fontSize: 12, fontWeight: 500, color: 'var(--rd-text)',
+      {/* 顶行:[refId] 类型 pill + source 路径 mono */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+        <span
+          className="rd-mono"
+          style={{
+            padding: '1px 8px', fontSize: 12, fontWeight: 700,
+            borderRadius: 4,
+            color: accent,
+            background: `rgba(${accentRgb}, 0.18)`,
+            border: `1px solid rgba(${accentRgb}, 0.45)`,
+            boxShadow: `0 0 8px rgba(${accentRgb}, 0.35)`,
+            flexShrink: 0,
+          }}
+        >
+          [{refId}] {typeLabel}
+        </span>
+        <Icon size={11} color={accent} style={{ flexShrink: 0 }} />
+        <span
+          className="rd-mono"
+          title={entry.label}
+          style={{
+            fontSize: 12, color: 'var(--rd-text-3)', letterSpacing: '0.02em',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>{entry.label}</div>
-          {entry.snippet && (
-            <div style={{
-              fontSize: 12, color: 'var(--rd-text-3)', marginTop: 4,
-              lineHeight: 1.5,
-              display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-            }}>{entry.snippet}</div>
-          )}
-          {entry.type === 'web' && entry.url && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, color: '#A78BFA', marginTop: 4 }}>
-              <ExternalLink size={9} /> {entry.domain}
-            </div>
-          )}
-          {entry.type === 'prior' && entry.stage_label && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, color: '#34D399', marginTop: 4 }}>
-              <GitBranch size={9} /> 跳转 · {entry.stage_label}
-            </div>
-          )}
-        </div>
+            minWidth: 0, flex: 1,
+          }}
+        >
+          {entry.label}
+        </span>
       </div>
+      {/* 引用原文 — 用类型色作 highlight 背景(对齐 slide 5) */}
+      {entry.snippet && (
+        <p style={{
+          fontSize: 12.5, color: 'var(--rd-text)', lineHeight: 1.5, margin: 0,
+        }}>
+          <span style={{
+            background: `rgba(${accentRgb}, 0.22)`,
+            padding: '0 4px', borderRadius: 3,
+            boxDecorationBreak: 'clone' as any,
+            WebkitBoxDecorationBreak: 'clone' as any,
+          }}>{entry.snippet}</span>
+        </p>
+      )}
+      {entry.type === 'web' && entry.url && (
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, color: accent, marginTop: 6 }}>
+          <ExternalLink size={9} /> {entry.domain}
+        </div>
+      )}
+      {entry.type === 'prior' && entry.stage_label && (
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, color: accent, marginTop: 6 }}>
+          <GitBranch size={9} /> 跳转 · {entry.stage_label}
+        </div>
+      )}
     </div>
   )
 }

@@ -1081,6 +1081,45 @@
   box-shadow: 0 0 10px rgba(96, 165, 250, 0.30);
 }
 
+/* CitedReportView 渲染的 [D1]/[K1]/[W1]/[P1] 角标(sup > button)— 自动强发光 */
+.rd-root sup.not-prose > button {
+  font-weight: 700 !important;
+  letter-spacing: 0.02em;
+}
+.rd-root sup.not-prose > button[class*="border-orange-200"] {
+  background: rgba(255, 141, 26, 0.18) !important;
+  color: #FFB066 !important;
+  border-color: rgba(255, 141, 26, 0.50) !important;
+  box-shadow: 0 0 10px rgba(255, 141, 26, 0.30);
+}
+.rd-root sup.not-prose > button[class*="border-blue-200"] {
+  background: rgba(96, 165, 250, 0.18) !important;
+  color: #93C5FD !important;
+  border-color: rgba(96, 165, 250, 0.45) !important;
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.30);
+}
+.rd-root sup.not-prose > button[class*="border-purple-200"] {
+  background: rgba(192, 132, 252, 0.18) !important;
+  color: #C084FC !important;
+  border-color: rgba(192, 132, 252, 0.45) !important;
+  box-shadow: 0 0 10px rgba(192, 132, 252, 0.30);
+}
+.rd-root sup.not-prose > button[class*="border-emerald-200"] {
+  background: rgba(52, 211, 153, 0.18) !important;
+  color: #34D399 !important;
+  border-color: rgba(52, 211, 153, 0.45) !important;
+  box-shadow: 0 0 10px rgba(52, 211, 153, 0.30);
+}
+
+/* PPT pulse border 动画(slide 5 高亮引用卡用)*/
+.ppt-pulse-border {
+  animation: ppt-pulse-border 2.4s ease-in-out infinite;
+}
+@keyframes ppt-pulse-border {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.78; }
+}
+
 /* 老 questionnaire glass 覆盖 */
 .rd-questionnaire-glass .sticky.top-0 {
   background: rgba(22, 26, 42, 0.85) !important;
