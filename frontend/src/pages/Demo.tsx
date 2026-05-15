@@ -5,7 +5,7 @@
  * 目标:简洁清晰地介绍"区别于普通 RAG 知识库"的核心创新点。
  * 6 个章节,每个聚焦一个真正不一样的能力,信息密度优于功能罗列。
  */
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Upload, MessageSquare, Layers, Folder, Brain, FileText,
@@ -13,6 +13,7 @@ import {
   Sparkles, Play, BookOpen, Target, Filter, Flame, Repeat,
   ClipboardList, Wand2, Mic, Bot, BarChart2, Network,
   ShieldCheck, Eye, Edit3, Terminal, Code2,
+  AlertCircle, TrendingUp, Gauge, MonitorSmartphone,
 } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -32,6 +33,102 @@ function StatBadge({ value, label }: { value: string; label: string }) {
     <div className="text-center">
       <p className="text-3xl font-extrabold text-ink tracking-tight">{value}</p>
       <p className="text-xs text-ink-muted mt-0.5">{label}</p>
+    </div>
+  )
+}
+
+// 价值/目标卡片 —— 先定义效果, 再讲实现手段(全良方法论)
+// 三栏: 痛点 → 目标 → 衡量, 底部一行客户感知
+function WhyCard({
+  painPoint,
+  goal,
+  metrics,
+  perception,
+}: {
+  painPoint: ReactNode
+  goal: ReactNode
+  metrics: ReactNode
+  perception?: ReactNode
+}) {
+  const cols = [
+    {
+      icon: AlertCircle,
+      label: '解决什么问题',
+      tone: 'rose',
+      ringClass: 'border-rose-200',
+      bgClass: 'bg-rose-50/60',
+      iconWrapClass: 'bg-white border border-rose-200',
+      iconClass: 'text-rose-600',
+      labelClass: 'text-rose-700',
+      content: painPoint,
+    },
+    {
+      icon: Target,
+      label: '达到什么目标',
+      tone: 'blue',
+      ringClass: 'border-blue-200',
+      bgClass: 'bg-blue-50/60',
+      iconWrapClass: 'bg-white border border-blue-200',
+      iconClass: 'text-blue-600',
+      labelClass: 'text-blue-700',
+      content: goal,
+    },
+    {
+      icon: Gauge,
+      label: '效果如何衡量',
+      tone: 'emerald',
+      ringClass: 'border-emerald-200',
+      bgClass: 'bg-emerald-50/60',
+      iconWrapClass: 'bg-white border border-emerald-200',
+      iconClass: 'text-emerald-600',
+      labelClass: 'text-emerald-700',
+      content: metrics,
+    },
+  ]
+  return (
+    <div className="rounded-2xl border-2 border-orange-200/80 bg-gradient-to-br from-orange-50/70 via-amber-50/40 to-white p-5 sm:p-6 mb-6 shadow-sm">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-[10px] font-mono uppercase tracking-[3px] text-[#D96400] font-bold">先定义效果</span>
+        <span className="flex-1 h-px bg-gradient-to-r from-orange-200 via-orange-100 to-transparent" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {cols.map(({ icon: Icon, label, ringClass, bgClass, iconWrapClass, iconClass, labelClass, content }) => (
+          <div key={label} className={`rounded-xl border ${ringClass} ${bgClass} p-4 flex flex-col`}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className={`w-6 h-6 rounded-lg ${iconWrapClass} flex items-center justify-center flex-shrink-0`}>
+                <Icon size={12} className={iconClass} />
+              </span>
+              <p className={`text-[10px] uppercase tracking-[2px] font-bold ${labelClass}`}>{label}</p>
+            </div>
+            <div className="text-[12.5px] text-ink leading-relaxed">{content}</div>
+          </div>
+        ))}
+      </div>
+      {perception && (
+        <div className="mt-4 pt-4 border-t border-dashed border-orange-200/80 flex items-start gap-3">
+          <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: BRAND_GRAD }}>
+            <MonitorSmartphone size={13} className="text-white" />
+          </span>
+          <div>
+            <p className="text-[10px] uppercase tracking-[2px] font-bold text-[#D96400] mb-0.5">客户在屏上看到什么</p>
+            <p className="text-[12.5px] text-ink leading-relaxed">{perception}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// "实现路径 ↓" 过渡条 —— WhyCard 之后, 实现细节之前
+function PathDivider({ children = '具体实现路径' }: { children?: ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 mb-5">
+      <span className="flex-1 h-px bg-gradient-to-r from-transparent via-line to-line" />
+      <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[3px] text-ink-muted font-bold">
+        <TrendingUp size={11} className="text-ink-muted" />
+        {children}
+      </span>
+      <span className="flex-1 h-px bg-gradient-to-l from-transparent via-line to-line" />
     </div>
   )
 }
@@ -380,9 +477,42 @@ export default function Demo() {
             anchor="insight"
             idx="01"
             tag="Insight · 项目洞察"
-            title="不切片,把核心文档整篇喂给 LLM"
-            sub="SOW / 方案 / 合同 / 交接单这类文档的关键条款是绑定的 —— 切片会丢上下文。我们让 LLM 看到全文,然后用「Critic + Challenger」双层评审兜住质量。"
+            title="把数小时的项目接手,压到几分钟"
+            sub="—— 顾问打开项目页就能看到 10 模块完整洞察, 关键风险一眼找到, 接手从体力活变成核对清单。"
           />
+
+          <WhyCard
+            painPoint={
+              <>
+                咨询师每接一个新项目都要花<strong>数小时</strong>翻 SOW、合同、交接单,
+                人工梳理风险条款 / 未完事项 / 关键人物。漏一个条款,
+                后面 kickoff 现场就要返工 —— 而且全靠老员工记忆兜底,水平下限完全看人。
+              </>
+            }
+            goal={
+              <>
+                <strong>把"读完核心文档→形成项目认知"</strong>从体力活变成 5 分钟出报告,
+                同时拉高项目经理水平下限 —— 即便新人接手, 也能拿到结构对齐、要点不漏的洞察底稿。
+              </>
+            }
+            metrics={
+              <>
+                <span className="block">· 接手耗时 <strong>4 小时 → 5 分钟</strong></span>
+                <span className="block">· 关键条款覆盖率对照人工 <strong>≥ 95%</strong></span>
+                <span className="block">· Critic 4 维 + Challenger 6 维, 全部 <strong>≥ 3 分</strong>才入库</span>
+              </>
+            }
+            perception={
+              <>
+                打开项目就是<strong>左文档 / 中报告 / 右引用</strong>三栏 ——
+                10 个模块结构化呈现, 每个结论后挂着 <code className="font-mono text-[11px] px-1 bg-orange-100 text-[#D96400] rounded">[D1] [K1]</code>
+                角标, 一点跳到原文高亮位置。客户和顾问能一起"质疑—验证—编辑",
+                明确感受到这不是裸 LLM 的"黑盒回答"。
+              </>
+            }
+          />
+
+          <PathDivider>具体实现路径 · 整篇喂入 + 双层评审</PathDivider>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Left: 文档喂 LLM */}
@@ -485,9 +615,42 @@ export default function Demo() {
             anchor="survey"
             idx="02"
             tag="Survey · 需求调研"
-            title="不发问卷给客户填,顾问当场屏上勾选"
-            sub="toB 销售实际工作流是「顾问主导引导式访谈」—— 客户口头说,顾问屏上选。系统按 LTC 流程自动出大纲 + 6 题型问卷,选项池预填,顾问只点选不打字。"
+            title="把调研从「让客户填」改成「顾问当场勾选」"
+            sub="—— 客户口头说, 顾问屏上点。信息当场结构化沉淀, 顾问无需事后整理, 客户无需课后作业。"
           />
+
+          <WhyCard
+            painPoint={
+              <>
+                传统 toB 调研流程是<strong>把问卷发给客户填</strong> ——
+                结果客户嫌麻烦不填、填了答非所问、信息散落在 Excel 里, 还要顾问二次整理录入。
+                而 toB 销售真实现场本来就是<strong>"顾问引导客户口头答"</strong>, 之前的工具完全不支持这种作业方式。
+              </>
+            }
+            goal={
+              <>
+                把调研做成<strong>顾问主导的当场访谈</strong> —— 客户口头说, 顾问屏上勾,
+                信息直接结构化沉淀进系统, 立即可被后续洞察 / 启动会 / 蓝图模块复用,
+                不再有"问卷→Excel→报告"的中间损耗。
+              </>
+            }
+            metrics={
+              <>
+                <span className="block">· 信息回收率 <strong>30% → 100%</strong>(不依赖客户填)</span>
+                <span className="block">· 单次调研时长 <strong>压到 1 小时内</strong></span>
+                <span className="block">· 输出直接是结构化字段, <strong>0 二次整理</strong></span>
+              </>
+            }
+            perception={
+              <>
+                客户跟顾问坐一起, 屏上是<strong>大块按钮、追问气泡、矩阵勾选</strong>,
+                父题点完立刻显追问, 全程不用现场打字。客户感受到的是<strong>"被专业访谈"</strong>,
+                而不是"在做家庭作业" —— 这是一种全新的 AI 化调研体验。
+              </>
+            }
+          />
+
+          <PathDivider>具体实现路径 · 大纲 → 问卷 + 6 题型预填</PathDivider>
 
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-5 mb-5">
             <div className="rounded-2xl border border-line overflow-hidden bg-surface shadow-sm">
