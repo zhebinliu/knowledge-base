@@ -1,0 +1,266 @@
+/**
+ * DemoPPT — 全局动画 / 全屏样式
+ * 注:slide 内部样式仍走 Tailwind / 内联 style, 这里只放
+ *   1) 进入动画 keyframes
+ *   2) 全屏黑色容器
+ *   3) print CSS(每页换页)
+ */
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * 全屏 PPT 容器 — 整屏黑色 + 16:9 居中 frame
+ * ───────────────────────────────────────────────────────────────────────── */
+.ppt-stage {
+  position: fixed;
+  inset: 0;
+  background: #050810;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 16:9 容器:取宽高比的较小者, 永远完整可见, 留黑边 */
+.ppt-frame {
+  position: relative;
+  width: min(100vw, calc(100vh * 16 / 9));
+  height: min(100vh, calc(100vw * 9 / 16));
+  background: #0A0F1E;
+  overflow: hidden;
+  box-shadow: 0 0 120px -20px rgba(255, 141, 26, 0.15);
+}
+
+/* slide 切换层(绝对定位叠加, 用 transform + opacity 切换)*/
+.ppt-slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateX(60px);
+  transition: opacity 360ms cubic-bezier(.2, .7, .25, 1),
+              transform 480ms cubic-bezier(.2, .7, .25, 1);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.ppt-slide.is-active {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.ppt-slide.is-leaving-back {
+  opacity: 0;
+  transform: translateX(-60px);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Stagger — 单页内子元素依次进入(配合 SlideShell + JS 触发)
+ * ───────────────────────────────────────────────────────────────────────── */
+.ppt-slide.is-active [data-stagger] > *,
+.ppt-slide.is-active .ppt-stagger-row {
+  animation: ppt-stagger-in 600ms cubic-bezier(.16, .8, .24, 1) backwards;
+}
+
+/* 给 stagger 子元素分配延迟(JS 在 mount 时设置 style) */
+@keyframes ppt-stagger-in {
+  from { opacity: 0; transform: translateY(18px); filter: blur(4px); }
+  to   { opacity: 1; transform: translateY(0);    filter: blur(0); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Glow orb — 缓慢飘动的发光球(背景装饰)
+ * ───────────────────────────────────────────────────────────────────────── */
+.ppt-orb {
+  animation: ppt-orb-drift 16s ease-in-out infinite;
+}
+
+@keyframes ppt-orb-drift {
+  0%, 100% { transform: translate(-50%, -50%) scale(1)   translateX(0)    translateY(0); }
+  33%      { transform: translate(-50%, -50%) scale(1.1) translateX(2vmin) translateY(-2vmin); }
+  66%      { transform: translate(-50%, -50%) scale(0.95) translateX(-2vmin) translateY(2vmin); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * 数字累加 / 闪现等关键页效果
+ * ───────────────────────────────────────────────────────────────────────── */
+.ppt-num-pop {
+  animation: ppt-num-pop 800ms cubic-bezier(.34, 1.56, .64, 1) backwards;
+}
+@keyframes ppt-num-pop {
+  from { opacity: 0; transform: scale(.7); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.ppt-line-draw {
+  stroke-dasharray: var(--len, 1000);
+  stroke-dashoffset: var(--len, 1000);
+  animation: ppt-line-draw 1200ms cubic-bezier(.6, .1, .3, 1) forwards;
+}
+@keyframes ppt-line-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.ppt-pulse {
+  animation: ppt-pulse 2.4s ease-in-out infinite;
+}
+@keyframes ppt-pulse {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%      { opacity: .65; transform: scale(1.04); }
+}
+
+/* 柱状图从底部生长 */
+.ppt-bar-grow {
+  transform-origin: bottom;
+  animation: ppt-bar-grow 900ms cubic-bezier(.2, .7, .25, 1) backwards;
+}
+@keyframes ppt-bar-grow {
+  from { transform: scaleY(0); opacity: 0; }
+  to   { transform: scaleY(1); opacity: 1; }
+}
+
+/* 漏斗 / 横向条从左生长 */
+@keyframes ppt-funnel-grow {
+  from { transform: scaleX(0); opacity: 0; }
+  to   { transform: scaleX(1); opacity: 1; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * 顶部进度条 / 底部 dots
+ * ───────────────────────────────────────────────────────────────────────── */
+.ppt-progress-bar {
+  position: absolute; top: 0; left: 0; height: 3px;
+  background: linear-gradient(90deg, #FFB066, #FF8D1A, #D96400);
+  box-shadow: 0 0 12px rgba(255, 141, 26, 0.6);
+  transition: width 300ms cubic-bezier(.2, .7, .25, 1);
+  z-index: 50;
+}
+
+/* toolbar 现在在 stage 上(frame 外), 不与 slide 内容重叠 */
+.ppt-toolbar {
+  position: fixed;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 18px;
+  padding: 8px 14px;
+  background: rgba(20, 25, 40, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 999px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  z-index: 50;
+  opacity: 0;
+  transition: opacity 250ms ease;
+}
+/* 鼠标在 stage 上移动时短暂显示;鼠标停 2.5s 后淡出 */
+.ppt-stage.show-toolbar .ppt-toolbar { opacity: 1; }
+.ppt-toolbar:hover { opacity: 1 !important; }
+
+.ppt-toolbar button {
+  background: transparent; border: 0; color: inherit; cursor: pointer;
+  padding: 4px 10px; border-radius: 999px;
+  font-size: 12px;
+}
+.ppt-toolbar button:hover { background: rgba(255, 255, 255, 0.10); color: rgba(255, 255, 255, 0.95); }
+
+.ppt-dots { display: flex; gap: 6px; }
+.ppt-dots > button {
+  width: 6px; height: 6px; padding: 0; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.20);
+  transition: all 250ms;
+}
+.ppt-dots > button.is-active {
+  width: 22px; border-radius: 4px;
+  background: linear-gradient(90deg, #FFB066, #FF8D1A);
+  box-shadow: 0 0 8px rgba(255, 141, 26, 0.6);
+}
+.ppt-dots > button:hover { background: rgba(255, 255, 255, 0.4); }
+
+/* 水印移到 stage 上(frame 外右下角), 与 toolbar 不抢位置 */
+.ppt-watermark {
+  position: fixed;
+  bottom: 12px;
+  right: 16px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.22);
+  letter-spacing: 0.25em;
+  pointer-events: none;
+  z-index: 50;
+  font-weight: 500;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * 编辑模式 — 选中边框闪烁, 元素 hover 提示
+ * ───────────────────────────────────────────────────────────────────────── */
+@keyframes ppt-edit-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
+.ppt-stage.is-edit-mode .ppt-frame [data-edit-id] {
+  cursor: pointer;
+  transition: outline 100ms;
+}
+.ppt-stage.is-edit-mode .ppt-frame [data-edit-id]:hover {
+  outline: 1px dashed rgba(255, 141, 26, 0.55);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+/* 编辑模式下底部 toolbar(stage 上)显眼一点 */
+.ppt-stage.is-edit-mode .ppt-toolbar {
+  border-color: rgba(255, 141, 26, 0.45);
+}
+
+/* 编辑模式 banner */
+.ppt-edit-banner {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  padding: 6px 14px;
+  background: rgba(255, 141, 26, 0.18);
+  border: 1px solid rgba(255, 141, 26, 0.55);
+  color: #FFB066;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  font-weight: 700;
+  border-radius: 999px;
+  backdrop-filter: blur(16px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ppt-edit-banner button {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.85);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+}
+.ppt-edit-banner button:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Print(浏览器打印 → PDF)— 每页一张, 横向
+ * ───────────────────────────────────────────────────────────────────────── */
+@media print {
+  @page { size: A4 landscape; margin: 0; }
+  .ppt-stage { position: static; background: #0A0F1E; }
+  .ppt-frame { width: 100%; height: 100vh; box-shadow: none; }
+  .ppt-toolbar, .ppt-progress-bar { display: none; }
+  .ppt-slide {
+    position: relative; opacity: 1; transform: none;
+    page-break-after: always; break-after: page;
+  }
+}

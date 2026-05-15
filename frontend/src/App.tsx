@@ -1,4 +1,8 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
+
+// /demo-ppt — 高层汇报 PPT(独立 chunk, 首次访问才下载)
+const DemoPPT = lazy(() => import('./pages/DemoPPT'))
 // /redesign — 设计原型(深色 Liquid Glass)
 import RedesignShell  from './redesign/RedesignShell'
 import RDConsoleHome  from './redesign/pages/ConsoleHome'
@@ -89,6 +93,14 @@ export default function App() {
       <Route path="/demo/insight"  element={<InsightDemo />} />
       <Route path="/demo/survey"   element={<SurveyDemo />} />
       <Route path="/demo/outline"  element={<OutlineDemo />} />
+      <Route
+        path="/demo-ppt"
+        element={
+          <Suspense fallback={<div style={{ position: 'fixed', inset: 0, background: '#050810' }} />}>
+            <DemoPPT />
+          </Suspense>
+        }
+      />
 
       {/* 设计原型:深色 Liquid Glass,无需登录即可预览 */}
       <Route path="/redesign" element={<RedesignShell />}>
