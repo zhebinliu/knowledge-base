@@ -23,9 +23,9 @@ const PHASES: {
   {
     phase: 'Phase 2',
     when:  'Next · 马上启动',
-    title: '融合第二战场行业 Know-How',
+    title: '接入行业 Know-How',
     sub:   '把行业沉淀接进工作台',
-    desc:  '把第二战场整理的行业方法论、案例资产接入工作台, 让 PM 共享同一份行业知识底座',
+    desc:  '把行业方法论、案例资产接入工作台, 让 PM 共享同一份行业知识底座',
     deliverables: ['行业方法论接入', '案例资产对接', '跨项目复用', '知识底座统一'],
     state: 'next',
   },
@@ -46,7 +46,7 @@ export default function Slide14Roadmap() {
       <SlideHeader
         index="15 / 16"
         tag="ROADMAP · 路线图"
-        title={<>从独立工作台 → 融合行业 Know-How → <GradText>融入大黄蜂</GradText></>}
+        title={<>从独立工作台 → 接入行业 Know-How → <GradText>融入大黄蜂</GradText></>}
         sub="诚实呈现现状 · 不把愿景吹成现状 · 当前阶段在跑通产品力, 后续才是规模化和业务融合"
       />
 
