@@ -25,6 +25,7 @@
 - 运行方式: Docker Compose (postgres, qdrant, redis, minio, backend, frontend, celery_worker)
 - 同步脚本: `scripts/sync-dev.sh`（fswatch + rsync）
 - HTTPS: Let's Encrypt 证书在主机 `/etc/letsencrypt/live/kb.liii.in/`，挂载进 frontend 容器。续期 cron `17 3 * * * /opt/kb-system/scripts/renew-ssl.sh`
+- **子模块**:`meeting/` 是 git submodule,指向 [zhebinliu/ai-meeting](https://github.com/zhebinliu/ai-meeting) 的 `from-kb-system` 分支。首次 clone 后必须 `git submodule update --init --recursive`,详见 [PROJECT_OVERVIEW § 12](PROJECT_OVERVIEW.md) / [LEARNING § 12](LEARNING.md)。
 
 ### 部署流程
 

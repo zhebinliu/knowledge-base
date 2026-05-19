@@ -296,7 +296,9 @@ agentic 生成流水线必须过两道审:
 
 ### 6.9 会议模块全链路(2026-05-12 完成)
 
-`backend/api/meeting.py` + `backend/services/meeting/` + `frontend/src/pages/console/ConsoleMeetingDetail.tsx`,以下能力**已上线**:
+> 📦 **2026-05-19 起代码归属变更**:会议模块抽出为独立仓 [zhebinliu/ai-meeting](https://github.com/zhebinliu/ai-meeting)(分支 `from-kb-system`),作为 git submodule 挂在 `meeting/`,详见 [§ 12 Meeting submodule](#12-meeting-submodule-2026-05-19-起)。代码仍跑在主 backend / frontend 容器内,通过 Dockerfile 的 `COPY meeting/backend/` overlay 落到镜像里的原路径 —— **Python / TS 的 import 路径完全不变**。
+
+`meeting/backend/api/meeting.py` + `meeting/backend/services/meeting/` + `meeting/frontend/src/redesign/console/ConsoleMeetingDetail.tsx`,以下能力**已上线**:
 
 | 能力 | 实现 |
 |---|---|
@@ -521,3 +523,80 @@ ssh ... 'cd /opt/skillhub && sudo git pull && cd /opt/kb-system && \
 
 - 初始 admin:`liu@zheb.in` / `Skillhub2026!`(env `SKILLHUB_BOOTSTRAP_ADMIN_*`,可改)
 - 启动时自动生成第一条邀请码,写 backend 日志
+
+---
+
+## 12. Meeting Submodule(2026-05-19 起)
+
+会议模块代码抽出为独立仓 [zhebinliu/ai-meeting](https://github.com/zhebinliu/ai-meeting),作为 git submodule 挂在 `meeting/`。
+
+### 12.1 为什么抽
+
+- 跟 skillhub 不同,**meeting 在运行时仍跟 kb-system 共生**(共享 SQLAlchemy session、`projects` 表 FK、Celery worker、auth / project_acl)。这次抽出只是把**源代码的归口**单独管起来,不是拆分服务
+- 后续可以独立给 meeting 提 PR / 加 reviewer / 看 issue,不污染 kb-system 主仓的 git log
+- 长远再做真正的服务拆分(独立 DB / 独立服务)时,有一份独立的 git 历史可走
+
+### 12.2 仓库映射(overlay 布局)
+
+ai-meeting 仓的 `from-kb-system` 分支文件路径 = 它们在 kb-system 里的相对路径:
+
+```
+meeting/                                                  ← submodule mount point
+├── backend/
+│   ├── api/meeting.py                  → /app/api/meeting.py
+│   ├── models/meeting.py               → /app/models/meeting.py
+│   ├── prompts/meeting.py              → /app/prompts/meeting.py
+│   ├── tasks/meeting_tasks.py          → /app/tasks/meeting_tasks.py
+│   └── services/meeting/{*.py,templates/}
+└── frontend/src/
+    ├── pages/console/ConsoleMeeting{,Detail,New}.tsx     (旧 UI)
+    └── redesign/console/ConsoleMeeting{,Detail,New}.tsx  (新 UI)
+```
+
+Docker 镜像里 overlay 后,文件落到原路径 —— Python / TS 的 import 不用改一行。
+
+### 12.3 Docker 集成
+
+- **build context 改成仓库根**(2026-05-19 起,旧的 `./backend` / `./frontend` 不再用)
+- `backend/Dockerfile` 末尾:`COPY backend/ /app/` 然后 `COPY meeting/backend/ /app/`(overlay)
+- `frontend/Dockerfile` builder 阶段同理:`COPY frontend/ /app/` 然后 `COPY meeting/frontend/ /app/`
+- 仓库根 `.dockerignore` 接管所有忽略规则(旧的 `backend/.dockerignore` / `frontend/.dockerignore` 不再生效但留作记录)
+
+### 12.4 部署/开发流程
+
+**首次 clone 主仓后必须 init submodule:**
+```bash
+git clone https://github.com/zhebinliu/knowledge-base.git
+cd knowledge-base
+git submodule update --init --recursive
+```
+
+**改 meeting 代码:**
+```bash
+cd meeting
+# 改文件,直接 commit + push 到 ai-meeting 仓的 from-kb-system 分支
+git add . && git commit -m "..." && git push
+
+# 回到主仓,bump submodule pointer
+cd .. && git add meeting && git commit -m "bump meeting submodule" && git push
+```
+
+**拉 meeting 仓最新 commit 到主仓:**
+```bash
+git submodule update --remote meeting
+# 或 cd meeting && git pull origin from-kb-system
+```
+
+**rsync 同步到服务器:**
+`scripts/sync-dev.sh` 不变 —— rsync `--exclude=.git` 会跳过 `meeting/.git` 文件,但 meeting 下的真实文件会作为普通文件同步过去,服务器上 docker build 直接 COPY 即可。**唯一注意**:在 main 仓 git pull 之后,如果 submodule pointer 变了,要手动 `git submodule update`。
+
+### 12.5 仍在 kb-system 主仓的会议相关文件
+
+这些 **不** 抽到 ai-meeting,因为它们逻辑上不属于会议模块:
+- `frontend/src/pages/demo-ppt/slides/12-meeting.tsx`(demo PPT 展示页)
+- `frontend/src/components/console/research/ExportPreMeetingButton.tsx`(research 模块的导出按钮)
+- `backend/main.py:8,157,197` 的 meeting 路由注册 / Base.metadata 注册
+- `backend/tasks/__init__.py` 的 `from tasks import meeting_tasks` eager import
+- `frontend/src/App.tsx:30-32,80-82,134-136` 的会议路由
+
+这些注册点要继续留在主仓 —— submodule 只是把**业务代码**抽出去,**注册到主框架**这件事仍是主仓的职责。

@@ -16,10 +16,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装 Python 依赖
-COPY requirements.txt .
+# 注意:2026-05-19 起 build context 改为仓库根(为了让 COPY 能看到 meeting/ submodule),
+# 所有路径都从仓库根算起。
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 复制源码
-COPY . .
+# 复制源码 —— 先 backend 再 meeting/backend 做 overlay,让 submodule 文件落到原位
+# meeting/backend/api/meeting.py → /app/api/meeting.py(对应 main.py 里的 from api import meeting)
+# meeting/backend/services/meeting/* → /app/services/meeting/*(对应 from services.meeting import ...)
+COPY backend/ /app/
+COPY meeting/backend/ /app/
 
 EXPOSE 8000

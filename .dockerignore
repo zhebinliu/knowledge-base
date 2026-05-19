@@ -1,0 +1,57 @@
+# 仓库根 .dockerignore —— 2026-05-19 起 backend/frontend 的 build context 改为仓库根
+# (为了让 docker COPY 能看到 meeting/ submodule),所以 ignore 规则集中在这里。
+# 旧的 backend/.dockerignore + frontend/.dockerignore 在新 context 下不再生效。
+
+# VCS / 编辑器
+.git
+.gitignore
+.gitmodules
+.gitattributes
+.github/
+.gitlab-ci.yml
+.DS_Store
+.idea/
+.vscode/
+
+# 敏感 / 本地配置
+.env
+.env.*
+
+# Claude / agent 工作目录
+.claude/
+
+# Python 缓存
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/*.egg-info/
+**/.coverage
+**/htmlcov/
+backend/venv/
+backend/.venv/
+
+# Node / Vite
+**/node_modules/
+**/dist/
+**/*.log
+
+# 不需要进镜像的目录
+skillhub/
+scripts/
+.claude_*.json
+task.md
+TODO.md
+CLAUDE.md
+LEARNING.md
+PROJECT_OVERVIEW.md
+ONBOARDING.md
+README.md
+*.md.bak
+
+# 测试 fixtures / 上传缓存(运行时挂 volume,不进镜像)
+backend/uploads/
+backend/tests/
+backend/htmlcov/

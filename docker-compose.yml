@@ -6,7 +6,9 @@ services:
   frontend:
     image: ${FRONTEND_IMAGE:-kb-frontend-prod:latest}
     build:
-      context: ./frontend
+      # 2026-05-19:context 改为仓库根,以便 COPY meeting/frontend/ submodule 内容
+      context: .
+      dockerfile: frontend/Dockerfile
       args:
         ENV: prod
     ports:
@@ -42,7 +44,9 @@ services:
   frontend-uat:
     image: ${FRONTEND_UAT_IMAGE:-kb-frontend-uat:latest}
     build:
-      context: ./frontend
+      # 2026-05-19:context 改为仓库根,以便 COPY meeting/frontend/ submodule 内容
+      context: .
+      dockerfile: frontend/Dockerfile
       args:
         ENV: uat
     mem_limit: 256m
@@ -62,7 +66,10 @@ services:
 
   backend:
     image: ${BACKEND_IMAGE:-kb-backend:latest}
-    build: ./backend
+    build:
+      # 2026-05-19:context 改为仓库根,以便 COPY meeting/backend/ submodule 内容
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       # 2026-05-12 修复:绑 127.0.0.1,nginx 同 docker network 仍可访问;
       # 避免公网直连绕过 nginx 限流 / TLS / 安全 header
@@ -94,7 +101,10 @@ services:
 
   celery_worker:
     image: ${BACKEND_IMAGE:-kb-backend:latest}
-    build: ./backend
+    build:
+      # 2026-05-19:context 改为仓库根,以便 COPY meeting/backend/ submodule 内容
+      context: .
+      dockerfile: backend/Dockerfile
     env_file: .env
     mem_limit: 2g
     environment:

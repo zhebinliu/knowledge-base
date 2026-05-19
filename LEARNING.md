@@ -653,3 +653,87 @@ OpenAI 兼容接口下,reasoning 模型的 `response.choices[0].message.content`
 - **LLM 层**(4 维 × 25 = 100,10-90s):格式合规 / 触发清晰 / 内容质量 / 结构组织。让 LLM 看 SKILL.md 全文 + 文件树 + 其他文本快照,给上下文级别评分
 - **综合分** = 静态 40% + LLM 60%(LLM 权重高,因为它能识别内容质量,但静态分能兜底)
 - DB 设计:`quality_reports.mode` (static|llm|both) + `static_payload` + `llm_payload` 两个 JSONB 字段独立存,UI 用 tab 切看
+
+---
+
+## 12. Meeting 模块抽 git submodule(2026-05-19)
+
+### 12.1 为什么是 submodule 而不是 skillhub 那种 symlink+独立 compose
+
+skillhub 当时是自带 backend/frontend/DB 的**独立服务**,直接两仓 + 服务器 symlink + 独立 compose 服务定义就行。
+
+会议模块**没法这么干**,因为它运行时跟主 backend 紧耦合:
+- meetings 表 FK 到 projects 表
+- import `models.get_session` / `services.auth` / `services.project_acl`
+- Celery 任务挂同一个 worker(`tasks/__init__.py` 里 eager import)
+- 前端共享 layout / 路由 / api/client.ts / 主题
+
+所以这次是 **代码归口** 抽出,**运行时仍跟主仓共生**。git submodule 把代码挂回原位置,通过 overlay 让 import 路径完全不变。
+
+### 12.2 overlay 布局:submodule 内目录 = 主仓里的相对路径
+
+ai-meeting 仓的 `from-kb-system` 分支用跟主仓**完全一致**的目录结构:
+```
+meeting/backend/api/meeting.py        ← 镜像 build 时 COPY 到 /app/api/meeting.py
+meeting/backend/services/meeting/...  ← /app/services/meeting/...
+meeting/frontend/src/redesign/console/ConsoleMeeting.tsx ← /app/src/redesign/console/...
+```
+
+关键诀窍:**Dockerfile 里二次 COPY**:
+```dockerfile
+COPY backend/ /app/
+COPY meeting/backend/ /app/   # overlay 覆盖到同一个 /app/
+```
+这样 Python `from services.meeting import polish_transcript` / 前端 `import NewConsoleMeeting from "./redesign/console/ConsoleMeeting"` **一行都不用改**。
+
+### 12.3 Docker build context 必须改为仓库根
+
+原来 `docker-compose.yml` 里 `backend.build: ./backend`,build context 是 `backend/`,**看不到** `meeting/` 这个兄弟目录(`COPY ../meeting` 会被 Docker 拒掉,跨 context 严禁)。
+
+必须改成:
+```yaml
+backend:
+  build:
+    context: .                    # 仓库根
+    dockerfile: backend/Dockerfile
+```
+
+副作用:
+- 镜像 build 时 docker daemon 扫描整个仓库 → **加根级 `.dockerignore`** 排除 `skillhub/` / `scripts/` / `*.md` / `node_modules` 等,否则 build 慢且镜像大
+- 旧的 `backend/.dockerignore` + `frontend/.dockerignore` 在新 context 下不再生效(它们是相对 context 根的),但留着无害
+
+### 12.4 rsync + submodule 同步
+
+sync-dev.sh 不用改 —— `--exclude=.git` 会跳过 `meeting/.git`(submodule 的 gitlink 文件),但 meeting 下的**真实文件**会作为普通文件正常同步。服务器上 `meeting/` 就是一个普通目录,docker COPY 一切正常。
+
+**注意**:`git pull` 之后如果 submodule pointer 变了,本地要手动 `git submodule update`,否则 `meeting/` 还是旧版,然后 rsync 把旧版推上去。**首次 clone 主仓也要 `git submodule update --init --recursive`**。
+
+### 12.5 服务器首次部署 / 升级 submodule
+
+服务器上 `/opt/kb-system/meeting/` 必须有内容。两种情况:
+1. **走 rsync(目前的部署方式)**:本地保证 `meeting/` 已 init 了真实文件,rsync 推过去就是普通目录,服务器不需要执行 git submodule 命令
+2. **走 git clone(理论上 / GitHub Actions)**:必须 `git clone --recurse-submodules` 或后接 `git submodule update --init --recursive`,否则 `meeting/` 是空目录,docker build 失败
+
+### 12.6 改 meeting 代码的双仓提交流程
+
+```bash
+cd meeting           # 进 submodule 工作区
+# 改文件
+git add . && git commit -m "fix(meeting): xxx" && git push
+# 此时 ai-meeting 仓 from-kb-system 分支已经更新
+
+cd ..                # 回到主仓
+git add meeting      # 主仓里 meeting 是个 gitlink,这里 add 的是新 commit hash
+git commit -m "bump meeting submodule" && git push
+```
+
+忘了第二步 → 主仓 CI / 部署还会用老 commit。
+
+### 12.7 仍然留在主仓的 meeting 注册点
+
+submodule 只抽了**业务代码**,把代码**注册到主框架**这件事仍是主仓职责:
+- `backend/main.py:8,157,197`(import + include_router + Base.metadata)
+- `backend/tasks/__init__.py`(eager import meeting_tasks,LEARNING § 6 ForeignKey 解析失败那个坑还在)
+- `frontend/src/App.tsx:30-32,80-82,134-136`(6 处路由 + 旧/新 UI 切换)
+
+这些动了一定要同步改 meeting submodule 的对应文件,反过来 submodule 里改了 router prefix / model tablename 这种,主仓注册点也要跟着改。

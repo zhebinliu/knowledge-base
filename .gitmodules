@@ -1,0 +1,4 @@
+[submodule "meeting"]
+	path = meeting
+	url = https://github.com/zhebinliu/ai-meeting.git
+	branch = from-kb-system

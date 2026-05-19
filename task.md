@@ -979,3 +979,73 @@ Insight v3 已达到预期。下一站是「需求调研」——把 insight 输
 - [x] LLM 超时调到 180s(thinking 模型推理慢)
 - [x] kb-system 仓:rm skillhub/ + .gitignore + 文档改指向新 repo
 
+
+
+---
+
+## 新迭代:抽出 meeting 模块为 git submodule(2026-05-19) — 指向 zhebinliu/ai-meeting
+
+### 用户决策
+- 用真正的 git submodule(深度重构),不要 skillhub 那种两仓并行
+- ai-meeting 仓 main 保留(2026-04-28 的旧版独立服务),把 kb-system 当前的 meeting 代码推到新分支 `from-kb-system`
+
+### 设计原则
+- **submodule 内部目录结构 = 它在 kb-system 里的相对路径**(overlay 式)。这样 Python `from services.meeting import ...` 和前端 `./redesign/console/ConsoleMeeting` 这类 import **不用改一行**
+- submodule 仍依赖 kb-system 的 `models` / `services.auth` / `services.project_acl` —— 接受现实,这只是抽**位置**,不是抽**运行时**
+
+### 抽出文件清单(17 个)
+**Backend(11 文件 + templates/):**
+- backend/api/meeting.py
+- backend/models/meeting.py
+- backend/prompts/meeting.py
+- backend/tasks/meeting_tasks.py
+- backend/services/meeting/{__init__,asr,audio_utils,docx_export,feishu,kb_sync,pipeline,storage}.py
+- backend/services/meeting/templates/minutes_template.docx
+
+**Frontend(6 文件):**
+- frontend/src/pages/console/ConsoleMeeting{,Detail,New}.tsx
+- frontend/src/redesign/console/ConsoleMeeting{,Detail,New}.tsx
+
+**不抽:** demo-ppt/slides/12-meeting.tsx(PPT 展示页)、ExportPreMeetingButton.tsx(归属 research)
+
+### 集成方式
+submodule 挂到 `meeting/`:
+```
+meeting/
+  backend/api/meeting.py
+  backend/models/meeting.py
+  backend/prompts/meeting.py
+  backend/tasks/meeting_tasks.py
+  backend/services/meeting/{*.py, templates/}
+  frontend/src/pages/console/...
+  frontend/src/redesign/console/...
+```
+容器内通过**二次 COPY overlay** 让 submodule 文件落到原位置:
+- backend Dockerfile: build context 改仓库根,COPY backend/ /app/ 再 COPY meeting/backend/ /app/
+- frontend Dockerfile: 同理
+
+docker-compose.yml: backend / celery_worker / frontend / frontend-uat 的 build 块都要从 `./backend` `./frontend` 改成 `context: .` + `dockerfile:` 指定
+
+### 任务清单
+- [ ] 1. /tmp 下 clone ai-meeting,切 from-kb-system 分支,清空 main 内容(只保留 .git)
+- [ ] 2. 把 17 个文件按 overlay 布局放进 from-kb-system 分支 + 写 README.md + 提交推送
+- [ ] 3. 本仓:`git rm` 17 个文件
+- [ ] 4. 本仓:`git submodule add -b from-kb-system https://github.com/zhebinliu/ai-meeting.git meeting`
+- [ ] 5. 改 backend/Dockerfile + docker-compose.yml(backend/celery_worker)
+- [ ] 6. 改 frontend/Dockerfile + docker-compose.yml(frontend/frontend-uat)
+- [ ] 7. 本地验证:Python import + tsc --noEmit + docker compose build
+- [ ] 8. 更新 PROJECT_OVERVIEW.md + LEARNING.md
+- [ ] 9. commit + push
+- [ ] 10. 远程 rsync + rebuild + 端到端冒烟(meeting 创建/上传/转写/纪要)
+
+### 已知风险
+- worktree 里 `git submodule add` 行为可能不一致 —— 失败切到主仓做
+- `minutes_template.docx` 是二进制 —— 确认不要走 LFS / 文本 normalize
+- rsync 默认不同步 submodule 内容 —— sync-dev.sh / 部署脚本需补 submodule update
+- Dockerfile build context 从 ./backend 改成 . 后镜像会变大 —— 加 .dockerignore
+- LEARNING.md 第 6 条 meeting eager import —— 抽完仍生效(import 路径不变)
+
+### 验收
+- kb.liii.in/console/meeting 创建/上传/转写/纪要全流程跑通
+- git submodule status 干净;ai-meeting/from-kb-system 上能看到完整代码
+- `git submodule update --remote meeting` 能把后续在 ai-meeting 仓的改动带回来
