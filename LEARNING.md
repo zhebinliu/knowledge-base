@@ -571,3 +571,56 @@ useEffect(...)
 if (user && condition) return <Navigate to="/console" replace />
 return <NormalRender />
 ```
+
+## 11. Skill Hub(`skillhub/`)— 新增独立小站(2026-05-19)
+
+### 11.1 架构 = 隔离 + 复用基础设施
+
+- 代码完全隔离:`skillhub/backend/`(FastAPI :8001 内网)+ `skillhub/frontend/`(nginx :80 内网)
+- 数据隔离:复用 `postgres` 实例,新建 `skillhub` 数据库,独立用户表(`users` / `invite_codes` / `skills` / `quality_reports`)
+- 网络复用:主 `frontend`(443 持证)新加 `server_name skillhub.tokenwave.cloud` 块反代到 `skillhub-frontend` + `/api/* → skillhub-backend:8001`
+- 文件存储:本地 docker volume `skillhub_data` → `/data/skillhub/{uuid}/...`,不走 MinIO
+- 鉴权:管理员邀请码注册(独立 JWT,`SKILLHUB_JWT_SECRET`),不和主系统 user 共享
+- 质检 LLM:独立配 `SKILLHUB_LLM_*` 三件套(provider / base_url / api_key / model),不复用主系统 model_router
+
+### 11.2 部署踩的 4 个坑
+
+1. **pydantic-v2 Settings 不能同时 `model_config` + `class Config`**
+   - 报错:`"Config" and "model_config" cannot be used together`
+   - 真因:旧式 `class Config: env_prefix=...` 在 pydantic-v2 + pydantic-settings 不能跟 SettingsConfigDict 共存
+   - 做法:`env_prefix` 也写进 `SettingsConfigDict(env_file=None, extra="ignore", env_prefix="SKILLHUB_")`,删掉 `class Config`
+
+2. **`EmailStr` 需 `pydantic[email]`**
+   - 报错:`ImportError: email-validator is not installed`
+   - 做法:requirements.txt 里写 `pydantic[email]==2.9.2`(或单独装 email-validator)
+
+3. **GCP 上 docker DNS `ndots:0` → asyncpg 解析失败**
+   - 报错:`socket.gaierror: [Errno -2] Name or service not known` 但 `compose run` 单独 ping 又 OK
+   - 真因:主 backend 早就为这个加了 `dns_opt: - ndots:5`,新容器忘了加 → 持久容器走老 resolv.conf
+   - 做法:`docker-compose.yml` 每个 service 都加 `dns_opt: - ndots:5`
+
+4. **DB 密码含 `@` 把 DSN 切坏**
+   - 现象:asyncpg 报 `gaierror`(`@postgres:5432` 里的 `@` 被当 user-host 分隔符,host 解析成 `postgres:5432/skillhub` 整段)
+   - 做法:用 `sqlalchemy.URL.create(...)` 显式构造 URL,不要靠字符串拼 DSN
+
+### 11.3 nginx 部署期"证书未签发"问题
+
+证书首次签发前,nginx 配里的 `ssl_certificate /etc/letsencrypt/live/skillhub.tokenwave.cloud/fullchain.pem` 不存在 → nginx 启动失败 → 主 frontend 容器死循环。解决方案:
+
+- HTTPS server 块用 `=== SKILLHUB_HTTPS_START ===` / `=== SKILLHUB_HTTPS_END ===` marker 包起来
+- HTTP server 块的 301 段用 `=== SKILLHUB_REDIRECT_START ===` / `END` marker
+- 容器 entrypoint(`frontend/entrypoint.sh`)每次启动:
+  1. **从模板 `/etc/nginx/templates/default.conf.tpl` 重新 cp 到 `default.conf`**(不能 in-place sed,否则上次裁剪结果不可逆)
+  2. 检测 `$SKILLHUB_CERT` 是否存在 → 不存在剥 HTTPS 段;存在则把 redirect 段换成 301
+- certbot 签完后 `docker compose restart frontend` → entrypoint 自动启用 HTTPS
+
+### 11.4 公开页 vs 拥有者页权限差
+
+- `/api/skills` / `/api/skills/{id}` / `/api/skills/{id}/file` 公开(只对 `is_published=true` 的 skill)
+- 草稿状态 skill 只有 owner / admin 能看
+- view_count 累计只在「`is_published` 且 非 owner」访问时 +1
+- 上传 / publish toggle / inspect / delete 都校 `owner_id == user.id or user.is_admin`
+
+### 11.5 frontend healthcheck unhealthy(pre-existing,不属于 skillhub)
+
+`docker ps` 主 `kb-system-frontend-1` 长期 `unhealthy`,实际服务可用。原因:healthcheck `wget http://127.0.0.1/health` 走 80 默认 server 被 301 到 HTTPS,wget 跟随后无法验证 127.0.0.1 SSL → 退码 1。**部署前就这样**,不是 skillhub 引入。

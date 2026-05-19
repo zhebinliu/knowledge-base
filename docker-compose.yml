@@ -24,6 +24,11 @@ services:
       # frontend-prod 反代 uat 域名,uat 容器要先起来(否则 nginx upstream fail)
       frontend-uat:
         condition: service_started
+      # skillhub.tokenwave.cloud 也由 frontend-prod 反代
+      skillhub-frontend:
+        condition: service_started
+      skillhub-backend:
+        condition: service_started
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
@@ -180,8 +185,57 @@ services:
       timeout: 5s
       retries: 3
 
+  # ── skillhub-backend ─────────────────────────────────────────────────────
+  # 独立小站 skillhub.tokenwave.cloud,不复用主 backend / users。
+  # 复用 postgres 实例(独立 DB=skillhub),复用主 frontend 容器的 443 端口反代。
+  skillhub-backend:
+    image: ${SKILLHUB_BACKEND_IMAGE:-kb-skillhub-backend:latest}
+    build: ./skillhub/backend
+    env_file: .env
+    mem_limit: 384m
+    environment:
+      SKILLHUB_DB_HOST: postgres
+      SKILLHUB_DB_PORT: "5432"
+      SKILLHUB_DB_USER: kb_admin
+      SKILLHUB_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      SKILLHUB_DB_NAME: skillhub
+    expose:
+      - "8001"
+    volumes:
+      - skillhub_data:/data/skillhub
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    dns_opt:
+      - ndots:5
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8001/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  # ── skillhub-frontend ────────────────────────────────────────────────────
+  skillhub-frontend:
+    image: ${SKILLHUB_FRONTEND_IMAGE:-kb-skillhub-frontend:latest}
+    build: ./skillhub/frontend
+    mem_limit: 128m
+    expose:
+      - "80"
+    depends_on:
+      skillhub-backend:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
 volumes:
   postgres_data:
   qdrant_data:
   minio_data:
   upload_data:
+  skillhub_data:

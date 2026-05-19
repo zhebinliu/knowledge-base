@@ -919,3 +919,51 @@ Insight v3 已达到预期。下一站是「需求调研」——把 insight 输
 - ⏸️ MCP key sha256 / feishu_app_secret Fernet 加密(涉及数据迁移)
 - ⏸️ owner 模糊搜全部用户的 email 暴露(改 search 端点返回 username)
 
+---
+
+## 新项目:Skill Hub(2026-05-19)
+
+> 目标:在 `skillhub.tokenwave.cloud` 上线一个 skill 上传 / 浏览 / 质检 / 发布的独立小站。
+
+### 关键决策
+
+- **代码隔离**:全部新代码放 `skillhub/` 目录(`skillhub/backend/` + `skillhub/frontend/`),不掺到现有 `backend/` `frontend/` 里。
+- **数据隔离**:复用现有 postgres 实例,新建数据库 `skillhub`(独立 schema 独立用户表)。
+- **运行时**:新增两个容器 `skillhub-backend`(FastAPI :8001 内网)+ `skillhub-frontend`(nginx :80 内网)。主 frontend 容器持 443 + 新加 server block 反代。
+- **存储**:本地 docker volume `skillhub_storage` → 容器内 `/data/skillhub/{skill_id}/...`。直接落盘,不走 MinIO(轻量)。
+- **登录**:管理员邀请码注册;首次部署用脚本自动建 admin + 给一条邀请码。
+- **质检 LLM**:独立配 `SKILLHUB_LLM_*`(base_url + api_key + model),不复用主系统的 model_router。
+- **域名**:`skillhub.tokenwave.cloud`,DNS 用户已配。SSL 部署后再 certbot 申。
+
+### 任务清单
+
+后端 `skillhub/backend/`:
+- [x] 骨架(main.py / config.py / db.py / models.py / requirements.txt / Dockerfile)
+- [x] 模型:`users` / `invite_codes` / `skills` / `quality_reports`
+- [x] 启动时 `create_all` + bootstrap admin + 首条邀请码
+- [x] 鉴权:邀请码注册 / 登录(JWT)/ `get_current_user` / `require_admin`
+- [x] Skill 上传(zip / tar.gz / 多文件)+ frontmatter 解析
+- [x] Skill 浏览 + 文件树 + 单文件读取 + 发布 toggle
+- [x] 质检:静态规则 + LLM 评分(4 维度 × 25 = 100)+ 报告入库
+- [x] 管理端:邀请码 CRUD + 用户列表
+
+前端 `skillhub/frontend/`:
+- [x] Vite + React + TS + Tailwind 脚手架,暗色 + 紫粉橙渐变 + 噪点
+- [x] 路由 + 公开页(/, /explore, /skill/:id)+ 账号页(/login, /register)+ 后台(/dashboard, /dashboard/upload, /dashboard/skill/:id, /admin)
+- [x] markdown 渲染 + 代码高亮 + 文件树视图
+- [x] 上传组件:zip 拖拽 + 文件夹选择器(webkitdirectory)
+
+部署:
+- [x] 两个 Dockerfile + docker-compose 服务条目
+- [x] `frontend/nginx.prod.conf` 加 `skillhub.tokenwave.cloud` server block + entrypoint 处理证书首次签发
+- [x] `.env` 增 `SKILLHUB_*`
+- [x] rsync + remote build + up -d
+- [x] CREATE DATABASE skillhub
+- [x] certbot 申证书 + reload nginx,切 HTTPS
+
+验收:
+- [x] admin 登录 → 生成邀请码 SH-CVPPD4OBMM(30 天)
+- [x] 上传 csv-explorer 测试 zip(5 文件 / 2KB,frontmatter 自动解析 name/description/version)
+- [x] LLM 质检通(MiniMax-M2.7,27.5s,76 分 good,4 维度分齐,准确指出 stats.py/anomalies.py 是 TODO 占位)
+- [x] 发布到广场 → 匿名 list 看得到 → 匿名拿 SKILL.md 内容
+

@@ -19,9 +19,14 @@ ARG ENV=prod
 ENV BUILD_ENV=${ENV}
 
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.${ENV}.conf /etc/nginx/conf.d/default.conf
+# 模板放只读路径;entrypoint 每次启动都重新生成 default.conf,避免上次裁剪结果被沿用
+COPY nginx.${ENV}.conf /etc/nginx/templates/default.conf.tpl
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# 兜底检查 — build 时若 ARG ENV 不是 prod/uat,启动会因为找不到配置而失败
-RUN test -f /etc/nginx/conf.d/default.conf
+# 兜底检查 — build 时若 ARG ENV 不是 prod/uat,启动会因为找不到模板而失败
+RUN test -f /etc/nginx/templates/default.conf.tpl
 
 EXPOSE 80
+
+ENTRYPOINT ["/entrypoint.sh"]
