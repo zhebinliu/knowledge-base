@@ -572,7 +572,11 @@ if (user && condition) return <Navigate to="/console" replace />
 return <NormalRender />
 ```
 
-## 11. Skill Hub(`skillhub/`)— 新增独立小站(2026-05-19)
+## 11. Skill Hub — 独立小站(2026-05-19)
+
+> ⚠️ **业务代码已抽出本仓**,迁至 [zhebinliu/skillhub](https://github.com/zhebinliu/skillhub)。
+> 本节记录的部署踩坑对独立仓也适用(都是 GCP / docker / nginx / pydantic v2 的通病)。
+> kb-system 这边只剩 nginx 反代 + docker-compose 容器定义。
 
 ### 11.1 架构 = 隔离 + 复用基础设施
 
@@ -624,3 +628,28 @@ return <NormalRender />
 ### 11.5 frontend healthcheck unhealthy(pre-existing,不属于 skillhub)
 
 `docker ps` 主 `kb-system-frontend-1` 长期 `unhealthy`,实际服务可用。原因:healthcheck `wget http://127.0.0.1/health` 走 80 默认 server 被 301 到 HTTPS,wget 跟随后无法验证 127.0.0.1 SSL → 退码 1。**部署前就这样**,不是 skillhub 引入。
+
+### 11.6 抽出独立仓后的部署布局
+
+- 业务代码在 [zhebinliu/skillhub](https://github.com/zhebinliu/skillhub)
+- 服务器:`/opt/skillhub` 是新 repo clone,`/opt/kb-system/skillhub` 是 symlink → `/opt/skillhub`
+- 主 `docker-compose.yml` 里的 `skillhub-backend` / `skillhub-frontend` 服务定义保留,build context 走 symlink
+- 更新 skillhub 业务:`ssh ... 'cd /opt/skillhub && sudo git pull && cd /opt/kb-system && docker compose build skillhub-* && docker compose up -d --force-recreate skillhub-*'`
+- nginx 反代配置(`frontend/nginx.prod.conf` 的 skillhub server block) + 容器服务定义 → **还在 kb-system 仓里改**(因为 443 端口由主 frontend 容器持有,反代是基础设施)
+- kb-system rsync deploy 时,`/skillhub/` 已在 `.gitignore` 排除,不会覆盖 symlink
+
+### 11.7 Reasoning 模型(MiniMax-M*、DeepSeek-R1、QwQ)输出带 `<think>` 块
+
+OpenAI 兼容接口下,reasoning 模型的 `response.choices[0].message.content` 头部是 `<think>...</think>` 块,后面才是真正答案。
+
+- **场景**:让 LLM 返回严格 JSON 评分,正则切 `{...}` 也不一定能切对(`<think>` 内可能也提到 JSON 结构,切到错位置)
+- **做法**:`_safe_json` 前置一步 `re.sub(r"<think>.*?</think>\s*", "", text, flags=re.DOTALL)`
+- **超时**:reasoning 模型 thinking 阶段长,默认 90s timeout 不够,改 180s(`SKILLHUB_LLM_TIMEOUT=180`)
+
+### 11.8 双层质检设计(2026-05-19)
+
+参考 [shaozhengmao/skill-quality-checker](https://github.com/shaozhengmao/skill-quality-checker) 5 维静态评分思路:
+- **静态层**(5 维 × 20 = 100,纯 Python,秒级):问题-方案匹配度 / 完成度 / 容错性 / Description 精度 / Token 效率。基于硬性规则(YAML / shebang / exec / TODO / try/except 覆盖率 / 触发词 / 泛化词 / SKILL.md 大小)
+- **LLM 层**(4 维 × 25 = 100,10-90s):格式合规 / 触发清晰 / 内容质量 / 结构组织。让 LLM 看 SKILL.md 全文 + 文件树 + 其他文本快照,给上下文级别评分
+- **综合分** = 静态 40% + LLM 60%(LLM 权重高,因为它能识别内容质量,但静态分能兜底)
+- DB 设计:`quality_reports.mode` (static|llm|both) + `static_payload` + `llm_payload` 两个 JSONB 字段独立存,UI 用 tab 切看

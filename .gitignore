@@ -51,3 +51,4 @@ backend/tests/fixtures/golden_labels.json
 
 # 上传的文件
 uploads/
+/skillhub/

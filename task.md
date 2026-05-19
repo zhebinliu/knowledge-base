@@ -967,3 +967,15 @@ Insight v3 已达到预期。下一站是「需求调研」——把 insight 输
 - [x] LLM 质检通(MiniMax-M2.7,27.5s,76 分 good,4 维度分齐,准确指出 stats.py/anomalies.py 是 TODO 占位)
 - [x] 发布到广场 → 匿名 list 看得到 → 匿名拿 SKILL.md 内容
 
+### 二期(2026-05-19 当日)— 抽出独立仓 + 5 维静态评分
+
+- [x] 参考 shaozhengmao/skill-quality-checker,实现 5 维静态评分 (`static_scorer.py`)
+- [x] inspector 重构为 static / llm / both 三档,综合分 = 静态 40% + LLM 60%
+- [x] DB schema 加 `quality_reports.mode` + `static_payload` + `llm_payload`,startup ALTER 兼容老库
+- [x] 前端 ReportCard 加 ⭐ + 静态/LLM 双 tab,3 个评估按钮(快检 / 全面 / 仅 LLM)
+- [x] 抽出为独立仓 [zhebinliu/skillhub](https://github.com/zhebinliu/skillhub) + 加 README / LICENSE / standalone docker-compose
+- [x] 服务器迁移布局:`/opt/skillhub` clone + `/opt/kb-system/skillhub → symlink`
+- [x] 修 reasoning 模型(MiniMax-M2.7)输出带 `<think>` 块的 JSON 解析问题
+- [x] LLM 超时调到 180s(thinking 模型推理慢)
+- [x] kb-system 仓:rm skillhub/ + .gitignore + 文档改指向新 repo
+

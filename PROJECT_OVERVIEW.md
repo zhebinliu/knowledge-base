@@ -463,51 +463,61 @@ ssh liu@34.45.112.217 "sudo docker exec kb-system-backend-1 python -m scripts.<m
 - 🔲 GCP 服务器 9.7G 偏小,部署高频 OOM,长期需扩盘
 - 🔲 `ConsoleMeeting` 即将上线但 disabled
 - 🔲 上 § 9.5 末尾列的 5 个延后 P1(HttpOnly cookie / Alembic / sandbox 等)
-- ✅ Skill Hub 上线(2026-05-19,见 § 11)— skillhub.tokenwave.cloud,独立小站,详见 [LEARNING.md § 11](LEARNING.md)
+- ✅ Skill Hub 抽出为独立仓 [zhebinliu/skillhub](https://github.com/zhebinliu/skillhub)(2026-05-19,见 § 11)
 - 🔲 主 `kb-system-frontend-1` healthcheck 误报 unhealthy(预先存在,不阻塞,见 LEARNING.md § 11.5)
 
 ---
 
-## 11. Skill Hub(`skillhub/`)— 团队 Claude Skill 协作小站(2026-05-19)
+## 11. Skill Hub — 已抽出为独立仓库
 
-> 全新独立子项目,跟主 KB 系统**代码隔离 / 数据库隔离 / 用户隔离**,但复用 postgres 实例 + 主 frontend 容器持的 443 + Let's Encrypt 证书机制。详细架构 + 4 个部署踩坑见 [LEARNING.md § 11](LEARNING.md)。
+> ⚠️ **代码不在本仓**。skillhub 业务代码全部移到 [github.com/zhebinliu/skillhub](https://github.com/zhebinliu/skillhub)。
+> kb-system 这边仅保留 nginx 反代 + docker-compose 容器定义这两块"入口基础设施"。
 
 ### 11.1 域名 + 容器
 
 - **域名**:`skillhub.tokenwave.cloud`(独立证书,管理员邀请码登录)
-- **新增容器**(2 个,加在主 docker-compose):
-  - `skillhub-backend`:FastAPI(Python 3.11,`:8001` 内网,384MB 限),进 `skillhub` 数据库
-  - `skillhub-frontend`:React + Vite + Tailwind dist + nginx(`:80` 内网,128MB 限)
-- **入口**:主 `frontend` 容器 nginx 新加 `server_name skillhub.tokenwave.cloud` server 块,反代 `/api/* → skillhub-backend:8001`,其余 → `skillhub-frontend:80`
+- **容器**(在主 `docker-compose.yml` 里定义,build context 指向 `./skillhub/` symlink → `/opt/skillhub`):
+  - `skillhub-backend`:FastAPI :8001 内网,384MB 限
+  - `skillhub-frontend`:nginx + React dist :80 内网,128MB 限
+- **入口**:主 `frontend` 容器 nginx 持 443,server block `skillhub.tokenwave.cloud` 反代 `/api/* → skillhub-backend:8001`,其余 → `skillhub-frontend:80`
+- **DB**:复用 postgres 实例的独立 `skillhub` database,独立用户表
 
-### 11.2 功能
-
-1. **管理员邀请码注册 + JWT 登录**(`/api/admin/invites` 生码)— 独立 users 表
-2. **Skill 上传**:zip / tar.gz 包 或 webkitdirectory 文件夹选择(50MB / 500 文件上限)
-3. **文件树 + markdown 渲染预览**(`react-markdown` + `rehype-highlight`),公开页可读已发布 skill
-4. **草稿默认 → 手动 publish**(`POST /api/skills/{id}/publish?publish=true|false`)
-5. **质检评分**:静态规则(SKILL.md / frontmatter / 噪声文件)+ LLM 评分(4 维度 × 25,总分 100),报告含 summary + dimensions + suggestions,入 `quality_reports` 表
-   - 走 OpenAI 兼容接口(env: `SKILLHUB_LLM_PROVIDER=openai_compat`, `SKILLHUB_LLM_BASE_URL`, `SKILLHUB_LLM_API_KEY`, `SKILLHUB_LLM_MODEL`)
-6. **管理后台**:`/admin` 邀请码 CRUD + 用户列表(admin only)
-
-### 11.3 表结构
-
-数据库:`skillhub`(postgres 实例,owner=`kb_admin`)
+### 11.2 服务器部署布局
 
 ```
-users (id, email, username, password_hash, display_name, is_admin, is_active, created_at)
-invite_codes (id, code, created_by, used_by, used_at, expires_at, note, grants_admin, created_at)
-skills (id, owner_id, slug, name, description, version, tags,
-        storage_path, entry_file, size_bytes, file_count,
-        is_published, published_at, latest_score, latest_verdict, view_count, ...)
-quality_reports (id, skill_id, score, verdict, dimensions(JSONB), suggestions(JSONB),
-                 summary, llm_model, duration_ms, created_at)
+/opt/skillhub               ← git clone https://github.com/zhebinliu/skillhub.git
+/opt/kb-system/skillhub     → symlink → /opt/skillhub
+/opt/kb-system/docker-compose.yml  build: ./skillhub/{backend,frontend}
+/opt/kb-system/.env         共享(SKILLHUB_* 段)
 ```
 
-文件实际落在 docker volume `skillhub_data`:`/data/skillhub/{uuid}/...`
+更新 skillhub:
+```bash
+ssh ... 'cd /opt/skillhub && sudo git pull && cd /opt/kb-system && \
+         sudo docker compose build skillhub-backend skillhub-frontend && \
+         sudo docker compose up -d --force-recreate skillhub-backend skillhub-frontend'
+```
 
-### 11.4 启动凭证(部署后必改)
+更新 nginx 反代 / docker-compose 服务定义 / 主入口证书 → 还在 kb-system 仓里改。
 
-- 初始 admin:`liu@zheb.in` / `Skillhub2026!`(env `SKILLHUB_BOOTSTRAP_ADMIN_*`)
-- 启动时自动生成第一条邀请码 `WELCOME-xxxxxxxx`,写 backend 日志
-- **强烈建议第一次登录后改密**;邀请码到 `/admin` 自助生
+### 11.3 功能要点
+
+详见 [skillhub README](https://github.com/zhebinliu/skillhub#readme)。摘要:
+
+- 邀请码注册 + JWT 登录,独立 users
+- 上传(zip / tar.gz / webkitdirectory),50MB 上限
+- 文件树 + markdown 渲染 + 代码高亮
+- 草稿默认,手动 publish
+- **双层质检**:5 维静态启发式(秒级)+ 4 维 LLM 上下文评分(10-90s),综合分 = 静态 40% + LLM 60%
+- 后台:邀请码 CRUD + 用户列表
+
+### 11.4 数据库
+
+`skillhub` 库:`users` / `invite_codes` / `skills` / `quality_reports`(后者支持 mode=static|llm|both,启动时自动 ALTER 补列)。
+
+文件落在 docker volume `skillhub_data`:`/data/skillhub/{uuid}/...`
+
+### 11.5 启动凭证(部署后必改)
+
+- 初始 admin:`liu@zheb.in` / `Skillhub2026!`(env `SKILLHUB_BOOTSTRAP_ADMIN_*`,可改)
+- 启动时自动生成第一条邀请码,写 backend 日志
