@@ -37,6 +37,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      # meeting 模块抽成 submodule(meeting/),非 Docker 的 CI job 需手动 overlay
+      # 把 meeting/backend|frontend/ 的文件 cp 回 backend/ frontend/ 原位置
+      - name: Overlay meeting submodule
+        run: |
+          cp -r meeting/backend/. backend/
+          cp -r meeting/frontend/. frontend/
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -77,6 +85,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # meeting submodule overlay —— 见 frontend-check job 注释
+      - name: Overlay meeting submodule
+        run: |
+          cp -r meeting/backend/. backend/
+          cp -r meeting/frontend/. frontend/
 
       - name: Start MinIO manually
         run: |

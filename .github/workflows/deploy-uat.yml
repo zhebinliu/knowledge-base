@@ -33,6 +33,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      # meeting 模块在 submodule,非 Docker 的 CI job 需手动 overlay
+      - name: Overlay meeting submodule
+        run: |
+          cp -r meeting/backend/. backend/
+          cp -r meeting/frontend/. frontend/
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -56,6 +63,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -80,7 +89,9 @@ jobs:
       - name: Build and push frontend-uat
         uses: docker/build-push-action@v5
         with:
-          context: ./frontend
+          # context 改为仓库根(submodule overlay 需要),Dockerfile 显式指定
+          context: .
+          file: ./frontend/Dockerfile
           push: true
           build-args: |
             ENV=uat
@@ -97,6 +108,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Compute short SHA
         id: sha
