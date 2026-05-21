@@ -28,9 +28,11 @@ jobs:
         with:
           submodules: recursive
       - name: Update meeting submodule to latest from-kb-system
+        # checkout 的 submodule 是 shallow clone,没有 origin/from-kb-system 这个
+        # 远程跟踪 ref,git submodule update --remote 会失败 —— 直接显式 fetch + checkout
         run: |
-          git submodule sync meeting
-          git submodule update --remote meeting
+          git -C meeting fetch origin from-kb-system
+          git -C meeting checkout FETCH_HEAD
       - name: Overlay meeting submodule
         run: |
           cp -r meeting/backend/. backend/
@@ -60,9 +62,11 @@ jobs:
           submodules: recursive
 
       - name: Update meeting submodule to latest from-kb-system
+        # checkout 的 submodule 是 shallow clone,没有 origin/from-kb-system 这个
+        # 远程跟踪 ref,git submodule update --remote 会失败 —— 直接显式 fetch + checkout
         run: |
-          git submodule sync meeting
-          git submodule update --remote meeting
+          git -C meeting fetch origin from-kb-system
+          git -C meeting checkout FETCH_HEAD
 
       - name: Compute meeting short SHA
         id: msha
