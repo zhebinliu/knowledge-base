@@ -1129,3 +1129,786 @@
   -webkit-backdrop-filter: blur(28px) saturate(140%) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 0 rgba(255, 255, 255, 0.08);
 }
+
+/* ── insight 阶段方案 A · Focus 抽屉动画 ────────────────────────── */
+@keyframes rd-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes rd-slide-in-left {
+  from { transform: translateX(-100%); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+
+/* ── 中央焦点视图下,左右两侧的"打开抽屉"触发 tab ───────────── */
+.rd-edge-tab {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 12;
+  padding: 16px 8px;
+  background: linear-gradient(180deg, rgba(255,141,26,0.14), rgba(255,141,26,0.04));
+  border: 1px solid rgba(255,141,26,0.32);
+  color: var(--rd-accent-2);
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  box-shadow: 0 6px 20px -6px rgba(0,0,0,0.45), 0 0 24px -8px rgba(255,141,26,0.35);
+  transition: all .22s var(--rd-ease);
+}
+.rd-edge-tab:hover {
+  background: linear-gradient(180deg, rgba(255,141,26,0.28), rgba(255,141,26,0.08));
+  border-color: rgba(255,141,26,0.55);
+  color: #fff;
+  box-shadow: 0 8px 28px -6px rgba(0,0,0,0.55), 0 0 36px -8px rgba(255,141,26,0.55);
+}
+.rd-edge-tab--left  { left: 0;  border-left: none;  border-radius: 0 12px 12px 0; }
+.rd-edge-tab--right { right: 0; border-right: none; border-radius: 12px 0 0 12px; }
+
+/* ── 左/右两侧的"漂浮 rail"——始终可见的资料/引用入口 ───────── */
+.rd-side-rail {
+  width: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 5;
+  background: linear-gradient(180deg,
+    rgba(255,255,255,0.04) 0%,
+    rgba(255,255,255,0.02) 50%,
+    rgba(255,255,255,0.04) 100%);
+}
+.rd-side-rail--left  { border-right: 1px solid rgba(255,255,255,0.07); }
+.rd-side-rail--right { border-left:  1px solid rgba(255,255,255,0.07); }
+
+/* "漂浮玻璃药丸"按钮 — 自带 glow + hover 上浮 */
+.rd-rail-fab {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 6px 14px;
+  width: 32px;
+  background: linear-gradient(180deg,
+    rgba(255,141,26,0.22) 0%,
+    rgba(255,141,26,0.10) 50%,
+    rgba(255,141,26,0.18) 100%);
+  border: 1px solid rgba(255,141,26,0.45);
+  border-radius: 14px;
+  color: #FFE2C2;
+  cursor: pointer;
+  font-family: inherit;
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  box-shadow:
+    0 0 0 1px rgba(255,141,26,0.18) inset,
+    0 8px 24px -6px rgba(0,0,0,0.55),
+    0 0 28px -6px rgba(255,141,26,0.45);
+  transition: transform .25s var(--rd-ease), box-shadow .25s var(--rd-ease), background .25s, color .25s;
+  overflow: visible;
+}
+.rd-rail-fab:hover {
+  background: linear-gradient(180deg,
+    rgba(255,141,26,0.42) 0%,
+    rgba(255,141,26,0.20) 50%,
+    rgba(255,141,26,0.32) 100%);
+  color: #fff;
+  transform: translateX(2px);
+  box-shadow:
+    0 0 0 1px rgba(255,141,26,0.35) inset,
+    0 12px 32px -6px rgba(0,0,0,0.6),
+    0 0 44px -4px rgba(255,141,26,0.7);
+}
+.rd-rail-fab--right:hover { transform: translateX(-2px); }
+
+/* fab 内的脉冲发光层(让药丸看起来"活着") */
+.rd-rail-fab-glow {
+  position: absolute;
+  inset: -2px;
+  border-radius: 16px;
+  background: radial-gradient(circle at 50% 50%, rgba(255,141,26,0.35), transparent 70%);
+  opacity: 0.55;
+  pointer-events: none;
+  filter: blur(8px);
+  animation: rd-fab-pulse 3.2s ease-in-out infinite;
+}
+@keyframes rd-fab-pulse {
+  0%, 100% { opacity: 0.40; transform: scale(0.95); }
+  50%      { opacity: 0.75; transform: scale(1.08); }
+}
+
+.rd-rail-fab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--rd-accent-2);
+  filter: drop-shadow(0 0 6px rgba(255,141,26,0.6));
+}
+.rd-rail-fab:hover .rd-rail-fab-icon { color: #fff; }
+
+.rd-rail-fab-label {
+  writing-mode: vertical-rl;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+
+.rd-rail-fab-chev {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.10);
+  color: var(--rd-accent-2);
+  transition: transform .25s var(--rd-ease);
+}
+.rd-rail-fab:hover .rd-rail-fab-chev {
+  background: rgba(255,255,255,0.18);
+  transform: translateX(2px);
+  color: #fff;
+}
+
+/* ── Survey 顶部分组 carousel ─────────────────────────────────── */
+.rd-survey-carousel {
+  flex-shrink: 0;
+  padding: 12px 18px 14px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+}
+
+.rd-survey-carousel-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.rd-survey-segment {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--rd-line);
+  border-radius: 10px;
+}
+.rd-survey-seg-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  font-size: 11.5px;
+  color: var(--rd-text-3);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .2s var(--rd-ease);
+}
+.rd-survey-seg-btn:hover { color: var(--rd-text-2); }
+.rd-survey-seg-btn.is-active {
+  background: linear-gradient(135deg, var(--rd-accent), var(--rd-accent-deep));
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 8px -1px rgba(255,141,26,0.45), inset 0 1px 0 rgba(255,255,255,0.15);
+}
+.rd-survey-bar-hint {
+  font-size: 12px;
+  color: var(--rd-text-3);
+}
+.rd-survey-bar-hint strong { color: var(--rd-text-2); font-weight: 600; }
+
+/* ── 角色卡组(4 张并排,自适应等分)──────────────────────────── */
+.rd-role-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.rd-role-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px 12px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+  border: 1px solid var(--rd-line);
+  border-radius: 14px;
+  color: var(--rd-text);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  overflow: hidden;
+  transition: transform .25s var(--rd-ease), border-color .2s, box-shadow .25s;
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+.rd-role-card:hover:not(:disabled) {
+  border-color: var(--role-ring);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px -8px rgba(0,0,0,0.5);
+}
+.rd-role-card.is-active {
+  background: linear-gradient(135deg, var(--role-soft), rgba(255,255,255,0.02));
+  border-color: var(--role-ring);
+  box-shadow:
+    inset 0 0 0 1px var(--role-ring),
+    0 12px 32px -8px rgba(0,0,0,0.55),
+    0 0 36px -8px var(--role-ring);
+  transform: translateY(-1px);
+}
+.rd-role-card.is-empty {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 选中卡片背景的彩色 radial glow */
+.rd-role-card-glow {
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(circle at 20% 0%, var(--role-soft), transparent 55%);
+  opacity: 0;
+  transition: opacity .35s;
+  pointer-events: none;
+}
+.rd-role-card.is-active .rd-role-card-glow { opacity: 1; }
+
+.rd-role-card-head {
+  display: flex; align-items: center; gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+.rd-role-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  background: var(--role-soft);
+  color: var(--role-hue);
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 4px var(--role-ring));
+}
+.rd-role-card-titles {
+  display: flex; flex-direction: column; min-width: 0;
+  flex: 1;
+}
+.rd-role-card-titles strong {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.2;
+}
+.rd-role-card-desc {
+  font-size: 10.5px;
+  color: var(--rd-text-3);
+  line-height: 1.3;
+  margin-top: 1px;
+}
+
+.rd-role-card-body {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 10px 0 8px;
+  position: relative;
+  z-index: 1;
+}
+.rd-role-card-num {
+  display: flex; align-items: baseline; gap: 4px;
+}
+.rd-role-card-num .big {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--role-hue);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 12px var(--role-soft);
+}
+.rd-role-card-num .unit {
+  font-size: 11px;
+  color: var(--rd-text-3);
+  font-weight: 500;
+}
+.rd-role-ring {
+  flex-shrink: 0;
+}
+
+.rd-role-card-foot {
+  display: flex; gap: 6px;
+  position: relative;
+  z-index: 1;
+}
+.rd-role-pill {
+  flex: 1;
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 3px 6px;
+  font-size: 10.5px;
+  color: var(--rd-text-2);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+}
+.rd-role-pill strong {
+  color: #fff;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.rd-role-pill--pre     { color: rgba(255,255,255,0.55); }
+.rd-role-pill--meeting {
+  background: var(--role-soft);
+  border-color: var(--role-ring);
+  color: var(--role-hue);
+}
+.rd-role-pill--meeting strong { color: var(--role-hue); }
+
+/* ── LTC chip 横滚条 ─────────────────────────────────────────── */
+.rd-ltc-strip {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 0 6px;
+  scrollbar-width: thin;
+}
+.rd-ltc-strip::-webkit-scrollbar { height: 6px; }
+.rd-ltc-strip::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 999px; }
+.rd-ltc-strip::-webkit-scrollbar-track { background: transparent; }
+
+.rd-ltc-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 11px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--rd-line);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--rd-text-2);
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all .2s;
+}
+.rd-ltc-chip:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--rd-text);
+}
+.rd-ltc-chip.is-hit {
+  border-color: rgba(255,141,26,0.32);
+  color: var(--rd-accent-2);
+}
+.rd-ltc-chip.is-active {
+  background: linear-gradient(135deg, rgba(255,141,26,0.32), rgba(255,141,26,0.14));
+  border-color: rgba(255,141,26,0.55);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 4px 14px -3px rgba(255,141,26,0.5);
+}
+.rd-ltc-chip-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--rd-accent);
+  flex-shrink: 0;
+}
+.rd-ltc-chip.is-active .rd-ltc-chip-dot { background: #fff; box-shadow: 0 0 6px rgba(255,255,255,0.55); }
+.rd-ltc-chip-label { font-size: 12px; }
+.rd-ltc-chip-count {
+  padding: 0 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 999px;
+  font-size: 10.5px;
+  color: var(--rd-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.rd-ltc-chip.is-active .rd-ltc-chip-count {
+  background: rgba(0,0,0,0.25);
+  color: #fff;
+}
+
+/* 屏幕较窄时角色卡两行 */
+@media (max-width: 1100px) {
+  .rd-role-cards { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ▌ SCI-FI 控制台升级层 — Future HUD Edition
+   ════════════════════════════════════════════════════════════════ */
+
+/* ① 全局透视网格背景 — 让整个空间有"控制台"地板感(强度↑) */
+.rd-root::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(255,141,26,0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,141,26,0.12) 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-position: center center;
+  mask-image: radial-gradient(ellipse 95% 85% at 50% 45%, black 0%, black 50%, transparent 90%);
+  -webkit-mask-image: radial-gradient(ellipse 95% 85% at 50% 45%, black 0%, black 50%, transparent 90%);
+  animation: rd-grid-drift 22s linear infinite;
+}
+@keyframes rd-grid-drift {
+  0%   { background-position: 0 0; }
+  100% { background-position: 56px 56px; }
+}
+
+/* ① 附加:水平扫描激光 — 7s 周期,亮度大幅增强 */
+.rd-root .rd-scan-line {
+  position: fixed;
+  left: 0; right: 0;
+  height: 2px;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,141,26,0) 5%,
+    rgba(255,141,26,0.95) 50%,
+    rgba(255,141,26,0) 95%,
+    transparent 100%);
+  box-shadow:
+    0 0 16px rgba(255,141,26,0.85),
+    0 0 32px rgba(255,141,26,0.45);
+  animation: rd-scan-sweep 7s linear infinite;
+  top: 0;
+}
+@keyframes rd-scan-sweep {
+  0%   { top: -2%;  opacity: 0; }
+  3%   { opacity: 1; }
+  97%  { opacity: 1; }
+  100% { top: 102%; opacity: 0; }
+}
+
+/* 第二条更慢的辉光扫描带(柔和大宽度) — 让屏幕始终有"扫描中"的感觉 */
+.rd-root::before {
+  content: '';
+  position: fixed;
+  left: 0; right: 0;
+  height: 240px;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(255,141,26,0.05) 50%,
+    transparent 100%);
+  animation: rd-scan-glow 18s linear infinite;
+  top: -240px;
+}
+@keyframes rd-scan-glow {
+  0%   { top: -240px; }
+  100% { top: 100vh; }
+}
+
+/* ② 阶段药丸:背景扫描光 + 内部"雷达 ping" */
+[data-stage-menu] > button {
+  position: relative;
+  overflow: hidden;
+}
+[data-stage-menu] > button::before {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  left: -50%;
+  width: 40%;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,0.18) 50%,
+    transparent 100%);
+  animation: rd-pill-sweep 5s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes rd-pill-sweep {
+  0%, 70% { left: -50%; }
+  85%     { left: 120%; }
+  100%    { left: 120%; }
+}
+/* 雷达 ping(那个橙色小点)外的脉冲圈 */
+[data-stage-menu] > button > span:first-child {
+  position: relative;
+}
+[data-stage-menu] > button > span:first-child::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,141,26,0.6);
+  animation: rd-radar-ping 2s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes rd-radar-ping {
+  0%   { transform: scale(0.6); opacity: 1; }
+  100% { transform: scale(3); opacity: 0; }
+}
+
+/* ③ 角色卡升级:HUD 角标 + 倾斜跟随鼠标(3D tilt) + 顶部刻度 */
+.rd-role-card {
+  perspective: 800px;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+/* 左上角 HUD 十字角标(L-shaped corner) */
+.rd-role-card::before {
+  content: '';
+  position: absolute;
+  top: 6px; left: 6px;
+  width: 14px; height: 14px;
+  border-top: 1.5px solid var(--role-hue);
+  border-left: 1.5px solid var(--role-hue);
+  border-top-left-radius: 4px;
+  opacity: 0.5;
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px var(--role-ring));
+  transition: opacity .25s;
+}
+.rd-role-card:hover::before,
+.rd-role-card.is-active::before { opacity: 1; }
+/* 右下角对称角标 */
+.rd-role-card::after {
+  content: '';
+  position: absolute;
+  bottom: 6px; right: 6px;
+  width: 14px; height: 14px;
+  border-bottom: 1.5px solid var(--role-hue);
+  border-right: 1.5px solid var(--role-hue);
+  border-bottom-right-radius: 4px;
+  opacity: 0.5;
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px var(--role-ring));
+  transition: opacity .25s;
+}
+.rd-role-card:hover::after,
+.rd-role-card.is-active::after { opacity: 1; }
+
+/* 进度环外加 tick 刻度——用 SVG 太麻烦,直接在卡上 conic-gradient 作虚拟刻度盘 */
+.rd-role-ring {
+  position: relative;
+}
+.rd-role-ring::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background:
+    conic-gradient(from 0deg,
+      var(--role-ring) 0deg, transparent 1deg,
+      transparent 30deg, var(--role-ring) 31deg,
+      var(--role-ring) 32deg, transparent 33deg,
+      transparent 62deg, var(--role-ring) 63deg,
+      var(--role-ring) 64deg, transparent 65deg,
+      transparent 94deg, var(--role-ring) 95deg,
+      var(--role-ring) 96deg, transparent 97deg,
+      transparent 126deg, var(--role-ring) 127deg,
+      var(--role-ring) 128deg, transparent 129deg,
+      transparent 158deg, var(--role-ring) 159deg,
+      var(--role-ring) 160deg, transparent 161deg,
+      transparent 190deg, var(--role-ring) 191deg,
+      var(--role-ring) 192deg, transparent 193deg,
+      transparent 222deg, var(--role-ring) 223deg,
+      var(--role-ring) 224deg, transparent 225deg,
+      transparent 254deg, var(--role-ring) 255deg,
+      var(--role-ring) 256deg, transparent 257deg,
+      transparent 286deg, var(--role-ring) 287deg,
+      var(--role-ring) 288deg, transparent 289deg,
+      transparent 318deg, var(--role-ring) 319deg,
+      var(--role-ring) 320deg, transparent 321deg,
+      transparent 350deg, var(--role-ring) 351deg,
+      var(--role-ring) 352deg, transparent 353deg);
+  mask: radial-gradient(circle, transparent 56%, black 58%, black 62%, transparent 64%);
+  -webkit-mask: radial-gradient(circle, transparent 56%, black 58%, black 62%, transparent 64%);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* 角色卡 hover/active 时旋转 1deg 给予轻微立体感 */
+.rd-role-card:hover:not(:disabled) {
+  transform: translateY(-3px) rotateX(2deg);
+}
+.rd-role-card.is-active {
+  transform: translateY(-1px) rotateX(1deg);
+}
+
+/* ④ 焦点卡进度条 — 流光动画(在已有进度条上叠一层) */
+.rd-survey-carousel + * .rd-focus-progress { /* placeholder */ }
+.rd-progress-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.rd-progress-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  left: -50%; width: 50%;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,0.55) 50%,
+    transparent 100%);
+  animation: rd-progress-flow 2.6s ease-in-out infinite;
+}
+@keyframes rd-progress-flow {
+  0%   { left: -50%; }
+  100% { left: 110%; }
+}
+
+/* ⑤ 资料 FAB:加扫描线 + 加角色标尺 */
+.rd-rail-fab::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  top: 50%;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(255,141,26,0.7),
+    transparent);
+  box-shadow: 0 0 8px rgba(255,141,26,0.6);
+  animation: rd-fab-scan 3.5s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes rd-fab-scan {
+  0%   { top: 8%;  opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { top: 92%; opacity: 0; }
+}
+
+/* ⑥ 元素 stagger 入场 — 让页面"组装"起来 */
+.rd-stagger > * {
+  animation: rd-elem-in .55s var(--rd-ease) backwards;
+}
+.rd-stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.rd-stagger > *:nth-child(2) { animation-delay: 0.12s; }
+.rd-stagger > *:nth-child(3) { animation-delay: 0.19s; }
+.rd-stagger > *:nth-child(4) { animation-delay: 0.26s; }
+.rd-stagger > *:nth-child(5) { animation-delay: 0.33s; }
+@keyframes rd-elem-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+/* CompactInsightHeader 加 stagger 入场 — 整个 header 滑入 */
+.rd-compact-header-enter {
+  animation: rd-header-in .5s var(--rd-ease) backwards;
+}
+@keyframes rd-header-in {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 角色卡组 stagger */
+.rd-role-cards > * {
+  animation: rd-role-card-in .65s var(--rd-ease) backwards;
+}
+.rd-role-cards > *:nth-child(1) { animation-delay: 0.08s; }
+.rd-role-cards > *:nth-child(2) { animation-delay: 0.18s; }
+.rd-role-cards > *:nth-child(3) { animation-delay: 0.28s; }
+.rd-role-cards > *:nth-child(4) { animation-delay: 0.38s; }
+@keyframes rd-role-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.92) rotateX(-8deg);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotateX(0);
+    filter: blur(0);
+  }
+}
+
+/* 字体细节:数字用更细的 letter-spacing,顶部 uppercase 标签 spacing 更大 */
+.rd-mono { font-feature-settings: 'tnum' 1, 'zero' 1; letter-spacing: 0.02em; }
+
+/* ════════════════════════════════════════════════════════════════
+   ▌ 老组件深色模式补丁 — 修 ResearchQuestionnaire 等浅色组件
+   ════════════════════════════════════════════════════════════════ */
+
+/* ▌ Form 元素(input / textarea / select):深色玻璃 + 高对比文字 + 浅色 placeholder */
+.rd-root input:not([type="checkbox"]):not([type="radio"]):not(.rd-no-glass),
+.rd-root textarea:not(.rd-no-glass),
+.rd-root select:not(.rd-no-glass) {
+  background: rgba(0, 0, 0, 0.32) !important;
+  color: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 6px;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.96);
+  caret-color: var(--rd-accent-2);
+}
+.rd-root input:focus:not([type="checkbox"]):not([type="radio"]):not(.rd-no-glass),
+.rd-root textarea:focus:not(.rd-no-glass),
+.rd-root select:focus:not(.rd-no-glass) {
+  border-color: rgba(255, 141, 26, 0.55) !important;
+  background: rgba(0, 0, 0, 0.45) !important;
+  box-shadow: 0 0 0 3px rgba(255, 141, 26, 0.12);
+  outline: none;
+}
+.rd-root input::placeholder,
+.rd-root textarea::placeholder {
+  color: rgba(255, 255, 255, 0.45) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.45);
+}
+
+/* ▌ Tailwind alpha 修饰 class(如 bg-emerald-50/70)— 用 [class*=""] 匹配前缀 */
+.rd-root [class*="bg-emerald-50"]:not(.rd-no-glass) { background: rgba(52, 211, 153, 0.14) !important; }
+.rd-root [class*="bg-emerald-100"]:not(.rd-no-glass) { background: rgba(52, 211, 153, 0.22) !important; }
+.rd-root [class*="bg-orange-50"]:not(.rd-no-glass)  { background: rgba(255, 141, 26, 0.16) !important; }
+.rd-root [class*="bg-orange-100"]:not(.rd-no-glass) { background: rgba(255, 141, 26, 0.22) !important; }
+.rd-root [class*="bg-blue-50"]:not(.rd-no-glass)    { background: rgba(96, 165, 250, 0.16) !important; }
+.rd-root [class*="bg-amber-50"]:not(.rd-no-glass)   { background: rgba(245, 158, 11, 0.16) !important; }
+.rd-root [class*="bg-red-50"]:not(.rd-no-glass)     { background: rgba(244, 63, 94, 0.16) !important; }
+.rd-root [class*="bg-purple-50"]:not(.rd-no-glass)  { background: rgba(192, 132, 252, 0.16) !important; }
+
+/* ▌ "/<N>" alpha 后缀的 emerald 文字色 */
+.rd-root [class*="text-emerald-700"]:not(.rd-no-glass),
+.rd-root [class*="text-emerald-800"]:not(.rd-no-glass) { color: #34D399 !important; }
+.rd-root [class*="text-emerald-600"]:not(.rd-no-glass) { color: #6EE7B7 !important; }
+
+/* ▌ border-emerald / border-orange 等的 alpha 修饰 */
+.rd-root [class*="border-emerald-100"]:not(.rd-no-glass),
+.rd-root [class*="border-emerald-200"]:not(.rd-no-glass) {
+  border-color: rgba(52, 211, 153, 0.28) !important;
+}
+.rd-root [class*="border-orange-100"]:not(.rd-no-glass),
+.rd-root [class*="border-orange-200"]:not(.rd-no-glass),
+.rd-root [class*="border-orange-300"]:not(.rd-no-glass) {
+  border-color: rgba(255, 141, 26, 0.32) !important;
+}
+
+/* ▌ text-ink / text-ink-secondary / text-ink-muted — 题干、描述这类常被漏 */
+.rd-root .text-ink             { color: var(--rd-text)   !important; }
+.rd-root .text-ink-secondary   { color: var(--rd-text-2) !important; }
+.rd-root .text-ink-muted       { color: var(--rd-text-3) !important; }
+
+/* ▌ 选项组里的题干、说明:统一兜底字色到 var(--rd-text-2) 以上 */
+.rd-root [class*="text-[10"],
+.rd-root [class*="text-[11"],
+.rd-root [class*="text-[12"],
+.rd-root [class*="text-[13"] {
+  color: var(--rd-text-2);
+}
+
+/* ▌ 兜底:深色 .rd-root 下任何被 Tailwind prose 染灰的段落、列表 — 强制提到 .94 */
+.rd-root .whitespace-pre-wrap,
+.rd-root [class*="leading-relaxed"]:not([class*="text-emerald"]):not([class*="text-orange"]):not([class*="text-blue"]):not([class*="text-amber"]):not([class*="text-red"]) {
+  color: rgba(255, 255, 255, 0.94);
+}

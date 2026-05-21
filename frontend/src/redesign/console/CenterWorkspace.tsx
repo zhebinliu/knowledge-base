@@ -15,7 +15,7 @@ import {
 import { useState } from 'react'
 import MarkdownView from '../../components/MarkdownView'
 import AgenticGapFiller from '../AgenticGapFiller'
-import CitedReportView from '../../components/console/CitedReportView'
+import InsightReportDark from './InsightReportDark'
 import MarkdownEditor from '../../components/console/MarkdownEditor'
 import StakeholderCanvas from '../../components/console/StakeholderCanvas'
 import GenerationProgressCard from './GenerationProgressCard'
@@ -148,213 +148,454 @@ function PreparationView({
   const filledVirtuals = (checklist?.virtual_required || []).concat(checklist?.virtual_recommended || [])
     .filter(v => v.filled)
 
+  // 缺什么 — 用于焦点卡里的「精确指引」
+  const missingRequired: { kind: 'doc' | 'virtual'; label: string; key: string }[] = []
+  for (const d of (checklist?.required_docs || [])) {
+    if (d.documents.length === 0) missingRequired.push({ kind: 'doc', label: d.label, key: d.doc_type })
+  }
+  for (const v of (checklist?.virtual_required || [])) {
+    if (!v.filled) missingRequired.push({ kind: 'virtual', label: v.label, key: v.key })
+  }
+
+  // 当前应该突出哪个动作
+  const title = allReady
+    ? (activeBundle ? '可以重新生成项目洞察' : '资料已齐 — 可以生成项目洞察了')
+    : `还差 ${reqTotal - reqDone} 项必备资料,补齐后即可生成`
+
+  return (
+    <FocusPreparationView
+      reqDone={reqDone}
+      reqTotal={reqTotal}
+      recDone={recDone}
+      recTotal={recTotal}
+      reqPct={reqPct}
+      allReady={allReady}
+      title={title}
+      hasBundle={!!activeBundle}
+      missingRequired={missingRequired}
+      uploadedDocs={uploadedDocs}
+      filledVirtuals={filledVirtuals}
+      checklist={checklist}
+      isGenerating={genMut.isPending}
+      onGenerate={() => genMut.mutate()}
+      onOpenCheckup={() => setCheckupOpen(true)}
+      checkupOpen={checkupOpen}
+      onCloseCheckup={() => setCheckupOpen(false)}
+      projectId={projectId}
+      error={error}
+      isInflight={!!activeInflight}
+      inflightBundle={activeInflight}
+    />
+  )
+}
+
+// ── PreparationView · 方案 A · Focus 版 ────────────────────────────────────
+function FocusPreparationView(p: {
+  reqDone: number; reqTotal: number; recDone: number; recTotal: number
+  reqPct: number; allReady: boolean; title: string; hasBundle: boolean
+  missingRequired: { kind: 'doc' | 'virtual'; label: string; key: string }[]
+  uploadedDocs: { doc_id: string; filename: string; type_label: string; status: string }[]
+  filledVirtuals: { key: string; label: string; filled_count: number; total_count: number }[]
+  checklist: any
+  isGenerating: boolean
+  onGenerate: () => void
+  onOpenCheckup: () => void
+  checkupOpen: boolean
+  onCloseCheckup: () => void
+  projectId: string
+  error: string | null
+  isInflight: boolean
+  inflightBundle: CuratedBundle | undefined
+}) {
+  // 当前展开的折叠区(同时最多一个)
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const toggle = (k: string) => setExpanded(prev => prev === k ? null : k)
+
+  if (p.isInflight && p.inflightBundle) {
+    return (
+      <div className="h-full overflow-auto" style={{ background: 'transparent' }}>
+        <div style={{ maxWidth: 760, margin: '0 auto', padding: '36px 28px' }}>
+          <GenerationProgressCard bundle={p.inflightBundle} />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="h-full overflow-auto" style={{ background: 'transparent' }}>
-      <div className="px-6 py-5 max-w-[1400px] mx-auto space-y-4">
+      <div style={{ maxWidth: 760, margin: '0 auto', padding: '36px 28px 60px' }}>
 
-        {activeInflight ? (
-          <GenerationProgressCard bundle={activeInflight} />
-        ) : (
-          <div
-            className="rd-card overflow-hidden"
-            style={{ padding: 0 }}
-          >
-            <div
-              className="px-6 py-5 flex items-start gap-4"
-              style={{
-                borderBottom: '1px solid var(--rd-line)',
-                background: 'linear-gradient(to right, rgba(255,141,26,0.10) 0%, rgba(255,255,255,0.06) 60%)',
-              }}
-            >
-              <div
-                className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-                style={{
-                  background: 'linear-gradient(135deg, var(--rd-accent), var(--rd-accent-2))',
-                  boxShadow: '0 6px 18px rgba(255,141,26,0.25)',
-                }}
-              >
-                <Lightbulb size={20} color="#fff" />
+        {/* ─── 焦点卡 ─── */}
+        <div
+          style={{
+            position: 'relative',
+            background: 'var(--rd-surface)',
+            border: '1px solid var(--rd-line)',
+            borderRadius: 18,
+            padding: '30px 32px 26px',
+            backdropFilter: 'blur(24px) saturate(140%)',
+            WebkitBackdropFilter: 'blur(24px) saturate(140%)',
+            boxShadow: '0 20px 60px -20px rgba(0,0,0,.5), 0 0 60px -20px rgba(255,141,26,.15)',
+            overflow: 'hidden',
+          }}
+        >
+          {/* 顶部装饰渐变 */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'radial-gradient(circle at 0% 0%, rgba(255,141,26,.12), transparent 55%)',
+            pointerEvents: 'none',
+          }} />
+
+          <div style={{ position: 'relative' }}>
+            {/* 状态药丸 */}
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '4px 12px',
+              background: p.allReady ? 'rgba(52,211,153,.14)' : 'rgba(255,141,26,.14)',
+              border: `1px solid ${p.allReady ? 'rgba(52,211,153,.35)' : 'rgba(255,141,26,.35)'}`,
+              borderRadius: 999,
+              fontSize: 10.5, fontWeight: 600,
+              color: p.allReady ? 'var(--rd-green)' : 'var(--rd-accent-2)',
+              letterSpacing: '.12em', textTransform: 'uppercase',
+              marginBottom: 16,
+            }}>
+              <Sparkles size={11} />
+              {p.allReady ? '可以生成' : '准备阶段'}
+            </div>
+
+            {/* 主标题 */}
+            <h2 style={{
+              fontSize: 22, fontWeight: 700, lineHeight: 1.35,
+              color: 'var(--rd-text)', margin: 0, marginBottom: 8,
+            }}>
+              {p.title}
+            </h2>
+            <p style={{
+              fontSize: 13, color: 'var(--rd-text-2)', lineHeight: 1.65,
+              margin: 0, marginBottom: 22,
+            }}>
+              基于上传文档 + 引导问卷,自动抽取业务底盘 / 系统现状 / 关键人 / 风险点,每段标注来源。
+            </p>
+
+            {/* 进度条 */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 14,
+              padding: '14px 16px',
+              background: 'rgba(255,255,255,.04)',
+              border: '1px solid var(--rd-line)',
+              borderRadius: 12,
+              marginBottom: 20,
+            }}>
+              <div style={{
+                fontSize: 26, fontWeight: 800,
+                color: p.allReady ? 'var(--rd-green)' : 'var(--rd-accent)',
+                fontVariantNumeric: 'tabular-nums', lineHeight: 1,
+              }}>
+                {p.reqDone}
+                <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--rd-text-3)' }}> / {p.reqTotal}</span>
               </div>
-              <div className="flex-1 min-w-0">
-                <h2 className="text-lg font-bold" style={{ color: 'var(--rd-text)' }}>项目洞察</h2>
-                <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--rd-text-2)' }}>
-                  基于上传文档 + 引导问卷生成项目诊断报告。
-                  <br/>把左侧文档清单补齐,系统会自动从文档抽取信息并标注每段来源。
-                </p>
+              <div className="rd-progress-shimmer" style={{ flex: 1, height: 6, background: 'rgba(255,255,255,.06)', borderRadius: 999, overflow: 'hidden', position: 'relative' }}>
+                <div style={{
+                  height: '100%', width: `${p.reqPct}%`,
+                  background: p.allReady
+                    ? 'linear-gradient(90deg, var(--rd-green), #6EE7B7)'
+                    : 'linear-gradient(90deg, var(--rd-accent), var(--rd-accent-2))',
+                  borderRadius: 999,
+                  boxShadow: p.allReady ? '0 0 12px rgba(52,211,153,.5)' : '0 0 12px rgba(255,141,26,.5)',
+                  transition: 'width .3s',
+                  position: 'relative',
+                  zIndex: 1,
+                }} />
               </div>
-              <div className="text-right shrink-0">
-                <div
-                  className="text-2xl font-extrabold tabular-nums"
-                  style={{ color: allReady ? '#10B981' : 'var(--rd-accent)' }}
-                >
-                  {reqDone}<span className="text-sm font-normal" style={{ color: 'var(--rd-text-3)' }}> / {reqTotal}</span>
+              <div style={{ fontSize: 11.5, color: 'var(--rd-text-3)' }}>
+                已完成 <strong style={{ color: 'var(--rd-text-2)' }}>{p.reqPct}%</strong>
+              </div>
+            </div>
+
+            {/* 缺什么 — 资料未齐时直接列前 3 项 */}
+            {!p.allReady && p.missingRequired.length > 0 && (
+              <div style={{ marginBottom: 18 }}>
+                <div style={{
+                  fontSize: 10.5, color: 'var(--rd-text-3)',
+                  letterSpacing: '.12em', textTransform: 'uppercase',
+                  fontWeight: 600, marginBottom: 8,
+                }}>还需要补齐</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {p.missingRequired.slice(0, 3).map(m => (
+                    <div key={m.key} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '9px 12px',
+                      background: 'rgba(255,141,26,.06)',
+                      border: '1px solid rgba(255,141,26,.20)',
+                      borderRadius: 10,
+                      fontSize: 12.5,
+                    }}>
+                      {m.kind === 'doc'
+                        ? <FileText size={12} style={{ color: 'var(--rd-accent-2)', flexShrink: 0 }} />
+                        : <Pencil size={12} style={{ color: 'var(--rd-accent-2)', flexShrink: 0 }} />}
+                      <span style={{ color: 'var(--rd-text)', flex: 1 }}>{m.label}</span>
+                      <span style={{ fontSize: 10.5, color: 'var(--rd-text-3)' }}>
+                        {m.kind === 'doc' ? '左栏上传' : '左栏作答'}
+                      </span>
+                    </div>
+                  ))}
+                  {p.missingRequired.length > 3 && (
+                    <div style={{ fontSize: 11.5, color: 'var(--rd-text-3)', marginTop: 2, paddingLeft: 2 }}>
+                      还有 {p.missingRequired.length - 3} 项 — 在左栏资料清单查看
+                    </div>
+                  )}
                 </div>
-                <div className="text-xs" style={{ color: 'var(--rd-text-3)' }}>必备资料</div>
               </div>
-            </div>
+            )}
 
-            <div className="px-6 py-4">
-              <div
-                className="h-2 rounded-full overflow-hidden mb-3"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--rd-line)' }}
+            {/* CTA */}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button
+                onClick={p.onGenerate}
+                disabled={p.isGenerating || (!p.allReady && !p.hasBundle)}
+                className={p.allReady || p.hasBundle ? 'rd-btn rd-btn-primary' : 'rd-btn'}
+                style={{
+                  flex: 1, padding: '12px 18px', fontSize: 13.5, fontWeight: 600,
+                  justifyContent: 'center',
+                  opacity: (!p.allReady && !p.hasBundle) ? .45 : 1,
+                  cursor: (p.isGenerating || (!p.allReady && !p.hasBundle)) ? 'not-allowed' : 'pointer',
+                }}
+                title={!p.allReady && !p.hasBundle ? '必备资料未齐,请先到左栏补齐' : ''}
               >
-                <div
-                  className="h-full transition-all rounded-full"
-                  style={{
-                    width: `${reqPct}%`,
-                    background: allReady ? '#10B981' : 'linear-gradient(135deg, var(--rd-accent), var(--rd-accent-2))',
-                  }}
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs flex-1" style={{ color: 'var(--rd-text-2)' }}>
-                  {allReady
-                    ? '✅ 必备资料已齐,可以开始生成洞察'
-                    : `还差 ${reqTotal - reqDone} 项必备资料(左栏 「+」 上传 / 「问卷」 填写)`}
-                </span>
-                <button
-                  onClick={() => setCheckupOpen(true)}
-                  className="rd-btn flex items-center justify-center gap-1.5 px-3 py-2 text-xs"
-                  title="生成前看每个章节的字段够不够,缺什么提前补"
-                >
-                  <Search size={12} /> 先看体检
-                </button>
-                {activeBundle ? (
-                  <button
-                    onClick={() => genMut.mutate()}
-                    disabled={genMut.isPending}
-                    className="rd-btn flex items-center justify-center gap-2 px-5 py-2 text-sm"
-                  >
-                    <RotateCw size={13} /> 重新生成
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => genMut.mutate()}
-                    disabled={genMut.isPending || !allReady}
-                    className="rd-btn rd-btn-primary flex items-center justify-center gap-2 px-5 py-2 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={!allReady ? '必备资料未齐,请先到左栏补齐' : ''}
-                  >
-                    {genMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                    {allReady ? '开始生成洞察' : '请先补齐必备资料'}
-                  </button>
-                )}
-              </div>
-              {error && <div className="mt-2 text-xs" style={{ color: '#dc2626' }}>{error}</div>}
-              {checkupOpen && (
-                <InsightCheckupDrawer projectId={projectId} onClose={() => setCheckupOpen(false)} />
-              )}
+                {p.isGenerating
+                  ? <><Loader2 size={14} className="animate-spin" /> 提交中…</>
+                  : p.hasBundle
+                    ? <><RotateCw size={13} /> 重新生成洞察</>
+                    : p.allReady
+                      ? <><Sparkles size={14} /> 开始生成洞察</>
+                      : <><Sparkles size={14} /> 请先补齐必备资料</>}
+              </button>
+              <button
+                onClick={p.onOpenCheckup}
+                className="rd-btn"
+                style={{ padding: '12px 14px', fontSize: 12.5 }}
+                title="生成前看每个章节的字段够不够"
+              >
+                <Search size={12} /> 先看体检
+              </button>
             </div>
+
+            {p.error && (
+              <div style={{ marginTop: 10, fontSize: 12, color: 'var(--rd-red)' }}>{p.error}</div>
+            )}
           </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <StatCard
-            label="必备资料"
-            value={`${reqDone} / ${reqTotal}`}
-            sub={allReady ? '已齐' : `还差 ${reqTotal - reqDone} 项`}
-            color={allReady ? '#10B981' : '#FF8D1A'}
-            icon={CheckCircle2}
-          />
-          <StatCard
-            label="推荐资料"
-            value={`${recDone} / ${recTotal}`}
-            sub={recDone === recTotal ? '已齐' : '建议补全'}
-            color={recDone === recTotal ? '#10B981' : '#3B82F6'}
-            icon={Lightbulb}
-          />
-          <StatCard
-            label="已上传文档"
-            value={`${uploadedDocs.length}`}
-            sub={uploadedDocs.length > 0 ? '点击下方查看' : '尚未上传'}
-            color="#8B5CF6"
-            icon={FileText}
-          />
         </div>
+        {/* ─── 焦点卡结束 ─── */}
 
-        {uploadedDocs.length > 0 && (
-          <div className="rd-card overflow-hidden" style={{ padding: 0 }}>
-            <div
-              className="px-5 py-3 flex items-center gap-2"
-              style={{ borderBottom: '1px solid var(--rd-line)' }}
+        {/* ─── 折叠详情区 ─── */}
+        <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <CollapsibleRow
+            icon={<CheckCircle2 size={13} />}
+            iconColor={p.allReady ? 'var(--rd-green)' : 'var(--rd-accent-2)'}
+            label="必备资料"
+            count={`${p.reqDone} / ${p.reqTotal}`}
+            countTone={p.allReady ? 'done' : 'warn'}
+            open={expanded === 'required'}
+            onToggle={() => toggle('required')}
+          >
+            <ChecklistDetail
+              items={(p.checklist?.required_docs || []).map((d: any) => ({
+                kind: 'doc', label: d.label, done: d.documents.length > 0,
+                sub: d.documents.length > 0 ? `${d.documents.length} 份已传` : '尚未上传',
+              })).concat(
+                (p.checklist?.virtual_required || []).map((v: any) => ({
+                  kind: 'virtual', label: v.label, done: v.filled,
+                  sub: v.filled ? `已答 ${v.filled_count}/${v.total_count}` : '尚未作答',
+                }))
+              )}
+            />
+          </CollapsibleRow>
+
+          <CollapsibleRow
+            icon={<Lightbulb size={13} />}
+            iconColor={p.recDone === p.recTotal ? 'var(--rd-green)' : 'var(--rd-blue)'}
+            label="推荐资料"
+            count={`${p.recDone} / ${p.recTotal}`}
+            countTone={p.recDone === p.recTotal ? 'done' : 'info'}
+            open={expanded === 'recommended'}
+            onToggle={() => toggle('recommended')}
+          >
+            <ChecklistDetail
+              items={(p.checklist?.recommended_docs || []).map((d: any) => ({
+                kind: 'doc', label: d.label, done: d.documents.length > 0,
+                sub: d.documents.length > 0 ? `${d.documents.length} 份已传` : '建议补全',
+              })).concat(
+                (p.checklist?.virtual_recommended || []).map((v: any) => ({
+                  kind: 'virtual', label: v.label, done: v.filled,
+                  sub: v.filled ? `已答 ${v.filled_count}/${v.total_count}` : '建议作答',
+                }))
+              )}
+            />
+          </CollapsibleRow>
+
+          {p.filledVirtuals.length > 0 && (
+            <CollapsibleRow
+              icon={<Pencil size={13} />}
+              iconColor="var(--rd-violet)"
+              label="已填问卷"
+              count={`${p.filledVirtuals.length}`}
+              countTone="done"
+              open={expanded === 'virtuals'}
+              onToggle={() => toggle('virtuals')}
             >
-              <FileText size={13} style={{ color: 'var(--rd-text-3)' }} />
-              <h3 className="text-sm font-semibold" style={{ color: 'var(--rd-text)' }}>已上传文档</h3>
-              <span className="text-xs" style={{ color: 'var(--rd-text-3)' }}>{uploadedDocs.length} 份</span>
-            </div>
-            <div>
-              {uploadedDocs.slice(0, 6).map((d, idx) => (
-                <div
-                  key={d.doc_id}
-                  className="px-5 py-2.5 flex items-center gap-3 transition"
-                  style={{
-                    borderTop: idx === 0 ? 'none' : '1px solid var(--rd-line)',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-                >
-                  <FileText size={12} className="shrink-0" style={{ color: 'var(--rd-text-3)' }} />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm truncate" style={{ color: 'var(--rd-text)' }}>{d.filename}</div>
-                    <div className="text-xs" style={{ color: 'var(--rd-text-3)' }}>
-                      <span
-                        className="px-1.5 py-0 rounded mr-1.5"
-                        style={{
-                          background: 'rgba(255,141,26,0.10)',
-                          color: 'var(--rd-accent)',
-                          border: '1px solid rgba(255,141,26,0.20)',
-                        }}
-                      >{d.type_label}</span>
-                      {d.status === 'completed' ? '已索引' : <span style={{ color: '#d97706' }}>{d.status} 中…</span>}
+              <div style={{ padding: '8px 14px 14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {p.filledVirtuals.map(v => (
+                  <div key={v.key} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '8px 10px',
+                    background: 'rgba(192,132,252,.08)',
+                    border: '1px solid rgba(192,132,252,.22)',
+                    borderRadius: 8,
+                  }}>
+                    <CheckCircle2 size={12} style={{ color: 'var(--rd-violet)', flexShrink: 0 }} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{
+                        fontSize: 12, fontWeight: 500, color: 'var(--rd-text)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>{v.label}</div>
+                      <div style={{ fontSize: 10.5, color: 'var(--rd-text-3)' }}>已答 {v.filled_count}/{v.total_count}</div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+                ))}
+              </div>
+            </CollapsibleRow>
+          )}
 
-        {filledVirtuals.length > 0 && (
-          <div className="rd-card" style={{ padding: '18px 20px' }}>
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles size={13} style={{ color: '#8B5CF6' }} />
-              <h3 className="text-sm font-semibold" style={{ color: 'var(--rd-text)' }}>已填问卷</h3>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {filledVirtuals.map(v => (
-                <div
-                  key={v.key}
-                  className="flex items-center gap-2 p-2.5 rounded"
-                  style={{
-                    background: 'rgba(16,185,129,0.10)',
-                    border: '1px solid rgba(16,185,129,0.25)',
-                  }}
-                >
-                  <CheckCircle2 size={13} style={{ color: '#10B981' }} className="shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-medium truncate" style={{ color: 'var(--rd-text)' }}>{v.label}</div>
-                    <div className="text-xs" style={{ color: 'var(--rd-text-3)' }}>已答 {v.filled_count}/{v.total_count}</div>
+          {p.uploadedDocs.length > 0 && (
+            <CollapsibleRow
+              icon={<FileText size={13} />}
+              iconColor="var(--rd-text-2)"
+              label="已上传文档"
+              count={`${p.uploadedDocs.length} 份`}
+              countTone="muted"
+              open={expanded === 'uploaded'}
+              onToggle={() => toggle('uploaded')}
+            >
+              <div>
+                {p.uploadedDocs.slice(0, 20).map((d, idx) => (
+                  <div key={d.doc_id} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 14px',
+                    borderTop: idx === 0 ? 'none' : '1px solid var(--rd-line)',
+                    fontSize: 12,
+                  }}>
+                    <FileText size={11} style={{ color: 'var(--rd-text-3)', flexShrink: 0 }} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ color: 'var(--rd-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.filename}</div>
+                      <div style={{ fontSize: 10.5, color: 'var(--rd-text-3)' }}>
+                        <span style={{
+                          padding: '0 6px', marginRight: 8,
+                          background: 'rgba(255,141,26,.10)',
+                          color: 'var(--rd-accent)',
+                          border: '1px solid rgba(255,141,26,.20)',
+                          borderRadius: 4,
+                        }}>{d.type_label}</span>
+                        {d.status === 'completed' ? '已索引' : `${d.status} 中…`}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+                ))}
+                {p.uploadedDocs.length > 20 && (
+                  <div style={{ padding: '8px 14px', fontSize: 11, color: 'var(--rd-text-3)', textAlign: 'center' }}>
+                    另有 {p.uploadedDocs.length - 20} 份未列出
+                  </div>
+                )}
+              </div>
+            </CollapsibleRow>
+          )}
+        </div>
 
-        {!allReady && (
-          <div
-            className="rounded-xl p-4 text-xs leading-relaxed"
-            style={{
-              background: 'rgba(255,141,26,0.10)',
-              border: '1px solid rgba(255,141,26,0.25)',
-              color: '#FBBF24',
-            }}
-          >
-            <strong>下一步:</strong> 在<strong>左侧文档清单</strong>里补齐带「★ 必需」的资料 —
-            上传文档点 <span className="px-1 py-0.5 rounded text-xs" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,141,26,0.30)' }}>+</span>
-             按钮、问卷点对应行打开作答。补完后回到这里点「开始生成」。
-          </div>
+        {p.checkupOpen && (
+          <InsightCheckupDrawer projectId={p.projectId} onClose={p.onCloseCheckup} />
         )}
       </div>
+    </div>
+  )
+}
+
+// ── 折叠区行(详情默认收起)─────────────────────────────────────
+function CollapsibleRow({
+  icon, iconColor, label, count, countTone, open, onToggle, children,
+}: {
+  icon: React.ReactNode; iconColor: string
+  label: string; count: string
+  countTone: 'done' | 'warn' | 'info' | 'muted'
+  open: boolean; onToggle: () => void
+  children: React.ReactNode
+}) {
+  const countBg =
+    countTone === 'done' ? 'rgba(52,211,153,.12)' :
+    countTone === 'warn' ? 'rgba(255,141,26,.12)' :
+    countTone === 'info' ? 'rgba(96,165,250,.12)' :
+                           'var(--rd-surface-elev)'
+  const countText =
+    countTone === 'done' ? 'var(--rd-green)' :
+    countTone === 'warn' ? 'var(--rd-accent-2)' :
+    countTone === 'info' ? 'var(--rd-blue)' :
+                           'var(--rd-text-3)'
+  return (
+    <div style={{
+      border: '1px solid var(--rd-line)',
+      borderRadius: 10,
+      background: 'rgba(255,255,255,.025)',
+      overflow: 'hidden',
+    }}>
+      <button
+        onClick={onToggle}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+          padding: '12px 16px',
+          background: 'transparent', border: 'none',
+          cursor: 'pointer', fontFamily: 'inherit',
+          color: 'var(--rd-text-2)', textAlign: 'left',
+        }}
+      >
+        <span style={{ color: iconColor, display: 'inline-flex' }}>{icon}</span>
+        <span style={{ flex: 1, fontSize: 13, color: 'var(--rd-text)' }}>{label}</span>
+        <span style={{
+          padding: '1px 8px',
+          background: countBg, color: countText,
+          borderRadius: 999, fontSize: 11, fontWeight: 600,
+          fontVariantNumeric: 'tabular-nums',
+        }}>{count}</span>
+        <span style={{
+          color: 'var(--rd-text-3)',
+          transition: 'transform .2s',
+          transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+          display: 'inline-flex',
+        }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ borderTop: '1px solid var(--rd-line)' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ChecklistDetail({ items }: { items: { kind: 'doc' | 'virtual'; label: string; done: boolean; sub: string }[] }) {
+  return (
+    <div>
+      {items.map((it, idx) => (
+        <div key={idx} style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '8px 14px',
+          borderTop: idx === 0 ? 'none' : '1px solid var(--rd-line)',
+          fontSize: 12,
+        }}>
+          {it.done
+            ? <CheckCircle2 size={12} style={{ color: 'var(--rd-green)', flexShrink: 0 }} />
+            : <span style={{ width: 12, height: 12, borderRadius: '50%', border: '1.5px solid var(--rd-text-3)', flexShrink: 0 }} />}
+          <span style={{ flex: 1, color: 'var(--rd-text)' }}>{it.label}</span>
+          <span style={{ fontSize: 10.5, color: it.done ? 'var(--rd-green)' : 'var(--rd-text-3)' }}>{it.sub}</span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -523,7 +764,7 @@ function ReportReadView({
                 <Loader2 size={16} className="inline animate-spin" /> 加载报告内容…
               </div>
             ) : data?.content_md ? (
-              <CitedReportView
+              <InsightReportDark
                 content={data.content_md}
                 provenance={provenance}
                 onCitationClick={onCitationClick || (() => {})}

@@ -90,6 +90,8 @@ export default function NewConsoleLayout() {
   return (
     <div className="rd-root" ref={shellRef}>
       <MeshOrbs />
+      {/* sci-fi 水平扫描激光 — 14s 一道,从屏幕上方扫到下方 */}
+      <div className="rd-scan-line" aria-hidden />
       <div className="rd-floatbar-scrim" />
       <div className="rd-dock-scrim" />
       <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />

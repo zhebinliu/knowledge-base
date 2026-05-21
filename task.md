@@ -1049,3 +1049,53 @@ docker-compose.yml: backend / celery_worker / frontend / frontend-uat 的 build 
 - kb.liii.in/console/meeting 创建/上传/转写/纪要全流程跑通
 - git submodule status 干净;ai-meeting/from-kb-system 上能看到完整代码
 - `git submodule update --remote meeting` 能把后续在 ai-meeting 仓的改动带回来
+
+---
+
+# 项目洞察 UAT · 方案 A(Focus 单焦点)+ Pin 增强 — 2026-05-18
+
+## 目标
+把 `/redesign/console/projects/<id>?stage=insight` 工作台从 dashboard 范式改为「单焦点 + 可钉住」范式。
+
+## 范围
+- **改:** `frontend/src/redesign/console/` 下相关组件
+- **不动:** prod(`frontend/src/pages/console/`)
+
+## 设计决策(已确认)
+- 默认:中央焦点卡 + 左/右栏全部抽屉化,默认收起
+- Pin 增强:左栏 DocChecklist 可「钉住」展开,变回三栏
+- 阶段切换:popover 下拉(替代横向 8 标签)
+- 「切换项目」:点击面包屑「项目 /」跳 `/redesign/console/projects`
+- sub-kind chips、action bar 移除,功能并入中央焦点卡
+
+## Phase 1 — Header 重构
+- [ ] P1.1 顶栏改单行:返回 / 面包屑 / 项目名 / 元信息 / 阶段下拉药丸 / 项目操作按钮
+- [ ] P1.2 阶段切换 → popover 下拉(带 done / inflight / locked 状态)
+- [ ] P1.3 移除横向阶段标签栏
+- [ ] P1.4 移除 sub-kind chips 横条
+- [ ] P1.5 移除 action bar(状态 + 主操作并入焦点卡)
+- [ ] P1.6 Header 总高度从 ~140px 收到 ~52px
+
+## Phase 2 — InsightWorkspace 布局重构
+- [ ] P2.1 主容器 flex justify-center,中央卡 max-width 760px
+- [ ] P2.2 左侧抽屉触发(垂直 tab,浮在中部固定)
+- [ ] P2.3 左侧抽屉 280-300px,左滑入 / 滑出动画
+- [ ] P2.4 Pin 按钮:抽屉内右上角,点后变 sidebar(三栏)
+- [ ] P2.5 Pin 状态持久化:localStorage `insight_pin_left`
+- [ ] P2.6 右侧 CitationsPanel 触发与左栏一致
+
+## Phase 3 — CenterWorkspace preparation 重写
+- [ ] P3.1 移除 3 个 StatCard
+- [ ] P3.2 已上传文档前 6 份独立卡 → 折叠区
+- [ ] P3.3 已填问卷绿色 grid → 折叠区
+- [ ] P3.4 移除底部「下一步」橙色 banner
+- [ ] P3.5 焦点卡:动态大标题 + 进度 + 主 CTA + 副 CTA(先看体检)
+- [ ] P3.6 「准备情况详情」折叠区:必备 / 推荐 / 已填 / 已上传 — 默认全收
+- [ ] P3.7 状态分支:inflight / bundle / allReady / !allReady
+
+## Phase 4 — 测试 + 部署
+- [ ] P4.1 `npx tsc --noEmit -p frontend/tsconfig.json`
+- [ ] P4.2 dev 浏览器验证 4 种状态
+- [ ] P4.3 rsync 同步 uat
+- [ ] P4.4 rebuild + restart frontend
+- [ ] P4.5 uat.tokenwave.cloud 真机验证

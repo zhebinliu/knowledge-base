@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   ClipboardList, Lightbulb, Sparkles, Loader2, Workflow,
   CheckCircle2, Pencil, Users, Briefcase,
+  Crown, UserCircle2, Cpu, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import {
   generateOutput,
@@ -35,12 +36,11 @@ const AUDIENCE_ROLE_DESC: Record<ResearchAudienceRole, string> = {
 }
 
 type GroupBy = 'role' | 'ltc'
-import MarkdownView from '../../../components/MarkdownView'
-import CitedReportView from '../../../components/console/CitedReportView'
+import InsightReportDark from '../InsightReportDark'
 import CitationsPanel from '../CitationsPanel'
 import MarkdownEditor from '../../../components/console/MarkdownEditor'
 import GenerationProgressCard from '../GenerationProgressCard'
-import ResearchQuestionnaire from '../../../components/console/research/ResearchQuestionnaire'
+import ResearchQuestionnaire from './ResearchQuestionnaireDark'
 import ExportPreMeetingButton from '../../../components/console/research/ExportPreMeetingButton'
 
 type ResearchView = 'preparation' | 'outline' | 'questionnaire'
@@ -139,120 +139,23 @@ export default function ResearchWorkspace({
   }, [groupBy, ltcDict, sowHitKeys, selectedLtcKey, selectedRole, roleCounts])
 
   return (
-    <div className="flex-1 flex overflow-hidden relative" style={{ background: 'transparent', minHeight: 0 }}>
-      {/* ── 左:分组面板 ── */}
-      <div
-        className="w-[280px] flex-shrink-0 flex flex-col"
-        style={{
-          background: 'rgba(255,255,255,0.06)',
-          backdropFilter: 'blur(32px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(32px) saturate(180%)',
-          borderRight: '1px solid rgba(255,255,255,0.06)',
-          boxShadow: 'inset 1px 0 0 rgba(255,255,255,0.10), inset -1px 0 0 rgba(255,255,255,0.30)',
-        }}
-      >
-        <div className="flex-shrink-0 px-3 pt-3 pb-2" style={{ borderBottom: '1px solid var(--rd-line)' }}>
-          <div className="text-xs mb-1.5" style={{ color: 'var(--rd-text-2)' }}>问卷分组方式</div>
-          <div
-            className="flex gap-1 p-0.5 rounded-lg"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--rd-line)' }}
-          >
-            <GroupTabBtn
-              active={groupBy === 'role'}
-              onClick={() => setGroupBy('role')}
-              icon={<Users size={11} />}
-              label="按角色"
-            />
-            <GroupTabBtn
-              active={groupBy === 'ltc'}
-              onClick={() => setGroupBy('ltc')}
-              icon={<Briefcase size={11} />}
-              label="按 LTC 模块"
-            />
-          </div>
-        </div>
+    <div className="flex-1 flex flex-col overflow-hidden relative" style={{ background: 'transparent', minHeight: 0 }}>
+      {/* ── 顶部:分组 carousel(角色卡 / LTC chip 卡)── */}
+      <ResearchGroupCarousel
+        groupBy={groupBy}
+        setGroupBy={setGroupBy}
+        selectedRole={selectedRole}
+        setSelectedRole={(r) => { setSelectedRole(r); if (surveyBundle) setView('questionnaire') }}
+        selectedLtcKey={selectedLtcKey}
+        setSelectedLtcKey={(k) => { setSelectedLtcKey(k); if (surveyBundle) setView('questionnaire') }}
+        roleCounts={roleCounts}
+        ltcModules={ltcDict?.modules ?? []}
+        sowHitKeys={sowHitKeys}
+        ltcMapItems={ltcMap?.items ?? []}
+        questionnaireItems={questionnaireItems}
+      />
 
-        <div className="flex-1 min-h-0 overflow-auto p-2 space-y-1">
-          {groupBy === 'role' ? (
-            <>
-              <div className="text-xs px-1 mb-1" style={{ color: 'var(--rd-text-3)' }}>
-                来自调研大纲的不同访谈人群
-              </div>
-              {AUDIENCE_ROLE_ORDER.map(role => (
-                <AudienceRoleRow
-                  key={role}
-                  role={role}
-                  selected={role === selectedRole}
-                  total={roleCounts[role].total}
-                  pre={roleCounts[role].pre}
-                  meeting={roleCounts[role].meeting}
-                  onClick={() => {
-                    setSelectedRole(role)
-                    if (surveyBundle) setView('questionnaire')
-                  }}
-                />
-              ))}
-            </>
-          ) : (
-            <>
-              <div className="text-xs px-1 mb-1" style={{ color: 'var(--rd-text-3)' }}>
-                共 {ltcDict?.modules?.length ?? 0} 个 ·
-                <span className="ml-1" style={{ color: 'var(--rd-accent)' }}>SOW 涉及 {sowHitKeys.size} 个</span>
-              </div>
-              {(ltcDict?.modules ?? []).map(m => (
-                <LtcModuleRow
-                  key={m.key}
-                  module={m}
-                  selected={m.key === selectedLtcKey}
-                  hit={sowHitKeys.has(m.key)}
-                  answeredCount={questionnaireItems.filter(q => q.ltc_module_key === m.key).length}
-                  onClick={() => {
-                    setSelectedLtcKey(m.key)
-                    if (surveyBundle) setView('questionnaire')
-                  }}
-                />
-              ))}
-              {(ltcMap?.items ?? []).filter(it => it.is_extra).length > 0 && (
-                <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--rd-line)' }}>
-                  <div className="text-xs px-1 mb-1" style={{ color: 'var(--rd-text-3)' }}>SOW 客户自定义模块</div>
-                  {Array.from(new Set((ltcMap?.items ?? []).filter(it => it.is_extra).map(it => it.sow_term)))
-                    .slice(0, 12)
-                    .map(sowTerm => {
-                      const selected = sowTerm === selectedLtcKey
-                      const answeredCount = questionnaireItems.filter(q => q.ltc_module_key === sowTerm).length
-                      return (
-                        <button
-                          key={sowTerm}
-                          onClick={() => {
-                            setSelectedLtcKey(sowTerm)
-                            if (surveyBundle) setView('questionnaire')
-                          }}
-                          className="w-full text-left px-2 py-1.5 rounded-md text-xs flex items-center gap-1.5 transition"
-                          style={{
-                            background: selected ? 'rgba(255,141,26,0.10)' : 'transparent',
-                            color: selected ? 'var(--rd-accent)' : 'var(--rd-text-2)',
-                            border: selected ? '1px solid rgba(255,141,26,0.25)' : '1px solid transparent',
-                          }}
-                          onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}
-                          onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent' }}
-                        >
-                          <span className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: '#a78bfa' }} />
-                          <span className="truncate flex-1">{sowTerm}</span>
-                          {answeredCount > 0 && (
-                            <span className="text-xs shrink-0 px-1 rounded" style={{ color: 'var(--rd-text-3)', background: 'rgba(255,255,255,0.06)' }}>
-                              {answeredCount} 题
-                            </span>
-                          )}
-                        </button>
-                      )
-                    })}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
+      <div className="flex-1 flex overflow-hidden" style={{ minHeight: 0 }}>
       {/* ── 中:工作区 ── */}
       <div
         className="flex-1 min-h-0 flex flex-col overflow-hidden"
@@ -418,22 +321,20 @@ export default function ResearchWorkspace({
             />
           </div>
         ) : (
-          <button
-            onClick={() => setRefsOpen(true)}
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1.5 px-2 py-3 rounded-l-md text-xs"
-            style={{
-              writingMode: 'vertical-rl' as any,
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid var(--rd-line)',
-              boxShadow: '0 4px 16px rgba(20,20,40,0.06)',
-              color: 'var(--rd-text-2)',
-            }}
-            title="展开引用追溯面板"
-          >
-            引用追溯
-          </button>
+          <aside className="rd-side-rail rd-side-rail--right">
+            <button
+              onClick={() => setRefsOpen(true)}
+              className="rd-rail-fab rd-rail-fab--right"
+              title="展开引用追溯面板"
+            >
+              <span className="rd-rail-fab-glow" aria-hidden />
+              <span className="rd-rail-fab-icon"><Sparkles size={15} /></span>
+              <span className="rd-rail-fab-label">引用追溯</span>
+            </button>
+          </aside>
         )
       ) : null}
+      </div>
     </div>
   )
 }
@@ -548,6 +449,204 @@ function LtcModuleRow({
           {answeredCount} 题
         </span>
       )}
+    </button>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// ResearchGroupCarousel — 顶部分组 carousel(替代左栏 sidebar)
+// role 模式:4 张角色卡(带完成度环 + pre/meeting 分布)
+// LTC 模式:横向滚动 chip 卡(SOW 高亮)
+// ──────────────────────────────────────────────────────────────────────────
+function ResearchGroupCarousel({
+  groupBy, setGroupBy,
+  selectedRole, setSelectedRole,
+  selectedLtcKey, setSelectedLtcKey,
+  roleCounts,
+  ltcModules, sowHitKeys, ltcMapItems,
+  questionnaireItems,
+}: {
+  groupBy: GroupBy
+  setGroupBy: (g: GroupBy) => void
+  selectedRole: ResearchAudienceRole | null
+  setSelectedRole: (r: ResearchAudienceRole) => void
+  selectedLtcKey: string | null
+  setSelectedLtcKey: (k: string) => void
+  roleCounts: Record<ResearchAudienceRole, { total: number; pre: number; meeting: number }>
+  ltcModules: ResearchLtcDictionaryEntry[]
+  sowHitKeys: Set<string>
+  ltcMapItems: { sow_term: string; is_extra: boolean }[]
+  questionnaireItems: { ltc_module_key?: string | null }[]
+}) {
+  return (
+    <div className="rd-survey-carousel">
+      {/* 顶栏:分组方式切换 + 总计统计 */}
+      <div className="rd-survey-carousel-bar">
+        <div className="rd-survey-segment">
+          <button
+            onClick={() => setGroupBy('role')}
+            className={`rd-survey-seg-btn${groupBy === 'role' ? ' is-active' : ''}`}
+            title="按访谈角色分组"
+          >
+            <Users size={11} /> 按角色
+          </button>
+          <button
+            onClick={() => setGroupBy('ltc')}
+            className={`rd-survey-seg-btn${groupBy === 'ltc' ? ' is-active' : ''}`}
+            title="按 LTC 业务模块分组"
+          >
+            <Briefcase size={11} /> 按 LTC
+          </button>
+        </div>
+        <span className="rd-survey-bar-hint">
+          {groupBy === 'role'
+            ? '来自调研大纲的 4 类访谈人群,点卡片切换'
+            : <>共 <strong>{ltcModules.length}</strong> 个 LTC 模块 ·
+                <span style={{ color: 'var(--rd-accent-2)' }}> SOW 涉及 {sowHitKeys.size} 个</span></>}
+        </span>
+      </div>
+
+      {/* 主体:卡片 carousel */}
+      {groupBy === 'role' ? (
+        <div className="rd-role-cards">
+          {AUDIENCE_ROLE_ORDER.map(role => (
+            <RoleCard
+              key={role}
+              role={role}
+              selected={role === selectedRole}
+              total={roleCounts[role].total}
+              pre={roleCounts[role].pre}
+              meeting={roleCounts[role].meeting}
+              onClick={() => setSelectedRole(role)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="rd-ltc-strip">
+          {ltcModules.map(m => {
+            const selected = m.key === selectedLtcKey
+            const hit = sowHitKeys.has(m.key)
+            const answered = questionnaireItems.filter(q => q.ltc_module_key === m.key).length
+            return (
+              <button
+                key={m.key}
+                onClick={() => setSelectedLtcKey(m.key)}
+                className={`rd-ltc-chip${selected ? ' is-active' : ''}${hit ? ' is-hit' : ''}`}
+                title={hit ? `SOW 涉及 · ${m.label}` : m.label}
+              >
+                {hit && <span className="rd-ltc-chip-dot" />}
+                <span className="rd-ltc-chip-label">{m.label}</span>
+                {answered > 0 && <span className="rd-ltc-chip-count">{answered}</span>}
+              </button>
+            )
+          })}
+          {/* SOW 客户自定义模块 */}
+          {Array.from(new Set(ltcMapItems.filter(it => it.is_extra).map(it => it.sow_term))).slice(0, 12).map(sowTerm => {
+            const selected = sowTerm === selectedLtcKey
+            const answered = questionnaireItems.filter(q => q.ltc_module_key === sowTerm).length
+            return (
+              <button
+                key={sowTerm}
+                onClick={() => setSelectedLtcKey(sowTerm)}
+                className={`rd-ltc-chip rd-ltc-chip--custom${selected ? ' is-active' : ''}`}
+                title={`SOW 自定义 · ${sowTerm}`}
+              >
+                <span className="rd-ltc-chip-dot" style={{ background: '#a78bfa' }} />
+                <span className="rd-ltc-chip-label">{sowTerm}</span>
+                {answered > 0 && <span className="rd-ltc-chip-count">{answered}</span>}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// 单张角色卡 — 玻璃 + 进度环 + 选中态 glow
+const ROLE_ICON_MAP: Record<ResearchAudienceRole, typeof Crown> = {
+  executive: Crown,
+  dept_head: Users,
+  frontline: UserCircle2,
+  it:        Cpu,
+}
+// 4 个角色用不同 accent 色,让横向排列时有视觉差异
+const ROLE_COLOR: Record<ResearchAudienceRole, { hue: string; soft: string; ring: string }> = {
+  executive: { hue: '#C084FC', soft: 'rgba(192,132,252,0.18)', ring: 'rgba(192,132,252,0.45)' },
+  dept_head: { hue: '#FFB066', soft: 'rgba(255,141,26,0.18)',  ring: 'rgba(255,141,26,0.55)'  },
+  frontline: { hue: '#60A5FA', soft: 'rgba(96,165,250,0.18)',  ring: 'rgba(96,165,250,0.45)'  },
+  it:        { hue: '#34D399', soft: 'rgba(52,211,153,0.18)',  ring: 'rgba(52,211,153,0.45)'  },
+}
+
+function RoleCard({
+  role, selected, total, pre, meeting, onClick,
+}: {
+  role: ResearchAudienceRole
+  selected: boolean
+  total: number
+  pre: number
+  meeting: number
+  onClick: () => void
+}) {
+  const Icon = ROLE_ICON_MAP[role]
+  const colors = ROLE_COLOR[role]
+  // 进度环:完成度 = (pre + meeting) / total (其实就是 100% 当有题时,但保留语义)
+  // 这里用 meeting / total 作为「现场访谈题占比」可视化
+  const meetingPct = total > 0 ? Math.round(meeting / total * 100) : 0
+  const R = 22
+  const C = 2 * Math.PI * R
+  const dash = total > 0 ? (meetingPct / 100) * C : 0
+
+  return (
+    <button
+      onClick={onClick}
+      className={`rd-role-card${selected ? ' is-active' : ''}${total === 0 ? ' is-empty' : ''}`}
+      style={{
+        '--role-hue':  colors.hue,
+        '--role-soft': colors.soft,
+        '--role-ring': colors.ring,
+      } as React.CSSProperties}
+      disabled={total === 0}
+      title={total === 0 ? `${AUDIENCE_ROLE_LABELS[role]} · 无问卷` : AUDIENCE_ROLE_LABELS[role]}
+    >
+      <span className="rd-role-card-glow" aria-hidden />
+
+      <div className="rd-role-card-head">
+        <span className="rd-role-card-icon"><Icon size={15} /></span>
+        <div className="rd-role-card-titles">
+          <strong>{AUDIENCE_ROLE_LABELS[role]}</strong>
+          <span className="rd-role-card-desc">{AUDIENCE_ROLE_DESC[role]}</span>
+        </div>
+      </div>
+
+      <div className="rd-role-card-body">
+        <div className="rd-role-card-num">
+          <span className="big">{total}</span>
+          <span className="unit">题</span>
+        </div>
+        <svg className="rd-role-ring" width="58" height="58" viewBox="0 0 58 58">
+          <circle cx="29" cy="29" r={R} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="4" />
+          <circle
+            cx="29" cy="29" r={R} fill="none"
+            stroke={colors.hue} strokeWidth="4" strokeLinecap="round"
+            strokeDasharray={`${dash} ${C}`}
+            transform="rotate(-90 29 29)"
+            style={{ filter: `drop-shadow(0 0 6px ${colors.ring})`, transition: 'stroke-dasharray .35s ease' }}
+          />
+          <text x="29" y="33" textAnchor="middle" fontSize="11" fontWeight="700" fill="#fff" fontFamily="ui-monospace,monospace">
+            {total > 0 ? `${meetingPct}%` : '—'}
+          </text>
+        </svg>
+      </div>
+
+      <div className="rd-role-card-foot">
+        <span className="rd-role-pill rd-role-pill--pre">
+          访前 <strong>{pre}</strong>
+        </span>
+        <span className="rd-role-pill rd-role-pill--meeting">
+          现场 <strong>{meeting}</strong>
+        </span>
+      </div>
     </button>
   )
 }
@@ -756,11 +855,9 @@ function OutlineMarkdownView({
     return <div className="text-sm italic py-8 text-center" style={{ color: 'var(--rd-text-3)' }}>没有 markdown 内容</div>
   }
   const provenance = (data?.provenance ?? bundle.provenance) || {}
-  if (Object.keys(provenance).length === 0) {
-    return <MarkdownView content={md} />
-  }
+  // 无论有无引用,统一走深色版渲染(没引用时 provenance={} 自然不会渲染角标)
   return (
-    <CitedReportView
+    <InsightReportDark
       content={md}
       provenance={provenance}
       onCitationClick={onCitationClick || (() => {})}

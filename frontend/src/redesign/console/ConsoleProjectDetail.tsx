@@ -23,7 +23,7 @@ import {
   ArrowLeft, FileText, ClipboardList, Lightbulb, MessageSquare, Sparkles,
   CheckCircle2, Loader2, Lock, Download, ExternalLink,
   Save, X, Wand2, AlertCircle, Pencil, Home, Files, Search,
-  Bot, ShieldAlert, ChevronDown, ChevronRight, Users, Eye,
+  Bot, ShieldAlert, ChevronDown, ChevronRight, ChevronLeft, Users, Eye,
 } from 'lucide-react'
 
 // 11 个子组件全部走 Liquid Glass 新版(redesign 目录下)
@@ -258,12 +258,65 @@ export default function NewConsoleProjectDetail() {
     catch (e: any) { alert(e?.response?.data?.detail || '触发生成失败') }
   }
 
+  // insight 和 survey 阶段下,用精简版 header(单行 + 阶段 popover);其他阶段保留厚 header stack
+  const useCompactHeader = activeKind === 'insight' || activeStageKey === 'survey'
+
   return (
     <div style={{
       flex: 1, minHeight: 0,
       display: 'flex', flexDirection: 'column',
     }}>
-      {/* ── 整个顶部 Header Stack 共用一片玻璃,内部用 hairline 分段 ── */}
+      {/* ── 精简单行 header(insight + survey 阶段)── */}
+      {useCompactHeader && (
+        <>
+          <CompactInsightHeader
+            project={project}
+            industryLabel={industryLabel}
+            stages={STAGES}
+            activeStageKey={activeStageKey}
+            setActiveStageKey={setActiveStageKey}
+            stageStatus={stageStatus}
+            onOpenCollab={() => setCollabOpen(true)}
+            onOpenStakes={() => setStakesOpen(true)}
+            onEdit={() => setEditing(v => !v)}
+            editing={editing}
+            onBack={() => nav('/console/projects')}
+          />
+          {/* subKind 切换条 — 当前阶段有子产物(如 survey 的「调研大纲 / 调研问卷」)时显示 */}
+          {activeStage.subKinds && (
+            <div style={{
+              ...GLASS_PANEL, flexShrink: 0,
+              padding: '7px 20px',
+              display: 'flex', alignItems: 'center', gap: 8,
+              borderTop: '1px solid rgba(0,0,0,0.18)',
+            }}>
+              <span style={{ fontSize: 11, color: 'var(--rd-text-3)' }}>本阶段产物</span>
+              {activeStage.subKinds.map(sk => {
+                const has = !!bundleByKind(sk.kind)
+                const inflight = !!inflightByKind(sk.kind)
+                const selected = activeKind === sk.kind
+                return (
+                  <button
+                    key={sk.kind}
+                    onClick={() => setSelectedSubKind(sk.kind)}
+                    className={`rd-chip${selected ? ' is-active' : ''}`}
+                    style={{ fontSize: 12, padding: '4px 12px' }}
+                    title={sk.label}
+                  >
+                    {has ? <CheckCircle2 size={10} color="#34D399" /> :
+                     inflight ? <Loader2 size={10} className="animate-spin" color="#38BDF8" /> :
+                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--rd-text-3)' }} />}
+                    {sk.label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── 原版 Header Stack(其他阶段)── */}
+      {!useCompactHeader && (
       <div style={{ ...GLASS_PANEL, flexShrink: 0 }}>
       {/* ── 顶部信息条:返回 + 项目名 + 元信息 + 操作 ── */}
       <div style={{
@@ -458,6 +511,7 @@ export default function NewConsoleProjectDetail() {
         </div>
       </div>
       </div>
+      )}
       {/* ── Header Stack 玻璃片结束 ── */}
 
       {/* ── 全局浮层 modals / drawers / edit panel(脱离 header 玻璃) ── */}
@@ -650,26 +704,62 @@ function InsightWorkspace({
     setHighlightedRef(`${moduleKey}:${refId}`)
   }
 
+  // ── 资料清单浮窗 tab + 浮动抽屉(始终显示 tab,点击弹抽屉)──
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const closeDrawer = () => setDrawerOpen(false)
+
+  const docChecklist = (
+    <DocChecklist
+      projectId={projectId}
+      stage="insight"
+      onOpenDocPreview={(docId) => { setCenterView({ type: 'preview', docId }); closeDrawer() }}
+      onOpenVirtualForm={(vkey) => { setCenterView({ type: 'virtual', vkey }); closeDrawer() }}
+      onOpenStakeholderCanvas={() => { setCenterView({ type: 'canvas' }); closeDrawer() }}
+    />
+  )
+
+  const hasProvenance = activeBundle?.provenance && Object.keys(activeBundle.provenance).length > 0
+
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', position: 'relative' }}>
-      <div style={{ width: 300, flexShrink: 0 }}>
-        <DocChecklist
-          projectId={projectId}
-          stage="insight"
-          onOpenDocPreview={(docId) => setCenterView({ type: 'preview', docId })}
-          onOpenVirtualForm={(vkey) => setCenterView({ type: 'virtual', vkey })}
-          onOpenStakeholderCanvas={() => setCenterView({ type: 'canvas' })}
-        />
+
+      {/* ── 左侧固定 rail — "小浮窗"按钮始终可见(改用 flex 子项,不再 absolute,保证显示) ── */}
+      <aside className="rd-side-rail rd-side-rail--left">
+        <button
+          onClick={() => setDrawerOpen(true)}
+          className="rd-rail-fab"
+          title="打开资料清单"
+        >
+          <span className="rd-rail-fab-glow" aria-hidden />
+          <span className="rd-rail-fab-icon"><ClipboardList size={15} /></span>
+          <span className="rd-rail-fab-label">资料清单</span>
+          <span className="rd-rail-fab-chev"><ChevronRight size={11} /></span>
+        </button>
+      </aside>
+
+      {/* ── 中:工作区 ── */}
+      <div style={{
+        flex: 1, minWidth: 0, display: 'flex', justifyContent: 'center', overflow: 'hidden',
+      }}>
+        <div style={{
+          width: '100%',
+          // 准备视图限宽 880(焦点卡居中聚焦);其他视图铺满
+          maxWidth: centerView.type === 'preparation' ? 880 : 'none',
+          display: 'flex', flexDirection: 'column', minWidth: 0,
+        }}>
+          <CenterWorkspace
+            projectId={projectId}
+            activeBundle={activeBundle}
+            activeInflight={activeInflight}
+            view={centerView}
+            setView={setCenterView}
+            onRefetch={onRefetch}
+            onCitationClick={onCitationClick}
+          />
+        </div>
       </div>
-      <CenterWorkspace
-        projectId={projectId}
-        activeBundle={activeBundle}
-        activeInflight={activeInflight}
-        view={centerView}
-        setView={setCenterView}
-        onRefetch={onRefetch}
-        onCitationClick={onCitationClick}
-      />
+
+      {/* ── 右:CitationsPanel(展开 vs tab) ── */}
       {rightOpen ? (
         <div style={{ width: 320, flexShrink: 0, borderLeft: '1px solid var(--rd-line)' }}>
           <CitationsPanel
@@ -679,27 +769,265 @@ function InsightWorkspace({
             onClose={() => setRightOpen(false)}
           />
         </div>
-      ) : activeBundle?.provenance && Object.keys(activeBundle.provenance).length > 0 ? (
-        <button
-          onClick={() => setRightOpen(true)}
-          style={{
-            position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
-            zIndex: 10,
-            padding: '12px 8px',
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid var(--rd-line)',
-            borderRight: 'none',
-            borderRadius: '8px 0 0 8px',
-            fontSize: 12, color: 'var(--rd-text-2)',
-            cursor: 'pointer',
-            writingMode: 'vertical-rl' as any,
-            fontFamily: 'inherit',
-          }}
-          title="展开引用追溯面板"
-        >
-          引用追溯
-        </button>
+      ) : hasProvenance ? (
+        <aside className="rd-side-rail rd-side-rail--right">
+          <button
+            onClick={() => setRightOpen(true)}
+            className="rd-rail-fab rd-rail-fab--right"
+            title="展开引用追溯面板"
+          >
+            <span className="rd-rail-fab-glow" aria-hidden />
+            <span className="rd-rail-fab-icon"><Search size={15} /></span>
+            <span className="rd-rail-fab-label">引用追溯</span>
+          </button>
+        </aside>
       ) : null}
+
+      {/* ── 资料清单浮动抽屉 ── */}
+      {drawerOpen && (
+        <div
+          onClick={closeDrawer}
+          style={{
+            position: 'absolute', inset: 0, zIndex: 25,
+            background: 'rgba(5, 8, 16, .45)',
+            backdropFilter: 'blur(2px)',
+            animation: 'rd-fade-in .18s ease-out',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              position: 'absolute', left: 0, top: 0, bottom: 0,
+              width: 'min(340px, 90vw)',
+              background: 'rgba(15, 18, 36, .94)',
+              backdropFilter: 'blur(28px) saturate(160%)',
+              WebkitBackdropFilter: 'blur(28px) saturate(160%)',
+              borderRight: '1px solid var(--rd-line)',
+              boxShadow: '8px 0 32px -8px rgba(0,0,0,.55)',
+              display: 'flex', flexDirection: 'column',
+              animation: 'rd-slide-in-left .25s var(--rd-ease)',
+            }}
+          >
+            <div style={{
+              padding: '10px 12px',
+              display: 'flex', alignItems: 'center', gap: 8,
+              borderBottom: '1px solid var(--rd-line)',
+              flexShrink: 0,
+            }}>
+              <ClipboardList size={13} color="var(--rd-accent-2)" />
+              <span style={{
+                fontSize: 11.5, color: 'var(--rd-text)',
+                letterSpacing: '.1em', fontWeight: 600, flex: 1,
+                textTransform: 'uppercase',
+              }}>
+                资料清单
+              </span>
+              <button
+                onClick={closeDrawer}
+                className="rd-icon-btn"
+                style={{ width: 26, height: 26, padding: 0 }}
+                title="关闭"
+              >
+                <X size={13} />
+              </button>
+            </div>
+            <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+              {docChecklist}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// CompactInsightHeader — insight 阶段专用的精简单行 header(方案 A · Focus)
+// ──────────────────────────────────────────────────────────────────────────
+function CompactInsightHeader({
+  project, industryLabel, stages, activeStageKey, setActiveStageKey, stageStatus,
+  onOpenCollab, onOpenStakes, onEdit, editing, onBack,
+}: {
+  project: Project
+  industryLabel: (val: string | null) => string | null
+  stages: StageDef[]
+  activeStageKey: string
+  setActiveStageKey: (k: string) => void
+  stageStatus: (s: StageDef) => StageStatus
+  onOpenCollab: () => void
+  onOpenStakes: () => void
+  onEdit: () => void
+  editing: boolean
+  onBack: () => void
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const activeStage = stages.find(s => s.key === activeStageKey) ?? stages[0]
+  const activeIdx = stages.findIndex(s => s.key === activeStageKey)
+
+  // 点外部关闭 popover
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = (e: MouseEvent) => {
+      const tgt = e.target as HTMLElement
+      if (!tgt.closest('[data-stage-menu]')) setMenuOpen(false)
+    }
+    window.addEventListener('mousedown', close)
+    return () => window.removeEventListener('mousedown', close)
+  }, [menuOpen])
+
+  return (
+    <div style={{ ...GLASS_PANEL, flexShrink: 0 }}>
+      <div style={{
+        padding: '9px 20px',
+        display: 'flex', alignItems: 'center', gap: 12,
+      }}>
+        <button onClick={onBack} className="rd-icon-btn" style={{ width: 30, height: 30 }} title="返回项目列表">
+          <ArrowLeft size={14} />
+        </button>
+
+        {/* 面包屑 + 项目名 */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0, flex: '0 1 auto' }}>
+          <button
+            onClick={onBack}
+            style={{
+              background: 'transparent', border: 'none', cursor: 'pointer', padding: 0,
+              fontSize: 12, color: 'var(--rd-text-3)', fontFamily: 'inherit',
+            }}
+            title="返回项目列表"
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--rd-text-2)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--rd-text-3)'}
+          >
+            项目 /
+          </button>
+          <h1 style={{
+            fontSize: 14, fontWeight: 700, color: 'var(--rd-text)', margin: 0,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280,
+          }}>{project.name}</h1>
+          <span style={{
+            fontSize: 11.5, color: 'var(--rd-text-3)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {project.customer || '未填客户'}
+            {project.industry && <> · {industryLabel(project.industry)}</>}
+            <> · {project.document_count} 份文档</>
+          </span>
+        </div>
+
+        {/* 阶段下拉药丸 */}
+        <div style={{ position: 'relative' }} data-stage-menu>
+          <button
+            onClick={() => setMenuOpen(o => !o)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '5px 12px 5px 10px',
+              background: 'rgba(255,141,26,.12)',
+              border: '1px solid rgba(255,141,26,.35)',
+              borderRadius: 999,
+              fontSize: 12.5, color: 'var(--rd-text)',
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}
+            title="切换阶段"
+          >
+            <span style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: 'var(--rd-accent)',
+              boxShadow: 'var(--rd-accent-glow)',
+            }} />
+            <span style={{
+              fontSize: 10.5, color: 'var(--rd-text-3)',
+              fontFamily: 'ui-monospace, monospace', letterSpacing: '.04em',
+            }}>
+              {String(activeIdx + 1).padStart(2, '0')} / {String(stages.length).padStart(2, '0')}
+            </span>
+            <strong style={{ fontWeight: 600 }}>{activeStage?.label}</strong>
+            <ChevronDown size={12} style={{ color: 'var(--rd-text-3)' }} />
+          </button>
+
+          {menuOpen && (
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 6px)', left: 0,
+              minWidth: 240,
+              background: 'rgba(20, 24, 40, .92)',
+              backdropFilter: 'blur(24px) saturate(160%)',
+              WebkitBackdropFilter: 'blur(24px) saturate(160%)',
+              border: '1px solid var(--rd-line)',
+              borderRadius: 12,
+              padding: 6,
+              boxShadow: '0 20px 48px -12px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06)',
+              zIndex: 50,
+              display: 'flex', flexDirection: 'column', gap: 2,
+            }}>
+              {stages.map((s, i) => {
+                const st = stageStatus(s)
+                const isActive = s.key === activeStageKey
+                return (
+                  <button
+                    key={s.key}
+                    onClick={() => { setActiveStageKey(s.key); setMenuOpen(false) }}
+                    disabled={!s.active}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      background: isActive ? 'rgba(255,141,26,.16)' : 'transparent',
+                      border: isActive ? '1px solid rgba(255,141,26,.32)' : '1px solid transparent',
+                      color: isActive ? 'var(--rd-text)' : (s.active ? 'var(--rd-text-2)' : 'var(--rd-text-3)'),
+                      fontSize: 12.5, textAlign: 'left',
+                      cursor: s.active ? 'pointer' : 'not-allowed',
+                      fontFamily: 'inherit',
+                    }}
+                    onMouseEnter={e => { if (!isActive && s.active) e.currentTarget.style.background = 'rgba(255,255,255,.05)' }}
+                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
+                  >
+                    <span style={{
+                      width: 20, height: 20, borderRadius: '50%',
+                      background: st === 'done' ? 'var(--rd-green)'
+                        : st === 'inflight' ? 'var(--rd-cyan)'
+                        : isActive ? 'linear-gradient(135deg, var(--rd-accent), var(--rd-accent-deep))'
+                        : 'rgba(255,255,255,.05)',
+                      color: st === 'done' || st === 'inflight' || isActive ? '#fff' : 'var(--rd-text-3)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 9.5, fontFamily: 'ui-monospace, monospace', fontWeight: 600,
+                      flexShrink: 0,
+                    }}>
+                      {st === 'done' ? '✓'
+                        : st === 'inflight' ? <Loader2 size={10} className="animate-spin" />
+                        : st === 'locked' ? <Lock size={9} />
+                        : String(i + 1).padStart(2, '0')}
+                    </span>
+                    <span style={{ flex: 1, fontWeight: isActive ? 600 : 400 }}>{s.label}</span>
+                    {st === 'done' && <span style={{ fontSize: 10, color: 'var(--rd-green)' }}>已生成</span>}
+                    {st === 'inflight' && <span style={{ fontSize: 10, color: 'var(--rd-cyan)' }}>生成中</span>}
+                    {st === 'locked' && <span style={{ fontSize: 10, color: 'var(--rd-text-3)' }}>未开放</span>}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        <div style={{ flex: 1 }} />
+
+        {project.my_role === 'read' && (
+          <span className="rd-badge is-gray" style={{ flexShrink: 0 }}>
+            <Eye size={10} /> 只读
+          </span>
+        )}
+        <button onClick={onOpenCollab} className="rd-btn" style={{ padding: '5px 10px', fontSize: 12 }} title="项目成员">
+          <Users size={11} />
+        </button>
+        <button onClick={onOpenStakes} className="rd-btn" style={{ padding: '5px 10px', fontSize: 12 }} title="项目级干系人">
+          <Users size={11} />
+        </button>
+        <button
+          onClick={onEdit}
+          className={editing ? 'rd-btn rd-btn-primary' : 'rd-btn'}
+          style={{ padding: '5px 10px', fontSize: 12 }}
+          title="项目信息"
+        >
+          <Pencil size={11} />
+        </button>
+      </div>
     </div>
   )
 }

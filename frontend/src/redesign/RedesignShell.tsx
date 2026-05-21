@@ -59,6 +59,8 @@ export default function RedesignShell() {
   return (
     <div className="rd-root" ref={shellRef}>
       <MeshOrbs />
+      {/* 水平扫描激光 — sci-fi 控制台未来感 */}
+      <div className="rd-scan-line" aria-hidden />
       {/* 顶/底渐变 scrim:保证 dock/topbar 上的文字始终可读 */}
       <div className="rd-floatbar-scrim" />
       <div className="rd-dock-scrim" />
