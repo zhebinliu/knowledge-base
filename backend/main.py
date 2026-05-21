@@ -263,6 +263,8 @@ async def startup():
             # 会议纪要集成:User 级飞书凭证(2026-05-11)
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS feishu_app_id VARCHAR(128)",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS feishu_app_secret VARCHAR(255)",
+            # 会议纪要模板演化(meeting submodule 098c283):Meeting.edited_minutes
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS edited_minutes JSON",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")
