@@ -5,7 +5,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, research, admin_invite_codes, project_stakeholders, smart_advice
+from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, research, admin_invite_codes, project_stakeholders, smart_advice, template
 from services.auth import get_current_user
 from services.rate_limit import limiter
 from services.vector_store import vector_store
@@ -155,6 +155,7 @@ app.include_router(coverage.router, prefix="/api/coverage", tags=["coverage"])
 app.include_router(call_logs.router, prefix="/api/call-logs", tags=["call-logs"])
 app.include_router(outputs.router, prefix="/api/outputs", tags=["outputs"])
 app.include_router(meeting.router, prefix="/api/meeting", tags=["meeting"])
+app.include_router(template.router, prefix="/api/templates", tags=["templates"])
 app.include_router(output_chats.router, prefix="/api/output-chats", tags=["output-chats"])
 app.include_router(briefs.router, prefix="/api/briefs", tags=["briefs"])
 app.include_router(stage_flow.router, prefix="/api/settings", tags=["stage-flow"])
@@ -195,6 +196,7 @@ async def startup():
     from models.captcha_challenge import CaptchaChallenge  # noqa: F401
     from models.project_collaborator import ProjectCollaborator  # noqa: F401
     from models.meeting import Meeting, Requirement  # noqa: F401  会议纪要(2026-05-11 接入)
+    from models.template import MeetingTemplate  # noqa: F401  会议纪要模板演化(2026-05-21 接入,create_all 建 meeting_templates 表)
     from models.project_stakeholder import ProjectStakeholder  # noqa: F401  项目级干系人资产(2026-05-12)
     from models.project_smart_advice import SmartAdvice  # noqa: F401  项目智能建议(2026-05-15)
     from sqlalchemy import text
