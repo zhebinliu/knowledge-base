@@ -658,6 +658,8 @@ OpenAI 兼容接口下,reasoning 模型的 `response.choices[0].message.content`
 
 ## 12. Meeting 模块抽 git submodule(2026-05-19)
 
+> ⚠️ **2026-05-25 已回退**:submodule 方案已撤销,`meeting/` 改回普通子目录,合回主仓。下文是当时的设计思路与踩坑记录,**仅供历史参考**。"双仓提交流程""submodule update""init --recursive"这些操作不再适用。**仍然有效的部分**:overlay 布局(12.2)和 Dockerfile 二次 COPY(12.3),这两个架构事实保留,详见 [PROJECT_OVERVIEW § 12](PROJECT_OVERVIEW.md)。
+
 ### 12.1 为什么是 submodule 而不是 skillhub 那种 symlink+独立 compose
 
 skillhub 当时是自带 backend/frontend/DB 的**独立服务**,直接两仓 + 服务器 symlink + 独立 compose 服务定义就行。
