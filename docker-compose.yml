@@ -1,3 +1,9 @@
+# 默认时区:北京时间。所有 service 通过 *tz_env 引入,容器内 date / 日志时间戳一致。
+# Python `datetime.now()`、postgres `now()`、nginx access log 都按这个时区。
+# 注:应用代码里的 `datetime.utcnow()` 不受 TZ 影响,仍返回 UTC(由后端代码控制)。
+x-tz: &tz_env
+  TZ: Asia/Shanghai
+
 services:
   # ── frontend-prod ────────────────────────────────────────────────────────
   # 持有 80/443 + 三域名 TLS;kb.liii.in/kb.tokenwave.cloud 服务自己 dist;
@@ -15,6 +21,8 @@ services:
       - "80:80"
       - "443:443"
     mem_limit: 256m
+    environment:
+      <<: *tz_env
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
@@ -50,6 +58,8 @@ services:
       args:
         ENV: uat
     mem_limit: 256m
+    environment:
+      <<: *tz_env
     expose:
       - "80"
     volumes:
@@ -76,6 +86,8 @@ services:
       - "127.0.0.1:8000:8000"
     env_file: .env
     mem_limit: 512m
+    environment:
+      <<: *tz_env
     depends_on:
       postgres:
         condition: service_healthy
@@ -108,6 +120,7 @@ services:
     env_file: .env
     mem_limit: 2g
     environment:
+      <<: *tz_env
       PYTHONPATH: /app
     depends_on:
       - postgres
@@ -129,6 +142,7 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     environment:
+      <<: *tz_env
       POSTGRES_DB: kb_system
       POSTGRES_USER: kb_admin
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -153,6 +167,7 @@ services:
     ports:
       - "127.0.0.1:6333:6333"
     environment:
+      <<: *tz_env
       QDRANT__STORAGE__OPTIMIZERS__MEMMAP_THRESHOLD_KB: 10000
     volumes:
       - qdrant_data:/qdrant/storage
@@ -168,6 +183,8 @@ services:
     mem_limit: 128m
     ports:
       - "127.0.0.1:6379:6379"
+    environment:
+      <<: *tz_env
     command: redis-server --maxmemory 64mb --maxmemory-policy allkeys-lru
     restart: unless-stopped
     healthcheck:
@@ -183,6 +200,7 @@ services:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9001:9001"
     environment:
+      <<: *tz_env
       MINIO_ROOT_USER: ${MINIO_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
     command: server /data --console-address ":9001"
@@ -204,6 +222,7 @@ services:
     env_file: .env
     mem_limit: 384m
     environment:
+      <<: *tz_env
       SKILLHUB_DB_HOST: postgres
       SKILLHUB_DB_PORT: "5432"
       SKILLHUB_DB_USER: kb_admin
@@ -231,6 +250,8 @@ services:
     image: ${SKILLHUB_FRONTEND_IMAGE:-kb-skillhub-frontend:latest}
     build: ./skillhub/frontend
     mem_limit: 128m
+    environment:
+      <<: *tz_env
     expose:
       - "80"
     depends_on:
