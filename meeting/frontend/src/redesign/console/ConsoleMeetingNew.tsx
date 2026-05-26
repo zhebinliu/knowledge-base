@@ -21,6 +21,7 @@ import {
 } from '../../api/client'
 import GlowCard from '../components/GlowCard'
 
+const MAX_FILE_SIZE_MB = 500
 type Mode = 'upload' | 'text'
 
 export default function NewConsoleMeetingNew() {
@@ -29,10 +30,20 @@ export default function NewConsoleMeetingNew() {
   const [title, setTitle] = useState('')
   const [projectId, setProjectId] = useState<string>('')
   const [file, setFile] = useState<File | null>(null)
+  const [fileSizeError, setFileSizeError] = useState<string | null>(null)
   const [transcript, setTranscript] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
+
+  const handleFileChange = (f: File | null) => {
+    setFileSizeError(null)
+    if (f && f.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      setFileSizeError(`音频文件 ${(f.size / 1024 / 1024).toFixed(1)} MB 超过 ${MAX_FILE_SIZE_MB} MB 限制，请压缩或裁剪后重试`)
+      return
+    }
+    setFile(f)
+  }
 
   const uploadMut = useMutation({
     mutationFn: () => {
@@ -170,7 +181,7 @@ export default function NewConsoleMeetingNew() {
                 <input
                   type="file"
                   accept="audio/*,video/*"
-                  onChange={e => setFile(e.target.files?.[0] ?? null)}
+                  onChange={e => handleFileChange(e.target.files?.[0] ?? null)}
                   style={{
                     fontSize: 13,
                     fontFamily: 'inherit',
@@ -182,9 +193,14 @@ export default function NewConsoleMeetingNew() {
                     已选:{file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
                   </p>
                 )}
+                {fileSizeError && (
+                  <p style={{ fontSize: 12, color: '#FB7185', margin: '10px 0 0', fontWeight: 600 }}>
+                    {fileSizeError}
+                  </p>
+                )}
               </div>
               <p style={{ fontSize: 11, color: 'var(--rd-text-3)', margin: '8px 0 0' }}>
-                支持 wav / mp3 / m4a / webm 等。50 MB 以内。上传后会异步走 xiaomi ASR 转写,完成后自动跑 AI pipeline。
+                支持 wav / mp3 / m4a / webm 等。最大 500 MB。上传后会异步走 xiaomi ASR 转写,完成后自动跑 AI pipeline。
               </p>
             </div>
           ) : (
@@ -236,7 +252,7 @@ export default function NewConsoleMeetingNew() {
                 if (mode === 'upload') uploadMut.mutate()
                 else textMut.mutate()
               }}
-              disabled={submitting || (mode === 'upload' ? !file : !transcript.trim())}
+              disabled={submitting || (mode === 'upload' ? !file || !!fileSizeError : !transcript.trim())}
               className="rd-btn rd-btn-primary"
             >
               {submitting && <Loader2 size={13} className="animate-spin" />}

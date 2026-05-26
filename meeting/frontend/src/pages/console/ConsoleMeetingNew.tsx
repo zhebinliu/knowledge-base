@@ -19,6 +19,7 @@ import {
 } from '../../api/client'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
+const MAX_FILE_SIZE_MB = 500
 type Mode = 'upload' | 'text'
 
 export default function ConsoleMeetingNew() {
@@ -27,10 +28,20 @@ export default function ConsoleMeetingNew() {
   const [title, setTitle] = useState('')
   const [projectId, setProjectId] = useState<string>('')
   const [file, setFile] = useState<File | null>(null)
+  const [fileSizeError, setFileSizeError] = useState<string | null>(null)
   const [transcript, setTranscript] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
+
+  const handleFileChange = (f: File | null) => {
+    setFileSizeError(null)
+    if (f && f.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      setFileSizeError(`音频文件 ${(f.size / 1024 / 1024).toFixed(1)} MB 超过 ${MAX_FILE_SIZE_MB} MB 限制，请压缩或裁剪后重试`)
+      return
+    }
+    setFile(f)
+  }
 
   const uploadMut = useMutation({
     mutationFn: () => {
@@ -132,11 +143,14 @@ export default function ConsoleMeetingNew() {
             <input
               type="file"
               accept="audio/*,video/*"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
               className="w-full text-sm file:mr-3 file:px-3 file:py-1.5 file:rounded-md file:border file:border-line file:bg-canvas file:text-ink hover:file:bg-canvas-elevated"
             />
+            {fileSizeError && (
+              <p className="text-[11px] text-rose-600 mt-1 font-medium">{fileSizeError}</p>
+            )}
             <p className="text-[11px] text-ink-muted mt-1">
-              支持 wav / mp3 / m4a / webm 等。50 MB 以内。上传后会异步走 xiaomi ASR 转写,完成后自动跑 AI pipeline。
+              支持 wav / mp3 / m4a / webm 等。最大 500 MB。上传后会异步走 xiaomi ASR 转写,完成后自动跑 AI pipeline。
             </p>
           </div>
         ) : (
@@ -175,7 +189,7 @@ export default function ConsoleMeetingNew() {
               if (mode === 'upload') uploadMut.mutate()
               else textMut.mutate()
             }}
-            disabled={submitting || (mode === 'upload' ? !file : !transcript.trim())}
+            disabled={submitting || (mode === 'upload' ? !file || !!fileSizeError : !transcript.trim())}
             className="px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-50 inline-flex items-center gap-2"
             style={{ background: BRAND_GRAD }}
           >

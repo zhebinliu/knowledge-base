@@ -22,7 +22,7 @@ import {
   runMeetingAction, syncMeetingToKB, syncMeetingStakeholdersToKB,
   exportMeetingToFeishu, syncMeetingRequirementsToBitable,
   listProjects, getFeishuCredentials, putFeishuCredentials, deleteFeishuCredentials,
-  exportMeetingDocxUrl,
+  exportMeetingDocxUrl, TOKEN_STORAGE_KEY,
   putMeetingStakeholderMap, patchMeetingRequirement, renameStakeholderRefs,
   createMeetingRequirement, deleteMeetingRequirement,
   syncMeetingStakeholdersToProject,
@@ -39,7 +39,7 @@ type Tab = 'overview' | 'transcript' | 'minutes' | 'requirements' | 'stakeholder
 
 // ── 时间戳跳转 Context ────────────────────────────────────────────────────
 
-const SeekToContext = createContext<((seconds: number) => void) | null>(null)
+export const SeekToContext = createContext<((seconds: number) => void) | null>(null)
 
 /** 格式化秒数为 MM:SS */
 export function fmtSeconds(s: number | null | undefined): string {
@@ -428,15 +428,39 @@ export function MinutesTab({ meeting }: { meeting: Meeting }) {
             >
               <Pencil size={13} /> 编辑
             </button>
-            <a
-              href={exportMeetingDocxUrl(meeting.id)}
-              download
+            <button
+              onClick={() => {
+                // 程序化下载：fetch → Blob → 强制 .docx 文件名，不依赖服务器 Content-Disposition
+                const token = localStorage.getItem(TOKEN_STORAGE_KEY)
+                const safeTitle = (meeting.title || '会议纪要').replace(/[/\\:*?"<>|]/g, '_')
+                fetch(exportMeetingDocxUrl(meeting.id), {
+                  headers: { Authorization: `Bearer ${token}` },
+                })
+                  .then(async resp => {
+                    if (!resp.ok) {
+                      const text = await resp.text().catch(() => '')
+                      throw new Error(text || `导出失败 (${resp.status})`)
+                    }
+                    return resp.blob()
+                  })
+                  .then(blob => {
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `${safeTitle}.docx`
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                    URL.revokeObjectURL(url)
+                  })
+                  .catch(err => toast.error(`docx 导出失败: ${err.message}`))
+              }}
               className="px-3 py-1.5 rounded-md text-sm text-white inline-flex items-center gap-1.5 hover:opacity-90"
               style={{ background: BRAND_GRAD }}
               title="按模板生成 docx 下载"
             >
               <Download size={13} /> 导出 docx
-            </a>
+            </button>
             <button
               onClick={() => regenMut.mutate()}
               disabled={regenMut.isPending}
