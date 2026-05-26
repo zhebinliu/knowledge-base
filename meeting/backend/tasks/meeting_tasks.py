@@ -64,12 +64,14 @@ async def _process_meeting_async(meeting_id: int):
 
     # 跑 pipeline(脱离 session,避免 LLM 长时间持有连接)
     try:
+        # 文字来源(asr_engine="text")跳过润色，直接使用原文进入后续阶段
         result = await run_full_pipeline(
             raw_transcript=raw,
             meeting_id=meeting_id,
             meeting_title=title,
             kb_docs=None,  # Block E 接 KB 联动后,这里读 project_id 拉 KB 文档
             template_dict=template_dict,
+            skip_polish=(meeting.asr_engine == "text"),
         )
     except Exception as e:
         logger.exception("meeting_pipeline_unhandled", meeting_id=meeting_id, error=str(e)[:200])

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import io
 import time
-from typing import Optional
+from typing import BinaryIO, Optional
 
 import structlog
 from minio import Minio
@@ -44,16 +44,47 @@ def ensure_bucket():
         logger.warning("ensure_bucket_failed", bucket=bucket, error=str(e)[:120])
 
 
+def _make_key(meeting_id: int, filename: str) -> str:
+    """生成 object_key，形如 4/1715420000-录音.mp3"""
+    safe_name = filename.replace("/", "_").replace("\\", "_")[:120]
+    return f"{meeting_id}/{int(time.time())}-{safe_name}"
+
+
 def upload_audio(meeting_id: int, filename: str, content: bytes, content_type: str = "audio/mpeg") -> str:
-    """上传音频。返回 object_key(用于后续下载和持久化)。"""
+    """上传音频(bytes)。返回 object_key(用于后续下载和持久化)。"""
     ensure_bucket()
     mc = _client()
     bucket = _bucket_name()
-    # key 形如 4/1715420000-录音.mp3
-    safe_name = filename.replace("/", "_").replace("\\", "_")[:120]
-    key = f"{meeting_id}/{int(time.time())}-{safe_name}"
+    key = _make_key(meeting_id, filename)
     mc.put_object(bucket, key, io.BytesIO(content), len(content), content_type=content_type)
     logger.info("meeting_audio_uploaded", meeting_id=meeting_id, key=key, bytes=len(content))
+    return key
+
+
+def upload_audio_stream(
+    meeting_id: int,
+    filename: str,
+    file_obj: BinaryIO,
+    length: int,
+    content_type: str = "audio/mpeg",
+) -> str:
+    """流式上传音频到 MinIO（大文件推荐，不全部读入内存）。
+
+    - file_obj: 可读文件对象（如 UploadFile.file / SpooledTemporaryFile）
+    - length: 文件字节数，MinIO put_object 流式模式必需
+    - 返回 object_key
+    """
+    ensure_bucket()
+    mc = _client()
+    bucket = _bucket_name()
+    key = _make_key(meeting_id, filename)
+    # 务必 rewind，确保从文件开头开始上传
+    try:
+        file_obj.seek(0)
+    except Exception:
+        pass
+    mc.put_object(bucket, key, file_obj, length, content_type=content_type)
+    logger.info("meeting_audio_uploaded", meeting_id=meeting_id, key=key, bytes=length)
     return key
 
 

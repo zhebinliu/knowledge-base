@@ -583,6 +583,12 @@ async def rename_stakeholder_references(
 
 # ── 音频上传 + ASR(Block C) ───────────────────────────────────────────
 
+# ── 上传限制常量 ──────────────────────────────────────────────────
+# 500MB 可覆盖绝大多数会议录音（128kbps MP3 ≈ 8 小时，16kHz WAV ≈ 4 小时）
+_MAX_UPLOAD_MB = 500
+_MAX_UPLOAD_BYTES = _MAX_UPLOAD_MB * 1024 * 1024
+
+
 @router.post("/upload", status_code=202)
 async def upload_audio_meeting(
     file: UploadFile = File(...),
@@ -593,17 +599,21 @@ async def upload_audio_meeting(
 ):
     """上传音频文件创建会议。后台异步:ASR → AI pipeline。
 
+    大文件采用流式上传到 MinIO（不全部读入内存）。
     成功返回 meeting_id,前端轮询 GET /{id} 拿状态。
     """
-    from services.meeting.storage import upload_audio
+    from services.meeting.storage import upload_audio, upload_audio_stream
     from tasks.meeting_tasks import transcribe_meeting as _task
 
-    # 简单大小限制(50 MB),防大文件打爆 MinIO
-    content = await file.read()
-    if not content:
+    file_size = file.size  # FastAPI 从 multipart part headers 解析，通常可用
+
+    # 1. 空文件检查
+    if file_size is not None and file_size == 0:
         raise HTTPException(400, "上传文件为空")
-    if len(content) > 50 * 1024 * 1024:
-        raise HTTPException(413, "音频文件超过 50 MB 限制")
+
+    # 2. 大小限制检查（优先用已知 size，不读文件）
+    if file_size is not None and file_size > _MAX_UPLOAD_BYTES:
+        raise HTTPException(413, f"音频文件超过 {_MAX_UPLOAD_MB} MB 限制")
 
     pid = await _validate_project_link(session, project_id, user)
     derived_title = title or (file.filename or "录音会议")
@@ -618,9 +628,36 @@ async def upload_audio_meeting(
     await session.commit()
     await session.refresh(m)
 
-    # 上传到 MinIO
+    # 3. 上传到 MinIO
     try:
-        object_key = upload_audio(m.id, file.filename or "audio.bin", content, content_type=file.content_type or "audio/mpeg")
+        if file_size is not None:
+            # ★ 已知大小：流式上传，大文件不占内存
+            object_key = upload_audio_stream(
+                m.id,
+                file.filename or "audio.bin",
+                file.file,
+                file_size,
+                content_type=file.content_type or "audio/mpeg",
+            )
+            bytes_uploaded = file_size
+        else:
+            # 兜底：chunked transfer 等边缘场景，回退到读内存方式
+            content = await file.read()
+            if not content:
+                raise HTTPException(400, "上传文件为空")
+            if len(content) > _MAX_UPLOAD_BYTES:
+                raise HTTPException(413, f"音频文件超过 {_MAX_UPLOAD_MB} MB 限制")
+            object_key = upload_audio(
+                m.id,
+                file.filename or "audio.bin",
+                content,
+                content_type=file.content_type or "audio/mpeg",
+            )
+            bytes_uploaded = len(content)
+    except HTTPException:
+        m.status = "failed"
+        await session.commit()
+        raise
     except Exception as e:
         logger.exception("meeting_upload_minio_failed", meeting_id=m.id, error=str(e)[:200])
         m.status = "failed"
@@ -633,7 +670,7 @@ async def upload_audio_meeting(
 
     # 触发 ASR Celery task
     _task.delay(m.id)
-    logger.info("meeting_upload_dispatched", meeting_id=m.id, bytes=len(content), key=object_key)
+    logger.info("meeting_upload_dispatched", meeting_id=m.id, bytes=bytes_uploaded, key=object_key)
     return {"meeting_id": m.id, "status": "accepted", "object_key": object_key}
 
 
@@ -746,11 +783,23 @@ async def export_meeting_docx(
         logger.exception("export_minutes_docx_failed", meeting_id=meeting_id, error=str(e)[:200])
         raise HTTPException(500, f"生成 docx 失败:{e}")
 
+    # 文件名：UTF-8 的 filename*= 为主，ASCII fallback filename= 为辅
     safe_name = quote(f"{m.title or '会议纪要'}.docx")
+    # 从标题提取纯 ASCII 字符作为 fallback（中文标题会被 strip 掉则用默认值）
+    ascii_name = "".join(c for c in (m.title or '') if ord(c) < 128 and c not in '\\/:*?"<>|')
+    if not ascii_name.strip():
+        ascii_name = "meeting_minutes"
+    ascii_name = (ascii_name.strip()[:50] or "meeting_minutes") + ".docx"
     return Response(
         content=docx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_name}"},
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename={quote(ascii_name)}; "
+                f"filename*=UTF-8''{safe_name}"
+            ),
+            "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        },
     )
 
 

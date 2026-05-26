@@ -9,8 +9,10 @@
  *
  * 功能 100% 等价:6 个 Tab 直接用老实现 + 主壳真功能(返回/重新处理/删除/进度)
  * 视觉:外壳是 Liquid Glass,Tab 内部仍是老 UI(可读但视觉不一致 — 等待下次细化)
+ *
+ * 2026-05-27 修复:补充 AudioPlayer + SeekToContext + ChatWidget,与旧版功能对齐。
  */
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
@@ -24,9 +26,13 @@ import {
 } from '../../api/client'
 import {
   StatusBadge, fmt,
+  SeekToContext,
   OverviewTab, TranscriptTab, MinutesTab,
   RequirementsTab, StakeholdersTab, ActionsTab,
 } from '../../pages/console/ConsoleMeetingDetail'
+import { getMeetingAudioUrl } from '../../api/meeting-ext'
+import AudioPlayer, { type AudioPlayerHandle } from '../../components/AudioPlayer'
+import ChatWidget from '../../components/ChatSidebar'
 import GlowCard from '../components/GlowCard'
 
 type Tab = 'overview' | 'transcript' | 'minutes' | 'requirements' | 'stakeholders' | 'actions'
@@ -46,6 +52,7 @@ export default function NewConsoleMeetingDetail() {
   const nav = useNavigate()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('overview')
+  const audioPlayerRef = useRef<AudioPlayerHandle>(null)
 
   const { data: meeting, isLoading, error } = useQuery({
     queryKey: ['meeting', meetingId],
@@ -80,6 +87,13 @@ export default function NewConsoleMeetingDetail() {
   if (error || !meeting) {
     return <div className="rd-page" style={{ textAlign: 'center', color: '#F87171', fontSize: 13 }}>会议不存在或无权访问</div>
   }
+
+  const handleSeekTo = (seconds: number) => {
+    audioPlayerRef.current?.seekTo(seconds)
+  }
+  const hasAudio = !!meeting?.audio_object_key
+  const hasContent = !!(meeting && (meeting.raw_transcript || meeting.meeting_minutes))
+  const audioUrl = hasAudio ? getMeetingAudioUrl(meeting.id) : ''
 
   return (
     <div className="rd-page" style={{ maxWidth: 1280 }}>
@@ -145,6 +159,13 @@ export default function NewConsoleMeetingDetail() {
           </div>
         </div>
       </GlowCard>
+
+      {/* 音频播放器(仅当有录音文件时显示) */}
+      {hasAudio && (
+        <div style={{ marginBottom: 14 }}>
+          <AudioPlayer ref={audioPlayerRef} audioUrl={audioUrl} />
+        </div>
+      )}
 
       {/* 转写进度条 — processing + total_chunks > 0 才显示 */}
       {meeting.status === 'processing' && meeting.total_chunks > 0 && (
@@ -233,15 +254,20 @@ export default function NewConsoleMeetingDetail() {
         </div>
 
         {/* Tab content — 内嵌老组件,功能 100% 等价 */}
-        <div style={{ padding: '20px 24px' }}>
-          {tab === 'overview' && <OverviewTab meeting={meeting} />}
-          {tab === 'transcript' && <TranscriptTab meeting={meeting} />}
-          {tab === 'minutes' && <MinutesTab meeting={meeting} />}
-          {tab === 'requirements' && <RequirementsTab meeting={meeting} />}
-          {tab === 'stakeholders' && <StakeholdersTab meeting={meeting} />}
-          {tab === 'actions' && <ActionsTab meeting={meeting} />}
-        </div>
+        <SeekToContext.Provider value={hasAudio ? handleSeekTo : null}>
+          <div style={{ padding: '20px 24px' }}>
+            {tab === 'overview' && <OverviewTab meeting={meeting} />}
+            {tab === 'transcript' && <TranscriptTab meeting={meeting} />}
+            {tab === 'minutes' && <MinutesTab meeting={meeting} />}
+            {tab === 'requirements' && <RequirementsTab meeting={meeting} />}
+            {tab === 'stakeholders' && <StakeholdersTab meeting={meeting} />}
+            {tab === 'actions' && <ActionsTab meeting={meeting} />}
+          </div>
+        </SeekToContext.Provider>
       </GlowCard>
+
+      {/* 智能问答悬浮球 + 侧边栏 */}
+      <ChatWidget meetingId={meeting.id} hasContent={hasContent} />
     </div>
   )
 }

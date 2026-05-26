@@ -258,6 +258,7 @@ async def run_full_pipeline(
     meeting_title: str = "",
     kb_docs: list[dict] | None = None,
     template_dict: dict | None = None,
+    skip_polish: bool = False,
 ) -> dict:
     """串行 + 并行编排:polish → (minutes ∥ requirements) → stakeholders。
 
@@ -265,16 +266,23 @@ async def run_full_pipeline(
     任何一阶段失败不阻断后续(降级为空结果),由调用方在 DB 里反映 status。
 
     Args:
+        skip_polish: 若为 True(如文本来源 asr_engine="text"),跳过润色，
+                     直接将 raw_transcript 作为 polished 进入后续阶段。
         template_dict: 可选的活跃模板 dict，注入 minutes 生成 prompt。
     """
-    logger.info("pipeline_start", meeting_id=meeting_id, in_chars=len(raw_transcript))
+    logger.info("pipeline_start", meeting_id=meeting_id, in_chars=len(raw_transcript),
+                skip_polish=skip_polish)
 
-    # Step 1: 润色
-    try:
-        polished = await polish_transcript(raw_transcript)
-    except Exception as e:
-        logger.exception("polish_failed", error=str(e)[:200])
-        polished = raw_transcript  # 失败时直接用原文
+    # Step 1: 润色(文本来源可跳过)
+    if skip_polish:
+        logger.info("polish_skipped", meeting_id=meeting_id, reason="asr_engine=text")
+        polished = raw_transcript
+    else:
+        try:
+            polished = await polish_transcript(raw_transcript)
+        except Exception as e:
+            logger.exception("polish_failed", error=str(e)[:200])
+            polished = raw_transcript  # 失败时直接用原文
 
     # Step 2 & 3: 并行
     minutes_task = asyncio.create_task(generate_minutes(polished, meeting_title, template_dict))
