@@ -21,5 +21,5 @@ export interface ChatResponse {
 
 /** 基于会议内容进行智能问答。 */
 export function chatWithMeeting(meetingId: number, question: string) {
-  return api.post<ChatResponse>(`/api/meeting/${meetingId}/chat`, { question })
+  return api.post<ChatResponse>(`/api/meeting/${meetingId}/chat`, { question }).then(res => res.data)
 }

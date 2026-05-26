@@ -1282,7 +1282,7 @@ function RequirementEditRow({
           <button onClick={() => {
             const s = startSeconds.trim() ? parseFloat(startSeconds) : undefined
             const e = endSeconds.trim() ? parseFloat(endSeconds) : undefined
-            onSave({ module, description, priority, speaker, start_seconds: s, end_seconds: e })
+            onSave({ module, description, priority, speaker, start_seconds: s, end_seconds: e } as any)
           }}
             disabled={saving || !description.trim()}
             className="p-1 rounded text-white disabled:opacity-50"
