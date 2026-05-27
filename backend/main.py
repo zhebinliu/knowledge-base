@@ -267,6 +267,20 @@ async def startup():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS feishu_app_secret VARCHAR(255)",
             # 会议纪要模板演化(meeting submodule 098c283):Meeting.edited_minutes
             "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS edited_minutes JSON",
+            # 会议纪要 — audio / 飞书 / KB 同步 / 干系人图谱 列补齐
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS audio_object_key VARCHAR(512)",
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS bitable_app_token VARCHAR(128)",
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS feishu_url TEXT",
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS kb_doc_id VARCHAR(64)",
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS kb_url TEXT",
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS kb_synced_at TIMESTAMP",
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS stakeholder_map JSON",
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS stakeholder_kb_doc_id VARCHAR(64)",
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS stakeholder_kb_url TEXT",
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS stakeholder_kb_synced_at TIMESTAMP",
+            # 会议需求 — 录音时间戳字段
+            "ALTER TABLE meeting_requirements ADD COLUMN IF NOT EXISTS start_seconds FLOAT",
+            "ALTER TABLE meeting_requirements ADD COLUMN IF NOT EXISTS end_seconds FLOAT",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")
