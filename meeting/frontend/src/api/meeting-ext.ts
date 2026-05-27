@@ -3,13 +3,15 @@
  *
  * 从 ./client 引入宿主 kb-system 的 api 实例。
  */
-import { api } from './client'
+import { api, TOKEN_STORAGE_KEY } from './client'
 
 // ── 音频 ──────────────────────────────────────────────────────────────────
 
-/** 获取会议录音的播放 URL(直接返回 blob URL 或用作 <audio src>)。 */
+/** 获取会议录音的播放 URL(包含 ?token=JWT，因为浏览器 <audio> 无法携带 Authorization 头)。 */
 export function getMeetingAudioUrl(meetingId: number): string {
-  return `/api/meeting/${meetingId}/audio`
+  const token = localStorage.getItem(TOKEN_STORAGE_KEY)
+  const params = token ? `?token=${encodeURIComponent(token)}` : ''
+  return `/api/meeting/${meetingId}/audio${params}`
 }
 
 // ── 智能问答 ──────────────────────────────────────────────────────────────

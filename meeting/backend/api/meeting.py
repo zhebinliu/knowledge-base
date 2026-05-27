@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Optional
 
 import structlog
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select, delete as sql_delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,7 +25,7 @@ from models import get_session
 from models.meeting import Meeting, Requirement
 from models.project import Project
 from models.user import User
-from services.auth import get_current_user
+from services.auth import get_current_user, get_current_user_for_media
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -1037,12 +1037,16 @@ async def sync_requirements_to_bitable(
 @router.get("/{meeting_id}/audio")
 async def stream_audio(
     meeting_id: int,
+    request: Request,
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_for_media),
 ):
-    """流式返回会议录音文件,支持 Range 请求(用于 HTML5 <audio> 拖拽播放)。"""
+    """流式返回会议录音文件,支持 Range 请求(用于 HTML5 <audio> 拖拽播放)。
+
+    鉴权支持 ?token=JWT 查询参数,因为浏览器 <audio> 元素无法携带 Authorization 头。
+    """
     from fastapi.responses import StreamingResponse
-    from services.meeting.storage import download_audio, _client, _bucket_name
+    from services.meeting.storage import _client, _bucket_name
 
     m = await _load_meeting_owned(meeting_id, session, user)
     if not m.audio_object_key:
@@ -1058,8 +1062,62 @@ async def stream_audio(
         logger.warning("audio_stat_failed", key=m.audio_object_key, error=str(e)[:120])
         raise HTTPException(500, "无法读取录音文件")
 
-    # 简单处理:不支持 Range 时返回完整文件
-    # MinIO get_object 本身支持 Range,这里直接流式全量返回
+    if file_size <= 0:
+        raise HTTPException(404, "音频文件为空")
+
+    # ── Range 请求解析 ─────────────────────────────────────────────
+    range_header = request.headers.get("Range", "")
+    is_range = bool(range_header)
+    start, end = 0, file_size - 1
+
+    if is_range:
+        range_val = range_header.replace("bytes=", "").strip()
+        try:
+            if range_val.startswith("-"):
+                suffix = int(range_val[1:])
+                start = max(0, file_size - suffix)
+            else:
+                parts = range_val.split("-", 1)
+                start = int(parts[0])
+                end = int(parts[1]) if parts[1].strip() else file_size - 1
+        except (ValueError, IndexError):
+            is_range = False
+
+        if is_range:
+            if start >= file_size:
+                raise HTTPException(416, f"Range 起始位置 {start} 超出文件大小 {file_size}")
+            end = min(end, file_size - 1)
+
+    # ── 流式生成器 ────────────────────────────────────────────────
+    if is_range:
+        content_length = end - start + 1
+
+        def _iter_range():
+            try:
+                resp = mc.get_object(bucket, m.audio_object_key, offset=start, length=content_length)
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    yield chunk
+                resp.close()
+                resp.release_conn()
+            except Exception as e:
+                logger.warning("audio_stream_error", key=m.audio_object_key, error=str(e)[:120])
+
+        return StreamingResponse(
+            _iter_range(),
+            status_code=206,
+            media_type=content_type,
+            headers={
+                "Content-Range": f"bytes {start}-{end}/{file_size}",
+                "Content-Length": str(content_length),
+                "Accept-Ranges": "bytes",
+                "Cache-Control": "no-cache",
+            },
+        )
+
+    # 无 Range → 全量流式返回
     def _iter():
         try:
             resp = mc.get_object(bucket, m.audio_object_key)

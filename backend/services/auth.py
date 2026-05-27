@@ -137,6 +137,50 @@ async def get_current_user_optional(
     return None
 
 
+async def get_current_user_for_media(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> User:
+    """媒体资源鉴权：优先 Authorization header，其次 ?token 查询参数。
+
+    浏览器原生 <audio>/<video> 无法携带自定义 Header，
+    因此允许通过查询参数传递 JWT token 作为备选。
+    """
+    token = _extract_bearer_token(request)
+    if not token:
+        token = request.query_params.get("token")
+
+    if not token:
+        raise HTTPException(401, "未登录")
+
+    # 支持 MCP API Key
+    mcp_user = await _user_from_mcp_key(session, token)
+    if mcp_user:
+        request.state.user_id = mcp_user.id
+        request.state.username = mcp_user.username
+        request.state.token_type = "mcp_key"
+        return mcp_user
+
+    try:
+        payload = decode_access_token(token)
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(401, "登录已过期，请重新登录")
+    except jwt.InvalidTokenError:
+        raise HTTPException(401, "无效的登录凭证")
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(401, "无效的登录凭证")
+
+    user = await session.get(User, user_id)
+    if not user or not user.is_active:
+        raise HTTPException(401, "用户不存在或已禁用")
+    request.state.user_id = user.id
+    request.state.username = user.username
+    request.state.token_type = "jwt"
+    return user
+
+
 async def require_admin(user: User = Depends(get_current_user)) -> User:
     if not user.is_admin:
         raise HTTPException(403, "需要管理员权限")
