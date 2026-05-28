@@ -1991,17 +1991,17 @@ export const syncMeetingStakeholdersToKB = async (id: number) => {
   return data
 }
 
-export const exportMeetingToFeishu = async (id: number, folderToken?: string) => {
-  const { data } = await api.post<{ status: string; url: string; document_id: string }>(
+export const exportMeetingToFeishu = async (id: number, options?: { folderToken?: string; existingDocUrl?: string }) => {
+  const { data } = await api.post<{ status: string; url: string; document_id: string; mode?: string }>(
     `/meeting/${id}/export-feishu`,
-    { folder_token: folderToken || null },
+    { folder_token: options?.folderToken || null, existing_doc_url: options?.existingDocUrl || null },
   )
   return data
 }
 
 export const syncMeetingRequirementsToBitable = async (
   id: number,
-  body: { bitable_app_token: string; table_id: string },
+  body: { bitable_app_token?: string; table_id?: string; bitable_url?: string },
 ) => {
   const { data } = await api.post<{ status: string; url: string; rows: number }>(
     `/meeting/${id}/sync-requirements`,
@@ -2012,7 +2012,7 @@ export const syncMeetingRequirementsToBitable = async (
 
 export const syncActionItemsToBitable = async (
   id: number,
-  body: { bitable_app_token: string; table_id: string },
+  body: { bitable_app_token?: string; table_id?: string; bitable_url?: string },
 ) => {
   const { data } = await api.post<{ status: string; url: string; rows: number }>(
     `/meeting/${id}/sync-action-items`,
@@ -2030,6 +2030,30 @@ export const createActionKanban = async (
   }>(
     `/meeting/${id}/create-action-kanban`,
     { folder_token: folderToken || null },
+  )
+  return data
+}
+
+// ── 飞书 URL 解析与权限检查 ─────────────────────────────────────────────
+
+export interface FeishuUrlCheckResult {
+  type: 'docx' | 'bitable' | 'folder'
+  has_permission: boolean
+  readable: boolean
+  message: string
+  guidance?: string
+  doc_token?: string
+  app_token?: string
+  table_id?: string
+  folder_token?: string
+  title?: string
+  tables?: Array<{ table_id: string; name: string }>
+}
+
+export const checkFeishuUrl = async (id: number, url: string): Promise<FeishuUrlCheckResult> => {
+  const { data } = await api.post<FeishuUrlCheckResult>(
+    `/meeting/${id}/check-feishu-url`,
+    { url },
   )
   return data
 }

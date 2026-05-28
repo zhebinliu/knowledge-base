@@ -21,14 +21,14 @@ import {
   getMeeting, deleteMeeting, processMeeting, patchMeeting, linkMeetingProject,
   runMeetingAction, syncMeetingToKB, syncMeetingStakeholdersToKB,
   exportMeetingToFeishu, syncMeetingRequirementsToBitable,
-  syncActionItemsToBitable, createActionKanban,
+  syncActionItemsToBitable, createActionKanban, checkFeishuUrl,
   listProjects, getFeishuCredentials, putFeishuCredentials, deleteFeishuCredentials,
   exportMeetingDocxUrl, TOKEN_STORAGE_KEY,
   putMeetingStakeholderMap, patchMeetingRequirement, renameStakeholderRefs,
   createMeetingRequirement, deleteMeetingRequirement,
   syncMeetingStakeholdersToProject,
   type Meeting, type MeetingStatus, type MeetingMinutes, type MeetingRequirement,
-  type StakeholderItem,
+  type StakeholderItem, type FeishuUrlCheckResult,
 } from '../../api/client'
 import { getMeetingAudioUrl } from '../../api/meeting-ext'
 import AudioPlayer, { type AudioPlayerHandle } from '../../components/AudioPlayer'
@@ -1827,6 +1827,26 @@ export function ActionsTab({ meeting }: { meeting: Meeting }) {
   const [todoBitableTable, setTodoBitableTable] = useState('')
   const [feishuFolder, setFeishuFolder] = useState('')
 
+  // 双路径模式切换
+  const [exportMode, setExportMode] = useState<'auto' | 'existing'>('auto')
+  const [reqMode, setReqMode] = useState<'manual' | 'url'>('manual')
+  const [todoMode, setTodoMode] = useState<'auto' | 'url'>('auto')
+
+  // URL 输入
+  const [exportDocUrl, setExportDocUrl] = useState('')
+  const [reqBitableUrl, setReqBitableUrl] = useState('')
+  const [todoBitableUrl, setTodoBitableUrl] = useState('')
+
+  // 权限检查状态
+  const [exportUrlCheck, setExportUrlCheck] = useState<FeishuUrlCheckResult | null>(null)
+  const [reqUrlCheck, setReqUrlCheck] = useState<FeishuUrlCheckResult | null>(null)
+  const [todoUrlCheck, setTodoUrlCheck] = useState<FeishuUrlCheckResult | null>(null)
+  const [exportUrlChecking, setExportUrlChecking] = useState(false)
+  const [reqUrlChecking, setReqUrlChecking] = useState(false)
+  const [todoUrlChecking, setTodoUrlChecking] = useState(false)
+  const [reqSelectedTable, setReqSelectedTable] = useState('')
+  const [todoSelectedTable, setTodoSelectedTable] = useState('')
+
   const { data: feishuStatus } = useQuery({
     queryKey: ['feishu-creds'],
     queryFn: getFeishuCredentials,
@@ -1849,26 +1869,47 @@ export function ActionsTab({ meeting }: { meeting: Meeting }) {
     onError: (err: any) => toast.error(err?.response?.data?.detail || err?.message || '同步干系人失败'),
   })
   const exportFeishuMut = useMutation({
-    mutationFn: () => exportMeetingToFeishu(meeting.id, feishuFolder.trim() || undefined),
+    mutationFn: () => {
+      if (exportMode === 'existing' && exportDocUrl.trim()) {
+        return exportMeetingToFeishu(meeting.id, { existingDocUrl: exportDocUrl.trim() })
+      }
+      return exportMeetingToFeishu(meeting.id, { folderToken: feishuFolder.trim() || undefined })
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
-      toast.success('会议纪要已导出到飞书文档')
+      toast.success(exportMode === 'existing' ? '会议纪要已写入已有文档' : '会议纪要已导出到飞书文档')
     },
     onError: (err: any) => toast.error(err?.response?.data?.detail || err?.message || '导出飞书失败'),
   })
   const syncBitableMut = useMutation({
-    mutationFn: () => syncMeetingRequirementsToBitable(meeting.id, {
-      bitable_app_token: bitableToken.trim(),
-      table_id: bitableTable.trim(),
-    }),
+    mutationFn: () => {
+      if (reqMode === 'url' && reqBitableUrl.trim()) {
+        return syncMeetingRequirementsToBitable(meeting.id, {
+          bitable_url: reqBitableUrl.trim(),
+          table_id: reqSelectedTable,
+        })
+      }
+      return syncMeetingRequirementsToBitable(meeting.id, {
+        bitable_app_token: bitableToken.trim(),
+        table_id: bitableTable.trim(),
+      })
+    },
     onSuccess: (data: any) => toast.success(`已写入 ${data.rows} 条需求到多维表`),
     onError: (err: any) => toast.error(err?.response?.data?.detail || err?.message || '同步需求失败'),
   })
   const syncTodoMut = useMutation({
-    mutationFn: () => syncActionItemsToBitable(meeting.id, {
-      bitable_app_token: todoBitableToken.trim(),
-      table_id: todoBitableTable.trim(),
-    }),
+    mutationFn: () => {
+      if (todoMode === 'url' && todoBitableUrl.trim()) {
+        return syncActionItemsToBitable(meeting.id, {
+          bitable_url: todoBitableUrl.trim(),
+          table_id: todoSelectedTable,
+        })
+      }
+      return syncActionItemsToBitable(meeting.id, {
+        bitable_app_token: todoBitableToken.trim(),
+        table_id: todoBitableTable.trim(),
+      })
+    },
     onSuccess: (data: any) => {
       qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
       toast.success(`已写入 ${data.rows} 条待办到看板`)
@@ -1885,11 +1926,64 @@ export function ActionsTab({ meeting }: { meeting: Meeting }) {
     onError: (err: any) => toast.error(err?.response?.data?.detail || err?.message || '创建看板失败'),
   })
 
+  // URL 权限检查辅助函数
+  const handleCheckExportUrl = async () => {
+    if (!exportDocUrl.trim()) return
+    setExportUrlChecking(true)
+    setExportUrlCheck(null)
+    try {
+      const result = await checkFeishuUrl(meeting.id, exportDocUrl.trim())
+      setExportUrlCheck(result)
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || err?.message || '检查文档权限失败')
+    } finally {
+      setExportUrlChecking(false)
+    }
+  }
+  const handleCheckReqUrl = async () => {
+    if (!reqBitableUrl.trim()) return
+    setReqUrlChecking(true)
+    setReqUrlCheck(null)
+    try {
+      const result = await checkFeishuUrl(meeting.id, reqBitableUrl.trim())
+      setReqUrlCheck(result)
+      if (result.tables?.length) {
+        setReqSelectedTable(result.table_id || result.tables[0].table_id)
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || err?.message || '检查多维表权限失败')
+    } finally {
+      setReqUrlChecking(false)
+    }
+  }
+  const handleCheckTodoUrl = async () => {
+    if (!todoBitableUrl.trim()) return
+    setTodoUrlChecking(true)
+    setTodoUrlCheck(null)
+    try {
+      const result = await checkFeishuUrl(meeting.id, todoBitableUrl.trim())
+      setTodoUrlCheck(result)
+      if (result.tables?.length) {
+        setTodoSelectedTable(result.table_id || result.tables[0].table_id)
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || err?.message || '检查多维表权限失败')
+    } finally {
+      setTodoUrlChecking(false)
+    }
+  }
+
   const feishuConfigured = feishuStatus?.configured
 
   // 待办数量
   const actionItems = meeting.meeting_minutes?.action_items || []
   const todoCount = actionItems.length
+
+  const inputClass = 'w-full px-3 py-1.5 rounded-md border border-line text-[12px] font-mono bg-canvas focus:outline-none focus:ring-1 focus:ring-brand/50'
+  const btnClass = 'px-3 py-1.5 rounded-md text-sm text-white disabled:opacity-40 inline-flex items-center gap-1.5 font-medium'
+  const secondaryBtnClass = 'shrink-0 px-2.5 py-1.5 rounded-md text-[12px] border border-line text-ink-secondary hover:bg-canvas-elevated disabled:opacity-50 inline-flex items-center gap-1'
+  const modeTabClass = (active: boolean) => `px-3 py-1 rounded text-[12px] font-medium cursor-pointer transition-colors ${active ? 'text-white' : 'text-ink-muted hover:bg-canvas-elevated'}`
+  const modeTabStyle = (active: boolean) => active ? { background: BRAND_GRAD } : {}
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -1915,154 +2009,275 @@ export function ActionsTab({ meeting }: { meeting: Meeting }) {
         hint={!meeting.stakeholder_map ? '需先提取干系人' : meeting.stakeholder_kb_doc_id ? `已同步` : ''}
       />
 
-      {/* ── 导出纪要到飞书云空间 ── */}
+      {/* ═══════════════ 导出纪要到飞书云空间 ═══════════════ */}
       <div className="rounded-lg border border-line bg-canvas-elevated p-4">
-        <div className="flex items-start justify-between gap-3 mb-1">
-          <div>
-            <h3 className="text-sm font-semibold text-ink">导出纪要至飞书云空间</h3>
-            <p className="text-[12px] text-ink-secondary mt-0.5">
-              将会议纪要以文档形式保存到你的飞书云空间,可指定目标文件夹。
-            </p>
-          </div>
-          <button
-            onClick={() => exportFeishuMut.mutate()}
-            disabled={!feishuConfigured || !meeting.meeting_minutes || exportFeishuMut.isPending}
-            className="shrink-0 px-3 py-1.5 rounded-md text-sm text-white disabled:opacity-40 inline-flex items-center gap-1.5"
-            style={{ background: BRAND_GRAD }}
-          >
-            {exportFeishuMut.isPending ? <Loader2 size={13} className="animate-spin" /> : null}
-            导出
-          </button>
-        </div>
-        <input
-          value={feishuFolder}
-          onChange={(e) => setFeishuFolder(e.target.value)}
-          placeholder="文件夹 token(可选,从飞书云空间文件夹 URL 获取,如 fldcnXXX)"
-          className="w-full px-3 py-1.5 mt-2 rounded-md border border-line text-[12px] font-mono"
-        />
-        {!feishuConfigured && (
-          <p className="text-[12px] text-ink-muted mt-1.5">请先在 设置 中配置飞书凭证</p>
-        )}
-        {!meeting.meeting_minutes && (
-          <p className="text-[12px] text-ink-muted mt-1.5">需先生成会议纪要</p>
-        )}
-        {meeting.feishu_url && (
-          <div className="text-[12px] text-emerald-700 mt-1.5">
-            ✓ 已导出 ·{' '}
-            <a href={meeting.feishu_url} target="_blank" rel="noreferrer" className="underline">
-              打开文档
-            </a>
-          </div>
-        )}
-      </div>
+        <h3 className="text-sm font-semibold text-ink mb-3">导出纪要至飞书云空间</h3>
 
-      {/* ── 同步需求到飞书多维表 ── */}
-      <div className="rounded-lg border border-line bg-canvas-elevated p-4">
-        <h3 className="text-sm font-semibold text-ink mb-1">同步需求到飞书多维表</h3>
-        <p className="text-[12px] text-ink-secondary mb-3">
-          请在飞书侧预先创建多维表 + 表,字段名对齐:req_id / module / description / priority / source / speaker / status
-        </p>
-        <div className="space-y-2">
-          <input
-            value={bitableToken}
-            onChange={(e) => setBitableToken(e.target.value)}
-            placeholder="多维表 app_token"
-            className="w-full px-3 py-1.5 rounded-md border border-line text-sm font-mono"
-          />
-          <input
-            value={bitableTable}
-            onChange={(e) => setBitableTable(e.target.value)}
-            placeholder="table_id"
-            className="w-full px-3 py-1.5 rounded-md border border-line text-sm font-mono"
-          />
-          <button
-            onClick={() => syncBitableMut.mutate()}
-            disabled={!feishuConfigured || !bitableToken || !bitableTable || syncBitableMut.isPending || !meeting.requirements?.length}
-            className="px-3 py-1.5 rounded-md text-sm text-white disabled:opacity-50 inline-flex items-center gap-1.5"
-            style={{ background: BRAND_GRAD }}
-          >
-            {syncBitableMut.isPending ? <Loader2 size={13} className="animate-spin" /> : null}
-            写入多维表
-          </button>
-          {syncBitableMut.data && (
-            <div className="text-[12px] text-emerald-700">
-              ✓ 已写入 {syncBitableMut.data.rows} 条 ·{' '}
-              <a href={syncBitableMut.data.url} target="_blank" rel="noreferrer" className="underline">
-                打开多维表
-              </a>
+        {/* Mode toggle */}
+        <div className="flex gap-1 bg-canvas rounded-md p-0.5 mb-3 w-fit">
+          <button onClick={() => { setExportMode('auto'); setExportUrlCheck(null); }} className={modeTabClass(exportMode === 'auto')} style={modeTabStyle(exportMode === 'auto')}>自动创建新文档</button>
+          <button onClick={() => { setExportMode('existing'); setExportUrlCheck(null); }} className={modeTabClass(exportMode === 'existing')} style={modeTabStyle(exportMode === 'existing')}>写入已有文档</button>
+        </div>
+
+        {exportMode === 'auto' ? (
+          <>
+            <p className="text-[12px] text-ink-secondary mb-2">自动在飞书云空间创建新文档并写入纪要。</p>
+            <input value={feishuFolder} onChange={(e) => setFeishuFolder(e.target.value)}
+              placeholder="文件夹 token(可选,从飞书文件夹 URL 获取,如 fldcnXXX)" className={inputClass} />
+            <div className="flex items-center justify-between mt-2">
+              <div>
+                {!feishuConfigured && <p className="text-[12px] text-ink-muted">请先在 设置 中配置飞书凭证</p>}
+                {!meeting.meeting_minutes && <p className="text-[12px] text-ink-muted">需先生成会议纪要</p>}
+                {meeting.feishu_url && (
+                  <span className="text-[12px] text-emerald-700">✓ 已导出 · <a href={meeting.feishu_url} target="_blank" rel="noreferrer" className="underline">打开文档</a></span>
+                )}
+              </div>
+              <button onClick={() => exportFeishuMut.mutate()}
+                disabled={!feishuConfigured || !meeting.meeting_minutes || exportFeishuMut.isPending}
+                className={btnClass} style={{ background: BRAND_GRAD }}>
+                {exportFeishuMut.isPending ? <Loader2 size={13} className="animate-spin" /> : null}导出
+              </button>
             </div>
-          )}
-          {!feishuConfigured && (
-            <p className="text-[12px] text-ink-muted">请先在 设置 中配置飞书凭证</p>
-          )}
-        </div>
+          </>
+        ) : (
+          <>
+            <p className="text-[12px] text-ink-secondary mb-2">
+              粘贴已有飞书文档链接,系统将清空旧内容后写入新会议纪要。
+            </p>
+            <div className="flex gap-2">
+              <input value={exportDocUrl} onChange={(e) => { setExportDocUrl(e.target.value); setExportUrlCheck(null); }}
+                placeholder="飞书文档链接,如 https://xxx.feishu.cn/docx/XXXX" className={inputClass + ' flex-1'} />
+              <button onClick={handleCheckExportUrl}
+                disabled={!exportDocUrl.trim() || exportUrlChecking}
+                className={secondaryBtnClass}>
+                {exportUrlChecking ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                检查权限
+              </button>
+            </div>
+
+            {/* Permission check result */}
+            {exportUrlCheck && (
+              <div className={`mt-2 p-2.5 rounded text-[12px] ${exportUrlCheck.has_permission ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                {exportUrlCheck.has_permission ? (
+                  <div className="flex items-start gap-1.5">
+                    <CheckCircle2 size={14} className="shrink-0 mt-0.5 text-emerald-600" />
+                    <div className="flex-1">
+                      <p className="font-medium">有权限访问</p>
+                      {exportUrlCheck.title && <p className="text-[11px] mt-0.5 opacity-75">文档: {exportUrlCheck.title}</p>}
+                      <button onClick={() => exportFeishuMut.mutate()}
+                        disabled={exportFeishuMut.isPending || !meeting.meeting_minutes}
+                        className="mt-1.5 px-2.5 py-1 rounded text-[12px] text-white inline-flex items-center gap-1 disabled:opacity-40"
+                        style={{ background: BRAND_GRAD }}>
+                        {exportFeishuMut.isPending ? <Loader2 size={11} className="animate-spin" /> : null}写入纪要
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-1.5">
+                    <AlertCircle size={14} className="shrink-0 mt-0.5 text-red-500" />
+                    <div className="flex-1 whitespace-pre-wrap">{exportUrlCheck.message}{exportUrlCheck.guidance ? '\n\n' + exportUrlCheck.guidance : ''}</div>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
-      {/* ── 同步待办到飞书看板(多维表) ── */}
+      {/* ═══════════════ 同步需求到飞书多维表 ═══════════════ */}
+      <div className="rounded-lg border border-line bg-canvas-elevated p-4">
+        <h3 className="text-sm font-semibold text-ink mb-3">同步需求到飞书多维表</h3>
+
+        {/* Mode toggle */}
+        <div className="flex gap-1 bg-canvas rounded-md p-0.5 mb-3 w-fit">
+          <button onClick={() => { setReqMode('manual'); setReqUrlCheck(null); }} className={modeTabClass(reqMode === 'manual')} style={modeTabStyle(reqMode === 'manual')}>手动输入 token</button>
+          <button onClick={() => { setReqMode('url'); setReqUrlCheck(null); }} className={modeTabClass(reqMode === 'url')} style={modeTabStyle(reqMode === 'url')}>粘贴多维表链接</button>
+        </div>
+
+        {reqMode === 'manual' ? (
+          <>
+            <p className="text-[12px] text-ink-secondary mb-2">字段对齐: req_id / module / description / priority / source / speaker / status</p>
+            <div className="space-y-2">
+              <input value={bitableToken} onChange={(e) => setBitableToken(e.target.value)}
+                placeholder="多维表 app_token" className={inputClass} />
+              <input value={bitableTable} onChange={(e) => setBitableTable(e.target.value)}
+                placeholder="table_id" className={inputClass} />
+              <button onClick={() => syncBitableMut.mutate()}
+                disabled={!feishuConfigured || !bitableToken || !bitableTable || syncBitableMut.isPending || !meeting.requirements?.length}
+                className={btnClass} style={{ background: BRAND_GRAD }}>
+                {syncBitableMut.isPending ? <Loader2 size={13} className="animate-spin" /> : null}写入多维表
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-[12px] text-ink-secondary mb-2">
+              粘贴飞书多维表链接,系统自动解析并校验权限。
+            </p>
+            <div className="flex gap-2 mb-2">
+              <input value={reqBitableUrl} onChange={(e) => { setReqBitableUrl(e.target.value); setReqUrlCheck(null); }}
+                placeholder="飞书多维表链接,如 https://xxx.feishu.cn/base/XXXX?table=YYYY" className={inputClass + ' flex-1'} />
+              <button onClick={handleCheckReqUrl}
+                disabled={!reqBitableUrl.trim() || reqUrlChecking}
+                className={secondaryBtnClass}>
+                {reqUrlChecking ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                检查
+              </button>
+            </div>
+
+            {/* Permission check result */}
+            {reqUrlCheck && (
+              <div className={`p-2.5 rounded text-[12px] ${reqUrlCheck.has_permission ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                {reqUrlCheck.has_permission ? (
+                  <div className="flex items-start gap-1.5">
+                    <CheckCircle2 size={14} className="shrink-0 mt-0.5 text-emerald-600" />
+                    <div className="flex-1">
+                      <p className="font-medium">有权限访问</p>
+                      {reqUrlCheck.tables && reqUrlCheck.tables.length > 0 ? (
+                        <div className="mt-1.5">
+                          <label className="text-[11px]">选择目标表:</label>
+                          <select value={reqSelectedTable} onChange={(e) => setReqSelectedTable(e.target.value)}
+                            className="w-full mt-1 px-2 py-1 rounded border border-emerald-200 text-[12px] bg-white">
+                            {reqUrlCheck.tables.map(t => (
+                              <option key={t.table_id} value={t.table_id}>{t.name || t.table_id}</option>
+                            ))}
+                          </select>
+                          <button onClick={() => syncBitableMut.mutate()}
+                            disabled={syncBitableMut.isPending || !meeting.requirements?.length}
+                            className="mt-2 px-2.5 py-1 rounded text-[12px] text-white inline-flex items-center gap-1 disabled:opacity-40"
+                            style={{ background: BRAND_GRAD }}>
+                            {syncBitableMut.isPending ? <Loader2 size={11} className="animate-spin" /> : null}写入多维表
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] mt-1 opacity-70">该多维表中暂无数据表,请先在飞书中创建</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-1.5">
+                    <AlertCircle size={14} className="shrink-0 mt-0.5 text-red-500" />
+                    <div className="flex-1 whitespace-pre-wrap">{reqUrlCheck.message}{reqUrlCheck.guidance ? '\n\n' + reqUrlCheck.guidance : ''}</div>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+        {syncBitableMut.data && (
+          <div className="text-[12px] text-emerald-700 mt-2">
+            ✓ 已写入 {syncBitableMut.data.rows} 条 ·{' '}
+            <a href={syncBitableMut.data.url} target="_blank" rel="noreferrer" className="underline">打开多维表</a>
+          </div>
+        )}
+        {!feishuConfigured && <p className="text-[12px] text-ink-muted mt-1.5">请先在 设置 中配置飞书凭证</p>}
+      </div>
+
+      {/* ═══════════════ 同步待办到飞书看板 ═══════════════ */}
       <div className="rounded-lg border border-amber-200 bg-amber-50/30 p-4">
-        <div className="flex items-start justify-between gap-3 mb-1">
-          <div>
-            <h3 className="text-sm font-semibold text-ink inline-flex items-center gap-1.5">
-              同步待办到飞书看板
-              {todoCount > 0 && (
-                <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-800">
-                  {todoCount} 条待办
-                </span>
-              )}
-            </h3>
-            <p className="text-[12px] text-ink-secondary mt-0.5">
-              将会议待办事项写入飞书多维表看板。看板按"状态"分组:待办 / 进行中 / 已完成。
+        <h3 className="text-sm font-semibold text-ink inline-flex items-center gap-1.5 mb-3">
+          同步待办到飞书看板
+          {todoCount > 0 && (
+            <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-800">{todoCount} 条待办</span>
+          )}
+        </h3>
+
+        {/* Mode toggle */}
+        <div className="flex gap-1 bg-white/70 rounded-md p-0.5 mb-3 w-fit">
+          <button onClick={() => { setTodoMode('auto'); setTodoUrlCheck(null); }} className={modeTabClass(todoMode === 'auto')} style={modeTabStyle(todoMode === 'auto')}>一键创建看板</button>
+          <button onClick={() => { setTodoMode('url'); setTodoUrlCheck(null); }} className={modeTabClass(todoMode === 'url')} style={modeTabStyle(todoMode === 'url')}>已有看板链接</button>
+        </div>
+
+        {todoMode === 'auto' ? (
+          <>
+            <p className="text-[12px] text-ink-secondary mb-2">
+              自动创建飞书多维表看板(含任务/负责人/截止日期/优先级/状态字段),然后写入待办。
             </p>
-          </div>
-        </div>
-        <div className="space-y-2 mt-2">
-          <div className="flex items-center gap-2">
-            <input
-              value={todoBitableToken}
-              onChange={(e) => setTodoBitableToken(e.target.value)}
-              placeholder="多维表 app_token(可与上方通用)"
-              className="flex-1 px-3 py-1.5 rounded-md border border-line text-sm font-mono"
-            />
-            <button
-              onClick={() => createKanbanMut.mutate()}
-              disabled={!feishuConfigured || createKanbanMut.isPending}
-              className="shrink-0 px-2.5 py-1.5 rounded-md text-[12px] border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50 inline-flex items-center gap-1"
-              title="若无现成看板,可一键自动创建"
-            >
-              {createKanbanMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <FolderKanban size={12} />}
-              一键创建看板
-            </button>
-          </div>
-          <input
-            value={todoBitableTable}
-            onChange={(e) => setTodoBitableTable(e.target.value)}
-            placeholder="table_id"
-            className="w-full px-3 py-1.5 rounded-md border border-line text-sm font-mono"
-          />
-          <button
-            onClick={() => syncTodoMut.mutate()}
-            disabled={!feishuConfigured || !todoBitableToken || !todoBitableTable || syncTodoMut.isPending || todoCount === 0}
-            className="px-3 py-1.5 rounded-md text-sm text-white disabled:opacity-50 inline-flex items-center gap-1.5"
-            style={{ background: BRAND_GRAD }}
-          >
-            {syncTodoMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <ListChecks size={13} />}
-            同步待办到看板
-          </button>
-          {syncTodoMut.data && (
-            <div className="text-[12px] text-emerald-700">
-              ✓ 已写入 {syncTodoMut.data.rows} 条待办 ·{' '}
-              <a href={syncTodoMut.data.url} target="_blank" rel="noreferrer" className="underline">
-                打开看板
-              </a>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input value={todoBitableToken} onChange={(e) => setTodoBitableToken(e.target.value)}
+                  placeholder="多维表 app_token(留空则自动创建)" className={inputClass + ' flex-1'} />
+                <button onClick={() => createKanbanMut.mutate()}
+                  disabled={!feishuConfigured || createKanbanMut.isPending}
+                  className="shrink-0 px-2.5 py-1.5 rounded-md text-[12px] border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50 inline-flex items-center gap-1">
+                  {createKanbanMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <FolderKanban size={12} />}
+                  一键创建看板
+                </button>
+              </div>
+              <input value={todoBitableTable} onChange={(e) => setTodoBitableTable(e.target.value)}
+                placeholder="table_id(自动创建后填入)" className={inputClass} />
+              <button onClick={() => syncTodoMut.mutate()}
+                disabled={!feishuConfigured || !todoBitableToken || !todoBitableTable || syncTodoMut.isPending || todoCount === 0}
+                className={btnClass} style={{ background: BRAND_GRAD }}>
+                {syncTodoMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <ListChecks size={13} />}
+                同步待办到看板
+              </button>
             </div>
-          )}
-          {!feishuConfigured && (
-            <p className="text-[12px] text-ink-muted">请先在 设置 中配置飞书凭证</p>
-          )}
-          {feishuConfigured && todoCount === 0 && (
-            <p className="text-[12px] text-ink-muted">会议纪要中暂无待办事项</p>
-          )}
-        </div>
+          </>
+        ) : (
+          <>
+            <p className="text-[12px] text-ink-secondary mb-2">
+              粘贴已有飞书多维表/看板链接,系统自动校验权限后写入待办。
+            </p>
+            <div className="flex gap-2 mb-2">
+              <input value={todoBitableUrl} onChange={(e) => { setTodoBitableUrl(e.target.value); setTodoUrlCheck(null); }}
+                placeholder="飞书多维表链接,如 https://xxx.feishu.cn/base/XXXX?table=YYYY" className={inputClass + ' flex-1'} />
+              <button onClick={handleCheckTodoUrl}
+                disabled={!todoBitableUrl.trim() || todoUrlChecking}
+                className={secondaryBtnClass}>
+                {todoUrlChecking ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                检查
+              </button>
+            </div>
+
+            {/* Permission check result */}
+            {todoUrlCheck && (
+              <div className={`p-2.5 rounded text-[12px] ${todoUrlCheck.has_permission ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                {todoUrlCheck.has_permission ? (
+                  <div className="flex items-start gap-1.5">
+                    <CheckCircle2 size={14} className="shrink-0 mt-0.5 text-emerald-600" />
+                    <div className="flex-1">
+                      <p className="font-medium">有权限访问</p>
+                      {todoUrlCheck.tables && todoUrlCheck.tables.length > 0 ? (
+                        <div className="mt-1.5">
+                          <label className="text-[11px]">选择目标表:</label>
+                          <select value={todoSelectedTable} onChange={(e) => setTodoSelectedTable(e.target.value)}
+                            className="w-full mt-1 px-2 py-1 rounded border border-emerald-200 text-[12px] bg-white">
+                            {todoUrlCheck.tables.map(t => (
+                              <option key={t.table_id} value={t.table_id}>{t.name || t.table_id}</option>
+                            ))}
+                          </select>
+                          <button onClick={() => syncTodoMut.mutate()}
+                            disabled={syncTodoMut.isPending || todoCount === 0}
+                            className="mt-2 px-2.5 py-1 rounded text-[12px] text-white inline-flex items-center gap-1 disabled:opacity-40"
+                            style={{ background: BRAND_GRAD }}>
+                            {syncTodoMut.isPending ? <Loader2 size={11} className="animate-spin" /> : null}同步待办
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] mt-1 opacity-70">该多维表中暂无数据表,请先在飞书中创建</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-1.5">
+                    <AlertCircle size={14} className="shrink-0 mt-0.5 text-red-500" />
+                    <div className="flex-1 whitespace-pre-wrap">{todoUrlCheck.message}{todoUrlCheck.guidance ? '\n\n' + todoUrlCheck.guidance : ''}</div>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {syncTodoMut.data && (
+          <div className="text-[12px] text-emerald-700 mt-2">
+            ✓ 已写入 {syncTodoMut.data.rows} 条待办 ·{' '}
+            <a href={syncTodoMut.data.url} target="_blank" rel="noreferrer" className="underline">打开看板</a>
+          </div>
+        )}
+        {!feishuConfigured && <p className="text-[12px] text-ink-muted mt-1.5">请先在 设置 中配置飞书凭证</p>}
+        {feishuConfigured && todoCount === 0 && <p className="text-[12px] text-ink-muted mt-1.5">会议纪要中暂无待办事项</p>}
       </div>
     </div>
   )

@@ -1,8 +1,9 @@
-"""飞书集成 minimal MVP(2026-05-11)。
+"""飞书集成(2026-05-29)。
 
-源自 meeting-ai/services/feishu/ 的精简迁移,只保留两个核心能力:
-1. 把会议纪要 markdown 导出为飞书 docx 文档
-2. 把需求清单批量写入飞书多维表(用户预先创建好表)
+核心能力:
+1. 把会议纪要 markdown 导出为飞书 docx 文档(支持自动创建 + 写入已有文档)
+2. 把需求清单批量写入飞书多维表(支持自动创建表 + 写入已有表)
+3. 把待办事项同步到飞书看板(支持自动创建 + 写入已有看板)
 
 凭证策略:
 - 每个用户在「个人设置 → 飞书集成」里配置自己的 feishu_app_id + feishu_app_secret。
@@ -353,6 +354,257 @@ def _markdown_to_blocks(markdown: str) -> list[dict]:
     return blocks
 
 
+# ── 飞书 URL 解析 ──────────────────────────────────────────────────────
+
+# 飞书文档/多维表 URL 正则,提取资源类型和 token
+_FEISHU_URL_PATTERNS = [
+    # docx: https://xxx.feishu.cn/docx/{doc_token}
+    (re.compile(r"feishu\.cn/docx/([A-Za-z0-9_-]+)"), "docx"),
+    # base(多维表): https://xxx.feishu.cn/base/{app_token}?table={table_id}
+    (re.compile(r"feishu\.cn/base/([A-Za-z0-9_-]+)(?:\?.*\btable=([A-Za-z0-9_-]+))?"), "bitable"),
+    # drive/folder: https://xxx.feishu.cn/drive/folder/{folder_token}
+    (re.compile(r"feishu\.cn/drive/folder/([A-Za-z0-9_-]+)"), "folder"),
+    # 也支持旧版 wiki 链接
+    (re.compile(r"feishu\.cn/wiki/([A-Za-z0-9_-]+)"), "docx"),
+]
+
+
+def parse_feishu_url(url: str) -> dict | None:
+    """解析飞书 URL,提取资源类型和关键 token。
+
+    返回格式: {"type": "docx"|"bitable"|"folder", "doc_token"/"app_token": "...", "table_id"?: "..."}
+    解析失败或 URL 格式不识别返回 None。
+    """
+    url = url.strip()
+    if not url:
+        return None
+
+    for pattern, rtype in _FEISHU_URL_PATTERNS:
+        m = pattern.search(url)
+        if m:
+            if rtype == "docx":
+                return {"type": "docx", "doc_token": m.group(1)}
+            elif rtype == "bitable":
+                result: dict = {"type": "bitable", "app_token": m.group(1)}
+                if m.lastindex and m.lastindex >= 2 and m.group(2):
+                    result["table_id"] = m.group(2)
+                return result
+            elif rtype == "folder":
+                return {"type": "folder", "folder_token": m.group(1)}
+    return None
+
+
+# ── 权限检查 ───────────────────────────────────────────────────────────
+
+async def check_doc_permission(
+    app_id: str, app_secret: str, doc_token: str,
+) -> dict:
+    """检查应用对飞书文档是否有写入权限。
+
+    返回 {"has_permission": True/False, "readable": True/False, "message": str}
+
+    策略:尝试读取文档基础信息。若返回 permission 错误→无权限;若成功→有读取权限
+    (写入权限需进一步确认,但飞书云文档的基本读写通常一起授予)。
+    """
+    token = await get_tenant_token(app_id, app_secret)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        # 尝试获取文档元信息
+        resp = await client.get(
+            f"{_DOCX_BASE}/documents/{doc_token}",
+            headers=headers,
+        )
+        data = resp.json()
+        code = data.get("code", -1)
+
+        if code == 0:
+            # 有读取权限→基本可写
+            return {"has_permission": True, "readable": True,
+                    "message": "有权限访问该文档",
+                    "title": data.get("data", {}).get("document", {}).get("title", "")}
+        else:
+            msg = data.get("msg", "")
+            msg_lower = msg.lower()
+            if any(kw in msg_lower for kw in ("perm", "notallow", "no permission", "access denied", "forbidden")):
+                # 明确的权限不足
+                return {
+                    "has_permission": False, "readable": False,
+                    "message": f"无权访问该文档:{msg}。请确保:① 该文档属于你的飞书企业 ② 该自建应用已获得 docx:document 权限并已发布 ③ 你本人有该文档的编辑权限",
+                    "guidance": (
+                        "请按以下步骤添加权限:\n"
+                        "1. 在飞书中打开该文档 → 右上角「分享」→「邀请协作者」\n"
+                        "2. 搜索并添加你的自建应用名称,授予「可编辑」权限\n"
+                        "3. 确认飞书开放平台中「权限管理」已开启 docx:document 权限并已发布最新版本"
+                    ),
+                }
+            if "not found" in msg_lower:
+                return {"has_permission": False, "readable": False,
+                        "message": f"文档不存在或已被删除:{msg}"}
+            # 其他错误(如限流)
+            return {"has_permission": False, "readable": False,
+                    "message": f"验证文档权限时出错(code={code}):{msg}"}
+
+
+async def check_bitable_permission(
+    app_id: str, app_secret: str, app_token: str,
+) -> dict:
+    """检查应用对飞书多维表是否有写入权限。
+
+    返回 {"has_permission": True/False, "readable": True/False, "message": str,
+          "tables": [...]}  # 有权限时附带表列表
+    """
+    token = await get_tenant_token(app_id, app_secret)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        # 尝试列出表列表(验证访问权限)
+        resp = await client.get(
+            f"{_BITABLE_BASE}/apps/{app_token}/tables",
+            headers=headers,
+        )
+        data = resp.json()
+        code = data.get("code", -1)
+
+        if code == 0:
+            tables = data.get("data", {}).get("items", [])
+            return {
+                "has_permission": True, "readable": True,
+                "message": "有权限访问该多维表",
+                "tables": [{"table_id": t.get("table_id", ""), "name": t.get("name", "")} for t in tables],
+            }
+        else:
+            msg = data.get("msg", "")
+            msg_lower = msg.lower()
+            if any(kw in msg_lower for kw in ("perm", "notallow", "no permission", "access denied", "forbidden")):
+                return {
+                    "has_permission": False, "readable": False,
+                    "message": f"无权访问该多维表:{msg}。请确保:① 该多维表属于你的飞书企业 ② 应用已获得 bitable:app 权限并已发布 ③ 你本人有该多维表的编辑权限",
+                    "guidance": (
+                        "请按以下步骤添加权限:\n"
+                        "1. 在飞书中打开该多维表 → 右上角「分享」→「邀请协作者」\n"
+                        "2. 搜索并添加你的自建应用名称,授予「可编辑」权限\n"
+                        "3. 确认飞书开放平台中「权限管理」已开启 bitable:app 权限并已发布最新版本"
+                    ),
+                }
+            if "not found" in msg_lower:
+                return {"has_permission": False, "readable": False,
+                        "message": f"多维表不存在或已被删除:{msg}"}
+            return {"has_permission": False, "readable": False,
+                    "message": f"验证多维表权限时出错(code={code}):{msg}"}
+
+
+# ── 写入已有飞书文档 ──────────────────────────────────────────────────
+
+async def write_markdown_to_existing_doc(
+    app_id: str,
+    app_secret: str,
+    doc_token: str,
+    title: str,
+    markdown: str,
+) -> str:
+    """将 markdown 内容写入已有飞书 docx 文档(清空旧内容后写入新内容)。
+
+    返回文档 URL。失败抛 FeishuError。
+    """
+    token = await get_tenant_token(app_id, app_secret)
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    partial_errors: list[str] = []
+
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        # 1. 更新文档标题
+        resp = await client.patch(
+            f"{_DOCX_BASE}/documents/{doc_token}",
+            json={"title": title[:120]},
+            headers=headers,
+        )
+        pdata = resp.json()
+        if pdata.get("code") != 0:
+            # 标题更新失败不阻塞,只记录
+            logger.warning("feishu_doc_title_update_failed",
+                           doc_token=doc_token, code=pdata.get("code"),
+                           msg=pdata.get("msg", "")[:120])
+
+        # 2. 获取文档的根 block
+        resp = await client.get(f"{_DOCX_BASE}/documents/{doc_token}", headers=headers)
+        gdata = resp.json()
+        if gdata.get("code") != 0:
+            raise FeishuError(gdata.get("code", -1),
+                              f"获取文档信息失败:{gdata.get('msg','')}")
+        doc_info = gdata.get("data", {}).get("document", {}) or {}
+        root_block_id = doc_info.get("block_id") or doc_token
+
+        # 3. 获取所有子 blocks 并删除
+        all_children_ids: list[str] = []
+        page_token_str: str | None = None
+        while True:
+            params = {"page_size": 50}
+            if page_token_str:
+                params["page_token"] = page_token_str  # type: ignore[assignment]
+            resp = await client.get(
+                f"{_DOCX_BASE}/documents/{doc_token}/blocks/{root_block_id}/children",
+                params=params,
+                headers=headers,
+            )
+            cdata = resp.json()
+            if cdata.get("code") != 0:
+                break  # 获取子块列表失败,跳过清空
+            items = cdata.get("data", {}).get("items", [])
+            for item in items:
+                bid = item.get("block_id")
+                if bid:
+                    all_children_ids.append(bid)
+            if not cdata.get("data", {}).get("has_more"):
+                break
+            page_token_str = cdata.get("data", {}).get("page_token")
+
+        # 批量删除子 block(每批最多 50 个)
+        if all_children_ids:
+            for j in range(0, len(all_children_ids), 50):
+                batch = all_children_ids[j:j + 50]
+                del_body: dict = {"children": batch}
+                resp = await client.delete(
+                    f"{_DOCX_BASE}/documents/{doc_token}/blocks/{root_block_id}/children/batch_delete",
+                    json=del_body,
+                    headers=headers,
+                )
+                ddata = resp.json()
+                if ddata.get("code") != 0:
+                    logger.warning("feishu_doc_clear_blocks_failed",
+                                   doc_token=doc_token, batch=j,
+                                   code=ddata.get("code"), msg=ddata.get("msg", "")[:120])
+
+        # 4. 追加新内容块
+        blocks = _markdown_to_blocks(markdown)
+        batch_size = 20
+        for i in range(0, len(blocks), batch_size):
+            batch = blocks[i:i + batch_size]
+            resp = await client.post(
+                f"{_DOCX_BASE}/documents/{doc_token}/blocks/{root_block_id}/children",
+                json={"children": batch, "index": -1},
+                headers=headers,
+            )
+            rdata = resp.json()
+            if rdata.get("code") != 0:
+                err_msg = f"batch[{i}-{i+len(batch)}]: code={rdata.get('code')} {rdata.get('msg','')[:80]}"
+                partial_errors.append(err_msg)
+                logger.warning("feishu_doc_append_partial_fail",
+                               doc_token=doc_token, batch_start=i,
+                               code=rdata.get("code"), msg=rdata.get("msg", "")[:120])
+
+    url = f"https://feishu.cn/docx/{doc_token}"
+    if partial_errors:
+        logger.warning("feishu_doc_populated_partial", url=url, blocks=len(blocks),
+                       errors=len(partial_errors))
+        raise FeishuError(
+            -1,
+            f"文档已更新({url}),但 {len(partial_errors)}/{max(len(blocks)//batch_size+1,1)} 批次写入失败。"
+            f"详情: {'; '.join(partial_errors[:3])}{'...' if len(partial_errors)>3 else ''}"
+        )
+    logger.info("feishu_existing_doc_updated", url=url, blocks=len(blocks))
+    return url
+
+
 # ── 文档导出 ───────────────────────────────────────────────────────────
 
 async def create_doc_with_markdown(
@@ -379,7 +631,22 @@ async def create_doc_with_markdown(
         resp = await client.post(f"{_DOCX_BASE}/documents", json=body, headers=headers)
         data = resp.json()
         if data.get("code") != 0:
-            raise FeishuError(data.get("code", -1), data.get("msg", "创建文档失败"))
+            msg_text = data.get("msg", "创建文档失败")
+            code = data.get("code", -1)
+            # 文件夹权限错误 → 给出明确指引
+            if folder_token and any(
+                kw in str(msg_text).lower()
+                for kw in ("no folder permission", "folder permission denied",
+                           "folderperm", "folder perm", "no permission")
+            ):
+                raise FeishuError(
+                    code,
+                    f"无法在该文件夹创建文档:{msg_text}。"
+                    "请确认:① 该文件夹属于你的飞书企业 ② 你本人有该文件夹的编辑/上传权限 "
+                    "③ 应用已在飞书开放平台获得 drive:drive 权限并已发布。"
+                    "若不确定,可尝试不填文件夹 token,文档将创建在你的飞书云空间根目录。"
+                )
+            raise FeishuError(code, msg_text)
         document_id = data["data"]["document"]["document_id"]
         logger.info("feishu_doc_created", document_id=document_id, title=title[:40])
 

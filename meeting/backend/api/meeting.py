@@ -1002,21 +1002,28 @@ async def delete_feishu_credentials(
 # ── 飞书会议导出 + 多维表同步(Block E.5) ─────────────────────────────
 
 class BitableSyncIn(BaseModel):
-    bitable_app_token: str = Field(min_length=1, max_length=128)
-    table_id: str = Field(min_length=1, max_length=64)
+    bitable_app_token: str = Field(default="", max_length=128)
+    table_id: str = Field(default="", max_length=64)
+    bitable_url: str | None = Field(default=None, max_length=512)
 
 
 class BitableActionSyncIn(BaseModel):
-    bitable_app_token: str = Field(min_length=1, max_length=128)
-    table_id: str = Field(min_length=1, max_length=64)
+    bitable_app_token: str = Field(default="", max_length=128)
+    table_id: str = Field(default="", max_length=64)
+    bitable_url: str | None = Field(default=None, max_length=512)
 
 
 class FeishuFolderExportIn(BaseModel):
     folder_token: str | None = Field(default=None, max_length=128)
+    existing_doc_url: str | None = Field(default=None, max_length=512)
 
 
 class KanbanCreateIn(BaseModel):
     folder_token: str | None = Field(default=None, max_length=128)
+
+
+class FeishuUrlCheckIn(BaseModel):
+    url: str = Field(min_length=1, max_length=512)
 
 
 def _require_feishu(user: User) -> tuple[str, str]:
@@ -1045,6 +1052,50 @@ def _require_feishu(user: User) -> tuple[str, str]:
     raise HTTPException(412, "请先在「个人设置 → 飞书集成」中配置飞书凭证")
 
 
+@router.post("/{meeting_id}/check-feishu-url")
+async def check_feishu_url(
+    meeting_id: int,
+    body: FeishuUrlCheckIn,
+    user: User = Depends(get_current_user),
+):
+    """解析飞书 URL 并检查权限。
+
+    支持飞书文档(docx)和多维表(base) URL。
+    返回资源类型、权限状态、表列表(多维表时)等。
+    """
+    from services.meeting.feishu import (
+        parse_feishu_url, check_doc_permission, check_bitable_permission, FeishuError,
+    )
+
+    app_id, app_secret = _require_feishu(user)
+    parsed = parse_feishu_url(body.url)
+    if not parsed:
+        raise HTTPException(400, "无法解析该 URL。请提供飞书文档(docx)或多维表(base)的链接。")
+
+    rtype = parsed["type"]
+    try:
+        if rtype == "docx":
+            result = await check_doc_permission(app_id, app_secret, parsed["doc_token"])
+            return {"type": "docx", "doc_token": parsed["doc_token"], **result}
+        elif rtype == "bitable":
+            result = await check_bitable_permission(app_id, app_secret, parsed["app_token"])
+            resp = {"type": "bitable", "app_token": parsed["app_token"], **result}
+            if parsed.get("table_id"):
+                resp["table_id"] = parsed["table_id"]
+            return resp
+        elif rtype == "folder":
+            return {
+                "type": "folder", "folder_token": parsed["folder_token"],
+                "has_permission": True, "readable": True,
+                "message": "文件夹 token 已提取,将在创建文档时验证权限",
+            }
+        else:
+            raise HTTPException(400, f"不支持的资源类型:{rtype}")
+    except FeishuError as e:
+        from services.meeting.feishu import http_status_for_feishu_error
+        raise HTTPException(http_status_for_feishu_error(e.code, e.message), f"飞书 API 失败:{e.message}")
+
+
 @router.post("/{meeting_id}/export-feishu")
 async def export_to_feishu(
     meeting_id: int,
@@ -1052,12 +1103,16 @@ async def export_to_feishu(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    """把会议纪要导出为飞书 docx 文档,可选指定目标文件夹(folder_token)。
+    """把会议纪要导出为飞书 docx 文档。
 
-    文件夹 token 可从飞书云空间文件夹 URL 中获取:
-    https://xxx.feishu.cn/drive/folder/<folder_token>
+    支持两种模式:
+    - 自动创建:不传 existing_doc_url 即可,可选 folder_token 指定目标文件夹
+    - 写入已有文档:传 existing_doc_url(飞书 docx 链接),系统会清空旧内容后写入新纪要
     """
-    from services.meeting.feishu import create_doc_with_markdown, FeishuError
+    from services.meeting.feishu import (
+        create_doc_with_markdown, write_markdown_to_existing_doc,
+        parse_feishu_url, FeishuError,
+    )
     from services.meeting.kb_sync import render_minutes_markdown
 
     app_id, app_secret = _require_feishu(user)
@@ -1067,6 +1122,25 @@ async def export_to_feishu(
 
     markdown = render_minutes_markdown(m)
     title = f"{m.title or '未命名会议'} - 会议纪要"
+
+    # ── 路径2:写入已有文档 ──
+    if body.existing_doc_url and body.existing_doc_url.strip():
+        parsed = parse_feishu_url(body.existing_doc_url.strip())
+        if not parsed or parsed.get("type") != "docx":
+            raise HTTPException(400, "无法解析该文档 URL。请提供飞书 docx 链接(如 https://xxx.feishu.cn/docx/XXX)")
+        doc_token = parsed["doc_token"]
+        try:
+            url = await write_markdown_to_existing_doc(
+                app_id, app_secret, doc_token, title, markdown,
+            )
+        except FeishuError as e:
+            from services.meeting.feishu import http_status_for_feishu_error
+            raise HTTPException(http_status_for_feishu_error(e.code, e.message), f"飞书 API 失败:{e.message}")
+        m.feishu_url = url
+        await session.commit()
+        return {"status": "ok", "url": url, "document_id": doc_token, "mode": "existing"}
+
+    # ── 路径1:自动创建新文档 ──
     try:
         doc_id, url = await create_doc_with_markdown(
             app_id, app_secret, title, markdown,
@@ -1078,7 +1152,7 @@ async def export_to_feishu(
 
     m.feishu_url = url
     await session.commit()
-    return {"status": "ok", "url": url, "document_id": doc_id}
+    return {"status": "ok", "url": url, "document_id": doc_id, "mode": "auto"}
 
 
 @router.post("/{meeting_id}/sync-requirements")
@@ -1090,10 +1164,18 @@ async def sync_requirements_to_bitable(
 ):
     """把会议提取出的需求清单批量写入飞书多维表。
 
-    用户需要在飞书侧预先创建好多维表 + 表,字段名要跟 records 字典 key 对齐:
+    支持两种模式:
+    - 手动输入:传入 bitable_app_token + table_id(需预先创建好表,字段对齐)
+    - URL 导入:传入 bitable_url(飞书多维表链接),自动解析 token 并校验权限后写入。
+      若 URL 中不含 table_id 参数,从多维表中选择第一个表写入。
+
+    字段名需跟 records 字典 key 对齐:
     req_id / module / description / priority / source / speaker / status
     """
-    from services.meeting.feishu import batch_create_bitable_records, FeishuError
+    from services.meeting.feishu import (
+        batch_create_bitable_records, parse_feishu_url,
+        check_bitable_permission, FeishuError,
+    )
 
     app_id, app_secret = _require_feishu(user)
     m = await _load_meeting_owned(meeting_id, session, user)
@@ -1115,15 +1197,44 @@ async def sync_requirements_to_bitable(
         }
         for r in reqs
     ]
+
+    app_token = body.bitable_app_token.strip()
+    table_id = body.table_id.strip()
+
+    # ── 路径2:URL 导入 ──
+    if body.bitable_url and body.bitable_url.strip():
+        parsed = parse_feishu_url(body.bitable_url.strip())
+        if not parsed or parsed.get("type") != "bitable":
+            raise HTTPException(400, "无法解析该多维表 URL。请提供飞书多维表链接(如 https://xxx.feishu.cn/base/XXX)")
+        app_token = parsed["app_token"]
+        # 优先使用 body 中明确指定的 table_id(来自前端下拉选择),其次用 URL 中的
+        table_id = table_id or parsed.get("table_id", "")
+        # 若仍无 table_id,取第一个表
+        if not table_id:
+            try:
+                perm = await check_bitable_permission(app_id, app_secret, app_token)
+            except FeishuError as e:
+                from services.meeting.feishu import http_status_for_feishu_error
+                raise HTTPException(http_status_for_feishu_error(e.code, e.message), f"飞书 API 失败:{e.message}")
+            if not perm.get("has_permission"):
+                raise HTTPException(403, perm.get("message", "无权访问该多维表"))
+            tables = perm.get("tables", [])
+            if not tables:
+                raise HTTPException(400, "该多维表中没有表格,请先在飞书中创建一个数据表")
+            table_id = tables[0]["table_id"]
+
+    if not app_token or not table_id:
+        raise HTTPException(400, "请提供多维表 app_token 和 table_id,或有效的多维表 URL")
+
     try:
         url = await batch_create_bitable_records(
-            app_id, app_secret, body.bitable_app_token, body.table_id, records
+            app_id, app_secret, app_token, table_id, records
         )
     except FeishuError as e:
         from services.meeting.feishu import http_status_for_feishu_error
         raise HTTPException(http_status_for_feishu_error(e.code, e.message), f"飞书多维表 API 失败:{e.message}")
 
-    m.bitable_app_token = body.bitable_app_token
+    m.bitable_app_token = app_token
     await session.commit()
     return {"status": "ok", "url": url, "rows": len(records)}
 
@@ -1137,15 +1248,19 @@ async def sync_action_items_to_bitable(
 ):
     """把会议纪要中的待办事项(action_items)写入飞书多维表看板。
 
+    支持两种模式:
+    - 手动输入:传入 bitable_app_token + table_id
+    - URL 导入:传入 bitable_url(飞书多维表链接),自动解析 token 并校验权限后写入
+
     待办从 meeting.meeting_minutes.action_items 提取,每条包含:
     task / owner / deadline / priority / remark
 
-    用户需在飞书侧预先创建好多维表,字段名对齐:
-    任务(文本) / 负责人(文本) / 截止日期(文本) / 优先级(单选) / 状态(单选) / 备注(文本)
-
     看板视图按"状态"字段分组:待办 / 进行中 / 已完成
     """
-    from services.meeting.feishu import sync_action_items_to_bitable as _sync, FeishuError
+    from services.meeting.feishu import (
+        sync_action_items_to_bitable as _sync, parse_feishu_url,
+        check_bitable_permission, FeishuError,
+    )
 
     app_id, app_secret = _require_feishu(user)
     m = await _load_meeting_owned(meeting_id, session, user)
@@ -1157,13 +1272,40 @@ async def sync_action_items_to_bitable(
     if not action_items:
         raise HTTPException(400, "会议纪要中没有待办事项")
 
+    app_token = body.bitable_app_token.strip()
+    table_id = body.table_id.strip()
+
+    # ── 路径2:URL 导入 ──
+    if body.bitable_url and body.bitable_url.strip():
+        parsed = parse_feishu_url(body.bitable_url.strip())
+        if not parsed or parsed.get("type") != "bitable":
+            raise HTTPException(400, "无法解析该多维表 URL。请提供飞书多维表链接(如 https://xxx.feishu.cn/base/XXX)")
+        app_token = parsed["app_token"]
+        # 优先使用 body 中明确指定的 table_id(来自前端下拉选择),其次用 URL 中的
+        table_id = table_id or parsed.get("table_id", "")
+        if not table_id:
+            try:
+                perm = await check_bitable_permission(app_id, app_secret, app_token)
+            except FeishuError as e:
+                from services.meeting.feishu import http_status_for_feishu_error
+                raise HTTPException(http_status_for_feishu_error(e.code, e.message), f"飞书 API 失败:{e.message}")
+            if not perm.get("has_permission"):
+                raise HTTPException(403, perm.get("message", "无权访问该多维表"))
+            tables = perm.get("tables", [])
+            if not tables:
+                raise HTTPException(400, "该多维表中没有表格,请先在飞书中创建一个数据表")
+            table_id = tables[0]["table_id"]
+
+    if not app_token or not table_id:
+        raise HTTPException(400, "请提供多维表 app_token 和 table_id,或有效的多维表 URL")
+
     try:
-        url = await _sync(app_id, app_secret, body.bitable_app_token, body.table_id, action_items)
+        url = await _sync(app_id, app_secret, app_token, table_id, action_items)
     except FeishuError as e:
         from services.meeting.feishu import http_status_for_feishu_error
         raise HTTPException(http_status_for_feishu_error(e.code, e.message), f"飞书多维表 API 失败:{e.message}")
 
-    m.action_bitable_app_token = body.bitable_app_token  # 修复 #4:使用独立字段
+    m.action_bitable_app_token = app_token  # 修复 #4:使用独立字段
     await session.commit()
     return {"status": "ok", "url": url, "rows": len(action_items)}
 
