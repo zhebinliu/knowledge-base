@@ -4,7 +4,7 @@
 1. 把会议纪要 markdown 导出为飞书 docx 文档
 2. 把需求清单批量写入飞书多维表(用户预先创建好表)
 
-凭证策略:每个用户在 Settings.tsx 里配置自己的 feishu_app_id + feishu_app_secret。
+凭证策略:每个用户在「系统设置 → 飞书集成」里配置自己的 feishu_app_id + feishu_app_secret。
 不复用全局凭证(用户拍板,2026-05-11)。
 
 依赖:仅 httpx(避免引入 aiohttp / cryptography)。

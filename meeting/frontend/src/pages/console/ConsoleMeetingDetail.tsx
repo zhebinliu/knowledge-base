@@ -1746,6 +1746,13 @@ function FeishuCredsCard() {
             </a>
             {' '}创建自建应用拿到 App ID + Secret。
           </p>
+          <p className="text-[11px] text-ink-muted mt-1">
+            也可在{' '}
+            <a href="/settings" className="text-brand underline">
+              系统设置 → 飞书集成
+            </a>
+            {' '}中统一管理凭证。
+          </p>
         </div>
         {status?.configured && !editing && (
           <span className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">

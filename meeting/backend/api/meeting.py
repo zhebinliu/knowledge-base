@@ -1006,7 +1006,7 @@ def _require_feishu(user: User):
     from services.meeting.feishu import get_user_feishu_credentials
     creds = get_user_feishu_credentials(user)
     if not creds:
-        raise HTTPException(412, "请先在「个人设置」中配置飞书集成")
+        raise HTTPException(412, "请先在「系统设置 → 飞书集成」中配置飞书凭证")
     return creds
 
 
