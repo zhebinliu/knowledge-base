@@ -16,7 +16,7 @@ import {
   listMarkupTemplates, renderTemplate,
   exportTemplateDocx, exportTemplateMd,
   type MarkupTemplate, type TemplateRenderResult,
-} from '../../api/markup-template'
+} from '../api/markup-template'
 
 export default function TemplateSelector({
   meetingId,
@@ -30,7 +30,7 @@ export default function TemplateSelector({
   const [rendered, setRendered] = useState<TemplateRenderResult | null>(null)
   const [showPreview, setShowPreview] = useState(false)
 
-  const { data: templates, isLoading } = useQuery({
+  const { data: templates, isLoading } = useQuery<MarkupTemplate[]>({
     queryKey: ['markup-templates'],
     queryFn: listMarkupTemplates,
   })
@@ -45,14 +45,14 @@ export default function TemplateSelector({
   const docxMut = useMutation({
     mutationFn: (templateId: number) => exportTemplateDocx(templateId, meetingId),
     onSuccess: (blob) => {
-      downloadBlob(blob, (meetingTitle || '会议纪要') + '.docx')
+      downloadBlob(blob as Blob, (meetingTitle || '会议纪要') + '.docx')
     },
   })
 
   const mdMut = useMutation({
     mutationFn: (templateId: number) => exportTemplateMd(templateId, meetingId),
     onSuccess: (blob) => {
-      downloadBlob(blob, (meetingTitle || '会议纪要') + '.md')
+      downloadBlob(blob as Blob, (meetingTitle || '会议纪要') + '.md')
     },
   })
 

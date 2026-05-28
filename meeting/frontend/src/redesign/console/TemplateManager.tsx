@@ -39,11 +39,11 @@ export default function TemplateManager() {
   const [deletingId, setDeletingId] = useState<number | null>(null)
 
   // 查询
-  const { data: templates, isLoading } = useQuery({
+  const { data: templates, isLoading } = useQuery<MarkupTemplate[]>({
     queryKey: ['markup-templates'],
     queryFn: listMarkupTemplates,
   })
-  const { data: placeholderHelp } = useQuery({
+  const { data: placeholderHelp } = useQuery<PlaceholderInfo>({
     queryKey: ['markup-placeholders'],
     queryFn: getPlaceholderHelp,
   })
