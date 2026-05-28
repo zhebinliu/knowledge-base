@@ -643,7 +643,8 @@ async def _update_progress(
 
 
 def _ts() -> str:
-    return datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+    # 保留 tz 后缀,前端 new Date() 才能正确解析
+    return datetime.now(timezone.utc).isoformat()
 
 
 # ── v3: M9 行业最佳实践的 Web 研究融合 ────────────────────────────────────────

@@ -10,10 +10,31 @@
 """
 
 import asyncio
+import inspect
 import re
+import time
 import structlog
 import httpx
 from config import settings
+
+
+def _detect_caller_module(skip_modules: tuple = ("services.model_router",)) -> str | None:
+    """走栈找第一个不在 skip_modules 里的调用方模块名。
+
+    用法:在 chat()/chat_with_tools() 进入时调用,
+    返回如 "api.meeting" / "agents.slicer_agent"。
+    """
+    try:
+        for frame_info in inspect.stack()[1:8]:
+            mod_name = frame_info.frame.f_globals.get("__name__", "")
+            if not mod_name:
+                continue
+            if any(mod_name == s or mod_name.startswith(s + ".") for s in skip_modules):
+                continue
+            return mod_name
+    except Exception:
+        return None
+    return None
 
 # 匹配推理模型输出的 <think>...</think> 思考块（跨行）
 _THINK_RE = re.compile(r"<think>[\s\S]*?</think>", re.IGNORECASE)
@@ -70,6 +91,12 @@ MODEL_REGISTRY = {
         "api_key_env": "xiaomi_api_key",
         "max_context": 262144,
         "best_for": ["ocr_fallback", "image_understanding"],
+        # 视觉 OCR 走小米官方 endpoint(跟 chat 走的 token-plan-cn 代理是两条线)
+        # auth_header_style:小米 vision 端点要求 header 用 "api-key: xxx",不是 Bearer
+        # max_tokens_field:小米 vision payload 用 max_completion_tokens
+        "vision_endpoint": "https://api.xiaomimimo.com/v1/chat/completions",
+        "auth_header_style": "api-key",
+        "max_tokens_field": "max_completion_tokens",
     },
     "glm-5": {
         "provider": "zhipu",
@@ -106,17 +133,61 @@ MODEL_REGISTRY = {
 }
 
 ROUTING_RULES = {
-    "conversion":             {"primary": "minimax-m2.5",      "fallback": "mimo-v2-pro"},
-    "daily_qa":               {"primary": "qwen3-next-80b-a3b", "fallback": "glm-5"},
-    "doc_generation":         {"primary": "minimax-m2.7",      "fallback": "glm-5"},
-    "slicing_classification": {"primary": "minimax-m2.5",      "fallback": "mimo-v2-pro"},
-    "slicing_review":         {"primary": "glm-5",             "fallback": "minimax-m2.5"},
-    "challenge_questioning":  {"primary": "mimo-v2-pro",       "fallback": "glm-5"},
-    "challenge_judging":      {"primary": "glm-5",             "fallback": "qwen3-next-80b-a3b"},
-    # 扫描件 PDF / 图像 OCR — 多模态模型直接看图转写,准确率比 Tesseract 高
-    "pdf_ocr":                {"primary": "mimo-v2-omni",      "fallback": "mimo-v2-omni"},
-    # 转换后的 markdown 复核(对比 raw_text 找漏抽/错位/格式问题)— glm-5 擅长 review/judging
-    "conversion_refine":      {"primary": "glm-5",             "fallback": "minimax-m2.5"},
+    # ── 会议 (Meeting) ──────────────────────────────────────────────────────
+    # 转写润色:把 ASR 输出的口语化文本整理成规整文字,需要语言能力强
+    "meeting_transcript_polish":   {"primary": "minimax-m2.7",      "fallback": "glm-5"},
+    # 纪要 JSON 抽取(摘要/议题/决议/待办):结构化生成,要严谨
+    "meeting_minutes_extract":     {"primary": "minimax-m2.7",      "fallback": "glm-5"},
+    # 需求抽取:从纪要找 P0-P3 需求,结构化标注
+    "meeting_requirements_extract":{"primary": "minimax-m2.5",      "fallback": "mimo-v2-pro"},
+    # 干系人图谱抽取:从纪要识别人物 + 组织关系
+    "meeting_stakeholders_extract":{"primary": "minimax-m2.7",      "fallback": "glm-5"},
+    # 会议内容问答:用户在 console 问会议,长上下文 + 高质量
+    "meeting_qa_answer":           {"primary": "minimax-m2.7",      "fallback": "glm-5"},
+    # 纪要模板演化:基于历史样本归纳模板,元分析任务
+    "meeting_template_evolve":     {"primary": "minimax-m2.7",      "fallback": "glm-5"},
+
+    # ── 文档 (Document) ─────────────────────────────────────────────────────
+    # 原始文本 → markdown:分段转写,吞吐量大
+    "doc_markdown_convert":        {"primary": "minimax-m2.5",      "fallback": "mimo-v2-pro"},
+    # 转换后 markdown 复核(对比 raw_text 找漏抽 / 错位)— review 模型
+    "doc_markdown_refine":         {"primary": "glm-5",             "fallback": "minimax-m2.5"},
+    # 切片分类(LTC stage / industry / module)
+    "doc_section_slice":           {"primary": "minimax-m2.5",      "fallback": "mimo-v2-pro"},
+    # 低置信切片复审:取速度 > 质量
+    "doc_section_review_lowconf":  {"primary": "minimax-m2.7",      "fallback": "minimax-m2.5"},
+    # 文档级摘要 + FAQ 生成
+    "doc_summary_faq":             {"primary": "minimax-m2.7",      "fallback": "glm-5"},
+    # 文档类型推断(sow / 方案 / 合同等)
+    "doc_type_classify":           {"primary": "minimax-m2.5",      "fallback": "mimo-v2-pro"},
+    # 金额抽取(脱敏用)
+    "doc_amount_extraction":       {"primary": "minimax-m2.5",      "fallback": "mimo-v2-pro"},
+    # 扫描件 PDF / 图像 OCR — vision 模型直接看图
+    "pdf_ocr":                     {"primary": "mimo-v2-omni",      "fallback": "mimo-v2-omni"},
+
+    # ── 知识库问答 (KB Q&A) ──────────────────────────────────────────────────
+    # 普通 KB 问答
+    "kb_qa_answer":                {"primary": "qwen3-next-80b-a3b", "fallback": "glm-5"},
+    # 流式 KB 问答(同步首字延迟更重要,可换轻量模型)
+    "kb_qa_answer_stream":         {"primary": "qwen3-next-80b-a3b", "fallback": "glm-5"},
+    # 基于 KB chunk 生成文档片段
+    "kb_doc_generate":             {"primary": "minimax-m2.7",      "fallback": "glm-5"},
+
+    # ── 项目 & 输出 (Project / Output) ──────────────────────────────────────
+    # 客户画像生成
+    "project_audience_profile":    {"primary": "minimax-m2.7",      "fallback": "glm-5"},
+    # 通用输出文档生成(insight / survey / proposal)
+    "output_doc_generate":         {"primary": "minimax-m2.7",      "fallback": "glm-5"},
+
+    # ── 挑战练习 (Challenge) ────────────────────────────────────────────────
+    # 基于 KB chunk 出题
+    "challenge_question_kb":       {"primary": "mimo-v2-pro",       "fallback": "glm-5"},
+    # 自由出题(无 KB)
+    "challenge_question_freeform": {"primary": "mimo-v2-pro",       "fallback": "glm-5"},
+    # 答题判分
+    "challenge_answer_judge":      {"primary": "glm-5",             "fallback": "qwen3-next-80b-a3b"},
+    # 判分输出 JSON 修复(recovery)
+    "challenge_verdict_reformat":  {"primary": "glm-5",             "fallback": "minimax-m2.5"},
 }
 
 
@@ -175,11 +246,17 @@ class ModelRouter:
         timeout: float = 180.0,
         strip_think: bool = True,                 # 推理模型 think 块默认剥;
                                                    # 调用方需要原始内容(JSON 抽取/debug)时传 False
+        _log_task: str | None = None,             # 仅供 logging 用,不进 payload
+        _log_caller: str | None = None,
     ) -> tuple[str, str]:
         """Returns (content, model_name) tuple. Retries on 429 with exponential backoff.
         max_tokens=None 时不下发该字段，由模型按自身 max 输出。"""
+        from services.call_log_service import log_llm_call
+
         config = await self._get_model_config(model_name)
         api_key = await self._get_api_key(config)
+        caller_module = _log_caller or _detect_caller_module()
+        t0 = time.monotonic()
 
         payload: dict = {
             "model": config["model_id"],
@@ -196,6 +273,7 @@ class ModelRouter:
         #   - 其他 4xx(401/403/400 等)是配置错误,立即 raise 触发上层 fallback
         backoffs = [5, 10, 20]
         attempt = 0
+        last_status: int | None = None
         while True:
             try:
                 resp = await self.client.post(
@@ -207,6 +285,7 @@ class ModelRouter:
                     json=payload,
                     timeout=timeout,
                 )
+                last_status = resp.status_code
                 # 429 + 5xx:可重试
                 if resp.status_code in (429,) or 500 <= resp.status_code < 600:
                     if attempt < len(backoffs):
@@ -217,15 +296,33 @@ class ModelRouter:
                         continue
                 resp.raise_for_status()
                 self._failure_counts[model_name] = 0
-                content = resp.json()["choices"][0]["message"]["content"]
+                body = resp.json()
+                content = body["choices"][0]["message"]["content"]
+                usage = body.get("usage") or {}
                 if strip_think:
                     # 统一剥离 <think>...</think> 思考块,避免污染下游解析/展示
                     content = _strip_think(content)
+                # 成功日志(fire-and-forget)
+                log_llm_call(
+                    model_name=model_name,
+                    caller_module=caller_module,
+                    task=_log_task,
+                    input_tokens=usage.get("prompt_tokens"),
+                    output_tokens=usage.get("completion_tokens"),
+                    duration_ms=int((time.monotonic() - t0) * 1000),
+                    status_code=last_status,
+                )
                 return content, model_name
             except httpx.HTTPStatusError as e:
                 # 退避用完仍失败,或非可重试 4xx
                 self._failure_counts[model_name] = self._failure_counts.get(model_name, 0) + 1
                 logger.error("model_call_failed", model=model_name, status=e.response.status_code, error=str(e)[:200])
+                log_llm_call(
+                    model_name=model_name, caller_module=caller_module, task=_log_task,
+                    input_tokens=None, output_tokens=None,
+                    duration_ms=int((time.monotonic() - t0) * 1000),
+                    status_code=e.response.status_code, error_message=str(e)[:500],
+                )
                 raise
             except (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError) as e:
                 # 网络层异常:同样可重试
@@ -237,10 +334,22 @@ class ModelRouter:
                     continue
                 self._failure_counts[model_name] = self._failure_counts.get(model_name, 0) + 1
                 logger.error("model_call_network_failed", model=model_name, error=type(e).__name__)
+                log_llm_call(
+                    model_name=model_name, caller_module=caller_module, task=_log_task,
+                    input_tokens=None, output_tokens=None,
+                    duration_ms=int((time.monotonic() - t0) * 1000),
+                    status_code=None, error_message=f"{type(e).__name__}: {str(e)[:400]}",
+                )
                 raise
             except Exception as e:
                 self._failure_counts[model_name] = self._failure_counts.get(model_name, 0) + 1
                 logger.error("model_call_failed", model=model_name, error=str(e)[:200] or type(e).__name__)
+                log_llm_call(
+                    model_name=model_name, caller_module=caller_module, task=_log_task,
+                    input_tokens=None, output_tokens=None,
+                    duration_ms=int((time.monotonic() - t0) * 1000),
+                    status_code=last_status, error_message=f"{type(e).__name__}: {str(e)[:400]}",
+                )
                 raise
 
     async def chat_with_tools(
@@ -252,10 +361,16 @@ class ModelRouter:
         max_tokens: int = 4000,
         temperature: float = 0.3,
         timeout: float = 180.0,
+        _log_task: str | None = None,
+        _log_caller: str | None = None,
     ) -> dict:
         """OpenAI 兼容的工具调用。返回 {"content": str|None, "tool_calls": [...], "model": str, "finish_reason": str}。"""
+        from services.call_log_service import log_llm_call
+
         config = await self._get_model_config(model_name)
         api_key = await self._get_api_key(config)
+        caller_module = _log_caller or _detect_caller_module()
+        t0 = time.monotonic()
 
         payload: dict = {
             "model": config["model_id"],
@@ -268,6 +383,7 @@ class ModelRouter:
 
         backoffs = [5, 10, 20]
         attempt = 0
+        last_status: int | None = None
         while True:
             try:
                 resp = await self.client.post(
@@ -279,6 +395,7 @@ class ModelRouter:
                     json=payload,
                     timeout=timeout,
                 )
+                last_status = resp.status_code
                 if resp.status_code == 429 and attempt < len(backoffs):
                     wait = backoffs[attempt]
                     attempt += 1
@@ -287,11 +404,20 @@ class ModelRouter:
                     continue
                 resp.raise_for_status()
                 self._failure_counts[model_name] = 0
-                data = resp.json()["choices"][0]
+                body = resp.json()
+                data = body["choices"][0]
                 msg = data.get("message") or {}
                 content = msg.get("content")
                 if isinstance(content, str):
                     content = _strip_think(content)
+                usage = body.get("usage") or {}
+                log_llm_call(
+                    model_name=model_name, caller_module=caller_module, task=_log_task,
+                    input_tokens=usage.get("prompt_tokens"),
+                    output_tokens=usage.get("completion_tokens"),
+                    duration_ms=int((time.monotonic() - t0) * 1000),
+                    status_code=last_status,
+                )
                 return {
                     "content": content,
                     "tool_calls": msg.get("tool_calls") or [],
@@ -306,10 +432,22 @@ class ModelRouter:
                 except Exception:
                     pass
                 logger.error("tools_call_failed", model=model_name, status=e.response.status_code, body=body)
+                log_llm_call(
+                    model_name=model_name, caller_module=caller_module, task=_log_task,
+                    input_tokens=None, output_tokens=None,
+                    duration_ms=int((time.monotonic() - t0) * 1000),
+                    status_code=e.response.status_code, error_message=str(e)[:500],
+                )
                 raise
             except Exception as e:
                 self._failure_counts[model_name] = self._failure_counts.get(model_name, 0) + 1
                 logger.error("tools_call_failed", model=model_name, error=str(e)[:200] or type(e).__name__)
+                log_llm_call(
+                    model_name=model_name, caller_module=caller_module, task=_log_task,
+                    input_tokens=None, output_tokens=None,
+                    duration_ms=int((time.monotonic() - t0) * 1000),
+                    status_code=last_status, error_message=f"{type(e).__name__}: {str(e)[:400]}",
+                )
                 raise
 
     async def chat_with_routing(
@@ -325,6 +463,9 @@ class ModelRouter:
         # Merge DB task params as defaults; explicit kwargs override
         db_params = await self._get_task_params(task)
         merged = {**db_params, **kwargs}
+        # 让 chat() 记日志时知道 task / 真实 caller(不能让 chat() 自己 inspect 到 model_router)
+        merged.setdefault("_log_task", task)
+        merged.setdefault("_log_caller", _detect_caller_module())
 
         try:
             return await self.chat(primary, messages, **merged)
@@ -339,11 +480,22 @@ class ModelRouter:
         max_tokens: int = 8000,
         temperature: float = 0.3,
         timeout: float = 180.0,
+        _log_task: str | None = None,
+        _log_caller: str | None = None,
     ):
-        """Async generator yielding (token, None) during streaming, then (None, model_name) at end."""
+        """Async generator yielding (token, None) during streaming, then (None, model_name) at end.
+
+        日志:流式拿不到 prompt_tokens / completion_tokens(除非服务端在 [DONE] 前
+        push 一个含 usage 的 chunk),这里尽力捕获,捕不到也写一行只记 duration。
+        """
         import json as _json
+        from services.call_log_service import log_llm_call
+
         config = await self._get_model_config(model_name)
         api_key = await self._get_api_key(config)
+        caller_module = _log_caller or _detect_caller_module()
+        t0 = time.monotonic()
+        usage_captured: dict = {}
         payload: dict = {
             "model": config["model_id"],
             "messages": messages,
@@ -368,10 +520,20 @@ class ModelRouter:
                         continue
                     data = line[6:].strip()
                     if data == "[DONE]":
+                        log_llm_call(
+                            model_name=model_name, caller_module=caller_module, task=_log_task,
+                            input_tokens=usage_captured.get("prompt_tokens"),
+                            output_tokens=usage_captured.get("completion_tokens"),
+                            duration_ms=int((time.monotonic() - t0) * 1000),
+                            status_code=200,
+                        )
                         yield None, model_name
                         return
                     try:
                         chunk = _json.loads(data)
+                        # 部分 provider 会在 stream 末尾 push 一个含 usage 的 chunk
+                        if isinstance(chunk.get("usage"), dict):
+                            usage_captured = chunk["usage"]
                         delta = chunk["choices"][0]["delta"].get("content") or ""
                         if delta:
                             yield delta, None
@@ -380,6 +542,12 @@ class ModelRouter:
         except Exception as e:
             self._failure_counts[model_name] = self._failure_counts.get(model_name, 0) + 1
             logger.error("stream_failed", model=model_name, error=str(e)[:200])
+            log_llm_call(
+                model_name=model_name, caller_module=caller_module, task=_log_task,
+                input_tokens=None, output_tokens=None,
+                duration_ms=int((time.monotonic() - t0) * 1000),
+                status_code=None, error_message=f"{type(e).__name__}: {str(e)[:400]}",
+            )
             raise
 
     async def chat_stream_with_routing(
@@ -394,6 +562,8 @@ class ModelRouter:
         fallback = rule["fallback"]
         db_params = await self._get_task_params(task)
         kwargs = {**db_params, **kwargs}
+        kwargs.setdefault("_log_task", task)
+        kwargs.setdefault("_log_caller", _detect_caller_module())
 
         try:
             async for token, model in self.chat_stream(primary, messages, **kwargs):

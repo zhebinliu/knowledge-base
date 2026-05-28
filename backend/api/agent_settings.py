@@ -368,3 +368,110 @@ async def update_output_agent(key: str, body: OutputAgentBody):
     })
     logger.info("config_changed", action="update", type="output_agent", key=key)
     return {"ok": True}
+
+
+# ---- Embedding / Rerank(2026-05-28 加,运行时改不用重启) ----
+
+class EmbRerankBody(BaseModel):
+    """embedding/rerank 通用配置体:api_base / model / api_key 任填,
+    传哪个改哪个;字段 key 跟 .env 里 embedding_api_base / rerank_api_base 等对齐。"""
+    api_base: str | None = None
+    model: str | None = None
+    api_key: str | None = None
+
+
+def _mask(v: str | None) -> str:
+    if not v:
+        return ""
+    if len(v) <= 8:
+        return "*" * len(v)
+    return v[:3] + "*" * (len(v) - 7) + v[-4:]
+
+
+async def _read_emb_rerank(section: str, base_env: str, model_env: str, key_env: str) -> dict:
+    from config import settings as _settings
+    out: dict = {}
+    for k, env_attr in (("api_base", base_env), ("model", model_env), ("api_key", key_env)):
+        cfg = await config_service.get(section, k)
+        if isinstance(cfg, dict) and (cfg.get("value") or cfg.get(k)):
+            val = cfg.get("value") or cfg.get(k)
+            out[k] = val if k != "api_key" else _mask(val)
+            out[f"{k}_source"] = "database"
+            out[f"{k}_raw_set"] = True
+        elif isinstance(cfg, str) and cfg.strip():
+            out[k] = cfg if k != "api_key" else _mask(cfg)
+            out[f"{k}_source"] = "database"
+            out[f"{k}_raw_set"] = True
+        else:
+            raw = getattr(_settings, env_attr, "") or ""
+            out[k] = raw if k != "api_key" else _mask(raw)
+            out[f"{k}_source"] = "env"
+            out[f"{k}_raw_set"] = bool(raw)
+    return out
+
+
+@router.get("/embedding")
+async def get_embedding_config():
+    """读 embedding 配置;api_key 返回 masked,api_base / model 明文。"""
+    return await _read_emb_rerank(
+        "embedding", "embedding_api_base", "embedding_model", "embedding_api_key",
+    )
+
+
+@router.put("/embedding")
+async def update_embedding_config(body: EmbRerankBody):
+    """支持局部更新:只传要改的字段。"""
+    changed: list[str] = []
+    if body.api_base is not None:
+        await config_service.upsert("embedding", "api_base", {"value": body.api_base})
+        changed.append("api_base")
+    if body.model is not None:
+        await config_service.upsert("embedding", "model", {"value": body.model})
+        changed.append("model")
+    if body.api_key is not None:
+        await config_service.upsert("embedding", "api_key", {"value": body.api_key})
+        changed.append("api_key")
+    logger.info("config_changed", action="update", type="embedding", fields=changed)
+    return {"ok": True, "changed": changed}
+
+
+@router.delete("/embedding/{key}")
+async def reset_embedding_config(key: str):
+    """删 DB 覆盖,回退到 .env 取值。"""
+    if key not in {"api_base", "model", "api_key"}:
+        raise HTTPException(400, "key 只能是 api_base / model / api_key")
+    await config_service.delete("embedding", key)
+    logger.info("config_changed", action="delete", type="embedding", key=key)
+    return {"ok": True}
+
+
+@router.get("/rerank")
+async def get_rerank_config():
+    return await _read_emb_rerank(
+        "rerank", "rerank_api_base", "rerank_model", "rerank_api_key",
+    )
+
+
+@router.put("/rerank")
+async def update_rerank_config(body: EmbRerankBody):
+    changed: list[str] = []
+    if body.api_base is not None:
+        await config_service.upsert("rerank", "api_base", {"value": body.api_base})
+        changed.append("api_base")
+    if body.model is not None:
+        await config_service.upsert("rerank", "model", {"value": body.model})
+        changed.append("model")
+    if body.api_key is not None:
+        await config_service.upsert("rerank", "api_key", {"value": body.api_key})
+        changed.append("api_key")
+    logger.info("config_changed", action="update", type="rerank", fields=changed)
+    return {"ok": True, "changed": changed}
+
+
+@router.delete("/rerank/{key}")
+async def reset_rerank_config(key: str):
+    if key not in {"api_base", "model", "api_key"}:
+        raise HTTPException(400, "key 只能是 api_base / model / api_key")
+    await config_service.delete("rerank", key)
+    logger.info("config_changed", action="delete", type="rerank", key=key)
+    return {"ok": True}

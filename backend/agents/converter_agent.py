@@ -149,8 +149,10 @@ def _is_scanned_pdf(text: str, page_count: int) -> bool:
     return avg < 50
 
 
-XIAOMI_VISION_ENDPOINT = "https://api.xiaomimimo.com/v1/chat/completions"
-XIAOMI_VISION_MODEL = "mimo-v2-omni"      # 或 mimo-v2.5,均支持 vision
+# 2026-05-28:vision endpoint / model / auth_header_style 改为从 MODEL_REGISTRY 的
+# mimo-v2-omni 条目读,后台 ModelsTab 编辑即生效。下面两个常量只作为最后兜底。
+_DEFAULT_XIAOMI_VISION_ENDPOINT = "https://api.xiaomimimo.com/v1/chat/completions"
+_DEFAULT_XIAOMI_VISION_MODEL = "mimo-v2-omni"
 
 
 async def _resolve_xiaomi_key() -> str:
@@ -166,21 +168,53 @@ async def _resolve_xiaomi_key() -> str:
     return getattr(settings, "xiaomi_api_key", "") or ""
 
 
+async def _resolve_vision_config() -> dict:
+    """读 mimo-v2-omni 模型配置(endpoint / model_id / auth_header / max_tokens_field)。
+    后台 ModelsTab 改这条即可改 OCR 行为。
+    """
+    cfg: dict | None = None
+    try:
+        from services.config_service import config_service
+        cfg = await config_service.get("model_registry", "mimo-v2-omni")
+    except Exception:
+        cfg = None
+    if not cfg:
+        from services.model_router import MODEL_REGISTRY
+        cfg = MODEL_REGISTRY.get("mimo-v2-omni") or {}
+    return {
+        "endpoint": cfg.get("vision_endpoint") or _DEFAULT_XIAOMI_VISION_ENDPOINT,
+        "model_id": cfg.get("model_id") or _DEFAULT_XIAOMI_VISION_MODEL,
+        "auth_header_style": cfg.get("auth_header_style") or "api-key",
+        "max_tokens_field": cfg.get("max_tokens_field") or "max_completion_tokens",
+    }
+
+
 async def _call_xiaomi_vision_one_page(
     *, page_idx: int, n_pages: int, b64: str, api_key: str, client,
 ) -> tuple[int, str]:
-    """按官方文档形态直接调 https://api.xiaomimimo.com/v1/chat/completions。
+    """按官方文档形态直接调小米 vision endpoint。
 
-    与 model_router.chat 的差异:
-    - endpoint 不同(api.xiaomimimo.com vs token-plan-cn 代理)
-    - header 用 api-key 而不是 Authorization: Bearer
-    - body 用 max_completion_tokens 而不是 max_tokens
+    跟 model_router.chat 的差异:
+    - endpoint 不同(官方 vs token-plan-cn 代理)
+    - header 可能用 api-key 而不是 Authorization: Bearer
+    - body 字段可能是 max_completion_tokens 而不是 max_tokens
+    这些都从 MODEL_REGISTRY 的 mimo-v2-omni 配置读,可后台改。
 
     单页失败返回错误占位文本,不抛异常 — 让整篇 OCR 不被一页拖垮。
+    成功 / 失败都打一行 LLM call log,便于在调用日志里看到 OCR 消耗。
     """
-    import httpx
-    payload = {
-        "model": XIAOMI_VISION_MODEL,
+    import time
+    from services.call_log_service import log_llm_call
+
+    vc = await _resolve_vision_config()
+    headers = {"Content-Type": "application/json"}
+    if vc["auth_header_style"] == "api-key":
+        headers["api-key"] = api_key
+    else:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    payload: dict = {
+        "model": vc["model_id"],
         "messages": [{
             "role": "user",
             "content": [
@@ -202,25 +236,54 @@ async def _call_xiaomi_vision_one_page(
                 },
             ],
         }],
-        "max_completion_tokens": 4000,
+        vc["max_tokens_field"]: 4000,
         "temperature": 0.1,
     }
+    t0 = time.monotonic()
     try:
         r = await client.post(
-            XIAOMI_VISION_ENDPOINT,
-            headers={"api-key": api_key, "Content-Type": "application/json"},
+            vc["endpoint"],
+            headers=headers,
             json=payload,
             timeout=180.0,
         )
+        dur_ms = int((time.monotonic() - t0) * 1000)
         if r.status_code != 200:
             logger.warning("xiaomi_vision_http_error", page=page_idx + 1,
                            status=r.status_code, body=r.text[:200])
+            log_llm_call(
+                model_name="mimo-v2-omni",
+                caller_module="agents.converter_agent",
+                task="pdf_ocr",
+                input_tokens=None, output_tokens=None, duration_ms=dur_ms,
+                status_code=r.status_code,
+                error_message=r.text[:400],
+            )
             return page_idx, f"(第 {page_idx + 1} 页识别失败: HTTP {r.status_code})"
         data = r.json()
         text = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+        usage = data.get("usage") or {}
+        log_llm_call(
+            model_name="mimo-v2-omni",
+            caller_module="agents.converter_agent",
+            task="pdf_ocr",
+            input_tokens=usage.get("prompt_tokens"),
+            output_tokens=usage.get("completion_tokens"),
+            duration_ms=dur_ms,
+            status_code=200,
+        )
         return page_idx, text.strip()
     except Exception as e:
         logger.warning("xiaomi_vision_exception", page=page_idx + 1, err=str(e)[:120])
+        log_llm_call(
+            model_name="mimo-v2-omni",
+            caller_module="agents.converter_agent",
+            task="pdf_ocr",
+            input_tokens=None, output_tokens=None,
+            duration_ms=int((time.monotonic() - t0) * 1000),
+            status_code=None,
+            error_message=f"{type(e).__name__}: {str(e)[:400]}",
+        )
         return page_idx, f"(第 {page_idx + 1} 页识别失败: {str(e)[:80]})"
 
 
@@ -539,7 +602,7 @@ async def convert_to_markdown(
         async with sem:
             prompt = await build_conversion_prompt(segment)
             result, model = await model_router.chat_with_routing(
-                "conversion",
+                "doc_markdown_convert",
                 [{"role": "user", "content": prompt}],
                 max_tokens=8000,
                 timeout=180.0,
@@ -654,7 +717,7 @@ async def _refine_markdown_with_llm(*, raw_text: str, draft_md: str, filename: s
 
     try:
         result, model = await model_router.chat_with_routing(
-            "conversion_refine",
+            "doc_markdown_refine",
             [
                 {"role": "system", "content": _REFINE_SYSTEM},
                 {"role": "user", "content": user_prompt},

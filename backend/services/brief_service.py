@@ -348,7 +348,8 @@ def _parse_brief_response(raw: str, schema: list[dict]) -> dict:
     if not isinstance(fields_raw, dict):
         return {}
     from datetime import datetime, timezone
-    now_iso = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+    # 保留 tz 后缀,前端 new Date() 才能正确解析
+    now_iso = datetime.now(timezone.utc).isoformat()
     out: dict = {}
     for f in schema:
         k = f["key"]

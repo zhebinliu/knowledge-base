@@ -216,12 +216,17 @@ async def classify_chunk(
     section_path: str,
     model: str | None = None,
     temperature: float = 0.1,
+    routing_task: str = "doc_section_slice",
 ) -> tuple[dict, str]:
-    """Returns (classification_dict, model_name)."""
+    """Returns (classification_dict, model_name).
+
+    routing_task: 默认 'doc_section_slice';低置信复审走 'doc_section_review_lowconf'。
+    显式 model 参数仍优先级最高(后续可以撤掉,目前为兼容外部直调留着)。
+    """
     prompt = await build_slicing_prompt(doc_title, section_path, content)
     if model is None:
         result, used_model = await model_router.chat_with_routing(
-            "slicing_classification",
+            routing_task,
             [{"role": "user", "content": prompt}],
             max_tokens=8000,
             temperature=temperature,
@@ -275,11 +280,12 @@ async def _classify_one(
     if review_status == "needs_review":
         logger.info("review_second_pass", chunk_index=i, confidence=confidence)
         try:
-            # 原先用 glm-5，实测单次推理 ~150s；换成 minimax-m2.7（与主力 m2.5 走同一代理但 temp=0.5）
-            # 以换取速度，review 质量会降低——低置信 chunk 最终仍可在审核队列人工校正
+            # 2026-05-28:从硬编码 minimax-m2.7 改为走 routing_task='slicing_review_lowconf',
+            # 后台可改主备模型。历史背景:原先用 glm-5 ~150s/次太慢,后改 minimax-m2.7 +
+            # temp=0.5 换速度,复审质量会降低——低置信 chunk 最终仍可在审核队列人工校正。
             review, review_model = await classify_chunk(
                 chunk["content"], doc_title, chunk["section_path"],
-                model="minimax-m2.7", temperature=0.5,
+                routing_task="doc_section_review_lowconf", temperature=0.5,
             )
             if review.get("ltc_stage_confidence", 0) > confidence:
                 classification = review

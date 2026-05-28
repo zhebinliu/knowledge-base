@@ -17,6 +17,7 @@ from models import async_session_maker
 from models.meeting import Meeting
 from models.template import MeetingTemplate
 from prompts.meeting import MINUTES_SYSTEM
+from services._time import iso_utc
 from services.model_router import model_router
 from services._time import utcnow_naive as _utcnow
 
@@ -302,7 +303,7 @@ class TemplateEvolver:
             {"role": "user", "content": analysis_input},
         ]
         content, md = await model_router.chat_with_routing(
-            task="doc_generation",
+            task="meeting_template_evolve",
             messages=messages,
             temperature=0.4,
             max_tokens=8000,
@@ -434,8 +435,8 @@ def _template_to_dict(tpl: MeetingTemplate) -> dict[str, Any]:
         "source_kb_doc_refs": _safe_json(tpl.source_kb_doc_refs, []),
         "evolution_method": tpl.evolution_method,
         "change_log": tpl.change_log or "",
-        "created_at": tpl.created_at.isoformat() if tpl.created_at else "",
-        "updated_at": tpl.updated_at.isoformat() if tpl.updated_at else "",
+        "created_at": iso_utc(tpl.created_at) or "",
+        "updated_at": iso_utc(tpl.updated_at) or "",
     }
 
 

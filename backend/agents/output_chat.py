@@ -17,7 +17,13 @@ logger = structlog.get_logger()
 
 MAX_TOOL_ITERATIONS = 4
 SEARCH_TOP_K = 8
-DEFAULT_TOOL_MODEL = "qwen3-next-80b-a3b"  # OpenAI 兼容 tools，edgefn 代理支持
+# 兜底模型,仅当 OutputAgent 未配且后台 output_agent.default_tool_model 也没设时使用。
+# 2026-05-28 后:可通过 OutputAgentsTab 的"默认工具模型"全局改写,无需改这里。
+DEFAULT_TOOL_MODEL_FALLBACK = "qwen3-next-80b-a3b"  # OpenAI 兼容 tools，edgefn 代理支持
+_ALLOWED_TOOL_MODELS = {
+    "minimax-m2.5", "minimax-m2.7", "mimo-v2-pro", "mimo-v2-omni",
+    "glm-5", "glm-4.7", "qwen3-next-80b-a3b", "qwen3-235b-a22b",
+}
 
 
 SEARCH_KB_TOOL = {
@@ -212,13 +218,26 @@ async def _run_search_kb(
         return f"（检索失败：{str(e)[:120]}）", []
 
 
-def _pick_model(preferred: str | None) -> str:
-    if preferred and preferred in {
-        "minimax-m2.5", "minimax-m2.7", "mimo-v2-pro", "mimo-v2-omni",
-        "glm-5", "glm-4.7", "qwen3-next-80b-a3b", "qwen3-235b-a22b",
-    }:
+async def _pick_model(preferred: str | None) -> str:
+    """挑选工具调用模型。优先级:
+    1. 显式 preferred(每个 OutputAgent 自己配的)
+    2. 后台 config_service:output_agent.default_tool_model (全局兜底)
+    3. 代码常量 DEFAULT_TOOL_MODEL_FALLBACK
+    """
+    if preferred and preferred in _ALLOWED_TOOL_MODELS:
         return preferred
-    return DEFAULT_TOOL_MODEL
+    try:
+        from services.config_service import config_service
+        cfg = await config_service.get("output_agent", "default_tool_model")
+        if isinstance(cfg, dict):
+            val = cfg.get("value") or cfg.get("model_name") or cfg.get("model")
+        else:
+            val = cfg
+        if isinstance(val, str) and val in _ALLOWED_TOOL_MODELS:
+            return val
+    except Exception as e:
+        logger.warning("default_tool_model_lookup_failed", error=str(e)[:120])
+    return DEFAULT_TOOL_MODEL_FALLBACK
 
 
 async def run_agent_turn(

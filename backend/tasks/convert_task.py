@@ -169,7 +169,7 @@ async def _generate_summary_faq(doc_id: str, filename: str, markdown: str):
     prompt = _SUMMARY_FAQ_PROMPT.format(filename=filename, content=content)
     try:
         resp, _ = await model_router.chat_with_routing(
-            "doc_generation",
+            "doc_summary_faq",
             [{"role": "user", "content": prompt}],
             max_tokens=1500,
             temperature=0.3,
@@ -221,7 +221,7 @@ async def _infer_doc_type(filename: str, markdown: str, model_router) -> tuple[s
     prompt = _DOC_TYPE_PROMPT.format(filename=filename, preview=preview)
     try:
         content, _ = await model_router.chat_with_routing(
-            "slicing_classification",
+            "doc_type_classify",
             [{"role": "user", "content": prompt}],
             max_tokens=200,
             temperature=0.0,

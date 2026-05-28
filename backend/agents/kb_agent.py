@@ -232,9 +232,9 @@ async def answer_question(
     messages = build_history_messages(history)
     messages.append({"role": "user", "content": prompt})
 
-    # max_tokens 走 config_service 里 daily_qa 的默认值（8000），PM 结构化回答容易超 2000
+    # max_tokens 走 config_service 里 kb_qa_answer 的默认值（8000），PM 结构化回答容易超 2000
     answer, used_model = await model_router.chat_with_routing(
-        "daily_qa",
+        "kb_qa_answer",
         messages,
     )
 
@@ -307,7 +307,7 @@ async def answer_question_stream(
     used_model = None
 
     async for raw_token, model_name in model_router.chat_stream_with_routing(
-        "daily_qa",
+        "kb_qa_answer_stream",
         messages,
     ):
         if raw_token is None:
@@ -364,7 +364,7 @@ async def generate_doc(
     prompt = await build_doc_generate_prompt(template, chunks, project_name, industry)
 
     content, used_model = await model_router.chat_with_routing(
-        "doc_generation",
+        "kb_doc_generate",
         [{"role": "user", "content": prompt}],
         max_tokens=4000,
     )

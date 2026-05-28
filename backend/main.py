@@ -4,6 +4,27 @@ import structlog
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+# ── 全局 datetime UTC 序列化(2026-05-28) ──────────────────────────────────
+# 历史欠债:整库 created_at / updated_at 都用 utcnow_naive 存(naive UTC),
+# FastAPI 默认 jsonable_encoder 把 naive datetime 序列化成 "2026-...:00" 不带 Z,
+# JS new Date() 当本地时间解析,在 UTC+8 服务器上前端就显示成"8 小时前"。
+# 在这里 patch fastapi.encoders.ENCODERS_BY_TYPE[datetime] = utc_iso,
+# 所有走 jsonable_encoder 的路径(几乎所有非 pydantic response_model 端点)立刻
+# 输出 "+00:00" 后缀,前端 new Date() 就能正确解析。
+# 必须在所有 api.* 模块 import 之前 patch,否则那些模块 import 时如果捕获了
+# 旧 isoformat 引用会用错的。
+from datetime import datetime as _dt, date as _date, timezone as _tz
+from fastapi.encoders import ENCODERS_BY_TYPE as _ENC
+
+def _utc_iso_datetime(d: _dt) -> str:
+    """naive 当 UTC,有 tz 保留原 tz。"""
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=_tz.utc)
+    return d.isoformat()
+
+_ENC[_dt] = _utc_iso_datetime
+_ENC[_date] = lambda d: d.isoformat()  # 日期本来就无时区,保持
+
 from config import settings
 from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, research, admin_invite_codes, project_stakeholders, smart_advice, template
 from services.auth import get_current_user
@@ -198,6 +219,7 @@ async def startup():
     from models.captcha_challenge import CaptchaChallenge  # noqa: F401
     from models.project_collaborator import ProjectCollaborator  # noqa: F401
     from models.meeting import Meeting, Requirement  # noqa: F401  会议纪要(2026-05-11 接入)
+    from models.meeting_share import MeetingShare  # noqa: F401  会议纪要分享(2026-05-27 接入)
     from models.template import MeetingTemplate  # noqa: F401  会议纪要模板演化(2026-05-21 接入,create_all 建 meeting_templates 表)
     from models.markup_template import MarkupTemplate  # noqa: F401  会议纪要版面模板(2026-05-28 接入)
     from models.project_stakeholder import ProjectStakeholder  # noqa: F401  项目级干系人资产(2026-05-12)
@@ -284,6 +306,24 @@ async def startup():
             # 会议需求 — 录音时间戳字段
             "ALTER TABLE meeting_requirements ADD COLUMN IF NOT EXISTS start_seconds FLOAT",
             "ALTER TABLE meeting_requirements ADD COLUMN IF NOT EXISTS end_seconds FLOAT",
+            # 2026-05-28:细粒度 routing task 拆分 — 清掉 DB 里旧的粗粒度 key
+            # 旧 key 已无代码引用,留着会让 RoutingTab 里多出无意义行
+            "DELETE FROM agent_configs WHERE config_type='routing_rules' AND config_key IN "
+            "('conversion','daily_qa','doc_generation','slicing_classification',"
+            "'slicing_review','slicing_review_lowconf','challenge_questioning','challenge_judging','conversion_refine')",
+            "DELETE FROM agent_configs WHERE config_type='task_params' AND config_key IN "
+            "('conversion','daily_qa','doc_generation','slicing_classification',"
+            "'slicing_review','slicing_review_lowconf','challenge_questioning','challenge_judging','conversion_refine')",
+            # 2026-05-28:LLM 调用日志扩字段
+            "ALTER TABLE api_call_logs ADD COLUMN IF NOT EXISTS model_name VARCHAR(64)",
+            "ALTER TABLE api_call_logs ADD COLUMN IF NOT EXISTS caller_module VARCHAR(128)",
+            "ALTER TABLE api_call_logs ADD COLUMN IF NOT EXISTS task VARCHAR(64)",
+            "ALTER TABLE api_call_logs ADD COLUMN IF NOT EXISTS input_tokens INTEGER",
+            "ALTER TABLE api_call_logs ADD COLUMN IF NOT EXISTS output_tokens INTEGER",
+            "ALTER TABLE api_call_logs ADD COLUMN IF NOT EXISTS duration_ms INTEGER",
+            "ALTER TABLE api_call_logs ADD COLUMN IF NOT EXISTS error_message TEXT",
+            "CREATE INDEX IF NOT EXISTS idx_call_logs_call_type ON api_call_logs(call_type)",
+            "CREATE INDEX IF NOT EXISTS idx_call_logs_model ON api_call_logs(model_name)",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")

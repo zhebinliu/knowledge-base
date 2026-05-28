@@ -438,7 +438,7 @@ async def challenge_report(
             )
         try:
             result, used_model = await model_router.chat_with_routing(
-                "conversion_refine",                        # 复用 glm-5 (review/judging best_for)
+                "challenge_verdict_reformat",
                 [
                     {"role": "system", "content": CHALLENGER_SYSTEM},
                     {"role": "user", "content": cur_user_prompt},

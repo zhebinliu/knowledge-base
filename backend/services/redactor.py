@@ -166,7 +166,7 @@ async def extract_amounts_via_llm(text: str, *, max_chars: int = 80000) -> list[
     try:
         from services.model_router import model_router
         content, _ = await model_router.chat_with_routing(
-            "doc_generation",  # 走 minimax-m2.7 / glm-5,够便宜
+            "doc_amount_extraction",
             [
                 {"role": "system", "content": _AMOUNT_EXTRACT_SYSTEM},
                 {"role": "user", "content": snippet},

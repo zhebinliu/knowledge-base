@@ -102,7 +102,7 @@ async def create_chat(
     agent_cfg = await get_output_agent_config(body.kind)
     skill_text = await load_skill_snippets(agent_cfg["skill_ids"])
     system_prompt = build_system_prompt(body.kind, agent_cfg["prompt"], skill_text, scope_desc)
-    model = _pick_model(agent_cfg["model"])
+    model = await _pick_model(agent_cfg["model"])
 
     # 先记一条 system，再让 agent 生成开场问候
     base_messages: list[dict] = [{"role": "system", "content": system_prompt}]
@@ -170,7 +170,7 @@ async def send_message(
     new_msgs, new_refs = await run_agent_turn(
         messages=full_messages,
         tools=[SEARCH_KB_TOOL],
-        model=conv.model_name or _pick_model(None),
+        model=conv.model_name or (await _pick_model(None)),
         project_document_ids=document_ids,
         industry=conv.industry,
     )

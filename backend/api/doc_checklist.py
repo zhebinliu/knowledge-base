@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 
 from models import async_session_maker
+from services._time import iso_utc
 from models.project import (
     Project,
     DOC_TYPE_LABELS,
@@ -142,7 +143,7 @@ async def get_doc_checklist(
             "status": r.conversion_status,
             "error": (r.conversion_error or "")[:300] if r.conversion_status in ("failed", "retrying") else None,
             "progress": r.convert_progress if r.conversion_status not in ("completed", "failed") else None,
-            "uploaded_at": r.created_at.isoformat() if r.created_at else None,
+            "uploaded_at": iso_utc(r.created_at),
         })
 
     # 4.5. 干系人画布 — 用户在前端画了组织架构图(写到 ProjectBrief.stakeholder_graph),
@@ -229,7 +230,7 @@ async def get_doc_checklist(
             "doc_type": r.doc_type,
             "doc_type_label": DOC_TYPE_LABELS.get(r.doc_type) if r.doc_type else "未分类",
             "status": r.conversion_status,
-            "uploaded_at": r.created_at.isoformat() if r.created_at else None,
+            "uploaded_at": iso_utc(r.created_at),
         })
 
     # 7. 完成度

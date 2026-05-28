@@ -426,7 +426,7 @@ async def generate_customer_profile(
 请输出客户画像 Markdown 正文，不要包含项目名称作为标题。"""
     try:
         content, _model = await model_router.chat_with_routing(
-            "doc_generation",
+            "project_audience_profile",
             [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
             max_tokens=2000,
             timeout=120.0,

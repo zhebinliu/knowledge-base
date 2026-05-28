@@ -10,15 +10,36 @@ from models import async_session_maker
 
 logger = structlog.get_logger()
 
-# Default task params (extracted from agents' hardcoded values)
+# Default task params — 2026-05-28 重构成细粒度 task,跟 ROUTING_RULES 对齐
 DEFAULT_TASK_PARAMS = {
-    "conversion":             {"max_tokens": 8000, "temperature": 0.3, "timeout": 180},
-    "daily_qa":               {"max_tokens": 8000, "temperature": 0.3, "timeout": 180},
-    "doc_generation":         {"max_tokens": 8000, "temperature": 0.3, "timeout": 180},
-    "slicing_classification": {"max_tokens": 8000, "temperature": 0.1, "timeout": 180},
-    "slicing_review":         {"max_tokens": 8000, "temperature": 0.1, "timeout": 180},
-    "challenge_questioning":  {"max_tokens": 8000, "temperature": 0.7, "timeout": 180},
-    "challenge_judging":      {"max_tokens": 8000, "temperature": 0.1, "timeout": 180},
+    # 会议
+    "meeting_transcript_polish":    {"max_tokens": 8000, "temperature": 0.2, "timeout": 180},
+    "meeting_minutes_extract":      {"max_tokens": 8000, "temperature": 0.2, "timeout": 180},
+    "meeting_requirements_extract": {"max_tokens": 8000, "temperature": 0.2, "timeout": 180},
+    "meeting_stakeholders_extract": {"max_tokens": 8000, "temperature": 0.2, "timeout": 180},
+    "meeting_qa_answer":            {"max_tokens": 4000, "temperature": 0.3, "timeout": 180},
+    "meeting_template_evolve":      {"max_tokens": 8000, "temperature": 0.4, "timeout": 180},
+    # 文档
+    "doc_markdown_convert":         {"max_tokens": 8000, "temperature": 0.3, "timeout": 180},
+    "doc_markdown_refine":          {"max_tokens": 8000, "temperature": 0.2, "timeout": 180},
+    "doc_section_slice":            {"max_tokens": 8000, "temperature": 0.1, "timeout": 180},
+    "doc_section_review_lowconf":   {"max_tokens": 8000, "temperature": 0.5, "timeout": 180},
+    "doc_summary_faq":              {"max_tokens": 1500, "temperature": 0.3, "timeout": 60},
+    "doc_type_classify":            {"max_tokens": 200,  "temperature": 0.0, "timeout": 60},
+    "doc_amount_extraction":        {"max_tokens": 1000, "temperature": 0.1, "timeout": 60},
+    "pdf_ocr":                      {"max_tokens": 4000, "temperature": 0.1, "timeout": 180},
+    # KB
+    "kb_qa_answer":                 {"max_tokens": 8000, "temperature": 0.3, "timeout": 180},
+    "kb_qa_answer_stream":          {"max_tokens": 8000, "temperature": 0.3, "timeout": 180},
+    "kb_doc_generate":              {"max_tokens": 4000, "temperature": 0.3, "timeout": 180},
+    # 项目 / 输出
+    "project_audience_profile":     {"max_tokens": 2000, "temperature": 0.3, "timeout": 120},
+    "output_doc_generate":          {"max_tokens": 8000, "temperature": 0.3, "timeout": 180},
+    # 挑战
+    "challenge_question_kb":        {"max_tokens": 8000, "temperature": 0.7, "timeout": 180},
+    "challenge_question_freeform":  {"max_tokens": 8000, "temperature": 0.9, "timeout": 180},
+    "challenge_answer_judge":       {"max_tokens": 8000, "temperature": 0.1, "timeout": 180},
+    "challenge_verdict_reformat":   {"max_tokens": 8000, "temperature": 0.2, "timeout": 180},
 }
 
 

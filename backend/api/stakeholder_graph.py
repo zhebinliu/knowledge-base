@@ -38,6 +38,7 @@ from models.project import Project
 from models.project_brief import ProjectBrief
 from services.auth import get_current_user
 from services.project_acl import require_project_access
+from services._time import iso_utc
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -89,7 +90,7 @@ async def get_stakeholder_graph(project_id: str):
         return {
             "nodes": f.get("nodes") or [],
             "edges": f.get("edges") or [],
-            "updated_at": brief.updated_at.isoformat() if brief.updated_at else None,
+            "updated_at": iso_utc(brief.updated_at),
         }
 
 
@@ -149,5 +150,5 @@ async def upsert_stakeholder_graph(
         return {
             "nodes": new_fields["nodes"],
             "edges": new_fields["edges"],
-            "updated_at": brief.updated_at.isoformat() if brief.updated_at else None,
+            "updated_at": iso_utc(brief.updated_at),
         }

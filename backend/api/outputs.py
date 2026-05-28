@@ -4,6 +4,8 @@ import structlog
 from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
+from services._time import iso_utc
+
 logger = structlog.get_logger()
 
 
@@ -251,7 +253,7 @@ async def list_challenge_rounds(
                 "regen_model": r.regen_model,
                 "regen_chars": r.regen_chars,
                 "duration_ms": r.duration_ms,
-                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "created_at": iso_utc(r.created_at),
             }
             for r in rows
         ],

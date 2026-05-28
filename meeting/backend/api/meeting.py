@@ -23,7 +23,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import get_session
 from models.meeting import Meeting, Requirement
+from models.meeting_share import MeetingShare
 from models.project import Project
+from models.project_collaborator import ProjectCollaborator
 from models.user import User
 from services.auth import get_current_user, get_current_user_for_media
 
@@ -123,6 +125,7 @@ async def _load_meeting_owned(
     - 会议 owner 看自己的
     - 2026-05-12 加:会议绑定了 project 时,该 project 的协作者也可访问
       (顾问、运营常常需要看 / 编辑别人主持的会议)
+    - 2026-05-27 加:被 owner 通过 MeetingShare 显式分享的用户也可访问
     """
     m = await session.get(Meeting, meeting_id)
     if not m:
@@ -135,6 +138,15 @@ async def _load_meeting_owned(
         access = await get_user_project_access(user, m.project_id)
         if access is not None:  # owner / read_write / read 都允许进会议详情
             return m
+    # 显式分享权限
+    share = (await session.execute(
+        select(MeetingShare).where(
+            MeetingShare.meeting_id == meeting_id,
+            MeetingShare.user_id == user.id,
+        )
+    )).scalar_one_or_none()
+    if share:
+        return m
     raise HTTPException(403, "无权访问该会议")
 
 
@@ -213,10 +225,36 @@ async def list_meetings(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    """列出当前用户的会议(admin 看全部)。按 created_at 倒序。"""
+    """列出当前用户能访问的会议(admin 看全部)。按 created_at 倒序。
+
+    可见性:
+    - 自己创建的(owner_id = user.id)
+    - 我所属的项目里的会议(我是 owner / read_write / read 协作者)
+    - 被显式分享给我的会议
+    """
     stmt = select(Meeting).order_by(Meeting.created_at.desc())
     if not user.is_admin:
-        stmt = stmt.where(Meeting.owner_id == user.id)
+        from sqlalchemy import or_ as sa_or
+        # 项目协作者口子:owned projects + collaborator projects
+        owned_pids = (await session.execute(
+            select(Project.id).where(Project.created_by == user.id)
+        )).scalars().all()
+        coll_pids = (await session.execute(
+            select(ProjectCollaborator.project_id).where(
+                ProjectCollaborator.user_id == user.id
+            )
+        )).scalars().all()
+        accessible_pids = list(set(owned_pids) | set(coll_pids))
+        # 显式分享口子
+        shared_mids = (await session.execute(
+            select(MeetingShare.meeting_id).where(MeetingShare.user_id == user.id)
+        )).scalars().all()
+        conds = [Meeting.owner_id == user.id]
+        if accessible_pids:
+            conds.append(Meeting.project_id.in_(accessible_pids))
+        if shared_mids:
+            conds.append(Meeting.id.in_(shared_mids))
+        stmt = stmt.where(sa_or(*conds))
     rows = (await session.scalars(stmt)).all()
 
     # 一次性查所有相关 project 的名字
@@ -1274,7 +1312,13 @@ async def chat_with_meeting(
         select(Requirement).where(Requirement.meeting_id == m.id).order_by(Requirement.id)
     )).all()
     if reqs:
-        reqs_text = _json.dumps([_requirement_dto(r) for r in reqs], ensure_ascii=False, indent=2)
+        # default=str:_requirement_dto 里的 created_at 是 datetime,标准 json 不识别,
+        # 2026-05-28 修:之前漏掉这个会让整个 endpoint 在 context 组装阶段崩,
+        # 异常逃出下面的 try/except,FastAPI 走默认 handler 返回 plain text 500
+        reqs_text = _json.dumps(
+            [_requirement_dto(r) for r in reqs],
+            ensure_ascii=False, indent=2, default=str,
+        )
         context_parts.append(f"=== 需求清单 ===\n{reqs_text[:3000]}")
 
     context = "\n\n".join(context_parts)
@@ -1301,7 +1345,7 @@ async def chat_with_meeting(
 
     try:
         answer, model = await model_router.chat_with_routing(
-            task="doc_generation",
+            task="meeting_qa_answer",
             messages=messages,
             temperature=0.3,
             max_tokens=4000,
@@ -1319,3 +1363,209 @@ async def chat_with_meeting(
 async def ingest_meeting():
     """Webhook for meeting transcript ingestion — deprecated,使用 POST /from-text 代替。"""
     raise HTTPException(410, "已迁移:请使用 POST /api/meeting/from-text")
+
+
+# ── 会议分享(2026-05-27) ────────────────────────────────────────────────────
+
+class ShareAddBody(BaseModel):
+    """新增分享对象 — 一次可批量加多个用户。"""
+    user_ids: list[str] = Field(default_factory=list, max_length=50)
+
+
+def _share_dto(s: MeetingShare, u: User | None) -> dict:
+    return {
+        "id": s.id,
+        "meeting_id": s.meeting_id,
+        "user_id": s.user_id,
+        "username": u.username if u else None,
+        "full_name": u.full_name if u else None,
+        "email": u.email if u else None,
+        "created_by": s.created_by,
+        "created_at": s.created_at,
+    }
+
+
+def _user_brief(u: User | None) -> dict | None:
+    if not u:
+        return None
+    return {
+        "user_id": u.id,
+        "username": u.username,
+        "full_name": u.full_name,
+        "email": u.email,
+    }
+
+
+async def _assert_can_manage_shares(m: Meeting, user: User) -> None:
+    """谁能改 share:owner / admin / 项目 write 协作者(项目协作者也常常需要把会议
+    分享给项目外的同事)。"""
+    if user.is_admin or m.owner_id == user.id:
+        return
+    if m.project_id:
+        from services.project_acl import get_user_project_access
+        access = await get_user_project_access(user, m.project_id)
+        if access in ("owner", "read_write"):
+            return
+    raise HTTPException(403, "无权管理该会议的分享")
+
+
+@router.get("/{meeting_id}/shares")
+async def list_meeting_shares(
+    meeting_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """列出当前会议的分享对象,以及(若绑定了项目)项目成员快照。
+
+    返回:
+      {
+        "owner": {user_id, username, full_name, email} | null,
+        "project": {id, name} | null,
+        "project_members": [{user_id, username, full_name, email, role}],  # 项目协作者(自动可见)
+        "shares": [{id, user_id, username, full_name, email, created_by, created_at}]
+      }
+    """
+    m = await _load_meeting_owned(meeting_id, session, user)
+
+    # owner
+    owner_user = await session.get(User, m.owner_id) if m.owner_id else None
+
+    # project + 项目成员
+    project_dto = None
+    project_members: list[dict] = []
+    if m.project_id:
+        p = await session.get(Project, m.project_id)
+        if p:
+            project_dto = {"id": p.id, "name": p.name}
+            # owner of project
+            powner = await session.get(User, p.created_by) if p.created_by else None
+            if powner:
+                project_members.append({
+                    **_user_brief(powner),  # type: ignore[arg-type]
+                    "role": "owner",
+                })
+            # collaborators
+            coll_rows = (await session.execute(
+                select(ProjectCollaborator, User)
+                .outerjoin(User, ProjectCollaborator.user_id == User.id)
+                .where(ProjectCollaborator.project_id == m.project_id)
+                .order_by(ProjectCollaborator.created_at.asc())
+            )).all()
+            for c, u in coll_rows:
+                if not u:
+                    continue
+                project_members.append({**_user_brief(u), "role": c.role})  # type: ignore[arg-type]
+
+    # 显式 share 列表
+    share_rows = (await session.execute(
+        select(MeetingShare, User)
+        .outerjoin(User, MeetingShare.user_id == User.id)
+        .where(MeetingShare.meeting_id == meeting_id)
+        .order_by(MeetingShare.created_at.asc())
+    )).all()
+    shares = [_share_dto(s, u) for s, u in share_rows]
+
+    return {
+        "owner": _user_brief(owner_user),
+        "project": project_dto,
+        "project_members": project_members,
+        "shares": shares,
+    }
+
+
+@router.post("/{meeting_id}/shares", status_code=201)
+async def add_meeting_shares(
+    meeting_id: int,
+    body: ShareAddBody,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """把会议分享给一批用户(幂等:已存在的跳过)。
+
+    禁止:
+    - 把 owner 自己加进 share 表
+    - 加不存在或已禁用的用户
+    返回新增成功的 share 列表(已存在的不会重复返回,但也不报错)。
+    """
+    m = await _load_meeting_owned(meeting_id, session, user)
+    await _assert_can_manage_shares(m, user)
+
+    if not body.user_ids:
+        return []
+
+    # 去重 + 过滤 owner
+    target_ids = [uid for uid in {*body.user_ids} if uid and uid != m.owner_id]
+    if not target_ids:
+        return []
+
+    # 校验用户存在 + 活跃
+    users = (await session.scalars(
+        select(User).where(User.id.in_(target_ids))
+    )).all()
+    user_by_id = {u.id: u for u in users}
+    missing = [uid for uid in target_ids if uid not in user_by_id]
+    if missing:
+        raise HTTPException(400, f"用户不存在:{missing[0]}")
+    inactive = [u.id for u in users if not getattr(u, "is_active", True)]
+    if inactive:
+        raise HTTPException(400, "目标用户已禁用,不能分享")
+
+    # 已存在的跳过
+    existing_ids = (await session.execute(
+        select(MeetingShare.user_id).where(
+            MeetingShare.meeting_id == meeting_id,
+            MeetingShare.user_id.in_(target_ids),
+        )
+    )).scalars().all()
+    new_ids = [uid for uid in target_ids if uid not in set(existing_ids)]
+
+    created: list[MeetingShare] = []
+    for uid in new_ids:
+        s = MeetingShare(
+            meeting_id=meeting_id,
+            user_id=uid,
+            created_by=user.id,
+        )
+        session.add(s)
+        created.append(s)
+    await session.commit()
+    for s in created:
+        await session.refresh(s)
+
+    logger.info(
+        "meeting_shared",
+        meeting_id=meeting_id,
+        added=[s.user_id for s in created],
+        by=user.username,
+    )
+    return [_share_dto(s, user_by_id.get(s.user_id)) for s in created]
+
+
+@router.delete("/{meeting_id}/shares/{user_id}", status_code=204)
+async def remove_meeting_share(
+    meeting_id: int,
+    user_id: str,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """取消单个用户对该会议的分享。"""
+    m = await _load_meeting_owned(meeting_id, session, user)
+    await _assert_can_manage_shares(m, user)
+
+    s = (await session.execute(
+        select(MeetingShare).where(
+            MeetingShare.meeting_id == meeting_id,
+            MeetingShare.user_id == user_id,
+        )
+    )).scalar_one_or_none()
+    if not s:
+        raise HTTPException(404, "该用户未被分享")
+    await session.delete(s)
+    await session.commit()
+    logger.info(
+        "meeting_share_revoked",
+        meeting_id=meeting_id,
+        user_id=user_id,
+        by=user.username,
+    )
+    return None

@@ -28,19 +28,20 @@ def _ensure_admin(user: User) -> None:
 
 
 def _ic_dto(ic) -> dict:
+    from services._time import iso_utc
     return {
         "id": ic.id,
         "code": ic.code,
         "created_by": ic.created_by,
         "max_uses": ic.max_uses,
         "used_count": ic.used_count,
-        "expires_at": ic.expires_at.isoformat() if ic.expires_at else None,
+        "expires_at": iso_utc(ic.expires_at),
         "target_role": ic.target_role,
         "revoked": ic.revoked,
         "note": ic.note,
         "status": status_of(ic),
-        "created_at": ic.created_at.isoformat() if ic.created_at else None,
-        "updated_at": ic.updated_at.isoformat() if ic.updated_at else None,
+        "created_at": iso_utc(ic.created_at),
+        "updated_at": iso_utc(ic.updated_at),
     }
 
 

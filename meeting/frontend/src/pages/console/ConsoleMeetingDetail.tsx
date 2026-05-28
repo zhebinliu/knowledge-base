@@ -15,7 +15,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   ChevronLeft, Loader2, RefreshCw, Trash2, FolderKanban, CheckCircle2, AlertCircle, Mic,
   FileText, ListChecks, Users, Settings as SettingsIcon, Info, ExternalLink, Save,
-  Download, Pencil, X, Check, Clock,
+  Download, Pencil, X, Check, Clock, Share2,
 } from 'lucide-react'
 import {
   getMeeting, deleteMeeting, processMeeting, patchMeeting, linkMeetingProject,
@@ -33,6 +33,7 @@ import {
 import { getMeetingAudioUrl } from '../../api/meeting-ext'
 import AudioPlayer, { type AudioPlayerHandle } from '../../components/AudioPlayer'
 import ChatWidget from '../../components/ChatSidebar'
+import MeetingShareModal from '../../components/MeetingShareModal'
 import { toast } from '../../components/Toaster'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -353,6 +354,7 @@ export function MinutesTab({ meeting }: { meeting: Meeting }) {
   const qc = useQueryClient()
   const m: MeetingMinutes = meeting.meeting_minutes || {}
   const [editing, setEditing] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
 
   const regenMut = useMutation({
     mutationFn: () => runMeetingAction(meeting.id, 'summarize'),
@@ -441,6 +443,13 @@ export function MinutesTab({ meeting }: { meeting: Meeting }) {
               className="px-3 py-1.5 rounded-md text-sm border border-line bg-white hover:bg-canvas inline-flex items-center gap-1.5"
             >
               <Pencil size={13} /> 编辑
+            </button>
+            <button
+              onClick={() => setShareOpen(true)}
+              className="px-3 py-1.5 rounded-md text-sm border border-line bg-white hover:bg-canvas inline-flex items-center gap-1.5"
+              title={meeting.project_id ? '分享给项目成员或其他用户' : '分享给指定用户'}
+            >
+              <Share2 size={13} /> 分享
             </button>
             <button
               onClick={() => {
@@ -743,6 +752,12 @@ export function MinutesTab({ meeting }: { meeting: Meeting }) {
       <p className="text-[11px] text-ink-muted text-center">
         以上信息为本次会议沟通概要,部分细节可在后续阶段进一步细化落地。
       </p>
+
+      <MeetingShareModal
+        meetingId={meeting.id}
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+      />
     </div>
   )
 }

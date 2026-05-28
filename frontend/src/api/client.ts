@@ -1090,6 +1090,14 @@ export interface CallLogItem {
   endpoint: string
   status_code: number | null
   created_at: string
+  // 2026-05-28 LLM 调用专有字段(其他类型为 null)
+  model_name: string | null
+  caller_module: string | null
+  task: string | null
+  input_tokens: number | null
+  output_tokens: number | null
+  duration_ms: number | null
+  error_message: string | null
 }
 
 export interface CallLogPage {
@@ -1099,8 +1107,69 @@ export interface CallLogPage {
   items: CallLogItem[]
 }
 
-export const listCallLogs = (page = 1, page_size = 50, call_type?: string) =>
-  api.get<CallLogPage>('/call-logs', { params: { page, page_size, call_type } }).then(r => r.data)
+export const listCallLogs = (
+  page = 1,
+  page_size = 50,
+  call_type?: string,
+  model_name?: string,
+  caller_module?: string,
+) =>
+  api.get<CallLogPage>('/call-logs', {
+    params: { page, page_size, call_type, model_name, caller_module },
+  }).then(r => r.data)
+
+export interface LlmStatsItem {
+  model_name: string
+  calls: number
+  input_tokens: number
+  output_tokens: number
+  avg_duration_ms: number | null
+  errors: number
+}
+
+export const getLlmStats = (since_hours = 24) =>
+  api.get<{ since_hours: number; models: LlmStatsItem[] }>(
+    '/call-logs/llm/stats',
+    { params: { since_hours } },
+  ).then(r => r.data)
+
+// ── Embedding / Rerank 配置(2026-05-28) ────────────────────────────────────
+
+export interface EmbRerankConfig {
+  api_base: string
+  api_base_source: 'database' | 'env'
+  api_base_raw_set: boolean
+  model: string
+  model_source: 'database' | 'env'
+  model_raw_set: boolean
+  api_key: string  // masked
+  api_key_source: 'database' | 'env'
+  api_key_raw_set: boolean
+}
+
+export interface EmbRerankPatch {
+  api_base?: string
+  model?: string
+  api_key?: string
+}
+
+export const getEmbeddingConfig = () =>
+  api.get<EmbRerankConfig>('/settings/embedding').then(r => r.data)
+
+export const updateEmbeddingConfig = (body: EmbRerankPatch) =>
+  api.put<{ ok: boolean; changed: string[] }>('/settings/embedding', body).then(r => r.data)
+
+export const resetEmbeddingField = (key: 'api_base' | 'model' | 'api_key') =>
+  api.delete<{ ok: boolean }>(`/settings/embedding/${key}`).then(r => r.data)
+
+export const getRerankConfig = () =>
+  api.get<EmbRerankConfig>('/settings/rerank').then(r => r.data)
+
+export const updateRerankConfig = (body: EmbRerankPatch) =>
+  api.put<{ ok: boolean; changed: string[] }>('/settings/rerank', body).then(r => r.data)
+
+export const resetRerankField = (key: 'api_base' | 'model' | 'api_key') =>
+  api.delete<{ ok: boolean }>(`/settings/rerank/${key}`).then(r => r.data)
 
 // ── Outputs ───────────────────────────────────────────────────────────────────
 
@@ -1723,6 +1792,8 @@ export const patchMeetingRequirement = async (
     source: string
     speaker: string
     status: string
+    start_seconds: number
+    end_seconds: number
   }>,
 ): Promise<MeetingRequirement> => {
   const { data } = await api.patch<MeetingRequirement>(
@@ -1753,6 +1824,61 @@ export const createMeetingRequirement = async (
 /** 删除单条需求(2026-05-12) */
 export const deleteMeetingRequirement = async (meetingId: number, reqId: number): Promise<void> => {
   await api.delete(`/meeting/${meetingId}/requirements/${reqId}`)
+}
+
+// ── 会议分享(2026-05-27) ───────────────────────────────────────────────────
+
+export interface MeetingShareEntry {
+  id: number
+  meeting_id: number
+  user_id: string
+  username: string | null
+  full_name: string | null
+  email: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export interface MeetingProjectMember {
+  user_id: string
+  username: string | null
+  full_name: string | null
+  email: string | null
+  role: 'owner' | 'read_write' | 'read' | string
+}
+
+export interface MeetingShareSummary {
+  owner: {
+    user_id: string
+    username: string | null
+    full_name: string | null
+    email: string | null
+  } | null
+  project: { id: string; name: string } | null
+  project_members: MeetingProjectMember[]
+  shares: MeetingShareEntry[]
+}
+
+export const listMeetingShares = async (meetingId: number): Promise<MeetingShareSummary> => {
+  const { data } = await api.get<MeetingShareSummary>(`/meeting/${meetingId}/shares`)
+  return data
+}
+
+export const addMeetingShares = async (
+  meetingId: number,
+  userIds: string[],
+): Promise<MeetingShareEntry[]> => {
+  const { data } = await api.post<MeetingShareEntry[]>(`/meeting/${meetingId}/shares`, {
+    user_ids: userIds,
+  })
+  return data
+}
+
+export const removeMeetingShare = async (
+  meetingId: number,
+  userId: string,
+): Promise<void> => {
+  await api.delete(`/meeting/${meetingId}/shares/${userId}`)
 }
 
 /** 干系人改名同步到 minutes / requirements(2026-05-12) */

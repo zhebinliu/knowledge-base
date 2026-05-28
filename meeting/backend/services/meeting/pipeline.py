@@ -74,7 +74,7 @@ async def polish_transcript(raw_transcript: str) -> str:
         {"role": "user", "content": POLISH_USER.format(raw_transcript=raw_transcript)},
     ]
     content, model = await model_router.chat_with_routing(
-        task="doc_generation",
+        task="meeting_transcript_polish",
         messages=messages,
         temperature=0.2,
         max_tokens=16000,
@@ -132,7 +132,7 @@ async def generate_minutes(
         },
     ]
     content, model = await model_router.chat_with_routing(
-        task="doc_generation",
+        task="meeting_minutes_extract",
         messages=messages,
         temperature=0.2,
         max_tokens=8000,
@@ -159,7 +159,7 @@ async def extract_requirements(transcript: str) -> list[dict]:
         {"role": "user", "content": REQUIREMENT_USER.format(transcript=transcript)},
     ]
     content, model = await model_router.chat_with_routing(
-        task="doc_generation",
+        task="meeting_requirements_extract",
         messages=messages,
         temperature=0.2,
         max_tokens=8000,
@@ -230,7 +230,7 @@ async def extract_stakeholders(
         },
     ]
     content, model = await model_router.chat_with_routing(
-        task="doc_generation",
+        task="meeting_stakeholders_extract",
         messages=messages,
         temperature=0.2,
         max_tokens=8000,

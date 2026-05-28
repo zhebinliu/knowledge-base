@@ -231,7 +231,7 @@ async def generate_questions(target_stage: str, chunks: list[dict], num_question
     """Returns (questions_list, model_name)."""
     prompt = await build_question_prompt(target_stage, chunks, num_questions)
     result, used_model = await model_router.chat_with_routing(
-        "challenge_questioning",
+        "challenge_question_kb",
         [{"role": "user", "content": prompt}],
         max_tokens=8000,
         temperature=0.7,
@@ -251,7 +251,7 @@ async def generate_questions_free(target_stage: str, num_questions: int = 5) -> 
     """自由出题：不依赖切片，纯靠 LLM 构造业务场景。Returns (questions_list, model_name)."""
     prompt = await build_question_free_prompt(target_stage, num_questions)
     result, used_model = await model_router.chat_with_routing(
-        "challenge_questioning",
+        "challenge_question_freeform",
         [{"role": "user", "content": prompt}],
         max_tokens=8000,
         temperature=0.9,
@@ -271,7 +271,7 @@ async def judge_answer(question: str, answer: str, source_chunks: list[dict]) ->
     """Returns (judgment_dict, model_name)."""
     prompt = await build_judge_prompt(question, answer, source_chunks)
     result, used_model = await model_router.chat_with_routing(
-        "challenge_judging",
+        "challenge_answer_judge",
         [{"role": "user", "content": prompt}],
         max_tokens=8000,
         temperature=0.1,

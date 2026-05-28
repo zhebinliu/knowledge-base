@@ -271,7 +271,8 @@ async def submit_virtual(
     await assert_project_access(current_user, project_id, "write")
 
     from datetime import datetime, timezone
-    now_iso = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+    # 直接 tz-aware ISO,前端 new Date() 才能正确解析(.replace(tzinfo=None) 会丢 tz 后缀)
+    now_iso = datetime.now(timezone.utc).isoformat()
     from sqlalchemy.orm.attributes import flag_modified
 
     async with async_session_maker() as s:

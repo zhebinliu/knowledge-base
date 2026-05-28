@@ -101,7 +101,7 @@ async def _llm_call(prompt: str, system: str = "", model: str | None = None, max
     if model:
         content, _ = await model_router.chat(model, messages, max_tokens=max_tokens, timeout=timeout)
     else:
-        content, _ = await model_router.chat_with_routing("doc_generation", messages, max_tokens=max_tokens, timeout=timeout)
+        content, _ = await model_router.chat_with_routing("output_doc_generate", messages, max_tokens=max_tokens, timeout=timeout)
     return content
 
 

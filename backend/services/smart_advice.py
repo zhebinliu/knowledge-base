@@ -25,7 +25,7 @@ from models.project_brief import ProjectBrief
 from models.project_smart_advice import SmartAdvice
 from models.curated_bundle import CuratedBundle
 from models.document import Document
-from services._time import utcnow_naive
+from services._time import utcnow_naive, iso_utc
 from services.model_router import model_router
 from services.agentic.industry_packs import get_pack
 from prompts.ltc_taxonomy import INDUSTRY_TAGS
@@ -142,7 +142,7 @@ def _row_to_dict(row: SmartAdvice, is_fresh: bool) -> dict:
         "is_stale": row.is_stale,
         "model_used": row.model_used,
         "error": row.error,
-        "generated_at": row.generated_at.isoformat() if row.generated_at else None,
+        "generated_at": iso_utc(row.generated_at),
         "is_fresh": is_fresh,
     }
 
@@ -178,7 +178,7 @@ async def _gather_context(s: AsyncSession, project_id: str) -> dict[str, Any]:
     outputs_summary = [
         {
             "kind": b.kind,
-            "created_at": b.created_at.isoformat() if b.created_at else None,
+            "created_at": iso_utc(b.created_at),
         }
         for b in bundles
     ]
@@ -190,7 +190,7 @@ async def _gather_context(s: AsyncSession, project_id: str) -> dict[str, Any]:
         .order_by(Document.created_at.desc())
     )
     docs = [
-        {"filename": r.filename, "doc_type": r.doc_type, "created_at": r.created_at.isoformat() if r.created_at else None}
+        {"filename": r.filename, "doc_type": r.doc_type, "created_at": iso_utc(r.created_at)}
         for r in docs_res.all()
     ]
 

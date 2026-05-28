@@ -13,6 +13,7 @@
 import urllib.parse
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
+from services._time import iso_utc
 from fastapi.responses import Response, HTMLResponse
 from pydantic import BaseModel, Field
 from typing import Any, Literal
@@ -117,7 +118,7 @@ async def list_responses(bundle_id: str, user=Depends(get_current_user)):
                 "answer_value": r.answer_value,
                 "scope_label": r.scope_label,
                 "scope_label_source": r.scope_label_source,
-                "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+                "updated_at": iso_utc(r.updated_at),
             }
             for r in rows
         ]
