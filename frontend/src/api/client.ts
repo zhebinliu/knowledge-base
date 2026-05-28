@@ -1699,6 +1699,7 @@ export interface Meeting {
   audio_object_key: string | null
   feishu_url: string | null
   bitable_app_token: string | null
+  action_bitable_app_token: string | null  // 修复 #4:待办看板独立字段
   kb_doc_id: string | null
   kb_url: string | null
   kb_synced_at: string | null
@@ -2041,13 +2042,13 @@ export interface FeishuCredentialsStatus {
 }
 
 export const getFeishuCredentials = async (): Promise<FeishuCredentialsStatus> => {
-  const { data } = await api.get<FeishuCredentialsStatus>('/meeting/feishu-credentials')
+  const { data } = await api.get<FeishuCredentialsStatus>('/feishu/credentials')  // 修复 #5:独立路由
   return data
 }
 
 export const putFeishuCredentials = async (body: { app_id: string; app_secret: string }) => {
   const { data } = await api.put<{ status: string; configured: boolean; app_id: string }>(
-    '/meeting/feishu-credentials',
+    '/feishu/credentials',  // 修复 #5:独立路由
     body,
   )
   return data
@@ -2055,7 +2056,7 @@ export const putFeishuCredentials = async (body: { app_id: string; app_secret: s
 
 export const deleteFeishuCredentials = async () => {
   const { data } = await api.delete<{ status: string; configured: boolean }>(
-    '/meeting/feishu-credentials',
+    '/feishu/credentials',  // 修复 #5:独立路由
   )
   return data
 }

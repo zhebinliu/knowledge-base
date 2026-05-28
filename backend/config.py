@@ -69,6 +69,14 @@ class Settings(BaseSettings):
     # 飞书部署失败通知 webhook(可选)
     deploy_webhook_url: str = ""
 
+    # 飞书 App Secret 加密密钥(Fernet,32 字节 url-safe base64)
+    # 未配置时启动自动生成(仅开发环境安全,生产必须固定)
+    fernet_key: str = ""
+
+    # 飞书全局凭证(可选):用户未配个人凭证时的降级
+    feishu_global_app_id: str = ""
+    feishu_global_app_secret: str = ""
+
     @property
     def database_url(self) -> str:
         pw = quote_plus(self.postgres_password)

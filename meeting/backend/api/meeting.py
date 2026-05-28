@@ -962,18 +962,16 @@ async def put_feishu_credentials(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    """配置/更新当前用户的飞书凭证。"""
-    # 关键修复:从 handler 自己的 session 重新加载 user,避免跨 session 对象
-    # 身份不一致导致 commit 不生效
+    """配置/更新当前用户的飞书凭证。secret 加密存储。"""
+    from services.feishu_crypto import encrypt_secret
     db_user = await session.get(User, user.id)
     if not db_user:
         raise HTTPException(404, "用户不存在")
     old_app_id = db_user.feishu_app_id
     db_user.feishu_app_id = body.app_id.strip()
-    db_user.feishu_app_secret = body.app_secret.strip()
+    db_user.feishu_app_secret = encrypt_secret(body.app_secret.strip())
     await session.commit()
     await session.refresh(db_user)
-    # 凭证变更后清除旧 token 缓存,避免旧 secret 签发的 token 被继续使用
     if old_app_id:
         from services.meeting.feishu import invalidate_token_cache
         invalidate_token_cache(old_app_id)
@@ -1021,13 +1019,30 @@ class KanbanCreateIn(BaseModel):
     folder_token: str | None = Field(default=None, max_length=128)
 
 
-def _require_feishu(user: User):
-    """没配飞书直接抛 412,前端引导去 Settings 配置。"""
+def _require_feishu(user: User) -> tuple[str, str]:
+    """获取飞书凭证:优先用户个人配置,未配置时回退全局配置,都没有则抛 412。
+
+    返回 (app_id, app_secret),secret 已解密。
+    """
     from services.meeting.feishu import get_user_feishu_credentials
+    from services.feishu_crypto import decrypt_secret
+    from config import settings
+
+    # 1) 优先用户个人凭证
     creds = get_user_feishu_credentials(user)
-    if not creds:
-        raise HTTPException(412, "请先在「系统设置 → 飞书集成」中配置飞书凭证")
-    return creds
+    if creds:
+        app_id, app_secret = creds
+        decrypted = decrypt_secret(app_secret) or ""
+        if decrypted:
+            return app_id, decrypted
+
+    # 2) 回退全局凭证
+    global_id = settings.feishu_global_app_id.strip()
+    global_secret = settings.feishu_global_app_secret.strip()
+    if global_id and global_secret:
+        return global_id, global_secret
+
+    raise HTTPException(412, "请先在「个人设置 → 飞书集成」中配置飞书凭证")
 
 
 @router.post("/{meeting_id}/export-feishu")
@@ -1058,7 +1073,8 @@ async def export_to_feishu(
             folder_token=body.folder_token,
         )
     except FeishuError as e:
-        raise HTTPException(502, f"飞书 API 失败:{e.message}")
+        from services.meeting.feishu import http_status_for_feishu_error
+        raise HTTPException(http_status_for_feishu_error(e.code, e.message), f"飞书 API 失败:{e.message}")
 
     m.feishu_url = url
     await session.commit()
@@ -1104,7 +1120,8 @@ async def sync_requirements_to_bitable(
             app_id, app_secret, body.bitable_app_token, body.table_id, records
         )
     except FeishuError as e:
-        raise HTTPException(502, f"飞书多维表 API 失败:{e.message}")
+        from services.meeting.feishu import http_status_for_feishu_error
+        raise HTTPException(http_status_for_feishu_error(e.code, e.message), f"飞书多维表 API 失败:{e.message}")
 
     m.bitable_app_token = body.bitable_app_token
     await session.commit()
@@ -1143,9 +1160,10 @@ async def sync_action_items_to_bitable(
     try:
         url = await _sync(app_id, app_secret, body.bitable_app_token, body.table_id, action_items)
     except FeishuError as e:
-        raise HTTPException(502, f"飞书多维表 API 失败:{e.message}")
+        from services.meeting.feishu import http_status_for_feishu_error
+        raise HTTPException(http_status_for_feishu_error(e.code, e.message), f"飞书多维表 API 失败:{e.message}")
 
-    m.bitable_app_token = body.bitable_app_token
+    m.action_bitable_app_token = body.bitable_app_token  # 修复 #4:使用独立字段
     await session.commit()
     return {"status": "ok", "url": url, "rows": len(action_items)}
 
@@ -1173,9 +1191,10 @@ async def create_action_kanban(
             app_id, app_secret, name, folder_token=body.folder_token,
         )
     except FeishuError as e:
-        raise HTTPException(502, f"飞书多维表 API 失败:{e.message}")
+        from services.meeting.feishu import http_status_for_feishu_error
+        raise HTTPException(http_status_for_feishu_error(e.code, e.message), f"创建看板失败:{e.message}")
 
-    m.bitable_app_token = app_token
+    m.action_bitable_app_token = app_token  # 修复 #4:使用独立字段
     await session.commit()
     return {
         "status": "ok",

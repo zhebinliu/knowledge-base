@@ -3,7 +3,7 @@ import { NavLink, Navigate, Outlet, Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Brain, MessageSquare,
   ClipboardCheck, BookOpen, Settings, Sliders, ChevronDown, LogOut, KeyRound, Shield, Folder,
-  Copy, RefreshCw, Check, Plug, Trash2, AlertCircle, Menu, Sparkles, Search,
+  Copy, RefreshCw, Check, Plug, Trash2, AlertCircle, Menu, Sparkles, Search, User,
 } from 'lucide-react'
 // BookOpen kept for chunks nav icon
 import { useAuth } from '../auth/AuthContext'
@@ -19,6 +19,7 @@ const pathToModule: Record<string, string> = {
   '/qa': 'qa',
   '/review': 'review',
   '/challenge': 'challenge',
+  '/personal-settings': 'settings',  // 个人设置归到 settings 模块权限
   '/settings': 'settings',
   '/system-config': 'settings',  // 归到 settings
   '/invite-codes': 'settings',
@@ -43,6 +44,7 @@ const allNavGroups = [
   {
     label: '系统',
     items: [
+      { to: '/personal-settings', label: '个人设置', icon: User },
       { to: '/system-config', label: '系统配置', icon: Sliders, adminOnly: true },
       { to: '/settings',      label: '系统设置', icon: Settings, adminOnly: true },
       { to: '/invite-codes',  label: '邀请码',   icon: Shield, adminOnly: true },

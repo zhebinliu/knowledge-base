@@ -3,20 +3,19 @@
  * 功能 100% 等价 — 5 个 Tab 组件 import 老的不动
  */
 import { useState } from 'react'
-import { Cpu, GitBranch, KeyRound, Users, ScrollText, Settings as SettingsIcon, Link2, type LucideIcon } from 'lucide-react'
+import { Cpu, GitBranch, KeyRound, Users, ScrollText, Settings as SettingsIcon, type LucideIcon } from 'lucide-react'
 import ModelsTab   from '../components/settings/ModelsTab'
 import RoutingTab  from '../components/settings/RoutingTab'
 import ApiKeysTab  from '../components/settings/ApiKeysTab'
 import UsersTab    from '../components/settings/UsersTab'
 import CallLogsTab from '../components/settings/CallLogsTab'
-import FeishuTab   from '../components/settings/FeishuTab'
+// FeishuTab 已移至个人设置 /personal-settings — 每个用户独立配置
 import GlowCard from './components/GlowCard'
 
 const TABS: Array<{ key: string; label: string; Icon: LucideIcon; Comp: React.FC }> = [
   { key: 'models',    label: '模型管理',   Icon: Cpu,        Comp: ModelsTab },
   { key: 'routing',   label: '路由与参数', Icon: GitBranch,  Comp: RoutingTab },
   { key: 'api-keys',  label: 'API 密钥',   Icon: KeyRound,   Comp: ApiKeysTab },
-  { key: 'feishu',    label: '飞书集成',   Icon: Link2,      Comp: FeishuTab },
   { key: 'users',     label: '用户管理',   Icon: Users,      Comp: UsersTab },
   { key: 'call-logs', label: '调用日志',   Icon: ScrollText, Comp: CallLogsTab },
 ]

@@ -44,7 +44,8 @@ class Meeting(Base):
     audio_object_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     # 飞书产物
-    bitable_app_token: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    bitable_app_token: Mapped[str | None] = mapped_column(String(128), nullable=True)  # 需求多维表
+    action_bitable_app_token: Mapped[str | None] = mapped_column(String(128), nullable=True)  # 待办看板多维表
     feishu_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # KB 同步(纪要文档)

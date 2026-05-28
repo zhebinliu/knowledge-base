@@ -1748,8 +1748,8 @@ function FeishuCredsCard() {
           </p>
           <p className="text-[11px] text-ink-muted mt-1">
             也可在{' '}
-            <a href="/settings" className="text-brand underline">
-              系统设置 → 飞书集成
+            <a href="/personal-settings" className="text-brand underline">
+              个人设置 → 飞书集成
             </a>
             {' '}中统一管理凭证。
           </p>

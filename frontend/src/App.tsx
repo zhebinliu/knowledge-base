@@ -23,6 +23,7 @@ import NewBackendReview         from './redesign/Review'
 import NewBackendChallengeHist  from './redesign/ChallengeHistory'
 import NewBackendSettings       from './redesign/Settings'
 import NewBackendSystemConfig   from './redesign/SystemConfig'
+import NewBackendPersonalSettings from './redesign/PersonalSettings'
 import NewConsoleLayout      from './redesign/console/ConsoleLayout'
 import NewConsoleHome        from './redesign/console/ConsoleHome'
 import NewConsoleProjects       from './redesign/console/ConsoleProjects'
@@ -65,6 +66,7 @@ import Challenge from './pages/Challenge'
 import ChallengeHistory from './pages/ChallengeHistory'
 import Settings  from './pages/Settings'
 import SystemConfig from './pages/SystemConfig'
+import PersonalSettings from './pages/PersonalSettings'
 import InviteCodes from './pages/InviteCodes'
 import Projects from './pages/Projects'
 import ProjectDetail from './pages/ProjectDetail'
@@ -153,6 +155,7 @@ export default function App() {
           <Route path="challenge"    element={<Challenge />} />
           <Route path="challenge/history" element={IS_NEW_UI ? <NewBackendChallengeHist /> : <ChallengeHistory />} />
           <Route path="settings"      element={IS_NEW_UI ? <NewBackendSettings />     : <Settings />} />
+          <Route path="personal-settings" element={IS_NEW_UI ? <NewBackendPersonalSettings /> : <PersonalSettings />} />
           <Route path="system-config" element={IS_NEW_UI ? <NewBackendSystemConfig /> : <SystemConfig />} />
           <Route path="invite-codes"  element={<InviteCodes />} />
         </Route>

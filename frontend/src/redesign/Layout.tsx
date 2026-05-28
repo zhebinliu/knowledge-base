@@ -15,7 +15,7 @@ import {
   LayoutDashboard, FileText, Brain, MessageSquare, ClipboardCheck, BookOpen,
   Settings, Sliders, ChevronDown, LogOut, KeyRound, Shield, Folder,
   Copy, RefreshCw, Check, Plug, Trash2, AlertCircle, Sparkles, Search,
-  MoreHorizontal,
+  MoreHorizontal, User,
 } from 'lucide-react'
 import LiquidGlass from 'liquid-glass-react'
 import { useAuth } from '../auth/AuthContext'
@@ -32,6 +32,7 @@ const pathToModule: Record<string, string> = {
   '/qa': 'qa',
   '/review': 'review',
   '/challenge': 'challenge',
+  '/personal-settings': 'settings',
   '/settings': 'settings',
   '/system-config': 'settings',
   '/invite-codes': 'settings',
@@ -49,6 +50,7 @@ const DOCK_NAV = [
 const MORE_NAV = [
   { to: '/review',        label: '审核队列', icon: ClipboardCheck, module: 'review' },
   { to: '/challenge',     label: '知识挑战', icon: Brain,          module: 'challenge' },
+  { to: '/personal-settings', label: '个人设置', icon: User,       module: 'settings' },
   { to: '/system-config', label: '系统配置', icon: Sliders,        module: 'settings', adminOnly: true },
   { to: '/settings',      label: '系统设置', icon: Settings,       module: 'settings', adminOnly: true },
   { to: '/invite-codes',  label: '邀请码',   icon: Shield,         module: 'settings', adminOnly: true },
@@ -180,6 +182,7 @@ export default function NewLayout() {
   const dockItems = DOCK_NAV.filter(i => canAccess(i.to))
   const moreItems = MORE_NAV.filter(i => {
     if (i.adminOnly && !user?.is_admin) return false
+    // 个人设置 总是显示(非 adminOnly)
     return canAccess(i.to)
   })
 
