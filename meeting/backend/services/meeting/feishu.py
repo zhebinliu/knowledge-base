@@ -45,6 +45,13 @@ def get_user_feishu_credentials(user: User) -> Optional[tuple[str, str]]:
     return user.feishu_app_id, user.feishu_app_secret
 
 
+def invalidate_token_cache(app_id: str) -> None:
+    """用户更新/清除飞书凭证时,清掉对应 app_id 的 token 缓存,
+    避免旧 secret 签发的 token 继续被使用导致 401。"""
+    _token_cache.pop(app_id, None)
+    logger.info("feishu_token_cache_invalidated", app_id=app_id[:8] + "***")
+
+
 # ── 简易 token 缓存(内存级,进程内)──────────────────────────────────
 
 _token_cache: dict[str, tuple[str, float]] = {}  # app_id -> (token, expires_at)

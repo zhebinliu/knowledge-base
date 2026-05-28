@@ -1712,8 +1712,8 @@ function FeishuCredsCard() {
 
   const saveMut = useMutation({
     mutationFn: () => putFeishuCredentials({ app_id: appId.trim(), app_secret: appSecret.trim() }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['feishu-creds'] })
+    onSuccess: (data) => {
+      qc.setQueryData(['feishu-creds'], { configured: true, app_id: data.app_id })
       setEditing(false); setAppId(''); setAppSecret('')
       toast.success('飞书凭证保存成功')
     },
@@ -1725,7 +1725,7 @@ function FeishuCredsCard() {
   const delMut = useMutation({
     mutationFn: deleteFeishuCredentials,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['feishu-creds'] })
+      qc.setQueryData(['feishu-creds'], { configured: false, app_id: null })
       toast.success('飞书凭证已清除')
     },
     onError: (err: any) => {
@@ -1766,7 +1766,7 @@ function FeishuCredsCard() {
           {status?.configured ? (
             <>
               <span className="text-[12px] text-ink-muted font-mono">App ID: {status.app_id}</span>
-              <button onClick={() => setEditing(true)}
+              <button onClick={() => { setAppId(status!.app_id || ''); setEditing(true) }}
                 className="text-[12px] px-2 py-1 rounded border border-line hover:bg-canvas-elevated">
                 修改
               </button>

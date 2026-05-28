@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Link2, Check, Copy, Trash2 } from 'lucide-react'
+import { Loader2, Link2, Check, Copy, Trash2, EyeOff } from 'lucide-react'
 import {
   getFeishuCredentials,
   putFeishuCredentials,
@@ -17,15 +17,15 @@ export default function FeishuTab() {
   const [editing, setEditing] = useState(false)
   const [appId, setAppId] = useState('')
   const [appSecret, setAppSecret] = useState('')
-  const [showSecret, setShowSecret] = useState(false)
   const [copied, setCopied] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const saveMut = useMutation({
     mutationFn: () => putFeishuCredentials({ app_id: appId.trim(), app_secret: appSecret.trim() }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['feishu-creds'] })
+    onSuccess: (data) => {
+      // 乐观更新:立刻写入缓存，避免 invalidation 期间闪现旧数据
+      qc.setQueryData(['feishu-creds'], { configured: true, app_id: data.app_id })
       setEditing(false)
       setAppId('')
       setAppSecret('')
@@ -39,7 +39,7 @@ export default function FeishuTab() {
   const delMut = useMutation({
     mutationFn: deleteFeishuCredentials,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['feishu-creds'] })
+      qc.setQueryData(['feishu-creds'], { configured: false, app_id: null })
       setDeleteError(null)
     },
     onError: (err: any) => {
@@ -118,15 +118,10 @@ export default function FeishuTab() {
 
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 w-16 shrink-0">Secret</span>
-                <code className="text-xs bg-gray-50 px-2 py-1 rounded border border-gray-200 font-mono flex-1">
-                  {showSecret ? '••••••••（已加密存储）' : '••••••••••••••••'}
+                <code className="text-xs bg-gray-50 px-2 py-1 rounded border border-gray-200 font-mono flex-1 inline-flex items-center gap-1.5">
+                  <EyeOff size={12} className="text-gray-400 shrink-0" />
+                  已加密存储，不可查看
                 </code>
-                <button
-                  onClick={() => setShowSecret(!showSecret)}
-                  className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1"
-                >
-                  {showSecret ? '隐藏' : '查看'}
-                </button>
               </div>
 
               <div className="flex gap-2 pt-2">
