@@ -35,6 +35,7 @@ import ChatWidget from '../../components/ChatSidebar'
 import { toast } from '../../components/Toaster'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import TemplateSelector from '../../components/TemplateSelector'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 type TopView = 'overview' | 'split' | 'actions'
@@ -2061,6 +2062,13 @@ export default function ConsoleMeetingDetail() {
                 <span className="inline-block w-0.5 h-3 bg-orange-500 ml-0.5 animate-pulse align-middle" />
               </div>
             )}
+          </div>
+        )}
+
+        {/* 会议纪要模板选择与导出 */}
+        {hasContent && meeting.meeting_minutes && (
+          <div className="mt-4">
+            <TemplateSelector meetingId={meeting.id} meetingTitle={meeting.title} variant="legacy" />
           </div>
         )}
 

@@ -21,10 +21,14 @@ import {
 export default function TemplateSelector({
   meetingId,
   meetingTitle,
+  variant = 'redesign',
 }: {
   meetingId: number
   meetingTitle?: string
+  /** 'redesign'=新UI深色下拉; 'legacy'=旧UI浅色主题 */
+  variant?: 'redesign' | 'legacy'
 }) {
+  const isLegacy = variant === 'legacy'
   const [open, setOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [rendered, setRendered] = useState<TemplateRenderResult | null>(null)
@@ -84,7 +88,7 @@ export default function TemplateSelector({
           padding: '8px 14px', fontSize: 13, fontWeight: 600,
           color: '#fff',
           background: selectedTemplate
-            ? 'linear-gradient(135deg,#2563eb,#1d4ed8)'
+            ? (isLegacy ? '#2563eb' : 'linear-gradient(135deg,#2563eb,#1d4ed8)')
             : 'linear-gradient(135deg,#FF8D1A,#D96400)',
           border: 'none', borderRadius: 8,
           cursor: 'pointer', fontFamily: 'inherit',
@@ -103,13 +107,20 @@ export default function TemplateSelector({
           <div style={{
             position: 'absolute', top: '100%', left: 0, marginTop: 4,
             minWidth: 260, maxHeight: 320, overflowY: 'auto',
-            background: 'var(--rd-surface, #1A1D2E)', borderRadius: 10,
-            border: '1px solid var(--rd-line)',
-            boxShadow: '0 12px 40px rgba(0,0,0,.4)',
+            background: isLegacy ? '#fff' : 'var(--rd-surface, #1A1D2E)',
+            borderRadius: 10,
+            border: isLegacy ? '1px solid #e2e8f0' : '1px solid var(--rd-line)',
+            boxShadow: isLegacy
+              ? '0 8px 24px rgba(0,0,0,.12)'
+              : '0 12px 40px rgba(0,0,0,.4)',
             zIndex: 99, padding: 6,
           }}>
             {isLoading && (
-              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--rd-text-3)', fontSize: 13 }}>
+              <div style={{
+                padding: '20px', textAlign: 'center',
+                color: isLegacy ? '#94a3b8' : 'var(--rd-text-3, #94a3b8)',
+                fontSize: 13,
+              }}>
                 <Loader2 size={16} className="animate-spin" style={{ margin: '0 auto 8px' }} /> 加载中...
               </div>
             )}
@@ -121,15 +132,19 @@ export default function TemplateSelector({
                   display: 'flex', alignItems: 'center', gap: 8,
                   width: '100%', padding: '10px 12px',
                   fontSize: 13, fontWeight: selectedId === tpl.id ? 600 : 400,
-                  color: 'var(--rd-text)',
-                  background: selectedId === tpl.id ? 'rgba(37,99,235,.08)' : 'transparent',
+                  color: isLegacy ? '#334155' : 'var(--rd-text, #e2e8f0)',
+                  background: selectedId === tpl.id
+                    ? (isLegacy ? '#eff6ff' : 'rgba(37,99,235,.08)')
+                    : 'transparent',
                   border: 'none', borderRadius: 6,
                   cursor: 'pointer', textAlign: 'left',
                   fontFamily: 'inherit',
                   transition: 'background .15s',
                 }}
                 onMouseEnter={e => {
-                  if (selectedId !== tpl.id) e.currentTarget.style.background = 'rgba(255,255,255,.04)'
+                  if (selectedId !== tpl.id) {
+                    e.currentTarget.style.background = isLegacy ? '#f8fafc' : 'rgba(255,255,255,.04)'
+                  }
                 }}
                 onMouseLeave={e => {
                   if (selectedId !== tpl.id) e.currentTarget.style.background = 'transparent'
@@ -149,7 +164,11 @@ export default function TemplateSelector({
               </button>
             ))}
             {templates?.length === 0 && (
-              <div style={{ padding: '16px', textAlign: 'center', color: 'var(--rd-text-3)', fontSize: 12 }}>
+              <div style={{
+                padding: '16px', textAlign: 'center',
+                color: isLegacy ? '#94a3b8' : 'var(--rd-text-3, #94a3b8)',
+                fontSize: 12,
+              }}>
                 暂无模板，请先在模板管理页面上传
               </div>
             )}
@@ -164,8 +183,9 @@ export default function TemplateSelector({
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
             padding: '8px 12px',
-            background: 'rgba(37,99,235,.06)', borderRadius: 8,
-            border: '1px solid rgba(37,99,235,.15)',
+            background: isLegacy ? '#eff6ff' : 'rgba(37,99,235,.06)',
+            borderRadius: 8,
+            border: isLegacy ? '1px solid #bfdbfe' : '1px solid rgba(37,99,235,.15)',
           }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#2563eb', flex: 1 }}>
               当前模板：{selectedTemplate.name}
@@ -175,8 +195,10 @@ export default function TemplateSelector({
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: '5px 10px', fontSize: 12, fontWeight: 500,
-                color: 'var(--rd-text-2)', background: 'rgba(255,255,255,.04)',
-                border: '1px solid var(--rd-line)', borderRadius: 6,
+                color: isLegacy ? '#475569' : 'var(--rd-text-2, #94a3b8)',
+                background: isLegacy ? '#f8fafc' : 'rgba(255,255,255,.04)',
+                border: isLegacy ? '1px solid #e2e8f0' : '1px solid var(--rd-line)',
+                borderRadius: 6,
                 cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
@@ -189,8 +211,10 @@ export default function TemplateSelector({
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: '5px 10px', fontSize: 12, fontWeight: 500,
-                color: 'var(--rd-text)', background: 'rgba(255,255,255,.06)',
-                border: '1px solid var(--rd-line)', borderRadius: 6,
+                color: isLegacy ? '#475569' : 'var(--rd-text, #e2e8f0)',
+                background: isLegacy ? '#f8fafc' : 'rgba(255,255,255,.06)',
+                border: isLegacy ? '1px solid #e2e8f0' : '1px solid var(--rd-line)',
+                borderRadius: 6,
                 cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
@@ -204,7 +228,7 @@ export default function TemplateSelector({
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: '5px 10px', fontSize: 12, fontWeight: 600,
                 color: '#fff',
-                background: 'linear-gradient(135deg,#2563eb,#1d4ed8)',
+                background: isLegacy ? '#2563eb' : 'linear-gradient(135deg,#2563eb,#1d4ed8)',
                 border: 'none', borderRadius: 6,
                 cursor: 'pointer', fontFamily: 'inherit',
               }}
@@ -218,12 +242,13 @@ export default function TemplateSelector({
           {showPreview && (
             <div style={{
               marginTop: 8, padding: '12px 16px',
-              background: 'rgba(255,255,255,.02)',
-              border: '1px solid var(--rd-line)', borderRadius: 8,
+              background: isLegacy ? '#f8fafc' : 'rgba(255,255,255,.02)',
+              border: isLegacy ? '1px solid #e2e8f0' : '1px solid var(--rd-line)',
+              borderRadius: 8,
               maxHeight: 400, overflowY: 'auto',
             }}>
               {renderMut.isPending ? (
-                <div style={{ textAlign: 'center', padding: 20, color: 'var(--rd-text-3)' }}>
+                <div style={{ textAlign: 'center', padding: 20, color: isLegacy ? '#94a3b8' : 'var(--rd-text-3, #94a3b8)' }}>
                   <Loader2 size={18} className="animate-spin" /> 正在渲染...
                 </div>
               ) : rendered ? (

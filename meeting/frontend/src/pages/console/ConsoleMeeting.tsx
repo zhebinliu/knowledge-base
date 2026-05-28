@@ -9,7 +9,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
-  Mic, Plus, Trash2, FolderKanban, CheckCircle2, Loader2, AlertCircle, Clock, Search,
+  Mic, Plus, Trash2, FolderKanban, CheckCircle2, Loader2, AlertCircle, Clock, Search, LayoutTemplate,
 } from 'lucide-react'
 import { listMeetings, deleteMeeting, type Meeting, type MeetingStatus } from '../../api/client'
 
@@ -94,6 +94,7 @@ export default function ConsoleMeeting() {
             上传录音 / 粘贴文本,AI 自动提取纪要、待办、需求清单和干系人图谱。
           </p>
         </div>
+        <div className="flex items-center gap-2">
         <button
           onClick={() => nav('/console/meeting/new')}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium shadow-sm hover:opacity-90"
@@ -101,6 +102,13 @@ export default function ConsoleMeeting() {
         >
           <Plus size={16} /> 新建会议
         </button>
+        <button
+          onClick={() => nav('/console/meeting/templates')}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-line bg-white hover:bg-slate-50 text-ink-secondary transition-colors"
+        >
+          <LayoutTemplate size={16} /> 模板管理
+        </button>
+        </div>
       </div>
 
       {/* Search + filter bar */}

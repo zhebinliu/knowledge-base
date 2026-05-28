@@ -23,7 +23,9 @@ import {
 } from '../../api/markup-template'
 import GlowCard from '../components/GlowCard'
 
-export default function TemplateManager() {
+export default function TemplateManager({ variant = 'redesign' }: { variant?: 'redesign' | 'legacy' }) {
+  const isLegacy = variant === 'legacy'
+  const QCard = isLegacy ? (p: any) => <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)', ...p.style } as React.CSSProperties}>{p.children}</div> : GlowCard
   const qc = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
   // UI 状态
@@ -95,7 +97,15 @@ export default function TemplateManager() {
   }, [newName, newDesc, newContent, createMut])
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+    <div style={{
+      maxWidth: 1100, margin: '0 auto',
+      ...(isLegacy ? {
+        '--rd-text': '#1e293b',
+        '--rd-text-2': '#475569',
+        '--rd-text-3': '#94a3b8',
+        '--rd-line': '#e2e8f0',
+      } : {}),
+    } as React.CSSProperties}>
       {/* 头部 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
@@ -112,7 +122,7 @@ export default function TemplateManager() {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
               padding: '8px 16px', fontSize: 13, fontWeight: 500,
-              color: 'var(--rd-text-2)', background: 'rgba(255,255,255,.04)',
+              color: 'var(--rd-text-2)', background: isLegacy ? '#f8fafc' : 'rgba(255,255,255,.04)',
               border: '1px solid var(--rd-line)', borderRadius: 8,
               cursor: 'pointer', fontFamily: 'inherit',
             }}
@@ -156,20 +166,20 @@ export default function TemplateManager() {
 
       {/* 占位符帮助面板 */}
       {showPlaceholders && placeholderHelp && (
-        <GlowCard style={{ marginBottom: 20, padding: 16 }}>
+        <QCard style={{ marginBottom: 20, padding: 16 }}>
           <h4 style={{ margin: '0 0 10px', fontSize: 14, color: 'var(--rd-text)' }}>可用占位符</h4>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 6 }}>
             {Object.entries(placeholderHelp).map(([key, desc]) => (
               <div key={key} style={{ display: 'flex', gap: 8, fontSize: 12 }}>
                 <code style={{
-                  color: '#2563eb', background: 'rgba(37,99,235,.1)',
+                  color: '#2563eb', background: isLegacy ? '#eff6ff' : 'rgba(37,99,235,.1)',
                   padding: '1px 6px', borderRadius: 4, whiteSpace: 'nowrap',
                 }}>{key}</code>
                 <span style={{ color: 'var(--rd-text-2)' }}>{desc}</span>
               </div>
             ))}
           </div>
-        </GlowCard>
+        </QCard>
       )}
 
       {/* 上传文件名输入 */}
@@ -186,7 +196,7 @@ export default function TemplateManager() {
 
       {/* 手动创建表单 */}
       {showCreate && (
-        <GlowCard style={{ marginBottom: 20, padding: 20 }}>
+        <QCard style={{ marginBottom: 20, padding: 20 }}>
           <h4 style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--rd-text)' }}>手动创建模板</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <input
@@ -195,7 +205,7 @@ export default function TemplateManager() {
               onChange={e => setNewName(e.target.value)}
               style={{
                 padding: '8px 12px', fontSize: 13, borderRadius: 6,
-                border: '1px solid var(--rd-line)', background: 'rgba(255,255,255,.03)',
+                border: '1px solid var(--rd-line)', background: isLegacy ? '#f8fafc' : 'rgba(255,255,255,.03)',
                 color: 'var(--rd-text)', fontFamily: 'inherit',
               }}
             />
@@ -205,7 +215,7 @@ export default function TemplateManager() {
               onChange={e => setNewDesc(e.target.value)}
               style={{
                 padding: '8px 12px', fontSize: 13, borderRadius: 6,
-                border: '1px solid var(--rd-line)', background: 'rgba(255,255,255,.03)',
+                border: '1px solid var(--rd-line)', background: isLegacy ? '#f8fafc' : 'rgba(255,255,255,.03)',
                 color: 'var(--rd-text)', fontFamily: 'inherit',
               }}
             />
@@ -216,7 +226,7 @@ export default function TemplateManager() {
               rows={12}
               style={{
                 padding: '10px 12px', fontSize: 13, borderRadius: 6,
-                border: '1px solid var(--rd-line)', background: 'rgba(255,255,255,.03)',
+                border: '1px solid var(--rd-line)', background: isLegacy ? '#f8fafc' : 'rgba(255,255,255,.03)',
                 color: 'var(--rd-text)', fontFamily: 'monospace', resize: 'vertical',
               }}
             />
@@ -245,7 +255,7 @@ export default function TemplateManager() {
               </button>
             </div>
           </div>
-        </GlowCard>
+        </QCard>
       )}
 
       {/* 模板列表 */}
@@ -256,11 +266,11 @@ export default function TemplateManager() {
       )}
 
       {templates && templates.length === 0 && !isLoading && (
-        <GlowCard style={{ padding: 40, textAlign: 'center', color: 'var(--rd-text-2)' }}>
+        <QCard style={{ padding: 40, textAlign: 'center', color: 'var(--rd-text-2)' }}>
           <FileText size={40} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
           <p style={{ fontSize: 14 }}>暂无模板</p>
           <p style={{ fontSize: 12 }}>点击「上传模板」或「手动创建」添加</p>
-        </GlowCard>
+        </QCard>
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
@@ -275,6 +285,7 @@ export default function TemplateManager() {
               deleteMut.mutate(tpl.id)
             }}
             deleting={deletingId === tpl.id}
+            isLegacy={isLegacy}
           />
         ))}
       </div>
@@ -290,13 +301,18 @@ function TemplateCard({
   onTogglePreview,
   onDelete,
   deleting,
+  isLegacy,
 }: {
   template: MarkupTemplate
   isPreview: boolean
   onTogglePreview: () => void
   onDelete: () => void
   deleting: boolean
+  isLegacy?: boolean
 }) {
+  const CardWrapper = isLegacy
+    ? (p: any) => <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)', ...p.style } as React.CSSProperties}>{p.children}</div>
+    : GlowCard
   const formatIcon = {
     markdown: <FileText size={14} />,
     docx: <FileText size={14} />,
@@ -304,7 +320,7 @@ function TemplateCard({
   }[template.source_format] || <FileText size={14} />
 
   return (
-    <GlowCard style={{ padding: 0, overflow: 'hidden' }}>
+    <CardWrapper style={{ padding: 0, overflow: 'hidden' }}>
       {/* 卡片头部 */}
       <div style={{
         padding: '14px 16px',
@@ -319,13 +335,13 @@ function TemplateCard({
             </span>
             {template.is_builtin && (
               <span style={{
-                fontSize: 10, color: '#2563eb', background: 'rgba(37,99,235,.12)',
+                fontSize: 10, color: '#2563eb', background: isLegacy ? '#dbeafe' : 'rgba(37,99,235,.12)',
                 padding: '1px 6px', borderRadius: 4,
               }}>预置</span>
             )}
             {template.category === 'user_upload' && (
               <span style={{
-                fontSize: 10, color: '#D96400', background: 'rgba(255,141,26,.12)',
+                fontSize: 10, color: '#D96400', background: isLegacy ? '#fff7ed' : 'rgba(255,141,26,.12)',
                 padding: '1px 6px', borderRadius: 4,
               }}>用户上传</span>
             )}
@@ -369,7 +385,7 @@ function TemplateCard({
         <div style={{
           padding: '12px 16px',
           maxHeight: 300, overflowY: 'auto',
-          background: 'rgba(248,250,252,.025)',
+          background: isLegacy ? '#f8fafc' : 'rgba(248,250,252,.025)',
         }}>
           <div className="text-[12px] leading-relaxed prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-code:text-xs">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -380,6 +396,6 @@ function TemplateCard({
           </div>
         </div>
       )}
-    </GlowCard>
+    </CardWrapper>
   )
 }
