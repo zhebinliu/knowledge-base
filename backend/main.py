@@ -156,7 +156,7 @@ app.include_router(call_logs.router, prefix="/api/call-logs", tags=["call-logs"]
 app.include_router(outputs.router, prefix="/api/outputs", tags=["outputs"])
 app.include_router(meeting.router, prefix="/api/meeting", tags=["meeting"])
 app.include_router(template.router, prefix="/api/templates", tags=["templates"])
-from meeting.backend.api.markup_template import router as markup_template_router
+from api.markup_template import router as markup_template_router
 app.include_router(markup_template_router, prefix="/api/markup-templates", tags=["markup-templates"])
 app.include_router(output_chats.router, prefix="/api/output-chats", tags=["output-chats"])
 app.include_router(briefs.router, prefix="/api/briefs", tags=["briefs"])
@@ -303,7 +303,7 @@ async def startup():
     logger.info("skill_associations_seeded", **assoc_result)
     # Seed meeting markup templates (幂等 - 预置会议纪要版面模板 2026-05-28)
     from models import async_session_maker
-    from meeting.backend.services.markup_template_seed import seed_markup_templates
+    from services.markup_template_seed import seed_markup_templates
     async with async_session_maker() as seed_session:
         try:
             seed_result = await seed_markup_templates(seed_session)
