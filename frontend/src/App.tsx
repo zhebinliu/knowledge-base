@@ -30,6 +30,7 @@ import NewConsoleProjectDetail  from './redesign/console/ConsoleProjectDetail'
 import NewConsoleMeeting        from './redesign/console/ConsoleMeeting'
 import NewConsoleMeetingNew     from './redesign/console/ConsoleMeetingNew'
 import NewConsoleMeetingDetail  from './redesign/console/ConsoleMeetingDetail'
+import NewTemplateManager      from './redesign/console/TemplateManager'
 
 // ConsoleQA 在生产中是个薄 wrapper(import QA + 套高度),uat 下用 NewQA 替换
 function NewConsoleQAWrapper() {
@@ -133,6 +134,7 @@ export default function App() {
           <Route path="projects/:id" element={IS_NEW_UI ? <NewConsoleProjectDetail /> : <ConsoleProjectDetail />} />
           <Route path="meeting"      element={IS_NEW_UI ? <NewConsoleMeeting />     : <ConsoleMeeting />} />
           <Route path="meeting/new"  element={IS_NEW_UI ? <NewConsoleMeetingNew />  : <ConsoleMeetingNew />} />
+          <Route path="meeting/templates" element={<NewTemplateManager />} />
           <Route path="meeting/:id"  element={IS_NEW_UI ? <NewConsoleMeetingDetail /> : <ConsoleMeetingDetail />} />
         </Route>
       </Route>

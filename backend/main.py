@@ -156,6 +156,8 @@ app.include_router(call_logs.router, prefix="/api/call-logs", tags=["call-logs"]
 app.include_router(outputs.router, prefix="/api/outputs", tags=["outputs"])
 app.include_router(meeting.router, prefix="/api/meeting", tags=["meeting"])
 app.include_router(template.router, prefix="/api/templates", tags=["templates"])
+from meeting.backend.api.markup_template import router as markup_template_router
+app.include_router(markup_template_router, prefix="/api/markup-templates", tags=["markup-templates"])
 app.include_router(output_chats.router, prefix="/api/output-chats", tags=["output-chats"])
 app.include_router(briefs.router, prefix="/api/briefs", tags=["briefs"])
 app.include_router(stage_flow.router, prefix="/api/settings", tags=["stage-flow"])
@@ -197,6 +199,7 @@ async def startup():
     from models.project_collaborator import ProjectCollaborator  # noqa: F401
     from models.meeting import Meeting, Requirement  # noqa: F401  会议纪要(2026-05-11 接入)
     from models.template import MeetingTemplate  # noqa: F401  会议纪要模板演化(2026-05-21 接入,create_all 建 meeting_templates 表)
+    from models.markup_template import MarkupTemplate  # noqa: F401  会议纪要版面模板(2026-05-28 接入)
     from models.project_stakeholder import ProjectStakeholder  # noqa: F401  项目级干系人资产(2026-05-12)
     from models.project_smart_advice import SmartAdvice  # noqa: F401  项目智能建议(2026-05-15)
     from sqlalchemy import text
@@ -297,6 +300,16 @@ async def startup():
     # Wire atomic skills 到 v3 三个 output kind 的默认 skill_ids
     # idempotent:已配过 skill_ids 的 kind 不覆盖,空的填默认,不存在的创建
     assoc_result = await seed_default_skill_associations()
+    logger.info("skill_associations_seeded", **assoc_result)
+    # Seed meeting markup templates (幂等 - 预置会议纪要版面模板 2026-05-28)
+    from models import async_session_maker
+    from meeting.backend.services.markup_template_seed import seed_markup_templates
+    async with async_session_maker() as seed_session:
+        try:
+            seed_result = await seed_markup_templates(seed_session)
+            logger.info("markup_templates_seeded", **seed_result)
+        except Exception:
+            logger.exception("markup_templates_seed_failed")
     logger.info("atomic_skills_associations_seeded", **assoc_result)
     # Wire config service into model router
     from services.model_router import model_router

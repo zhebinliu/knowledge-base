@@ -13,7 +13,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
-  Mic, Plus, Trash2, FolderKanban, CheckCircle2, Loader2, AlertCircle, Clock, Search,
+  Mic, Plus, Trash2, FolderKanban, CheckCircle2, Loader2, AlertCircle, Clock, Search, LayoutTemplate,
 } from 'lucide-react'
 import { listMeetings, deleteMeeting, type Meeting, type MeetingStatus } from '../../api/client'
 import GlowCard from '../components/GlowCard'
@@ -111,13 +111,21 @@ export default function NewConsoleMeeting() {
             上传录音 / 粘贴文本,AI 自动提取纪要、待办、需求清单和干系人图谱。
           </p>
         </div>
-        <button
-          onClick={() => nav('/console/meeting/new')}
-          className="rd-btn rd-btn-primary"
-          style={{ flexShrink: 0 }}
-        >
-          <Plus size={14} /> 新建会议
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <button
+            onClick={() => nav('/console/meeting/templates')}
+            className="rd-btn"
+            style={{ fontSize: 13, padding: '7px 14px' }}
+          >
+            <LayoutTemplate size={14} /> 模板管理
+          </button>
+          <button
+            onClick={() => nav('/console/meeting/new')}
+            className="rd-btn rd-btn-primary"
+          >
+            <Plus size={14} /> 新建会议
+          </button>
+        </div>
       </div>
 
       {/* 搜索 + 状态 chips */}

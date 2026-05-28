@@ -7,6 +7,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { X, Send, Loader2, MessageCircle } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { chatWithMeeting, type ChatResponse } from '../api/meeting-ext'
 
 // ── 卡通蜜蜂 SVG ──────────────────────────────────────────────────────────
@@ -144,14 +146,22 @@ export function ChatSidebar({ meetingId, open, onClose }: ChatSidebarProps) {
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[85%] px-3 py-2 rounded-lg text-sm leading-relaxed whitespace-pre-wrap ${
+                className={`max-w-[85%] px-3 py-2 rounded-lg text-sm leading-relaxed ${
                   msg.role === 'user'
-                    ? 'text-white'
+                    ? 'text-white whitespace-pre-wrap'
                     : 'bg-amber-50 border border-amber-100 text-ink'
                 }`}
                 style={msg.role === 'user' ? { background: 'linear-gradient(135deg,#FF8D1A,#D96400)' } : {}}
               >
-                {msg.content}
+                {msg.role === 'user' ? (
+                  msg.content
+                ) : (
+                  <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-headings:my-2 prose-pre:my-2 prose-a:text-blue-600 prose-code:bg-amber-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs text-[13px]">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {msg.content}
+                    </ReactMarkdown>
+                  </div>
+                )}
               </div>
             </div>
           ))}
