@@ -15,12 +15,13 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   ChevronLeft, Loader2, RefreshCw, Trash2, FolderKanban, CheckCircle2, AlertCircle, Mic,
   FileText, ListChecks, Users, Settings as SettingsIcon, Info, ExternalLink, Save,
-  Download, Pencil, X, Check, Clock,
+  Download, Pencil, X, Check, Clock, Share2,
 } from 'lucide-react'
 import {
   getMeeting, deleteMeeting, processMeeting, patchMeeting, linkMeetingProject,
   runMeetingAction, syncMeetingToKB, syncMeetingStakeholdersToKB,
   exportMeetingToFeishu, syncMeetingRequirementsToBitable,
+  syncActionItemsToBitable, createActionKanban,
   listProjects, getFeishuCredentials, putFeishuCredentials, deleteFeishuCredentials,
   exportMeetingDocxUrl, TOKEN_STORAGE_KEY,
   putMeetingStakeholderMap, patchMeetingRequirement, renameStakeholderRefs,
@@ -32,6 +33,7 @@ import {
 import { getMeetingAudioUrl } from '../../api/meeting-ext'
 import AudioPlayer, { type AudioPlayerHandle } from '../../components/AudioPlayer'
 import ChatWidget from '../../components/ChatSidebar'
+import MeetingShareModal from '../../components/MeetingShareModal'
 import { toast } from '../../components/Toaster'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -352,6 +354,7 @@ export function MinutesTab({ meeting }: { meeting: Meeting }) {
   const qc = useQueryClient()
   const m: MeetingMinutes = meeting.meeting_minutes || {}
   const [editing, setEditing] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
 
   const regenMut = useMutation({
     mutationFn: () => runMeetingAction(meeting.id, 'summarize'),
@@ -440,6 +443,13 @@ export function MinutesTab({ meeting }: { meeting: Meeting }) {
               className="px-3 py-1.5 rounded-md text-sm border border-line bg-white hover:bg-canvas inline-flex items-center gap-1.5"
             >
               <Pencil size={13} /> 编辑
+            </button>
+            <button
+              onClick={() => setShareOpen(true)}
+              className="px-3 py-1.5 rounded-md text-sm border border-line bg-white hover:bg-canvas inline-flex items-center gap-1.5"
+              title={meeting.project_id ? '分享给项目成员或其他用户' : '分享给指定用户'}
+            >
+              <Share2 size={13} /> 分享
             </button>
             <button
               onClick={() => {
@@ -742,6 +752,12 @@ export function MinutesTab({ meeting }: { meeting: Meeting }) {
       <p className="text-[11px] text-ink-muted text-center">
         以上信息为本次会议沟通概要,部分细节可在后续阶段进一步细化落地。
       </p>
+
+      <MeetingShareModal
+        meetingId={meeting.id}
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+      />
     </div>
   )
 }
@@ -1696,14 +1712,25 @@ function FeishuCredsCard() {
 
   const saveMut = useMutation({
     mutationFn: () => putFeishuCredentials({ app_id: appId.trim(), app_secret: appSecret.trim() }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['feishu-creds'] })
+    onSuccess: (data) => {
+      qc.setQueryData(['feishu-creds'], { configured: true, app_id: data.app_id })
       setEditing(false); setAppId(''); setAppSecret('')
+      toast.success('飞书凭证保存成功')
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail || err?.message || '保存失败,请检查 App ID/Secret 是否正确'
+      toast.error(msg)
     },
   })
   const delMut = useMutation({
     mutationFn: deleteFeishuCredentials,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['feishu-creds'] }),
+    onSuccess: () => {
+      qc.setQueryData(['feishu-creds'], { configured: false, app_id: null })
+      toast.success('飞书凭证已清除')
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || err?.message || '清除失败')
+    },
   })
 
   return (
@@ -1719,6 +1746,13 @@ function FeishuCredsCard() {
             </a>
             {' '}创建自建应用拿到 App ID + Secret。
           </p>
+          <p className="text-[11px] text-ink-muted mt-1">
+            也可在{' '}
+            <a href="/personal-settings" className="text-brand underline">
+              个人设置 → 飞书集成
+            </a>
+            {' '}中统一管理凭证。
+          </p>
         </div>
         {status?.configured && !editing && (
           <span className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
@@ -1732,7 +1766,7 @@ function FeishuCredsCard() {
           {status?.configured ? (
             <>
               <span className="text-[12px] text-ink-muted font-mono">App ID: {status.app_id}</span>
-              <button onClick={() => setEditing(true)}
+              <button onClick={() => { setAppId(status!.app_id || ''); setEditing(true) }}
                 className="text-[12px] px-2 py-1 rounded border border-line hover:bg-canvas-elevated">
                 修改
               </button>
@@ -1789,6 +1823,9 @@ export function ActionsTab({ meeting }: { meeting: Meeting }) {
   const qc = useQueryClient()
   const [bitableToken, setBitableToken] = useState('')
   const [bitableTable, setBitableTable] = useState('')
+  const [todoBitableToken, setTodoBitableToken] = useState('')
+  const [todoBitableTable, setTodoBitableTable] = useState('')
+  const [feishuFolder, setFeishuFolder] = useState('')
 
   const { data: feishuStatus } = useQuery({
     queryKey: ['feishu-creds'],
@@ -1797,24 +1834,62 @@ export function ActionsTab({ meeting }: { meeting: Meeting }) {
 
   const syncKbMut = useMutation({
     mutationFn: () => syncMeetingToKB(meeting.id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting', meeting.id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
+      toast.success('纪要已同步到知识库')
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || err?.message || '同步 KB 失败'),
   })
   const syncStakeKbMut = useMutation({
     mutationFn: () => syncMeetingStakeholdersToKB(meeting.id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting', meeting.id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
+      toast.success('干系人图已同步')
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || err?.message || '同步干系人失败'),
   })
   const exportFeishuMut = useMutation({
-    mutationFn: () => exportMeetingToFeishu(meeting.id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting', meeting.id] }),
+    mutationFn: () => exportMeetingToFeishu(meeting.id, feishuFolder.trim() || undefined),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
+      toast.success('会议纪要已导出到飞书文档')
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || err?.message || '导出飞书失败'),
   })
   const syncBitableMut = useMutation({
     mutationFn: () => syncMeetingRequirementsToBitable(meeting.id, {
       bitable_app_token: bitableToken.trim(),
       table_id: bitableTable.trim(),
     }),
+    onSuccess: (data: any) => toast.success(`已写入 ${data.rows} 条需求到多维表`),
+    onError: (err: any) => toast.error(err?.response?.data?.detail || err?.message || '同步需求失败'),
+  })
+  const syncTodoMut = useMutation({
+    mutationFn: () => syncActionItemsToBitable(meeting.id, {
+      bitable_app_token: todoBitableToken.trim(),
+      table_id: todoBitableTable.trim(),
+    }),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
+      toast.success(`已写入 ${data.rows} 条待办到看板`)
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || err?.message || '同步待办失败'),
+  })
+  const createKanbanMut = useMutation({
+    mutationFn: () => createActionKanban(meeting.id, feishuFolder.trim() || undefined),
+    onSuccess: (data: any) => {
+      setTodoBitableToken(data.app_token)
+      setTodoBitableTable(data.table_id)
+      toast.success('看板已创建,可直接同步待办')
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || err?.message || '创建看板失败'),
   })
 
   const feishuConfigured = feishuStatus?.configured
+
+  // 待办数量
+  const actionItems = meeting.meeting_minutes?.action_items || []
+  const todoCount = actionItems.length
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -1840,20 +1915,48 @@ export function ActionsTab({ meeting }: { meeting: Meeting }) {
         hint={!meeting.stakeholder_map ? '需先提取干系人' : meeting.stakeholder_kb_doc_id ? `已同步` : ''}
       />
 
-      <ActionCard
-        title="导出到飞书文档"
-        desc="把纪要以 docx 形式创建到你的飞书云空间。"
-        buttonText="导出"
-        onClick={() => exportFeishuMut.mutate()}
-        loading={exportFeishuMut.isPending}
-        disabled={!feishuConfigured || !meeting.meeting_minutes}
-        hint={
-          !feishuConfigured ? '请先在 设置 中配置飞书 App ID + Secret' :
-          !meeting.meeting_minutes ? '需先生成纪要' :
-          meeting.feishu_url ? `已导出:${meeting.feishu_url}` : ''
-        }
-      />
+      {/* ── 导出纪要到飞书云空间 ── */}
+      <div className="rounded-lg border border-line bg-canvas-elevated p-4">
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <div>
+            <h3 className="text-sm font-semibold text-ink">导出纪要至飞书云空间</h3>
+            <p className="text-[12px] text-ink-secondary mt-0.5">
+              将会议纪要以文档形式保存到你的飞书云空间,可指定目标文件夹。
+            </p>
+          </div>
+          <button
+            onClick={() => exportFeishuMut.mutate()}
+            disabled={!feishuConfigured || !meeting.meeting_minutes || exportFeishuMut.isPending}
+            className="shrink-0 px-3 py-1.5 rounded-md text-sm text-white disabled:opacity-40 inline-flex items-center gap-1.5"
+            style={{ background: BRAND_GRAD }}
+          >
+            {exportFeishuMut.isPending ? <Loader2 size={13} className="animate-spin" /> : null}
+            导出
+          </button>
+        </div>
+        <input
+          value={feishuFolder}
+          onChange={(e) => setFeishuFolder(e.target.value)}
+          placeholder="文件夹 token(可选,从飞书云空间文件夹 URL 获取,如 fldcnXXX)"
+          className="w-full px-3 py-1.5 mt-2 rounded-md border border-line text-[12px] font-mono"
+        />
+        {!feishuConfigured && (
+          <p className="text-[12px] text-ink-muted mt-1.5">请先在 设置 中配置飞书凭证</p>
+        )}
+        {!meeting.meeting_minutes && (
+          <p className="text-[12px] text-ink-muted mt-1.5">需先生成会议纪要</p>
+        )}
+        {meeting.feishu_url && (
+          <div className="text-[12px] text-emerald-700 mt-1.5">
+            ✓ 已导出 ·{' '}
+            <a href={meeting.feishu_url} target="_blank" rel="noreferrer" className="underline">
+              打开文档
+            </a>
+          </div>
+        )}
+      </div>
 
+      {/* ── 同步需求到飞书多维表 ── */}
       <div className="rounded-lg border border-line bg-canvas-elevated p-4">
         <h3 className="text-sm font-semibold text-ink mb-1">同步需求到飞书多维表</h3>
         <p className="text-[12px] text-ink-secondary mb-3">
@@ -1891,6 +1994,73 @@ export function ActionsTab({ meeting }: { meeting: Meeting }) {
           )}
           {!feishuConfigured && (
             <p className="text-[12px] text-ink-muted">请先在 设置 中配置飞书凭证</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── 同步待办到飞书看板(多维表) ── */}
+      <div className="rounded-lg border border-amber-200 bg-amber-50/30 p-4">
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <div>
+            <h3 className="text-sm font-semibold text-ink inline-flex items-center gap-1.5">
+              同步待办到飞书看板
+              {todoCount > 0 && (
+                <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-800">
+                  {todoCount} 条待办
+                </span>
+              )}
+            </h3>
+            <p className="text-[12px] text-ink-secondary mt-0.5">
+              将会议待办事项写入飞书多维表看板。看板按"状态"分组:待办 / 进行中 / 已完成。
+            </p>
+          </div>
+        </div>
+        <div className="space-y-2 mt-2">
+          <div className="flex items-center gap-2">
+            <input
+              value={todoBitableToken}
+              onChange={(e) => setTodoBitableToken(e.target.value)}
+              placeholder="多维表 app_token(可与上方通用)"
+              className="flex-1 px-3 py-1.5 rounded-md border border-line text-sm font-mono"
+            />
+            <button
+              onClick={() => createKanbanMut.mutate()}
+              disabled={!feishuConfigured || createKanbanMut.isPending}
+              className="shrink-0 px-2.5 py-1.5 rounded-md text-[12px] border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50 inline-flex items-center gap-1"
+              title="若无现成看板,可一键自动创建"
+            >
+              {createKanbanMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <FolderKanban size={12} />}
+              一键创建看板
+            </button>
+          </div>
+          <input
+            value={todoBitableTable}
+            onChange={(e) => setTodoBitableTable(e.target.value)}
+            placeholder="table_id"
+            className="w-full px-3 py-1.5 rounded-md border border-line text-sm font-mono"
+          />
+          <button
+            onClick={() => syncTodoMut.mutate()}
+            disabled={!feishuConfigured || !todoBitableToken || !todoBitableTable || syncTodoMut.isPending || todoCount === 0}
+            className="px-3 py-1.5 rounded-md text-sm text-white disabled:opacity-50 inline-flex items-center gap-1.5"
+            style={{ background: BRAND_GRAD }}
+          >
+            {syncTodoMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <ListChecks size={13} />}
+            同步待办到看板
+          </button>
+          {syncTodoMut.data && (
+            <div className="text-[12px] text-emerald-700">
+              ✓ 已写入 {syncTodoMut.data.rows} 条待办 ·{' '}
+              <a href={syncTodoMut.data.url} target="_blank" rel="noreferrer" className="underline">
+                打开看板
+              </a>
+            </div>
+          )}
+          {!feishuConfigured && (
+            <p className="text-[12px] text-ink-muted">请先在 设置 中配置飞书凭证</p>
+          )}
+          {feishuConfigured && todoCount === 0 && (
+            <p className="text-[12px] text-ink-muted">会议纪要中暂无待办事项</p>
           )}
         </div>
       </div>

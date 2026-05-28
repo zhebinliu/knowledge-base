@@ -1,17 +1,19 @@
 import { useState } from 'react'
-import { Settings as SettingsIcon, Cpu, GitBranch, KeyRound, Users, ScrollText } from 'lucide-react'
+import { Settings as SettingsIcon, Cpu, GitBranch, KeyRound, Users, ScrollText, Sparkles } from 'lucide-react'
 import clsx from 'clsx'
 import ModelsTab       from '../components/settings/ModelsTab'
 import RoutingTab      from '../components/settings/RoutingTab'
 import ApiKeysTab      from '../components/settings/ApiKeysTab'
 import UsersTab        from '../components/settings/UsersTab'
 import CallLogsTab     from '../components/settings/CallLogsTab'
+import EmbeddingsTab   from '../components/settings/EmbeddingsTab'
 
 // 系统设置 = 运维 / 接入 / 用户管理(机器跑得动相关)
 // 业务行为类(项目流程 / 提示词 / 技能库 / 输出智能体)拆到 /system-config
 const tabs = [
   { key: 'models',        label: '模型管理',     icon: Cpu },
   { key: 'routing',       label: '路由与参数',   icon: GitBranch },
+  { key: 'embeddings',    label: '嵌入与重排',   icon: Sparkles },
   { key: 'api-keys',      label: 'API 密钥',     icon: KeyRound },
   { key: 'users',         label: '用户管理',     icon: Users },
   { key: 'call-logs',     label: '调用日志',     icon: ScrollText },
@@ -54,6 +56,7 @@ export default function Settings() {
       {/* Tab content */}
       {active === 'models'        && <ModelsTab />}
       {active === 'routing'       && <RoutingTab />}
+      {active === 'embeddings'    && <EmbeddingsTab />}
       {active === 'api-keys'      && <ApiKeysTab />}
       {active === 'users'         && <UsersTab />}
       {active === 'call-logs'     && <CallLogsTab />}

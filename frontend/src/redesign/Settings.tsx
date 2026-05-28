@@ -9,6 +9,7 @@ import RoutingTab  from '../components/settings/RoutingTab'
 import ApiKeysTab  from '../components/settings/ApiKeysTab'
 import UsersTab    from '../components/settings/UsersTab'
 import CallLogsTab from '../components/settings/CallLogsTab'
+// FeishuTab 已移至个人设置 /personal-settings — 每个用户独立配置
 import GlowCard from './components/GlowCard'
 
 const TABS: Array<{ key: string; label: string; Icon: LucideIcon; Comp: React.FC }> = [

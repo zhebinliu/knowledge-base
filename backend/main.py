@@ -155,6 +155,8 @@ app.include_router(coverage.router, prefix="/api/coverage", tags=["coverage"])
 app.include_router(call_logs.router, prefix="/api/call-logs", tags=["call-logs"])
 app.include_router(outputs.router, prefix="/api/outputs", tags=["outputs"])
 app.include_router(meeting.router, prefix="/api/meeting", tags=["meeting"])
+from api.feishu_credentials import router as feishu_creds_router  # 修复 #5:凭证独立路由
+app.include_router(feishu_creds_router)
 app.include_router(template.router, prefix="/api/templates", tags=["templates"])
 from api.markup_template import router as markup_template_router
 app.include_router(markup_template_router, prefix="/api/markup-templates", tags=["markup-templates"])
@@ -273,6 +275,7 @@ async def startup():
             # 会议纪要 — audio / 飞书 / KB 同步 / 干系人图谱 列补齐
             "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS audio_object_key VARCHAR(512)",
             "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS bitable_app_token VARCHAR(128)",
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS action_bitable_app_token VARCHAR(128)",  # 修复 #4:待办看板独立字段
             "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS feishu_url TEXT",
             "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS kb_doc_id VARCHAR(64)",
             "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS kb_url TEXT",
