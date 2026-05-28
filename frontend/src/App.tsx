@@ -134,7 +134,7 @@ export default function App() {
           <Route path="projects/:id" element={IS_NEW_UI ? <NewConsoleProjectDetail /> : <ConsoleProjectDetail />} />
           <Route path="meeting"      element={IS_NEW_UI ? <NewConsoleMeeting />     : <ConsoleMeeting />} />
           <Route path="meeting/new"  element={IS_NEW_UI ? <NewConsoleMeetingNew />  : <ConsoleMeetingNew />} />
-          <Route path="meeting/templates" element={<NewTemplateManager />} />
+          <Route path="meeting/templates" element={<NewTemplateManager variant={IS_NEW_UI ? 'redesign' : 'legacy'} />} />
           <Route path="meeting/:id"  element={IS_NEW_UI ? <NewConsoleMeetingDetail /> : <ConsoleMeetingDetail />} />
         </Route>
       </Route>
