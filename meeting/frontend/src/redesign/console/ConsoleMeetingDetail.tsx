@@ -1,16 +1,12 @@
 /**
  * NewConsoleMeetingDetail — uat 下的会议详情页(Liquid Glass)
  *
- * 实用策略:**主壳新 UI + 6 个 Tab 复用老组件**
- *   - 主组件 1931 行里 1776 行是 6 个 Tab Panel(复杂业务逻辑)
- *   - 一次性重写所有 Tab 风险高 + token 不够
- *   - 把生产文件里的 6 个 Tab 加了 export,这里直接 import 它们
- *   - 仅重写主壳(Header / 进度条 / Tab 栏 / 容器)为 Liquid Glass
+ * 布局: 左右分栏
+ *   - 左侧(≈55%): 纪要 / 需求清单 / 干系人 Tab
+ *   - 右侧(≈45%): 转录 / 润色转写 Tab
+ *   - 顶栏额外提供「概览」和「操作」入口
  *
- * 功能 100% 等价:6 个 Tab 直接用老实现 + 主壳真功能(返回/重新处理/删除/进度)
- * 视觉:外壳是 Liquid Glass,Tab 内部仍是老 UI(可读但视觉不一致 — 等待下次细化)
- *
- * 2026-05-27 修复:补充 AudioPlayer + SeekToContext + ChatWidget,与旧版功能对齐。
+ * Tab 内部组件复用 ConsoleMeetingDetail.tsx 导出的老实现。
  */
 import { useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -33,17 +29,21 @@ import {
 import { getMeetingAudioUrl } from '../../api/meeting-ext'
 import AudioPlayer, { type AudioPlayerHandle } from '../../components/AudioPlayer'
 import ChatWidget from '../../components/ChatSidebar'
+import TemplateSelector from '../../components/TemplateSelector'
 import GlowCard from '../components/GlowCard'
 
-type Tab = 'overview' | 'transcript' | 'minutes' | 'requirements' | 'stakeholders' | 'actions'
+type LeftTab = 'minutes' | 'requirements' | 'stakeholders'
+type RightTab = 'transcript' | 'polished'
 
-const TABS: Array<{ key: Tab; label: string; Icon: LucideIcon }> = [
-  { key: 'overview',     label: '概览',     Icon: Info },
-  { key: 'transcript',   label: '转录',     Icon: FileText },
-  { key: 'minutes',      label: '纪要',     Icon: ListChecks },
+const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: LucideIcon }> = [
+  { key: 'minutes',      label: '会议纪要', Icon: ListChecks },
   { key: 'requirements', label: '需求清单', Icon: ListChecks },
   { key: 'stakeholders', label: '干系人',   Icon: Users },
-  { key: 'actions',      label: '操作',     Icon: SettingsIcon },
+]
+
+const RIGHT_TABS: Array<{ key: RightTab; label: string; Icon: LucideIcon }> = [
+  { key: 'transcript', label: '原文',   Icon: FileText },
+  { key: 'polished',   label: 'AI润色', Icon: FileText },
 ]
 
 export default function NewConsoleMeetingDetail() {
@@ -51,7 +51,10 @@ export default function NewConsoleMeetingDetail() {
   const meetingId = Number(id)
   const nav = useNavigate()
   const qc = useQueryClient()
-  const [tab, setTab] = useState<Tab>('overview')
+  // 视图模式: 'split'(默认左右分栏) | 'overview' | 'actions'
+  const [view, setView] = useState<'split' | 'overview' | 'actions'>('split')
+  const [leftTab, setLeftTab] = useState<LeftTab>('minutes')
+  const [rightTab, setRightTab] = useState<RightTab>('transcript')
   const audioPlayerRef = useRef<AudioPlayerHandle>(null)
 
   const { data: meeting, isLoading, error } = useQuery({
@@ -214,23 +217,35 @@ export default function NewConsoleMeetingDetail() {
         </GlowCard>
       )}
 
-      {/* Tabs + 内容容器 */}
+      {/* 模板选择与导出（仅当有纪要内容时显示） */}
+      {hasContent && meeting.meeting_minutes && (
+        <div style={{ marginBottom: 14 }}>
+          <TemplateSelector meetingId={meeting.id} meetingTitle={meeting.title} />
+        </div>
+      )}
+
+      {/* 主内容区 — 顶栏快捷切换 + 分栏/全屏内容 */}
       <GlowCard style={{ padding: 0, overflow: 'hidden' }}>
-        {/* Tab bar */}
+        {/* 顶部导航条: 概览 / 分栏视图 / 操作 */}
         <div style={{
           borderBottom: '1px solid var(--rd-line)',
-          display: 'flex', overflowX: 'auto',
+          display: 'flex', alignItems: 'center', gap: 2,
+          background: 'rgba(15,18,36,.012)',
         }}>
-          {TABS.map(t => {
-            const Icon = t.Icon
-            const active = tab === t.key
+          {([
+            { key: 'split',    label: '分栏', Icon: FileText },
+            { key: 'overview', label: '概览', Icon: Info },
+            { key: 'actions',  label: '操作', Icon: SettingsIcon },
+          ] as Array<{ key: typeof view; label: string; Icon: LucideIcon }>).map(v => {
+            const Ic = v.Icon
+            const active = view === v.key
             return (
               <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
+                key={v.key}
+                onClick={() => setView(v.key)}
                 style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '13px 22px',
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '10px 18px',
                   fontSize: 13, fontWeight: active ? 700 : 500,
                   color: active ? 'var(--rd-accent-2)' : 'var(--rd-text-2)',
                   background: active
@@ -240,34 +255,156 @@ export default function NewConsoleMeetingDetail() {
                   borderBottom: `2px solid ${active ? 'var(--rd-accent)' : 'transparent'}`,
                   marginBottom: -1,
                   cursor: 'pointer',
-                  whiteSpace: 'nowrap',
                   transition: 'all .2s',
                   fontFamily: 'inherit',
                 }}
-                onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--rd-text)' }}
-                onMouseLeave={e => { if (!active) e.currentTarget.style.color = 'var(--rd-text-2)' }}
               >
-                <Icon size={13} /> {t.label}
+                <Ic size={13} /> {v.label}
               </button>
             )
           })}
         </div>
 
-        {/* Tab content — 内嵌老组件,功能 100% 等价 */}
         <SeekToContext.Provider value={hasAudio ? handleSeekTo : null}>
-          <div style={{ padding: '20px 24px' }}>
-            {tab === 'overview' && <OverviewTab meeting={meeting} />}
-            {tab === 'transcript' && <TranscriptTab meeting={meeting} />}
-            {tab === 'minutes' && <MinutesTab meeting={meeting} />}
-            {tab === 'requirements' && <RequirementsTab meeting={meeting} />}
-            {tab === 'stakeholders' && <StakeholdersTab meeting={meeting} />}
-            {tab === 'actions' && <ActionsTab meeting={meeting} />}
-          </div>
+          {view === 'overview' && (
+            <div style={{ padding: '20px 24px' }}>
+              <OverviewTab meeting={meeting} />
+            </div>
+          )}
+
+          {view === 'actions' && (
+            <div style={{ padding: '20px 24px' }}>
+              <ActionsTab meeting={meeting} />
+            </div>
+          )}
+
+          {view === 'split' && (
+            /* ── 左右分栏 ── */
+            <div className="grid grid-cols-1 lg:grid-cols-5" style={{ minHeight: 480 }}>
+              {/* 左侧面板: 纪要 / 需求清单 / 干系人 */}
+              <div style={{ borderRight: '1px solid var(--rd-line)' }} className="lg:col-span-3">
+                {/* 左侧 Tab 栏 */}
+                <div style={{
+                  display: 'flex', borderBottom: '1px solid var(--rd-line)',
+                  background: 'rgba(15,18,36,.008)',
+                }}>
+                  {LEFT_TABS.map(t => {
+                    const Ic = t.Icon
+                    const active = leftTab === t.key
+                    return (
+                      <button
+                        key={t.key}
+                        onClick={() => setLeftTab(t.key)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          padding: '11px 20px',
+                          fontSize: 13, fontWeight: active ? 700 : 500,
+                          color: active ? 'var(--rd-accent-2)' : 'var(--rd-text-3)',
+                          background: active ? 'rgba(255,141,26,.06)' : 'transparent',
+                          border: 'none',
+                          borderBottom: `2px solid ${active ? 'var(--rd-accent)' : 'transparent'}`,
+                          marginBottom: -1,
+                          cursor: 'pointer', transition: 'all .2s', fontFamily: 'inherit',
+                        }}
+                      >
+                        <Ic size={13} /> {t.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                {/* 左侧内容 */}
+                <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(100vh - 340px)' }}>
+                  {leftTab === 'minutes'      && <MinutesTab meeting={meeting} />}
+                  {leftTab === 'requirements' && <RequirementsTab meeting={meeting} />}
+                  {leftTab === 'stakeholders'  && <StakeholdersTab meeting={meeting} />}
+                </div>
+              </div>
+
+              {/* 右侧面板: 转录 / 润色转写 */}
+              <div className="lg:col-span-2">
+                {/* 右侧 Tab 栏 */}
+                <div style={{
+                  display: 'flex', borderBottom: '1px solid var(--rd-line)',
+                  background: 'rgba(15,18,36,.008)',
+                }}>
+                  {RIGHT_TABS.map(t => {
+                    const Ic = t.Icon
+                    const active = rightTab === t.key
+                    return (
+                      <button
+                        key={t.key}
+                        onClick={() => setRightTab(t.key)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          padding: '11px 20px',
+                          fontSize: 13, fontWeight: active ? 700 : 500,
+                          color: active ? '#2563eb' : 'var(--rd-text-3)',
+                          background: active ? 'rgba(37,99,235,.06)' : 'transparent',
+                          border: 'none',
+                          borderBottom: `2px solid ${active ? '#2563eb' : 'transparent'}`,
+                          marginBottom: -1,
+                          cursor: 'pointer', transition: 'all .2s', fontFamily: 'inherit',
+                        }}
+                      >
+                        <Ic size={13} /> {t.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                {/* 右侧内容 */}
+                <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(100vh - 340px)', background: 'rgba(248,250,252,.35)' }}>
+                  <TranscriptPanel meeting={meeting} rightTab={rightTab} />
+                </div>
+              </div>
+            </div>
+          )}
         </SeekToContext.Provider>
       </GlowCard>
 
       {/* 智能问答悬浮球 + 侧边栏 */}
       <ChatWidget meetingId={meeting.id} hasContent={hasContent} />
+    </div>
+  )
+}
+
+// ── 右侧转录面板: 原文 / AI润色 切换展示 ───────────────────────────────────────
+
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+
+function TranscriptPanel({ meeting, rightTab }: { meeting: Meeting; rightTab: RightTab }) {
+  const content = rightTab === 'transcript'
+    ? (meeting.raw_transcript || '暂无原始转写')
+    : (meeting.polished_transcript || '暂无润色转写，可在「操作」页触发 AI 润色')
+
+  const isEmpty = rightTab === 'transcript' ? !meeting.raw_transcript : !meeting.polished_transcript
+
+  if (isEmpty) {
+    return (
+      <div className="text-center py-12 text-sm text-ink-muted">
+        {rightTab === 'transcript'
+          ? '暂无原始转写内容'
+          : (
+            <div className="space-y-3">
+              <p>暂无润色版本</p>
+              <p className="text-xs">切换到「操作」标签可触发 AI 润色</p>
+            </div>
+          )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="text-[13px] leading-relaxed text-ink-secondary prose prose-sm max-w-none prose-p:my-1.5 prose-headings:mt-3 prose-headings:mb-2 prose-ul:list-disc prose-ol:list-decimal prose-li:my-0.5">
+      {/* 转录文本中可能包含说话人标记如 "说话人0 00:00:06 - 00:00:39"，用 Markdown 渲染 */}
+      {rightTab === 'polished' ? (
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      ) : (
+        <pre
+          className="whitespace-pre-wrap font-sans text-inherit bg-transparent p-0 m-0 border-none"
+          style={{ lineHeight: 1.8 }}
+        >{content}</pre>
+      )}
     </div>
   )
 }
