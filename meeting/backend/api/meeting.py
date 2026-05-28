@@ -950,6 +950,19 @@ class BitableSyncIn(BaseModel):
     table_id: str = Field(min_length=1, max_length=64)
 
 
+class BitableActionSyncIn(BaseModel):
+    bitable_app_token: str = Field(min_length=1, max_length=128)
+    table_id: str = Field(min_length=1, max_length=64)
+
+
+class FeishuFolderExportIn(BaseModel):
+    folder_token: str | None = Field(default=None, max_length=128)
+
+
+class KanbanCreateIn(BaseModel):
+    folder_token: str | None = Field(default=None, max_length=128)
+
+
 def _require_feishu(user: User):
     """没配飞书直接抛 412,前端引导去 Settings 配置。"""
     from services.meeting.feishu import get_user_feishu_credentials
@@ -962,10 +975,15 @@ def _require_feishu(user: User):
 @router.post("/{meeting_id}/export-feishu")
 async def export_to_feishu(
     meeting_id: int,
+    body: FeishuFolderExportIn = FeishuFolderExportIn(),
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    """把会议纪要导出为飞书 docx 文档。"""
+    """把会议纪要导出为飞书 docx 文档,可选指定目标文件夹(folder_token)。
+
+    文件夹 token 可从飞书云空间文件夹 URL 中获取:
+    https://xxx.feishu.cn/drive/folder/<folder_token>
+    """
     from services.meeting.feishu import create_doc_with_markdown, FeishuError
     from services.meeting.kb_sync import render_minutes_markdown
 
@@ -977,7 +995,10 @@ async def export_to_feishu(
     markdown = render_minutes_markdown(m)
     title = f"{m.title or '未命名会议'} - 会议纪要"
     try:
-        doc_id, url = await create_doc_with_markdown(app_id, app_secret, title, markdown)
+        doc_id, url = await create_doc_with_markdown(
+            app_id, app_secret, title, markdown,
+            folder_token=body.folder_token,
+        )
     except FeishuError as e:
         raise HTTPException(502, f"飞书 API 失败:{e.message}")
 
@@ -1030,6 +1051,80 @@ async def sync_requirements_to_bitable(
     m.bitable_app_token = body.bitable_app_token
     await session.commit()
     return {"status": "ok", "url": url, "rows": len(records)}
+
+
+@router.post("/{meeting_id}/sync-action-items")
+async def sync_action_items_to_bitable(
+    meeting_id: int,
+    body: BitableActionSyncIn,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """把会议纪要中的待办事项(action_items)写入飞书多维表看板。
+
+    待办从 meeting.meeting_minutes.action_items 提取,每条包含:
+    task / owner / deadline / priority / remark
+
+    用户需在飞书侧预先创建好多维表,字段名对齐:
+    任务(文本) / 负责人(文本) / 截止日期(文本) / 优先级(单选) / 状态(单选) / 备注(文本)
+
+    看板视图按"状态"字段分组:待办 / 进行中 / 已完成
+    """
+    from services.meeting.feishu import sync_action_items_to_bitable as _sync, FeishuError
+
+    app_id, app_secret = _require_feishu(user)
+    m = await _load_meeting_owned(meeting_id, session, user)
+    if not m.meeting_minutes:
+        raise HTTPException(400, "会议纪要尚未生成,请先触发 process")
+
+    minutes = m.meeting_minutes or {}
+    action_items = minutes.get("action_items") or []
+    if not action_items:
+        raise HTTPException(400, "会议纪要中没有待办事项")
+
+    try:
+        url = await _sync(app_id, app_secret, body.bitable_app_token, body.table_id, action_items)
+    except FeishuError as e:
+        raise HTTPException(502, f"飞书多维表 API 失败:{e.message}")
+
+    m.bitable_app_token = body.bitable_app_token
+    await session.commit()
+    return {"status": "ok", "url": url, "rows": len(action_items)}
+
+
+@router.post("/{meeting_id}/create-action-kanban")
+async def create_action_kanban(
+    meeting_id: int,
+    body: KanbanCreateIn = KanbanCreateIn(),
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """自动创建一个飞书多维表,预置看板字段,用于存放会议待办。
+
+    返回 {app_token, table_id, url},前端可继续调用 sync-action-items 写入数据。
+
+    可选 folder_token:指定创建到哪个飞书云空间文件夹。
+    """
+    from services.meeting.feishu import create_kanban_bitable, FeishuError
+
+    app_id, app_secret = _require_feishu(user)
+    m = await _load_meeting_owned(meeting_id, session, user)
+    name = f"会议待办-{m.title or '未命名'}"
+    try:
+        app_token, table_id, url = await create_kanban_bitable(
+            app_id, app_secret, name, folder_token=body.folder_token,
+        )
+    except FeishuError as e:
+        raise HTTPException(502, f"飞书多维表 API 失败:{e.message}")
+
+    m.bitable_app_token = app_token
+    await session.commit()
+    return {
+        "status": "ok",
+        "app_token": app_token,
+        "table_id": table_id,
+        "url": url,
+    }
 
 
 # ── 音频在线播放(2026-05-21) ─────────────────────────────────────────

@@ -196,3 +196,183 @@ async def batch_create_bitable_records(
     url = f"https://feishu.cn/base/{app_token}?table={table_id}"
     logger.info("feishu_bitable_written", url=url, rows=len(records))
     return url
+
+
+# ── 待办事项同步到飞书多维表(看板) ─────────────────────────────
+
+async def sync_action_items_to_bitable(
+    app_id: str,
+    app_secret: str,
+    app_token: str,
+    table_id: str,
+    action_items: list[dict],
+) -> str:
+    """将会议待办事项(action_items)批量写入飞书多维表,适配看板视图。
+
+    action_items 形如:
+      [{"task": "做 xxx", "owner": "张三", "deadline": "2026-06-01",
+        "priority": "high", "remark": ""}, ...]
+
+    飞书多维表的字段建议(key 对齐):
+      - 文本字段: 任务(task)、负责人(owner)、截止日期(deadline)、备注(remark)
+      - 单选字段: 优先级(priority)=高/中/低、状态(status)=待办/进行中/已完成
+      - 如用户已在飞书侧将表格配置为看板视图,按"状态"分组即可形成看板
+
+    返回多维表 URL。
+    """
+    if not action_items:
+        return f"https://feishu.cn/base/{app_token}"
+
+    token = await get_tenant_token(app_id, app_secret)
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    # 转成飞书 records 格式
+    payload_records = []
+    for item in action_items:
+        task = item.get("task", "") or ""
+        owner_val = item.get("owner", "") or ""
+        deadline_val = item.get("deadline", "") or ""
+        priority_val = item.get("priority", "") or "medium"
+        remark_val = item.get("remark", "") or ""
+
+        # 优先级映射: high→高, medium→中, low→低
+        priority_map = {"high": "高", "medium": "中", "low": "低"}
+        priority_display = priority_map.get(priority_val, priority_val)
+
+        payload_records.append({
+            "fields": {
+                "任务": task[:500],
+                "负责人": owner_val[:128] if owner_val else "未分配",
+                "截止日期": deadline_val,
+                "优先级": priority_display,
+                "状态": "待办",  # 新建的待办默认状态
+                "备注": remark_val[:2000],
+            }
+        })
+
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        batch_size = 500
+        for i in range(0, len(payload_records), batch_size):
+            batch = payload_records[i:i + batch_size]
+            resp = await client.post(
+                f"{_BITABLE_BASE}/apps/{app_token}/tables/{table_id}/records/batch_create",
+                json={"records": batch},
+                headers=headers,
+            )
+            data = resp.json()
+            if data.get("code") != 0:
+                raise FeishuError(data.get("code", -1), data.get("msg", "写入待办到多维表失败"))
+
+    url = f"https://feishu.cn/base/{app_token}?table={table_id}"
+    logger.info("feishu_action_items_synced", url=url, rows=len(action_items))
+    return url
+
+
+# ── 自动创建看板多维表(兜底:若用户没有现成的多维表) ──────────────
+
+async def create_kanban_bitable(
+    app_id: str,
+    app_secret: str,
+    name: str,
+    folder_token: Optional[str] = None,
+) -> tuple[str, str, str]:
+    """自动创建一个飞书多维表,预置看板所需的字段和视图。
+
+    返回 (app_token, table_id, url)。
+
+    表字段:
+      - 任务(文本)、负责人(文本)、截止日期(文本)、优先级(单选)、状态(单选)、备注(多行文本)
+
+    自动创建看板视图,按"状态"字段分组。
+    """
+    token = await get_tenant_token(app_id, app_secret)
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        # 1. 创建多维表
+        body: dict = {"name": name[:100]}
+        if folder_token:
+            body["folder_token"] = folder_token
+        resp = await client.post(
+            f"{_BITABLE_BASE}/apps",
+            json=body,
+            headers=headers,
+        )
+        data = resp.json()
+        if data.get("code") != 0:
+            raise FeishuError(data.get("code", -1), data.get("msg", "创建多维表失败"))
+        app = data.get("data", {}).get("app", {})
+        app_token = app.get("app_token", "")
+        if not app_token:
+            raise FeishuError(-1, "创建多维表成功但未返回 app_token")
+
+        # 2. 获取默认表(飞书创建多维表时会自动创建一个默认表)
+        resp = await client.get(
+            f"{_BITABLE_BASE}/apps/{app_token}/tables",
+            headers=headers,
+        )
+        tdata = resp.json()
+        if tdata.get("code") != 0:
+            raise FeishuError(tdata.get("code", -1), tdata.get("msg", "获取表列表失败"))
+        tables = tdata.get("data", {}).get("items", [])
+        if not tables:
+            raise FeishuError(-1, "多维表中没有找到表")
+        table_id = tables[0].get("table_id", "")
+
+        # 3. 添加字段: 任务(文本)、负责人(文本)、截止日期(文本)、优先级(单选)、状态(单选)、备注(多行文本)
+        fields_to_add = [
+            {"field_name": "任务", "type": 1},       # 1 = 文本
+            {"field_name": "负责人", "type": 1},     # 1 = 文本
+            {"field_name": "截止日期", "type": 1},   # 1 = 文本
+            {"field_name": "优先级", "type": 3, "property": {"options": [
+                {"name": "高", "color": 1},
+                {"name": "中", "color": 2},
+                {"name": "低", "color": 3},
+            ]}},                                    # 3 = 单选
+            {"field_name": "状态", "type": 3, "property": {"options": [
+                {"name": "待办", "color": 4},
+                {"name": "进行中", "color": 1},
+                {"name": "已完成", "color": 2},
+            ]}},                                    # 3 = 单选
+            {"field_name": "备注", "type": 1},       # 1 = 文本(多行)
+        ]
+
+        for field in fields_to_add:
+            resp = await client.post(
+                f"{_BITABLE_BASE}/apps/{app_token}/tables/{table_id}/fields",
+                json=field,
+                headers=headers,
+            )
+            fdata = resp.json()
+            if fdata.get("code") != 0:
+                logger.warning(
+                    "feishu_kanban_add_field_fail",
+                    field=field["field_name"],
+                    code=fdata.get("code"),
+                    msg=fdata.get("msg", "")[:120],
+                )
+
+        # 4. 删除默认的多维表自带字段(飞书会默认创建一些字段)
+        # 先获取所有字段
+        resp = await client.get(
+            f"{_BITABLE_BASE}/apps/{app_token}/tables/{table_id}/fields",
+            headers=headers,
+        )
+        fields_data = resp.json()
+        existing_fields = fields_data.get("data", {}).get("items", [])
+        keep_names = {"任务", "负责人", "截止日期", "优先级", "状态", "备注"}
+        for field in existing_fields:
+            fname = field.get("field_name", "")
+            fid = field.get("field_id", "")
+            if fname not in keep_names and fid:
+                try:
+                    resp = await client.delete(
+                        f"{_BITABLE_BASE}/apps/{app_token}/tables/{table_id}/fields/{fid}",
+                        headers=headers,
+                    )
+                except Exception:
+                    pass  # 删除默认字段失败不阻断
+
+    url = f"https://feishu.cn/base/{app_token}?table={table_id}"
+    logger.info("feishu_kanban_created", app_token=app_token, table_id=table_id, name=name[:40])
+    return app_token, table_id, url

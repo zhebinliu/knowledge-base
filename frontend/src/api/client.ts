@@ -1864,9 +1864,10 @@ export const syncMeetingStakeholdersToKB = async (id: number) => {
   return data
 }
 
-export const exportMeetingToFeishu = async (id: number) => {
+export const exportMeetingToFeishu = async (id: number, folderToken?: string) => {
   const { data } = await api.post<{ status: string; url: string; document_id: string }>(
     `/meeting/${id}/export-feishu`,
+    { folder_token: folderToken || null },
   )
   return data
 }
@@ -1878,6 +1879,30 @@ export const syncMeetingRequirementsToBitable = async (
   const { data } = await api.post<{ status: string; url: string; rows: number }>(
     `/meeting/${id}/sync-requirements`,
     body,
+  )
+  return data
+}
+
+export const syncActionItemsToBitable = async (
+  id: number,
+  body: { bitable_app_token: string; table_id: string },
+) => {
+  const { data } = await api.post<{ status: string; url: string; rows: number }>(
+    `/meeting/${id}/sync-action-items`,
+    body,
+  )
+  return data
+}
+
+export const createActionKanban = async (
+  id: number,
+  folderToken?: string,
+) => {
+  const { data } = await api.post<{
+    status: string; app_token: string; table_id: string; url: string
+  }>(
+    `/meeting/${id}/create-action-kanban`,
+    { folder_token: folderToken || null },
   )
   return data
 }
