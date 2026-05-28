@@ -52,3 +52,12 @@ backend/tests/fixtures/golden_labels.json
 # 上传的文件
 uploads/
 /skillhub/
+
+# Claude Code agent worktrees(本地临时,不入仓)
+.claude/
+
+# new-api 独立栈,独自管理 /opt/new-api
+/new-api/
+
+# CLAUDE.md 历史副本(实际项目说明走 CLAUDE.md)
+AGENTS.md
