@@ -33,9 +33,13 @@ import { getMeetingAudioUrl } from '../../api/meeting-ext'
 import AudioPlayer, { type AudioPlayerHandle } from '../../components/AudioPlayer'
 import ChatWidget from '../../components/ChatSidebar'
 import { toast } from '../../components/Toaster'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
-type Tab = 'overview' | 'transcript' | 'minutes' | 'requirements' | 'stakeholders' | 'actions'
+type TopView = 'overview' | 'split' | 'actions'
+type LeftTab = 'minutes' | 'requirements' | 'stakeholders'
+type RightTab = 'transcript' | 'polished'
 
 // ── 时间戳跳转 Context ────────────────────────────────────────────────────
 
@@ -110,13 +114,21 @@ function TimeRangeBadge({ start, end }: { start: number | null | undefined; end:
   return <TimestampBadge seconds={start || end} />
 }
 
-const TABS: Array<{ key: Tab; label: string; Icon: typeof Info }> = [
-  { key: 'overview',     label: '概览',     Icon: Info },
-  { key: 'transcript',   label: '转录',     Icon: FileText },
+const TOP_VIEWS: Array<{ key: TopView; label: string; Icon: typeof Info }> = [
+  { key: 'split',    label: '分栏', Icon: FileText },
+  { key: 'overview', label: '概览', Icon: Info },
+  { key: 'actions',  label: '操作', Icon: SettingsIcon },
+]
+
+const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: typeof Info }> = [
   { key: 'minutes',      label: '纪要',     Icon: ListChecks },
   { key: 'requirements', label: '需求清单', Icon: ListChecks },
   { key: 'stakeholders', label: '干系人',   Icon: Users },
-  { key: 'actions',      label: '操作',     Icon: SettingsIcon },
+]
+
+const RIGHT_TABS: Array<{ key: RightTab; label: string; Icon: typeof Info }> = [
+  { key: 'transcript', label: '原文',   Icon: FileText },
+  { key: 'polished',   label: 'AI润色', Icon: FileText },
 ]
 
 export function StatusBadge({ status }: { status: MeetingStatus }) {
@@ -1918,7 +1930,9 @@ export default function ConsoleMeetingDetail() {
   const meetingId = Number(id)
   const nav = useNavigate()
   const qc = useQueryClient()
-  const [tab, setTab] = useState<Tab>('overview')
+  const [topView, setTopView] = useState<TopView>('split')
+  const [leftTab, setLeftTab] = useState<LeftTab>('minutes')
+  const [rightTab, setRightTab] = useState<RightTab>('transcript')
   const audioPlayerRef = useRef<AudioPlayerHandle>(null)
 
   const { data: meeting, isLoading, error } = useQuery({
@@ -2050,23 +2064,25 @@ export default function ConsoleMeetingDetail() {
           </div>
         )}
 
-        {/* Tabs(独立条,白底) */}
+        {/* 主内容区 — 顶栏快捷切换 + 分栏/全屏内容 */}
         <div className="mt-4 bg-white border border-line rounded-xl shadow-sm overflow-hidden">
-          <div className="border-b border-line">
+          {/* 顶部视图切换: 分栏 / 概览 / 操作 */}
+          <div className="border-b border-line bg-slate-50/40">
             <div className="flex overflow-x-auto">
-              {TABS.map(t => {
-                const Icon = t.Icon
+              {TOP_VIEWS.map(v => {
+                const Icon = v.Icon
+                const active = topView === v.key
                 return (
                   <button
-                    key={t.key}
-                    onClick={() => setTab(t.key)}
+                    key={v.key}
+                    onClick={() => setTopView(v.key)}
                     className={`px-5 py-3 text-sm font-medium border-b-2 -mb-px whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
-                      tab === t.key
+                      active
                         ? 'border-brand text-brand bg-brand/5'
                         : 'border-transparent text-ink-muted hover:text-ink hover:bg-canvas/60'
                     }`}
                   >
-                    <Icon size={14} /> {t.label}
+                    <Icon size={14} /> {v.label}
                   </button>
                 )
               })}
@@ -2074,20 +2090,126 @@ export default function ConsoleMeetingDetail() {
           </div>
 
           <SeekToContext.Provider value={hasAudio ? handleSeekTo : null}>
-            <div className="p-6">
-              {tab === 'overview' && <OverviewTab meeting={meeting} />}
-              {tab === 'transcript' && <TranscriptTab meeting={meeting} />}
-              {tab === 'minutes' && <MinutesTab meeting={meeting} />}
-              {tab === 'requirements' && <RequirementsTab meeting={meeting} />}
-              {tab === 'stakeholders' && <StakeholdersTab meeting={meeting} />}
-              {tab === 'actions' && <ActionsTab meeting={meeting} />}
-            </div>
+            {/* 概览视图 */}
+            {topView === 'overview' && (
+              <div className="p-6">
+                <OverviewTab meeting={meeting} />
+              </div>
+            )}
+
+            {/* 操作视图 */}
+            {topView === 'actions' && (
+              <div className="p-6">
+                <ActionsTab meeting={meeting} />
+              </div>
+            )}
+
+            {/* ── 左右分栏视图 ── */}
+            {topView === 'split' && (
+              <div className="grid grid-cols-1 lg:grid-cols-5" style={{ minHeight: 480 }}>
+                {/* 左侧面板: 纪要 / 需求清单 / 干系人 */}
+                <div className="lg:col-span-3 border-r border-line">
+                  {/* 左侧 Tab 栏 */}
+                  <div className="flex border-b border-line bg-slate-50/30">
+                    {LEFT_TABS.map(t => {
+                      const Icon = t.Icon
+                      const active = leftTab === t.key
+                      return (
+                        <button
+                          key={t.key}
+                          onClick={() => setLeftTab(t.key)}
+                          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
+                            active
+                              ? 'border-brand text-brand bg-brand/5'
+                              : 'border-transparent text-ink-muted hover:text-ink hover:bg-canvas/40'
+                          }`}
+                        >
+                          <Icon size={13} /> {t.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {/* 左侧内容 */}
+                  <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 360px)' }}>
+                    {leftTab === 'minutes'      && <MinutesTab meeting={meeting} />}
+                    {leftTab === 'requirements' && <RequirementsTab meeting={meeting} />}
+                    {leftTab === 'stakeholders'  && <StakeholdersTab meeting={meeting} />}
+                  </div>
+                </div>
+
+                {/* 右侧面板: 原文 / AI润色 */}
+                <div className="lg:col-span-2">
+                  {/* 右侧 Tab 栏 */}
+                  <div className="flex border-b border-line bg-slate-50/30">
+                    {RIGHT_TABS.map(t => {
+                      const Icon = t.Icon
+                      const active = rightTab === t.key
+                      return (
+                        <button
+                          key={t.key}
+                          onClick={() => setRightTab(t.key)}
+                          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
+                            active
+                              ? 'border-blue-600 text-blue-600 bg-blue-50/50'
+                              : 'border-transparent text-ink-muted hover:text-ink hover:bg-canvas/40'
+                          }`}
+                        >
+                          <Icon size={13} /> {t.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {/* 右侧内容 */}
+                  <div className="p-4 overflow-y-auto bg-canvas/30" style={{ maxHeight: 'calc(100vh - 360px)' }}>
+                    <TranscriptPanel meeting={meeting} tab={rightTab} />
+                  </div>
+                </div>
+              </div>
+            )}
           </SeekToContext.Provider>
         </div>
       </div>
 
       {/* 智能问答悬浮球 + 侧边栏 */}
       <ChatWidget meetingId={meeting.id} hasContent={hasContent} />
+    </div>
+  )
+}
+
+// ── 右侧转录面板: 原文 / AI润色 切换展示 ───────────────────────────────────────
+
+function TranscriptPanel({ meeting, tab }: { meeting: Meeting; tab: RightTab }) {
+  const content = tab === 'transcript'
+    ? (meeting.raw_transcript || '暂无原始转写')
+    : (meeting.polished_transcript || '暂无润色转写，可在「操作」页触发 AI 润色')
+
+  const isEmpty = tab === 'transcript' ? !meeting.raw_transcript : !meeting.polished_transcript
+
+  if (isEmpty) {
+    return (
+      <div className="text-center py-12 text-sm text-ink-muted">
+        {tab === 'transcript'
+          ? '暂无原始转写内容'
+          : (
+            <div className="space-y-3">
+              <p>暂无润色版本</p>
+              <p className="text-xs">切换到「操作」标签可触发 AI 润色</p>
+            </div>
+          )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="text-[13px] leading-relaxed text-ink-secondary prose prose-sm max-w-none prose-p:my-1.5 prose-headings:mt-3 prose-headings:mb-2 prose-ul:list-disc prose-ol:list-decimal prose-li:my-0.5">
+      {tab === 'polished' ? (
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      ) : (
+        <pre
+          className="whitespace-pre-wrap font-sans text-inherit bg-transparent p-0 m-0 border-none"
+          style={{ lineHeight: 1.8 }}
+        >{content}</pre>
+      )}
     </div>
   )
 }
