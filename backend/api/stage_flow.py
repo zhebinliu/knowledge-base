@@ -35,6 +35,7 @@ DEFAULT_STAGES: list[dict] = [
      "sub_kinds": [
          {"kind": "survey_outline", "label": "调研大纲"},
          {"kind": "survey",         "label": "调研问卷"},
+         {"kind": "research_report","label": "调研报告"},
      ]},
     {"key": "design",        "label": "方案设计",          "kind": None, "icon": "FileText", "active": False, "beta": False, "sub_kinds": []},
     {"key": "implement",     "label": "项目实施",          "kind": None, "icon": "FileText", "active": False, "beta": False, "sub_kinds": []},
@@ -52,7 +53,7 @@ ALLOWED_ICONS = {
 # 允许的 kind(对齐 backend/api/outputs.py KIND_TO_TASK)
 ALLOWED_KINDS = {
     "kickoff_pptx", "kickoff_html",
-    "insight", "survey", "survey_outline",
+    "insight", "survey", "survey_outline", "research_report",
 }
 
 CONFIG_TYPE = "stage_flow"

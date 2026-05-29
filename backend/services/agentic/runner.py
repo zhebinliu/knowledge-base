@@ -1897,3 +1897,217 @@ async def generate_survey_outline(bundle_id: str, project_id: str):
         except Exception as e2:
             logger.error("survey_outline_failed_writeback_failed", error=str(e2)[:200])
         await _mark_conv(bundle_id, "failed")
+
+
+# ── 调研报告(2026-05-29):单次 LLM 大调用,给 PM 出方案设计用 ──────────────
+
+async def generate_research_report(bundle_id: str, project_id: str):
+    """生成「调研报告」 — 7 章 markdown,给 PM 出方案设计的全景输入。
+
+    跟 insight / survey_outline 不同:**不走 planner/critic/challenger 流水线**,
+    而是单次 Opus 大调用。理由见 [report_generator.py 顶部 docstring]。
+    """
+    from .research.report_generator import (
+        SYSTEM_PROMPT, build_user_prompt, assemble_markdown_from_llm_output,
+        format_project_meta, format_docs_for_report, format_prior_bundles,
+        format_meeting_evidence, format_responses, format_industry_pack,
+    )
+    from .industry_packs import get_pack
+    from services.output_service import _llm_call
+
+    run_history: list[dict] = []
+    try:
+        await _mark(bundle_id, "generating")
+        run_history.append({"phase": "started", "ts": _ts()})
+        await _update_progress(bundle_id, stage="planning", message="加载项目素材中…")
+
+        # ── Phase 1: ctx ──
+        ctx = await _load_ctx(bundle_id, project_id, "research_report")
+        run_history.append({
+            "phase": "ctx_loaded", "ts": _ts(),
+            "detail": {
+                "industry": ctx["industry"],
+                "docs_n": sum(len(v) for v in (ctx.get("docs_by_type") or {}).values()),
+                "prior_n": len(ctx.get("prior_bundles") or []),
+            },
+        })
+
+        # ── Phase 2: 拉额外素材 — 会议 + research_responses ──
+        meeting_blob = await _load_meeting_evidence_for_report(project_id)
+        responses_rows = await _load_research_responses_for_report(project_id)
+        run_history.append({
+            "phase": "evidence_loaded", "ts": _ts(),
+            "detail": {
+                "meetings_n": len(meeting_blob),
+                "answered_responses_n": len(responses_rows),
+            },
+        })
+
+        # ── Phase 3: 拼 prompt ──
+        await _update_progress(bundle_id, stage="executing", message="撰写报告中(约 2-4 分钟)…")
+        pack = get_pack(ctx["industry"])
+        user_prompt = build_user_prompt(
+            project_meta=format_project_meta(ctx["project"]),
+            industry=ctx["industry"],
+            sources_block=format_docs_for_report(ctx.get("docs_by_type") or {}),
+            prior_bundles_block=format_prior_bundles(ctx.get("prior_bundles") or []),
+            meeting_block=format_meeting_evidence(meeting_blob),
+            responses_block=format_responses(responses_rows),
+            industry_pack_block=format_industry_pack(pack),
+        )
+
+        # ── Phase 4: LLM ──
+        raw = await _llm_call(
+            user_prompt, system=SYSTEM_PROMPT,
+            model=ctx["agent_model"],
+            max_tokens=12000, timeout=600.0,
+        )
+        run_history.append({
+            "phase": "llm_done", "ts": _ts(),
+            "detail": {"raw_chars": len(raw or "")},
+        })
+
+        if not raw or not raw.strip():
+            raise RuntimeError("LLM 返回为空")
+
+        # ── Phase 5: 切章 + 持久化 ──
+        markdown = assemble_markdown_from_llm_output(raw)
+        async with async_session_maker() as s:
+            b = await s.get(CuratedBundle, bundle_id)
+            new_extra = dict(b.extra or {})
+            new_extra["run_history"] = run_history
+            new_extra["agentic_version"] = "v2"
+            new_extra["validity_status"] = "valid"
+            new_extra["progress"] = {"stage": "done", "message": "完成"}
+            # 来源画像 — 给前端「素材摘要」用
+            new_extra["sources_summary"] = {
+                "docs_n": sum(len(v) for v in (ctx.get("docs_by_type") or {}).values()),
+                "prior_bundles_n": len(ctx.get("prior_bundles") or []),
+                "meetings_n": len(meeting_blob),
+                "answered_responses_n": len(responses_rows),
+                "industry_pack": pack.display_name if pack else None,
+            }
+            from sqlalchemy.orm.attributes import flag_modified
+            b.extra = new_extra
+            flag_modified(b, "extra")
+            b.content_md = markdown
+            b.status = "done"
+            await s.commit()
+        logger.info("research_report_generated", bundle_id=bundle_id,
+                    chars=len(markdown), meetings=len(meeting_blob),
+                    docs=sum(len(v) for v in (ctx.get("docs_by_type") or {}).values()))
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        logger.error("research_report_failed", bundle_id=bundle_id, error=str(e)[:300],
+                     traceback=tb[:2000])
+        run_history.append({"phase": "failed", "ts": _ts(),
+                            "detail": str(e)[:300], "traceback": tb[:2000]})
+        try:
+            async with async_session_maker() as s:
+                b = await s.get(CuratedBundle, bundle_id)
+                if b:
+                    new_extra = dict(b.extra or {})
+                    new_extra["run_history"] = run_history
+                    new_extra["agentic_version"] = "v2"
+                    b.extra = new_extra
+                    b.status = "failed"
+                    b.error = str(e)[:500]
+                    await s.commit()
+        except Exception as e2:
+            logger.error("research_report_failed_writeback_failed", error=str(e2)[:200])
+
+
+async def _load_meeting_evidence_for_report(project_id: str) -> list[dict]:
+    """拉本项目所有 completed 会议 + 其需求,返回 report_generator 期望的 dict 列表。"""
+    from sqlalchemy import select as sa_select
+    from models.meeting import Meeting, Requirement
+    out: list[dict] = []
+    async with async_session_maker() as s:
+        meetings = (await s.scalars(
+            sa_select(Meeting)
+            .where(Meeting.project_id == project_id)
+            .where(Meeting.status == "completed")
+            .order_by(Meeting.created_at.desc())
+        )).all()
+        if not meetings:
+            return []
+        meeting_ids = [m.id for m in meetings]
+        reqs = (await s.scalars(
+            sa_select(Requirement)
+            .where(Requirement.meeting_id.in_(meeting_ids))
+            .order_by(Requirement.meeting_id, Requirement.id)
+        )).all()
+    reqs_by_meeting: dict = {}
+    for r in reqs:
+        reqs_by_meeting.setdefault(r.meeting_id, []).append({
+            "req_id": r.req_id, "module": r.module, "description": r.description,
+            "priority": r.priority, "speaker": r.speaker, "status": r.status,
+        })
+    for m in meetings:
+        mm = m.meeting_minutes or {}
+        out.append({
+            "id": m.id,
+            "title": m.title,
+            "summary": (mm.get("summary") or "")[:600],
+            "key_points": mm.get("key_points") or [],
+            "decisions": mm.get("decisions") or [],
+            "requirements": reqs_by_meeting.get(m.id) or [],
+        })
+    return out
+
+
+async def _load_research_responses_for_report(project_id: str) -> list[dict]:
+    """拉本项目下 survey bundle 的 questionnaire_items + responses,组装成可读问答对。"""
+    from sqlalchemy import select as sa_select
+    from models.research_response import ResearchResponse
+    out: list[dict] = []
+    async with async_session_maker() as s:
+        # 找该项目下最近一份 survey bundle
+        survey = (await s.execute(
+            sa_select(CuratedBundle)
+            .where(CuratedBundle.project_id == project_id)
+            .where(CuratedBundle.kind == "survey")
+            .where(CuratedBundle.status == "done")
+            .order_by(CuratedBundle.updated_at.desc())
+        )).scalars().first()
+        if not survey:
+            return []
+        items_by_key = {it.get("item_key"): it for it in (survey.extra or {}).get("questionnaire_items") or []}
+        rows = (await s.scalars(
+            sa_select(ResearchResponse)
+            .where(ResearchResponse.bundle_id == survey.id)
+            .where(ResearchResponse.answer_value.isnot(None))
+        )).all()
+    for r in rows:
+        it = items_by_key.get(r.item_key) or {}
+        answer_label = _stringify_answer_for_report(r.answer_value, it)
+        out.append({
+            "item_key": r.item_key,
+            "question": it.get("question", r.item_key),
+            "answer_label": answer_label,
+            "scope_label": r.scope_label,
+        })
+    return out
+
+
+def _stringify_answer_for_report(value, item: dict) -> str:
+    if value is None:
+        return "(空)"
+    t = item.get("type")
+    opts = {o.get("value"): o.get("label", o.get("value"))
+            for o in (item.get("options") or []) if isinstance(o, dict)}
+    if t == "single":
+        if isinstance(value, str) and value.startswith("__other__:"):
+            return f"其他:{value[len('__other__:'):]}"
+        return opts.get(value, str(value))
+    if t in ("multi", "node_pick"):
+        if not isinstance(value, list):
+            return str(value)
+        return "、".join(opts.get(v, str(v)) for v in value)
+    if t == "rating":
+        return f"{value}/{item.get('rating_scale', 5)}"
+    if t == "number":
+        unit = item.get("number_unit") or ""
+        return f"{value}{unit}"
+    return str(value)

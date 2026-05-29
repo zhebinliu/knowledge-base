@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ClipboardList, Lightbulb, Sparkles, Loader2, Workflow,
-  CheckCircle2, Pencil, Users, Briefcase,
+  CheckCircle2, Pencil, Users, Briefcase, FileText,
   Crown, UserCircle2, Cpu, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import {
@@ -43,7 +43,7 @@ import GenerationProgressCard from '../GenerationProgressCard'
 import ResearchQuestionnaire from './ResearchQuestionnaireDark'
 import ExportPreMeetingButton from '../../../components/console/research/ExportPreMeetingButton'
 
-type ResearchView = 'preparation' | 'outline' | 'questionnaire'
+type ResearchView = 'preparation' | 'outline' | 'questionnaire' | 'report'
 
 interface Props {
   projectId: string
@@ -51,12 +51,15 @@ interface Props {
   outlineInflight: CuratedBundle | undefined
   surveyBundle: CuratedBundle | undefined
   surveyInflight: CuratedBundle | undefined
+  reportBundle: CuratedBundle | undefined
+  reportInflight: CuratedBundle | undefined
   activeKind: OutputKind | null
   onRefetch: () => void
 }
 
 export default function ResearchWorkspace({
-  projectId, outlineBundle, outlineInflight, surveyBundle, surveyInflight, activeKind, onRefetch,
+  projectId, outlineBundle, outlineInflight, surveyBundle, surveyInflight,
+  reportBundle, reportInflight, activeKind, onRefetch,
 }: Props) {
   const [selectedLtcKey, setSelectedLtcKey] = useState<string | null>(null)
   const [groupBy, setGroupBy] = useState<GroupBy>('role')
@@ -72,17 +75,20 @@ export default function ResearchWorkspace({
       setView(outlineBundle ? 'outline' : 'preparation')
     } else if (activeKind === 'survey') {
       setView(surveyBundle ? 'questionnaire' : 'preparation')
+    } else if (activeKind === 'research_report') {
+      setView(reportBundle ? 'report' : 'preparation')
     }
-  }, [activeKind, outlineBundle?.id, surveyBundle?.id])
+  }, [activeKind, outlineBundle?.id, surveyBundle?.id, reportBundle?.id])
 
   const outlineInflightId = outlineInflight?.id
   const surveyInflightId = surveyInflight?.id
+  const reportInflightId = reportInflight?.id
   useEffect(() => {
-    if (outlineInflightId || surveyInflightId) {
+    if (outlineInflightId || surveyInflightId || reportInflightId) {
       setView('preparation')
       setOutlineEditing(false)
     }
-  }, [outlineInflightId, surveyInflightId])
+  }, [outlineInflightId, surveyInflightId, reportInflightId])
 
   const { data: ltcDict } = useQuery({
     queryKey: ['research-ltc-dict'],
@@ -187,6 +193,13 @@ export default function ResearchWorkspace({
                    label={surveyInflight ? '调研问卷(生成中…)' : '调研问卷(录入)'}
                    muted={!surveyBundle || !!surveyInflight}
                    disabled={!!surveyInflight} />
+          <ViewTab active={view === 'report'} onClick={() => setView('report')}
+                   icon={reportInflight
+                          ? <Loader2 size={11} className="animate-spin" />
+                          : <FileText size={11} />}
+                   label={reportInflight ? '调研报告(生成中…)' : '调研报告'}
+                   muted={!reportBundle || !!reportInflight}
+                   disabled={!!reportInflight} />
           <div className="flex-1" />
           {outlineBundle?.status === 'done' && !surveyInflight && (
             <button
@@ -228,6 +241,8 @@ export default function ResearchWorkspace({
               outlineInflight={outlineInflight}
               surveyBundle={surveyBundle}
               surveyInflight={surveyInflight}
+              reportBundle={reportBundle}
+              reportInflight={reportInflight}
               ltcMapCount={ltcMap?.items?.length ?? 0}
               sowHitCount={sowHitKeys.size}
               extraCount={(ltcMap?.items ?? []).filter(it => it.is_extra).length}
@@ -296,6 +311,22 @@ export default function ResearchWorkspace({
                 <EmptyHint text="尚未生成调研问卷。请到「调研问卷」sub-action 触发生成。" />
               </div>
             )
+          )}
+          {view === 'report' && (
+            <div className="min-h-full px-5 py-5">
+              <div className="max-w-[1600px] mx-auto">
+                {reportBundle ? (
+                  <div className="rd-card overflow-hidden" style={{ padding: 0 }}>
+                    <ReportHeaderBar bundle={reportBundle} />
+                    <div className="px-8 py-7 overflow-x-auto">
+                      <ReportMarkdownView bundle={reportBundle} />
+                    </div>
+                  </div>
+                ) : (
+                  <EmptyHint text="尚未生成调研报告。请到「调研报告」sub-action 触发生成。" />
+                )}
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -684,6 +715,7 @@ function ViewTab({
 
 function PreparationView({
   projectId, outlineBundle, outlineInflight, surveyBundle, surveyInflight,
+  reportBundle, reportInflight,
   ltcMapCount, sowHitCount, extraCount, onRefetch,
 }: {
   projectId: string
@@ -691,6 +723,8 @@ function PreparationView({
   outlineInflight: CuratedBundle | undefined
   surveyBundle: CuratedBundle | undefined
   surveyInflight: CuratedBundle | undefined
+  reportBundle: CuratedBundle | undefined
+  reportInflight: CuratedBundle | undefined
   ltcMapCount: number
   sowHitCount: number
   extraCount: number
@@ -756,9 +790,71 @@ function PreparationView({
             : null
         }
       />
+
+      <ProductCard
+        title="调研报告"
+        subtitle="综合本项目所有文档 + 上游产物 + 会议素材 + 行业最佳实践,一次性输出 7 章「调研报告」,作为方案设计的核心输入"
+        bundle={reportBundle}
+        inflight={reportInflight}
+        triggering={trig === 'research_report'}
+        onGenerate={() => trigger('research_report')}
+        extraInfo="建议 outline / 问卷答案填得差不多了再生成,生成耗时 2-4 分钟"
+      />
     </div>
   )
 }
+
+
+// ── 调研报告渲染(Liquid Glass 版) ────────────────────────────────────────
+
+function ReportHeaderBar({ bundle }: { bundle: CuratedBundle }) {
+  const updatedAt = bundle.updated_at ? new Date(bundle.updated_at) : null
+  const stamp = updatedAt
+    ? `${String(updatedAt.getMonth() + 1).padStart(2, '0')}/${String(updatedAt.getDate()).padStart(2, '0')} ${String(updatedAt.getHours()).padStart(2, '0')}:${String(updatedAt.getMinutes()).padStart(2, '0')}`
+    : ''
+  const ss = (bundle as any).sources_summary as
+    | { docs_n?: number; prior_bundles_n?: number; meetings_n?: number; answered_responses_n?: number; industry_pack?: string | null }
+    | undefined
+  return (
+    <div
+      className="flex items-center justify-between px-4 py-2"
+      style={{ borderBottom: '1px solid var(--rd-line)', background: 'rgba(255,255,255,0.05)' }}
+    >
+      <div className="text-[11px] flex items-center gap-2 flex-wrap" style={{ color: 'var(--rd-text-2)' }}>
+        <FileText size={11} style={{ color: 'var(--rd-accent)' }} />
+        <span className="font-medium" style={{ color: 'var(--rd-text)' }}>{bundle.title || '调研报告'}</span>
+        {stamp && <span>· 生成于 {stamp}</span>}
+        {ss && (
+          <span style={{ color: 'var(--rd-text-3)' }}>
+            · 素材 {ss.docs_n || 0} 份文档 · {ss.prior_bundles_n || 0} 份上游产物
+            {(ss.meetings_n || 0) > 0 ? ` · ${ss.meetings_n} 场会议` : ''}
+            {(ss.answered_responses_n || 0) > 0 ? ` · ${ss.answered_responses_n} 道已答` : ''}
+            {ss.industry_pack ? ` · 行业:${ss.industry_pack}` : ''}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ReportMarkdownView({ bundle }: { bundle: CuratedBundle }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['research-report-detail', bundle.id],
+    queryFn: () => getOutput(bundle.id),
+    enabled: !bundle.content_md,
+    initialData: bundle.content_md ? (bundle as any) : undefined,
+  })
+  if (isLoading) {
+    return <div className="text-center py-12 text-xs" style={{ color: 'var(--rd-text-3)' }}>加载报告内容…</div>
+  }
+  const md = data?.content_md
+  if (!md) {
+    return <div className="text-sm italic py-8 text-center" style={{ color: 'var(--rd-text-3)' }}>报告无 markdown 内容</div>
+  }
+  // 复用 outline 同款深色 markdown 渲染(无 provenance → 无角标)
+  return <InsightReportDark content={md} provenance={{}} onCitationClick={() => {}} />
+}
+
 
 function ProductCard({
   title, subtitle, bundle, inflight, triggering, onGenerate, extraInfo, footerSlot,

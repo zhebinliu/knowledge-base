@@ -48,3 +48,9 @@ def generate_survey(self, bundle_id: str, project_id: str):
 def generate_survey_outline(self, bundle_id: str, project_id: str):
     from services.agentic.runner import generate_survey_outline as _gen
     _run(_gen(bundle_id, project_id))
+
+
+@celery_app.task(name="generate_research_report", bind=True, max_retries=2, soft_time_limit=900, time_limit=1200)
+def generate_research_report(self, bundle_id: str, project_id: str):
+    from services.agentic.runner import generate_research_report as _gen
+    _run(_gen(bundle_id, project_id))

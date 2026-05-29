@@ -32,7 +32,7 @@ import ResearchWorkspace from '../../components/console/research/ResearchWorkspa
 import QA from '../QA'
 import { useEffect } from 'react'
 
-const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline']
+const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_report']
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -81,6 +81,7 @@ const DEFAULT_STAGES: StageDef[] = [
     subKinds: [
       { kind: 'survey_outline', label: '调研大纲' },
       { kind: 'survey',         label: '调研问卷' },
+      { kind: 'research_report',label: '调研报告' },
     ],
   },
   { key: 'design',     label: '方案设计', kind: null, icon: FileText, active: false },
@@ -254,7 +255,7 @@ export default function ConsoleProjectDetail() {
 
   // v3:文档驱动的 kind — 不弹 brief,直接调 generateOutput 触发 v3 流程
   // (runner 会自动 auto_extract + planner 从 docs 兜底)
-  const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline']
+  const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report']
 
   const startGeneration = async () => {
     if (!activeStage.active || !activeKind) return
@@ -578,6 +579,8 @@ export default function ConsoleProjectDetail() {
           outlineInflight={inflightByKind('survey_outline')}
           surveyBundle={bundleByKind('survey')}
           surveyInflight={inflightByKind('survey')}
+          reportBundle={bundleByKind('research_report')}
+          reportInflight={inflightByKind('research_report')}
           activeKind={activeKind}
           onRefetch={refetchOutputs}
         />

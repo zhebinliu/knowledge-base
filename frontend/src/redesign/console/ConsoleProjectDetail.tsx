@@ -52,8 +52,8 @@ import {
   type StageDef as ApiStageDef,
 } from '../../api/client'
 
-const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline']
-const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline']
+const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_report']
+const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report']
 
 const STAGE_ICON_MAP = {
   FileText, Lightbulb, ClipboardList, Bot, Sparkles, Search,
@@ -86,6 +86,7 @@ const DEFAULT_STAGES: StageDef[] = [
     subKinds: [
       { kind: 'survey_outline', label: '调研大纲' },
       { kind: 'survey',         label: '调研问卷' },
+      { kind: 'research_report',label: '调研报告' },
     ],
   },
   { key: 'design',     label: '方案设计', kind: null, icon: FileText, active: false },
@@ -577,6 +578,8 @@ export default function NewConsoleProjectDetail() {
             outlineInflight={inflightByKind('survey_outline')}
             surveyBundle={bundleByKind('survey')}
             surveyInflight={inflightByKind('survey')}
+            reportBundle={bundleByKind('research_report')}
+            reportInflight={inflightByKind('research_report')}
             activeKind={activeKind}
             onRefetch={refetchOutputs}
           />

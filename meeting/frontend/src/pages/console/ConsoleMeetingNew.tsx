@@ -8,7 +8,7 @@
  * 录音(WS 实时流)在 Block D 已用户拍板延期。
  */
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Upload, Type, ChevronLeft, Loader2 } from 'lucide-react'
 import {
@@ -24,9 +24,11 @@ type Mode = 'upload' | 'text'
 
 export default function ConsoleMeetingNew() {
   const nav = useNavigate()
+  const [searchParams] = useSearchParams()
   const [mode, setMode] = useState<Mode>('upload')
   const [title, setTitle] = useState('')
-  const [projectId, setProjectId] = useState<string>('')
+  // 从项目详情「关联会议」抽屉点「新建」过来时,URL 带 ?project_id=,预填到下拉
+  const [projectId, setProjectId] = useState<string>(() => searchParams.get('project_id') || '')
   const [file, setFile] = useState<File | null>(null)
   const [fileSizeError, setFileSizeError] = useState<string | null>(null)
   const [transcript, setTranscript] = useState('')

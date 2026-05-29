@@ -1039,6 +1039,7 @@ export const getStageFlowMeta = () =>
 export type OutputKind =
   | 'kickoff_pptx' | 'kickoff_html'
   | 'insight' | 'survey' | 'survey_outline'
+  | 'research_report'
 
 export interface OutputChatMessage {
   role: 'user' | 'assistant'
