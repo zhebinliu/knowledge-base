@@ -79,11 +79,13 @@ async def list_conversations(
             continue
         out.append({
             "chat_id": chat_id,
+            "chat_type": last.chat_type,
             "count": count,
             "last_message": {
                 "id": last.id,
                 "direction": last.direction,
                 "sender_name": last.sender_name,
+                "sender_user_id": last.sender_user_id,
                 "content_preview": (last.content or "")[:120],
                 "ts": _coalesce_ts(last),
             },
@@ -124,6 +126,7 @@ async def list_messages(
             {
                 "id": m.id,
                 "chat_id": m.chat_id,
+                "chat_type": m.chat_type,
                 "sender_user_id": m.sender_user_id,
                 "sender_name": m.sender_name,
                 "direction": m.direction,

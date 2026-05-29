@@ -170,9 +170,22 @@ async def send_message_for_user(
     # 落库一条 out
     try:
         async with async_session_maker() as session:
+            # 推断 chat_type:从同 chat 历史的最近一条继承
+            inferred_type = None
+            from sqlalchemy import select as _sel, desc as _desc
+            recent = await session.execute(
+                _sel(QixinMessage.chat_type)
+                .where(QixinMessage.user_id == user_id, QixinMessage.chat_id == chat_id)
+                .order_by(_desc(QixinMessage.created_at))
+                .limit(1)
+            )
+            r = recent.scalar_one_or_none()
+            if r:
+                inferred_type = r
             msg = QixinMessage(
                 user_id=user_id,
                 chat_id=chat_id,
+                chat_type=inferred_type,
                 sender_user_id=None,
                 sender_name="Bot",
                 direction="out",
@@ -205,12 +218,25 @@ async def _persist_message(user_id: str, event: dict) -> None:
 
     sender = data.get("from") or {}
     ts = _parse_ts(data.get("timestamp") or data.get("date"))
+    chat_type = data.get("chat_type")  # "direct" | "group"
+
+    # 排查:Gateway 推过来的 from 字段实际有什么(name 经常为空)
+    logger.info(
+        "qixin_msg_in_raw",
+        user_id=user_id,
+        chat_id=chat_id,
+        chat_type=chat_type,
+        sender_id=sender.get("id"),
+        sender_name=sender.get("name"),
+        text_preview=(text or "")[:40],
+    )
 
     try:
         async with async_session_maker() as session:
             msg = QixinMessage(
                 user_id=user_id,
                 chat_id=str(chat_id),
+                chat_type=chat_type,
                 sender_user_id=str(sender.get("id")) if sender.get("id") else None,
                 sender_name=sender.get("name"),
                 direction="in",
@@ -220,13 +246,6 @@ async def _persist_message(user_id: str, event: dict) -> None:
             )
             session.add(msg)
             await session.commit()
-        logger.info(
-            "qixin_msg_saved",
-            user_id=user_id,
-            chat_id=chat_id,
-            chat_type=data.get("chat_type"),
-            text_len=len(text),
-        )
     except Exception as e:
         logger.error("qixin_msg_persist_failed", user_id=user_id, error=str(e))
 

@@ -2235,11 +2235,13 @@ export const deleteQixinCredentials = async () => {
 
 export interface QixinConversation {
   chat_id: string
+  chat_type: 'direct' | 'group' | null
   count: number
   last_message: {
     id: string
     direction: 'in' | 'out'
     sender_name: string | null
+    sender_user_id: string | null
     content_preview: string
     ts: string | null
   }
@@ -2255,6 +2257,7 @@ export const listQixinConversations = async (limit = 50): Promise<QixinConversat
 export interface QixinMessage {
   id: string
   chat_id: string
+  chat_type: 'direct' | 'group' | null
   sender_user_id: string | null
   sender_name: string | null
   direction: 'in' | 'out'

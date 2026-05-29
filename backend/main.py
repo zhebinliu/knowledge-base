@@ -346,6 +346,8 @@ async def startup():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS qixin_app_secret VARCHAR(512)",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS qixin_gateway_url VARCHAR(255)",
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_qixin_app_id ON users(qixin_app_id) WHERE qixin_app_id IS NOT NULL",
+            # 区分群聊 / 私聊(2026-05-29 增量)
+            "ALTER TABLE qixin_messages ADD COLUMN IF NOT EXISTS chat_type VARCHAR(16)",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")

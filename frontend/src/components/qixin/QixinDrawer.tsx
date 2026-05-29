@@ -11,7 +11,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { MessageSquare, X, RefreshCw, Settings, ChevronLeft, Send, Loader2 } from 'lucide-react'
+import { MessageSquare, X, RefreshCw, Settings, ChevronLeft, Send, Loader2, Users, User as UserIcon } from 'lucide-react'
 import {
   getQixinCredentials,
   listQixinConversations,
@@ -106,9 +106,18 @@ export default function QixinDrawer() {
                 </button>
               )}
               <MessageSquare size={16} className="text-orange-500" />
-              <h3 className="text-sm font-semibold text-gray-900 flex-1">
-                {activeChatId ? `会话 · ${activeChatId.slice(0, 16)}…` : '企信会话'}
+              <h3 className="text-sm font-semibold text-gray-900 flex-1 truncate">
+                {activeChatId
+                  ? buildActiveTitle(activeChatId, conversationsQuery.data)
+                  : '企信会话'}
               </h3>
+              {activeChatId && (
+                <ChatTypeBadge
+                  type={
+                    (conversationsQuery.data || []).find((c) => c.chat_id === activeChatId)?.chat_type ?? null
+                  }
+                />
+              )}
               <button
                 onClick={() => {
                   if (activeChatId) messagesQuery.refetch()
@@ -217,14 +226,21 @@ function ConversationList({
           className="w-full text-left px-4 py-3 hover:bg-orange-50/40 transition-colors"
         >
           <div className="flex items-center justify-between gap-2 mb-0.5">
-            <span className="text-xs font-medium text-gray-900 truncate">
-              {c.last_message.sender_name || c.chat_id.slice(0, 16)}
-            </span>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <ChatTypeBadge type={c.chat_type} />
+              <span className="text-xs font-medium text-gray-900 truncate">
+                {buildConversationTitle(c)}
+              </span>
+            </div>
             <span className="text-[10px] text-gray-400 shrink-0">{formatTs(c.last_message.ts)}</span>
           </div>
           <div className="flex items-start justify-between gap-2">
             <p className="text-xs text-gray-500 line-clamp-2 flex-1">
-              {c.last_message.direction === 'out' ? '我: ' : ''}
+              {c.chat_type === 'group' && c.last_message.direction === 'in' && c.last_message.sender_name
+                ? `${c.last_message.sender_name}: `
+                : c.last_message.direction === 'out'
+                ? '我: '
+                : ''}
               {c.last_message.content_preview || '(空)'}
             </p>
             <span className="text-[10px] text-gray-400 shrink-0">{c.count}</span>
@@ -346,6 +362,66 @@ function MessageStream({
       </div>
     </div>
   )
+}
+
+// ── 工具:群/私胶囊 + 会话标题 ─────────────────────────────────────────────
+
+function ChatTypeBadge({ type }: { type: 'direct' | 'group' | null }) {
+  if (type === 'group') {
+    return (
+      <span
+        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-medium rounded bg-blue-50 text-blue-700 border border-blue-200 shrink-0"
+        title="群聊(@Bot 才进入)"
+      >
+        <Users size={9} />群
+      </span>
+    )
+  }
+  if (type === 'direct') {
+    return (
+      <span
+        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-medium rounded bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0"
+        title="私聊"
+      >
+        <UserIcon size={9} />私
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-medium rounded bg-gray-100 text-gray-500 border border-gray-200 shrink-0">
+      ?
+    </span>
+  )
+}
+
+function buildConversationTitle(c: {
+  chat_id: string
+  chat_type: 'direct' | 'group' | null
+  last_message: { sender_name: string | null; sender_user_id: string | null; direction: 'in' | 'out' }
+}): string {
+  // 私聊:用对方名字(direction=in 是对方;direction=out 时拿不到,先 fallback chat_id)
+  if (c.chat_type === 'direct') {
+    if (c.last_message.direction === 'in' && c.last_message.sender_name) {
+      return c.last_message.sender_name
+    }
+    if (c.last_message.sender_name) return c.last_message.sender_name
+    return c.last_message.sender_user_id || `私聊 · ${c.chat_id.slice(0, 12)}…`
+  }
+  // 群聊:Gateway 没透传 chat_name,先用 chat_id 摘要
+  if (c.chat_type === 'group') {
+    return `群 · ${c.chat_id.slice(0, 14)}…`
+  }
+  // 未知类型:fallback
+  return c.last_message.sender_name || c.chat_id.slice(0, 16)
+}
+
+function buildActiveTitle(
+  chatId: string,
+  conversations: { chat_id: string; chat_type: 'direct' | 'group' | null; last_message: any }[] | undefined,
+): string {
+  const c = conversations?.find((x) => x.chat_id === chatId)
+  if (!c) return `会话 · ${chatId.slice(0, 16)}…`
+  return buildConversationTitle(c as any)
 }
 
 function formatTs(ts: string | null): string {

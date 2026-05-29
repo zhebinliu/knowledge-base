@@ -26,6 +26,9 @@ class QixinMessage(Base):
     # 企信会话 id,Bot 回发时必须按这个发
     chat_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
 
+    # Gateway data.chat_type:"direct"(私聊)/ "group"(群聊),区分会话类型
+    chat_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
     # Gateway 给的源用户 id(私聊就是对方,群聊是发言人)
     sender_user_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     sender_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
