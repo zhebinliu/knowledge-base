@@ -222,14 +222,30 @@ jobs:
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.5
+        env:
+          # Fernet 主密钥(2026-05-29):企信/飞书/sharedev 用户级凭证 secret 全靠它加密。
+          # 必须固定不变 — key 一变,所有历史密文解不开,用户得重配。
+          # GitHub Secrets 是 source of truth,服务器 .env 丢失(换机/误删)时
+          # Deploy via SSH 步骤会自动幂等写回。
+          FERNET_KEY_SECRET: ${{ secrets.FERNET_KEY }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          envs: FERNET_KEY_SECRET
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
             git pull origin main 2>&1 | tail -5 || echo "git pull failed, continuing with docker images only"
+
+            # ── 幂等注入 FERNET_KEY 到 .env(2026-05-29) ──────────────────
+            # 第一次部署 / 换机后 .env 没有 FERNET_KEY 时,从 GitHub Secrets 写回。
+            # 已存在(常态)就跳过,保留服务器值。GitHub Secrets 没配也跳过(允许
+            # 用户先手工管 .env,等准备好再上 secrets)。
+            if [ -n "$FERNET_KEY_SECRET" ] && ! grep -q '^FERNET_KEY=' .env 2>/dev/null; then
+              echo "FERNET_KEY=$FERNET_KEY_SECRET" >> .env
+              echo "→ FERNET_KEY 首次写入 .env(从 GitHub Secrets 恢复)"
+            fi
 
             SHORT_SHA="${{ steps.sha.outputs.value }}"
             BACKEND_IMAGE_FULL="${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-${SHORT_SHA}"
