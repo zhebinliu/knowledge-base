@@ -146,6 +146,47 @@ def list_connected() -> list[str]:
     return list(_pool.keys())
 
 
+async def send_message_for_user(
+    user_id: str,
+    chat_id: str,
+    text: str,
+    reply_message_id: str | int | None = None,
+) -> dict:
+    """让某用户的 Bot 发消息到指定会话。
+
+    不要求 SSE 必须在线 — send 走独立 REST(只需 token 缓存可复用)。
+    失败 raise RuntimeError;成功返 {"message_id": "..."}。
+    发完写一条 direction='out' 落库。
+    """
+    conn = _pool.get(user_id)
+    if conn is None:
+        # 池里没有 → 用户从未配置过 OR 重启后还没起来。强制起一遍。
+        await start_for_user(user_id)
+        conn = _pool.get(user_id)
+    if conn is None:
+        raise RuntimeError("用户未配置企信凭证或连接未就绪")
+
+    result = await conn.client.send_message(chat_id, text, reply_message_id)
+    # 落库一条 out
+    try:
+        async with async_session_maker() as session:
+            msg = QixinMessage(
+                user_id=user_id,
+                chat_id=chat_id,
+                sender_user_id=None,
+                sender_name="Bot",
+                direction="out",
+                content=text,
+                raw={"sent_message_id": result.get("message_id"), "reply_message_id": reply_message_id},
+                ts=datetime.utcnow(),
+            )
+            session.add(msg)
+            await session.commit()
+    except Exception as e:
+        logger.error("qixin_out_msg_persist_failed", user_id=user_id, error=str(e))
+    return result
+
+
 # ── 消息持久化 ──────────────────────────────────────────────────────────────
 
 async def _persist_message(user_id: str, event: dict) -> None:

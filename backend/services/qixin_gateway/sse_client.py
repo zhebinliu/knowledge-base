@@ -118,6 +118,83 @@ class QixinSSEClient:
         self._token_expires_at_ms = now_ms + expires_in * 1000 - TOKEN_REFRESH_BUFFER_MS
         return token
 
+    def _invalidate_token(self) -> None:
+        self._access_token = None
+        self._token_expires_at_ms = 0
+
+    async def send_message(
+        self,
+        chat_id: str,
+        text: str,
+        reply_message_id: str | int | None = None,
+    ) -> dict:
+        """REST 上行:发消息到 Gateway。复用同一 token 缓存。
+
+        参考 openclaw-sharecrm/client.ts:
+          POST /im-gateway/qixin/message/send  Body: {chat_id, text, reply_message_id?}
+          Header: Authorization: Bearer <token>
+          错误码:40100/40101 token 失效 → 刷新重试;50000 服务端错 → 抖动重试。
+          最多 2 attempts。
+
+        返回 {"message_id": "..."} 成功;失败 raise RuntimeError(包含 code/msg)。
+        """
+        payload: dict = {"chat_id": chat_id, "text": text}
+        if reply_message_id is not None and reply_message_id != "":
+            payload["reply_message_id"] = reply_message_id
+
+        url = f"{self.gateway_base_url.rstrip('/')}/im-gateway/qixin/message/send"
+        timeout = httpx.Timeout(20.0)
+        last_err: str | None = None
+
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            for attempt in range(1, 3):
+                try:
+                    token = await self._ensure_token(client)
+                    resp = await client.post(
+                        url,
+                        json=payload,
+                        headers={"Authorization": f"Bearer {token}"},
+                    )
+                    data = resp.json()
+                    code = data.get("code")
+                    if code == 0 and (data.get("data") or {}).get("message_id"):
+                        return {"message_id": data["data"]["message_id"]}
+
+                    last_err = f"code={code} msg={data.get('msg')}"
+                    logger.warning(
+                        "qixin_send_failed",
+                        user_id=self.user_id,
+                        chat_id=chat_id,
+                        attempt=attempt,
+                        code=code,
+                        msg=data.get("msg"),
+                    )
+                    # token 过期 → 刷新重试一次
+                    if code in (40100, 40101) and attempt < 2:
+                        self._invalidate_token()
+                        continue
+                    # 服务端错 → 抖动重试一次
+                    if code == 50000 and attempt < 2:
+                        jitter_ms = int(1000 * (1 + random.random() * 0.2))
+                        await asyncio.sleep(jitter_ms / 1000.0)
+                        continue
+                    break
+                except Exception as e:
+                    last_err = str(e)
+                    logger.error(
+                        "qixin_send_exception",
+                        user_id=self.user_id,
+                        chat_id=chat_id,
+                        attempt=attempt,
+                        error=last_err,
+                    )
+                    if attempt < 2:
+                        await asyncio.sleep(1.0)
+                        continue
+                    break
+
+        raise RuntimeError(f"发消息失败: {last_err}")
+
     async def _connect_once(self) -> None:
         """单次 SSE 连接 + 监听;返回即进入外层重连。"""
         timeout = httpx.Timeout(connect=15.0, read=None, write=15.0, pool=15.0)

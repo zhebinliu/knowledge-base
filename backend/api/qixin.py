@@ -12,6 +12,7 @@ Phase 1 不返 raw 字段(payload 大 + PII 风险)。
 """
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select, desc, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -132,3 +133,35 @@ async def list_messages(
             for m in rows
         ],
     }
+
+
+class SendMessageIn(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+    reply_message_id: str | int | None = None
+
+
+@router.post("/conversations/{chat_id}/send")
+async def send_message(
+    chat_id: str,
+    body: SendMessageIn,
+    user: User = Depends(get_current_user),
+):
+    """手动发消息到指定企信会话(2026-05-29)。
+
+    走当前用户的 Bot REST 上行接口。发完落一条 direction='out'。
+    SSE 连接未就绪时尝试 start_for_user 后再发。
+    """
+    try:
+        from services.qixin_gateway.connection_manager import send_message_for_user
+        result = await send_message_for_user(
+            user.id, chat_id, body.text.strip(), body.reply_message_id,
+        )
+        return {"status": "ok", "message_id": result.get("message_id"), "chat_id": chat_id}
+    except ImportError:
+        raise HTTPException(503, "企信连接池未启用")
+    except RuntimeError as e:
+        # 业务错(凭证未配 / Gateway 返非 0 code)
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception("qixin_send_endpoint_failed", user=user.username, chat_id=chat_id)
+        raise HTTPException(500, f"发送失败: {e}")

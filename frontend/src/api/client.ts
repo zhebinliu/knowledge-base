@@ -1042,6 +1042,7 @@ export type OutputKind =
   | 'research_report'
   | 'blueprint_design'
   | 'implementation_plan'
+  | 'test_plan' | 'acceptance_report'
 
 export interface OutputChatMessage {
   role: 'user' | 'assistant'
@@ -2273,4 +2274,16 @@ export const listQixinMessages = async (
     `/qixin/conversations/${encodeURIComponent(chatId)}/messages${qs ? `?${qs}` : ''}`,
   )
   return data.messages
+}
+
+export const sendQixinMessage = async (
+  chatId: string,
+  text: string,
+  replyMessageId?: string | number,
+): Promise<{ status: string; message_id: string; chat_id: string }> => {
+  const { data } = await api.post(
+    `/qixin/conversations/${encodeURIComponent(chatId)}/send`,
+    { text, reply_message_id: replyMessageId },
+  )
+  return data
 }

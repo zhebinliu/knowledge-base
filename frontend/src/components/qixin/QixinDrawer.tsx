@@ -8,14 +8,15 @@
  * Phase 1 用 5s polling 拉新数据,未配置凭证时引导去 /personal-settings。
  * 挂在 /console(老 Layout)和 /redesign/console(新 Layout)两边,样式纯 Tailwind。
  */
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { MessageSquare, X, RefreshCw, Settings, ChevronLeft } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { MessageSquare, X, RefreshCw, Settings, ChevronLeft, Send, Loader2 } from 'lucide-react'
 import {
   getQixinCredentials,
   listQixinConversations,
   listQixinMessages,
+  sendQixinMessage,
 } from '../../api/client'
 
 const POLL_INTERVAL_MS = 5000
@@ -149,6 +150,7 @@ export default function QixinDrawer() {
                   chatId={activeChatId}
                   data={messagesQuery.data || []}
                   loading={messagesQuery.isLoading}
+                  onSent={() => messagesQuery.refetch()}
                 />
               )}
             </div>
@@ -234,41 +236,114 @@ function ConversationList({
 }
 
 function MessageStream({
+  chatId,
   data,
   loading,
+  onSent,
 }: {
   chatId: string
   data: Awaited<ReturnType<typeof listQixinMessages>>
   loading: boolean
+  onSent: () => void
 }) {
-  if (loading) {
-    return <div className="p-6 text-xs text-gray-400">加载中…</div>
-  }
+  const qc = useQueryClient()
+  const [draft, setDraft] = useState('')
+  const [sendError, setSendError] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const sendMut = useMutation({
+    mutationFn: (text: string) => sendQixinMessage(chatId, text),
+    onSuccess: () => {
+      setDraft('')
+      setSendError(null)
+      onSent()
+      qc.invalidateQueries({ queryKey: ['qixin-conversations'] })
+    },
+    onError: (err: any) => {
+      setSendError(err?.response?.data?.detail || err?.message || '发送失败')
+    },
+  })
+
+  // 数据更新后自动滚到底
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [data.length])
+
   // 后端按 created_at desc 返,这里再 reverse 让最新在底
   const ordered = [...data].reverse()
+
+  const submit = () => {
+    const t = draft.trim()
+    if (!t || sendMut.isPending) return
+    sendMut.mutate(t)
+  }
+
   return (
-    <div className="overflow-y-auto h-full px-4 py-3 space-y-3 bg-gray-50/40">
-      {ordered.map((m) => (
-        <div key={m.id} className={`flex ${m.direction === 'out' ? 'justify-end' : 'justify-start'}`}>
-          <div className="max-w-[80%]">
-            {m.direction !== 'out' && (
-              <div className="text-[10px] text-gray-400 mb-0.5">
-                {m.sender_name || m.sender_user_id || '未知'}
+    <div className="flex flex-col h-full">
+      {loading ? (
+        <div className="p-6 text-xs text-gray-400 flex-1">加载中…</div>
+      ) : (
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-gray-50/40"
+        >
+          {ordered.map((m) => (
+            <div key={m.id} className={`flex ${m.direction === 'out' ? 'justify-end' : 'justify-start'}`}>
+              <div className="max-w-[80%]">
+                {m.direction !== 'out' && (
+                  <div className="text-[10px] text-gray-400 mb-0.5">
+                    {m.sender_name || m.sender_user_id || '未知'}
+                  </div>
+                )}
+                <div
+                  className={
+                    m.direction === 'out'
+                      ? 'bg-orange-500 text-white px-3 py-2 rounded-lg rounded-tr-sm text-xs whitespace-pre-wrap break-words'
+                      : 'bg-white border border-gray-200 px-3 py-2 rounded-lg rounded-tl-sm text-xs text-gray-800 whitespace-pre-wrap break-words shadow-sm'
+                  }
+                >
+                  {m.content || '(空)'}
+                </div>
+                <div className="text-[10px] text-gray-400 mt-0.5">{formatTs(m.ts)}</div>
               </div>
-            )}
-            <div
-              className={
-                m.direction === 'out'
-                  ? 'bg-orange-500 text-white px-3 py-2 rounded-lg rounded-tr-sm text-xs whitespace-pre-wrap break-words'
-                  : 'bg-white border border-gray-200 px-3 py-2 rounded-lg rounded-tl-sm text-xs text-gray-800 whitespace-pre-wrap break-words shadow-sm'
-              }
-            >
-              {m.content || '(空)'}
             </div>
-            <div className="text-[10px] text-gray-400 mt-0.5">{formatTs(m.ts)}</div>
-          </div>
+          ))}
         </div>
-      ))}
+      )}
+
+      {/* 输入区 */}
+      <div className="shrink-0 border-t border-gray-100 px-3 py-2 bg-white">
+        {sendError && (
+          <div className="mb-1.5 text-[10px] text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1">
+            {sendError}
+          </div>
+        )}
+        <div className="flex items-end gap-2">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                submit()
+              }
+            }}
+            placeholder="输入消息(Enter 发送,Shift+Enter 换行)"
+            rows={2}
+            className="flex-1 resize-none px-2.5 py-1.5 rounded-md border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+          />
+          <button
+            onClick={submit}
+            disabled={!draft.trim() || sendMut.isPending}
+            className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-md bg-orange-600 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-orange-700"
+            title="发送"
+          >
+            {sendMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
