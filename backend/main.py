@@ -178,6 +178,8 @@ app.include_router(outputs.router, prefix="/api/outputs", tags=["outputs"])
 app.include_router(meeting.router, prefix="/api/meeting", tags=["meeting"])
 from api.feishu_credentials import router as feishu_creds_router  # 修复 #5:凭证独立路由
 app.include_router(feishu_creds_router)
+from api.sharedev_credentials import router as sharedev_creds_router  # 2026-05-29:项目实施 sharedev 集成
+app.include_router(sharedev_creds_router)
 app.include_router(template.router, prefix="/api/templates", tags=["templates"])
 from api.markup_template import router as markup_template_router
 app.include_router(markup_template_router, prefix="/api/markup-templates", tags=["markup-templates"])
@@ -292,6 +294,9 @@ async def startup():
             # 会议纪要集成:User 级飞书凭证(2026-05-11)
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS feishu_app_id VARCHAR(128)",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS feishu_app_secret VARCHAR(255)",
+            # 项目实施集成:User 级 sharedev / PaaS 凭证(2026-05-29)
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS sharedev_domain VARCHAR(255)",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS sharedev_certificate VARCHAR(512)",
             # 会议纪要模板演化(meeting submodule 098c283):Meeting.edited_minutes
             "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS edited_minutes JSON",
             # 会议纪要 — audio / 飞书 / KB 同步 / 干系人图谱 列补齐

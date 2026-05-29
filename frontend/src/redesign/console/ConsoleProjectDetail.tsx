@@ -40,6 +40,7 @@ import CitationsPanel from './CitationsPanel'
 import FloatingChat, { type FloatingChatState } from './FloatingChat'
 import ChallengeRoundsPanel from './ChallengeRoundsPanel'
 import ResearchWorkspace from './research/ResearchWorkspace'
+import ImplementationWorkspace from '../../components/console/implementation/ImplementationWorkspace'
 
 // QA 用新版
 import NewQA from '../QA'
@@ -52,8 +53,8 @@ import {
   type StageDef as ApiStageDef,
 } from '../../api/client'
 
-const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design']
-const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design']
+const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'implementation_plan']
+const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'implementation_plan']
 
 const STAGE_ICON_MAP = {
   FileText, Lightbulb, ClipboardList, Bot, Sparkles, Search,
@@ -90,7 +91,7 @@ const DEFAULT_STAGES: StageDef[] = [
     ],
   },
   { key: 'design',     label: '方案设计', kind: 'blueprint_design', icon: FileText, active: true },
-  { key: 'implement',  label: '项目实施', kind: null, icon: FileText, active: false },
+  { key: 'implement',  label: '项目实施', kind: 'implementation_plan', icon: FileText, active: true, beta: true },
   { key: 'test',       label: '上线测试', kind: null, icon: FileText, active: false },
   { key: 'acceptance', label: '项目验收', kind: null, icon: FileText, active: false },
 ]
@@ -581,6 +582,15 @@ export default function NewConsoleProjectDetail() {
             reportBundle={bundleByKind('research_report')}
             reportInflight={inflightByKind('research_report')}
             activeKind={activeKind}
+            onRefetch={refetchOutputs}
+          />
+        </div>
+      ) : activeStageKey === 'implement' ? (
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <ImplementationWorkspace
+            projectId={id!}
+            planBundle={bundleByKind('implementation_plan')}
+            planInflight={inflightByKind('implementation_plan')}
             onRefetch={refetchOutputs}
           />
         </div>

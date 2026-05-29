@@ -62,6 +62,7 @@ KIND_TO_TASK = {
     "survey_outline": "generate_survey_outline",
     "research_report": "generate_research_report",
     "blueprint_design": "generate_blueprint_design",
+    "implementation_plan": "generate_implementation_plan",
 }
 
 KIND_TITLES = {
@@ -72,6 +73,7 @@ KIND_TITLES = {
     "survey_outline": "调研大纲",
     "research_report": "调研报告",
     "blueprint_design": "蓝图设计",
+    "implementation_plan": "实施任务清单",
 }
 
 
@@ -112,6 +114,8 @@ def _bundle_dto(b: CuratedBundle) -> dict:
         # research — 需求调研工作区前端消费
         "questionnaire_items": extra.get("questionnaire_items") or [],
         "ltc_module_map": extra.get("ltc_module_map") or [],
+        # implementation — 项目实施工作台前端消费(implementation_plan kind)
+        "implementation_tasks": extra.get("tasks") or [],
     }
 
 

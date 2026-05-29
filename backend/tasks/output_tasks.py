@@ -60,3 +60,9 @@ def generate_research_report(self, bundle_id: str, project_id: str):
 def generate_blueprint_design(self, bundle_id: str, project_id: str):
     from services.agentic.runner import generate_blueprint_design as _gen
     _run(_gen(bundle_id, project_id))
+
+
+@celery_app.task(name="generate_implementation_plan", bind=True, max_retries=2, soft_time_limit=900, time_limit=1200)
+def generate_implementation_plan(self, bundle_id: str, project_id: str):
+    from services.agentic.runner import generate_implementation_plan as _gen
+    _run(_gen(bundle_id, project_id))

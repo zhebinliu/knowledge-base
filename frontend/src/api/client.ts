@@ -1041,6 +1041,7 @@ export type OutputKind =
   | 'insight' | 'survey' | 'survey_outline'
   | 'research_report'
   | 'blueprint_design'
+  | 'implementation_plan'
 
 export interface OutputChatMessage {
   role: 'user' | 'assistant'
@@ -1272,6 +1273,10 @@ export interface CuratedBundle {
   // research v1 — 需求调研工作区(survey_outline / survey kind 才有值)
   questionnaire_items?: ResearchQuestionItem[]
   ltc_module_map?: { sow_term: string; mapped_ltc_key: string | null; confidence: number; is_extra: boolean }[]
+  // implementation_plan kind — 项目实施工作台前端用
+  implementation_tasks?: ImplementationTask[]
+  // 通用 extra(后端 _bundle_dto 不直接返回所有 extra 字段,但有些工作台需要 sources_summary 等)
+  extra?: Record<string, any>
 }
 
 // v3.1 挑战回合详情 (GET /api/outputs/{id}/challenges)
@@ -2113,4 +2118,62 @@ export const deleteFeishuCredentials = async () => {
     '/feishu/credentials',  // 修复 #5:独立路由
   )
   return data
+}
+
+// ── 用户级 ShareDev / sharedev-cli 凭证(2026-05-29 项目实施集成) ────────
+
+export interface ShareDevCredentialsStatus {
+  configured: boolean
+  domain: string
+}
+
+export const getShareDevCredentials = async (): Promise<ShareDevCredentialsStatus> => {
+  const { data } = await api.get<ShareDevCredentialsStatus>('/sharedev/credentials')
+  return data
+}
+
+export const putShareDevCredentials = async (body: { domain: string; certificate: string }) => {
+  const { data } = await api.put<{ status: string; configured: boolean; domain: string }>(
+    '/sharedev/credentials',
+    body,
+  )
+  return data
+}
+
+export const deleteShareDevCredentials = async () => {
+  const { data } = await api.delete<{ status: string; configured: boolean }>('/sharedev/credentials')
+  return data
+}
+
+export const verifyShareDevCredentials = async () => {
+  const { data } = await api.post<{ status: string; verified: boolean; domain: string; detail: string }>(
+    '/sharedev/credentials/verify',
+  )
+  return data
+}
+
+// ── 实施任务清单(implementation_plan)的结构化 tasks(bundle.extra.tasks) ──
+
+export type ShareDevSkill =
+  | 'sharedev-auto'
+  | 'sharedev-object' | 'sharedev-field' | 'sharedev-validation-rule'
+  | 'sharedev-layout' | 'sharedev-layout-rule'
+  | 'sharedev-apl-implement' | 'sharedev-apl-lite' | 'sharedev-apl-code-review'
+  | 'sharedev-pwc' | 'sharedev-pwc-write-prd-spec' | 'sharedev-pwc-write-arch'
+  | 'sharedev-pwc-write-plans' | 'sharedev-pwc-execute-plans'
+  | 'sharedev-pwc-subagent-driven-development'
+  | 'sharedev-pwc-finish-development' | 'sharedev-pwc-review-code' | 'sharedev-pwc-fix-bug'
+
+export interface ImplementationTask {
+  task_id: string
+  req_ids: string[]
+  sharedev_skill: ShareDevSkill
+  object_api_name: string | null
+  api_name: string | null
+  description: string
+  depends_on: string[]
+  priority: 'P0' | 'P1' | 'P2' | 'P3'
+  ltc_module: string | null
+  estimated_hours: number
+  status: 'pending_config' | 'configured' | 'pending_deploy' | 'deployed' | 'failed'
 }

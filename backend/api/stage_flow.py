@@ -38,7 +38,7 @@ DEFAULT_STAGES: list[dict] = [
          {"kind": "research_report","label": "调研报告"},
      ]},
     {"key": "design",        "label": "方案设计",          "kind": "blueprint_design", "icon": "FileText", "active": True,  "beta": False, "sub_kinds": []},
-    {"key": "implement",     "label": "项目实施",          "kind": None, "icon": "FileText", "active": False, "beta": False, "sub_kinds": []},
+    {"key": "implement",     "label": "项目实施",          "kind": "implementation_plan", "icon": "Package", "active": True,  "beta": True,  "sub_kinds": []},
     {"key": "test",          "label": "上线测试",          "kind": None, "icon": "FileText", "active": False, "beta": False, "sub_kinds": []},
     {"key": "acceptance",    "label": "项目验收",          "kind": None, "icon": "FileText", "active": False, "beta": False, "sub_kinds": []},
 ]
@@ -55,6 +55,7 @@ ALLOWED_KINDS = {
     "kickoff_pptx", "kickoff_html",
     "insight", "survey", "survey_outline", "research_report",
     "blueprint_design",
+    "implementation_plan",
 }
 
 CONFIG_TYPE = "stage_flow"
@@ -205,5 +206,6 @@ async def get_stage_flow_meta():
             "survey_outline": "调研大纲",
             "research_report": "调研报告",
             "blueprint_design": "蓝图设计",
+            "implementation_plan": "实施任务清单",
         },
     }

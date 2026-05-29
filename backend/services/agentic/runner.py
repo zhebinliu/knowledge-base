@@ -2092,6 +2092,138 @@ async def _load_research_responses_for_report(project_id: str) -> list[dict]:
     return out
 
 
+# ── 项目实施任务清单(2026-05-29):接 sharedev skill 工作流的入口产物 ────────
+
+async def generate_implementation_plan(bundle_id: str, project_id: str):
+    """生成「实施任务清单」 — 5 章 markdown + tasks JSON 数组,存到 bundle.extra.tasks。
+
+    主输入是该项目最新的「调研报告」+「蓝图设计」两份 bundle。
+    输出 markdown(给 PM 看)+ 结构化 tasks(给 ImplementationWorkspace 分组渲染 + 后续
+    sharedev_config_generator 单条生成 xml 用)。
+
+    每条 task 关联一个 sharedev skill(17 个之一),后续顾问点 task → 触发对应 skill
+    的 LLM 生成 xml / Groovy → 推到客户租户。
+    """
+    from .research.implementation_plan_generator import (
+        SYSTEM_PROMPT, build_user_prompt, split_llm_output,
+        format_research_report_block, format_blueprint_block,
+    )
+    from .research.report_generator import (
+        format_project_meta, format_industry_pack,
+    )
+    from .industry_packs import get_pack
+    from services.output_service import _llm_call
+
+    run_history: list[dict] = []
+    try:
+        await _mark(bundle_id, "generating")
+        run_history.append({"phase": "started", "ts": _ts()})
+        await _update_progress(bundle_id, stage="planning", message="加载调研报告 + 蓝图设计…")
+
+        ctx = await _load_ctx(bundle_id, project_id, "implementation_plan")
+
+        # 拉调研报告 + 蓝图设计
+        async with async_session_maker() as s:
+            rr_bundle = (await s.execute(
+                select(CuratedBundle)
+                .where(CuratedBundle.project_id == project_id)
+                .where(CuratedBundle.kind == "research_report")
+                .where(CuratedBundle.status == "done")
+                .order_by(CuratedBundle.updated_at.desc())
+            )).scalars().first()
+            bp_bundle = (await s.execute(
+                select(CuratedBundle)
+                .where(CuratedBundle.project_id == project_id)
+                .where(CuratedBundle.kind == "blueprint_design")
+                .where(CuratedBundle.status == "done")
+                .order_by(CuratedBundle.updated_at.desc())
+            )).scalars().first()
+        has_rr = bool(rr_bundle and (rr_bundle.content_md or "").strip())
+        has_bp = bool(bp_bundle and (bp_bundle.content_md or "").strip())
+
+        if not (has_rr or has_bp):
+            raise RuntimeError(
+                "项目尚未生成调研报告或蓝图设计,无法生成实施任务清单。"
+                "请先到「需求调研 → 调研报告」和「方案设计 → 蓝图设计」生成基础产物。"
+            )
+
+        run_history.append({
+            "phase": "evidence_loaded", "ts": _ts(),
+            "detail": {"has_research_report": has_rr, "has_blueprint": has_bp},
+        })
+
+        await _update_progress(bundle_id, stage="executing", message="生成任务清单(约 2-4 分钟)…")
+        pack = get_pack(ctx["industry"])
+        user_prompt = build_user_prompt(
+            project_meta=format_project_meta(ctx["project"]),
+            industry=ctx["industry"],
+            research_report_block=format_research_report_block(rr_bundle),
+            blueprint_block=format_blueprint_block(bp_bundle),
+            tenant_metadata_block="",  # Phase 2 接入 sidecar /pull-metadata 后填这里
+            industry_pack_block=format_industry_pack(pack),
+        )
+
+        raw = await _llm_call(
+            user_prompt, system=SYSTEM_PROMPT,
+            model=ctx["agent_model"],
+            max_tokens=16000, timeout=720.0,
+        )
+        run_history.append({"phase": "llm_done", "ts": _ts(),
+                            "detail": {"raw_chars": len(raw or "")}})
+        if not raw or not raw.strip():
+            raise RuntimeError("LLM 返回为空")
+
+        markdown, tasks = split_llm_output(raw)
+        if not tasks:
+            logger.warning("implementation_plan_no_tasks_parsed",
+                           bundle_id=bundle_id, raw_preview=(raw or "")[:200])
+
+        async with async_session_maker() as s:
+            b = await s.get(CuratedBundle, bundle_id)
+            new_extra = dict(b.extra or {})
+            new_extra["run_history"] = run_history
+            new_extra["agentic_version"] = "v2"
+            new_extra["validity_status"] = "valid"
+            new_extra["progress"] = {"stage": "done", "message": "完成"}
+            new_extra["tasks"] = tasks   # ImplementationWorkspace 直接读这个
+            new_extra["sources_summary"] = {
+                "has_research_report": has_rr,
+                "research_report_id": rr_bundle.id if rr_bundle else None,
+                "has_blueprint": has_bp,
+                "blueprint_id": bp_bundle.id if bp_bundle else None,
+                "tasks_n": len(tasks),
+                "industry_pack": pack.display_name if pack else None,
+            }
+            from sqlalchemy.orm.attributes import flag_modified
+            b.extra = new_extra
+            flag_modified(b, "extra")
+            b.content_md = markdown
+            b.status = "done"
+            await s.commit()
+        logger.info("implementation_plan_generated", bundle_id=bundle_id,
+                    chars=len(markdown), tasks_n=len(tasks))
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        logger.error("implementation_plan_failed", bundle_id=bundle_id, error=str(e)[:300],
+                     traceback=tb[:2000])
+        run_history.append({"phase": "failed", "ts": _ts(),
+                            "detail": str(e)[:300], "traceback": tb[:2000]})
+        try:
+            async with async_session_maker() as s:
+                b = await s.get(CuratedBundle, bundle_id)
+                if b:
+                    new_extra = dict(b.extra or {})
+                    new_extra["run_history"] = run_history
+                    new_extra["agentic_version"] = "v2"
+                    b.extra = new_extra
+                    b.status = "failed"
+                    b.error = str(e)[:500]
+                    await s.commit()
+        except Exception as e2:
+            logger.error("implementation_plan_failed_writeback_failed", error=str(e2)[:200])
+
+
 # ── 蓝图设计(2026-05-29):跟调研报告一脉的方案设计产物,主输入=调研报告 ──────
 
 async def generate_blueprint_design(bundle_id: str, project_id: str):

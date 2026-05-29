@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ObjectLayoutRule xmlns="http://sharecrm.com/metadata">
+    <content>{{CONTENT_JSON}}</content>
+
+    <!-- 配置同步状态: new | modified | unchanged -->
+    <!-- 注意：此 status 与 JSON 中的 status(0/1) 含义不同 -->
+    <status>{{STATUS}}</status>
+</CustomObject>

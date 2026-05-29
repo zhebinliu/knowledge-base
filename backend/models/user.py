@@ -44,6 +44,12 @@ class User(Base):
     feishu_app_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     feishu_app_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
+    # ShareDev / sharedev-cli 集成(用户级凭证):配的是客户租户 PaaS API token
+    # certificate 用 Fernet 加密存(跟 feishu 的不加密路径不同,因为 sharedev cert 是
+    # PaaS 实施权限,泄露风险高);domain 默认 https://www.fxiaoke.com/ 可改私有部署
+    sharedev_domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sharedev_certificate: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

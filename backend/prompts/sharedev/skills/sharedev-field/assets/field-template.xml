@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ObjectField xmlns="http://sharecrm.com/metadata">
+    <content>{{CONTENT_JSON}}</content>
+
+    <!-- 状态: new | modified | unchanged -->
+    <status>{{STATUS}}</status>
+</ObjectField>

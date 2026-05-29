@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Object xmlns="http://sharecrm.com/metadata">
+    <content>{{CONTENT_JSON}}</content>
+
+    <!-- 功能开关 -->
+    <features>
+        <multiFieldSort>{{MULTI_FIELD_SORT}}</multiFieldSort>
+        <modifyRecord>{{MODIFY_RECORD}}</modifyRecord>
+        <relatedTeam>{{RELATED_TEAM}}</relatedTeam>
+        <globalSearch>{{GLOBAL_SEARCH}}</globalSearch>
+    </features>
+
+    <!-- 状态: new | modified | unchanged -->
+    <status>{{STATUS}}</status>
+</Object>
