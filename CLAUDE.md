@@ -22,20 +22,28 @@
 
 - 远程服务器: `liu@34.67.136.67` (GCP)，SSH key: `~/.ssh/id_rsa_github_deploy`
 - 远程路径: `/opt/kb-system`
-- 运行方式: Docker Compose (postgres, qdrant, redis, minio, backend, frontend, celery_worker)
-- 同步脚本: `scripts/sync-dev.sh`（fswatch + rsync）
+- 运行方式: Docker Compose 拉 **ghcr.io 镜像**(`ghcr.io/zhebinliu/knowledge-base-{backend,frontend-prod,frontend-uat}`)— 服务器 **不在本地编译**
 - HTTPS: Let's Encrypt 证书在主机 `/etc/letsencrypt/live/kb.liii.in/`，挂载进 frontend 容器。续期 cron `17 3 * * * /opt/kb-system/scripts/renew-ssl.sh`
 - **`meeting/` 是普通子目录**(2026-05-25 合并回主仓,之前为 git submodule 指向 zhebinliu/ai-meeting)。Dockerfile 仍用 `COPY meeting/backend/ /app/` overlay 把会议代码叠到主镜像里,详见 [PROJECT_OVERVIEW § 12](PROJECT_OVERVIEW.md)。
+- GitHub Actions `secrets.DEPLOY_HOST` 跟服务器 IP 绑定,**换服务器时除了改本仓代码,还要去 GitHub Settings → Secrets 把 `DEPLOY_HOST` 同步改了**
 
-### 部署流程
+### 部署流程(只走 GitHub Actions,不再 rsync + 远端 build)
 
 ```bash
-# 1. rsync 同步
-rsync -avz --delete --exclude=.git --exclude=.env --exclude=__pycache__ --exclude="*.pyc" --exclude=node_modules --exclude=dist --exclude=.DS_Store -e "ssh -i ~/.ssh/id_rsa_github_deploy -o StrictHostKeyChecking=no" ./ liu@34.67.136.67:/opt/kb-system/
+# UAT(uat.tokenwave.cloud):push main 自动触发 deploy-uat.yml
+git push origin main                                          # → CI Checks + Deploy UAT
 
-# 2. 远程 rebuild + restart（按需选择 backend / frontend）
-ssh -i ~/.ssh/id_rsa_github_deploy liu@34.67.136.67 "cd /opt/kb-system && sudo docker compose build backend frontend && sudo docker compose up -d backend frontend"
+# PROD(kb.liii.in / kb.tokenwave.cloud):手动触发 deploy-prod.yml
+gh workflow run deploy-prod.yml --ref main -f confirm=deploy
+
+# 看进度
+gh run list --limit 5
+gh run watch <run-id> --exit-status                           # 阻塞跟一直到结束
 ```
+
+**不要再用** rsync + 远端 `docker compose build` —— 服务器没装构建依赖,且会跟 ghcr 镜像版本不一致。
+SSH 上服务器仅用于:看日志 / 进 PG / 紧急排错(命令在 [PROJECT_OVERVIEW § 9](PROJECT_OVERVIEW.md))。
+`scripts/sync-dev.sh` 是 **本地开发期** fswatch 实时同步(本地改一行就推到服务器测),**不是部署路径** —— 它会绕过 GitHub Actions / ghcr 版本管控,只在本地短平快验证后用,不要在 main 已经能 push 的场景下用。
 
 ## 项目结构
 

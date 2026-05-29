@@ -365,23 +365,26 @@ skills(1) ─→ 被 agent_configs.config_value['skill_ids'] 引用(by uuid)
 
 ## 8. 部署流程
 
-详见 [CLAUDE.md § 部署流程](CLAUDE.md)。摘要:
+**只走 GitHub Actions** —— 服务器拉 ghcr.io 镜像,不在本地编译。详见 [CLAUDE.md § 部署流程](CLAUDE.md)。摘要:
 
 ```bash
-# 1. 同步代码
-rsync -avz --delete --exclude=.git --exclude=node_modules ... ./ liu@34.67.136.67:/opt/kb-system/
+# UAT 自动:push main 触发 deploy-uat.yml(只重启 frontend-uat)
+git push origin main
 
-# 2. 远程重建 + 重启
-ssh liu@34.67.136.67 "cd /opt/kb-system && sudo docker compose build backend frontend && sudo docker compose up -d backend frontend"
+# PROD 手动:触发 deploy-prod.yml(全栈滚动重启 + 健康检查 + 回滚)
+gh workflow run deploy-prod.yml --ref main -f confirm=deploy
+gh run watch <run-id>           # 跟运行直到结束
 
-# 3. (按需)跑迁移
-ssh liu@34.67.136.67 "sudo docker exec kb-system-backend-1 python -m scripts.<migrate>"
+# DB 迁移仍可手动 ssh(workflow 不跑 alembic)
+ssh -i ~/.ssh/id_rsa_github_deploy liu@34.67.136.67 \
+    "sudo docker exec kb-system-backend-1 python -m scripts.<migrate>"
 ```
 
 **注意**:
-- 服务器只有 9.7G 磁盘,常需要 `docker builder prune -af` 释放空间(见 LEARNING.md § 6.1)
-- backend 容器是 image bake,代码改了必须 rebuild;一次性脚本可 `docker cp` 进容器免重建
+- 服务器只有 9.7G 磁盘,GitHub Actions 构建在 GitHub runner 做,服务器只 `docker pull` —— 不再需要本地 `docker builder prune`(但拉新版本后老镜像可能堆积,定期 `docker image prune -a`)
+- 镜像版本通过 ghcr 标签管控,部署可回滚(deploy-prod.yml 自带 `.last-good-sha` / `.prev-good-sha`)
 - 涉及 DB 的迁移要先 `--dry-run`(但 dry-run 通过 ≠ 真跑安全,见 LEARNING.md § 6.6)
+- **换服务器时**:除了改本仓 IP 硬编码,还要在 GitHub Settings → Secrets 改 `DEPLOY_HOST`(workflow 通过 `secrets.DEPLOY_HOST` 注入,不在仓库代码里)
 
 ---
 
