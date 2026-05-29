@@ -63,7 +63,7 @@ export default function NewConsoleMeeting() {
 
   const { data: meetings, isLoading } = useQuery({
     queryKey: ['meetings'],
-    queryFn: listMeetings,
+    queryFn: () => listMeetings(),
     refetchInterval: (qq) => {
       const items = (qq.state.data ?? []) as Meeting[]
       return items.some(m => m.status === 'processing' || m.status === 'recording') ? 8000 : false

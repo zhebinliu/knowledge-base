@@ -1504,6 +1504,32 @@ export const upsertResearchResponse = (body: {
 export const classifyResearchScope = (body: { bundle_id: string; ltc_module_key?: string | null }) =>
   api.post<{ ok: boolean; items: any[]; skipped: number; errors: string[] }>('/research/classify-scope', body).then(r => r.data)
 
+// ── 从项目下会议自动生成建议答案(2026-05-29) ─────────────────────────────
+
+export interface MeetingAutofillSuggestion {
+  item_key: string
+  suggested_value: any           // 适配题型:single → string;multi → string[];text → string
+  suggested_label: string        // 人类可读摘要,前端 chip 显示用
+  evidence: string               // 来自会议原文的截取(≤ 240 字)
+  source_meeting_id: number
+  source_meeting_title: string
+  confidence: number             // 0~1
+}
+
+export interface MeetingAutofillResult {
+  suggestions: MeetingAutofillSuggestion[]
+  meetings_used: number
+  items_total: number
+  items_considered: number
+  errors: string[]
+}
+
+export const proposeAnswersFromMeetings = (body: {
+  bundle_id: string
+  only_unanswered?: boolean
+}) =>
+  api.post<MeetingAutofillResult>('/research/auto-fill-from-meetings', body).then(r => r.data)
+
 export const listResearchLtcModuleMap = (project_id: string) =>
   api.get<{ items: ResearchLtcModuleMapItem[] }>('/research/ltc-module-map', { params: { project_id } }).then(r => r.data)
 
@@ -1715,8 +1741,10 @@ export type MeetingAction = 'polish' | 'summarize' | 'extract_requirements' | 'e
 
 // ── CRUD ─────────────────────────────────────────────────────────────────
 
-export const listMeetings = async (): Promise<Meeting[]> => {
-  const { data } = await api.get<Meeting[]>('/meeting')
+export const listMeetings = async (opts?: { project_id?: string }): Promise<Meeting[]> => {
+  const { data } = await api.get<Meeting[]>('/meeting', {
+    params: opts?.project_id ? { project_id: opts.project_id } : undefined,
+  })
   return data
 }
 

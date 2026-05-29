@@ -222,6 +222,7 @@ async def create_from_text(
 
 @router.get("")
 async def list_meetings(
+    project_id: Optional[str] = None,
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
@@ -231,8 +232,13 @@ async def list_meetings(
     - 自己创建的(owner_id = user.id)
     - 我所属的项目里的会议(我是 owner / read_write / read 协作者)
     - 被显式分享给我的会议
+
+    可选过滤:?project_id=<id> 只返回挂在该项目下的会议(配合项目详情页用)。
+    非 admin 用户传无权访问的 project_id 时,会被现有可见性过滤掉,返回空数组。
     """
     stmt = select(Meeting).order_by(Meeting.created_at.desc())
+    if project_id:
+        stmt = stmt.where(Meeting.project_id == project_id)
     if not user.is_admin:
         from sqlalchemy import or_ as sa_or
         # 项目协作者口子:owned projects + collaborator projects

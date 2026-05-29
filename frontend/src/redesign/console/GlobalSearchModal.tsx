@@ -52,7 +52,7 @@ export default function GlobalSearchModal({ open, onClose }: Props) {
   })
   const { data: meetings } = useQuery({
     queryKey: ['gs-meetings'],
-    queryFn: listMeetings,
+    queryFn: () => listMeetings(),
     enabled: open,
     staleTime: 60 * 1000,
   })

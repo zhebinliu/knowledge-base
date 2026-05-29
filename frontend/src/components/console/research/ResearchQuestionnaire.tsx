@@ -13,16 +13,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Tag, Save, BookOpen, ChevronDown, ChevronRight,
   Pencil, Trash2, Plus, X, Sparkles, Loader2, CornerDownRight,
+  Check, Lightbulb,
 } from 'lucide-react'
 import {
   listResearchResponses, upsertResearchResponse, classifyResearchScope,
   upsertQuestionnaireItem, deleteQuestionnaireItem, generateFollowUp,
+  proposeAnswersFromMeetings,
   type CuratedBundle, type ResearchQuestionItem, type ResearchOptionItem,
   type ResearchResponseItem, type ResearchScopeLabel,
   type ResearchBestPracticeRef,
   type ResearchAudienceRole,
   type ResearchQuestionPhase,
   type ResearchLtcDictionaryEntry,
+  type MeetingAutofillSuggestion,
 } from '../../../api/client'
 import ExportPreMeetingButton from './ExportPreMeetingButton'
 
@@ -165,6 +168,24 @@ export default function ResearchQuestionnaire({
     onSuccess: () => qc.invalidateQueries({ queryKey: ['research-responses', bundle.id] }),
   })
 
+  // ── 从本项目会议自动给问卷生成建议答案 ──
+  // 顾问点按钮触发(60s+,LLM 调用) → suggestionByKey 喂到每题旁边的「💡 来自会议」条
+  const [suggestionByKey, setSuggestionByKey] = useState<Record<string, MeetingAutofillSuggestion>>({})
+  const [autofillMeta, setAutofillMeta] = useState<{ meetings_used: number; items_considered: number; errors: string[] } | null>(null)
+  const autofillMut = useMutation({
+    mutationFn: () => proposeAnswersFromMeetings({ bundle_id: bundle.id, only_unanswered: true }),
+    onSuccess: (data) => {
+      const next: Record<string, MeetingAutofillSuggestion> = {}
+      for (const s of data.suggestions) next[s.item_key] = s
+      setSuggestionByKey(next)
+      setAutofillMeta({
+        meetings_used: data.meetings_used,
+        items_considered: data.items_considered,
+        errors: data.errors,
+      })
+    },
+  })
+
   if (allItems.length === 0) {
     return (
       <div className="p-6 max-w-6xl mx-auto">
@@ -197,6 +218,17 @@ export default function ResearchQuestionnaire({
         <div className="flex-1" />
         {/* 会前问卷按角色导出 — 任何 phase 视图下都可用,因为导出固定只取 pre_meeting */}
         <ExportPreMeetingButton bundleId={bundle.id} compact />
+        <button
+          disabled={autofillMut.isPending}
+          onClick={() => autofillMut.mutate()}
+          className="text-xs px-2.5 py-1 rounded border border-sky-300 text-sky-700 bg-sky-50/60 hover:bg-sky-100 disabled:opacity-50 inline-flex items-center gap-1"
+          title="拉本项目下「已完成」会议的纪要 + 提取需求,让 LLM 给问卷题逐题提建议(不直接覆盖你的答案)"
+        >
+          {autofillMut.isPending
+            ? <Loader2 size={11} className="animate-spin" />
+            : <Lightbulb size={11} />}
+          {autofillMut.isPending ? '从会议生成中...' : '从会议生成建议'}
+        </button>
         <button
           disabled={answeredN === 0 || classifyMut.isPending}
           onClick={() => classifyMut.mutate()}
@@ -245,6 +277,29 @@ export default function ResearchQuestionnaire({
           AI 已给 {classifyMut.data.items.length} 题打标(跳过 {classifyMut.data.skipped} 题未答)
         </div>
       )}
+      {autofillMut.isError && (
+        <div className="text-xs text-red-600">从会议生成建议失败:{(autofillMut.error as any)?.response?.data?.detail || (autofillMut.error as any)?.message}</div>
+      )}
+      {autofillMeta && (
+        <div className="text-xs text-sky-700 inline-flex items-center gap-2 flex-wrap">
+          <span>
+            扫了 {autofillMeta.meetings_used} 场会议、{autofillMeta.items_considered} 道题,
+            出 {Object.keys(suggestionByKey).length} 条建议(在每题旁的 💡 条上点「采纳」)。
+          </span>
+          {autofillMeta.errors.length > 0 && (
+            <span className="text-amber-700">提示:{autofillMeta.errors.join('; ')}</span>
+          )}
+          {Object.keys(suggestionByKey).length > 0 && (
+            <button
+              onClick={() => { setSuggestionByKey({}); setAutofillMeta(null) }}
+              className="text-[10px] text-ink-muted hover:text-ink underline"
+              title="清掉本次建议条(下次还能再触发)"
+            >
+              清除建议
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 题目列表 */}
       {items.length === 0 && (!editing || editing.mode !== 'new') ? (
@@ -263,6 +318,7 @@ export default function ResearchQuestionnaire({
           responseByKey={responseByKey}
           followUpCount={followUpCount}
           refreshAll={refreshAll}
+          suggestionByKey={suggestionByKey}
           editorDefaults={{
             ltc_module_key: groupBy === 'ltc' && selectedLtcKey
               ? selectedLtcKey
@@ -297,7 +353,7 @@ interface EditorDefaults {
 
 function QuestionsList({
   items, bundle, ltcModules, editing, setEditing,
-  responseByKey, followUpCount, refreshAll, editorDefaults,
+  responseByKey, followUpCount, refreshAll, suggestionByKey, editorDefaults,
 }: {
   items: ResearchQuestionItem[]
   bundle: CuratedBundle
@@ -307,6 +363,7 @@ function QuestionsList({
   responseByKey: Record<string, ResearchResponseItem>
   followUpCount: Record<string, number>
   refreshAll: () => void
+  suggestionByKey: Record<string, MeetingAutofillSuggestion>
   editorDefaults: EditorDefaults
 }) {
   const isNewAt = (insertAfter: string | null): boolean =>
@@ -350,6 +407,7 @@ function QuestionsList({
                   response={responseByKey[it.item_key]}
                   bundle={bundle}
                   followUpCount={followUpCount[it.item_key] || 0}
+                  suggestion={suggestionByKey[it.item_key]}
                   onEdit={() => setEditing({ mode: 'edit', itemKey: it.item_key })}
                   onDeleted={() => refreshAll()}
                   onFollowUpGenerated={() => refreshAll()}
@@ -535,13 +593,15 @@ function QuestionsMiniMap({
 // ── 单题渲染 ─────────────────────────────────────────────────────────────────
 
 function QuestionRow({
-  item, index, response, bundle, followUpCount, onEdit, onDeleted, onFollowUpGenerated,
+  item, index, response, bundle, followUpCount, suggestion, onEdit, onDeleted, onFollowUpGenerated,
 }: {
   item: ResearchQuestionItem
   index: number
   response: ResearchResponseItem | undefined
   bundle: CuratedBundle
   followUpCount?: number
+  /** 来自会议自动生成的建议答案(未答时显示;采纳后会因为 isAnswered=true 自动消失) */
+  suggestion?: MeetingAutofillSuggestion
   onEdit?: () => void
   onDeleted?: () => void
   onFollowUpGenerated?: () => void
@@ -658,6 +718,15 @@ function QuestionRow({
           </button>
         )}
       </div>
+
+      {/* 来自会议的建议答案条:仅当未答 + 有建议时显示;点「采纳」 → upsert → isAnswered=true 自动消失 */}
+      {suggestion && !isAnswered && (
+        <MeetingSuggestionStrip
+          suggestion={suggestion}
+          onAdopt={() => save(suggestion.suggested_value)}
+          adopting={upsert.isPending}
+        />
+      )}
 
       {/* AI 实施建议折叠区:有 advice 时优先展示;否则若有旧版 refs 也兼容 */}
       {(item.best_practice_advice && item.best_practice_advice.trim()) ? (
@@ -1080,6 +1149,61 @@ function OptionsEditor({
     </div>
   )
 }
+
+// ── 来自会议的建议答案条(2026-05-29) ────────────────────────────────────────
+
+function MeetingSuggestionStrip({
+  suggestion, onAdopt, adopting,
+}: {
+  suggestion: MeetingAutofillSuggestion
+  onAdopt: () => void
+  adopting?: boolean
+}) {
+  const [showEvidence, setShowEvidence] = useState(false)
+  const confidencePct = Math.max(0, Math.min(100, Math.round((suggestion.confidence || 0) * 100)))
+  return (
+    <div className="ml-7 rounded-md border border-sky-200 bg-sky-50/60 px-2.5 py-2 space-y-1.5">
+      <div className="flex items-start gap-2">
+        <Lightbulb size={13} className="shrink-0 mt-0.5 text-sky-600" />
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] text-sky-900/80 leading-snug">
+            来自 <span className="font-medium">《{suggestion.source_meeting_title}》</span>
+            <span className="ml-2 text-[10px] text-sky-700/80">置信度 {confidencePct}%</span>
+          </div>
+          <div className="mt-0.5 text-[12px] text-ink leading-relaxed break-words">
+            {suggestion.suggested_label || '(无标签)'}
+          </div>
+        </div>
+        <button
+          onClick={onAdopt}
+          disabled={adopting}
+          className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded text-white bg-sky-600 hover:bg-sky-700 disabled:opacity-50"
+          title="把建议答案写入响应,等于点选 / 输入对应内容"
+        >
+          {adopting ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
+          采纳
+        </button>
+      </div>
+      {suggestion.evidence && (
+        <div>
+          <button
+            onClick={() => setShowEvidence(v => !v)}
+            className="text-[10.5px] text-sky-700 hover:text-sky-800 inline-flex items-center gap-0.5"
+          >
+            {showEvidence ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+            {showEvidence ? '收起证据' : '查看证据'}
+          </button>
+          {showEvidence && (
+            <div className="mt-1 px-2 py-1.5 rounded bg-white/70 border border-sky-100 text-[10.5px] text-ink-secondary leading-relaxed whitespace-pre-wrap">
+              {suggestion.evidence}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 
 // ── AI 实施建议折叠区(新版,主路径) ──────────────────────────────────────────
 

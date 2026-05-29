@@ -125,6 +125,38 @@ async def list_responses(bundle_id: str, user=Depends(get_current_user)):
     }
 
 
+# ── 从项目下会议自动建议答案(2026-05-29) ──────────────────────────────────
+
+class MeetingAutofillBody(BaseModel):
+    bundle_id: str
+    only_unanswered: bool = True  # 默认只对没答过的题目跑,避免覆盖顾问已录入
+
+
+@router.post("/auto-fill-from-meetings")
+async def auto_fill_from_meetings(body: MeetingAutofillBody, user=Depends(get_current_user)):
+    """从本项目下已完成的会议(纪要 + 需求)给问卷题目生成「建议答案」。
+
+    不直接写答案 — 顾问看到建议条后,点「采纳」前端再走 upsert_response。
+    用法:进入需求调研工作区 → 顶部点「💡 从会议生成建议」→ 拿到 suggestions[] →
+    每道题旁渲染建议条。
+    """
+    async with async_session_maker() as s:
+        b = await s.get(CuratedBundle, body.bundle_id)
+        if not b:
+            raise HTTPException(404, "bundle 不存在")
+        if b.kind != "survey":
+            raise HTTPException(400, f"只能对 kind=survey 的 bundle 用此接口,当前 kind={b.kind}")
+        if b.project_id:
+            from services.project_acl import assert_project_access
+            await assert_project_access(user, b.project_id, "write")
+
+    from services.agentic.research.meeting_autofill import propose_answers_from_meetings
+    result = await propose_answers_from_meetings(
+        body.bundle_id, only_unanswered=body.only_unanswered,
+    )
+    return result
+
+
 # ── 范围四分类触发 ────────────────────────────────────────────────────────
 
 @router.post("/classify-scope")

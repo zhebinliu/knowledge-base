@@ -29,6 +29,7 @@ import {
 // 11 个子组件全部走 Liquid Glass 新版(redesign 目录下)
 import CollaboratorsModal from './CollaboratorsModal'
 import ProjectStakeholdersDrawer from './ProjectStakeholdersDrawer'
+import ProjectMeetingsDrawer from './ProjectMeetingsDrawer'
 import OutputChatPanel from './OutputChatPanel'
 import BriefDrawer from './BriefDrawer'
 import MarkdownView from '../../components/MarkdownView'
@@ -114,6 +115,7 @@ export default function NewConsoleProjectDetail() {
   const [editing, setEditing] = useState(false)
   const [collabOpen, setCollabOpen] = useState(false)
   const [stakesOpen, setStakesOpen] = useState(false)
+  const [meetingsOpen, setMeetingsOpen] = useState(false)
   const [previewDocId, setPreviewDocId] = useState<string | null>(null)
   const [activeStageKey, setActiveStageKey] = useState<string>(() => searchParams.get('stage') || 'insight')
 
@@ -278,6 +280,7 @@ export default function NewConsoleProjectDetail() {
             stageStatus={stageStatus}
             onOpenCollab={() => setCollabOpen(true)}
             onOpenStakes={() => setStakesOpen(true)}
+            onOpenMeetings={() => setMeetingsOpen(true)}
             onEdit={() => setEditing(v => !v)}
             editing={editing}
             onBack={() => nav('/console/projects')}
@@ -359,6 +362,9 @@ export default function NewConsoleProjectDetail() {
         </button>
         <button onClick={() => setStakesOpen(true)} className="rd-btn" style={{ padding: '6px 12px', fontSize: 12 }} title="项目级干系人">
           <Users size={11} /> <span className="hidden-sm">干系人</span>
+        </button>
+        <button onClick={() => setMeetingsOpen(true)} className="rd-btn" style={{ padding: '6px 12px', fontSize: 12 }} title="关联会议(纪要 / 录音 / 需求)">
+          <MessageSquare size={11} /> <span className="hidden-sm">会议</span>
         </button>
         <button
           onClick={() => setEditing(v => !v)}
@@ -525,6 +531,11 @@ export default function NewConsoleProjectDetail() {
         open={stakesOpen}
         projectId={project.id}
         onClose={() => setStakesOpen(false)}
+      />
+      <ProjectMeetingsDrawer
+        open={meetingsOpen}
+        projectId={project.id}
+        onClose={() => setMeetingsOpen(false)}
       />
       {editing && (
         <ProjectEditPanel
@@ -846,7 +857,7 @@ function InsightWorkspace({
 // ──────────────────────────────────────────────────────────────────────────
 function CompactInsightHeader({
   project, industryLabel, stages, activeStageKey, setActiveStageKey, stageStatus,
-  onOpenCollab, onOpenStakes, onEdit, editing, onBack,
+  onOpenCollab, onOpenStakes, onOpenMeetings, onEdit, editing, onBack,
 }: {
   project: Project
   industryLabel: (val: string | null) => string | null
@@ -856,6 +867,7 @@ function CompactInsightHeader({
   stageStatus: (s: StageDef) => StageStatus
   onOpenCollab: () => void
   onOpenStakes: () => void
+  onOpenMeetings: () => void
   onEdit: () => void
   editing: boolean
   onBack: () => void
@@ -1018,6 +1030,9 @@ function CompactInsightHeader({
         </button>
         <button onClick={onOpenStakes} className="rd-btn" style={{ padding: '5px 10px', fontSize: 12 }} title="项目级干系人">
           <Users size={11} />
+        </button>
+        <button onClick={onOpenMeetings} className="rd-btn" style={{ padding: '5px 10px', fontSize: 12 }} title="关联会议">
+          <MessageSquare size={11} />
         </button>
         <button
           onClick={onEdit}
