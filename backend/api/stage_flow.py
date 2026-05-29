@@ -39,8 +39,8 @@ DEFAULT_STAGES: list[dict] = [
      ]},
     {"key": "design",        "label": "方案设计",          "kind": "blueprint_design", "icon": "FileText", "active": True,  "beta": False, "sub_kinds": []},
     {"key": "implement",     "label": "项目实施",          "kind": "implementation_plan", "icon": "Package", "active": True,  "beta": True,  "sub_kinds": []},
-    {"key": "test",          "label": "上线测试",          "kind": None, "icon": "FileText", "active": False, "beta": False, "sub_kinds": []},
-    {"key": "acceptance",    "label": "项目验收",          "kind": None, "icon": "FileText", "active": False, "beta": False, "sub_kinds": []},
+    {"key": "test",          "label": "上线测试",          "kind": "test_plan",        "icon": "Package",      "active": True,  "beta": True,  "sub_kinds": []},
+    {"key": "acceptance",    "label": "项目验收",          "kind": "acceptance_report","icon": "CheckCircle2", "active": True,  "beta": True,  "sub_kinds": []},
 ]
 
 # 允许的图标 — 前端按 string name 映射到 lucide-react 组件
@@ -56,6 +56,7 @@ ALLOWED_KINDS = {
     "insight", "survey", "survey_outline", "research_report",
     "blueprint_design",
     "implementation_plan",
+    "test_plan", "acceptance_report",
 }
 
 CONFIG_TYPE = "stage_flow"
@@ -207,5 +208,7 @@ async def get_stage_flow_meta():
             "research_report": "调研报告",
             "blueprint_design": "蓝图设计",
             "implementation_plan": "实施任务清单",
+            "test_plan": "测试计划",
+            "acceptance_report": "项目验收报告",
         },
     }

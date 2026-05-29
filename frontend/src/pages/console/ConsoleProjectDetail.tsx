@@ -33,7 +33,7 @@ import ImplementationWorkspace from '../../components/console/implementation/Imp
 import QA from '../QA'
 import { useEffect } from 'react'
 
-const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'implementation_plan']
+const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'implementation_plan', 'test_plan', 'acceptance_report']
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -87,8 +87,8 @@ const DEFAULT_STAGES: StageDef[] = [
   },
   { key: 'design',     label: '方案设计', kind: 'blueprint_design', icon: FileText, active: true },
   { key: 'implement',  label: '项目实施', kind: 'implementation_plan', icon: FileText, active: true, beta: true },
-  { key: 'test',       label: '上线测试', kind: null, icon: FileText, active: false },
-  { key: 'acceptance', label: '项目验收', kind: null, icon: FileText, active: false },
+  { key: 'test',       label: '上线测试', kind: 'test_plan',         icon: FileText, active: true, beta: true },
+  { key: 'acceptance', label: '项目验收', kind: 'acceptance_report', icon: FileText, active: true, beta: true },
 ]
 
 type ChatMode = { type: 'pm' } | { type: 'output'; kind: OutputKind; label: string }
@@ -256,7 +256,7 @@ export default function ConsoleProjectDetail() {
 
   // v3:文档驱动的 kind — 不弹 brief,直接调 generateOutput 触发 v3 流程
   // (runner 会自动 auto_extract + planner 从 docs 兜底)
-  const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'implementation_plan']
+  const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'implementation_plan', 'test_plan', 'acceptance_report']
 
   const startGeneration = async () => {
     if (!activeStage.active || !activeKind) return

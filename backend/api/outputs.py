@@ -63,6 +63,8 @@ KIND_TO_TASK = {
     "research_report": "generate_research_report",
     "blueprint_design": "generate_blueprint_design",
     "implementation_plan": "generate_implementation_plan",
+    "test_plan": "generate_test_plan",
+    "acceptance_report": "generate_acceptance_report",
 }
 
 KIND_TITLES = {
@@ -74,6 +76,8 @@ KIND_TITLES = {
     "research_report": "调研报告",
     "blueprint_design": "蓝图设计",
     "implementation_plan": "实施任务清单",
+    "test_plan": "测试计划",
+    "acceptance_report": "项目验收报告",
 }
 
 

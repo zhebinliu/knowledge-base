@@ -2092,6 +2092,224 @@ async def _load_research_responses_for_report(project_id: str) -> list[dict]:
     return out
 
 
+# ── 测试计划(2026-05-29):上线测试阶段产物,基于实施任务清单出 TC 用例表 ────
+
+async def generate_test_plan(bundle_id: str, project_id: str):
+    """生成「测试计划」 — 5 章 markdown,基于实施任务清单 + 蓝图设计 + 调研报告。
+
+    主输入是该项目最新的「实施任务清单」(测试用例 TC 关联其中的 REQ)。
+    """
+    from .research.test_plan_generator import (
+        SYSTEM_PROMPT, build_user_prompt, assemble_markdown_from_llm_output,
+        format_implementation_plan_block,
+    )
+    from .research.report_generator import (
+        format_project_meta, format_industry_pack,
+    )
+    from .research.blueprint_generator import format_research_report_block as _fmt_rr
+    from .research.blueprint_generator import format_research_report_block as _fmt_bp_too  # 接口一致,直接复用 [B1] 渲染
+    from .industry_packs import get_pack
+    from services.output_service import _llm_call
+
+    run_history: list[dict] = []
+    try:
+        await _mark(bundle_id, "generating")
+        run_history.append({"phase": "started", "ts": _ts()})
+        await _update_progress(bundle_id, stage="planning", message="加载实施任务清单 + 蓝图 + 调研报告…")
+
+        ctx = await _load_ctx(bundle_id, project_id, "test_plan")
+
+        async with async_session_maker() as s:
+            rr = (await s.execute(
+                select(CuratedBundle).where(CuratedBundle.project_id == project_id)
+                .where(CuratedBundle.kind == "research_report").where(CuratedBundle.status == "done")
+                .order_by(CuratedBundle.updated_at.desc())
+            )).scalars().first()
+            bp = (await s.execute(
+                select(CuratedBundle).where(CuratedBundle.project_id == project_id)
+                .where(CuratedBundle.kind == "blueprint_design").where(CuratedBundle.status == "done")
+                .order_by(CuratedBundle.updated_at.desc())
+            )).scalars().first()
+            ip = (await s.execute(
+                select(CuratedBundle).where(CuratedBundle.project_id == project_id)
+                .where(CuratedBundle.kind == "implementation_plan").where(CuratedBundle.status == "done")
+                .order_by(CuratedBundle.updated_at.desc())
+            )).scalars().first()
+
+        has_ip = bool(ip and (ip.content_md or "").strip())
+        if not has_ip:
+            raise RuntimeError(
+                "项目尚未生成实施任务清单,测试计划缺主输入。"
+                "请先到「项目实施」阶段生成实施任务清单后再触发本产物。"
+            )
+
+        await _update_progress(bundle_id, stage="executing", message="撰写测试计划(约 2-4 分钟)…")
+        pack = get_pack(ctx["industry"])
+        user_prompt = build_user_prompt(
+            project_meta=format_project_meta(ctx["project"]),
+            industry=ctx["industry"],
+            research_report_block=_fmt_rr(rr),
+            blueprint_block=_fmt_bp_too(bp),
+            implementation_plan_block=format_implementation_plan_block(ip),
+            industry_pack_block=format_industry_pack(pack),
+        )
+
+        raw = await _llm_call(
+            user_prompt, system=SYSTEM_PROMPT,
+            model=ctx["agent_model"],
+            max_tokens=16000, timeout=720.0,
+        )
+        run_history.append({"phase": "llm_done", "ts": _ts(), "detail": {"raw_chars": len(raw or "")}})
+        if not raw or not raw.strip():
+            raise RuntimeError("LLM 返回为空")
+
+        markdown = assemble_markdown_from_llm_output(raw)
+        async with async_session_maker() as s:
+            b = await s.get(CuratedBundle, bundle_id)
+            new_extra = dict(b.extra or {})
+            new_extra["run_history"] = run_history
+            new_extra["agentic_version"] = "v2"
+            new_extra["validity_status"] = "valid"
+            new_extra["progress"] = {"stage": "done", "message": "完成"}
+            new_extra["sources_summary"] = {
+                "has_research_report": bool(rr),
+                "has_blueprint": bool(bp),
+                "has_implementation_plan": has_ip,
+                "implementation_plan_id": ip.id if ip else None,
+            }
+            from sqlalchemy.orm.attributes import flag_modified
+            b.extra = new_extra
+            flag_modified(b, "extra")
+            b.content_md = markdown
+            b.status = "done"
+            await s.commit()
+        logger.info("test_plan_generated", bundle_id=bundle_id, chars=len(markdown))
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        logger.error("test_plan_failed", bundle_id=bundle_id, error=str(e)[:300], traceback=tb[:2000])
+        run_history.append({"phase": "failed", "ts": _ts(),
+                            "detail": str(e)[:300], "traceback": tb[:2000]})
+        try:
+            async with async_session_maker() as s:
+                b = await s.get(CuratedBundle, bundle_id)
+                if b:
+                    new_extra = dict(b.extra or {})
+                    new_extra["run_history"] = run_history
+                    new_extra["agentic_version"] = "v2"
+                    b.extra = new_extra
+                    b.status = "failed"
+                    b.error = str(e)[:500]
+                    await s.commit()
+        except Exception as e2:
+            logger.error("test_plan_failed_writeback_failed", error=str(e2)[:200])
+
+
+# ── 项目验收报告(2026-05-29):项目交付总账单 ──────────────────────────────
+
+async def generate_acceptance_report(bundle_id: str, project_id: str):
+    """生成「项目验收报告」 — 5 章 markdown,基于调研 / 蓝图 / 实施 / 测试四份产物。"""
+    from .research.acceptance_report_generator import (
+        SYSTEM_PROMPT, build_user_prompt, assemble_markdown_from_llm_output,
+        format_test_plan_block,
+    )
+    from .research.report_generator import format_project_meta, format_industry_pack
+    from .research.blueprint_generator import format_research_report_block as _fmt_bundle_block
+    from .research.test_plan_generator import format_implementation_plan_block as _fmt_ip_block
+    from .industry_packs import get_pack
+    from services.output_service import _llm_call
+
+    run_history: list[dict] = []
+    try:
+        await _mark(bundle_id, "generating")
+        run_history.append({"phase": "started", "ts": _ts()})
+        await _update_progress(bundle_id, stage="planning", message="加载全周期产物(调研/蓝图/实施/测试)…")
+
+        ctx = await _load_ctx(bundle_id, project_id, "acceptance_report")
+
+        async with async_session_maker() as s:
+            rr = (await s.execute(
+                select(CuratedBundle).where(CuratedBundle.project_id == project_id)
+                .where(CuratedBundle.kind == "research_report").where(CuratedBundle.status == "done")
+                .order_by(CuratedBundle.updated_at.desc())
+            )).scalars().first()
+            bp = (await s.execute(
+                select(CuratedBundle).where(CuratedBundle.project_id == project_id)
+                .where(CuratedBundle.kind == "blueprint_design").where(CuratedBundle.status == "done")
+                .order_by(CuratedBundle.updated_at.desc())
+            )).scalars().first()
+            ip = (await s.execute(
+                select(CuratedBundle).where(CuratedBundle.project_id == project_id)
+                .where(CuratedBundle.kind == "implementation_plan").where(CuratedBundle.status == "done")
+                .order_by(CuratedBundle.updated_at.desc())
+            )).scalars().first()
+            tp = (await s.execute(
+                select(CuratedBundle).where(CuratedBundle.project_id == project_id)
+                .where(CuratedBundle.kind == "test_plan").where(CuratedBundle.status == "done")
+                .order_by(CuratedBundle.updated_at.desc())
+            )).scalars().first()
+
+        await _update_progress(bundle_id, stage="executing", message="撰写验收报告(约 2-4 分钟)…")
+        pack = get_pack(ctx["industry"])
+        user_prompt = build_user_prompt(
+            project_meta=format_project_meta(ctx["project"]),
+            industry=ctx["industry"],
+            research_report_block=_fmt_bundle_block(rr),
+            blueprint_block=_fmt_bundle_block(bp),
+            implementation_plan_block=_fmt_ip_block(ip),
+            test_plan_block=format_test_plan_block(tp),
+            industry_pack_block=format_industry_pack(pack),
+        )
+
+        raw = await _llm_call(
+            user_prompt, system=SYSTEM_PROMPT,
+            model=ctx["agent_model"],
+            max_tokens=14000, timeout=720.0,
+        )
+        run_history.append({"phase": "llm_done", "ts": _ts(), "detail": {"raw_chars": len(raw or "")}})
+        if not raw or not raw.strip():
+            raise RuntimeError("LLM 返回为空")
+
+        markdown = assemble_markdown_from_llm_output(raw)
+        async with async_session_maker() as s:
+            b = await s.get(CuratedBundle, bundle_id)
+            new_extra = dict(b.extra or {})
+            new_extra["run_history"] = run_history
+            new_extra["agentic_version"] = "v2"
+            new_extra["validity_status"] = "valid"
+            new_extra["progress"] = {"stage": "done", "message": "完成"}
+            new_extra["sources_summary"] = {
+                "has_research_report": bool(rr), "has_blueprint": bool(bp),
+                "has_implementation_plan": bool(ip), "has_test_plan": bool(tp),
+            }
+            from sqlalchemy.orm.attributes import flag_modified
+            b.extra = new_extra
+            flag_modified(b, "extra")
+            b.content_md = markdown
+            b.status = "done"
+            await s.commit()
+        logger.info("acceptance_report_generated", bundle_id=bundle_id, chars=len(markdown))
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        logger.error("acceptance_report_failed", bundle_id=bundle_id, error=str(e)[:300], traceback=tb[:2000])
+        run_history.append({"phase": "failed", "ts": _ts(),
+                            "detail": str(e)[:300], "traceback": tb[:2000]})
+        try:
+            async with async_session_maker() as s:
+                b = await s.get(CuratedBundle, bundle_id)
+                if b:
+                    new_extra = dict(b.extra or {})
+                    new_extra["run_history"] = run_history
+                    new_extra["agentic_version"] = "v2"
+                    b.extra = new_extra
+                    b.status = "failed"
+                    b.error = str(e)[:500]
+                    await s.commit()
+        except Exception as e2:
+            logger.error("acceptance_report_failed_writeback_failed", error=str(e2)[:200])
+
+
 # ── 项目实施任务清单(2026-05-29):接 sharedev skill 工作流的入口产物 ────────
 
 async def generate_implementation_plan(bundle_id: str, project_id: str):

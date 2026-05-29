@@ -53,8 +53,8 @@ import {
   type StageDef as ApiStageDef,
 } from '../../api/client'
 
-const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'implementation_plan']
-const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'implementation_plan']
+const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'implementation_plan', 'test_plan', 'acceptance_report']
+const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'implementation_plan', 'test_plan', 'acceptance_report']
 
 const STAGE_ICON_MAP = {
   FileText, Lightbulb, ClipboardList, Bot, Sparkles, Search,
@@ -92,8 +92,8 @@ const DEFAULT_STAGES: StageDef[] = [
   },
   { key: 'design',     label: '方案设计', kind: 'blueprint_design', icon: FileText, active: true },
   { key: 'implement',  label: '项目实施', kind: 'implementation_plan', icon: FileText, active: true, beta: true },
-  { key: 'test',       label: '上线测试', kind: null, icon: FileText, active: false },
-  { key: 'acceptance', label: '项目验收', kind: null, icon: FileText, active: false },
+  { key: 'test',       label: '上线测试', kind: 'test_plan',         icon: FileText, active: true, beta: true },
+  { key: 'acceptance', label: '项目验收', kind: 'acceptance_report', icon: FileText, active: true, beta: true },
 ]
 
 type ChatMode = { type: 'pm' } | { type: 'output'; kind: OutputKind; label: string }
