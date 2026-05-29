@@ -64,6 +64,8 @@ class QixinSSEClient:
     _reconnect_delay_ms: int = field(default=DEFAULT_RECONNECT_DELAY_MS, init=False)
     _reconnect_attempts: int = field(default=0, init=False)
     _max_lifetime_deadline: Optional[float] = field(default=None, init=False)
+    # connected event 给的 Bot 自身 id;消息回调里用它过滤 echo / Bot 自己的发言
+    bot_full_id: Optional[str] = field(default=None, init=False)
 
     def stop(self) -> None:
         self._stop = True
@@ -303,10 +305,11 @@ class QixinSSEClient:
             if isinstance(data.get("retry"), (int, float)) and data["retry"] >= 0:
                 self._reconnect_delay_ms = int(data["retry"])
             max_lifetime = data.get("max_lifetime")
+            self.bot_full_id = data.get("bot_full_id")
             logger.info(
                 "qixin_sse_connected",
                 user_id=self.user_id,
-                bot_full_id=data.get("bot_full_id"),
+                bot_full_id=self.bot_full_id,
                 max_lifetime=max_lifetime,
             )
             if self.on_connected:

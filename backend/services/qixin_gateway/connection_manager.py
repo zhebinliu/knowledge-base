@@ -225,10 +225,11 @@ async def send_message_for_user(
 # ── 消息持久化 ──────────────────────────────────────────────────────────────
 
 async def _persist_message(user_id: str, event: dict) -> None:
-    """SSE message 事件 → qixin_messages 落库。失败只记日志,不影响 SSE 流。
+    """SSE message 事件 → qixin_messages 落库 + 触发自动 RAG 回复。
 
     主消息 + history_messages(群聊 @Bot 时 Gateway 透传的最近 10 条上下文)都落库。
     用 gateway_message_id 去重,同一条 history 多次出现不会重复入库。
+    主消息新落库时异步触发自动回复(不阻塞 SSE 流)。
     """
     data = event.get("data") or {}
     chat_id = data.get("chat_id")
@@ -263,10 +264,11 @@ async def _persist_message(user_id: str, event: dict) -> None:
     )
 
     chat_id_s = str(chat_id)
+    main_inserted = False
     try:
         async with async_session_maker() as session:
             # 主消息
-            await _add_message_if_new(
+            main_inserted = await _add_message_if_new(
                 session,
                 user_id=user_id,
                 gateway_message_id=str(main_msg_id) if main_msg_id else None,
@@ -313,6 +315,93 @@ async def _persist_message(user_id: str, event: dict) -> None:
                 )
     except Exception as e:
         logger.error("qixin_msg_persist_failed", user_id=user_id, error=str(e))
+
+    # 主消息新入库时触发自动 RAG 回复(不阻塞 SSE 流)
+    if main_inserted and _should_auto_reply(user_id, sender, text):
+        asyncio.create_task(
+            _auto_reply(user_id, chat_id_s, chat_type, text, main_msg_id),
+            name=f"qixin-autoreply-{user_id}-{main_msg_id}",
+        )
+
+
+def _should_auto_reply(user_id: str, sender: dict, text: str) -> bool:
+    """判断这条消息是否触发自动回复。
+
+    跳过:
+    - 文本空或单字
+    - 发送人是 Bot 自己(echo 防护;Gateway 一般不会推 out,保险起见)
+    """
+    if not text or not text.strip():
+        return False
+    # 群聊里 @Bot 之后实际内容可能很短;但单字号(?\\!)无意义
+    if len(text.strip()) < 2:
+        return False
+    conn = _pool.get(user_id)
+    if conn is None:
+        return True  # 池里没缓存就别拦,_auto_reply 里临时 client 会处理
+    bot_id = conn.client.bot_full_id
+    sender_id = sender.get("id") if isinstance(sender, dict) else None
+    if bot_id and sender_id and str(sender_id) == str(bot_id):
+        logger.info("qixin_autoreply_skip_self_echo", user_id=user_id, sender_id=sender_id)
+        return False
+    return True
+
+
+async def _auto_reply(
+    user_id: str,
+    chat_id: str,
+    chat_type: str | None,
+    raw_text: str,
+    in_message_id: str | None,
+) -> None:
+    """调 kb_agent.answer_question(限定 user 可见文档)→ send_message_for_user 回发。
+
+    群聊 text 通常是 "@Bot名 真问题",剥掉前缀再问。
+    LLM 失败 / 检索为空时静默不发(避免在群里说没用的话)。
+    """
+    import re
+    from agents.kb_agent import answer_question
+
+    question = re.sub(r"^@\S+\s+", "", raw_text or "").strip()
+    if len(question) < 2:
+        return
+
+    logger.info(
+        "qixin_autoreply_start",
+        user_id=user_id,
+        chat_id=chat_id,
+        chat_type=chat_type,
+        q_preview=question[:60],
+    )
+    try:
+        result = await answer_question(question=question, user_id=user_id)
+    except Exception as e:
+        logger.error("qixin_autoreply_rag_failed", user_id=user_id, chat_id=chat_id, error=str(e))
+        return
+
+    answer = (result or {}).get("answer") or ""
+    if not answer.strip():
+        logger.info("qixin_autoreply_empty_answer", user_id=user_id, chat_id=chat_id)
+        return
+    # 内容过长截断(企信单条上限 4000 字符,留余量)
+    if len(answer) > 3500:
+        answer = answer[:3500] + "\n…(回答过长已截断)"
+
+    try:
+        await send_message_for_user(
+            user_id,
+            chat_id,
+            answer,
+            reply_message_id=in_message_id,
+        )
+        logger.info(
+            "qixin_autoreply_sent",
+            user_id=user_id,
+            chat_id=chat_id,
+            answer_len=len(answer),
+        )
+    except Exception as e:
+        logger.error("qixin_autoreply_send_failed", user_id=user_id, chat_id=chat_id, error=str(e))
 
 
 async def _add_message_if_new(

@@ -17,6 +17,8 @@ from models import async_session_maker
 from models.chunk import Chunk
 from models.document import Document
 from models.project import Project
+from models.project_collaborator import ProjectCollaborator
+from models.user import User
 
 logger = structlog.get_logger()
 
@@ -56,6 +58,42 @@ async def _fetch_project_document_ids(project_id: str) -> list[str]:
             select(Document.id).where(Document.project_id == project_id)
         )
         return [r[0] for r in rows.all()]
+
+
+async def _accessible_document_ids(user_id: str) -> list[str] | None:
+    """返用户可访问的 document_id 列表(用于 Bot RAG / 受限问答)。
+
+    规则:
+    - admin → None,表示不限(所有 chunks 可见)
+    - 其他用户 → 用户作为 owner / collaborator 的项目下的文档
+        + 没绑 project 的全局 KB 文档(公司共享语料)
+    - 用户不存在 → []  (拿不到任何 chunk)
+
+    返 None 表示无限制,空列表表示"什么也别给"。
+    """
+    from sqlalchemy import or_ as _or
+    async with async_session_maker() as session:
+        u = await session.get(User, user_id)
+        if not u:
+            return []
+        if u.is_admin:
+            return None
+
+        owned_proj_ids = (await session.execute(
+            select(Project.id).where(Project.created_by == user_id)
+        )).scalars().all()
+        collab_proj_ids = (await session.execute(
+            select(ProjectCollaborator.project_id).where(ProjectCollaborator.user_id == user_id)
+        )).scalars().all()
+        visible_proj_ids = list({*owned_proj_ids, *collab_proj_ids})
+
+        cond = Document.project_id.is_(None)
+        if visible_proj_ids:
+            cond = _or(cond, Document.project_id.in_(visible_proj_ids))
+        doc_ids = (await session.execute(
+            select(Document.id).where(cond)
+        )).scalars().all()
+        return list(doc_ids)
 
 
 async def _bump_citations(chunk_ids: list[str]):
@@ -192,7 +230,12 @@ async def answer_question(
     history: list[dict] | None = None,
     persona: str = "general",
     project_id: str | None = None,
+    user_id: str | None = None,
 ) -> dict:
+    """
+    user_id 给定时:把检索范围限定到该用户可见的文档(全局 KB + 用户参与的项目文档)。
+    admin 无限制。Bot 自动回复走这条路径,保证隔离。PM persona 优先用 project_id。
+    """
     project_name = ""
     document_ids: list[str] | None = None
     if persona == "pm" and project_id:
@@ -203,6 +246,17 @@ async def answer_question(
                 "answer": f"项目「{name}」下暂无已入库文档，无法以 PM 视角作答。",
                 "sources": [], "model": None,
             }
+    elif user_id:
+        accessible = await _accessible_document_ids(user_id)
+        if accessible is None:
+            document_ids = None  # admin 不限
+        elif not accessible:
+            return {
+                "answer": "你当前没有任何可访问的项目文档,知识库也没有全局文档可用。",
+                "sources": [], "model": None,
+            }
+        else:
+            document_ids = accessible
 
     raw_results = await _multi_route_retrieve(question, ltc_stage, industry, document_ids)
 
