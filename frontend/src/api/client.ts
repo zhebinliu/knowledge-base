@@ -2176,4 +2176,28 @@ export interface ImplementationTask {
   ltc_module: string | null
   estimated_hours: number
   status: 'pending_config' | 'configured' | 'pending_deploy' | 'deployed' | 'failed'
+  // Phase 2:生成配置后回填的内容(可空 — 尚未生成时是 undefined)
+  config?: {
+    ok: boolean
+    file_path: string | null
+    file_content: string | null    // 完整 xml 字符串
+    raw_chars?: number
+    error?: string | null
+    generated_at?: string
+    generated_by?: string | null
+  }
 }
+
+// ── 项目实施工作台 — 单 task 生成配置 + 下载 zip ──
+
+export const generateTaskConfig = async (
+  bundleId: string, taskId: string,
+): Promise<{ ok: boolean; task_id: string; file_path: string | null; file_content: string | null; error: string | null }> => {
+  const { data } = await api.post(
+    `/implementation/bundles/${bundleId}/tasks/${encodeURIComponent(taskId)}/generate-config`,
+  )
+  return data
+}
+
+export const tenantConfigZipUrl = (bundleId: string) =>
+  `/api/implementation/bundles/${bundleId}/tenant-config-zip`

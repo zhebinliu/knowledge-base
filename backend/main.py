@@ -180,6 +180,8 @@ from api.feishu_credentials import router as feishu_creds_router  # 修复 #5:�
 app.include_router(feishu_creds_router)
 from api.sharedev_credentials import router as sharedev_creds_router  # 2026-05-29:项目实施 sharedev 集成
 app.include_router(sharedev_creds_router)
+from api.implementation import router as implementation_router  # 2026-05-29 Phase 2:单 task 生成 + zip
+app.include_router(implementation_router)
 app.include_router(template.router, prefix="/api/templates", tags=["templates"])
 from api.markup_template import router as markup_template_router
 app.include_router(markup_template_router, prefix="/api/markup-templates", tags=["markup-templates"])
@@ -228,6 +230,7 @@ async def startup():
     from models.markup_template import MarkupTemplate  # noqa: F401  会议纪要版面模板(2026-05-28 接入)
     from models.project_stakeholder import ProjectStakeholder  # noqa: F401  项目级干系人资产(2026-05-12)
     from models.project_smart_advice import SmartAdvice  # noqa: F401  项目智能建议(2026-05-15)
+    from models.qixin_message import QixinMessage  # noqa: F401  企信 IM 消息(2026-05-29)
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -332,6 +335,13 @@ async def startup():
             "ALTER TABLE api_call_logs ADD COLUMN IF NOT EXISTS error_message TEXT",
             "CREATE INDEX IF NOT EXISTS idx_call_logs_call_type ON api_call_logs(call_type)",
             "CREATE INDEX IF NOT EXISTS idx_call_logs_model ON api_call_logs(model_name)",
+            # 企信 IM 接入(2026-05-29):User 级凭证 + 消息表
+            # qixin_messages 由 create_all 建;users 表加 3 列;app_id 用 partial unique index
+            # (允许多个 NULL,只对已配置用户唯一,防同一 appId 两人配置互踢 Gateway)
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS qixin_app_id VARCHAR(128)",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS qixin_app_secret VARCHAR(512)",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS qixin_gateway_url VARCHAR(255)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_qixin_app_id ON users(qixin_app_id) WHERE qixin_app_id IS NOT NULL",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")

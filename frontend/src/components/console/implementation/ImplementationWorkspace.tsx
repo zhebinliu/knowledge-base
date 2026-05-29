@@ -12,12 +12,16 @@
  *   - Phase 1 不接 sidecar,只展示骨架 + 下载 zip(Phase 2 上线)
  */
 import { useMemo, useState } from 'react'
+import { useMutation } from '@tanstack/react-query'
 import {
   Loader2, Sparkles, Settings, Package, Code2, Layers,
-  ChevronRight, FileText, AlertCircle,
+  ChevronRight, FileText, AlertCircle, CheckCircle2, AlertTriangle,
+  Download, FileCode2,
 } from 'lucide-react'
 import {
   generateOutput,
+  generateTaskConfig,
+  tenantConfigZipUrl,
   type CuratedBundle,
   type ImplementationTask,
   type ShareDevSkill,
@@ -102,10 +106,13 @@ const SKILL_LABEL: Record<string, string> = {
   'sharedev-pwc-fix-bug': 'PWC · 修 bug',
 }
 
-// Phase 1 已接入(其他 skill 显示但点不动)
-const SKILLS_AVAILABLE_PHASE_1: Set<string> = new Set([
+// Phase 2 已接入配置生成的 skill(其他 skill 显示但点不动 → 留 Phase 3 接 APL/PWC)
+const SKILLS_AVAILABLE: Set<string> = new Set([
   'sharedev-object',
   'sharedev-field',
+  'sharedev-validation-rule',
+  'sharedev-layout',
+  'sharedev-layout-rule',
 ])
 
 // ── 主组件 ──────────────────────────────────────────────────────────
@@ -114,7 +121,7 @@ interface Props {
   projectId: string
   planBundle: CuratedBundle | undefined
   planInflight: CuratedBundle | undefined
-  onRefetch: () => void
+  onRefetch: () => Promise<unknown> | unknown
 }
 
 type ImplementationView = 'preparation' | 'overview' | 'task_detail'
@@ -146,6 +153,7 @@ export default function ImplementationWorkspace({
   }, [tasks])
 
   const selectedTask = selectedTaskId ? tasks.find(t => t.task_id === selectedTaskId) : null
+  const configuredCount = tasks.filter(t => t.config?.ok).length
 
   // ── PreparationView(尚未生成实施任务清单)──
   if (view === 'preparation' && !planBundle && !planInflight) {
@@ -223,7 +231,11 @@ export default function ImplementationWorkspace({
           </div>
         )}
         {view === 'task_detail' && selectedTask && (
-          <TaskDetailPanel task={selectedTask} bundleId={planBundle?.id} />
+          <TaskDetailPanel
+            task={selectedTask}
+            bundleId={planBundle?.id}
+            onRefetch={onRefetch}
+          />
         )}
         {view === 'task_detail' && !selectedTask && (
           <div className="text-center py-16 text-ink-muted text-sm">
@@ -232,28 +244,56 @@ export default function ImplementationWorkspace({
         )}
       </div>
 
-      {/* 右栏(Phase 1 占位)— Phase 2 接 sidecar */}
+      {/* 右栏:部署面板 — 下载 zip(Phase 2)/ 推送租户(Phase 3) */}
       <div className="w-[280px] flex-shrink-0 border-l border-line bg-slate-50/40 flex flex-col">
         <div className="px-3 py-2 border-b border-line">
           <div className="text-xs font-semibold text-ink">部署到客户租户</div>
         </div>
-        <div className="flex-1 p-3 text-xs text-ink-secondary space-y-2 leading-relaxed">
-          <div className="rounded border border-line bg-white p-2.5">
-            <div className="font-medium text-ink mb-1">Phase 1 状态</div>
+        <div className="flex-1 p-3 text-xs text-ink-secondary space-y-2 leading-relaxed overflow-auto">
+          <div className="rounded border border-line bg-white p-2.5 space-y-2">
+            <div className="font-medium text-ink flex items-center gap-1">
+              <FileCode2 size={11} className="text-orange-600" />
+              tenant-config zip
+            </div>
             <div className="text-[11px] text-ink-muted">
-              凭证管理已上线(到「个人设置 → ShareDev 集成」填客户租户 PaaS token),
-              但实际推送到租户的 sidecar 还没上,**下一轮交付**。
+              {configuredCount > 0
+                ? `已生成 ${configuredCount} / ${tasks.length} 条 task 的配置 xml,可打包下载。`
+                : '尚无任务生成配置 xml。在左栏选 task → 中栏「生成配置」开始。'}
+            </div>
+            {planBundle && configuredCount > 0 && (
+              <a
+                href={tenantConfigZipUrl(planBundle.id)}
+                download
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-[11px] rounded bg-orange-600 text-white hover:bg-orange-700"
+              >
+                <Download size={11} /> 下载 tenant-config.zip
+              </a>
+            )}
+            <div className="text-[10px] text-ink-muted">
+              本地解压后:<br />
+              <code className="text-[10px] bg-slate-100 px-1 rounded">
+                cd tenant-config && sharedev object-dev push --all
+              </code>
             </div>
           </div>
+
           <div className="rounded border border-line bg-white p-2.5">
-            <div className="font-medium text-ink mb-1">已上线 skill</div>
+            <div className="font-medium text-ink mb-1">直接推送到租户</div>
+            <div className="text-[11px] text-ink-muted">
+              Phase 3 上线 — Node sidecar 跑 sharedev CLI 直接 push,
+              先用 zip 下载 + 本地推送闭环。
+            </div>
+          </div>
+
+          <div className="rounded border border-line bg-white p-2.5">
+            <div className="font-medium text-ink mb-1">已支持生成配置的 skill</div>
             <ul className="text-[11px] space-y-0.5">
-              {Array.from(SKILLS_AVAILABLE_PHASE_1).map(s => (
+              {Array.from(SKILLS_AVAILABLE).map(s => (
                 <li key={s}>· {SKILL_LABEL[s] || s}</li>
               ))}
             </ul>
             <div className="text-[10px] text-ink-muted mt-1.5">
-              其他 15 个 skill 待 Phase 2 / 3 接入
+              APL / PWC(12 个 skill)Phase 3 上线
             </div>
           </div>
         </div>
@@ -361,7 +401,11 @@ function SkillGroup({
                 {t.priority}
               </span>
               <div className="flex-1 min-w-0">
-                <div className="text-ink truncate">{t.task_id}</div>
+                <div className="text-ink truncate flex items-center gap-1">
+                  {t.task_id}
+                  {t.config?.ok && <CheckCircle2 size={9} className="text-emerald-600 shrink-0" />}
+                  {t.config && !t.config.ok && <AlertTriangle size={9} className="text-red-500 shrink-0" />}
+                </div>
                 <div className="text-[10px] text-ink-muted truncate">{t.description}</div>
               </div>
             </button>
@@ -374,12 +418,29 @@ function SkillGroup({
 
 // ── TaskDetailPanel(中栏 task 详情)─────────────────────────────────
 
-function TaskDetailPanel({ task, bundleId: _bundleId }: { task: ImplementationTask; bundleId?: string }) {
-  const available = SKILLS_AVAILABLE_PHASE_1.has(task.sharedev_skill)
+function TaskDetailPanel({
+  task, bundleId, onRefetch,
+}: {
+  task: ImplementationTask
+  bundleId?: string
+  onRefetch: () => Promise<unknown> | unknown
+}) {
+  const available = SKILLS_AVAILABLE.has(task.sharedev_skill)
+  const config = task.config
+
+  const genMut = useMutation({
+    mutationFn: () => {
+      if (!bundleId) throw new Error('bundle id 缺失')
+      return generateTaskConfig(bundleId, task.task_id)
+    },
+    onSuccess: async () => { await onRefetch() },
+  })
+
   return (
     <div className="flex-1 overflow-auto p-6 max-w-[1000px] mx-auto w-full space-y-4">
+      {/* Task 信息 */}
       <div className="rounded-lg border border-line bg-white p-4 space-y-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className={`inline-flex items-center justify-center w-10 h-5 rounded text-[10px] font-medium ${
             task.priority === 'P0' ? 'bg-red-100 text-red-700' :
             task.priority === 'P1' ? 'bg-orange-100 text-orange-700' :
@@ -390,6 +451,16 @@ function TaskDetailPanel({ task, bundleId: _bundleId }: { task: ImplementationTa
           <span className="text-sm font-mono text-ink">{task.task_id}</span>
           <span className="text-[11px] text-ink-muted">·</span>
           <span className="text-[11px] text-ink-muted">{SKILL_LABEL[task.sharedev_skill] || task.sharedev_skill}</span>
+          {config?.ok && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full ring-1 ring-emerald-200">
+              <CheckCircle2 size={9} /> 已生成配置
+            </span>
+          )}
+          {config && !config.ok && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] text-red-700 bg-red-50 px-1.5 py-0.5 rounded-full ring-1 ring-red-200">
+              <AlertTriangle size={9} /> 生成失败
+            </span>
+          )}
         </div>
         <div className="text-sm text-ink leading-relaxed">{task.description}</div>
         <div className="grid grid-cols-2 gap-2 text-[11px] text-ink-secondary mt-2">
@@ -402,32 +473,85 @@ function TaskDetailPanel({ task, bundleId: _bundleId }: { task: ImplementationTa
         </div>
       </div>
 
-      <div className="rounded-lg border border-line bg-white p-4 space-y-2">
+      {/* 生成配置 */}
+      <div className="rounded-lg border border-line bg-white p-4 space-y-3">
         <div className="text-sm font-semibold text-ink flex items-center gap-1">
           <Sparkles size={13} className="text-orange-600" />
           生成配置文件
         </div>
-        {available ? (
-          <>
-            <div className="text-xs text-ink-secondary">
-              本任务可用 <code className="text-[11px] bg-slate-100 px-1 rounded">{task.sharedev_skill}</code> skill 的方法论 + 模板生成
-              {task.sharedev_skill === 'sharedev-object' ? ' object-meta.xml' : ' field-meta.xml'} 配置文件。
-            </div>
-            <button
-              disabled
-              title="Phase 1.5 上线:本轮先做骨架,下一轮接 LLM 生成 xml"
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded border border-orange-300 text-orange-700 bg-orange-50 opacity-50 cursor-not-allowed"
-            >
-              <Sparkles size={12} /> 生成配置(下一轮上线)
-            </button>
-          </>
-        ) : (
+        {!available ? (
           <div className="text-xs text-ink-muted">
-            本 skill(<code className="text-[11px] bg-slate-100 px-1 rounded">{task.sharedev_skill}</code>) 在 Phase 2 / 3 接入,
+            本 skill(<code className="text-[11px] bg-slate-100 px-1 rounded">{task.sharedev_skill}</code>) 在 Phase 3 接入,
             当前可手动用 sharedev CLI 完成对应配置。
           </div>
+        ) : (
+          <>
+            <div className="text-xs text-ink-secondary">
+              用 <code className="text-[11px] bg-slate-100 px-1 rounded">{task.sharedev_skill}</code> skill 的 SKILL.md + assets 模板,
+              结合本项目调研报告 / 蓝图设计,LLM 一次产出 xml 文件。
+            </div>
+            <button
+              onClick={() => genMut.mutate()}
+              disabled={genMut.isPending || !bundleId}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded border border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 disabled:opacity-50"
+            >
+              {genMut.isPending
+                ? <Loader2 size={12} className="animate-spin" />
+                : <Sparkles size={12} />}
+              {genMut.isPending ? '生成中…(约 30-60 秒)' : config?.ok ? '重新生成' : '生成配置'}
+            </button>
+            {genMut.isError && (
+              <div className="text-xs text-red-600">
+                生成失败:{(genMut.error as any)?.response?.data?.detail || (genMut.error as any)?.message}
+              </div>
+            )}
+            {config && (
+              <ConfigPreview config={config} />
+            )}
+          </>
         )}
       </div>
+    </div>
+  )
+}
+
+function ConfigPreview({ config }: { config: NonNullable<ImplementationTask['config']> }) {
+  const [showXml, setShowXml] = useState(false)
+  if (!config.ok) {
+    return (
+      <div className="rounded border border-red-200 bg-red-50/50 p-2.5 space-y-1">
+        <div className="text-[11px] font-medium text-red-700">生成失败</div>
+        <div className="text-[10.5px] text-red-700/80">{config.error || '未知错误'}</div>
+      </div>
+    )
+  }
+  return (
+    <div className="rounded border border-emerald-200 bg-emerald-50/40 p-2.5 space-y-1.5">
+      <div className="flex items-center gap-1.5 text-[11px]">
+        <CheckCircle2 size={11} className="text-emerald-600 shrink-0" />
+        <span className="text-emerald-800 font-medium">已生成</span>
+        {config.generated_at && (
+          <span className="text-[10px] text-ink-muted">· {new Date(config.generated_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+        )}
+        {config.generated_by && (
+          <span className="text-[10px] text-ink-muted">· by {config.generated_by}</span>
+        )}
+      </div>
+      <div className="text-[11px] text-ink-secondary font-mono break-all">
+        {config.file_path}
+      </div>
+      <button
+        onClick={() => setShowXml(v => !v)}
+        className="text-[11px] text-orange-700 hover:underline inline-flex items-center gap-0.5"
+      >
+        <FileCode2 size={10} />
+        {showXml ? '收起 xml' : '查看 xml 内容'}
+      </button>
+      {showXml && config.file_content && (
+        <pre className="text-[10.5px] bg-white border border-emerald-100 rounded p-2 overflow-auto max-h-[400px] font-mono leading-relaxed whitespace-pre-wrap">
+          {config.file_content}
+        </pre>
+      )}
     </div>
   )
 }
