@@ -20,6 +20,7 @@ import LiquidGlass from 'liquid-glass-react'
 import { useAuth } from '../../auth/AuthContext'
 import MeshOrbs from '../components/MeshOrb'
 import GlobalSearchModal from './GlobalSearchModal'
+import QixinDrawer from '../../components/qixin/QixinDrawer'
 import '../redesign.css'
 
 type NavItem = {
@@ -95,6 +96,7 @@ export default function NewConsoleLayout() {
       <div className="rd-floatbar-scrim" />
       <div className="rd-dock-scrim" />
       <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <QixinDrawer />
 
       <div className="rd-shell">
         {/* 浮动玻璃顶栏 */}

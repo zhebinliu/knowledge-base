@@ -2201,3 +2201,76 @@ export const generateTaskConfig = async (
 
 export const tenantConfigZipUrl = (bundleId: string) =>
   `/api/implementation/bundles/${bundleId}/tenant-config-zip`
+
+// ── 企信 IM 接入(2026-05-29):用户级 Bot 凭证 + 消息读取 ───────────────
+
+export interface QixinCredentialsStatus {
+  configured: boolean
+  app_id_masked: string | null
+  gateway_url: string
+}
+
+export const getQixinCredentials = async (): Promise<QixinCredentialsStatus> => {
+  const { data } = await api.get<QixinCredentialsStatus>('/qixin/credentials')
+  return data
+}
+
+export const putQixinCredentials = async (body: {
+  app_id: string
+  app_secret: string
+  gateway_url: string
+}) => {
+  const { data } = await api.put<{ status: string; configured: boolean; gateway_url: string }>(
+    '/qixin/credentials',
+    body,
+  )
+  return data
+}
+
+export const deleteQixinCredentials = async () => {
+  const { data } = await api.delete<{ status: string; configured: boolean }>('/qixin/credentials')
+  return data
+}
+
+export interface QixinConversation {
+  chat_id: string
+  count: number
+  last_message: {
+    id: string
+    direction: 'in' | 'out'
+    sender_name: string | null
+    content_preview: string
+    ts: string | null
+  }
+}
+
+export const listQixinConversations = async (limit = 50): Promise<QixinConversation[]> => {
+  const { data } = await api.get<{ conversations: QixinConversation[] }>(
+    `/qixin/conversations?limit=${limit}`,
+  )
+  return data.conversations
+}
+
+export interface QixinMessage {
+  id: string
+  chat_id: string
+  sender_user_id: string | null
+  sender_name: string | null
+  direction: 'in' | 'out'
+  content: string
+  ts: string | null
+}
+
+export const listQixinMessages = async (
+  chatId: string,
+  opts?: { limit?: number; before?: string },
+): Promise<QixinMessage[]> => {
+  const params = new URLSearchParams()
+  if (opts?.limit) params.set('limit', String(opts.limit))
+  if (opts?.before) params.set('before', opts.before)
+  const qs = params.toString()
+  const { data } = await api.get<{ chat_id: string; messages: QixinMessage[] }>(
+    `/qixin/conversations/${encodeURIComponent(chatId)}/messages${qs ? `?${qs}` : ''}`,
+  )
+  return data.messages
+}

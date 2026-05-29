@@ -180,6 +180,10 @@ from api.feishu_credentials import router as feishu_creds_router  # 修复 #5:�
 app.include_router(feishu_creds_router)
 from api.sharedev_credentials import router as sharedev_creds_router  # 2026-05-29:项目实施 sharedev 集成
 app.include_router(sharedev_creds_router)
+from api.qixin_credentials import router as qixin_creds_router  # 2026-05-29:企信 IM 接入
+app.include_router(qixin_creds_router)
+from api.qixin import router as qixin_router  # 2026-05-29:企信 IM 消息读取
+app.include_router(qixin_router)
 from api.implementation import router as implementation_router  # 2026-05-29 Phase 2:单 task 生成 + zip
 app.include_router(implementation_router)
 app.include_router(template.router, prefix="/api/templates", tags=["templates"])
@@ -409,7 +413,23 @@ async def startup():
             for _doc in _stuck:
                 _pd.delay(_doc.id)
             logger.warning("stuck_documents_requeued", count=len(_stuck))
+    # 企信 IM SSE 连接池启动(2026-05-29):按已配置用户拉长连接
+    try:
+        from services.qixin_gateway.connection_manager import bootstrap_all as _qixin_boot
+        await _qixin_boot()
+    except Exception:
+        logger.exception("qixin_bootstrap_failed")
     logger.info("Startup complete")
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    """优雅停掉企信 SSE 连接(2026-05-29)。"""
+    try:
+        from services.qixin_gateway.connection_manager import stop_all as _qixin_stop
+        await _qixin_stop()
+    except Exception:
+        logger.exception("qixin_shutdown_failed")
 
 
 @app.get("/health")

@@ -7,6 +7,7 @@
 import { User } from 'lucide-react'
 import FeishuTab from '../components/settings/FeishuTab'
 import ShareDevTab from '../components/settings/ShareDevTab'
+import QixinTab from '../components/settings/QixinTab'
 import GlowCard from './components/GlowCard'
 
 export default function NewPersonalSettings() {
@@ -20,7 +21,7 @@ export default function NewPersonalSettings() {
           个人设置
         </h1>
         <p style={{ fontSize: 13, color: 'var(--rd-text-2)', margin: '4px 0 0' }}>
-          管理你的个人凭证与偏好 — 飞书集成 / ShareDev PaaS 集成
+          管理你的个人凭证与偏好 — 飞书集成 / ShareDev PaaS 集成 / 企信 Bot
         </p>
       </div>
 
@@ -28,8 +29,12 @@ export default function NewPersonalSettings() {
         <FeishuTab />
       </GlowCard>
 
-      <GlowCard style={{ padding: '20px 24px', overflow: 'hidden' }}>
+      <GlowCard style={{ padding: '20px 24px', overflow: 'hidden', marginBottom: 16 }}>
         <ShareDevTab />
+      </GlowCard>
+
+      <GlowCard style={{ padding: '20px 24px', overflow: 'hidden' }}>
+        <QixinTab />
       </GlowCard>
     </div>
   )

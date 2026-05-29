@@ -7,6 +7,7 @@
 import { User } from 'lucide-react'
 import FeishuTab from '../components/settings/FeishuTab'
 import ShareDevTab from '../components/settings/ShareDevTab'
+import QixinTab from '../components/settings/QixinTab'
 
 export default function PersonalSettings() {
   return (
@@ -17,12 +18,13 @@ export default function PersonalSettings() {
           <h1 className="text-xl md:text-2xl font-bold text-gray-900">个人设置</h1>
         </div>
         <p className="text-xs md:text-sm text-gray-500">
-          管理你的个人凭证与偏好（飞书集成 / ShareDev PaaS 集成）
+          管理你的个人凭证与偏好（飞书集成 / ShareDev PaaS 集成 / 企信 Bot）
         </p>
       </div>
 
       <FeishuTab />
       <ShareDevTab />
+      <QixinTab />
     </div>
   )
 }

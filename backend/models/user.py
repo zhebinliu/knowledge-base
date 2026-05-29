@@ -50,6 +50,14 @@ class User(Base):
     sharedev_domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sharedev_certificate: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
+    # 企信 IM Gateway 集成(用户级独立凭证,2026-05-29):每用户配自己企信 Bot,
+    # SSE 收消息 + REST 回发。secret Fernet 加密,跟 sharedev 一致。
+    # app_id 全表唯一:同 appId 在 Gateway 只能一条活跃连接,防互踢(由 partial unique index 兜底)。
+    # Phase 1 只做:凭证 + 收消息落库 + 全局侧边栏;Phase 2 加自动回复 / 手动发消息。
+    qixin_app_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    qixin_app_secret: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    qixin_gateway_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

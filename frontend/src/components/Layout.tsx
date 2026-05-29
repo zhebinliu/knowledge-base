@@ -9,6 +9,7 @@ import {
 import { useAuth } from '../auth/AuthContext'
 import { TOKEN_STORAGE_KEY, refreshToken, getMcpKeyStatus, generateMcpKey, revokeMcpKey } from '../api/client'
 import GlobalSearchModal from '../redesign/console/GlobalSearchModal'
+import QixinDrawer from './qixin/QixinDrawer'
 
 /** path → module key 映射(用于 nav 显隐 + 路由守卫) */
 const pathToModule: Record<string, string> = {
@@ -375,6 +376,7 @@ export default function Layout() {
       </div>
 
       <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <QixinDrawer />
     </div>
   )
 }

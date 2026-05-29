@@ -1099,3 +1099,68 @@ docker-compose.yml: backend / celery_worker / frontend / frontend-uat 的 build 
 - [ ] P4.3 rsync 同步 uat
 - [ ] P4.4 rebuild + restart frontend
 - [ ] P4.5 uat.tokenwave.cloud 真机验证
+
+
+---
+
+# 新迭代:企信(ShareCRM IM)接入工作台(2026-05-29)
+
+## 背景
+研究 https://github.com/scutken/openclaw-sharecrm 后确认:纷享销客企信开放 Gateway 1.3 API(`https://open.fxiaoke.com`,`appId` + `appSecret` 鉴权,下行 SSE,上行 REST)。**不引入 OpenClaw 框架,自研对接**。每用户一对独立凭证、独立连接、独立消息池。
+
+## 决策表
+| # | 决策 | 选择 | 理由 |
+|---|------|------|------|
+| 1 | 框架 | 自研 SSE 客户端 | 跟现有 kb_agent / agentic runner 体系一致;不引入第三方 agent 框架 |
+| 2 | 隔离 | 每用户独立 Bot | 用户已确认 |
+| 3 | 加密 | Fernet(`services.feishu_crypto`) | 跟 sharedev_certificate 一致 |
+| 4 | appId 冲突 | PUT 凭证全表唯一校验 + 409 | 同 appId 在 Gateway 只能一条活跃连接,防互踢 |
+| 5 | Phase 1 范围 | 凭证 + 连接池 + 收消息落库 + 侧边栏看历史(polling 5s) | 自动回复 / SSE 实时推送 / 手动发消息留 Phase 2 |
+| 6 | HTTP 客户端 | httpx(已在 requirements) | 复用 |
+| 7 | 连接挂哪儿 | FastAPI 主进程 startup hook | backend 单容器单进程,celery 不参与 |
+| 8 | 群聊策略 | requireMention=true 默认 | 跟 openclaw 默认一致 |
+
+## Block A · 数据层
+- [x] A1. `models/user.py` 加 `qixin_app_id` / `qixin_app_secret` / `qixin_gateway_url` 字段
+- [x] A2. 新建 `models/qixin_message.py`:`QixinMessage` 表
+- [x] A3. `backend/main.py` startup hook 加 import + ALTER TABLE migrations(partial unique index 兜 app_id 唯一)
+- [x] A4. 本地 py_compile 验证通过
+
+## Block B · 凭证 API
+- [x] B1. `api/qixin_credentials.py`:GET/PUT/DELETE `/api/qixin/credentials`(GET 不回 secret + app_id 也 mask;PUT 全表唯一校验返 409)
+- [x] B2. main.py 注册路由
+- [ ] B3. uat 部署后端到端 curl 验
+
+## Block C · SSE 客户端 + 连接池(核心)
+- [x] C1. `services/qixin_gateway/__init__.py`
+- [x] C2. `services/qixin_gateway/sse_client.py`:鉴权 token + Last-Event-ID 续传 + reset 清游标立即重连 + max_lifetime 主动重连 + 指数退避抖动
+- [x] C3. `services/qixin_gateway/connection_manager.py`:连接池(bootstrap_all 串行预热 200ms + start/stop/restart_for_user + _persist_message 写表)
+- [x] C4. main.py startup 调 `bootstrap_all()`,shutdown 调 `stop_all()`
+- [x] C5. 凭证 PUT/DELETE 时 try-import 联动连接池启停
+
+## Block D · 消息读取 API
+- [x] D1. `api/qixin.py`:`GET /api/qixin/conversations`(chat_id group + 最近一条 + count)
+- [x] D2. `api/qixin.py`:`GET /api/qixin/conversations/{chat_id}/messages?limit=&before=`(时间倒序分页)
+- [x] D3. main.py 注册路由
+
+## Block E · 前端凭证配置
+- [x] E1. `frontend/src/api/client.ts` 加 5 个 qixin 接口 + 类型
+- [x] E2. `frontend/src/components/settings/QixinTab.tsx`(参考 ShareDevTab)
+- [x] E3. 在 `pages/PersonalSettings.tsx` + `redesign/PersonalSettings.tsx` 都挂
+- [x] E4. tsc 检查 qixin 相关零报错(剩余 liquid-glass-react / meeting overlay 是本地环境缺失)
+
+## Block F · 前端全局抽屉
+- [x] F1. `frontend/src/components/qixin/QixinDrawer.tsx`(浮动按钮 + 抽屉 + 5s polling + 未配引导)
+- [x] F2. 在 `Layout.tsx` (/console)挂上
+- [x] F3. 在 `redesign/console/ConsoleLayout.tsx` 也挂上
+- [x] F4. tsc 通过
+
+## Block G · 部署 + 端到端验证
+- [ ] G1. commit + push main → 触发 deploy-uat.yml
+- [ ] G2. uat 上配凭证 → 企信 Bot 发私聊 → 抽屉收到
+- [ ] G3. 验收后 `gh workflow run deploy-prod.yml -f confirm=deploy`
+
+## 关键风险 / TODO
+- httpx 没现成 SSE 解析,手写 line-based(`data:` / `event:` / `id:` / `retry:` / 空行分隔)
+- Gateway 1.3 协议字段(`message.content` 等)需在 C2 之前去 npm/`@openclaw-fs/sharecrm` 抓源码确认
+- backend 重启 = 全部连接重建,启动时串行 + 抖动
