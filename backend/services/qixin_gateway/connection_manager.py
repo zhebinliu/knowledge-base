@@ -225,24 +225,32 @@ async def send_message_for_user(
 # ── 消息持久化 ──────────────────────────────────────────────────────────────
 
 async def _persist_message(user_id: str, event: dict) -> None:
-    """SSE message 事件 → qixin_messages 一行。失败只记日志,不影响 SSE 流。"""
+    """SSE message 事件 → qixin_messages 落库。失败只记日志,不影响 SSE 流。
+
+    主消息 + history_messages(群聊 @Bot 时 Gateway 透传的最近 10 条上下文)都落库。
+    用 gateway_message_id 去重,同一条 history 多次出现不会重复入库。
+    """
     data = event.get("data") or {}
     chat_id = data.get("chat_id")
     if not chat_id:
         logger.warning("qixin_msg_no_chat_id", user_id=user_id, raw=str(event)[:200])
         return
 
-    # text 优先 data.text;兼容 data.message.content
+    chat_type = data.get("chat_type")  # "direct" | "group"
+    sender = data.get("from") or {}
+    history = data.get("history_messages") or []
+    if not isinstance(history, list):
+        history = []
+
+    # 主消息 text 优先 data.text;兼容 data.message.content
     text = data.get("text")
     if not text:
         inner = data.get("message") or {}
         text = inner.get("content") or ""
 
-    sender = data.get("from") or {}
+    main_msg_id = data.get("message_id")
     ts = _parse_ts(data.get("timestamp") or data.get("date"))
-    chat_type = data.get("chat_type")  # "direct" | "group"
 
-    # 排查:Gateway 推过来的 from 字段实际有什么(name 经常为空)
     logger.info(
         "qixin_msg_in_raw",
         user_id=user_id,
@@ -250,26 +258,108 @@ async def _persist_message(user_id: str, event: dict) -> None:
         chat_type=chat_type,
         sender_id=sender.get("id"),
         sender_name=sender.get("name"),
+        history_count=len(history),
         text_preview=(text or "")[:40],
     )
 
+    chat_id_s = str(chat_id)
     try:
         async with async_session_maker() as session:
-            msg = QixinMessage(
+            # 主消息
+            await _add_message_if_new(
+                session,
                 user_id=user_id,
-                chat_id=str(chat_id),
+                gateway_message_id=str(main_msg_id) if main_msg_id else None,
+                chat_id=chat_id_s,
                 chat_type=chat_type,
                 sender_user_id=str(sender.get("id")) if sender.get("id") else None,
                 sender_name=sender.get("name"),
                 direction="in",
-                content=text,
+                content=text or "",
                 raw=data,
                 ts=ts,
             )
-            session.add(msg)
+            # 群聊历史(协议透传的 @ 前最近 10 条;私聊一般没有)
+            new_history = 0
+            for h in history:
+                if not isinstance(h, dict):
+                    continue
+                h_id = h.get("message_id")
+                if not h_id:
+                    continue  # 没 id 无法去重,跳过
+                inserted = await _add_message_if_new(
+                    session,
+                    user_id=user_id,
+                    gateway_message_id=str(h_id),
+                    chat_id=chat_id_s,
+                    chat_type=chat_type,
+                    sender_user_id=str(h.get("sender_id") or h.get("full_sender_id") or "") or None,
+                    sender_name=None,  # history 协议没带 sender name
+                    direction="in",
+                    content=h.get("content") or "",
+                    raw=h,
+                    ts=_parse_ts(h.get("message_timestamp")),
+                )
+                if inserted:
+                    new_history += 1
             await session.commit()
+            if new_history:
+                logger.info(
+                    "qixin_history_persisted",
+                    user_id=user_id,
+                    chat_id=chat_id,
+                    fresh_history=new_history,
+                    total_history=len(history),
+                )
     except Exception as e:
         logger.error("qixin_msg_persist_failed", user_id=user_id, error=str(e))
+
+
+async def _add_message_if_new(
+    session,
+    *,
+    user_id: str,
+    gateway_message_id: str | None,
+    chat_id: str,
+    chat_type: str | None,
+    sender_user_id: str | None,
+    sender_name: str | None,
+    direction: str,
+    content: str,
+    raw: dict | None,
+    ts,
+) -> bool:
+    """如果 (user_id, gateway_message_id) 不存在就 add,返 True;已存在返 False。
+
+    依赖 partial unique index uq_qixin_msg_gid 做最终兜底(race 时 IntegrityError)。
+    没 gateway_message_id 的(比如 out 消息)直接 add,不去重。
+    """
+    from sqlalchemy import select as _sel
+    if gateway_message_id:
+        existing = await session.execute(
+            _sel(QixinMessage.id)
+            .where(
+                QixinMessage.user_id == user_id,
+                QixinMessage.gateway_message_id == gateway_message_id,
+            )
+            .limit(1)
+        )
+        if existing.scalar_one_or_none():
+            return False
+    msg = QixinMessage(
+        user_id=user_id,
+        gateway_message_id=gateway_message_id,
+        chat_id=chat_id,
+        chat_type=chat_type,
+        sender_user_id=sender_user_id,
+        sender_name=sender_name,
+        direction=direction,
+        content=content,
+        raw=raw,
+        ts=ts,
+    )
+    session.add(msg)
+    return True
 
 
 def _parse_ts(raw) -> Optional[datetime]:

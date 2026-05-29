@@ -348,6 +348,9 @@ async def startup():
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_qixin_app_id ON users(qixin_app_id) WHERE qixin_app_id IS NOT NULL",
             # 区分群聊 / 私聊(2026-05-29 增量)
             "ALTER TABLE qixin_messages ADD COLUMN IF NOT EXISTS chat_type VARCHAR(16)",
+            # 群聊 history_messages 落库去重(2026-05-29 增量)
+            "ALTER TABLE qixin_messages ADD COLUMN IF NOT EXISTS gateway_message_id VARCHAR(128)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_qixin_msg_gid ON qixin_messages(user_id, gateway_message_id) WHERE gateway_message_id IS NOT NULL",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")

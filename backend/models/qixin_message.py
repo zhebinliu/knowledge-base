@@ -29,6 +29,10 @@ class QixinMessage(Base):
     # Gateway data.chat_type:"direct"(私聊)/ "group"(群聊),区分会话类型
     chat_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
+    # Gateway 推过来的原始 message_id,用于去重(同一条 history 会多次出现在不同 event 里)
+    # 与 user_id 组成 partial unique 索引(NULL 时不参与约束,允许 out 消息 / 旧数据无 id)
+    gateway_message_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
     # Gateway 给的源用户 id(私聊就是对方,群聊是发言人)
     sender_user_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     sender_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
