@@ -154,19 +154,41 @@ async def send_message_for_user(
 ) -> dict:
     """让某用户的 Bot 发消息到指定会话。
 
-    不要求 SSE 必须在线 — send 走独立 REST(只需 token 缓存可复用)。
-    失败 raise RuntimeError;成功返 {"message_id": "..."}。
-    发完写一条 direction='out' 落库。
+    send 走独立 REST,不依赖 SSE 在线。优先用 _pool 里 client(共享 token 缓存),
+    否则从 DB 现读凭证 + 临时 client 发,同时异步把 SSE 连接预热起来。
+    失败 raise RuntimeError;成功返 {"message_id": ...}。发完写一条 direction='out'。
     """
     conn = _pool.get(user_id)
-    if conn is None:
-        # 池里没有 → 用户从未配置过 OR 重启后还没起来。强制起一遍。
-        await start_for_user(user_id)
-        conn = _pool.get(user_id)
-    if conn is None:
-        raise RuntimeError("用户未配置企信凭证或连接未就绪")
+    if conn is not None:
+        result = await conn.client.send_message(chat_id, text, reply_message_id)
+    else:
+        # _pool 没有 → 从 DB 现读凭证用临时 client 直接发,同时异步起 SSE
+        async with async_session_maker() as session:
+            u = await session.get(User, user_id)
+            if not u or not u.qixin_app_id or not u.qixin_app_secret:
+                raise RuntimeError("用户未配置企信凭证")
+            try:
+                app_secret = decrypt_secret(u.qixin_app_secret)
+            except Exception as e:
+                raise RuntimeError(f"凭证解密失败: {e}")
+            if not app_secret:
+                raise RuntimeError("凭证解密为空,请重新配置")
+            app_id = u.qixin_app_id
+            gateway = u.qixin_gateway_url or DEFAULT_GATEWAY
 
-    result = await conn.client.send_message(chat_id, text, reply_message_id)
+        async def _noop_msg(_: dict) -> None: ...
+
+        temp_client = QixinSSEClient(
+            user_id=user_id,
+            app_id=app_id,
+            app_secret=app_secret,
+            gateway_base_url=gateway,
+            on_message=_noop_msg,
+        )
+        logger.info("qixin_send_via_temp_client", user_id=user_id, reason="pool_empty")
+        result = await temp_client.send_message(chat_id, text, reply_message_id)
+        # 后台预热 SSE 连接(不阻塞 send 响应)
+        asyncio.create_task(start_for_user(user_id), name=f"qixin-sse-warmup-{user_id}")
     # 落库一条 out
     try:
         async with async_session_maker() as session:
