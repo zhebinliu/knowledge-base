@@ -52,8 +52,8 @@ import {
   type StageDef as ApiStageDef,
 } from '../../api/client'
 
-const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_report']
-const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report']
+const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design']
+const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design']
 
 const STAGE_ICON_MAP = {
   FileText, Lightbulb, ClipboardList, Bot, Sparkles, Search,
@@ -89,7 +89,7 @@ const DEFAULT_STAGES: StageDef[] = [
       { kind: 'research_report',label: '调研报告' },
     ],
   },
-  { key: 'design',     label: '方案设计', kind: null, icon: FileText, active: false },
+  { key: 'design',     label: '方案设计', kind: 'blueprint_design', icon: FileText, active: true },
   { key: 'implement',  label: '项目实施', kind: null, icon: FileText, active: false },
   { key: 'test',       label: '上线测试', kind: null, icon: FileText, active: false },
   { key: 'acceptance', label: '项目验收', kind: null, icon: FileText, active: false },

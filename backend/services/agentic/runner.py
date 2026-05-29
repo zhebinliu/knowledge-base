@@ -2092,6 +2092,133 @@ async def _load_research_responses_for_report(project_id: str) -> list[dict]:
     return out
 
 
+# ── 蓝图设计(2026-05-29):跟调研报告一脉的方案设计产物,主输入=调研报告 ──────
+
+async def generate_blueprint_design(bundle_id: str, project_id: str):
+    """生成「蓝图设计」 — 7 章 markdown,方案设计阶段的核心产物。
+
+    主输入是该项目最近的「调研报告」(若已生成),作为 [B1] 蓝图基线源。
+    其他素材(文档 / 上游产物 / 会议 / 行业 pack)作为补充。
+    架构跟 generate_research_report 一致:单次 Opus 大调用 + section markers 切章。
+    """
+    from .research.blueprint_generator import (
+        SYSTEM_PROMPT, build_user_prompt, assemble_markdown_from_llm_output,
+        format_research_report_block,
+    )
+    from .research.report_generator import (
+        format_project_meta, format_docs_for_report, format_prior_bundles,
+        format_meeting_evidence, format_industry_pack,
+    )
+    from .industry_packs import get_pack
+    from services.output_service import _llm_call
+
+    run_history: list[dict] = []
+    try:
+        await _mark(bundle_id, "generating")
+        run_history.append({"phase": "started", "ts": _ts()})
+        await _update_progress(bundle_id, stage="planning", message="加载素材中(含调研报告)…")
+
+        # ── Phase 1: ctx ──
+        ctx = await _load_ctx(bundle_id, project_id, "blueprint_design")
+
+        # ── Phase 2: 找该项目最新的「调研报告」bundle ──
+        async with async_session_maker() as s:
+            rr_bundle = (await s.execute(
+                select(CuratedBundle)
+                .where(CuratedBundle.project_id == project_id)
+                .where(CuratedBundle.kind == "research_report")
+                .where(CuratedBundle.status == "done")
+                .order_by(CuratedBundle.updated_at.desc())
+            )).scalars().first()
+        has_rr = bool(rr_bundle and (rr_bundle.content_md or "").strip())
+
+        # ── Phase 3: 额外素材(会议)──
+        meeting_blob = await _load_meeting_evidence_for_report(project_id)
+        run_history.append({
+            "phase": "evidence_loaded", "ts": _ts(),
+            "detail": {
+                "has_research_report": has_rr,
+                "docs_n": sum(len(v) for v in (ctx.get("docs_by_type") or {}).values()),
+                "prior_n": len(ctx.get("prior_bundles") or []),
+                "meetings_n": len(meeting_blob),
+                "industry": ctx["industry"],
+            },
+        })
+
+        # ── Phase 4: 拼 prompt ──
+        await _update_progress(bundle_id, stage="executing", message="撰写蓝图(约 3-5 分钟)…")
+        pack = get_pack(ctx["industry"])
+        user_prompt = build_user_prompt(
+            project_meta=format_project_meta(ctx["project"]),
+            industry=ctx["industry"],
+            research_report_block=format_research_report_block(rr_bundle),
+            sources_block=format_docs_for_report(ctx.get("docs_by_type") or {}),
+            prior_bundles_block=format_prior_bundles(ctx.get("prior_bundles") or []),
+            meeting_block=format_meeting_evidence(meeting_blob),
+            industry_pack_block=format_industry_pack(pack),
+        )
+
+        # ── Phase 5: LLM ──
+        # max_tokens=16000 给 7 章 + 表格 + mermaid 状态机足够余量
+        raw = await _llm_call(
+            user_prompt, system=SYSTEM_PROMPT,
+            model=ctx["agent_model"],
+            max_tokens=16000, timeout=720.0,
+        )
+        run_history.append({
+            "phase": "llm_done", "ts": _ts(),
+            "detail": {"raw_chars": len(raw or "")},
+        })
+        if not raw or not raw.strip():
+            raise RuntimeError("LLM 返回为空")
+
+        # ── Phase 6: 切章 + 持久化 ──
+        markdown = assemble_markdown_from_llm_output(raw)
+        async with async_session_maker() as s:
+            b = await s.get(CuratedBundle, bundle_id)
+            new_extra = dict(b.extra or {})
+            new_extra["run_history"] = run_history
+            new_extra["agentic_version"] = "v2"
+            new_extra["validity_status"] = "valid"
+            new_extra["progress"] = {"stage": "done", "message": "完成"}
+            new_extra["sources_summary"] = {
+                "has_research_report": has_rr,
+                "research_report_id": rr_bundle.id if rr_bundle else None,
+                "docs_n": sum(len(v) for v in (ctx.get("docs_by_type") or {}).values()),
+                "prior_bundles_n": len(ctx.get("prior_bundles") or []),
+                "meetings_n": len(meeting_blob),
+                "industry_pack": pack.display_name if pack else None,
+            }
+            from sqlalchemy.orm.attributes import flag_modified
+            b.extra = new_extra
+            flag_modified(b, "extra")
+            b.content_md = markdown
+            b.status = "done"
+            await s.commit()
+        logger.info("blueprint_design_generated", bundle_id=bundle_id,
+                    chars=len(markdown), has_research_report=has_rr)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        logger.error("blueprint_design_failed", bundle_id=bundle_id, error=str(e)[:300],
+                     traceback=tb[:2000])
+        run_history.append({"phase": "failed", "ts": _ts(),
+                            "detail": str(e)[:300], "traceback": tb[:2000]})
+        try:
+            async with async_session_maker() as s:
+                b = await s.get(CuratedBundle, bundle_id)
+                if b:
+                    new_extra = dict(b.extra or {})
+                    new_extra["run_history"] = run_history
+                    new_extra["agentic_version"] = "v2"
+                    b.extra = new_extra
+                    b.status = "failed"
+                    b.error = str(e)[:500]
+                    await s.commit()
+        except Exception as e2:
+            logger.error("blueprint_design_failed_writeback_failed", error=str(e2)[:200])
+
+
 def _stringify_answer_for_report(value, item: dict) -> str:
     if value is None:
         return "(空)"

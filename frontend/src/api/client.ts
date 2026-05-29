@@ -1040,6 +1040,7 @@ export type OutputKind =
   | 'kickoff_pptx' | 'kickoff_html'
   | 'insight' | 'survey' | 'survey_outline'
   | 'research_report'
+  | 'blueprint_design'
 
 export interface OutputChatMessage {
   role: 'user' | 'assistant'

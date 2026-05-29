@@ -61,6 +61,7 @@ KIND_TO_TASK = {
     "survey": "generate_survey",
     "survey_outline": "generate_survey_outline",
     "research_report": "generate_research_report",
+    "blueprint_design": "generate_blueprint_design",
 }
 
 KIND_TITLES = {
@@ -70,6 +71,7 @@ KIND_TITLES = {
     "survey": "调研问卷",
     "survey_outline": "调研大纲",
     "research_report": "调研报告",
+    "blueprint_design": "蓝图设计",
 }
 
 

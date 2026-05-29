@@ -32,7 +32,7 @@ import ResearchWorkspace from '../../components/console/research/ResearchWorkspa
 import QA from '../QA'
 import { useEffect } from 'react'
 
-const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_report']
+const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design']
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -84,7 +84,7 @@ const DEFAULT_STAGES: StageDef[] = [
       { kind: 'research_report',label: '调研报告' },
     ],
   },
-  { key: 'design',     label: '方案设计', kind: null, icon: FileText, active: false },
+  { key: 'design',     label: '方案设计', kind: 'blueprint_design', icon: FileText, active: true },
   { key: 'implement',  label: '项目实施', kind: null, icon: FileText, active: false },
   { key: 'test',       label: '上线测试', kind: null, icon: FileText, active: false },
   { key: 'acceptance', label: '项目验收', kind: null, icon: FileText, active: false },
@@ -255,7 +255,7 @@ export default function ConsoleProjectDetail() {
 
   // v3:文档驱动的 kind — 不弹 brief,直接调 generateOutput 触发 v3 流程
   // (runner 会自动 auto_extract + planner 从 docs 兜底)
-  const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report']
+  const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design']
 
   const startGeneration = async () => {
     if (!activeStage.active || !activeKind) return

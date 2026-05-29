@@ -70,13 +70,14 @@ export default function ResearchWorkspace({
   const [highlightedRef, setHighlightedRef] = useState<string | null>(null)
   const [outlineEditing, setOutlineEditing] = useState(false)
 
+  // research_report 不 fallback 到 preparation — 见 components/console/research/ResearchWorkspace.tsx 同段注释
   useEffect(() => {
     if (activeKind === 'survey_outline') {
       setView(outlineBundle ? 'outline' : 'preparation')
     } else if (activeKind === 'survey') {
       setView(surveyBundle ? 'questionnaire' : 'preparation')
     } else if (activeKind === 'research_report') {
-      setView(reportBundle ? 'report' : 'preparation')
+      setView('report')
     }
   }, [activeKind, outlineBundle?.id, surveyBundle?.id, reportBundle?.id])
 
@@ -323,7 +324,11 @@ export default function ResearchWorkspace({
                     </div>
                   </div>
                 ) : (
-                  <EmptyHint text="尚未生成调研报告。请到「调研报告」sub-action 触发生成。" />
+                  <ReportEmptyState
+                    projectId={projectId}
+                    inflight={reportInflight}
+                    onRefetch={onRefetch}
+                  />
                 )}
               </div>
             </div>
@@ -831,6 +836,61 @@ function ReportHeaderBar({ bundle }: { bundle: CuratedBundle }) {
             {(ss.answered_responses_n || 0) > 0 ? ` · ${ss.answered_responses_n} 道已答` : ''}
             {ss.industry_pack ? ` · 行业:${ss.industry_pack}` : ''}
           </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ReportEmptyState({
+  projectId, inflight, onRefetch,
+}: {
+  projectId: string
+  inflight: CuratedBundle | undefined
+  onRefetch: () => void
+}) {
+  const [triggering, setTriggering] = useState(false)
+  const trigger = async () => {
+    setTriggering(true)
+    try {
+      await generateOutput({ kind: 'research_report', project_id: projectId })
+      onRefetch()
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || e?.message || '触发生成失败')
+    } finally {
+      setTriggering(false)
+    }
+  }
+  return (
+    <div className="p-2 max-w-3xl mx-auto">
+      <div
+        className="rd-card space-y-3"
+        style={{ padding: 18 }}
+      >
+        <div className="text-base font-semibold flex items-center gap-2" style={{ color: 'var(--rd-text)' }}>
+          <FileText size={15} style={{ color: 'var(--rd-accent)' }} />
+          调研报告
+        </div>
+        <div className="text-sm leading-relaxed" style={{ color: 'var(--rd-text-2)' }}>
+          综合本项目所有文档 + 上游产物(项目洞察 / 调研大纲 / 调研问卷)+ 会议素材 +
+          顾问已答 + 行业最佳实践,一次输出 8 章「调研报告」(执行摘要 / 客户现状 /
+          业务线与流程 / 业务诉求与痛点 / 结构化需求清单 / SOW-LTC 覆盖度 /
+          方案设计建议 / 风险与下一步),作为 PM 出方案设计的核心输入。
+        </div>
+        <div className="text-xs" style={{ color: 'var(--rd-text-3)' }}>
+          建议大纲 / 问卷答案填得差不多了再生成。耗时 2-4 分钟。
+        </div>
+        {inflight ? (
+          <GenerationProgressCard bundle={inflight} />
+        ) : (
+          <button
+            onClick={trigger}
+            disabled={triggering}
+            className="rd-btn rd-btn-primary inline-flex items-center gap-1 px-4 py-2 text-sm"
+          >
+            {triggering ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+            立即生成调研报告
+          </button>
         )}
       </div>
     </div>
