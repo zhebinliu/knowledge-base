@@ -60,7 +60,7 @@ jobs:
         ports:
           - 6333:6333
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # meeting 模块在 meeting/ 子目录,非 Docker 的 CI job 需手动 overlay
       - name: Overlay meeting/
@@ -75,7 +75,7 @@ jobs:
             -e "MINIO_ROOT_PASSWORD=minioadmin" \
             minio/minio server /data
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: "pip"
@@ -129,12 +129,12 @@ jobs:
     needs: guard
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Overlay meeting/
         run: |
           cp -r meeting/backend/. backend/
           cp -r meeting/frontend/. frontend/
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
@@ -152,7 +152,7 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Log in to ghcr
@@ -214,14 +214,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Compute short SHA
         id: sha
         run: echo "value=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
