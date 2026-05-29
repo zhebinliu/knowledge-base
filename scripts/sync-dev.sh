@@ -8,7 +8,7 @@
 set -e
 
 # ===== 配置 =====
-REMOTE_HOST="liu@34.45.112.217"
+REMOTE_HOST="liu@34.67.136.67"
 SSH_KEY="$HOME/.ssh/id_rsa_github_deploy"
 REMOTE_PATH="/opt/kb-system"
 LOCAL_PATH="$(cd "$(dirname "$0")/.." && pwd)"

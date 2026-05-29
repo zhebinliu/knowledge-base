@@ -16,11 +16,11 @@
 - 生产域名: https://kb.liii.in（强制 HTTPS）
 - 备用域名: https://kb.tokenwave.cloud（同一服务器，独立证书）
 - **新前端预览**: https://uat.tokenwave.cloud — 深色 Liquid Glass 重构版,根 `/` 默认 302 到 `/redesign/console`。**同一服务器,独立证书,复用同一份 dist + 后端 + 数据。** 现在 `/redesign/*` 是 mock 数据状态,等逐页接 API 后即"可用的新前端"。
-- 直连 IP: 34.45.112.217（80→301 跳 HTTPS）
+- 直连 IP: 34.67.136.67（80→301 跳 HTTPS）
 
 ## 部署
 
-- 远程服务器: `liu@34.45.112.217` (GCP)，SSH key: `~/.ssh/id_rsa_github_deploy`
+- 远程服务器: `liu@34.67.136.67` (GCP)，SSH key: `~/.ssh/id_rsa_github_deploy`
 - 远程路径: `/opt/kb-system`
 - 运行方式: Docker Compose (postgres, qdrant, redis, minio, backend, frontend, celery_worker)
 - 同步脚本: `scripts/sync-dev.sh`（fswatch + rsync）
@@ -31,10 +31,10 @@
 
 ```bash
 # 1. rsync 同步
-rsync -avz --delete --exclude=.git --exclude=.env --exclude=__pycache__ --exclude="*.pyc" --exclude=node_modules --exclude=dist --exclude=.DS_Store -e "ssh -i ~/.ssh/id_rsa_github_deploy -o StrictHostKeyChecking=no" ./ liu@34.45.112.217:/opt/kb-system/
+rsync -avz --delete --exclude=.git --exclude=.env --exclude=__pycache__ --exclude="*.pyc" --exclude=node_modules --exclude=dist --exclude=.DS_Store -e "ssh -i ~/.ssh/id_rsa_github_deploy -o StrictHostKeyChecking=no" ./ liu@34.67.136.67:/opt/kb-system/
 
 # 2. 远程 rebuild + restart（按需选择 backend / frontend）
-ssh -i ~/.ssh/id_rsa_github_deploy liu@34.45.112.217 "cd /opt/kb-system && sudo docker compose build backend frontend && sudo docker compose up -d backend frontend"
+ssh -i ~/.ssh/id_rsa_github_deploy liu@34.67.136.67 "cd /opt/kb-system && sudo docker compose build backend frontend && sudo docker compose up -d backend frontend"
 ```
 
 ## 项目结构

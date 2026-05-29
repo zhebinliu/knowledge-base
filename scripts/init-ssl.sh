@@ -5,7 +5,7 @@ set -euo pipefail
 
 DOMAIN="${DOMAIN:-kb.liii.in}"
 EMAIL="${EMAIL:-liu@zheb.in}"
-EXPECTED_IP="${EXPECTED_IP:-34.45.112.217}"
+EXPECTED_IP="${EXPECTED_IP:-34.67.136.67}"
 
 echo "==> [1/5] 检查 DNS 是否解析到 $EXPECTED_IP"
 if ! command -v dig >/dev/null 2>&1; then
