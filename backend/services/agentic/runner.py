@@ -1957,10 +1957,11 @@ async def generate_research_report(bundle_id: str, project_id: str):
         )
 
         # ── Phase 4: LLM ──
+        # max_tokens=16000 给 8 章 + 需求清单大表(15-50 行)足够余量
         raw = await _llm_call(
             user_prompt, system=SYSTEM_PROMPT,
             model=ctx["agent_model"],
-            max_tokens=12000, timeout=600.0,
+            max_tokens=16000, timeout=720.0,
         )
         run_history.append({
             "phase": "llm_done", "ts": _ts(),
