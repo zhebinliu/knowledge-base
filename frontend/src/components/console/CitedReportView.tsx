@@ -8,9 +8,24 @@
  *
  * 不依赖 rehype-raw,只用 react-markdown + remark-gfm 默认能力。
  */
+import { useEffect, useId, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import mermaid from 'mermaid'
 import { type ProvenanceEntry } from '../../api/client'
+
+// mermaid 全局初始化(模块级,只跑一次):securityLevel=loose 允许 click 事件
+// 跟 LLM 偶尔输出的 click 指令兼容;主题用浅色,跟报告浅色风格匹配
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'default',
+  securityLevel: 'loose',
+  flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+  themeVariables: {
+    fontFamily: 'inherit',
+    fontSize: '13px',
+  },
+})
 
 interface Props {
   content: string
@@ -75,6 +90,17 @@ export default function CitedReportView({ content, provenance, onCitationClick }
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
+          code: ({ className, children, ...rest }: any) => {
+            const match = /language-(\w+)/.exec(className || '')
+            const lang = match?.[1]
+            const text = String(children || '').replace(/\n$/, '')
+            // 代码块(```mermaid / ```flowchart 等)走 mermaid 渲染
+            if (lang === 'mermaid' || lang === 'flowchart' || lang === 'graph') {
+              return <MermaidBlock code={text} />
+            }
+            // 普通代码块 / 行内 code 保持默认渲染
+            return <code className={className} {...rest}>{children}</code>
+          },
           a: ({ href, children, ...rest }) => {
             // 检测 #cite-<module_key>-<refId>
             if (href && href.startsWith('#cite-')) {
@@ -102,6 +128,53 @@ export default function CitedReportView({ content, provenance, onCitationClick }
         {cleaned}
       </ReactMarkdown>
     </div>
+  )
+}
+
+// ── MermaidBlock — 把 ```mermaid 代码块渲染成 SVG 流程图 ───────────────────
+function MermaidBlock({ code }: { code: string }) {
+  const rawId = useId()
+  const id = `mermaid-${rawId.replace(/[^a-zA-Z0-9]/g, '')}`
+  const [svg, setSvg] = useState<string>('')
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setError(null)
+    setSvg('')
+    mermaid
+      .render(id, code.trim())
+      .then(({ svg }) => {
+        if (!cancelled) setSvg(svg)
+      })
+      .catch((e: any) => {
+        if (!cancelled) setError(e?.message || String(e))
+      })
+    return () => { cancelled = true }
+  }, [code, id])
+
+  if (error) {
+    return (
+      <div className="my-3">
+        <div className="text-xs text-red-600 bg-red-50 border border-red-200 px-3 py-1.5 rounded-t">
+          ⚠️ Mermaid 渲染失败:{error}
+        </div>
+        <pre className="text-xs bg-slate-50 border border-t-0 border-line p-3 rounded-b overflow-x-auto">
+          {code}
+        </pre>
+      </div>
+    )
+  }
+  if (!svg) {
+    return (
+      <pre className="text-xs text-gray-400 bg-gray-50 p-3 rounded my-3">渲染图表中…</pre>
+    )
+  }
+  return (
+    <div
+      className="my-4 flex justify-center overflow-x-auto bg-white border border-line rounded-lg p-4"
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
   )
 }
 
