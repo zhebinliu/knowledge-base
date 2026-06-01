@@ -396,11 +396,17 @@ def format_industry_pack(pack) -> str:
 
 SECTION_MARKER_PREFIX = "<<<SECTION:"
 
+# LLM 偶尔会漂成 <<SECTION:..>> / <SECTION:..>>> / 不同数量的尖括号,
+# 这个宽容正则统一识别。要求行首即标记(strip 后),key 是合法标识符。
+import re as _re
+_SECTION_MARKER_RE = _re.compile(r"^<+\s*SECTION\s*:\s*([A-Za-z_][\w]*)\s*>+$")
+
 
 def assemble_markdown_from_llm_output(llm_raw: str) -> str:
     """LLM 按 <<<SECTION:key>>> 分隔输出,这里按规范的 H2 标题重新拼成完整 markdown。
 
     容错:某个 section 缺了就跳过(标题加备注);多余的 section 也保留(按声明顺序排)。
+    marker 尖括号数量漂了(<<..>> / <..>>>)也能识别 — LLM 经常这样。
     """
     raw = (llm_raw or "").strip()
     # 按分隔标记切块
@@ -409,12 +415,13 @@ def assemble_markdown_from_llm_output(llm_raw: str) -> str:
     cur_buf: list[str] = []
     for line in raw.splitlines():
         stripped = line.strip()
-        if stripped.startswith(SECTION_MARKER_PREFIX) and stripped.endswith(">>>"):
+        m = _SECTION_MARKER_RE.match(stripped)
+        if m:
             # flush 上一段
             if cur_key is not None:
                 chunks[cur_key] = "\n".join(cur_buf).strip()
             cur_buf = []
-            cur_key = stripped[len(SECTION_MARKER_PREFIX):-3].strip()
+            cur_key = m.group(1)
         else:
             cur_buf.append(line)
     if cur_key is not None:
