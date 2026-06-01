@@ -353,10 +353,12 @@ async def startup():
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_qixin_msg_gid ON qixin_messages(user_id, gateway_message_id) WHERE gateway_message_id IS NOT NULL",
             # 2026-06-01:四级行业路径 "L1/L2/L3/L4" 最长 54 字符,旧 VARCHAR(50) 装不下,扩到 200。
             # ALTER COLUMN ... TYPE 在 PG 上对 VARCHAR 扩长是 metadata-only,不重写表数据,秒级完成。
+            # 注意:qa_log.py 里有 industry 字段的 class 是 Conversation(__tablename__='conversations'),
+            #      不是 'qa_logs' — 该模块没有 qa_logs 表(误命名容易踩,这条注释留住)。
             "ALTER TABLE projects ALTER COLUMN industry TYPE VARCHAR(200)",
             "ALTER TABLE documents ALTER COLUMN industry TYPE VARCHAR(200)",
             "ALTER TABLE output_conversations ALTER COLUMN industry TYPE VARCHAR(200)",
-            "ALTER TABLE qa_logs ALTER COLUMN industry TYPE VARCHAR(200)",
+            "ALTER TABLE conversations ALTER COLUMN industry TYPE VARCHAR(200)",
             "ALTER TABLE coverage_gaps ALTER COLUMN industry TYPE VARCHAR(200)",
         ]:
             await conn.execute(text(migration))
