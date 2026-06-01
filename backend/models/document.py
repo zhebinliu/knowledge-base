@@ -36,8 +36,8 @@ class Document(Base):
     )
     # 文档类型：nullable，枚举见 models.project.DOC_TYPES
     doc_type: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
-    # 行业标签：继承自项目或手动设置，枚举见 ltc_taxonomy.INDUSTRIES
-    industry: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    # 行业标签：继承自项目或手动设置；兼容旧一级枚举 + 新四级路径 "L1/L2/L3/L4"
+    industry: Mapped[str | None] = mapped_column(String(200), nullable=True, index=True)
     # LLM-generated after processing
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     faq: Mapped[list | None] = mapped_column(JSON, nullable=True)

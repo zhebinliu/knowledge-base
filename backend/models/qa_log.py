@@ -23,7 +23,7 @@ class Conversation(Base):
 
     # 过滤条件（保存对话级别的 LTC 阶段 / 行业，用户可以换）
     ltc_stage: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    industry: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    industry: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     # [{role, content, sources?, model?, ts}]
     messages: Mapped[list] = mapped_column(JSON, default=list, nullable=False)

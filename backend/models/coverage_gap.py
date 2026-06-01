@@ -20,7 +20,7 @@ class CoverageGap(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     ltc_stage: Mapped[str | None] = mapped_column(String(50), index=True)
-    industry: Mapped[str | None] = mapped_column(String(50), index=True)
+    industry: Mapped[str | None] = mapped_column(String(200), index=True)
 
     # 最近 N 个失败题的代表性问题 / 关键词：用于提示 PM 该补什么内容
     keywords: Mapped[list] = mapped_column(JSON, default=list, nullable=False)

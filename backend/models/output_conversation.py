@@ -17,7 +17,7 @@ class OutputConversation(Base):
     kind: Mapped[str] = mapped_column(String(20), nullable=False)
     # 二选一：项目作用域 或 行业作用域
     project_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
-    industry: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    industry: Mapped[str | None] = mapped_column(String(200), nullable=True)
     # 创建时锁定的智能体配置快照
     skill_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     model_name: Mapped[str | None] = mapped_column(String(80), nullable=True)

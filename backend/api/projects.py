@@ -121,6 +121,8 @@ def _validate_industry(industry: str | None) -> str | None:
     #   3. 旧一级枚举(manufacturing 等),向后兼容历史数据 / 文档打标
     if industry is None or industry == "":
         return None
+    if len(industry) > 200:
+        raise HTTPException(400, f"行业字段过长(>200 字符)：{industry[:60]}...")
     from prompts.industry_tree import is_valid_industry_path
     if "/" in industry:
         if not is_valid_industry_path(industry):
