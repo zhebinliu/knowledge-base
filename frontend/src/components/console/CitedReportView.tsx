@@ -14,16 +14,57 @@ import remarkGfm from 'remark-gfm'
 import mermaid from 'mermaid'
 import { type ProvenanceEntry } from '../../api/client'
 
-// mermaid 全局初始化(模块级,只跑一次):securityLevel=loose 允许 click 事件
-// 跟 LLM 偶尔输出的 click 指令兼容;主题用浅色,跟报告浅色风格匹配
+// mermaid 全局初始化(模块级,只跑一次):用 base theme + 自定义橙色主题变量,
+// 跟报告里其他卡片配色一致;securityLevel=loose 允许 click 事件
 mermaid.initialize({
   startOnLoad: false,
-  theme: 'default',
+  theme: 'base',
   securityLevel: 'loose',
-  flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+  flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis', padding: 16, nodeSpacing: 50, rankSpacing: 70 },
+  sequence: { useMaxWidth: true, wrap: true, mirrorActors: false, boxMargin: 12 },
   themeVariables: {
-    fontFamily: 'inherit',
+    fontFamily: '"PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     fontSize: '13px',
+    // 节点:浅橙 fill + 橙色边框 + 深灰文字
+    primaryColor: '#FFF7ED',
+    primaryTextColor: '#1F2937',
+    primaryBorderColor: '#FB923C',
+    // 状态机第二状态色(stateDiagram 用得多)
+    secondaryColor: '#FEF3C7',
+    secondaryTextColor: '#1F2937',
+    secondaryBorderColor: '#F59E0B',
+    // 三级色(subgraph 背景)
+    tertiaryColor: '#F8FAFC',
+    tertiaryTextColor: '#1F2937',
+    tertiaryBorderColor: '#CBD5E1',
+    // 连线:柔和的灰
+    lineColor: '#94A3B8',
+    // 背景白
+    background: '#FFFFFF',
+    mainBkg: '#FFF7ED',
+    secondBkg: '#FEF3C7',
+    // 文字
+    textColor: '#1F2937',
+    // 边粗细
+    edgeLabelBackground: '#FFFFFF',
+    // 状态机箭头
+    transitionColor: '#6B7280',
+    transitionLabelColor: '#6B7280',
+    // 群组(cluster)
+    clusterBkg: '#FAFBFC',
+    clusterBorder: '#CBD5E1',
+    // sequence diagram
+    actorBkg: '#FFF7ED',
+    actorBorder: '#FB923C',
+    actorTextColor: '#1F2937',
+    signalColor: '#6B7280',
+    signalTextColor: '#374151',
+    labelBoxBkgColor: '#FEF3C7',
+    labelBoxBorderColor: '#F59E0B',
+    labelTextColor: '#1F2937',
+    noteBkgColor: '#FFFBEB',
+    noteBorderColor: '#FCD34D',
+    noteTextColor: '#1F2937',
   },
 })
 
@@ -195,7 +236,10 @@ function MermaidBlock({ code }: { code: string }) {
   }
   return (
     <div
-      className="my-4 flex justify-center overflow-x-auto bg-white border border-line rounded-lg p-4"
+      className="mermaid-block my-5 flex justify-center overflow-x-auto bg-gradient-to-br from-orange-50/40 via-white to-white border border-orange-100 rounded-xl px-6 py-5 shadow-sm"
+      style={{
+        boxShadow: '0 1px 3px rgba(251, 146, 60, 0.06), 0 4px 12px rgba(20, 20, 40, 0.04)',
+      }}
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   )
