@@ -22,6 +22,7 @@ import {
 import OutputChatPanel from '../../components/OutputChatPanel'
 import BriefDrawer from '../../components/BriefDrawer'
 import MarkdownView from '../../components/MarkdownView'
+import IndustryCascadePicker from '../../components/IndustryCascadePicker'
 import AgenticGapFiller from '../../components/AgenticGapFiller'
 import DocChecklist from '../../components/console/DocChecklist'
 import CenterWorkspace, { type CenterView } from '../../components/console/CenterWorkspace'
@@ -1399,25 +1400,13 @@ function ProjectEditPanel({ project, onClose, onSaved }: {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="客户名称">
             <input
               value={customer}
               onChange={e => setCustomer(e.target.value)}
               className="w-full border border-line rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-orange-300"
             />
-          </Field>
-          <Field label="行业">
-            <select
-              value={industry}
-              onChange={e => setIndustry(e.target.value)}
-              className="w-full border border-line rounded-lg px-2.5 py-1.5 text-sm bg-white"
-            >
-              <option value="">未选择</option>
-              {(meta?.industries ?? []).map(i => (
-                <option key={i.value} value={i.value}>{i.label}</option>
-              ))}
-            </select>
           </Field>
           <Field label="立项日期">
             <input
@@ -1428,6 +1417,16 @@ function ProjectEditPanel({ project, onClose, onSaved }: {
             />
           </Field>
         </div>
+
+        <Field label="行业(四级)">
+          <IndustryCascadePicker
+            tree={meta?.industry_tree}
+            value={industry}
+            onChange={setIndustry}
+            legacyIndustries={meta?.industries}
+          />
+          <p className="text-[11px] text-ink-muted mt-1">四级行业分类(纷享销客 2024 版),四级选齐才生效。已有旧一级值可保留,重选四级会覆盖。</p>
+        </Field>
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
