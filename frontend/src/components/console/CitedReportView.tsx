@@ -74,37 +74,88 @@ interface Props {
   onCitationClick: (moduleKey: string, refId: string) => void
 }
 
-// LLM 原始输出里的"section marker"和未被代码块包起来的 mermaid 图表
-// 后端 assemble 时本该 strip 掉,但 LLM 偶尔写成 <<SECTION:..>> / <SECTION:..>>
-// 各种变体绕过了正则。这里前端兜底清洗 — 看到啥洗啥,不依赖后端。
+// LLM 输出残留清洗 — line-by-line 维护 fence 状态,只对**围栏外**做 mermaid 提升,
+// 避免误把围栏内的 `flowchart LR` 起手当作裸露 mermaid 重复包装,破坏 fence 平衡。
 function cleanReportContent(raw: string): string {
   if (!raw) return ''
-  let s = raw
 
-  // 1. strip section markers:<<SECTION:xxx>>、<SECTION:xxx>>、<<<SECTION:xxx>>> 等
-  s = s.replace(/<+\s*SECTION\s*:\s*[^<>]+\s*>+/g, '')
+  // 1. 先全局 strip section markers(<<SECTION:xxx>> / <SECTION:xxx>> 等变体)
+  let s = raw.replace(/<+\s*SECTION\s*:\s*[^<>]+\s*>+/g, '')
 
-  // 2a. LLM 经常把 ```mermaid 写成 ```\nmermaid(把 lang 名字放代码块首行而非围栏后),
-  //     react-markdown 当无 lang 代码块走默认渲染,看不出图。修:把 ``` + 紧接首行
-  //     mermaid|flowchart|stateDiagram|sequenceDiagram 等,提升为标准 ```mermaid。
-  s = s.replace(
-    /^```[ \t]*\n(mermaid|flowchart\s+(?:LR|TB|RL|BT|TD)|graph\s+(?:LR|TB|RL|BT|TD)|stateDiagram(?:-v2)?|sequenceDiagram|classDiagram|erDiagram|journey|gantt|pie)[ \t]*\n/gm,
-    (_m, firstLine) => {
-      // 字面 "mermaid" 行直接吃掉(它本来就该作为 lang 在围栏后)
-      if (firstLine.trim() === 'mermaid') return '```mermaid\n'
-      // 其他 mermaid 子语法(flowchart/stateDiagram 等)提升 + 保留作为图表声明
-      return `\`\`\`mermaid\n${firstLine}\n`
-    },
-  )
+  // 2. line-by-line 处理:跟踪 fence(```)开闭状态,只在围栏外做 mermaid 提升
+  const lines = s.split('\n')
+  const out: string[] = []
+  const MERMAID_KEYWORDS = /^(flowchart\s+(?:LR|TB|RL|BT|TD)|graph\s+(?:LR|TB|RL|BT|TD)|stateDiagram(?:-v2)?|sequenceDiagram|classDiagram|erDiagram|journey|gantt|pie)\b/
 
-  // 2b. mermaid 图表压根没用 ``` 包,直接 dump 出 flowchart/graph 起手的多行块,
-  //     启发式包成 ```mermaid ... ```(同 2a,但针对完全没围栏的情况)
-  s = s.replace(
-    /^(flowchart\s+(?:LR|TB|RL|BT|TD)|graph\s+(?:LR|TB|RL|BT|TD))([\s\S]*?)(?=\n{2,}(?:#|[^\s])|\n*$)/gm,
-    (_m, header, body) => `\n\`\`\`mermaid\n${header}${body.trimEnd()}\n\`\`\`\n`,
-  )
+  let inFence = false
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const stripped = line.trim()
 
-  return s
+    if (stripped.startsWith('```')) {
+      // 围栏行
+      const afterFence = stripped.slice(3).trim()
+      if (!inFence) {
+        // 开围栏。如果无 lang,但下一行是 mermaid 关键字 → 提升为 ```mermaid 并吃掉下一行的字面 mermaid
+        if (afterFence === '') {
+          const next = (lines[i + 1] || '').trim()
+          if (next === 'mermaid') {
+            out.push('```mermaid')
+            i += 1  // 跳过字面 "mermaid" 行
+            inFence = true
+            continue
+          }
+          if (MERMAID_KEYWORDS.test(next)) {
+            // 围栏无 lang + 下一行直接是 flowchart/stateDiagram 等 → 提升为 ```mermaid + 保留首行
+            out.push('```mermaid')
+            inFence = true
+            continue
+          }
+        }
+        out.push(line)
+        inFence = true
+      } else {
+        // 闭围栏
+        out.push(line)
+        inFence = false
+      }
+      continue
+    }
+
+    if (!inFence) {
+      // 围栏外:如果整行是裸 mermaid 关键字起手(LLM 完全没用 ``` 包),
+      // 启发式包一个 ```mermaid 块(向后吃到下一个空行或新章节)
+      if (MERMAID_KEYWORDS.test(stripped)) {
+        const block: string[] = [line]
+        let j = i + 1
+        while (j < lines.length) {
+          const next = lines[j]
+          const nt = next.trim()
+          // 遇到空行连续 ≥1 个 + 下一个非空行是 # 或顶头普通文字 → 结束
+          if (nt === '') {
+            const peek = (lines[j + 1] || '').trim()
+            if (peek.startsWith('#') || (peek && !peek.startsWith(' ') && !peek.startsWith('\t') && !/^[A-Za-z_]/.test(peek))) {
+              break
+            }
+            block.push(next)
+            j += 1
+            continue
+          }
+          block.push(next)
+          j += 1
+        }
+        out.push('```mermaid')
+        out.push(...block)
+        out.push('```')
+        i = j - 1
+        continue
+      }
+    }
+
+    out.push(line)
+  }
+
+  return out.join('\n')
 }
 
 export default function CitedReportView({ content, provenance, onCitationClick }: Props) {
