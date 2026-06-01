@@ -2628,9 +2628,9 @@ async def _generate_design_artifact(
     from .research.report_generator import (
         format_project_meta, format_docs_for_report, format_prior_bundles,
         format_meeting_evidence, format_industry_pack,
-        format_research_report_block,
     )
     from .research.blueprint_generator import (
+        format_research_report_block,  # 在 blueprint_generator 里,不在 report_generator
         transform_refs_to_links, build_blueprint_provenance, lint_and_fix_ascii_flowcharts,
     )
     from .industry_packs import get_pack
