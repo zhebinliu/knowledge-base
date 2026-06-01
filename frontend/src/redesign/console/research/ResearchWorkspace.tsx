@@ -774,7 +774,6 @@ function PreparationView({
 
       <ProductCard
         title="调研大纲"
-        subtitle="顾问拿着上现场访谈用 — 9 列日程表 + 主题 + 客户准备材料"
         bundle={outlineBundle}
         inflight={outlineInflight}
         triggering={trig === 'survey_outline'}
@@ -783,7 +782,6 @@ function PreparationView({
 
       <ProductCard
         title="调研问卷"
-        subtitle="结构化题目(单选/多选/分级…) + 选项池预填,顾问勾选录入"
         bundle={surveyBundle}
         inflight={surveyInflight}
         triggering={trig === 'survey'}
@@ -798,7 +796,6 @@ function PreparationView({
 
       <ProductCard
         title="调研报告"
-        subtitle="综合本项目所有文档 + 上游产物 + 会议素材 + 行业最佳实践,一次性输出 7 章「调研报告」,作为方案设计的核心输入"
         bundle={reportBundle}
         inflight={reportInflight}
         triggering={trig === 'research_report'}
@@ -917,10 +914,9 @@ function ReportMarkdownView({ bundle }: { bundle: CuratedBundle }) {
 
 
 function ProductCard({
-  title, subtitle, bundle, inflight, triggering, onGenerate, extraInfo, footerSlot,
+  title, bundle, inflight, triggering, onGenerate, extraInfo, footerSlot,
 }: {
   title: string
-  subtitle: string
   bundle: CuratedBundle | undefined
   inflight: CuratedBundle | undefined
   triggering: boolean
@@ -961,7 +957,6 @@ function ProductCard({
               </span>
             )}
           </div>
-          <div className="text-xs mt-1" style={{ color: 'var(--rd-text-3)' }}>{subtitle}</div>
           {extraInfo && (
             <div className="text-xs mt-1.5" style={{ color: 'var(--rd-text-2)' }}>{extraInfo}</div>
           )}
