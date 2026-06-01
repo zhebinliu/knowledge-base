@@ -82,6 +82,46 @@ function cleanReportContent(raw: string): string {
   // 1. 先全局 strip section markers(<<SECTION:xxx>> / <SECTION:xxx>> 等变体)
   let s = raw.replace(/<+\s*SECTION\s*:\s*[^<>]+\s*>+/g, '')
 
+  // 1.5 修复 markdown 表格分隔行列数 — LLM 偶尔把分隔行写多/少一列(header 9 列、
+  //     分隔行 10 个 |---|),markdown 解析器整张表 reject → 退回 raw 文本。
+  //     扫每个连续 (header, separator) 对,把 separator 强制对齐 header 列数。
+  {
+    const lines = s.split('\n')
+    const cellCount = (line: string): number => {
+      // markdown 表格行:首尾 | 可有可无,中间 | 分隔 cell。统计 cell 数。
+      const t = line.trim()
+      if (!t.includes('|')) return 0
+      // 去掉首尾 |(若有)
+      let core = t
+      if (core.startsWith('|')) core = core.slice(1)
+      if (core.endsWith('|')) core = core.slice(0, -1)
+      return core.split('|').length
+    }
+    const isSep = (line: string): boolean => {
+      const t = line.trim()
+      // 分隔行特征:只含 |、空格、-、:、(可有可无的首尾 |)
+      return /^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?$/.test(t)
+    }
+    for (let i = 1; i < lines.length; i++) {
+      if (!isSep(lines[i])) continue
+      const headerCells = cellCount(lines[i - 1])
+      const sepCells = cellCount(lines[i])
+      if (headerCells === 0 || sepCells === headerCells) continue
+      // 重建 separator:跟 header 同样列数(保留首尾 | 跟原始一致)
+      const orig = lines[i].trim()
+      const hasLeading = orig.startsWith('|')
+      const hasTrailing = orig.endsWith('|')
+      const dashCells = Array(headerCells).fill('---')
+      let rebuilt = dashCells.join('|')
+      if (hasLeading) rebuilt = '|' + rebuilt
+      if (hasTrailing) rebuilt = rebuilt + '|'
+      // 替换原始行(保留前导空白)
+      const indent = lines[i].match(/^\s*/)?.[0] || ''
+      lines[i] = indent + rebuilt
+    }
+    s = lines.join('\n')
+  }
+
   // 2. line-by-line 处理:跟踪 fence(```)开闭状态,只在围栏外做 mermaid 提升
   const lines = s.split('\n')
   const out: string[] = []
