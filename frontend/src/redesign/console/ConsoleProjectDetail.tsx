@@ -558,24 +558,6 @@ export default function NewConsoleProjectDetail() {
         && <AgenticValidityBanner bundle={activeBundle} />}
 
       {/* ── 主区分支 ── */}
-      {(() => {
-        // 临时诊断:方案设计为何 fall through 到 chat
-        // 2026-06-01 调研后删
-        if (typeof window !== 'undefined') {
-          ;(window as any).__design_debug = {
-            activeStageKey, activeKind, activeStage_key: activeStage?.key,
-            subKinds: activeStage?.subKinds, kind: activeStage?.kind,
-            selectedSubKind, STAGES_keys: STAGES.map(s=>s.key),
-          }
-          // 只打一次避免刷屏
-          if (!(window as any).__design_debug_logged) {
-            (window as any).__design_debug_logged = true
-            // eslint-disable-next-line no-console
-            console.log('[design-debug]', (window as any).__design_debug)
-          }
-        }
-        return null
-      })()}
       {activeKind === 'insight' ? (
         <InsightWorkspace
           projectId={id}

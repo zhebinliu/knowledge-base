@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, FileText, ClipboardList, Lightbulb, MessageSquare, Sparkles,
-  CheckCircle2, Loader2, Lock, Download, ExternalLink,
+  CheckCircle2, Loader2, Lock, Download, ExternalLink, RotateCw,
   Save, X, Wand2, AlertCircle, Pencil, Home, Files, Search,
   Bot, ShieldAlert, ChevronDown, ChevronRight, Users, Eye,
 } from 'lucide-react'
@@ -572,6 +572,13 @@ export default function ConsoleProjectDetail() {
           setHighlightedRef={setHighlightedRef}
           onRefetch={refetchOutputs}
         />
+      ) : activeStageKey === 'design' && activeKind === 'blueprint_design' ? (
+        <BlueprintDesignWorkspace
+          projectId={id}
+          activeBundle={activeBundle}
+          activeInflight={activeInflight}
+          onRefetch={refetchOutputs}
+        />
       ) : activeStageKey === 'survey' ? (
         /* survey stage 用 research v1 三栏 — 同一个工作区里同时承载 outline + survey 两个 sub-kind */
         <ResearchWorkspace
@@ -783,6 +790,112 @@ function InsightWorkspace({
     </div>
   )
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// BlueprintDesignWorkspace — 方案设计 / 蓝图设计专属工作区(2026-06-01,浅色 UI)
+//
+// 极简版,只做核心闭环:
+//   空态  → 一张大卡 + "开始生成方案设计" CTA
+//   生成中 → 进度卡
+//   完成  → 顶部"重新生成"按钮 + 主区 markdown 报告
+// 不挂资料清单/体检/gap_filler — design 跟 insight 产物形态不同。
+// ──────────────────────────────────────────────────────────────────────────
+function BlueprintDesignWorkspace({
+  projectId, activeBundle, activeInflight, onRefetch,
+}: {
+  projectId: string
+  activeBundle: CuratedBundle | undefined
+  activeInflight: CuratedBundle | undefined
+  onRefetch: () => void
+}) {
+  const [error, setError] = useState<string | null>(null)
+  const genMut = useMutation({
+    mutationFn: () => generateOutput({ kind: 'blueprint_design', project_id: projectId }),
+    onSuccess: () => { onRefetch(); setError(null) },
+    onError: (e: any) => setError(e?.response?.data?.detail || e?.message || '触发失败'),
+  })
+
+  const isInflight = !!activeInflight
+  const isDone = activeBundle?.status === 'done'
+  const md = (activeBundle as any)?.markdown_content || ''
+  const progressMsg = (activeInflight as any)?.extra?.progress?.message
+                    || (activeInflight as any)?.extra?.progress?.stage
+                    || '准备中…'
+
+  // 空态
+  if (!activeBundle && !isInflight) {
+    return (
+      <div className="flex-shrink-0 h-[calc(100vh-56px)] flex items-center justify-center bg-white px-6">
+        <div className="max-w-xl text-center bg-white border border-gray-200 rounded-xl shadow-sm px-12 py-10">
+          <div className="inline-flex items-center gap-2 text-2xl font-bold text-gray-800 mb-3">
+            <Lightbulb className="text-orange-500" size={22} /> 方案设计 · 蓝图
+          </div>
+          <p className="text-sm text-gray-500 mb-7 leading-relaxed">
+            基于项目洞察 + 调研报告 + 行业最佳实践,输出客户级 LTC 蓝图设计文档
+            (业务对象 / 流程 / 角色 / 集成等)。
+          </p>
+          <button
+            onClick={() => genMut.mutate()}
+            disabled={genMut.isPending}
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-md bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {genMut.isPending
+              ? <><Loader2 size={14} className="animate-spin" /> 触发中…</>
+              : <><Sparkles size={14} /> 开始生成方案设计</>}
+          </button>
+          {error && <p className="text-xs text-red-600 mt-3">{error}</p>}
+        </div>
+      </div>
+    )
+  }
+
+  // 生成中
+  if (isInflight) {
+    return (
+      <div className="flex-shrink-0 h-[calc(100vh-56px)] flex items-center justify-center bg-white px-6">
+        <div className="max-w-xl w-full bg-white border border-gray-200 rounded-xl shadow-sm px-10 py-8">
+          <div className="flex items-center gap-3 text-sm font-semibold text-gray-800">
+            <Loader2 size={16} className="animate-spin text-orange-500" /> 正在生成方案设计…
+          </div>
+          <p className="text-xs text-gray-500 mt-2">{progressMsg}</p>
+          <p className="text-[11px] text-gray-400 mt-3">典型耗时 2-5 分钟,页面会自动刷新。</p>
+        </div>
+      </div>
+    )
+  }
+
+  // 完成
+  return (
+    <div className="flex-shrink-0 h-[calc(100vh-56px)] flex flex-col bg-white px-8 pt-5 pb-8 overflow-hidden">
+      <div className="flex items-center gap-3 mb-4 flex-shrink-0">
+        <span className="text-sm font-semibold text-gray-800 inline-flex items-center gap-1.5">
+          <Lightbulb size={14} className="text-orange-500" /> 方案设计 · 蓝图
+        </span>
+        {isDone && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <CheckCircle2 size={10} /> 已生成
+          </span>
+        )}
+        <button
+          onClick={() => genMut.mutate()}
+          disabled={genMut.isPending}
+          className="ml-auto inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs border border-gray-200 text-gray-600 hover:text-orange-600 hover:border-orange-200 transition-colors disabled:opacity-50"
+          title="基于最新资料重新生成"
+        >
+          {genMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <RotateCw size={12} />}
+          重新生成
+        </button>
+      </div>
+      {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
+      <div className="flex-1 min-h-0 overflow-auto">
+        {md
+          ? <MarkdownView content={md} size="base" toolbar={false} />
+          : <p className="text-xs text-gray-400">报告内容为空 — 试一下「重新生成」?</p>}
+      </div>
+    </div>
+  )
+}
+
 
 // ── i18n:critic LLM 偶尔输出英文术语,前端兜底翻译 ──────────────────────────
 const CRITIC_TERM_MAP: [RegExp, string][] = [
