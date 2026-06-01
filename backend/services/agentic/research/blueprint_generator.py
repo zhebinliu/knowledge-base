@@ -378,29 +378,66 @@ def transform_refs_to_links(md: str, module_key: str = PROVENANCE_MODULE_KEY) ->
 
 LINTER_SYSTEM_PROMPT = """你是 markdown 输出审校器。
 
-你**只做一件事**:把报告里用「→」/「-->」/「⇒」/「==>」/「箭头」拼的 ASCII 流程图,
-转成 mermaid 代码块。其他什么都不改。
+你**只做一件事**:把报告里用「→」/「-->」/「⇒」/「==>」拼的 ASCII 流程,
+**全部**转成 mermaid 代码块。其他什么都不改。
 
-【保留不动 — 不要碰】
-- 表格(| ... |)、bullet 列表、普通段落、章节标题(##)
-- 引用 chip(形如 `[B1](#cite-blueprint-B1)` 或纯文本 `[B1]` `[D1]` `[I1]`)
+【保留不动 — 一字不改】
+- 表格(| ... |)正文 — 表格 cell 内部即使有 → 也不动(那是组织层级 / 字段说明)
+- bullet 列表、章节标题(##)
+- 引用 chip(形如 `[B1](#cite-blueprint-B1)` 或纯文本 `[B1]` `[D1]`)
 - 已经合法的 mermaid 代码块(```mermaid 围栏)
-- ASCII 流程图周围的描述文字
-- 字段表里写「→」表"流转到"的小串(如「正常→已核销」),只有形成独立图表的才转
+- ASCII 流程图周围的描述文字(转完图前后的解说段落)
 
-【需要识别 + 转换的 ASCII 流程】
-- 单行链:`Lead → Opportunity → Quote → Contract`
-- 多步骤单行(节点带说明):`Lead(线索) → Opportunity(商机) → Quote(报价)`
-- 多行流程(连续多行用 → / -->):
-  `A → B`
-  `B → C`
-- 状态机风格:`正常 → 逾期 → 催收中 → 已核销`(状态名 + 流转条件)
-- 跨角色交互:出现「销售/客户/系统/CRM/ERP」等角色名 + → 拼的顺序
+【必须转换的 ASCII 流程 — 凡是 3 个以上节点用 → 拼成的「独立段落」都要转】
+
+正例 1 — 单行流程描述(常出现在 H3 后):
+**关键流程**:
+客户创建→查重校验→MDM主数据同步→资信评级→分级分类生效→黑名单状态检查→允许下单。
+↓ 必须转成:
+**关键流程**:
+```mermaid
+flowchart LR
+    A[客户创建] --> B[查重校验]
+    B --> C[MDM主数据同步]
+    C --> D[资信评级]
+    D --> E[分级分类生效]
+    E --> F[黑名单状态检查]
+    F --> G[允许下单]
+```
+
+正例 2 — 多步骤单行节点带说明:
+Lead(线索) → Opportunity(商机) → Quote(报价) → Contract(合同)
+↓ 必须转:
+```mermaid
+flowchart LR
+    Lead[Lead 线索] --> Opp[Opportunity 商机]
+    Opp --> Quote[Quote 报价]
+    Quote --> Contract[Contract 合同]
+```
+
+正例 3 — 状态机:
+正常 → 逾期(超期1天) → 催收中 → 已核销
+↓ 必须转:
+```mermaid
+stateDiagram-v2
+    [*] --> 正常
+    正常 --> 逾期: 超期1天
+    逾期 --> 催收中
+    催收中 --> 已核销
+    已核销 --> [*]
+```
+
+反例 — 表格 cell 里的 → 不要动(只有 1 个表格行,不是流程图):
+| 国内制造业 | 集团→股份→经营单位→事业部 | ... |
+↑ 这是表格,**不要碰**
+
+【自检】扫完一遍后再扫一次。**报告里不应该残留任何独立段落级的 ASCII 流程**
+(出现在"关键流程:" / "状态机:" / "触发条件:" 这种 H3 / 加粗标签 后的)。
 
 【转换规则】
 - 线性 / 多分支流程 → flowchart LR
-- 状态机(对象生命周期 / 审批 / 应收状态)→ stateDiagram-v2
-- 跨角色交互(角色 → 角色 的动作)→ sequenceDiagram
+- 对象状态机(生命周期 / 审批 / 应收状态)→ stateDiagram-v2
+- 跨角色交互(角色 → 角色 的动作,出现"销售/客户/CRM/ERP"等)→ sequenceDiagram
 
 【输出】
 直接输出修复后的**完整 markdown**(不是 diff,不是 patch,不是说明)。
@@ -408,39 +445,68 @@ LINTER_SYSTEM_PROMPT = """你是 markdown 输出审校器。
 """
 
 
-async def lint_and_fix_ascii_flowcharts(markdown: str, model: str) -> str:
-    """LLM linter pass — 扫 markdown,把 ASCII 流程图补救成 mermaid 代码块。
+def _count_independent_ascii_flows(md: str) -> int:
+    """统计**独立段落级**的 ASCII 流程行数(不是表格 cell 里的 →)。
 
-    如果 LLM 返回的长度异常(<70% 或 >150% 原长),视为不可信,
-    保留原 markdown 兜底。
+    判断标准:整行没有 `|`(表格)、至少 3 个 → / -->、行长 ≥ 15 字符。
+    """
+    if not md:
+        return 0
+    n = 0
+    for line in md.splitlines():
+        if "|" in line:  # 表格行不算
+            continue
+        if line.lstrip().startswith("#"):  # 标题不算
+            continue
+        arrows = line.count("→") + line.count("-->")
+        if arrows >= 3 and len(line) >= 15:
+            n += 1
+    return n
+
+
+async def lint_and_fix_ascii_flowcharts(markdown: str, model: str, max_passes: int = 2) -> str:
+    """LLM linter — 扫 markdown,把 ASCII 流程图补救成 mermaid 代码块。
+
+    实测一次 lint 可能漏改"紧跟字段表的关键流程描述",所以加二次扫描:
+    若一遍后还有 ≥ 3 处独立段落级 ASCII 流程,再 lint 一次。
+
+    安全网:LLM 失败 / 返空 / 长度异常(<70% 或 >150% 原长)时保留前一版。
     """
     if not markdown or not markdown.strip():
         return markdown
-    # 先用 regex 快速判断 — 没明显 ASCII 流程特征就跳过(省 token / 时间)
-    has_ascii_arrow = "→" in markdown or "-->" in markdown or "⇒" in markdown
-    if not has_ascii_arrow:
-        return markdown
 
     from services.output_service import _llm_call
-    try:
-        fixed = await _llm_call(
-            f"修复以下 markdown,只补救 ASCII 流程图 → mermaid 转换:\n\n{markdown}",
-            system=LINTER_SYSTEM_PROMPT,
-            model=model,
-            max_tokens=20000,
-            timeout=600.0,
-        )
-    except Exception:
-        # linter 失败不能阻塞主流程
-        return markdown
-    fixed = (fixed or "").strip()
-    if not fixed:
-        return markdown
-    # 安全网:长度大幅缩水/膨胀就放弃 linter 结果(防 LLM 误删内容)
-    ratio = len(fixed) / max(1, len(markdown))
-    if ratio < 0.7 or ratio > 1.5:
-        return markdown
-    return fixed
+
+    cur = markdown
+    for attempt in range(max_passes):
+        # 快速判断 — 没有"独立段落级"ASCII 流程就停
+        remaining = _count_independent_ascii_flows(cur)
+        if remaining == 0:
+            break
+        try:
+            fixed = await _llm_call(
+                f"修复以下 markdown,把所有独立段落级 ASCII 流程图转 mermaid 代码块:\n\n{cur}",
+                system=LINTER_SYSTEM_PROMPT,
+                model=model,
+                max_tokens=20000,
+                timeout=600.0,
+            )
+        except Exception:
+            break  # linter 失败保留当前版本
+        fixed = (fixed or "").strip()
+        if not fixed:
+            break
+        # 长度异常 → 放弃这一轮 lint 结果
+        ratio = len(fixed) / max(1, len(cur))
+        if ratio < 0.7 or ratio > 1.5:
+            break
+        # 收敛检测:本轮 lint 没改善 ASCII 流程数量 → 停(避免死循环)
+        new_remaining = _count_independent_ascii_flows(fixed)
+        if new_remaining >= remaining:
+            cur = fixed  # 改了但没好转,保留至少 lang 提升的部分
+            break
+        cur = fixed
+    return cur
 
 
 def build_blueprint_provenance(
