@@ -517,7 +517,10 @@ def _count_independent_ascii_flows(md: str) -> int:
     return n
 
 
-async def lint_and_fix_ascii_flowcharts(markdown: str, model: str, max_passes: int = 2) -> str:
+async def lint_and_fix_ascii_flowcharts(
+    markdown: str, model: str, max_passes: int = 2,
+    progress_cb=None,  # async (msg: str) -> None,每次 pass 前后调用,用于前端进度显示
+) -> str:
     """LLM linter — 扫 markdown,把 ASCII 流程图补救成 mermaid 代码块。
 
     实测一次 lint 可能漏改"紧跟字段表的关键流程描述",所以加二次扫描:
@@ -535,7 +538,13 @@ async def lint_and_fix_ascii_flowcharts(markdown: str, model: str, max_passes: i
         # 快速判断 — 没有"独立段落级"ASCII 流程就停
         remaining = _count_independent_ascii_flows(cur)
         if remaining == 0:
+            if progress_cb:
+                try: await progress_cb(f"图表审校通过(无 ASCII 流程残留)")
+                except Exception: pass
             break
+        if progress_cb:
+            try: await progress_cb(f"审校图表 · 第 {attempt + 1}/{max_passes} 轮(剩 {remaining} 处 ASCII 流程待转 mermaid)…")
+            except Exception: pass
         try:
             fixed = await _llm_call(
                 f"修复以下 markdown,把所有独立段落级 ASCII 流程图转 mermaid 代码块:\n\n{cur}",
@@ -545,6 +554,9 @@ async def lint_and_fix_ascii_flowcharts(markdown: str, model: str, max_passes: i
                 timeout=600.0,
             )
         except Exception:
+            if progress_cb:
+                try: await progress_cb("图表审校失败,保留原版本")
+                except Exception: pass
             break  # linter 失败保留当前版本
         fixed = (fixed or "").strip()
         if not fixed:

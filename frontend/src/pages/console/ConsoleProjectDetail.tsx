@@ -886,6 +886,27 @@ function BlueprintDesignWorkspace({
   const progressMsg = (activeInflight as any)?.extra?.progress?.message
                     || (activeInflight as any)?.extra?.progress?.stage
                     || '准备中…'
+  const progressStage = (activeInflight as any)?.extra?.progress?.stage as string | undefined
+  // 已耗时(秒) — 基于 bundle.created_at(后端返 ISO + +00:00)
+  const inflightCreatedAt = (activeInflight as any)?.created_at as string | undefined
+  const [, _tick] = useState(0)
+  useEffect(() => {
+    if (!isInflight) return
+    const t = setInterval(() => _tick((n) => n + 1), 5000)  // 5s 重渲一次更新耗时
+    return () => clearInterval(t)
+  }, [isInflight])
+  const elapsedText = (() => {
+    if (!inflightCreatedAt) return ''
+    try {
+      const start = new Date(inflightCreatedAt).getTime()
+      const sec = Math.max(0, Math.floor((Date.now() - start) / 1000))
+      if (sec < 60) return `已耗时 ${sec}s`
+      return `已耗时 ${Math.floor(sec / 60)}m ${sec % 60}s`
+    } catch { return '' }
+  })()
+  // run_history 最近 N 个 phase(给"已完成阶段"列表用)
+  const runHistory = ((activeInflight as any)?.extra?.run_history || []) as Array<{ phase?: string; ts?: string; detail?: any }>
+  const recentPhases = runHistory.filter(h => h.phase).slice(-5)
 
   const provenance = (bundleDetail as any)?.provenance || {}
 
@@ -925,14 +946,63 @@ function BlueprintDesignWorkspace({
 
   // 生成中
   if (isInflight) {
+    const PHASE_LABEL: Record<string, string> = {
+      started: '初始化',
+      evidence_loaded: '素材加载完成',
+      llm_done: '主报告生成完成',
+      linter_done: '图表审校完成',
+      planning: '规划阶段',
+      ctx_loaded: '上下文加载完成',
+      planned: '规划完成',
+      executed: '执行完成',
+      critiqued: '自我评审完成',
+      done: '完成',
+      failed: '失败',
+    }
     return (
       <div className="flex-1 min-h-0 bg-white px-6 pt-10 pb-8 flex justify-center overflow-auto">
-        <div className="max-w-xl w-full bg-white border border-gray-200 rounded-xl shadow-sm px-10 py-8 self-start">
-          <div className="flex items-center gap-3 text-sm font-semibold text-gray-800">
-            <Loader2 size={16} className="animate-spin text-orange-500" /> 正在生成「{displayName}」…
+        <div className="max-w-2xl w-full bg-white border border-gray-200 rounded-xl shadow-sm px-10 py-8 self-start">
+          <div className="flex items-center justify-between gap-3 mb-1">
+            <div className="flex items-center gap-3 text-sm font-semibold text-gray-800">
+              <Loader2 size={16} className="animate-spin text-orange-500" /> 正在生成「{displayName}」
+            </div>
+            {elapsedText && (
+              <span className="text-[11px] text-gray-400 font-mono">{elapsedText}</span>
+            )}
           </div>
-          <p className="text-xs text-gray-500 mt-2">{progressMsg}</p>
-          <p className="text-[11px] text-gray-400 mt-3">典型耗时 2-5 分钟,页面会自动刷新。</p>
+          <p className="text-xs text-gray-600 mt-3 font-medium">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-500 mr-1.5 align-middle animate-pulse" />
+            {progressMsg}
+          </p>
+          {progressStage && (
+            <p className="text-[10px] text-gray-400 mt-1 font-mono">stage = {progressStage}</p>
+          )}
+
+          {recentPhases.length > 0 && (
+            <div className="mt-5 pt-4 border-t border-gray-100">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-2">已完成阶段</p>
+              <ul className="space-y-1.5 text-xs">
+                {recentPhases.map((h, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <CheckCircle2 size={11} className="text-emerald-500 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-gray-700">{PHASE_LABEL[h.phase!] || h.phase}</span>
+                      {h.detail && typeof h.detail === 'object' && (
+                        <span className="text-gray-400 ml-2 text-[10px]">
+                          {Object.entries(h.detail).slice(0, 3).map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v).slice(0, 30) : String(v).slice(0, 30)}`).join(' · ')}
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <p className="text-[11px] text-gray-400 mt-5 leading-relaxed">
+            典型耗时 3-8 分钟。如果 LLM linter 阶段超过 15 分钟,
+            说明 markdown 较长(对象字段表常见)或 LLM 响应慢,可耐心等待或刷新页面查看最新状态。
+          </p>
         </div>
       </div>
     )

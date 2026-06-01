@@ -2698,9 +2698,17 @@ async def _generate_design_artifact(
             raise RuntimeError("LLM 返回为空")
 
         markdown = generator_module.assemble_markdown_from_llm_output(raw)
-        await _update_progress(bundle_id, stage="executing", message="审校图表(LLM linter)…")
-        markdown = await lint_and_fix_ascii_flowcharts(markdown, model=ctx["agent_model"])
+        await _update_progress(bundle_id, stage="executing", message="切章完成 · 准备 LLM linter…")
+
+        # linter 内部多 pass,每个 pass 前调 progress_cb 把进度信息透传给前端
+        async def _linter_progress(msg: str) -> None:
+            await _update_progress(bundle_id, stage="executing", message=msg)
+
+        markdown = await lint_and_fix_ascii_flowcharts(
+            markdown, model=ctx["agent_model"], progress_cb=_linter_progress,
+        )
         run_history.append({"phase": "linter_done", "ts": _ts(), "detail": {"final_chars": len(markdown)}})
+        await _update_progress(bundle_id, stage="executing", message=f"图表审校完成({len(markdown)} 字)· 整理引用 chip…")
 
         # ref 转 link + 构造 provenance(沿用蓝图同款 module_key="blueprint",
         # 这样 [B1] = 蓝图设计、[D?] = 文档 等的 chip 行为完全一致)
