@@ -254,6 +254,26 @@ def format_blueprint_block(blueprint_bundle, max_chars: int = 20000) -> str:
 _SECTION_MARKER_RE = _re.compile(r"^<+\s*SECTION\s*:\s*([A-Za-z_][\w]*)\s*>+$")
 
 
+
+def _strip_leading_h2(body: str) -> str:
+    """LLM 偶尔无视"不要写 H2"指令,在 chunk 内重复写一次 ## 标题。
+    系统又自动注入一次 → 渲染成"1. 流程总览 / 1. 流程总览"重复。
+    这里删除 chunk 前导的 # / ## 标题行(及后续空行)。
+    """
+    if not body:
+        return body
+    lines = body.split("\n")
+    i = 0
+    while i < len(lines) and not lines[i].strip():
+        i += 1
+    if i < len(lines):
+        first = lines[i].lstrip()
+        if first.startswith("## ") or first.startswith("# "):
+            del lines[i]
+            while i < len(lines) and not lines[i].strip():
+                del lines[i]
+    return "\n".join(lines).lstrip("\n")
+
 def assemble_markdown_from_llm_output(llm_raw: str) -> str:
     raw = (llm_raw or "").strip()
     chunks: dict[str, str] = {}
@@ -276,6 +296,7 @@ def assemble_markdown_from_llm_output(llm_raw: str) -> str:
     for sec in OFL_SECTIONS:
         out.append(f"## {sec.title}")
         body = chunks.get(sec.key, "").strip()
+        body = _strip_leading_h2(body)
         if body:
             out.append(body)
         else:

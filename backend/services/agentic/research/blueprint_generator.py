@@ -640,6 +640,26 @@ def build_blueprint_provenance(
     return {PROVENANCE_MODULE_KEY: refs}
 
 
+
+def _strip_leading_h2(body: str) -> str:
+    """LLM 偶尔无视"不要写 H2"指令,在 chunk 内重复写一次 ## 标题。
+    系统又自动注入一次 → 渲染成"1. 流程总览 / 1. 流程总览"重复。
+    这里删除 chunk 前导的 # / ## 标题行(及后续空行)。
+    """
+    if not body:
+        return body
+    lines = body.split("\n")
+    i = 0
+    while i < len(lines) and not lines[i].strip():
+        i += 1
+    if i < len(lines):
+        first = lines[i].lstrip()
+        if first.startswith("## ") or first.startswith("# "):
+            del lines[i]
+            while i < len(lines) and not lines[i].strip():
+                del lines[i]
+    return "\n".join(lines).lstrip("\n")
+
 def assemble_markdown_from_llm_output(llm_raw: str) -> str:
     """LLM 按 <<<SECTION:key>>> 分隔输出,按规范的 H2 标题重新拼成完整 markdown。
 
@@ -666,6 +686,7 @@ def assemble_markdown_from_llm_output(llm_raw: str) -> str:
     for sec in BLUEPRINT_SECTIONS:
         out.append(f"## {sec.title}")
         body = chunks.get(sec.key, "").strip()
+        body = _strip_leading_h2(body)
         if body:
             out.append(body)
         else:
