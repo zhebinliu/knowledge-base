@@ -258,7 +258,8 @@ export default function ConsoleProjectDetail() {
 
   // v3:文档驱动的 kind — 不弹 brief,直接调 generateOutput 触发 v3 流程
   // (runner 会自动 auto_extract + planner 从 docs 兜底)
-  const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'implementation_plan', 'test_plan', 'acceptance_report']
+  // kickoff_pptx / kickoff_html 也走一键生成(直接基于项目洞察,不用 brief drawer)
+  const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'implementation_plan', 'test_plan', 'acceptance_report', 'kickoff_pptx', 'kickoff_html']
 
   const startGeneration = async () => {
     if (!activeStage.active || !activeKind) return
@@ -581,6 +582,28 @@ export default function ConsoleProjectDetail() {
           activeInflight={activeInflight}
           onRefetch={refetchOutputs}
         />
+      ) : activeKind === 'kickoff_pptx' ? (
+        <BlueprintDesignWorkspace
+          projectId={id}
+          activeBundle={activeBundle}
+          activeInflight={activeInflight}
+          onRefetch={refetchOutputs}
+          kind="kickoff_pptx"
+          displayName="启动会 · PPT"
+          tagline="基于项目洞察 + 调研报告,自动生成启动会 PPT 大纲 + 内容要点,导出为 .pptx 文件。"
+          ctaLabel="开始生成启动会 PPT"
+        />
+      ) : activeKind === 'kickoff_html' ? (
+        <BlueprintDesignWorkspace
+          projectId={id}
+          activeBundle={activeBundle}
+          activeInflight={activeInflight}
+          onRefetch={refetchOutputs}
+          kind="kickoff_html"
+          displayName="启动会 · HTML 幻灯片"
+          tagline="基于项目洞察 + 调研报告,生成 11 页 16:9 的 HTML 幻灯片,可在浏览器直接放映或导出。"
+          ctaLabel="开始生成启动会 HTML"
+        />
       ) : activeStageKey === 'survey' ? (
         /* survey stage 用 research v1 三栏 — 同一个工作区里同时承载 outline + survey 两个 sub-kind */
         <ResearchWorkspace
@@ -804,15 +827,23 @@ function InsightWorkspace({
 // ──────────────────────────────────────────────────────────────────────────
 function BlueprintDesignWorkspace({
   projectId, activeBundle, activeInflight, onRefetch,
+  kind = 'blueprint_design',
+  displayName = '方案设计 · 蓝图',
+  tagline = '基于项目洞察 + 调研报告 + 行业最佳实践,输出客户级 LTC 蓝图设计文档(业务对象 / 流程 / 角色 / 集成等)。',
+  ctaLabel = '开始生成方案设计',
 }: {
   projectId: string
   activeBundle: CuratedBundle | undefined
   activeInflight: CuratedBundle | undefined
   onRefetch: () => void
+  kind?: OutputKind
+  displayName?: string
+  tagline?: string
+  ctaLabel?: string
 }) {
   const [error, setError] = useState<string | null>(null)
   const genMut = useMutation({
-    mutationFn: () => generateOutput({ kind: 'blueprint_design', project_id: projectId }),
+    mutationFn: () => generateOutput({ kind, project_id: projectId }),
     onSuccess: () => { onRefetch(); setError(null) },
     onError: (e: any) => setError(e?.response?.data?.detail || e?.message || '触发失败'),
   })
@@ -842,12 +873,9 @@ function BlueprintDesignWorkspace({
       <div className="flex-1 min-h-0 bg-white px-6 pt-10 pb-8 flex justify-center overflow-auto">
         <div className="max-w-xl w-full text-center bg-white border border-gray-200 rounded-xl shadow-sm px-12 py-10 self-start">
           <div className="inline-flex items-center gap-2 text-2xl font-bold text-gray-800 mb-3">
-            <Lightbulb className="text-orange-500" size={22} /> 方案设计 · 蓝图
+            <Lightbulb className="text-orange-500" size={22} /> {displayName}
           </div>
-          <p className="text-sm text-gray-500 mb-7 leading-relaxed">
-            基于项目洞察 + 调研报告 + 行业最佳实践,输出客户级 LTC 蓝图设计文档
-            (业务对象 / 流程 / 角色 / 集成等)。
-          </p>
+          <p className="text-sm text-gray-500 mb-7 leading-relaxed">{tagline}</p>
           <button
             onClick={() => genMut.mutate()}
             disabled={genMut.isPending}
@@ -855,7 +883,7 @@ function BlueprintDesignWorkspace({
           >
             {genMut.isPending
               ? <><Loader2 size={14} className="animate-spin" /> 触发中…</>
-              : <><Sparkles size={14} /> 开始生成方案设计</>}
+              : <><Sparkles size={14} /> {ctaLabel}</>}
           </button>
           {error && <p className="text-xs text-red-600 mt-3">{error}</p>}
         </div>
@@ -869,7 +897,7 @@ function BlueprintDesignWorkspace({
       <div className="flex-1 min-h-0 bg-white px-6 pt-10 pb-8 flex justify-center overflow-auto">
         <div className="max-w-xl w-full bg-white border border-gray-200 rounded-xl shadow-sm px-10 py-8 self-start">
           <div className="flex items-center gap-3 text-sm font-semibold text-gray-800">
-            <Loader2 size={16} className="animate-spin text-orange-500" /> 正在生成方案设计…
+            <Loader2 size={16} className="animate-spin text-orange-500" /> 正在生成「{displayName}」…
           </div>
           <p className="text-xs text-gray-500 mt-2">{progressMsg}</p>
           <p className="text-[11px] text-gray-400 mt-3">典型耗时 2-5 分钟,页面会自动刷新。</p>
@@ -883,7 +911,7 @@ function BlueprintDesignWorkspace({
     <div className="flex-1 min-h-0 flex flex-col bg-white px-8 pt-5 pb-8 overflow-hidden">
       <div className="flex items-center gap-3 mb-4 flex-shrink-0">
         <span className="text-sm font-semibold text-gray-800 inline-flex items-center gap-1.5">
-          <Lightbulb size={14} className="text-orange-500" /> 方案设计 · 蓝图
+          <Lightbulb size={14} className="text-orange-500" /> {displayName}
         </span>
         {isDone && (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
