@@ -154,9 +154,12 @@ async def generate_output(
     await session.refresh(bundle)
 
     # Fire Celery task
+    # 注意:这个字典必须覆盖 KIND_TO_TASK 的全部 key,缺一个就 KeyError 500
     from tasks.output_tasks import (
         generate_kickoff_pptx, generate_kickoff_html,
         generate_insight, generate_survey, generate_survey_outline,
+        generate_research_report, generate_blueprint_design,
+        generate_implementation_plan, generate_test_plan, generate_acceptance_report,
     )
     task_fn = {
         "kickoff_pptx": generate_kickoff_pptx,
@@ -164,6 +167,11 @@ async def generate_output(
         "insight": generate_insight,
         "survey": generate_survey,
         "survey_outline": generate_survey_outline,
+        "research_report": generate_research_report,
+        "blueprint_design": generate_blueprint_design,
+        "implementation_plan": generate_implementation_plan,
+        "test_plan": generate_test_plan,
+        "acceptance_report": generate_acceptance_report,
     }[body.kind]
     task_fn.delay(bundle.id, body.project_id)
 
