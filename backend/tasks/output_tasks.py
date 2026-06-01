@@ -78,3 +78,15 @@ def generate_test_plan(self, bundle_id: str, project_id: str):
 def generate_acceptance_report(self, bundle_id: str, project_id: str):
     from services.agentic.runner import generate_acceptance_report as _gen
     _run(_gen(bundle_id, project_id))
+
+
+@celery_app.task(name="generate_object_field_layout", bind=True, max_retries=2, soft_time_limit=900, time_limit=1200)
+def generate_object_field_layout(self, bundle_id: str, project_id: str):
+    from services.agentic.runner import generate_object_field_layout as _gen
+    _run(_gen(bundle_id, project_id))
+
+
+@celery_app.task(name="generate_process_setup", bind=True, max_retries=2, soft_time_limit=900, time_limit=1200)
+def generate_process_setup(self, bundle_id: str, project_id: str):
+    from services.agentic.runner import generate_process_setup as _gen
+    _run(_gen(bundle_id, project_id))

@@ -37,7 +37,12 @@ DEFAULT_STAGES: list[dict] = [
          {"kind": "survey",         "label": "调研问卷"},
          {"kind": "research_report","label": "调研报告"},
      ]},
-    {"key": "design",        "label": "方案设计",          "kind": "blueprint_design", "icon": "FileText", "active": True,  "beta": False, "sub_kinds": []},
+    {"key": "design",        "label": "方案设计",          "kind": None,           "icon": "FileText", "active": True,  "beta": False,
+     "sub_kinds": [
+         {"kind": "blueprint_design",   "label": "蓝图设计"},
+         {"kind": "object_field_layout","label": "对象字段表"},
+         {"kind": "process_setup",      "label": "流程建设表"},
+     ]},
     {"key": "implement",     "label": "项目实施",          "kind": "implementation_plan", "icon": "Package", "active": True,  "beta": True,  "sub_kinds": []},
     {"key": "test",          "label": "上线测试",          "kind": "test_plan",        "icon": "Package",      "active": True,  "beta": True,  "sub_kinds": []},
     {"key": "acceptance",    "label": "项目验收",          "kind": "acceptance_report","icon": "CheckCircle2", "active": True,  "beta": True,  "sub_kinds": []},

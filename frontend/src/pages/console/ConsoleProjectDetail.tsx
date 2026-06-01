@@ -35,7 +35,7 @@ import ImplementationWorkspace from '../../components/console/implementation/Imp
 import QA from '../QA'
 import { useEffect } from 'react'
 
-const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'implementation_plan', 'test_plan', 'acceptance_report']
+const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'object_field_layout', 'process_setup', 'implementation_plan', 'test_plan', 'acceptance_report']
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -259,7 +259,7 @@ export default function ConsoleProjectDetail() {
   // v3:文档驱动的 kind — 不弹 brief,直接调 generateOutput 触发 v3 流程
   // (runner 会自动 auto_extract + planner 从 docs 兜底)
   // kickoff_pptx / kickoff_html 也走一键生成(直接基于项目洞察,不用 brief drawer)
-  const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'implementation_plan', 'test_plan', 'acceptance_report', 'kickoff_pptx', 'kickoff_html']
+  const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'object_field_layout', 'process_setup', 'implementation_plan', 'test_plan', 'acceptance_report', 'kickoff_pptx', 'kickoff_html']
 
   const startGeneration = async () => {
     if (!activeStage.active || !activeKind) return
@@ -581,6 +581,28 @@ export default function ConsoleProjectDetail() {
           activeBundle={activeBundle}
           activeInflight={activeInflight}
           onRefetch={refetchOutputs}
+        />
+      ) : activeKind === 'object_field_layout' ? (
+        <BlueprintDesignWorkspace
+          projectId={id}
+          activeBundle={activeBundle}
+          activeInflight={activeInflight}
+          onRefetch={refetchOutputs}
+          kind="object_field_layout"
+          displayName="对象字段表(含布局)"
+          tagline="基于蓝图设计 + 调研报告,逐对象输出「对象元信息 + 字段表 + detail/list/edit 布局 + UI 事件 + record_type 变体」整合表,直接给字段配置 / 布局配置工程师当 sharedev 执行底稿。"
+          ctaLabel="开始生成对象字段表"
+        />
+      ) : activeKind === 'process_setup' ? (
+        <BlueprintDesignWorkspace
+          projectId={id}
+          activeBundle={activeBundle}
+          activeInflight={activeInflight}
+          onRefetch={refetchOutputs}
+          kind="process_setup"
+          displayName="流程建设表"
+          tagline="基于蓝图设计 + 调研报告,逐流程输出「承载对象 + 状态机 + 触发 + 审批 + UI 事件 + 跨对象联动 + 派生数据」整合表,直接给 BPM / approval / APL 工程师当执行底稿。"
+          ctaLabel="开始生成流程建设表"
         />
       ) : activeKind === 'kickoff_pptx' ? (
         <BlueprintDesignWorkspace

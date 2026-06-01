@@ -1041,6 +1041,8 @@ export type OutputKind =
   | 'insight' | 'survey' | 'survey_outline'
   | 'research_report'
   | 'blueprint_design'
+  | 'object_field_layout'
+  | 'process_setup'
   | 'implementation_plan'
   | 'test_plan' | 'acceptance_report'
 

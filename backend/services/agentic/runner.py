@@ -2609,3 +2609,188 @@ def _stringify_answer_for_report(value, item: dict) -> str:
         unit = item.get("number_unit") or ""
         return f"{value}{unit}"
     return str(value)
+
+
+# ── 对象字段表(含布局)+ 流程建设表(2026-06-01,方案设计阶段两个独立交付物) ──
+
+async def _generate_design_artifact(
+    bundle_id: str,
+    project_id: str,
+    kind: str,
+    generator_module,
+    artifact_label: str,
+) -> None:
+    """通用 generator — 给 object_field_layout / process_setup 两个新交付物共享流水线。
+
+    主输入是已生成的 blueprint_design + research_report。素材结构跟 generate_blueprint_design
+    一致(项目元信息 + 蓝图 + 调研报告 + 文档 + 会议 + 行业 pack)。
+    """
+    from .research.report_generator import (
+        format_project_meta, format_docs_for_report, format_prior_bundles,
+        format_meeting_evidence, format_industry_pack,
+        format_research_report_block,
+    )
+    from .research.blueprint_generator import (
+        transform_refs_to_links, build_blueprint_provenance, lint_and_fix_ascii_flowcharts,
+    )
+    from .industry_packs import get_pack
+    from services.output_service import _llm_call
+
+    run_history: list[dict] = []
+    try:
+        await _mark(bundle_id, "generating")
+        run_history.append({"phase": "started", "ts": _ts()})
+        await _update_progress(bundle_id, stage="planning", message=f"加载素材(含蓝图设计)…")
+
+        ctx = await _load_ctx(bundle_id, project_id, kind)
+
+        # 找蓝图 + 调研报告
+        async with async_session_maker() as s:
+            bp_bundle = (await s.execute(
+                select(CuratedBundle)
+                .where(CuratedBundle.project_id == project_id)
+                .where(CuratedBundle.kind == "blueprint_design")
+                .where(CuratedBundle.status == "done")
+                .order_by(CuratedBundle.updated_at.desc())
+            )).scalars().first()
+            rr_bundle = (await s.execute(
+                select(CuratedBundle)
+                .where(CuratedBundle.project_id == project_id)
+                .where(CuratedBundle.kind == "research_report")
+                .where(CuratedBundle.status == "done")
+                .order_by(CuratedBundle.updated_at.desc())
+            )).scalars().first()
+        has_bp = bool(bp_bundle and (bp_bundle.content_md or "").strip())
+        has_rr = bool(rr_bundle and (rr_bundle.content_md or "").strip())
+
+        meeting_blob = await _load_meeting_evidence_for_report(project_id)
+        run_history.append({
+            "phase": "evidence_loaded", "ts": _ts(),
+            "detail": {
+                "has_blueprint": has_bp, "has_research_report": has_rr,
+                "docs_n": sum(len(v) for v in (ctx.get("docs_by_type") or {}).values()),
+                "prior_n": len(ctx.get("prior_bundles") or []),
+                "meetings_n": len(meeting_blob),
+                "industry": ctx["industry"],
+            },
+        })
+
+        await _update_progress(bundle_id, stage="executing", message=f"撰写{artifact_label}(约 3-5 分钟)…")
+        pack = get_pack(ctx["industry"])
+        user_prompt = generator_module.build_user_prompt(
+            project_meta=format_project_meta(ctx["project"]),
+            industry=ctx["industry"],
+            blueprint_block=generator_module.format_blueprint_block(bp_bundle) if hasattr(generator_module, 'format_blueprint_block') else _format_blueprint_block_fallback(bp_bundle),
+            research_report_block=format_research_report_block(rr_bundle),
+            sources_block=format_docs_for_report(ctx.get("docs_by_type") or {}),
+            prior_bundles_block=format_prior_bundles(ctx.get("prior_bundles") or []),
+            meeting_block=format_meeting_evidence(meeting_blob),
+            industry_pack_block=format_industry_pack(pack),
+        )
+
+        raw = await _llm_call(
+            user_prompt, system=generator_module.SYSTEM_PROMPT,
+            model=ctx["agent_model"],
+            max_tokens=18000, timeout=720.0,
+        )
+        run_history.append({"phase": "llm_done", "ts": _ts(), "detail": {"raw_chars": len(raw or "")}})
+        if not raw or not raw.strip():
+            raise RuntimeError("LLM 返回为空")
+
+        markdown = generator_module.assemble_markdown_from_llm_output(raw)
+        await _update_progress(bundle_id, stage="executing", message="审校图表(LLM linter)…")
+        markdown = await lint_and_fix_ascii_flowcharts(markdown, model=ctx["agent_model"])
+        run_history.append({"phase": "linter_done", "ts": _ts(), "detail": {"final_chars": len(markdown)}})
+
+        # ref 转 link + 构造 provenance(沿用蓝图同款 module_key="blueprint",
+        # 这样 [B1] = 蓝图设计、[D?] = 文档 等的 chip 行为完全一致)
+        markdown = transform_refs_to_links(markdown)
+        provenance = build_blueprint_provenance(
+            research_report_bundle=rr_bundle,
+            docs_by_type=ctx.get("docs_by_type") or {},
+            prior_bundles=ctx.get("prior_bundles") or [],
+            meetings=meeting_blob,
+            industry_pack=pack,
+        )
+        # B1 在这俩交付物里实际指蓝图(不是调研报告),覆盖 entry
+        if has_bp:
+            if "blueprint" in provenance:
+                provenance["blueprint"]["B1"] = {
+                    "type": "prior",
+                    "label": getattr(bp_bundle, "title", None) or "蓝图设计",
+                    "snippet": (getattr(bp_bundle, "content_md", None) or "")[:240],
+                    "prior_kind": "blueprint_design",
+                }
+        async with async_session_maker() as s:
+            b = await s.get(CuratedBundle, bundle_id)
+            new_extra = dict(b.extra or {})
+            new_extra["run_history"] = run_history
+            new_extra["agentic_version"] = "v2"
+            new_extra["validity_status"] = "valid"
+            new_extra["progress"] = {"stage": "done", "message": "完成"}
+            new_extra["provenance"] = provenance
+            new_extra["sources_summary"] = {
+                "has_blueprint": has_bp,
+                "blueprint_id": bp_bundle.id if bp_bundle else None,
+                "has_research_report": has_rr,
+                "research_report_id": rr_bundle.id if rr_bundle else None,
+                "docs_n": sum(len(v) for v in (ctx.get("docs_by_type") or {}).values()),
+                "meetings_n": len(meeting_blob),
+                "industry_pack": pack.display_name if pack else None,
+            }
+            from sqlalchemy.orm.attributes import flag_modified
+            b.extra = new_extra
+            flag_modified(b, "extra")
+            b.content_md = markdown
+            b.status = "done"
+            await s.commit()
+        logger.info(f"{kind}_generated", bundle_id=bundle_id, chars=len(markdown), has_blueprint=has_bp)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(f"{kind}_failed", bundle_id=bundle_id, error=str(e)[:300], traceback=tb[:2000])
+        run_history.append({"phase": "failed", "ts": _ts(),
+                            "detail": str(e)[:300], "traceback": tb[:2000]})
+        try:
+            async with async_session_maker() as s:
+                b = await s.get(CuratedBundle, bundle_id)
+                if b:
+                    new_extra = dict(b.extra or {})
+                    new_extra["run_history"] = run_history
+                    new_extra["agentic_version"] = "v2"
+                    b.extra = new_extra
+                    b.status = "failed"
+                    b.error = str(e)[:300]
+                    await s.commit()
+        except Exception as e2:
+            logger.error(f"{kind}_failed_writeback_failed", error=str(e2)[:200])
+
+
+def _format_blueprint_block_fallback(bp_bundle, max_chars: int = 20000) -> str:
+    """generator 没自带 format_blueprint_block 时的兜底。"""
+    if not bp_bundle:
+        return ""
+    md = (getattr(bp_bundle, "content_md", None) or "").strip()
+    if not md:
+        return ""
+    title = getattr(bp_bundle, "title", None) or "蓝图设计"
+    excerpt = md[:max_chars]
+    if len(md) > max_chars:
+        excerpt += f"\n…(余下 {len(md) - max_chars} 字省略)"
+    return f"**[B1] {title}**\n{excerpt}"
+
+
+async def generate_object_field_layout(bundle_id: str, project_id: str):
+    """生成「对象字段表(含布局)」— 蓝图设计的下游执行底稿。"""
+    from .research import object_field_layout_generator as gen
+    await _generate_design_artifact(
+        bundle_id, project_id, "object_field_layout", gen, "对象字段表"
+    )
+
+
+async def generate_process_setup(bundle_id: str, project_id: str):
+    """生成「流程建设表」— 蓝图设计的下游执行底稿(BPM / approval / UI 事件 / APL)。"""
+    from .research import process_setup_generator as gen
+    await _generate_design_artifact(
+        bundle_id, project_id, "process_setup", gen, "流程建设表"
+    )
