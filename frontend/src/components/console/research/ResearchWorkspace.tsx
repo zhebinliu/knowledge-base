@@ -765,7 +765,9 @@ function ReportMarkdownView({ bundle }: { bundle: CuratedBundle }) {
   if (!md) {
     return <div className="text-sm text-ink-muted italic py-8 text-center">报告无 markdown 内容</div>
   }
-  return <MarkdownView content={md} />
+  // 跟项目洞察一致用 CitedReportView(支持引用 chips)
+  const provenance = (data as any)?.provenance || {}
+  return <CitedReportView content={md} provenance={provenance} onCitationClick={() => {}} />
 }
 
 function ProductCard({

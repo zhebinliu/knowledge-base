@@ -22,6 +22,7 @@ import {
 import OutputChatPanel from '../../components/OutputChatPanel'
 import BriefDrawer from '../../components/BriefDrawer'
 import MarkdownView from '../../components/MarkdownView'
+import CitedReportView from '../../components/console/CitedReportView'
 import IndustryCascadePicker from '../../components/IndustryCascadePicker'
 import AgenticGapFiller from '../../components/AgenticGapFiller'
 import DocChecklist from '../../components/console/DocChecklist'
@@ -833,11 +834,13 @@ function BlueprintDesignWorkspace({
                     || (activeInflight as any)?.extra?.progress?.stage
                     || '准备中…'
 
-  // 空态
+  const provenance = (bundleDetail as any)?.provenance || {}
+
+  // 空态(贴顶,跟其他阶段一致;不撑满高度居中)
   if (!activeBundle && !isInflight) {
     return (
-      <div className="flex-shrink-0 h-[calc(100vh-56px)] flex items-center justify-center bg-white px-6">
-        <div className="max-w-xl text-center bg-white border border-gray-200 rounded-xl shadow-sm px-12 py-10">
+      <div className="flex-1 min-h-0 bg-white px-6 pt-10 pb-8 flex justify-center overflow-auto">
+        <div className="max-w-xl w-full text-center bg-white border border-gray-200 rounded-xl shadow-sm px-12 py-10 self-start">
           <div className="inline-flex items-center gap-2 text-2xl font-bold text-gray-800 mb-3">
             <Lightbulb className="text-orange-500" size={22} /> 方案设计 · 蓝图
           </div>
@@ -863,8 +866,8 @@ function BlueprintDesignWorkspace({
   // 生成中
   if (isInflight) {
     return (
-      <div className="flex-shrink-0 h-[calc(100vh-56px)] flex items-center justify-center bg-white px-6">
-        <div className="max-w-xl w-full bg-white border border-gray-200 rounded-xl shadow-sm px-10 py-8">
+      <div className="flex-1 min-h-0 bg-white px-6 pt-10 pb-8 flex justify-center overflow-auto">
+        <div className="max-w-xl w-full bg-white border border-gray-200 rounded-xl shadow-sm px-10 py-8 self-start">
           <div className="flex items-center gap-3 text-sm font-semibold text-gray-800">
             <Loader2 size={16} className="animate-spin text-orange-500" /> 正在生成方案设计…
           </div>
@@ -875,9 +878,9 @@ function BlueprintDesignWorkspace({
     )
   }
 
-  // 完成
+  // 完成 — 跟项目洞察一致用 CitedReportView 渲染(带引用 chips)
   return (
-    <div className="flex-shrink-0 h-[calc(100vh-56px)] flex flex-col bg-white px-8 pt-5 pb-8 overflow-hidden">
+    <div className="flex-1 min-h-0 flex flex-col bg-white px-8 pt-5 pb-8 overflow-hidden">
       <div className="flex items-center gap-3 mb-4 flex-shrink-0">
         <span className="text-sm font-semibold text-gray-800 inline-flex items-center gap-1.5">
           <Lightbulb size={14} className="text-orange-500" /> 方案设计 · 蓝图
@@ -900,7 +903,7 @@ function BlueprintDesignWorkspace({
       {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
       <div className="flex-1 min-h-0 overflow-auto">
         {md
-          ? <MarkdownView content={md} size="base" toolbar={false} />
+          ? <CitedReportView content={md} provenance={provenance} onCitationClick={() => {}} />
           : <p className="text-xs text-gray-400">报告内容为空 — 试一下「重新生成」?</p>}
       </div>
     </div>

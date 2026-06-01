@@ -908,8 +908,9 @@ function ReportMarkdownView({ bundle }: { bundle: CuratedBundle }) {
   if (!md) {
     return <div className="text-sm italic py-8 text-center" style={{ color: 'var(--rd-text-3)' }}>报告无 markdown 内容</div>
   }
-  // 复用 outline 同款深色 markdown 渲染(无 provenance → 无角标)
-  return <InsightReportDark content={md} provenance={{}} onCitationClick={() => {}} />
+  // 用 detail 里返回的 provenance,显示引用 chips(跟项目洞察一致)
+  const provenance = (data as any)?.provenance || {}
+  return <InsightReportDark content={md} provenance={provenance} onCitationClick={() => {}} />
 }
 
 
