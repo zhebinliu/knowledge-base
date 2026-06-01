@@ -23,7 +23,7 @@ import {
   ArrowLeft, FileText, ClipboardList, Lightbulb, MessageSquare, Sparkles,
   CheckCircle2, Loader2, Lock, Download, ExternalLink,
   Save, X, Wand2, AlertCircle, Pencil, Home, Files, Search,
-  Bot, ShieldAlert, ChevronDown, ChevronRight, ChevronLeft, Users, Eye,
+  Bot, ShieldAlert, ChevronDown, ChevronRight, ChevronLeft, Users, Eye, RotateCw,
 } from 'lucide-react'
 
 // 11 个子组件全部走 Liquid Glass 新版(redesign 目录下)
@@ -572,20 +572,11 @@ export default function NewConsoleProjectDetail() {
           onRefetch={refetchOutputs}
         />
       ) : activeStageKey === 'design' && activeKind === 'blueprint_design' ? (
-        /* 方案设计:复用 InsightWorkspace 布局,只换 stage(影响左侧资料清单)。
-           bundle.kind=blueprint_design 已被 CenterWorkspace 自适配,无需其他改动。 */
-        <InsightWorkspace
+        <BlueprintDesignWorkspace
           projectId={id}
           activeBundle={activeBundle}
           activeInflight={activeInflight}
-          centerView={centerView}
-          setCenterView={setCenterView}
-          rightOpen={rightOpen}
-          setRightOpen={setRightOpen}
-          highlightedRef={highlightedRef}
-          setHighlightedRef={setHighlightedRef}
           onRefetch={refetchOutputs}
-          stage="design"
         />
       ) : activeStageKey === 'survey' ? (
         <div style={{ flex: 1, minHeight: 0 }}>
@@ -882,6 +873,126 @@ function InsightWorkspace({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// BlueprintDesignWorkspace — 方案设计 / 蓝图设计 专属工作区(2026-06-01)
+//
+// 极简版,只做核心闭环:
+//   空态  → 一张大卡 + "开始生成方案设计" CTA
+//   生成中 → 显示当前阶段 / 进度信息
+//   完成  → 顶部"重新生成"按钮 + 主区 markdown 报告
+//
+// 不复用 InsightWorkspace(后者内部 PreparationView hardcode 了 insight
+// kind / 资料清单 / 体检报告,对 design 来说全是噪音 — design 阶段没配
+// STAGE_DOC_REQUIREMENTS,资料清单是空的)。
+// ──────────────────────────────────────────────────────────────────────────
+function BlueprintDesignWorkspace({
+  projectId, activeBundle, activeInflight, onRefetch,
+}: {
+  projectId: string
+  activeBundle: CuratedBundle | undefined
+  activeInflight: CuratedBundle | undefined
+  onRefetch: () => void
+}) {
+  const [error, setError] = useState<string | null>(null)
+  const genMut = useMutation({
+    mutationFn: () => generateOutput({ kind: 'blueprint_design', project_id: projectId }),
+    onSuccess: () => { onRefetch(); setError(null) },
+    onError: (e: any) => setError(e?.response?.data?.detail || e?.message || '触发失败'),
+  })
+
+  const isInflight = !!activeInflight
+  const isDone = activeBundle?.status === 'done'
+  const md = (activeBundle as any)?.markdown_content || ''
+  const progressMsg = (activeInflight as any)?.extra?.progress?.message
+                    || (activeInflight as any)?.extra?.progress?.stage
+                    || '准备中…'
+
+  // 空态(从未生成 + 当前没在跑)
+  if (!activeBundle && !isInflight) {
+    return (
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div className="rd-card" style={{ padding: '40px 48px', maxWidth: 560, textAlign: 'center' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 22, fontWeight: 700, marginBottom: 12, color: 'var(--rd-text)' }}>
+            <Lightbulb size={20} color="var(--rd-accent)" /> 方案设计 · 蓝图
+          </div>
+          <p style={{ fontSize: 13, color: 'var(--rd-text-2)', marginBottom: 24, lineHeight: 1.6 }}>
+            基于项目洞察 + 调研报告 + 行业最佳实践,输出客户级 LTC 蓝图设计文档
+            (业务对象 / 流程 / 角色 / 集成等)。
+          </p>
+          <button
+            onClick={() => genMut.mutate()}
+            disabled={genMut.isPending}
+            className="rd-btn-primary"
+            style={{ padding: '10px 24px', fontSize: 14, display: 'inline-flex', alignItems: 'center', gap: 8 }}
+          >
+            {genMut.isPending
+              ? <><Loader2 size={14} className="animate-spin" /> 触发中…</>
+              : <><Sparkles size={14} /> 开始生成方案设计</>}
+          </button>
+          {error && <p style={{ fontSize: 12, color: '#F87171', marginTop: 12 }}>{error}</p>}
+        </div>
+      </div>
+    )
+  }
+
+  // 生成中
+  if (isInflight) {
+    return (
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div className="rd-card" style={{ padding: '32px 40px', maxWidth: 560, width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 14, fontWeight: 600, color: 'var(--rd-text)' }}>
+            <Loader2 size={16} className="animate-spin" color="var(--rd-accent)" />
+            正在生成方案设计…
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--rd-text-3)', marginTop: 8 }}>{progressMsg}</p>
+          <p style={{ fontSize: 11, color: 'var(--rd-text-3)', marginTop: 12 }}>
+            典型耗时 2-5 分钟,稍候页面会自动刷新。
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // 完成(有 bundle 且没在跑)
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '20px 32px 32px', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexShrink: 0 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--rd-text)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Lightbulb size={14} color="var(--rd-accent)" /> 方案设计 · 蓝图
+        </span>
+        {isDone && (
+          <span
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '2px 8px', fontSize: 11, fontWeight: 500,
+              background: 'rgba(16,185,129,0.10)', color: '#34D399',
+              border: '1px solid rgba(16,185,129,0.25)', borderRadius: 999,
+            }}
+          >
+            <CheckCircle2 size={10} /> 已生成
+          </span>
+        )}
+        <button
+          onClick={() => genMut.mutate()}
+          disabled={genMut.isPending}
+          className="rd-btn"
+          style={{ padding: '4px 10px', fontSize: 12, marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          title="基于最新资料重新生成"
+        >
+          {genMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <RotateCw size={12} />}
+          重新生成
+        </button>
+      </div>
+      {error && <p style={{ fontSize: 12, color: '#F87171', marginBottom: 12 }}>{error}</p>}
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+        {md
+          ? <MarkdownView content={md} size="base" toolbar={false} />
+          : <p style={{ fontSize: 12, color: 'var(--rd-text-3)' }}>报告内容为空 — 试一下「重新生成」?</p>}
+      </div>
     </div>
   )
 }
