@@ -817,7 +817,17 @@ function BlueprintDesignWorkspace({
 
   const isInflight = !!activeInflight
   const isDone = activeBundle?.status === 'done'
-  const md = (activeBundle as any)?.markdown_content || ''
+
+  // 注意:list API(/api/outputs)为节省 payload 不返回 content_md,要单独拉
+  // detail(/api/outputs/{id})。CenterWorkspace.tsx 也是同样套路。
+  const { data: bundleDetail } = useQuery({
+    queryKey: ['output-detail', activeBundle?.id],
+    queryFn: () => getOutput(activeBundle!.id),
+    enabled: !!activeBundle?.id && isDone,
+    staleTime: 60_000,
+  })
+  const md = bundleDetail?.content_md || ''
+
   const progressMsg = (activeInflight as any)?.extra?.progress?.message
                     || (activeInflight as any)?.extra?.progress?.stage
                     || '准备中…'
