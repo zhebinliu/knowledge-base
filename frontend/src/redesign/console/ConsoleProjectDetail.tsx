@@ -262,8 +262,8 @@ export default function NewConsoleProjectDetail() {
     catch (e: any) { alert(e?.response?.data?.detail || '触发生成失败') }
   }
 
-  // insight 和 survey 阶段下,用精简版 header(单行 + 阶段 popover);其他阶段保留厚 header stack
-  const useCompactHeader = activeKind === 'insight' || activeStageKey === 'survey'
+  // insight / survey / design 阶段下,用精简版 header(单行 + 阶段 popover);其他阶段保留厚 header stack
+  const useCompactHeader = activeKind === 'insight' || activeStageKey === 'survey' || activeStageKey === 'design'
 
   return (
     <div style={{
@@ -571,6 +571,22 @@ export default function NewConsoleProjectDetail() {
           setHighlightedRef={setHighlightedRef}
           onRefetch={refetchOutputs}
         />
+      ) : activeStageKey === 'design' && activeKind === 'blueprint_design' ? (
+        /* 方案设计:复用 InsightWorkspace 布局,只换 stage(影响左侧资料清单)。
+           bundle.kind=blueprint_design 已被 CenterWorkspace 自适配,无需其他改动。 */
+        <InsightWorkspace
+          projectId={id}
+          activeBundle={activeBundle}
+          activeInflight={activeInflight}
+          centerView={centerView}
+          setCenterView={setCenterView}
+          rightOpen={rightOpen}
+          setRightOpen={setRightOpen}
+          highlightedRef={highlightedRef}
+          setHighlightedRef={setHighlightedRef}
+          onRefetch={refetchOutputs}
+          stage="design"
+        />
       ) : activeStageKey === 'survey' ? (
         <div style={{ flex: 1, minHeight: 0 }}>
           <ResearchWorkspace
@@ -693,6 +709,7 @@ export default function NewConsoleProjectDetail() {
 function InsightWorkspace({
   projectId, activeBundle, activeInflight, centerView, setCenterView,
   rightOpen, setRightOpen, highlightedRef, setHighlightedRef, onRefetch,
+  stage = 'insight',
 }: {
   projectId: string
   activeBundle: CuratedBundle | undefined
@@ -704,6 +721,10 @@ function InsightWorkspace({
   highlightedRef: string | null
   setHighlightedRef: (s: string | null) => void
   onRefetch: () => void
+  /** 阶段 key — DocChecklist 按这个查需要哪些文档。默认 'insight';
+   *  其他 stage(如 'design')复用本组件时传过来即可。后端 STAGE_DOC_REQUIREMENTS
+   *  没配会返空清单,UI 显示"该阶段无文档清单",不影响一键生成。 */
+  stage?: string
 }) {
   useEffect(() => {
     if (activeInflight && centerView.type !== 'preparation') {
@@ -735,7 +756,7 @@ function InsightWorkspace({
   const docChecklist = (
     <DocChecklist
       projectId={projectId}
-      stage="insight"
+      stage={stage}
       onOpenDocPreview={(docId) => { setCenterView({ type: 'preview', docId }); closeDrawer() }}
       onOpenVirtualForm={(vkey) => { setCenterView({ type: 'virtual', vkey }); closeDrawer() }}
       onOpenStakeholderCanvas={() => { setCenterView({ type: 'canvas' }); closeDrawer() }}
