@@ -377,7 +377,17 @@ def format_industry_pack(pack) -> str:
         for s in pack.default_sessions[:8]:
             parts.append(f"- {s.get('topic')} · {s.get('target')} · {s.get('method')}")
     if pack.typical_customer_materials:
-        parts.append("典型客户准备材料:" + "、".join(pack.typical_customer_materials))
+        # typical_customer_materials 是 list[dict],每个 dict 有 category + items(list[str])
+        # 不是 list[str] — 跟 runner.py:1604 处理方式对齐,避免 join dict 报 TypeError
+        parts.append("典型客户准备材料:")
+        for cat in pack.typical_customer_materials:
+            if isinstance(cat, dict):
+                items = cat.get("items") or []
+                items_str = "、".join(str(x) for x in items)
+                parts.append(f"- {cat.get('category', '')}:{items_str}")
+            elif isinstance(cat, str):
+                # 兼容旧 list[str] 形态(若有)
+                parts.append(f"- {cat}")
     return "\n".join(parts)
 
 
