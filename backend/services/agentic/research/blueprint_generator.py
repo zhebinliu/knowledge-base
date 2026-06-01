@@ -85,9 +85,8 @@ BLUEPRINT_SECTIONS: list[BlueprintSection] = [
             "  - 列一张总表 — 列「对象中文名 / API Name / 标准 or 自定义(custom__c) / 用途 / 跟哪些对象有 object_reference 关系」"
             "  - 优先复用 11 个标准模块,自定义对象必须各写一行「为什么标准模块装不下」"
             "**4.5 关键字段表**(每个核心对象一张表,**这是蓝图最重要的一环**):"
-            "  - 列「字段名 / API Name(field_<id>__c) / 类型(text/long_text/number/currency/date/date_time/"
-            "    employee/select_one/select_many/object_reference/record_type/formula/check_box/image/file) / "
-            "    必填 / 唯一 / 默认值 / 关联目标对象(若 object_reference) / 校验规则(若有) / 依据 [B?]」"
+            "  - 列「字段名 / API Name(field_<id>__c) / 类型(必须用中文显示名,例如「单选(select_one)」「金额(currency)」「查找关联(object_reference)」) / "
+            "    必填 / 唯一 / 默认值 / 关联目标对象(若查找关联) / 校验规则(若有) / 依据 [B?]」"
             "  - select 类字段列出取值清单;formula 字段写表达式 + 返回类型;级联字段标父子映射"
             "  - 不能写「需补充」「待定」 — 要写出字段名或者写「**待与客户对齐**:具体问什么」"
             "用表格,每条带「依据」列(引用调研报告 [B1] / 文档 [D?] 哪一章)。"
@@ -192,14 +191,25 @@ A · 对象层
 - 新建自定义对象默认带 `name`(主属性)+ `owner`(责任人)字段 + `detail`(详情)+ `list`(移动端摘要)布局
 
 B · 字段层
-- 字段类型一旦确定**不可改**,选型必须谨慎。可用类型清单:
-  text / long_text / number / currency / date / date_time / employee / select_one / select_many /
-  object_reference(查找关联) / record_type(记录类型) / formula(公式) / check_box / image / file
-- **object_reference / 主从** 必须指定目标对象,且目标对象必须先存在
-- **公式字段(formula)** 显式标返回类型;**表达式默认值** 要标 `default_is_expression=true`,
+- 字段类型一旦确定**不可改**,选型必须谨慎。**字段表里的「类型」列必须写中文显示名**,
+  可在中文后用括号注英文 API key,例如 `单选(select_one)` `金额(currency)` `查找关联(object_reference)`。
+- 类型清单(中文 · API key,以平台实际显示为准):
+  - 文本类:单行文本(text) / 多行文本(long_text) / 富文本(html_rich_text)
+  - 选项类:单选(select_one) / 多选(select_many)
+  - 数值类:数字(number) / 金额(currency) / 百分数(percentile)
+  - 时间类:日期(date) / 时间(time) / 日期时间(date_time) / 日期范围(date_time_range)
+  - 联系方式:手机(phone_number) / 邮箱(email) / 网址(url)
+  - 布尔 / 文件:布尔值(true_or_false) / 图片(image) / 附件(file_attachment)
+  - 系统 / 计算:自增编号(auto_number) / 计算字段(formula) / 统计字段(count)
+  - 关联:查找关联(object_reference) / 查找关联-多选(object_reference_many) / 主从关系(master_detail) / 引用字段(quote)
+  - 组织:人员(employee) / 人员-多选(employee_many) / 外部人员(out_employee) / 部门(department) / 部门-多选(department_many)
+  - 地理:定位(location) / 地区定位(area)
+  - 业务:业务类型(record_type) / 签名字段(signature)
+- **查找关联 / 查找关联-多选 / 主从关系** 必须指定目标对象,目标对象必须先存在
+- **计算字段(formula)** 显式标返回类型;**表达式默认值** 要标 `default_is_expression=true`,
   普通字面量默认值则 `default_is_expression=false`
-- **级联(父子选项)**:父字段(select_one / select_many / record_type)每个 option 配 `child_options`,
-  子字段(select_one / select_many)配 `cascade_parent_api_name` — 双向同时配置才生效
+- **级联(父子选项)**:单选/多选/业务类型作父字段,在每个 option 配 `child_options`;
+  子字段(单选/多选)配 `cascade_parent_api_name` — 双向同时配置才生效
 - 自定义字段 API Name 用 `field_<id>__c` 格式,ID 唯一
 
 C · 校验
@@ -293,6 +303,106 @@ SECTION_MARKER_PREFIX = "<<<SECTION:"
 # LLM 偶尔把 marker 漂成 <<SECTION:..>> / <SECTION:..>>> 等变体 — 宽容匹配。
 import re as _re
 _SECTION_MARKER_RE = _re.compile(r"^<+\s*SECTION\s*:\s*([A-Za-z_][\w]*)\s*>+$")
+
+
+# 蓝图 / 调研报告引用占用 module_key="blueprint",前端 CitedReportView 按
+# `#cite-blueprint-D1` 这种 link 渲染成可点击的引用 chip。lastIndexOf('-') 切
+# moduleKey 和 refId,所以 moduleKey 中不能含 -。
+PROVENANCE_MODULE_KEY = "blueprint"
+
+# 引用编号格式:[B1] / [D1] / [P1] / [M1] / [I1] / [R1](调研报告答案,blueprint 暂不用)。
+# 单字母 + 1~3 位数字。
+_REF_RE = _re.compile(r"\[([BDPMIR]\d{1,3})\]")
+
+
+def transform_refs_to_links(md: str, module_key: str = PROVENANCE_MODULE_KEY) -> str:
+    """把 [B1] [D2] 这种引用占位转成 markdown link `[B1](#cite-blueprint-B1)`,
+    前端 CitedReportView 识别 #cite- 前缀渲染成可点击 CitationChip。
+    """
+    if not md:
+        return md
+    return _REF_RE.sub(
+        lambda m: f"[{m.group(1)}](#cite-{module_key}-{m.group(1)})",
+        md,
+    )
+
+
+def build_blueprint_provenance(
+    *,
+    research_report_bundle,
+    docs_by_type: dict,
+    prior_bundles: list,
+    meetings: list,
+    industry_pack,
+) -> dict:
+    """构造 `{module_key: {refId: ProvenanceEntry}}` 给前端 CitationChip。
+
+    refId 编号必须跟 format_*_for_report 系列函数一致,否则点 chip 跳错来源。
+    """
+    refs: dict[str, dict] = {}
+
+    # [B1] = 调研报告
+    if research_report_bundle:
+        title = getattr(research_report_bundle, "title", None) or "调研报告"
+        snippet = (getattr(research_report_bundle, "content_md", None) or "")[:240]
+        refs["B1"] = {
+            "type": "prior",
+            "label": title,
+            "snippet": snippet,
+            "prior_kind": "research_report",
+        }
+
+    # [D1..Dn] = docs_by_type 展平顺序(跟 format_docs_for_report 一致)
+    from models.project import DOC_TYPE_LABELS
+    n = 0
+    for doc_type, docs in (docs_by_type or {}).items():
+        type_label = DOC_TYPE_LABELS.get(doc_type, doc_type)
+        for d in docs:
+            content = (d.get("markdown") or d.get("summary") or "").strip()
+            if not content:
+                continue
+            n += 1
+            refs[f"D{n}"] = {
+                "type": "doc",
+                "label": f"{type_label} · {d.get('filename', '未命名')}",
+                "snippet": content[:240],
+                "doc_id": d.get("doc_id") or d.get("id"),
+                "filename": d.get("filename"),
+                "doc_type": doc_type,
+            }
+
+    # [P1..Pn] = prior_bundles(insight / survey_outline / survey 等)
+    n = 0
+    for pb in (prior_bundles or []):
+        md = (pb.get("content_md") or "").strip()
+        if not md:
+            continue
+        n += 1
+        kind = pb.get("kind") or "?"
+        refs[f"P{n}"] = {
+            "type": "prior",
+            "label": f"{kind} · {pb.get('title') or kind}",
+            "snippet": md[:240],
+            "prior_kind": kind,
+        }
+
+    # [M1..Mn] = 会议素材
+    for i, m in enumerate(meetings or [], 1):
+        refs[f"M{i}"] = {
+            "type": "doc",  # 用 doc 显色;前端 chip 暖色调
+            "label": f"会议 · {m.get('title', '未命名')}",
+            "snippet": (m.get("summary") or "")[:240],
+        }
+
+    # [I1] = 行业最佳实践
+    if industry_pack:
+        refs["I1"] = {
+            "type": "kb",
+            "label": f"行业最佳实践 · {getattr(industry_pack, 'display_name', '未知行业')}",
+            "snippet": "",
+        }
+
+    return {PROVENANCE_MODULE_KEY: refs}
 
 
 def assemble_markdown_from_llm_output(llm_raw: str) -> str:

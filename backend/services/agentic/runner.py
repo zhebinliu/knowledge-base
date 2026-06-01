@@ -2453,7 +2453,7 @@ async def generate_blueprint_design(bundle_id: str, project_id: str):
     """
     from .research.blueprint_generator import (
         SYSTEM_PROMPT, build_user_prompt, assemble_markdown_from_llm_output,
-        format_research_report_block,
+        format_research_report_block, transform_refs_to_links, build_blueprint_provenance,
     )
     from .research.report_generator import (
         format_project_meta, format_docs_for_report, format_prior_bundles,
@@ -2522,8 +2522,18 @@ async def generate_blueprint_design(bundle_id: str, project_id: str):
         if not raw or not raw.strip():
             raise RuntimeError("LLM 返回为空")
 
-        # ── Phase 6: 切章 + 持久化 ──
+        # ── Phase 6: 切章 + ref 转 link + 构造 provenance + 持久化 ──
         markdown = assemble_markdown_from_llm_output(raw)
+        # 把 [B1] [D1] [P1] [M1] [I1] 转成 markdown link,前端渲染成可点 chip
+        markdown = transform_refs_to_links(markdown)
+        # 构造 provenance 给前端 CitationsPanel 显示证据来源
+        provenance = build_blueprint_provenance(
+            research_report_bundle=rr_bundle,
+            docs_by_type=ctx.get("docs_by_type") or {},
+            prior_bundles=ctx.get("prior_bundles") or [],
+            meetings=meeting_blob,
+            industry_pack=pack,
+        )
         async with async_session_maker() as s:
             b = await s.get(CuratedBundle, bundle_id)
             new_extra = dict(b.extra or {})
@@ -2531,6 +2541,7 @@ async def generate_blueprint_design(bundle_id: str, project_id: str):
             new_extra["agentic_version"] = "v2"
             new_extra["validity_status"] = "valid"
             new_extra["progress"] = {"stage": "done", "message": "完成"}
+            new_extra["provenance"] = provenance  # {blueprint: {B1/D1/P1/...}}
             new_extra["sources_summary"] = {
                 "has_research_report": has_rr,
                 "research_report_id": rr_bundle.id if rr_bundle else None,

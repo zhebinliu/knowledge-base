@@ -867,6 +867,16 @@ function BlueprintDesignWorkspace({
 
   const provenance = (bundleDetail as any)?.provenance || {}
 
+  // 引用 chip 点击 → 弹一个小的 detail modal 显示来源 label / snippet
+  const [citationModal, setCitationModal] = useState<{
+    refId: string; entry: any | null
+  } | null>(null)
+
+  const handleCitationClick = (moduleKey: string, refId: string) => {
+    const entry = provenance?.[moduleKey]?.[refId] || null
+    setCitationModal({ refId, entry })
+  }
+
   // 空态(贴顶,跟其他阶段一致;不撑满高度居中)
   if (!activeBundle && !isInflight) {
     return (
@@ -931,9 +941,57 @@ function BlueprintDesignWorkspace({
       {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
       <div className="flex-1 min-h-0 overflow-auto">
         {md
-          ? <CitedReportView content={md} provenance={provenance} onCitationClick={() => {}} />
+          ? <CitedReportView content={md} provenance={provenance} onCitationClick={handleCitationClick} />
           : <p className="text-xs text-gray-400">报告内容为空 — 试一下「重新生成」?</p>}
       </div>
+
+      {citationModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4"
+          onClick={() => setCitationModal(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-2xl max-w-md w-full p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-gray-900">
+                引用 {citationModal.refId}
+              </span>
+              <button
+                onClick={() => setCitationModal(null)}
+                className="text-gray-400 hover:text-gray-700"
+              ><X size={16} /></button>
+            </div>
+            {citationModal.entry ? (
+              <>
+                <div className="mb-2">
+                  <span
+                    className={`inline-block text-[10px] px-1.5 py-0.5 rounded border ${
+                      citationModal.entry.type === 'prior' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : citationModal.entry.type === 'doc' ? 'bg-orange-50 text-orange-700 border-orange-200'
+                      : citationModal.entry.type === 'kb' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : 'bg-purple-50 text-purple-700 border-purple-200'
+                    }`}
+                  >
+                    {citationModal.entry.type === 'prior' ? '上游产物' :
+                     citationModal.entry.type === 'doc' ? '项目文档 / 会议' :
+                     citationModal.entry.type === 'kb' ? '知识库 / 行业最佳实践' : 'Web'}
+                  </span>
+                </div>
+                <p className="text-sm font-medium text-gray-900 mb-2">{citationModal.entry.label}</p>
+                {citationModal.entry.snippet && (
+                  <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap max-h-60 overflow-auto bg-gray-50 p-3 rounded border border-gray-200">
+                    {citationModal.entry.snippet}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-gray-500">该引用没有对应来源元数据(可能是旧版生成,重新生成后会自动带上)。</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
