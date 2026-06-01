@@ -443,6 +443,29 @@ stateDiagram-v2
     已核销 --> [*]
 ```
 
+正例 4 — 用 +/-/| 字符画拼的多层架构 / 分层方框图(常出现在「总体架构」/
+「应用分层」/「系统拓扑」段落):
++-----------------------------+
+| 用户层: Web + APP           |
++-----------------------------+
+| 应用层: LTC 流程 + 营销 + BI|
++-----------------------------+
+| 数据层: 主数据 + 业务数据   |
++-----------------------------+
+| 集成层: MDM / ERP / OA      |
++-----------------------------+
+↓ 必须转(每层一个节点,自顶向下):
+```mermaid
+flowchart TB
+    User["用户层<br/>Web 端 + APP 端"]
+    App["应用层<br/>LTC 流程 / 营销 / 渠道 / BI"]
+    Data["数据层<br/>主数据 + 业务数据 + 分析数据"]
+    Integ["集成层<br/>MDM / ERP / OA / 第三方 API"]
+    User --> App
+    App --> Data
+    Data --> Integ
+```
+
 反例 — 表格 cell 里的 → 不要动(只有 1 个表格行,不是流程图):
 | 国内制造业 | 集团→股份→经营单位→事业部 | ... |
 ↑ 这是表格,**不要碰**
@@ -462,21 +485,35 @@ stateDiagram-v2
 
 
 def _count_independent_ascii_flows(md: str) -> int:
-    """统计**独立段落级**的 ASCII 流程行数(不是表格 cell 里的 →)。
+    """统计**独立段落级**的 ASCII 流程行数 + ASCII box 架构图(不是表格 cell 里的 →)。
 
-    判断标准:整行没有 `|`(表格)、至少 3 个 → / -->、行长 ≥ 15 字符。
+    判断:
+    - 整行没有 `|`(表格)、至少 3 个 → / -->、行长 ≥ 15 字符 → 算一行流程
+    - 或:连续 ≥3 行 box-drawing(行起手是 `+-`、`|`、`+--` 等),也算一个图
     """
     if not md:
         return 0
     n = 0
+    # 1) 单行 → / --> 流程
     for line in md.splitlines():
-        if "|" in line:  # 表格行不算
+        if "|" in line and "→" in line:  # 表格 cell 里的 → 不算
             continue
-        if line.lstrip().startswith("#"):  # 标题不算
+        if line.lstrip().startswith("#"):
             continue
         arrows = line.count("→") + line.count("-->")
         if arrows >= 3 and len(line) >= 15:
             n += 1
+    # 2) ASCII box 架构图(连续 ≥ 3 行 box-drawing 起手)
+    lines = md.splitlines()
+    box_run = 0
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("+-") or stripped.startswith("+=") or (stripped.startswith("|") and stripped.endswith("|") and len(stripped) > 5):
+            box_run += 1
+            if box_run == 3:
+                n += 1  # 一组 box 图算一处
+        else:
+            box_run = 0
     return n
 
 
