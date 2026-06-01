@@ -43,11 +43,21 @@ function cleanReportContent(raw: string): string {
   // 1. strip section markers:<<SECTION:xxx>>、<SECTION:xxx>>、<<<SECTION:xxx>>> 等
   s = s.replace(/<+\s*SECTION\s*:\s*[^<>]+\s*>+/g, '')
 
-  // 2. mermaid 图表:LLM 没用 ```mermaid 包,直接 dump 出来的 flowchart 块
-  //    启发式 — 找以 "flowchart LR/TB/RL/BT" 或 "graph LR/..." 单独成行起手的多行块,
-  //    一直延伸到下一个非缩进 H2 标题 / 空 2 行 / "style X fill:#" 结尾再多 1 个 newline。
-  //    包成 ```mermaid ... ``` 让前端 markdown 至少渲染成代码块(monospace),
-  //    比散落在正文里看着舒服。后续加 mermaid render 再做真图。
+  // 2a. LLM 经常把 ```mermaid 写成 ```\nmermaid(把 lang 名字放代码块首行而非围栏后),
+  //     react-markdown 当无 lang 代码块走默认渲染,看不出图。修:把 ``` + 紧接首行
+  //     mermaid|flowchart|stateDiagram|sequenceDiagram 等,提升为标准 ```mermaid。
+  s = s.replace(
+    /^```[ \t]*\n(mermaid|flowchart\s+(?:LR|TB|RL|BT|TD)|graph\s+(?:LR|TB|RL|BT|TD)|stateDiagram(?:-v2)?|sequenceDiagram|classDiagram|erDiagram|journey|gantt|pie)[ \t]*\n/gm,
+    (_m, firstLine) => {
+      // 字面 "mermaid" 行直接吃掉(它本来就该作为 lang 在围栏后)
+      if (firstLine.trim() === 'mermaid') return '```mermaid\n'
+      // 其他 mermaid 子语法(flowchart/stateDiagram 等)提升 + 保留作为图表声明
+      return `\`\`\`mermaid\n${firstLine}\n`
+    },
+  )
+
+  // 2b. mermaid 图表压根没用 ``` 包,直接 dump 出 flowchart/graph 起手的多行块,
+  //     启发式包成 ```mermaid ... ```(同 2a,但针对完全没围栏的情况)
   s = s.replace(
     /^(flowchart\s+(?:LR|TB|RL|BT|TD)|graph\s+(?:LR|TB|RL|BT|TD))([\s\S]*?)(?=\n{2,}(?:#|[^\s])|\n*$)/gm,
     (_m, header, body) => `\n\`\`\`mermaid\n${header}${body.trimEnd()}\n\`\`\`\n`,
@@ -138,12 +148,25 @@ function MermaidBlock({ code }: { code: string }) {
   const [svg, setSvg] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
 
+  // 防御性清洗:LLM 偶尔在代码块首行写字面 "mermaid"、或在内部嵌套 ```mermaid 围栏。
+  // 直接喂给 mermaid.render 会语法错。这里 strip 掉所有 ``` 围栏行和单独成行的 "mermaid"。
+  const cleaned = code
+    .split('\n')
+    .filter(line => {
+      const t = line.trim()
+      if (t === 'mermaid') return false              // 字面 mermaid 行
+      if (/^```\s*\w*\s*$/.test(t)) return false      // 残留的 ``` / ```mermaid 围栏
+      return true
+    })
+    .join('\n')
+    .trim()
+
   useEffect(() => {
     let cancelled = false
     setError(null)
     setSvg('')
     mermaid
-      .render(id, code.trim())
+      .render(id, cleaned)
       .then(({ svg }) => {
         if (!cancelled) setSvg(svg)
       })
@@ -151,7 +174,7 @@ function MermaidBlock({ code }: { code: string }) {
         if (!cancelled) setError(e?.message || String(e))
       })
     return () => { cancelled = true }
-  }, [code, id])
+  }, [cleaned, id])
 
   if (error) {
     return (
@@ -160,7 +183,7 @@ function MermaidBlock({ code }: { code: string }) {
           ⚠️ Mermaid 渲染失败:{error}
         </div>
         <pre className="text-xs bg-slate-50 border border-t-0 border-line p-3 rounded-b overflow-x-auto">
-          {code}
+          {cleaned}
         </pre>
       </div>
     )
