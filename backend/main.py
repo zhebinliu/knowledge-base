@@ -418,6 +418,22 @@ async def startup():
             for _doc in _stuck:
                 _pd.delay(_doc.id)
             logger.warning("stuck_documents_requeued", count=len(_stuck))
+    # 清理卡死的 bundle 生成任务(2026-06-01):pending/generating 超过 30min 视为丢失
+    # 标 failed,UI 不再当 in-flight 显示 spinner。典型 bundle 5-15min,30min 是合理阈值。
+    bundle_cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=30)
+    async with _asm() as _s:
+        _stale_bundles = (await _s.execute(
+            _select(CuratedBundle).where(
+                CuratedBundle.status.in_(["pending", "generating"]),
+                CuratedBundle.updated_at < bundle_cutoff,
+            )
+        )).scalars().all()
+        for _b in _stale_bundles:
+            _b.status = "failed"
+            _b.extra = (_b.extra or {}) | {"stale_failed_at_startup": datetime.now(timezone.utc).isoformat()}
+        if _stale_bundles:
+            await _s.commit()
+            logger.warning("stale_bundles_failed", count=len(_stale_bundles), ids=[b.id for b in _stale_bundles])
     # 企信 IM SSE 连接池启动(2026-05-29):按已配置用户拉长连接
     try:
         from services.qixin_gateway.connection_manager import bootstrap_all as _qixin_boot
