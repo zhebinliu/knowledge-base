@@ -376,6 +376,73 @@ def transform_refs_to_links(md: str, module_key: str = PROVENANCE_MODULE_KEY) ->
     )
 
 
+LINTER_SYSTEM_PROMPT = """你是 markdown 输出审校器。
+
+你**只做一件事**:把报告里用「→」/「-->」/「⇒」/「==>」/「箭头」拼的 ASCII 流程图,
+转成 mermaid 代码块。其他什么都不改。
+
+【保留不动 — 不要碰】
+- 表格(| ... |)、bullet 列表、普通段落、章节标题(##)
+- 引用 chip(形如 `[B1](#cite-blueprint-B1)` 或纯文本 `[B1]` `[D1]` `[I1]`)
+- 已经合法的 mermaid 代码块(```mermaid 围栏)
+- ASCII 流程图周围的描述文字
+- 字段表里写「→」表"流转到"的小串(如「正常→已核销」),只有形成独立图表的才转
+
+【需要识别 + 转换的 ASCII 流程】
+- 单行链:`Lead → Opportunity → Quote → Contract`
+- 多步骤单行(节点带说明):`Lead(线索) → Opportunity(商机) → Quote(报价)`
+- 多行流程(连续多行用 → / -->):
+  `A → B`
+  `B → C`
+- 状态机风格:`正常 → 逾期 → 催收中 → 已核销`(状态名 + 流转条件)
+- 跨角色交互:出现「销售/客户/系统/CRM/ERP」等角色名 + → 拼的顺序
+
+【转换规则】
+- 线性 / 多分支流程 → flowchart LR
+- 状态机(对象生命周期 / 审批 / 应收状态)→ stateDiagram-v2
+- 跨角色交互(角色 → 角色 的动作)→ sequenceDiagram
+
+【输出】
+直接输出修复后的**完整 markdown**(不是 diff,不是 patch,不是说明)。
+不要 wrap 在 ``` 里。从第一个字符开始就是 markdown 内容,无前导句。
+"""
+
+
+async def lint_and_fix_ascii_flowcharts(markdown: str, model: str) -> str:
+    """LLM linter pass — 扫 markdown,把 ASCII 流程图补救成 mermaid 代码块。
+
+    如果 LLM 返回的长度异常(<70% 或 >150% 原长),视为不可信,
+    保留原 markdown 兜底。
+    """
+    if not markdown or not markdown.strip():
+        return markdown
+    # 先用 regex 快速判断 — 没明显 ASCII 流程特征就跳过(省 token / 时间)
+    has_ascii_arrow = "→" in markdown or "-->" in markdown or "⇒" in markdown
+    if not has_ascii_arrow:
+        return markdown
+
+    from services.output_service import _llm_call
+    try:
+        fixed = await _llm_call(
+            f"修复以下 markdown,只补救 ASCII 流程图 → mermaid 转换:\n\n{markdown}",
+            system=LINTER_SYSTEM_PROMPT,
+            model=model,
+            max_tokens=20000,
+            timeout=600.0,
+        )
+    except Exception:
+        # linter 失败不能阻塞主流程
+        return markdown
+    fixed = (fixed or "").strip()
+    if not fixed:
+        return markdown
+    # 安全网:长度大幅缩水/膨胀就放弃 linter 结果(防 LLM 误删内容)
+    ratio = len(fixed) / max(1, len(markdown))
+    if ratio < 0.7 or ratio > 1.5:
+        return markdown
+    return fixed
+
+
 def build_blueprint_provenance(
     *,
     research_report_bundle,

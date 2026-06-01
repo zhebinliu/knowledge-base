@@ -2454,6 +2454,7 @@ async def generate_blueprint_design(bundle_id: str, project_id: str):
     from .research.blueprint_generator import (
         SYSTEM_PROMPT, build_user_prompt, assemble_markdown_from_llm_output,
         format_research_report_block, transform_refs_to_links, build_blueprint_provenance,
+        lint_and_fix_ascii_flowcharts,
     )
     from .research.report_generator import (
         format_project_meta, format_docs_for_report, format_prior_bundles,
@@ -2522,8 +2523,16 @@ async def generate_blueprint_design(bundle_id: str, project_id: str):
         if not raw or not raw.strip():
             raise RuntimeError("LLM 返回为空")
 
-        # ── Phase 6: 切章 + ref 转 link + 构造 provenance + 持久化 ──
+        # ── Phase 6: 切章 + linter 补救 ASCII 流程图 + ref 转 link + provenance ──
         markdown = assemble_markdown_from_llm_output(raw)
+        # LLM linter pass:扫 ASCII 流程图(主 prompt 偶尔不听话写 ASCII),
+        # 补救转 mermaid 代码块。失败 / 长度异常时保留原 markdown(兜底)
+        await _update_progress(bundle_id, stage="executing", message="审校图表(LLM linter)…")
+        markdown = await lint_and_fix_ascii_flowcharts(markdown, model=ctx["agent_model"])
+        run_history.append({
+            "phase": "linter_done", "ts": _ts(),
+            "detail": {"final_chars": len(markdown)},
+        })
         # 把 [B1] [D1] [P1] [M1] [I1] 转成 markdown link,前端渲染成可点 chip
         markdown = transform_refs_to_links(markdown)
         # 构造 provenance 给前端 CitationsPanel 显示证据来源
