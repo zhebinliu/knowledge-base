@@ -18,7 +18,31 @@ interface Props {
   onCitationClick: (moduleKey: string, refId: string) => void
 }
 
+// LLM 原始输出里的"section marker"和未被代码块包起来的 mermaid 图表
+// 后端 assemble 时本该 strip 掉,但 LLM 偶尔写成 <<SECTION:..>> / <SECTION:..>>
+// 各种变体绕过了正则。这里前端兜底清洗 — 看到啥洗啥,不依赖后端。
+function cleanReportContent(raw: string): string {
+  if (!raw) return ''
+  let s = raw
+
+  // 1. strip section markers:<<SECTION:xxx>>、<SECTION:xxx>>、<<<SECTION:xxx>>> 等
+  s = s.replace(/<+\s*SECTION\s*:\s*[^<>]+\s*>+/g, '')
+
+  // 2. mermaid 图表:LLM 没用 ```mermaid 包,直接 dump 出来的 flowchart 块
+  //    启发式 — 找以 "flowchart LR/TB/RL/BT" 或 "graph LR/..." 单独成行起手的多行块,
+  //    一直延伸到下一个非缩进 H2 标题 / 空 2 行 / "style X fill:#" 结尾再多 1 个 newline。
+  //    包成 ```mermaid ... ``` 让前端 markdown 至少渲染成代码块(monospace),
+  //    比散落在正文里看着舒服。后续加 mermaid render 再做真图。
+  s = s.replace(
+    /^(flowchart\s+(?:LR|TB|RL|BT|TD)|graph\s+(?:LR|TB|RL|BT|TD))([\s\S]*?)(?=\n{2,}(?:#|[^\s])|\n*$)/gm,
+    (_m, header, body) => `\n\`\`\`mermaid\n${header}${body.trimEnd()}\n\`\`\`\n`,
+  )
+
+  return s
+}
+
 export default function CitedReportView({ content, provenance, onCitationClick }: Props) {
+  const cleaned = cleanReportContent(content)
   return (
     <div className={[
       'text-[14px] text-ink leading-relaxed',
@@ -75,7 +99,7 @@ export default function CitedReportView({ content, provenance, onCitationClick }
           },
         }}
       >
-        {content}
+        {cleaned}
       </ReactMarkdown>
     </div>
   )
