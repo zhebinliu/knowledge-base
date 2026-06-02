@@ -787,6 +787,9 @@ async def action_summarize(
 
     minutes = await generate_minutes(text, meeting_title=m.title or "", template_dict=template_dict)
     m.meeting_minutes = minutes
+    # 重新生成出实质纪要 → 把之前可能的 failed 状态恢复成 completed(关闭"失败→重生"闭环)
+    if minutes and (minutes.get("summary") or minutes.get("key_points")):
+        m.status = "completed"
     await session.commit()
     return {"meeting_minutes": minutes}
 

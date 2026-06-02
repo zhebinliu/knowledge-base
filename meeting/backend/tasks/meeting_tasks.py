@@ -87,10 +87,17 @@ async def _process_meeting_async(meeting_id: int):
         m = await session.get(Meeting, meeting_id)
         if not m:
             return
+        stage_errors = result.get("stage_errors") or []
         m.polished_transcript = result.get("polished_transcript") or ""
-        m.meeting_minutes = result.get("meeting_minutes") or {}
         m.stakeholder_map = result.get("stakeholder_map") or {}
-        m.status = "completed"
+        # 纪要(核心交付物)生成失败(模型 403/429/超时/解析失败)→ 标 failed + 纪要置空,
+        # 前端显示「失败 + 重新生成」而非静默空表;用户一键重跑(POST /{id}/process)。
+        if "minutes" in stage_errors:
+            m.meeting_minutes = None
+            m.status = "failed"
+        else:
+            m.meeting_minutes = result.get("meeting_minutes") or {}
+            m.status = "completed"
         m.end_time = utcnow_naive()
 
         # 重建需求清单(覆盖式)
@@ -109,7 +116,7 @@ async def _process_meeting_async(meeting_id: int):
                 end_seconds=raw_req.get("end_seconds"),
             ))
         await session.commit()
-        logger.info("meeting_processed", meeting_id=meeting_id, status="completed")
+        logger.info("meeting_processed", meeting_id=meeting_id, status=m.status)
 
 
 @celery_app.task(name="process_meeting", bind=True, max_retries=1, soft_time_limit=1500, time_limit=1800)

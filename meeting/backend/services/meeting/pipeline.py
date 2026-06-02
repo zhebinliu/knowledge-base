@@ -254,6 +254,9 @@ async def run_full_pipeline(
     logger.info("pipeline_start", meeting_id=meeting_id, in_chars=len(raw_transcript),
                 skip_polish=skip_polish)
 
+    # 记录各阶段失败(模型超时 / 403 / 429 / 解析失败等),调用方据此把 meeting 标 failed 供重试。
+    stage_errors: list[str] = []
+
     # Step 1: 润色(文本来源可跳过)
     if skip_polish:
         logger.info("polish_skipped", meeting_id=meeting_id, reason="asr_engine=text")
@@ -264,6 +267,7 @@ async def run_full_pipeline(
         except Exception as e:
             logger.exception("polish_failed", error=str(e)[:200])
             polished = raw_transcript  # 失败时直接用原文
+            stage_errors.append("polish")
 
     # Step 2 & 3: 并行
     minutes_task = asyncio.create_task(generate_minutes(polished, meeting_title, template_dict))
@@ -274,9 +278,11 @@ async def run_full_pipeline(
     if isinstance(minutes, Exception):
         logger.exception("minutes_failed", error=str(minutes)[:200])
         minutes = dict(_EMPTY_MINUTES)
+        stage_errors.append("minutes")
     if isinstance(requirements, Exception):
         logger.exception("requirements_failed", error=str(requirements)[:200])
         requirements = []
+        stage_errors.append("requirements")
 
     # Step 4: 干系人(可选,失败不阻断)
     stakeholder_map: dict = dict(_EMPTY_STAKEHOLDERS)
@@ -290,6 +296,7 @@ async def run_full_pipeline(
         )
     except Exception as e:
         logger.exception("stakeholders_failed", error=str(e)[:200])
+        stage_errors.append("stakeholders")
 
     logger.info(
         "pipeline_done",
@@ -297,10 +304,12 @@ async def run_full_pipeline(
         kp=len(minutes.get("key_points", [])) if isinstance(minutes, dict) else 0,
         reqs=len(requirements),
         stakeholders=len(stakeholder_map.get("stakeholders", [])),
+        stage_errors=stage_errors,
     )
     return {
         "polished_transcript": polished,
         "meeting_minutes": minutes,
         "requirements": requirements,
         "stakeholder_map": stakeholder_map,
+        "stage_errors": stage_errors,
     }
