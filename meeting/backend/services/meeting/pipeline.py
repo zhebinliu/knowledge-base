@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 from typing import Any
 
 import structlog
@@ -30,36 +29,18 @@ logger = structlog.get_logger()
 
 # ── JSON 解析容错 ────────────────────────────────────────────────────────
 
-def _strip_code_fence(text: str) -> str:
-    """剥 ```json ... ``` 围栏,留纯 JSON。"""
-    s = text.strip()
-    if s.startswith("```"):
-        # 去掉第一行和最后一行
-        lines = s.split("\n")
-        if len(lines) >= 3 and lines[-1].strip().startswith("```"):
-            s = "\n".join(lines[1:-1]).strip()
-        elif len(lines) >= 2:
-            s = "\n".join(lines[1:]).strip()
-            if s.endswith("```"):
-                s = s[: s.rfind("```")].strip()
-    return s
+_PARSE_FAIL = object()
 
 
 def _safe_json_loads(text: str, default: Any) -> Any:
-    """容错 JSON 解析。失败返回 default,顺便记一条 warning。"""
-    cleaned = _strip_code_fence(text)
-    try:
-        return json.loads(cleaned)
-    except (json.JSONDecodeError, TypeError) as e:
-        # 尝试抓第一个 { 到最后一个 } 之间的 JSON
-        m = re.search(r"\{.*\}", cleaned, re.DOTALL)
-        if m:
-            try:
-                return json.loads(m.group(0))
-            except json.JSONDecodeError:
-                pass
-        logger.warning("meeting_json_parse_failed", error=str(e)[:80], raw=cleaned[:200])
+    """容错 JSON 解析(复用全后端共享的 services.llm_json.loads_lenient:
+    去围栏 / 注释 / **尾随逗号** + 最长平衡块兜底)。失败返回 default 并记一条 warning。"""
+    from services.llm_json import loads_lenient
+    result = loads_lenient(text, _PARSE_FAIL)
+    if result is _PARSE_FAIL:
+        logger.warning("meeting_json_parse_failed", raw=(text or "")[:200])
         return default
+    return result
 
 
 # ── 阶段 1:润色 ─────────────────────────────────────────────────────────
