@@ -619,8 +619,13 @@ export const createProject = (body: ProjectInput) =>
 export const updateProject = (id: string, body: Partial<ProjectInput>) =>
   api.patch<Project>(`/projects/${id}`, body).then(r => r.data)
 
-export const deleteProject = (id: string, cascade = false) =>
-  api.delete(`/projects/${id}`, { params: { cascade } })
+/** 删除项目。
+ *  - cascade: 仅解除关联文档的 project_id(不删文档)
+ *  - purgeDocuments: 连带彻底删除关联文档(切片向量 + minio 原文件),不可恢复 */
+export const deleteProject = (id: string, opts: { cascade?: boolean; purgeDocuments?: boolean } = {}) =>
+  api.delete(`/projects/${id}`, {
+    params: { cascade: opts.cascade ?? false, purge_documents: opts.purgeDocuments ?? false },
+  })
 
 export const generateCustomerProfile = (id: string) =>
   api.post<{ profile: string }>(`/projects/${id}/generate_profile`).then(r => r.data)

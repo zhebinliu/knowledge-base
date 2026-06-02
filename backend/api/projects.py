@@ -277,6 +277,7 @@ async def update_project(
 async def delete_project(
     project_id: str,
     cascade: bool = Query(False, description="true 时一并解除关联文档的 project_id（不删文档本身）"),
+    purge_documents: bool = Query(False, description="true 时把关联文档一并彻底删除（含切片向量 / minio 原文件），不可恢复"),
     session: AsyncSession = Depends(get_session),
     _user: User = Depends(require_project_access("owner_only")),
 ):
@@ -286,20 +287,36 @@ async def delete_project(
     cnt = await session.scalar(
         select(func.count(Document.id)).where(Document.project_id == project_id)
     ) or 0
-    if cnt > 0 and not cascade:
+    if cnt > 0 and not (cascade or purge_documents):
         raise HTTPException(
             409,
-            f"项目下还有 {cnt} 个文档；如需继续请加 ?cascade=true（仅解除关联，不删文档）",
+            f"项目下还有 {cnt} 个文档；删除请加 ?purge_documents=true（连带删文档）或 ?cascade=true（仅解除关联）",
         )
-    if cnt > 0:
-        # 解关联：把这些文档的 project_id 置空
+
+    deleted_documents = 0
+    if cnt > 0 and purge_documents:
+        # 彻底删除关联文档:逐个清理 切片向量 + minio 原文件 + 行(复用 documents.purge_document_storage)
+        from api.documents import purge_document_storage
+        docs = (await session.execute(
+            select(Document).where(Document.project_id == project_id)
+        )).scalars().all()
+        for d in docs:
+            await purge_document_storage(session, d)
+            deleted_documents += 1
+    elif cnt > 0:
+        # 仅解关联:把这些文档的 project_id 置空
         from sqlalchemy import update as sa_update
         await session.execute(
             sa_update(Document).where(Document.project_id == project_id).values(project_id=None)
         )
+
     await session.delete(p)
     await session.commit()
-    return {"ok": True, "unlinked_documents": cnt}
+    return {
+        "ok": True,
+        "unlinked_documents": cnt if (cascade and not purge_documents) else 0,
+        "deleted_documents": deleted_documents,
+    }
 
 
 # ── 转让所有者 ──────────────────────────────────────────────────────────────

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { listProjects, listStageSummary, getProjectMeta, type Project, type StageStatusRow } from '../../api/client'
 import ProjectFormModal from '../../components/ProjectFormModal'
+import DeleteProjectControl from '../../components/DeleteProjectControl'
 import GlowCard from '../components/GlowCard'
 
 const STAGES = [
@@ -157,8 +158,8 @@ export default function NewConsoleProjects() {
       ) : (
         <div className="rd-grid-3 rd-stagger" style={{ gap: 16 }}>
           {filtered.map((p, i) => (
+            <div key={p.id} className="relative group">
             <GlowCard
-              key={p.id}
               interactive
               onClick={() => nav(`/console/projects/${p.id}`)}
               style={{ padding: 22, minHeight: 180, animationDelay: `${i * 50}ms` }}
@@ -220,6 +221,8 @@ export default function NewConsoleProjects() {
                 </span>
               </div>
             </GlowCard>
+            <DeleteProjectControl project={p} variant="card" />
+            </div>
           ))}
         </div>
       )}

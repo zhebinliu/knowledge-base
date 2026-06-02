@@ -29,7 +29,7 @@ export default function NewBackendProjects() {
   const { data: meta } = useQuery({ queryKey: ['project-meta'], queryFn: getProjectMeta })
 
   const del = useMutation({
-    mutationFn: ({ id, cascade }: { id: string; cascade: boolean }) => deleteProject(id, cascade),
+    mutationFn: ({ id, cascade }: { id: string; cascade: boolean }) => deleteProject(id, { cascade }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['projects'] }),
   })
 

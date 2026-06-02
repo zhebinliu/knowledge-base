@@ -8,6 +8,8 @@ import {
   Bot, ShieldAlert, ChevronDown, ChevronRight, Users, Eye,
 } from 'lucide-react'
 import CollaboratorsModal from '../../components/console/CollaboratorsModal'
+import DeleteProjectControl from '../../components/DeleteProjectControl'
+import { useAuth } from '../../auth/AuthContext'
 import ProjectStakeholdersDrawer from '../../components/console/ProjectStakeholdersDrawer'
 import SmartAdviceBanner, { smartAdviceQueryKey } from '../../components/console/SmartAdviceBanner'
 import {
@@ -98,6 +100,7 @@ type StageStatus = 'locked' | 'idle' | 'inflight' | 'done'
 
 export default function ConsoleProjectDetail() {
   const nav = useNavigate()
+  const { user } = useAuth()
   const { id } = useParams<{ id: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const qc = useQueryClient()
@@ -353,6 +356,14 @@ export default function ConsoleProjectDetail() {
           <Pencil size={11} />
           <span className="hidden sm:inline">项目信息</span>
         </button>
+        {(project.my_role === 'owner' || user?.is_admin) && (
+          <DeleteProjectControl
+            project={{ id: project.id, name: project.name, document_count: project.document_count }}
+            variant="header"
+            className="shrink-0"
+            onDeleted={() => nav('/console/projects')}
+          />
+        )}
       </div>
 
       {/* AI 智能建议(常驻 — 综合所有项目信息 + 行业 know-how, 给 PM 下一步动作 + 风险) */}
@@ -1000,8 +1011,7 @@ function BlueprintDesignWorkspace({
           )}
 
           <p className="text-[11px] text-gray-400 mt-5 leading-relaxed">
-            典型耗时 3-8 分钟。如果 LLM linter 阶段超过 15 分钟,
-            说明 markdown 较长(对象字段表常见)或 LLM 响应慢,可耐心等待或刷新页面查看最新状态。
+            生成在后台进行,完成后本页自动刷新,可离开稍后再来。
           </p>
         </div>
       </div>

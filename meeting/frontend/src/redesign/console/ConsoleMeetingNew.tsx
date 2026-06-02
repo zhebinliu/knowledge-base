@@ -12,17 +12,21 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Upload, Type, ChevronLeft, Loader2, AlertCircle } from 'lucide-react'
+import { Upload, Type, ChevronLeft, Loader2, AlertCircle, Mic, Square } from 'lucide-react'
 import {
   uploadMeetingAudio,
   createMeetingFromText,
   listProjects,
   type Project,
 } from '../../api/client'
+import { useSpeechRecorder } from '../../hooks/useSpeechRecorder'
 import GlowCard from '../components/GlowCard'
 
 const MAX_FILE_SIZE_MB = 500
-type Mode = 'upload' | 'text'
+type Mode = 'upload' | 'record' | 'text'
+
+const fmtDuration = (s: number) =>
+  `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
 export default function NewConsoleMeetingNew() {
   const nav = useNavigate()
@@ -35,6 +39,11 @@ export default function NewConsoleMeetingNew() {
   const [fileSizeError, setFileSizeError] = useState<string | null>(null)
   const [transcript, setTranscript] = useState('')
   const [error, setError] = useState<string | null>(null)
+
+  // 实时录音 + 实时转写(Web Speech API):final 段落追加到 transcript,停止后走文本管线提交
+  const recorder = useSpeechRecorder({
+    onFinalText: (txt) => setTranscript(t => (t ? t.replace(/\s*$/, '') + (t ? '\n' : '') : '') + txt),
+  })
 
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
 
@@ -106,13 +115,14 @@ export default function NewConsoleMeetingNew() {
       <div style={{ display: 'flex', gap: 6, marginBottom: 22 }}>
         {([
           { v: 'upload' as const, label: '上传录音', Icon: Upload },
+          { v: 'record' as const, label: '实时录音', Icon: Mic },
           { v: 'text' as const,   label: '粘贴文本', Icon: Type },
         ]).map(t => {
           const active = mode === t.v
           return (
             <button
               key={t.v}
-              onClick={() => { setMode(t.v); setError(null) }}
+              onClick={() => { if (recorder.recording) recorder.stop(); setMode(t.v); setError(null) }}
               className={`rd-chip${active ? ' is-active' : ''}`}
               style={{ padding: '8px 14px', fontSize: 12.5 }}
             >
@@ -205,6 +215,75 @@ export default function NewConsoleMeetingNew() {
                 支持 wav / mp3 / m4a / webm 等。最大 500 MB。上传后会异步走 xiaomi ASR 转写,完成后自动跑 AI pipeline。
               </p>
             </div>
+          ) : mode === 'record' ? (
+            <div>
+              <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--rd-text)', marginBottom: 8 }}>
+                实时录音转写
+              </label>
+              {!recorder.supported ? (
+                <div style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 8, padding: '12px 14px',
+                  borderRadius: 10, background: 'rgba(234,179,8,.08)', border: '1px solid rgba(234,179,8,.3)',
+                  color: 'var(--rd-text-2)', fontSize: 12.5, lineHeight: 1.6,
+                }}>
+                  <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+                  当前浏览器不支持实时语音识别。请使用 Chrome / Edge 桌面浏览器,或改用「上传录音」。
+                </div>
+              ) : (
+                <div style={{
+                  padding: 20, border: '1.5px dashed var(--rd-line-strong)', borderRadius: 12,
+                  background: 'rgba(15, 18, 36, .02)', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', gap: 12,
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => recorder.recording ? recorder.stop() : recorder.start()}
+                    style={{
+                      width: 64, height: 64, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
+                      background: recorder.recording ? '#EF4444' : 'linear-gradient(135deg, var(--rd-accent), var(--rd-accent-2))',
+                      boxShadow: recorder.recording ? '0 0 0 6px rgba(239,68,68,.15)' : '0 6px 16px -4px rgba(255,141,26,.5)',
+                      transition: 'all .2s',
+                    }}
+                    title={recorder.recording ? '停止录音' : '开始录音'}
+                  >
+                    {recorder.recording ? <Square size={22} /> : <Mic size={24} />}
+                  </button>
+                  <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: 20, fontWeight: 700, color: 'var(--rd-text)' }}>
+                    {recorder.recording && (
+                      <span style={{
+                        display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                        background: '#EF4444', marginRight: 8, verticalAlign: 'middle',
+                        animation: 'pulse 1.2s ease-in-out infinite',
+                      }} />
+                    )}
+                    {fmtDuration(recorder.seconds)}
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--rd-text-3)', margin: 0, textAlign: 'center' }}>
+                    {recorder.recording ? '正在录音并实时转写,讲完点停止…' : (transcript ? '已停止,可继续录或编辑下方文本后提交' : '点击麦克风开始录音')}
+                  </p>
+                  {recorder.recording && recorder.interim && (
+                    <p style={{ fontSize: 12.5, color: 'var(--rd-text-3)', fontStyle: 'italic', margin: 0, textAlign: 'center', maxWidth: 520 }}>
+                      {recorder.interim}
+                    </p>
+                  )}
+                </div>
+              )}
+              <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--rd-text)', margin: '16px 0 8px' }}>
+                转写结果(可编辑)
+              </label>
+              <textarea
+                className="rd-input"
+                value={transcript}
+                onChange={e => setTranscript(e.target.value)}
+                placeholder="录音转写的文字会实时出现在这里,也可手动修改…"
+                rows={8}
+                style={{ fontFamily: 'ui-monospace, monospace', resize: 'vertical', lineHeight: 1.6 }}
+              />
+              <p style={{ fontSize: 11, color: 'var(--rd-text-3)', margin: '8px 0 0' }}>
+                实时转写为浏览器端草稿,适合快速记录;停止后提交即走 AI 流水线(润色 / 纪要 / 需求 / 干系人)。
+              </p>
+            </div>
           ) : (
             <div>
               <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--rd-text)', marginBottom: 8 }}>
@@ -251,10 +330,11 @@ export default function NewConsoleMeetingNew() {
             <button
               onClick={() => {
                 setError(null)
+                if (recorder.recording) recorder.stop()
                 if (mode === 'upload') uploadMut.mutate()
                 else textMut.mutate()
               }}
-              disabled={submitting || (mode === 'upload' ? !file || !!fileSizeError : !transcript.trim())}
+              disabled={submitting || recorder.recording || (mode === 'upload' ? !file || !!fileSizeError : !transcript.trim())}
               className="rd-btn rd-btn-primary"
             >
               {submitting && <Loader2 size={13} className="animate-spin" />}

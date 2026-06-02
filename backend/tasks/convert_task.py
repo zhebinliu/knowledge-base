@@ -49,6 +49,10 @@ celery_app.conf.beat_schedule = {
         "task": "run_scheduled_challenges",
         "schedule": 60.0,  # 每 60 秒检查一次是否该跑
     },
+    "reap-stale-bundles": {
+        "task": "reap_stale_bundles",
+        "schedule": 300.0,  # 每 5 分钟回收卡死在 pending/generating 的 bundle
+    },
 }
 
 

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { FolderKanban, Search, FileText, ClipboardList, Lightbulb, CheckCircle2, Circle, Loader2, Building2, Calendar, Files, Plus } from 'lucide-react'
 import { listProjects, listStageSummary, getProjectMeta, type Project, type StageStatusRow } from '../../api/client'
 import ProjectFormModal from '../../components/ProjectFormModal'
+import DeleteProjectControl from '../../components/DeleteProjectControl'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -107,10 +108,10 @@ export default function ConsoleProjects() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(p => (
+            <div key={p.id} className="relative group">
             <button
-              key={p.id}
               onClick={() => nav(`/console/projects/${p.id}`)}
-              className="group text-left rounded-2xl border border-line bg-white hover:shadow-md hover:border-orange-200 transition-all p-5 flex flex-col gap-3.5"
+              className="w-full group text-left rounded-2xl border border-line bg-white hover:shadow-md hover:border-orange-200 transition-all p-5 flex flex-col gap-3.5"
             >
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm" style={{ background: BRAND_GRAD }}>
@@ -144,6 +145,8 @@ export default function ConsoleProjects() {
                 <span className="inline-flex items-center gap-1"><Calendar size={11} />{p.kickoff_date || '未填立项'}</span>
               </div>
             </button>
+            <DeleteProjectControl project={p} variant="card" />
+            </div>
           ))}
         </div>
       )}

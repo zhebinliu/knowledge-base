@@ -329,24 +329,19 @@ async def update_document(
     }
 
 
-@router.delete("/{doc_id}")
-async def delete_document(
-    doc_id: str,
-    session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-):
+async def purge_document_storage(session: AsyncSession, doc: Document) -> None:
+    """彻底删除一个文档的全部痕迹:chunk 的向量(qdrant)+ 原文件(minio)+ chunk/doc 行。
+
+    不 commit —— 由调用方在批量删完后统一 commit(项目级级联删除会复用本函数)。
+    向量 / minio 删除失败只 warning 不阻断:存储侧脏数据可后台清理,不能因此卡住删除。
+    """
     from models.chunk import Chunk
     from services.vector_store import vector_store
     from minio import Minio
     from config import settings
 
-    doc = await session.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(404, "文档不存在")
-    await _doc_access_check(doc, current_user, "write")
-
     chunks = (await session.execute(
-        select(Chunk).where(Chunk.document_id == doc_id)
+        select(Chunk).where(Chunk.document_id == doc.id)
     )).scalars().all()
     for chunk in chunks:
         if chunk.vector_id:
@@ -364,6 +359,20 @@ async def delete_document(
             logger.warning("minio_delete_failed", path=doc.file_path, error=str(e)[:100])
 
     await session.delete(doc)
+
+
+@router.delete("/{doc_id}")
+async def delete_document(
+    doc_id: str,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    doc = await session.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(404, "文档不存在")
+    await _doc_access_check(doc, current_user, "write")
+
+    await purge_document_storage(session, doc)
     await session.commit()
     return {"ok": True}
 

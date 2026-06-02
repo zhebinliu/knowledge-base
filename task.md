@@ -1,5 +1,41 @@
 # 任务跟踪
 
+## 四项修复(2026-06-02)— 用户 /goal,全部做完并自测
+
+### T1. 对象字段表「卡住」永久转圈
+根因:`_generate_design_artifact` 内部 LLM 超时(主 720s + linter 2×600s ≈ 1920s 最坏)
+> Celery `generate_object_field_layout/process_setup` 的 `time_limit=1200`(20min)→ 长 markdown
+跑 linter 时被硬杀 → runner 的 except 来不及跑 → bundle 永停 `generating`。部署滚动重启 worker
+也会 orphan 在途任务同样卡死。前端 `bundleByKind` 只认 done、`inflightByKind` 只认 pending/generating,
+所以 bundle 变 `failed` 后会落到空态(带「生成」按钮)→ 天然可重试。
+- [x] `backend/tasks/output_tasks.py`:两个 design 任务 `soft_time_limit=1800, time_limit=2100`(>1920)
+- [x] 新增 reaper:`pending/generating` 且 created_at 早于 60min 的 bundle 标 `failed`(说明超时/被中断)
+- [x] `backend/tasks/convert_task.py` beat_schedule 注册 reaper,300s 一次
+- 边界:阈值 60min > 最长硬限 2100s(35min),不误杀在途长任务
+
+### T2. 删一句废话文案
+- [x] `frontend/src/pages/console/ConsoleProjectDetail.tsx`:删「超过 15 分钟…可耐心等待」误导段(超 15min 其实会被 kill)
+
+### T3. 项目删除按钮(列表+详情)+ 级联删文档
+现状:`DELETE /projects/{id}?cascade` 只解关联不删文档;用户要「相关文档同步删除」
+- [x] `backend/api/documents.py`:抽 `purge_document_storage(session, doc)`(chunk 向量+minio+row,不 commit),`delete_document` 复用
+- [x] `backend/api/projects.py`:加 `purge_documents` query 参数 → true 时逐个删关联文档再删项目;保留旧 cascade(解关联)语义
+- [x] `frontend/src/api/client.ts`:`deleteProject(id, { cascade?, purgeDocuments? })`
+- [x] 新建 `DeleteProjectControl`(触发按钮+确认弹窗+调用),legacy/redesign 列表卡片 + 详情页四处接入
+- 边界:卡片是 `<button>`,删除控件做成同级绝对定位按钮(不嵌套);删后 invalidate ['projects']+['stage-summary'],详情页跳回列表
+
+### T4. 新建会议页:实时录音+实时转写
+方案:Web Speech API(webkitSpeechRecognition,zh-CN,continuous+interim)客户端实时转写,
+onend 自动重启防断流,计时;停止后文本落 transcript 走既有 `createMeetingFromText`(零后端改动);不支持降级提示走上传
+- [x] 新 hook `meeting/frontend/src/hooks/useSpeechRecorder.ts`
+- [x] `ConsoleMeetingNew.tsx`(legacy+redesign)加第三 mode「实时录音」
+
+### 部署
+本地 commit+push → 触发 `Deploy PROD`(workflow_dispatch,confirm=deploy);prod 已镜像化 CI 部署。
+⚠️ SSH 直连服务器 banner 超时,无法手动查/改 prod DB,靠 reaper 自动翻 stuck bundle。
+
+---
+
 ## 新迭代:meeting-ai 项目整合(2026-05-11) — 方案 B 深度合并
 
 ### 背景

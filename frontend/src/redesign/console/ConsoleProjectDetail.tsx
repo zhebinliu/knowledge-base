@@ -28,6 +28,8 @@ import {
 
 // 11 个子组件全部走 Liquid Glass 新版(redesign 目录下)
 import CollaboratorsModal from './CollaboratorsModal'
+import DeleteProjectControl from '../../components/DeleteProjectControl'
+import { useAuth } from '../../auth/AuthContext'
 import ProjectStakeholdersDrawer from './ProjectStakeholdersDrawer'
 import ProjectMeetingsDrawer from './ProjectMeetingsDrawer'
 import OutputChatPanel from './OutputChatPanel'
@@ -109,6 +111,7 @@ const GLASS_PANEL: React.CSSProperties = {
 
 export default function NewConsoleProjectDetail() {
   const nav = useNavigate()
+  const { user } = useAuth()
   const { id } = useParams<{ id: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const qc = useQueryClient()
@@ -286,6 +289,13 @@ export default function NewConsoleProjectDetail() {
             onEdit={() => setEditing(v => !v)}
             editing={editing}
             onBack={() => nav('/console/projects')}
+            actions={(project.my_role === 'owner' || user?.is_admin) ? (
+              <DeleteProjectControl
+                project={{ id: project.id, name: project.name, document_count: project.document_count }}
+                variant="header"
+                onDeleted={() => nav('/console/projects')}
+              />
+            ) : null}
           />
           {/* subKind 切换条 — 当前阶段有子产物(如 survey 的「调研大纲 / 调研问卷」)时显示 */}
           {activeStage.subKinds && (
@@ -376,6 +386,13 @@ export default function NewConsoleProjectDetail() {
         >
           <Pencil size={11} /> <span className="hidden-sm">项目信息</span>
         </button>
+        {(project.my_role === 'owner' || user?.is_admin) && (
+          <DeleteProjectControl
+            project={{ id: project.id, name: project.name, document_count: project.document_count }}
+            variant="header"
+            onDeleted={() => nav('/console/projects')}
+          />
+        )}
       </div>
 
       {/* ── 阶段流程栏 ── */}
@@ -1002,7 +1019,7 @@ function BlueprintDesignWorkspace({
 // ──────────────────────────────────────────────────────────────────────────
 function CompactInsightHeader({
   project, industryLabel, stages, activeStageKey, setActiveStageKey, stageStatus,
-  onOpenCollab, onOpenStakes, onOpenMeetings, onEdit, editing, onBack,
+  onOpenCollab, onOpenStakes, onOpenMeetings, onEdit, editing, onBack, actions,
 }: {
   project: Project
   industryLabel: (val: string | null) => string | null
@@ -1016,6 +1033,7 @@ function CompactInsightHeader({
   onEdit: () => void
   editing: boolean
   onBack: () => void
+  actions?: React.ReactNode
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const activeStage = stages.find(s => s.key === activeStageKey) ?? stages[0]
@@ -1187,6 +1205,7 @@ function CompactInsightHeader({
         >
           <Pencil size={11} />
         </button>
+        {actions}
       </div>
     </div>
   )
