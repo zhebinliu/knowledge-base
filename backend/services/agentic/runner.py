@@ -2632,6 +2632,7 @@ async def _generate_design_artifact(
     from .research.blueprint_generator import (
         format_research_report_block,  # 在 blueprint_generator 里,不在 report_generator
         transform_refs_to_links, build_blueprint_provenance, lint_and_fix_ascii_flowcharts,
+        normalize_table_separators,
     )
     from .industry_packs import get_pack
     from services.output_service import _llm_call
@@ -2698,6 +2699,9 @@ async def _generate_design_artifact(
             raise RuntimeError("LLM 返回为空")
 
         markdown = generator_module.assemble_markdown_from_llm_output(raw)
+        # 修表格分隔行列数 — LLM 常把宽表(对象字段表 9 列)的分隔行写错列数,
+        # 不修则 GFM 整表 reject、下载的 docx/pdf 也是坏表。在生成时修好,存库内容即正确。
+        markdown = normalize_table_separators(markdown)
         await _update_progress(bundle_id, stage="executing", message="切章完成 · 准备 LLM linter…")
 
         # linter 内部多 pass,每个 pass 前调 progress_cb 把进度信息透传给前端

@@ -520,6 +520,51 @@ def _count_independent_ascii_flows(md: str) -> int:
 # 独立 ASCII 流程超过这个数就跳过 linter:一次 LLM 调用改不动且极易超时挂死。
 LINTER_MAX_FLOWS = 40
 
+import re as _re
+
+_TABLE_SEP_RE = _re.compile(r'^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?$')
+
+
+def _md_cell_count(line: str) -> int:
+    t = line.strip()
+    if '|' not in t:
+        return 0
+    core = t
+    if core.startswith('|'):
+        core = core[1:]
+    if core.endswith('|'):
+        core = core[:-1]
+    return len(core.split('|'))
+
+
+def normalize_table_separators(md: str) -> str:
+    """把 markdown 表格分隔行列数强制对齐到表头列数。
+
+    LLM 偶尔把分隔行写多/少一列(表头 9 列、分隔行 10 个 `---`),GFM 解析器会整张表
+    reject → 前端退回 raw 文本(所有 | 和文字挤一行)、下载的 docx/pdf 也是坏表。
+    前端 CitedReportView.cleanReportContent 有同款兜底,但只救预览;这里在「生成时」就修好,
+    让存库 content_md 本身正确,所有消费路径(预览 / 下载 / 导出)统一受益。幂等。
+    """
+    if not md:
+        return md
+    lines = md.split('\n')
+    for i in range(1, len(lines)):
+        if not _TABLE_SEP_RE.match(lines[i].strip()):
+            continue
+        header = _md_cell_count(lines[i - 1])
+        sep = _md_cell_count(lines[i])
+        if header == 0 or sep == header:
+            continue
+        orig = lines[i].strip()
+        rebuilt = '|'.join(['---'] * header)
+        if orig.startswith('|'):
+            rebuilt = '|' + rebuilt
+        if orig.endswith('|'):
+            rebuilt = rebuilt + '|'
+        indent = _re.match(r'^\s*', lines[i]).group(0)
+        lines[i] = indent + rebuilt
+    return '\n'.join(lines)
+
 
 async def lint_and_fix_ascii_flowcharts(
     markdown: str, model: str, max_passes: int = 2,
