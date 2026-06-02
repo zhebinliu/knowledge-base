@@ -11,8 +11,7 @@
  * 使用场景:用户在项目详情页随手提问、不打断主流程。
  */
 import { useEffect, useRef, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import ReportMarkdown from '../markdown/ReportMarkdown'
 import {
   Send, Loader2, Bot, User, ChevronDown, ChevronUp, FileText, Trash2, MessageSquarePlus,
 } from 'lucide-react'
@@ -241,7 +240,7 @@ function Bubble({ msg }: { msg: Msg }) {
             : msg.content
               ? (
                 <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-headings:my-2 prose-pre:my-2 text-[13px]">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  <ReportMarkdown content={msg.content} />
                 </div>
               )
               : <Loader2 size={12} className="animate-spin text-ink-muted" />

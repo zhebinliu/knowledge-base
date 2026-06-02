@@ -11,7 +11,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Sparkles, ChevronDown, ChevronUp, RotateCw, AlertTriangle, ArrowRight, Loader2 } from 'lucide-react'
 import { getSmartAdvice, refreshSmartAdvice, type SmartAdviceDto } from '../../api/client'
-import ReactMarkdown from 'react-markdown'
+import ReportMarkdown from '../markdown/ReportMarkdown'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -149,7 +149,7 @@ export default function SmartAdviceBanner({ projectId }: { projectId: string }) 
           {/* 主建议 markdown */}
           {advice && (
             <div className="text-[13px] text-ink leading-relaxed prose prose-sm max-w-none prose-headings:text-ink prose-strong:text-ink">
-              <ReactMarkdown>{advice}</ReactMarkdown>
+              <ReportMarkdown content={advice} />
             </div>
           )}
 

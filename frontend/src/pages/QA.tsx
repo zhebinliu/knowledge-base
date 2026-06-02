@@ -2,8 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Send, Bot, User, Loader, MessageSquare, Trash2, ChevronRight, FileSearch, Cpu, ChevronDown, ChevronUp, FileText, Copy, Check, Sparkles, ThumbsUp, ThumbsDown, Star, Briefcase, ExternalLink } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import ReportMarkdown from '../components/markdown/ReportMarkdown'
 import { generateDoc, listProjects, submitAnswerFeedback, type QAPersona, type QASource } from '../api/client'
 import { ltcLabel } from '../utils/labels'
 
@@ -114,7 +113,7 @@ function SourcePanel({ sources, hasMessages }: { sources: SourceItem[]; hasMessa
                     [&_h4]:text-xs [&_h4]:font-semibold [&_h4]:mt-1 [&_h4]:mb-0.5
                     [&_p]:my-0.5 [&_ul]:pl-4 [&_ol]:pl-4 [&_li]:my-0
                     [&_strong]:font-semibold [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:rounded">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{s.content}</ReactMarkdown>
+                    <ReportMarkdown content={s.content} />
                   </div>
                 ) : (
                   <p className="text-xs text-gray-700 leading-relaxed">
@@ -357,9 +356,7 @@ function DocGen() {
               </button>
             </div>
             <div className="bg-white border border-gray-200 rounded-xl p-5 prose prose-sm prose-gray max-w-none">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                {result}
-              </ReactMarkdown>
+              <ReportMarkdown content={result} components={markdownComponents} />
             </div>
           </div>
         )}
@@ -784,12 +781,7 @@ export default function QA({ lockedProjectId }: QAProps = {}) {
                   >
                     {msg.role === 'user' ? msg.content : (
                       <>
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={markdownComponents}
-                        >
-                          {msg.content}
-                        </ReactMarkdown>
+                        <ReportMarkdown content={msg.content} components={markdownComponents} />
                         {streaming && i === messages.length - 1 && (
                           <span className="inline-block w-0.5 h-4 bg-gray-400 ml-0.5 animate-pulse align-middle"/>
                         )}

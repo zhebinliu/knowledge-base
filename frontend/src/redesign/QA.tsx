@@ -22,8 +22,7 @@ import {
   Sparkles, ThumbsUp, ThumbsDown, Star, Briefcase, ExternalLink, Loader,
   Plus, Trash2, MessageSquare, X, Cpu,
 } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import ReportMarkdown from '../components/markdown/ReportMarkdown'
 import {
   generateDoc, listProjects, submitAnswerFeedback,
   type QAPersona, type QASource,
@@ -246,9 +245,7 @@ function SourcePanel({ sources, hasMessages }: { sources: QASource[]; hasMessage
                 )}
                 {isExpanded && s.content ? (
                   <div style={{ fontSize: 12, lineHeight: 1.6 }}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                      {s.content}
-                    </ReactMarkdown>
+                    <ReportMarkdown content={s.content} components={markdownComponents} />
                   </div>
                 ) : (
                   <p style={{ fontSize: 12, color: 'var(--rd-text-2)', lineHeight: 1.55, margin: 0 }}>
@@ -351,7 +348,7 @@ function DocGen() {
               </button>
             </div>
             <GlowCard style={{ padding: 22, fontSize: 13, lineHeight: 1.7 }}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{result}</ReactMarkdown>
+              <ReportMarkdown content={result} components={markdownComponents} />
             </GlowCard>
           </div>
         )}
@@ -836,7 +833,7 @@ export default function NewQA({ lockedProjectId, compact = false }: QAProps = {}
                     }}>
                       {isUser ? msg.content : (
                         <>
-                          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{msg.content}</ReactMarkdown>
+                          <ReportMarkdown content={msg.content} components={markdownComponents} />
                           {streaming && i === messages.length - 1 && (
                             <span style={{
                               display: 'inline-block',

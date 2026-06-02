@@ -6,9 +6,8 @@
  *
  * 给 `redesign/console/CenterWorkspace.tsx` 的 `ReportView` 用。prod 路径不引用本组件。
  */
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { type ProvenanceEntry } from '../../api/client'
+import ReportMarkdown from '../../components/markdown/ReportMarkdown'
 
 interface Props {
   content: string
@@ -200,10 +199,12 @@ export default function InsightReportDark({ content, provenance, onCitationClick
         }
       `}</style>
 
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+      {/* 共享渲染核心(清洗 / 表格修复 / mermaid),但用深色专属角标:把 dark 版 a 渲染器
+          通过 components 传进去,不用 ReportMarkdown 的亮色 citation 默认实现。 */}
+      <ReportMarkdown
+        content={content}
         components={{
-          a: ({ href, children, ...rest }) => {
+          a: ({ href, children, ...rest }: any) => {
             if (href && href.startsWith('#cite-')) {
               const id = href.slice(6)
               const lastDash = id.lastIndexOf('-')
@@ -224,9 +225,7 @@ export default function InsightReportDark({ content, provenance, onCitationClick
             return <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>{children}</a>
           },
         }}
-      >
-        {content}
-      </ReactMarkdown>
+      />
     </div>
   )
 }
