@@ -9,9 +9,15 @@
 也会 orphan 在途任务同样卡死。前端 `bundleByKind` 只认 done、`inflightByKind` 只认 pending/generating,
 所以 bundle 变 `failed` 后会落到空态(带「生成」按钮)→ 天然可重试。
 - [x] `backend/tasks/output_tasks.py`:两个 design 任务 `soft_time_limit=1800, time_limit=2100`(>1920)
-- [x] 新增 reaper:`pending/generating` 且 created_at 早于 60min 的 bundle 标 `failed`(说明超时/被中断)
-- [x] `backend/tasks/convert_task.py` beat_schedule 注册 reaper,300s 一次
-- 边界:阈值 60min > 最长硬限 2100s(35min),不误杀在途长任务
+- [x] 【默认重启工作机制】`_recover_stale_bundles`:pending/generating 且 updated_at 早于 30min 的 bundle
+  自动重新派发生成任务(沿用文档 requeue 思路),最多 3 次,超限才标 failed。beat 每 300s + 服务启动各跑一次
+  (替换 main.py 原「只标 failed」逻辑,两处同源)
+- [x] linter 守卫:独立 ASCII 流程 > 40 直接跳过图表审校(对象字段表实测 108 处,一次 LLM 调用挂死 23h)
+- [x] `backend/tasks/convert_task.py` beat 注册 recover_stale_bundles,300s 一次
+- 现场确认:用户那条 object_field_layout 卡 generating 23h(linter 第 1/2 轮 108 处 ASCII)→ 已被 startup
+  恢复翻掉;同项目另有一条 done(39k 字)被它遮挡,翻掉后前端回落到 done 版本正常显示
+- 边界:阈值 30min > 单步最大进度间隔 ~12min(主 LLM 调用),不误杀在途任务(在跑的任务持续刷 updated_at)
+- [x] GitHub Secret `DEPLOY_HOST` 同步改成新服务器 IP 34.67.136.67(换机必做,CLAUDE.md 已记)
 
 ### T2. 删一句废话文案
 - [x] `frontend/src/pages/console/ConsoleProjectDetail.tsx`:删「超过 15 分钟…可耐心等待」误导段(超 15min 其实会被 kill)

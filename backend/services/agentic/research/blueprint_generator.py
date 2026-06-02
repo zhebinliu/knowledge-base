@@ -517,6 +517,10 @@ def _count_independent_ascii_flows(md: str) -> int:
     return n
 
 
+# 独立 ASCII 流程超过这个数就跳过 linter:一次 LLM 调用改不动且极易超时挂死。
+LINTER_MAX_FLOWS = 40
+
+
 async def lint_and_fix_ascii_flowcharts(
     markdown: str, model: str, max_passes: int = 2,
     progress_cb=None,  # async (msg: str) -> None,每次 pass 前后调用,用于前端进度显示
@@ -540,6 +544,13 @@ async def lint_and_fix_ascii_flowcharts(
         if remaining == 0:
             if progress_cb:
                 try: await progress_cb(f"图表审校通过(无 ASCII 流程残留)")
+                except Exception: pass
+            break
+        # 流程过多(常见于对象字段表这类含大量 "A → B → C" 行的文档):一次 LLM 调用
+        # 既改不动也极易超时挂死(曾导致 bundle 卡 generating 数小时),直接跳过,保留原文。
+        if remaining > LINTER_MAX_FLOWS:
+            if progress_cb:
+                try: await progress_cb(f"ASCII 流程过多({remaining} 处),跳过图表审校以避免超时")
                 except Exception: pass
             break
         if progress_cb:

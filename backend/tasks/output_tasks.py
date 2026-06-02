@@ -94,41 +94,95 @@ def generate_process_setup(self, bundle_id: str, project_id: str):
     _run(_gen(bundle_id, project_id))
 
 
-# ── stale bundle reaper(beat,每 300s)─────────────────────────────────────
-# 把卡死在 pending/generating 的 bundle 翻成 failed,避免前端永久转圈。
-# 卡死成因:① 生成超时被 Celery 硬杀(time_limit 到点杀进程,runner 的 except 来不及跑);
-#           ② 部署滚动重启 celery_worker,在途任务被 orphan。
-# 翻成 failed 后,前端 inflightByKind 不再命中 → 阶段回到空态(带「生成」按钮)→ 可重试。
-# 阈值 60min 远大于最长任务硬限 2100s(35min),不会误杀仍在跑的长任务。
-STALE_BUNDLE_MINUTES = 60
+# ── kind → 生成任务 映射(供自动重启复用)──────────────────────────────────
+def _kind_to_task() -> dict:
+    """bundle.kind → 对应的 Celery 生成任务,用于卡死后自动重新触发。
+    必须覆盖所有走 curated_bundles 的 kind(与 outputs.api 的 KIND_TO_TASK 对齐)。"""
+    return {
+        "kickoff_pptx": generate_kickoff_pptx,
+        "kickoff_html": generate_kickoff_html,
+        "insight": generate_insight,
+        "survey": generate_survey,
+        "survey_outline": generate_survey_outline,
+        "research_report": generate_research_report,
+        "blueprint_design": generate_blueprint_design,
+        "object_field_layout": generate_object_field_layout,
+        "process_setup": generate_process_setup,
+        "implementation_plan": generate_implementation_plan,
+        "test_plan": generate_test_plan,
+        "acceptance_report": generate_acceptance_report,
+    }
 
 
-@celery_app.task(name="reap_stale_bundles")
-def reap_stale_bundles():
-    return _run(_reap_stale_bundles())
+# ── stale bundle 自动重启(beat 每 300s + 服务启动时各跑一次)──────────────────
+# 卡死成因:① 生成被 Celery time_limit 硬杀(runner 的 except 来不及跑);
+#           ② 部署滚动重启 celery_worker / backend,在途任务被 orphan。
+# 「默认重启工作」机制:对卡死的 bundle 自动重新派发生成任务(沿用文档 process_document
+#   的 requeue 思路),最多 MAX_AUTO_RESTARTS 次;超过则标 failed,前端回到空态可手动重试。
+# 阈值用 updated_at(生成过程会持续写 progress 刷新 updated_at),单步最大间隔 ~12min(主 LLM 调用),
+#   30min 阈值不会误杀仍在跑的任务,又比硬限 35min 后的 orphan 早点捞回来。
+STALE_BUNDLE_MINUTES = 30
+MAX_AUTO_RESTARTS = 3
 
 
-async def _reap_stale_bundles() -> int:
+@celery_app.task(name="recover_stale_bundles")
+def recover_stale_bundles():
+    return _run(_recover_stale_bundles())
+
+
+async def _recover_stale_bundles(cutoff_minutes: int = STALE_BUNDLE_MINUTES,
+                                 max_restarts: int = MAX_AUTO_RESTARTS) -> dict:
+    """捞出卡死的 bundle:未超重启上限的自动重新派发任务,超限的标 failed。
+
+    返回 {"restarted": n, "failed": m}。派发在 commit 之后做,确保 DB 状态先落库。
+    """
     from datetime import timedelta
     from sqlalchemy import select
+    from sqlalchemy.orm.attributes import flag_modified
     from models import async_session_maker
     from models.curated_bundle import CuratedBundle
     from services._time import utcnow_naive
 
-    cutoff = utcnow_naive() - timedelta(minutes=STALE_BUNDLE_MINUTES)
-    reaped = 0
+    cutoff = utcnow_naive() - timedelta(minutes=cutoff_minutes)
+    task_map = _kind_to_task()
+    to_dispatch: list[tuple] = []   # (kind, bundle_id, project_id)
+    restarted = failed = 0
     async with async_session_maker() as s:
         rows = (await s.execute(
             select(CuratedBundle)
             .where(CuratedBundle.status.in_(("pending", "generating")))
-            .where(CuratedBundle.created_at < cutoff)
+            .where(CuratedBundle.updated_at < cutoff)
         )).scalars().all()
         for b in rows:
-            b.status = "failed"
-            b.error = "生成超时或被中断(后台任务超时 / 服务重启),请重新生成。"
-            reaped += 1
-        if reaped:
+            extra = dict(b.extra or {})
+            count = int(extra.get("auto_restart_count", 0) or 0)
+            can_restart = task_map.get(b.kind) is not None and b.project_id and count < max_restarts
+            if can_restart:
+                extra["auto_restart_count"] = count + 1
+                extra["progress"] = {"stage": "pending", "message": f"任务中断,正在自动重启(第 {count + 1} 次)…"}
+                b.extra = extra
+                flag_modified(b, "extra")
+                b.status = "pending"
+                b.error = None
+                to_dispatch.append((b.kind, b.id, b.project_id))
+                restarted += 1
+            else:
+                extra["auto_restart_exhausted"] = True
+                b.extra = extra
+                flag_modified(b, "extra")
+                b.status = "failed"
+                b.error = ("多次自动重启仍未完成,请手动重新生成或检查素材/服务。"
+                           if count >= max_restarts else
+                           "生成任务中断且无法自动重启,请手动重新生成。")
+                failed += 1
+        if rows:
             await s.commit()
-    if reaped:
-        logger.info("reaped_stale_bundles", count=reaped, cutoff_minutes=STALE_BUNDLE_MINUTES)
-    return reaped
+    # commit 后再派发(确保 worker 拿到的是已落库的 pending 状态)
+    for kind, bid, pid in to_dispatch:
+        task = task_map.get(kind)
+        if task is not None:
+            task.delay(bid, pid)
+    if restarted or failed:
+        logger.warning("recover_stale_bundles", restarted=restarted, failed=failed,
+                       cutoff_minutes=cutoff_minutes)
+    return {"restarted": restarted, "failed": failed}
