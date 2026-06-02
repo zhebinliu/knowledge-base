@@ -19,7 +19,7 @@ import {
   listProjects,
   type Project,
 } from '../../api/client'
-import { useSpeechRecorder } from '../../hooks/useSpeechRecorder'
+import { useMediaRecorder } from '../../hooks/useMediaRecorder'
 import GlowCard from '../components/GlowCard'
 
 const MAX_FILE_SIZE_MB = 500
@@ -38,12 +38,11 @@ export default function NewConsoleMeetingNew() {
   const [file, setFile] = useState<File | null>(null)
   const [fileSizeError, setFileSizeError] = useState<string | null>(null)
   const [transcript, setTranscript] = useState('')
+  const [recordedFile, setRecordedFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // 实时录音 + 实时转写(Web Speech API):final 段落追加到 transcript,停止后走文本管线提交
-  const recorder = useSpeechRecorder({
-    onFinalText: (txt) => setTranscript(t => (t ? t.replace(/\s*$/, '') + (t ? '\n' : '') : '') + txt),
-  })
+  // 浏览器录音:停止后产出音频 File,走和「上传录音」同一条 uploadMeetingAudio → 后端 ASR 管线
+  const recorder = useMediaRecorder({ onComplete: (f) => setRecordedFile(f) })
 
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
 
@@ -58,9 +57,10 @@ export default function NewConsoleMeetingNew() {
 
   const uploadMut = useMutation({
     mutationFn: () => {
-      if (!file) throw new Error('请选择音频文件')
-      return uploadMeetingAudio(file, {
-        title: title || file.name,
+      const f = mode === 'record' ? recordedFile : file
+      if (!f) throw new Error(mode === 'record' ? '请先录音' : '请选择音频文件')
+      return uploadMeetingAudio(f, {
+        title: title || f.name,
         project_id: projectId || null,
       })
     },
@@ -218,7 +218,7 @@ export default function NewConsoleMeetingNew() {
           ) : mode === 'record' ? (
             <div>
               <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--rd-text)', marginBottom: 8 }}>
-                实时录音转写
+                录音(支持多人会议)
               </label>
               {!recorder.supported ? (
                 <div style={{
@@ -227,7 +227,7 @@ export default function NewConsoleMeetingNew() {
                   color: 'var(--rd-text-2)', fontSize: 12.5, lineHeight: 1.6,
                 }}>
                   <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
-                  当前浏览器不支持实时语音识别。请使用 Chrome / Edge 桌面浏览器,或改用「上传录音」。
+                  当前浏览器不支持录音。请使用 Chrome / Edge 桌面浏览器,或改用「上传录音」。
                 </div>
               ) : (
                 <div style={{
@@ -237,7 +237,7 @@ export default function NewConsoleMeetingNew() {
                 }}>
                   <button
                     type="button"
-                    onClick={() => recorder.recording ? recorder.stop() : recorder.start()}
+                    onClick={() => { if (recorder.recording) { recorder.stop() } else { setRecordedFile(null); recorder.start() } }}
                     style={{
                       width: 64, height: 64, borderRadius: '50%', border: 'none', cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
@@ -259,29 +259,30 @@ export default function NewConsoleMeetingNew() {
                     )}
                     {fmtDuration(recorder.seconds)}
                   </div>
-                  <p style={{ fontSize: 12, color: 'var(--rd-text-3)', margin: 0, textAlign: 'center' }}>
-                    {recorder.recording ? '正在录音并实时转写,讲完点停止…' : (transcript ? '已停止,可继续录或编辑下方文本后提交' : '点击麦克风开始录音')}
+                  <p style={{ fontSize: 12, color: 'var(--rd-text-3)', margin: 0, textAlign: 'center', maxWidth: 520 }}>
+                    {recorder.recording
+                      ? '正在录音…讲完点停止'
+                      : recordedFile
+                        ? `已录制 ${fmtDuration(recorder.seconds)} · 点下方「上传并转写」提交`
+                        : '点麦克风开始录音。录完上传后端 ASR 转写(支持多人会议)'}
                   </p>
-                  {recorder.recording && recorder.interim && (
-                    <p style={{ fontSize: 12.5, color: 'var(--rd-text-3)', fontStyle: 'italic', margin: 0, textAlign: 'center', maxWidth: 520 }}>
-                      {recorder.interim}
-                    </p>
+                  {recordedFile && !recorder.recording && (
+                    <button
+                      type="button"
+                      onClick={() => { setRecordedFile(null); recorder.start() }}
+                      className="rd-btn"
+                      style={{ fontSize: 12, padding: '5px 12px' }}
+                    >
+                      重新录制
+                    </button>
                   )}
                 </div>
               )}
-              <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--rd-text)', margin: '16px 0 8px' }}>
-                转写结果(可编辑)
-              </label>
-              <textarea
-                className="rd-input"
-                value={transcript}
-                onChange={e => setTranscript(e.target.value)}
-                placeholder="录音转写的文字会实时出现在这里,也可手动修改…"
-                rows={8}
-                style={{ fontFamily: 'ui-monospace, monospace', resize: 'vertical', lineHeight: 1.6 }}
-              />
+              {recorder.error && (
+                <p style={{ fontSize: 12, color: '#FB7185', margin: '8px 0 0' }}>{recorder.error}</p>
+              )}
               <p style={{ fontSize: 11, color: 'var(--rd-text-3)', margin: '8px 0 0' }}>
-                实时转写为浏览器端草稿,适合快速记录;停止后提交即走 AI 流水线(润色 / 纪要 / 需求 / 干系人)。
+                录音不离开本次会话,停止后才上传;转写由后端 xiaomi ASR 完成(几十秒到几分钟),完成后自动跑 AI 流水线。
               </p>
             </div>
           ) : (
@@ -330,15 +331,18 @@ export default function NewConsoleMeetingNew() {
             <button
               onClick={() => {
                 setError(null)
-                if (recorder.recording) recorder.stop()
-                if (mode === 'upload') uploadMut.mutate()
-                else textMut.mutate()
+                if (mode === 'text') textMut.mutate()
+                else uploadMut.mutate()
               }}
-              disabled={submitting || recorder.recording || (mode === 'upload' ? !file || !!fileSizeError : !transcript.trim())}
+              disabled={submitting || recorder.recording || (
+                mode === 'text' ? !transcript.trim()
+                : mode === 'record' ? !recordedFile
+                : (!file || !!fileSizeError)
+              )}
               className="rd-btn rd-btn-primary"
             >
               {submitting && <Loader2 size={13} className="animate-spin" />}
-              {mode === 'upload' ? '上传并转写' : '提交并生成'}
+              {mode === 'text' ? '提交并生成' : '上传并转写'}
             </button>
           </div>
         </div>

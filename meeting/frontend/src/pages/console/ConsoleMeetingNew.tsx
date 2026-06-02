@@ -16,7 +16,7 @@ import {
   listProjects,
   type Project,
 } from '../../api/client'
-import { useSpeechRecorder } from '../../hooks/useSpeechRecorder'
+import { useMediaRecorder } from '../../hooks/useMediaRecorder'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 const MAX_FILE_SIZE_MB = 500
@@ -35,12 +35,11 @@ export default function ConsoleMeetingNew() {
   const [file, setFile] = useState<File | null>(null)
   const [fileSizeError, setFileSizeError] = useState<string | null>(null)
   const [transcript, setTranscript] = useState('')
+  const [recordedFile, setRecordedFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // 实时录音 + 实时转写(Web Speech API):final 段落追加到 transcript,停止后走文本管线提交
-  const recorder = useSpeechRecorder({
-    onFinalText: (txt) => setTranscript(t => (t ? t.replace(/\s*$/, '') + '\n' : '') + txt),
-  })
+  // 浏览器录音:停止后产出音频 File,走和「上传录音」同一条 uploadMeetingAudio → 后端 ASR 管线
+  const recorder = useMediaRecorder({ onComplete: (f) => setRecordedFile(f) })
 
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
 
@@ -55,9 +54,10 @@ export default function ConsoleMeetingNew() {
 
   const uploadMut = useMutation({
     mutationFn: () => {
-      if (!file) throw new Error('请选择音频文件')
-      return uploadMeetingAudio(file, {
-        title: title || file.name,
+      const f = mode === 'record' ? recordedFile : file
+      if (!f) throw new Error(mode === 'record' ? '请先录音' : '请选择音频文件')
+      return uploadMeetingAudio(f, {
+        title: title || f.name,
         project_id: projectId || null,
       })
     },
@@ -166,16 +166,16 @@ export default function ConsoleMeetingNew() {
           </div>
         ) : mode === 'record' ? (
           <div>
-            <label className="block text-sm font-medium text-ink mb-1.5">实时录音转写</label>
+            <label className="block text-sm font-medium text-ink mb-1.5">录音(支持多人会议)</label>
             {!recorder.supported ? (
               <div className="rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-sm px-3 py-2.5 leading-relaxed">
-                当前浏览器不支持实时语音识别。请使用 Chrome / Edge 桌面浏览器,或改用「上传录音」。
+                当前浏览器不支持录音。请使用 Chrome / Edge 桌面浏览器,或改用「上传录音」。
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-line bg-canvas/40 px-5 py-6 flex flex-col items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => recorder.recording ? recorder.stop() : recorder.start()}
+                  onClick={() => { if (recorder.recording) { recorder.stop() } else { setRecordedFile(null); recorder.start() } }}
                   title={recorder.recording ? '停止录音' : '开始录音'}
                   className={`w-16 h-16 rounded-full flex items-center justify-center text-white transition-all ${
                     recorder.recording ? 'bg-red-500 ring-4 ring-red-100' : 'shadow-md hover:shadow-lg'
@@ -188,24 +188,27 @@ export default function ConsoleMeetingNew() {
                   {recorder.recording && <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
                   {fmtDuration(recorder.seconds)}
                 </div>
-                <p className="text-xs text-ink-muted text-center">
-                  {recorder.recording ? '正在录音并实时转写,讲完点停止…' : (transcript ? '已停止,可继续录或编辑下方文本后提交' : '点击麦克风开始录音')}
+                <p className="text-xs text-ink-muted text-center max-w-lg">
+                  {recorder.recording
+                    ? '正在录音…讲完点停止'
+                    : recordedFile
+                      ? `已录制 ${fmtDuration(recorder.seconds)} · 点下方「上传并转写」提交`
+                      : '点麦克风开始录音。录完上传后端 ASR 转写(支持多人会议)'}
                 </p>
-                {recorder.recording && recorder.interim && (
-                  <p className="text-xs text-ink-muted italic text-center max-w-lg">{recorder.interim}</p>
+                {recordedFile && !recorder.recording && (
+                  <button
+                    type="button"
+                    onClick={() => { setRecordedFile(null); recorder.start() }}
+                    className="text-xs px-3 py-1 rounded-md border border-line text-ink-secondary hover:bg-canvas"
+                  >
+                    重新录制
+                  </button>
                 )}
               </div>
             )}
-            <label className="block text-sm font-medium text-ink mb-1.5 mt-4">转写结果(可编辑)</label>
-            <textarea
-              value={transcript}
-              onChange={(e) => setTranscript(e.target.value)}
-              placeholder="录音转写的文字会实时出现在这里,也可手动修改…"
-              rows={8}
-              className="w-full px-3 py-2 rounded-lg border border-line text-sm font-mono focus:outline-none focus:border-brand resize-y"
-            />
-            <p className="text-[11px] text-ink-muted mt-1">
-              实时转写为浏览器端草稿,适合快速记录;停止后提交即走 AI 流水线(润色 / 纪要 / 需求 / 干系人)。
+            {recorder.error && <p className="text-[11px] text-rose-600 mt-2">{recorder.error}</p>}
+            <p className="text-[11px] text-ink-muted mt-2">
+              录音不离开本次会话,停止后才上传;转写由后端 xiaomi ASR 完成(几十秒到几分钟),完成后自动跑 AI 流水线。
             </p>
           </div>
         ) : (
@@ -241,16 +244,19 @@ export default function ConsoleMeetingNew() {
           <button
             onClick={() => {
               setError(null)
-              if (recorder.recording) recorder.stop()
-              if (mode === 'upload') uploadMut.mutate()
-              else textMut.mutate()
+              if (mode === 'text') textMut.mutate()
+              else uploadMut.mutate()
             }}
-            disabled={submitting || recorder.recording || (mode === 'upload' ? !file || !!fileSizeError : !transcript.trim())}
+            disabled={submitting || recorder.recording || (
+              mode === 'text' ? !transcript.trim()
+              : mode === 'record' ? !recordedFile
+              : (!file || !!fileSizeError)
+            )}
             className="px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-50 inline-flex items-center gap-2"
             style={{ background: BRAND_GRAD }}
           >
             {submitting && <Loader2 size={14} className="animate-spin" />}
-            {mode === 'upload' ? '上传并转写' : '提交并生成'}
+            {mode === 'text' ? '提交并生成' : '上传并转写'}
           </button>
         </div>
       </div>
