@@ -11,6 +11,7 @@ import CollaboratorsModal from '../../components/console/CollaboratorsModal'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
 import { useAuth } from '../../auth/AuthContext'
 import ProjectStakeholdersDrawer from '../../components/console/ProjectStakeholdersDrawer'
+import ProjectMeetingsDrawer from '../../components/console/ProjectMeetingsDrawer'
 import SmartAdviceBanner, { smartAdviceQueryKey } from '../../components/console/SmartAdviceBanner'
 import {
   getProject, updateProject, generateCustomerProfile, generateOutput,
@@ -109,6 +110,7 @@ export default function ConsoleProjectDetail() {
   const [editing, setEditing] = useState(false)
   const [collabOpen, setCollabOpen] = useState(false)
   const [stakesOpen, setStakesOpen] = useState(false)
+  const [meetingsOpen, setMeetingsOpen] = useState(false)
   const [previewDocId, setPreviewDocId] = useState<string | null>(null)
   // v3.2: stage 可以从 URL ?stage=insight 初始化(给 P 类引用 chip 跳转上游 stage 用)
   const [activeStageKey, setActiveStageKey] = useState<string>(() => searchParams.get('stage') || 'insight')
@@ -347,6 +349,14 @@ export default function ConsoleProjectDetail() {
           <span className="hidden sm:inline">干系人</span>
         </button>
         <button
+          onClick={() => setMeetingsOpen(true)}
+          className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-line text-ink-secondary hover:bg-canvas transition-colors"
+          title="关联会议(纪要 / 录音 / 需求)"
+        >
+          <MessageSquare size={11} />
+          <span className="hidden sm:inline">会议</span>
+        </button>
+        <button
           onClick={() => setEditing(v => !v)}
           className={`shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
             editing ? 'border-orange-300 text-orange-700 bg-orange-50' : 'border-line text-ink-secondary hover:bg-canvas'
@@ -384,6 +394,13 @@ export default function ConsoleProjectDetail() {
         open={stakesOpen}
         projectId={project.id}
         onClose={() => setStakesOpen(false)}
+      />
+
+      {/* 关联会议 Drawer */}
+      <ProjectMeetingsDrawer
+        open={meetingsOpen}
+        projectId={project.id}
+        onClose={() => setMeetingsOpen(false)}
       />
 
       {editing && (
