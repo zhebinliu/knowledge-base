@@ -310,6 +310,20 @@ async def delete_project(
             sa_update(Document).where(Document.project_id == project_id).values(project_id=None)
         )
 
+    # 清理会阻塞删除的关联表 —— 对 projects.id 的外键审计结果:
+    #   CASCADE(自动删):project_collaborators / project_stakeholders / research_ltc_module_maps
+    #   SET NULL(自动解关联):curated_bundles / research_responses
+    #   NO ACTION(必须手动,否则 DELETE projects 触发 FK 违约 500):
+    #     - project_smart_advice / project_briefs / conversations → 附属数据,直接删
+    #     - meetings → 独立实体(会议纪要可不依附项目),仅解关联、不删(其子表 requirements/shares 不动)
+    # 新增带 project_id 外键的表时,记得在这里补一处,否则删除会再次 500。
+    from sqlalchemy import text as _sa_text
+    for _tbl in ("project_smart_advice", "project_briefs", "conversations"):
+        await session.execute(_sa_text(f"DELETE FROM {_tbl} WHERE project_id = :pid"), {"pid": project_id})
+    await session.execute(
+        _sa_text("UPDATE meetings SET project_id = NULL WHERE project_id = :pid"), {"pid": project_id}
+    )
+
     await session.delete(p)
     await session.commit()
     return {
