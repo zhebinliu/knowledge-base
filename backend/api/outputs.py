@@ -230,6 +230,34 @@ async def list_outputs(
     return {"total": total, "page": page, "page_size": page_size, "items": [_bundle_dto(b) for b in rows]}
 
 
+@router.get("/stage-summary")
+async def stage_summary(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """轻量阶段状态汇总:返回所有可见项目下每个 (project_id, kind, status) 的去重三元组。
+
+    列表页 / 工作台首页的阶段徽章用它判定「已生成 / 生成中 / 未开始」。
+    不分页 —— 否则项目一多,老项目的 bundle 会被全局最近 N 条挤掉,徽章误回落成「未开始」。
+    只取三个字段,数据量 = 项目数 × kind 数 × 状态数,极小。"""
+    stmt = select(
+        CuratedBundle.project_id, CuratedBundle.kind, CuratedBundle.status
+    ).distinct()
+
+    if not current_user.is_admin:
+        from services.project_acl import list_accessible_project_ids
+        accessible_ids = await list_accessible_project_ids(current_user)
+        if not accessible_ids:
+            return {"items": []}
+        stmt = stmt.where(CuratedBundle.project_id.in_(accessible_ids))
+
+    rows = (await session.execute(stmt)).all()
+    return {"items": [
+        {"project_id": pid, "kind": kind, "status": status}
+        for (pid, kind, status) in rows
+    ]}
+
+
 @router.get("/{bundle_id}")
 async def get_output(
     bundle_id: str,

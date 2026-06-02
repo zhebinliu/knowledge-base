@@ -1332,6 +1332,12 @@ export const generateOutput = (body: { kind: string; project_id: string }) =>
 export const listOutputs = (params: { project_id?: string; kind?: string; page?: number } = {}) =>
   api.get<OutputPage>('/outputs', { params }).then(r => r.data)
 
+/** 轻量阶段状态:每个项目每种 kind 是否已生成 / 生成中。列表页阶段徽章专用,不分页 —
+ *  避免老项目的 bundle 被全局最近 N 条挤掉导致徽章误回落成「未开始」。 */
+export interface StageStatusRow { project_id: string | null; kind: string; status: string }
+export const listStageSummary = () =>
+  api.get<{ items: StageStatusRow[] }>('/outputs/stage-summary').then(r => r.data.items)
+
 export const getOutput = (id: string) =>
   api.get<CuratedBundle>(`/outputs/${id}`).then(r => r.data)
 

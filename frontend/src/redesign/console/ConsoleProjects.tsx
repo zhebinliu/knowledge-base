@@ -15,7 +15,7 @@ import {
   Search, FileText, ClipboardList, Lightbulb,
   CheckCircle2, Circle, Loader2, Building2, Calendar, Files, Plus, FolderKanban,
 } from 'lucide-react'
-import { listProjects, listOutputs, getProjectMeta, type Project, type CuratedBundle } from '../../api/client'
+import { listProjects, listStageSummary, getProjectMeta, type Project, type StageStatusRow } from '../../api/client'
 import ProjectFormModal from '../../components/ProjectFormModal'
 import GlowCard from '../components/GlowCard'
 
@@ -26,7 +26,7 @@ const STAGES = [
 ] as const
 
 function StageBadge({ project, kind, label, color, Icon, bundles }: {
-  project: Project; kind: string; label: string; color: string; Icon: typeof FileText; bundles: CuratedBundle[]
+  project: Project; kind: string; label: string; color: string; Icon: typeof FileText; bundles: StageStatusRow[]
 }) {
   const has = bundles.find(b => b.project_id === project.id && b.kind === kind && b.status === 'done')
   const inflight = bundles.find(b => b.project_id === project.id && b.kind === kind && (b.status === 'pending' || b.status === 'generating'))
@@ -54,12 +54,12 @@ export default function NewConsoleProjects() {
     queryKey: ['projects'],
     queryFn: () => listProjects(),
   })
-  const { data: outputs } = useQuery({
-    queryKey: ['outputs', 'all'],
-    queryFn: () => listOutputs({ page: 1 }),
+  const { data: stageRows } = useQuery({
+    queryKey: ['stage-summary'],
+    queryFn: () => listStageSummary(),
     refetchInterval: (qq) => {
-      const items = qq.state.data?.items ?? []
-      return items.some((b: CuratedBundle) => b.status === 'pending' || b.status === 'generating') ? 5000 : false
+      const items = qq.state.data ?? []
+      return items.some((b: StageStatusRow) => b.status === 'pending' || b.status === 'generating') ? 5000 : false
     },
   })
   const { data: meta } = useQuery({ queryKey: ['project-meta'], queryFn: getProjectMeta })
@@ -81,7 +81,7 @@ export default function NewConsoleProjects() {
     )
   }, [projects, q])
 
-  const bundles = outputs?.items ?? []
+  const bundles = stageRows ?? []
 
   return (
     <div className="rd-page">
