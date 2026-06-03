@@ -18,28 +18,38 @@ import remarkGfm from 'remark-gfm'
 import mermaid from 'mermaid'
 import { type ProvenanceEntry } from '../../api/client'
 
-// mermaid 全局初始化(模块级,只跑一次):base theme + 橙色主题变量,跟报告卡片配色一致。
+// mermaid 全局初始化(模块级,只跑一次):base theme + 冷色调主题,对齐 Lucid 风格连线 + 形状区分配色。
+// 连线用折线(curve: 'step'),节点按形状自动分色:矩形浅蓝、椭圆/圆浅紫、菱形/六边形浅黄。
 mermaid.initialize({
   startOnLoad: false,
   theme: 'base',
   securityLevel: 'loose',
-  flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis', padding: 16, nodeSpacing: 50, rankSpacing: 70 },
+  flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'step', padding: 16, nodeSpacing: 50, rankSpacing: 70 },
   sequence: { useMaxWidth: true, wrap: true, mirrorActors: false, boxMargin: 12 },
   themeVariables: {
     fontFamily: '"PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     fontSize: '13px',
-    primaryColor: '#FFF7ED', primaryTextColor: '#1F2937', primaryBorderColor: '#FB923C',
-    secondaryColor: '#FEF3C7', secondaryTextColor: '#1F2937', secondaryBorderColor: '#F59E0B',
-    tertiaryColor: '#F8FAFC', tertiaryTextColor: '#1F2937', tertiaryBorderColor: '#CBD5E1',
-    lineColor: '#94A3B8', background: '#FFFFFF', mainBkg: '#FFF7ED', secondBkg: '#FEF3C7',
+    primaryColor: '#EEF2F8', primaryTextColor: '#1F2937', primaryBorderColor: '#94A3B8',
+    secondaryColor: '#EDE9FE', secondaryTextColor: '#1F2937', secondaryBorderColor: '#A78BFA',
+    tertiaryColor: '#FEF3C7', tertiaryTextColor: '#1F2937', tertiaryBorderColor: '#FBBF24',
+    lineColor: '#475569', background: '#FFFFFF', mainBkg: '#EEF2F8', secondBkg: '#EDE9FE',
     textColor: '#1F2937', edgeLabelBackground: '#FFFFFF',
-    transitionColor: '#6B7280', transitionLabelColor: '#6B7280',
-    clusterBkg: '#FAFBFC', clusterBorder: '#CBD5E1',
-    actorBkg: '#FFF7ED', actorBorder: '#FB923C', actorTextColor: '#1F2937',
-    signalColor: '#6B7280', signalTextColor: '#374151',
-    labelBoxBkgColor: '#FEF3C7', labelBoxBorderColor: '#F59E0B', labelTextColor: '#1F2937',
+    transitionColor: '#475569', transitionLabelColor: '#475569',
+    clusterBkg: '#F8FAFC', clusterBorder: '#CBD5E1',
+    actorBkg: '#EEF2F8', actorBorder: '#94A3B8', actorTextColor: '#1F2937',
+    signalColor: '#475569', signalTextColor: '#374151',
+    labelBoxBkgColor: '#FEF3C7', labelBoxBorderColor: '#FBBF24', labelTextColor: '#1F2937',
     noteBkgColor: '#FFFBEB', noteBorderColor: '#FCD34D', noteTextColor: '#1F2937',
   },
+  themeCSS: `
+    .node rect, .node path, .node polygon, .node circle, .node ellipse { stroke-width: 1.2px; }
+    .node rect { rx: 6px; ry: 6px; }
+    .node polygon { fill: #FEF3C7; stroke: #FBBF24; }
+    .node ellipse, .node circle { fill: #EDE9FE; stroke: #A78BFA; }
+    .flowchart-link, .edgePath path { stroke-width: 1.4px; }
+    .edgeLabel, .edgeLabel rect { background: #FFFFFF; fill: #FFFFFF; }
+    .edgeLabel { color: #475569; }
+  `,
 })
 
 const MERMAID_KEYWORDS = /^(flowchart\s+(?:LR|TB|RL|BT|TD)|graph\s+(?:LR|TB|RL|BT|TD)|stateDiagram(?:-v2)?|sequenceDiagram|classDiagram|erDiagram|journey|gantt|pie)\b/
@@ -173,8 +183,8 @@ export function MermaidBlock({ code }: { code: string }) {
   if (!svg) return <pre className="text-xs text-gray-400 bg-gray-50 p-3 rounded my-3">渲染图表中…</pre>
   return (
     <div
-      className="mermaid-block my-5 flex justify-center overflow-x-auto bg-gradient-to-br from-orange-50/40 via-white to-white border border-orange-100 rounded-xl px-6 py-5 shadow-sm"
-      style={{ boxShadow: '0 1px 3px rgba(251, 146, 60, 0.06), 0 4px 12px rgba(20, 20, 40, 0.04)' }}
+      className="mermaid-block my-5 flex justify-center overflow-x-auto bg-white border border-slate-200 rounded-xl px-6 py-5 shadow-sm"
+      style={{ boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.04)' }}
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   )
