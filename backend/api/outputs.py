@@ -60,6 +60,7 @@ KIND_TO_TASK = {
     "insight": "generate_insight",
     "survey": "generate_survey",
     "survey_outline": "generate_survey_outline",
+    "research_plan": "generate_research_plan",
     "research_report": "generate_research_report",
     "blueprint_design": "generate_blueprint_design",
     "object_field_layout": "generate_object_field_layout",
@@ -75,6 +76,7 @@ KIND_TITLES = {
     "insight": "项目洞察报告",
     "survey": "调研问卷",
     "survey_outline": "调研大纲",
+    "research_plan": "调研计划(客户版)",
     "research_report": "调研报告",
     "blueprint_design": "蓝图设计",
     "object_field_layout": "对象字段表(含布局)",
@@ -169,7 +171,7 @@ async def generate_output(
     from tasks.output_tasks import (
         generate_kickoff_pptx, generate_kickoff_html,
         generate_insight, generate_survey, generate_survey_outline,
-        generate_research_report, generate_blueprint_design,
+        generate_research_plan, generate_research_report, generate_blueprint_design,
         generate_object_field_layout, generate_process_setup,
         generate_implementation_plan, generate_test_plan, generate_acceptance_report,
     )
@@ -179,6 +181,7 @@ async def generate_output(
         "insight": generate_insight,
         "survey": generate_survey,
         "survey_outline": generate_survey_outline,
+        "research_plan": generate_research_plan,
         "research_report": generate_research_report,
         "blueprint_design": generate_blueprint_design,
         "object_field_layout": generate_object_field_layout,
@@ -438,7 +441,7 @@ async def download_output(
     if not b.content_md:
         raise HTTPException(400, "No downloadable content available")
 
-    # 报告类(insight / survey / survey_outline):默认 docx,允许 ?format=md
+    # 报告类(insight / survey / survey_outline / research_plan / research_report):默认 docx,允许 ?format=md
     if format == "md":
         filename = await _resolve_download_filename(b, session, "md")
         return StreamingResponse(
@@ -675,7 +678,7 @@ async def save_content_md(
         from services.project_acl import assert_project_access
         # 写操作:必须 write 权限,read-only 协作者不能改报告(2026-05-12 修复:此前误写 "read")
         await assert_project_access(current_user, b.project_id, "write")
-    if b.kind not in ("insight", "survey_outline", "survey"):
+    if b.kind not in ("insight", "survey_outline", "survey", "research_plan"):
         raise HTTPException(400, f"产物类型 {b.kind} 不支持 markdown 编辑")
     if b.status != "done":
         raise HTTPException(400, f"产物状态 {b.status} 不支持编辑(需先生成完成)")

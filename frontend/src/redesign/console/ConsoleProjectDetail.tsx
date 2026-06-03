@@ -55,8 +55,8 @@ import {
   type StageDef as ApiStageDef,
 } from '../../api/client'
 
-const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'implementation_plan', 'test_plan', 'acceptance_report']
-const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'implementation_plan', 'test_plan', 'acceptance_report']
+const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_plan', 'research_report', 'blueprint_design', 'implementation_plan', 'test_plan', 'acceptance_report']
+const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_plan', 'research_report', 'blueprint_design', 'implementation_plan', 'test_plan', 'acceptance_report']
 
 const STAGE_ICON_MAP = {
   FileText, Lightbulb, ClipboardList, Bot, Sparkles, Search,
@@ -93,6 +93,7 @@ const DEFAULT_STAGES: StageDef[] = [
   { key: 'survey',       label: '需求调研',     kind: null,           icon: Bot,      active: true,
     subKinds: [
       { kind: 'survey_outline', label: '调研大纲' },
+      { kind: 'research_plan',  label: '调研计划(客户版)' },
       { kind: 'survey',         label: '调研问卷' },
       { kind: 'research_report',label: '调研报告' },
     ],
@@ -628,6 +629,8 @@ export default function NewConsoleProjectDetail() {
             projectId={id}
             outlineBundle={bundleByKind('survey_outline')}
             outlineInflight={inflightByKind('survey_outline')}
+            researchPlanBundle={bundleByKind('research_plan')}
+            researchPlanInflight={inflightByKind('research_plan')}
             surveyBundle={bundleByKind('survey')}
             surveyInflight={inflightByKind('survey')}
             reportBundle={bundleByKind('research_report')}

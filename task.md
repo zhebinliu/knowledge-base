@@ -1,5 +1,75 @@
 # 任务跟踪
 
+## 调研计划(research_plan)— 客户版调研计划(2026-06-03)— 用户 /goal
+
+### 目标
+现状:**调研大纲(survey_outline)** 给我方 PM 用,7 个模块 M1-M7 含内部信息(M5 我方分工 / M6 产出物 / M7 衔接方案)。
+新增 **调研计划(research_plan)**,做大纲的**对客版**:
+- 内容从大纲已有章节(M1/M2/M3/M4)裁剪改写,加封皮(致客户函)+ 联系方式
+- 直接转达给客户:节奏 / 客户提前准备清单
+- 跟大纲一样允许**在线编辑**(复用 MarkdownEditor + PUT /api/outputs/{id}/content)
+- 跟 survey_outline / survey / research_report 并列为「需求调研」阶段的第 4 个 sub_kind
+
+### 拆解
+
+#### A. 后端 — 新增 kind 注册
+- [x] **A.1** `backend/api/outputs.py:57` KIND_TO_TASK 加 `research_plan: generate_research_plan`
+- [x] **A.2** `backend/api/outputs.py:72` KIND_TITLES 加 `research_plan: "调研计划(客户版)"`
+- [x] **A.3** `backend/api/outputs.py` 任务派发字典加 research_plan;import 补 generate_research_plan
+- [x] **A.4** `backend/api/outputs.py` `/{bundle_id}/content` 白名单(`("insight", "survey_outline", "survey")`)加 `research_plan`
+- [x] **A.5** `backend/api/stage_flow.py` DEFAULT_STAGES 的 survey 阶段 sub_kinds 加 `research_plan`(放 survey_outline 后)
+- [x] **A.6** `backend/api/stage_flow.py` ALLOWED_KINDS 加 `"research_plan"`
+- [x] **A.7** `backend/api/stage_flow.py:meta` _kind_label 字典加 `"research_plan": "调研计划(客户版)"`
+- [x] **A.8** 惰性迁移 `_migrate_research_plan_into_survey`:DB 已有自定义 stage_flow,survey 阶段 sub_kinds 没有 research_plan → 自动追加到 survey_outline 之后;`_read()` 顺序调用 kickoff + plan 两个迁移
+
+#### B. 后端 — 生成器
+- [x] **B.1** `backend/services/agentic/runner.py` 新增 `generate_research_plan(bundle_id, project_id)`
+  - 结构仿 `generate_research_report`(单次 LLM,极简流水线)
+  - **强依赖**:先查最新 status=done 的 survey_outline bundle;找不到 → bundle 标 failed
+  - 输入:outline.content_md + project(name / customer / kickoff_date / industry) + created_by 用户名(我方联系人)
+  - LLM 走 _llm_call,task='output_doc_generate',max_tokens=8000,timeout=360
+  - 写回 content_md,extra 加 `source_outline_bundle_id` + `agentic_version='v1'`
+  - 注:Project 模型实际只有 created_by 不是 owner_id;实际没有 customer_contact 字段 → 在 prompt 里留空让客户自己填
+- [x] **B.2** `backend/services/agentic/research/plan_generator.py`:SYSTEM_PROMPT(5 章对客模板)+ build_user_prompt(outline_md, project_meta)
+
+#### C. 后端 — Celery task
+- [x] **C.1** `backend/tasks/output_tasks.py` 加 `@celery_app.task(name="generate_research_plan", ..., soft_time_limit=600, time_limit=900)` 包裹 runner.generate_research_plan
+- [x] **C.2** `backend/tasks/output_tasks.py` `_kind_to_task` 字典加 `research_plan`;顶部 docstring 同步
+
+#### D. 前端 — API & 类型
+- [x] **D.1** `frontend/src/api/client.ts` `OutputKind` 加 `'research_plan'`
+- [x] **D.2** `saveOutputContent` 注释同步加 research_plan;两份 ConsoleProjectDetail 的 `BRIEF_KINDS` / `V3_DOC_DRIVEN_KINDS` 加 research_plan;两份 fallback `DEFAULT_STAGES` 的 survey 阶段 sub_kinds 加 research_plan
+
+#### E. 前端 — ResearchWorkspace(两份:legacy + redesign)
+- [x] **E.1** redesign ResearchWorkspace Props 加 `researchPlanBundle / researchPlanInflight`(命名加 prefix,避免跟 ImplementationWorkspace 的 planBundle 冲突)
+- [x] **E.2** legacy ResearchWorkspace 同 E.1
+- [x] **E.3** 两份 `type ResearchView` 加 `'plan'`(放 outline 后)
+- [x] **E.4** 两份 useEffect 派发 activeKind:`'research_plan' → setView(researchPlanBundle ? 'plan' : 'preparation')`
+- [x] **E.5** 两份顶部 ViewTab 增加「调研计划(客户版)」tab(图标 `Send`,放在调研大纲之后)
+- [x] **E.6** 两份新增 view === 'plan' 分支:plan 存在 → 卡片 + 编辑按钮 + 复用 `OutlineMarkdownView`;planEditing → 复用 `OutlineEditorView`;plan 不存在但 outline 已 done → 提示点上方按钮生成;outline 也没有 → 提示先生成大纲
+- [x] **E.7** 两份顶栏加「生成调研计划」按钮:条件 `outlineBundle?.status === 'done' && !researchPlanInflight`;有旧 plan 时 confirm 覆盖
+- [x] **E.8** inflight 状态:planInflightId 加入 useEffect 触发跳转 preparation;planEditing 也一并 reset
+
+#### F. 前端 — ConsoleProjectDetail(两份)派发 bundle
+- [x] **F.1** `frontend/src/pages/console/ConsoleProjectDetail.tsx` `<ResearchWorkspace>` 加传 `researchPlanBundle/Inflight`
+- [x] **F.2** `frontend/src/redesign/console/ConsoleProjectDetail.tsx` 同 F.1
+
+#### G. 验证
+- [x] **G.1** 后端 syntax check 全通过(`py_compile outputs.py / stage_flow.py / runner.py / plan_generator.py / output_tasks.py`)
+- [x] **G.2** `_migrate_research_plan_into_survey` 4 个场景跑通(已存在 / 插到 outline 后 / 无 outline 时追加 / 无 survey 阶段不动)— 见 task A.8 验证
+- [x] **G.3** 前端 `npx tsc --noEmit` 通过(剩余报错全是预存 meeting 子模块路径,跟本次改动无关)
+- [ ] **G.4** 端到端 smoke(部署到 UAT 后):有 outline 的项目 → 点「生成调研计划」→ 看到 plan tab 内容 → 点编辑改一段保存 → 没 outline 的项目点生成 → bundle 标 failed,error 文案合理
+
+### 边界
+- 不动 survey_outline 现有 7 模块逻辑 / planner / critic 流水线
+- 不动 outline / survey / report 任意现有数据或前端组件
+- research_plan 失败时,outline 不受影响(不 chain,不 cascade)
+- 不自动连带触发(用户手动按按钮),跟 survey / report 一致
+- 项目列表 STAGES badge 不动(survey 阶段已存在)
+- 导出格式只支持 markdown + docx(走 outputs.py 现有 `("insight", "survey_outline", "survey")` 那条分支)
+
+---
+
 ## 项目洞察生成时自动连带启动会 PPT(2026-06-03)— 用户 /goal
 
 ### 目标
@@ -89,7 +159,8 @@ onend 自动重启防断流,计时;停止后文本落 transcript 走既有 `crea
 
 ### 部署
 本地 commit+push → 触发 `Deploy PROD`(workflow_dispatch,confirm=deploy);prod 已镜像化 CI 部署。
-⚠️ SSH 直连服务器 banner 超时,无法手动查/改 prod DB,靠 reaper 自动翻 stuck bundle。
+⚠️ 旧记:SSH 直连服务器 banner 超时。**2026-06-03 重测:SSH 通**(`ssh -i ~/.ssh/id_rsa_github_deploy liu@34.67.136.67`),
+可 `docker compose ps / logs / exec -T postgres psql -U kb_admin -d kb_system` 直接排查。reaper 仍是兜底机制。
 
 ---
 

@@ -2257,6 +2257,139 @@ async def generate_survey_outline(bundle_id: str, project_id: str):
         await _mark_conv(bundle_id, "failed")
 
 
+# ── 调研计划(2026-06-03):大纲对客版,单次 LLM 改写 ──────────────────────────
+
+async def generate_research_plan(bundle_id: str, project_id: str):
+    """生成「调研计划(客户版)」 — 把 survey_outline 改写成对客文档。
+
+    强依赖:本项目必须有一份 status=done 的 survey_outline bundle。
+    没有 → 不调 LLM,直接 bundle 标 failed,error 给前端友好提示。
+
+    架构跟 generate_research_report 一致:单次 LLM,无 planner/critic。
+    输入是大纲全文 + 项目元信息,LLM 只做「裁剪 + 改写措辞」。
+    """
+    from .research.plan_generator import SYSTEM_PROMPT, build_user_prompt
+    from services.output_service import _llm_call
+
+    run_history: list[dict] = []
+    try:
+        await _mark(bundle_id, "generating")
+        run_history.append({"phase": "started", "ts": _ts()})
+        await _update_progress(bundle_id, stage="planning", message="读取调研大纲…")
+
+        # ── Phase 1: 找最新的 done outline bundle ──
+        async with async_session_maker() as s:
+            outline_rows = (await s.execute(
+                select(CuratedBundle)
+                .where(CuratedBundle.project_id == project_id)
+                .where(CuratedBundle.kind == "survey_outline")
+                .where(CuratedBundle.status == "done")
+                .order_by(CuratedBundle.created_at.desc())
+                .limit(1)
+            )).scalars().all()
+        if not outline_rows:
+            raise RuntimeError("请先生成调研大纲(同阶段「调研大纲」sub-action),再生成对客调研计划")
+        outline_b = outline_rows[0]
+        outline_md = (outline_b.content_md or "").strip()
+        if not outline_md:
+            raise RuntimeError("调研大纲正文为空,无法基于其生成调研计划。请重新生成大纲。")
+        run_history.append({
+            "phase": "outline_loaded", "ts": _ts(),
+            "detail": {"outline_bundle_id": outline_b.id, "outline_chars": len(outline_md)},
+        })
+
+        # ── Phase 2: 拉项目元信息 ──
+        ctx = await _load_ctx(bundle_id, project_id, "research_plan")
+        proj = ctx.get("project")
+        owner_name = None
+        if proj and getattr(proj, "created_by", None):
+            from models.user import User
+            async with async_session_maker() as s:
+                u = await s.get(User, proj.created_by)
+                if u:
+                    owner_name = u.username
+        project_name = (proj.name if proj else "本项目") or "本项目"
+        customer = (proj.customer if proj else "") or ""
+        industry = ctx.get("industry")
+        kickoff_date = None
+        if proj and getattr(proj, "kickoff_date", None):
+            try:
+                kickoff_date = proj.kickoff_date.isoformat()
+            except Exception:
+                kickoff_date = str(proj.kickoff_date)
+        run_history.append({
+            "phase": "ctx_loaded", "ts": _ts(),
+            "detail": {
+                "project_name": project_name,
+                "customer": customer,
+                "has_owner": bool(owner_name),
+            },
+        })
+
+        # ── Phase 3: LLM ──
+        await _update_progress(bundle_id, stage="executing", message="改写为对客版本(约 1-3 分钟)…")
+        user_prompt = build_user_prompt(
+            outline_md=outline_md,
+            project_name=project_name,
+            customer=customer,
+            industry=industry,
+            kickoff_date=kickoff_date,
+            owner_name=owner_name,
+        )
+        raw = await _llm_call(
+            user_prompt, system=SYSTEM_PROMPT,
+            model=ctx["agent_model"],
+            task="output_doc_generate",
+            max_tokens=8000, timeout=360.0,
+        )
+        run_history.append({
+            "phase": "llm_done", "ts": _ts(),
+            "detail": {"raw_chars": len(raw or "")},
+        })
+
+        if not raw or not raw.strip():
+            raise RuntimeError("LLM 返回为空")
+
+        # ── Phase 4: 持久化 ──
+        markdown = raw.strip()
+        async with async_session_maker() as s:
+            b = await s.get(CuratedBundle, bundle_id)
+            new_extra = dict(b.extra or {})
+            new_extra["run_history"] = run_history
+            new_extra["agentic_version"] = "v1"
+            new_extra["validity_status"] = "valid"
+            new_extra["progress"] = {"stage": "done", "message": "完成"}
+            new_extra["source_outline_bundle_id"] = outline_b.id
+            from sqlalchemy.orm.attributes import flag_modified
+            b.extra = new_extra
+            flag_modified(b, "extra")
+            b.content_md = markdown
+            b.status = "done"
+            await s.commit()
+        logger.info("research_plan_generated", bundle_id=bundle_id,
+                    chars=len(markdown), source_outline=outline_b.id)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        logger.error("research_plan_failed", bundle_id=bundle_id, error=str(e)[:300],
+                     traceback=tb[:2000])
+        run_history.append({"phase": "failed", "ts": _ts(),
+                            "detail": str(e)[:300], "traceback": tb[:2000]})
+        try:
+            async with async_session_maker() as s:
+                b = await s.get(CuratedBundle, bundle_id)
+                if b:
+                    new_extra = dict(b.extra or {})
+                    new_extra["run_history"] = run_history
+                    new_extra["agentic_version"] = "v1"
+                    b.extra = new_extra
+                    b.status = "failed"
+                    b.error = str(e)[:500]
+                    await s.commit()
+        except Exception as e2:
+            logger.error("research_plan_failed_writeback_failed", error=str(e2)[:200])
+
+
 # ── 调研报告(2026-05-29):单次 LLM 大调用,给 PM 出方案设计用 ──────────────
 
 async def generate_research_report(bundle_id: str, project_id: str):

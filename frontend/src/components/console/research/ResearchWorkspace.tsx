@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ClipboardList, Lightbulb, Sparkles, Loader2, Workflow,
-  CheckCircle2, ChevronRight, Pencil, Users, Briefcase, FileText,
+  CheckCircle2, ChevronRight, Pencil, Users, Briefcase, FileText, Send,
 } from 'lucide-react'
 import {
   generateOutput,
@@ -50,23 +50,27 @@ import GenerationProgressCard from '../GenerationProgressCard'
 import ResearchQuestionnaire from './ResearchQuestionnaire'
 import ExportPreMeetingButton from './ExportPreMeetingButton'
 
-type ResearchView = 'preparation' | 'outline' | 'questionnaire' | 'report'
+type ResearchView = 'preparation' | 'outline' | 'plan' | 'questionnaire' | 'report'
 
 interface Props {
   projectId: string
   outlineBundle: CuratedBundle | undefined
   outlineInflight: CuratedBundle | undefined
+  researchPlanBundle: CuratedBundle | undefined
+  researchPlanInflight: CuratedBundle | undefined
   surveyBundle: CuratedBundle | undefined
   surveyInflight: CuratedBundle | undefined
   reportBundle: CuratedBundle | undefined
   reportInflight: CuratedBundle | undefined
-  /** 当前选中的 sub-kind:决定中栏默认显示 outline / questionnaire / report */
+  /** 当前选中的 sub-kind:决定中栏默认显示 outline / plan / questionnaire / report */
   activeKind: OutputKind | null
   onRefetch: () => void
 }
 
 export default function ResearchWorkspace({
-  projectId, outlineBundle, outlineInflight, surveyBundle, surveyInflight,
+  projectId, outlineBundle, outlineInflight,
+  researchPlanBundle, researchPlanInflight,
+  surveyBundle, surveyInflight,
   reportBundle, reportInflight, activeKind, onRefetch,
 }: Props) {
   const [selectedLtcKey, setSelectedLtcKey] = useState<string | null>(null)
@@ -77,8 +81,9 @@ export default function ResearchWorkspace({
   const [refsOpen, setRefsOpen] = useState(false)   // 右侧"引用追溯"默认收起
   const [highlightedRef, setHighlightedRef] = useState<string | null>(null)  // 报告角标点击 → 同步
   const [outlineEditing, setOutlineEditing] = useState(false)  // 调研大纲在线编辑模式
+  const [planEditing, setPlanEditing] = useState(false)        // 调研计划(客户版)在线编辑模式
 
-  // activeKind 切换 → 切默认 view(顾问点顶部 sub-action 切换大纲/问卷/报告)
+  // activeKind 切换 → 切默认 view(顾问点顶部 sub-action 切换大纲/计划/问卷/报告)
   // 注意 research_report 不 fallback 到 preparation — 没生成时 report view 内部
   // 渲染 ReportEmptyState(独立的「生成调研报告」卡片),让用户体感连贯,不会"sub-action
   // 切过去又被弹回准备页"。outline / questionnaire 保留旧 fallback 行为(它们的
@@ -86,24 +91,28 @@ export default function ResearchWorkspace({
   useEffect(() => {
     if (activeKind === 'survey_outline') {
       setView(outlineBundle ? 'outline' : 'preparation')
+    } else if (activeKind === 'research_plan') {
+      setView(researchPlanBundle ? 'plan' : 'preparation')
     } else if (activeKind === 'survey') {
       setView(surveyBundle ? 'questionnaire' : 'preparation')
     } else if (activeKind === 'research_report') {
       setView('report')
     }
-  }, [activeKind, outlineBundle?.id, surveyBundle?.id, reportBundle?.id])
+  }, [activeKind, outlineBundle?.id, researchPlanBundle?.id, surveyBundle?.id, reportBundle?.id])
 
   // 重新生成进行中 → 强制跳回准备页,展示 GenerationProgressCard
   // 仅在 inflight 从无到有的瞬间触发(id 变化即识别为新任务)
   const outlineInflightId = outlineInflight?.id
+  const planInflightId = researchPlanInflight?.id
   const surveyInflightId = surveyInflight?.id
   const reportInflightId = reportInflight?.id
   useEffect(() => {
-    if (outlineInflightId || surveyInflightId || reportInflightId) {
+    if (outlineInflightId || planInflightId || surveyInflightId || reportInflightId) {
       setView('preparation')
       setOutlineEditing(false)
+      setPlanEditing(false)
     }
-  }, [outlineInflightId, surveyInflightId, reportInflightId])
+  }, [outlineInflightId, planInflightId, surveyInflightId, reportInflightId])
 
   // LTC 字典
   const { data: ltcDict } = useQuery({
@@ -278,6 +287,13 @@ export default function ResearchWorkspace({
                    label={outlineInflight ? '调研大纲(生成中…)' : '调研大纲'}
                    muted={!outlineBundle || !!outlineInflight}
                    disabled={!!outlineInflight} />
+          <ViewTab active={view === 'plan'} onClick={() => setView('plan')}
+                   icon={researchPlanInflight
+                          ? <Loader2 size={11} className="animate-spin" />
+                          : <Send size={11} />}
+                   label={researchPlanInflight ? '调研计划(生成中…)' : '调研计划(客户版)'}
+                   muted={!researchPlanBundle || !!researchPlanInflight}
+                   disabled={!!researchPlanInflight} />
           <ViewTab active={view === 'questionnaire'} onClick={() => setView('questionnaire')}
                    icon={surveyInflight
                           ? <Loader2 size={11} className="animate-spin" />
@@ -293,6 +309,30 @@ export default function ResearchWorkspace({
                    muted={!reportBundle || !!reportInflight}
                    disabled={!!reportInflight} />
           <div className="flex-1" />
+          {/* 大纲已生成 → 顶栏「生成调研计划(客户版)」入口 — 把大纲改写成对客版,直接下发客户 */}
+          {outlineBundle?.status === 'done' && !researchPlanInflight && (
+            <button
+              onClick={async () => {
+                if (researchPlanBundle) {
+                  const ok = window.confirm(
+                    '将基于当前调研大纲重新生成对客调研计划。\n\n注意:已编辑过的旧版本将被覆盖,如已下发请先备份。是否继续?'
+                  )
+                  if (!ok) return
+                }
+                try {
+                  await generateOutput({ kind: 'research_plan', project_id: projectId })
+                  onRefetch()
+                } catch (e: any) {
+                  alert(e?.response?.data?.detail || e?.message || '生成失败')
+                }
+              }}
+              className="text-[11px] inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium text-ink-secondary border border-line bg-white hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 mr-2"
+              title={researchPlanBundle ? '基于当前大纲重新生成对客调研计划(旧版会被覆盖)' : '基于调研大纲生成可直接转达客户的调研计划'}
+            >
+              <Send size={11} />
+              {researchPlanBundle ? '重新生成调研计划' : '生成调研计划'}
+            </button>
+          )}
           {/* 大纲已生成 + 不在生成中 → 顶栏「生成调研问卷」入口(2026-06-03 改造为按角色逐步生成) */}
           {outlineBundle?.status === 'done' && !surveyInflight && (
             !surveyBundle ? (
@@ -430,6 +470,40 @@ export default function ResearchWorkspace({
                     </div>
                   ) : (
                     <EmptyHint text="尚未生成调研大纲。请到「调研大纲」sub-action 触发生成。" />
+                  )}
+                </div>
+              </div>
+            )
+          )}
+          {view === 'plan' && (
+            planEditing && researchPlanBundle ? (
+              <OutlineEditorView
+                bundle={researchPlanBundle}
+                onDone={() => setPlanEditing(false)}
+              />
+            ) : (
+              <div className="bg-canvas min-h-full px-5 py-5">
+                <div className="max-w-[1600px] mx-auto">
+                  {researchPlanBundle ? (
+                    <div className="bg-white rounded-xl border border-line shadow-sm overflow-hidden">
+                      <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-line bg-slate-50/40">
+                        <span className="text-xs text-ink-muted">可直接发送给客户 · 支持在线编辑</span>
+                        <button
+                          onClick={() => setPlanEditing(true)}
+                          className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md text-ink-secondary hover:bg-white hover:text-ink"
+                          title="在线编辑 markdown 正文"
+                        >
+                          <Pencil size={11} /> 编辑
+                        </button>
+                      </div>
+                      <div className="px-8 py-7 overflow-x-auto">
+                        <OutlineMarkdownView bundle={researchPlanBundle} />
+                      </div>
+                    </div>
+                  ) : outlineBundle?.status === 'done' ? (
+                    <EmptyHint text="尚未生成调研计划(客户版)。点上方「生成调研计划」按钮,基于当前调研大纲生成对客版本。" />
+                  ) : (
+                    <EmptyHint text="调研计划基于「调研大纲」改写。请先生成调研大纲,再生成对客调研计划。" />
                   )}
                 </div>
               </div>

@@ -39,6 +39,7 @@ DEFAULT_STAGES: list[dict] = [
     {"key": "survey",        "label": "需求调研",          "kind": None,           "icon": "Bot",           "active": True,  "beta": False,
      "sub_kinds": [
          {"kind": "survey_outline", "label": "调研大纲"},
+         {"kind": "research_plan",  "label": "调研计划(客户版)"},
          {"kind": "survey",         "label": "调研问卷"},
          {"kind": "research_report","label": "调研报告"},
      ]},
@@ -63,7 +64,7 @@ ALLOWED_ICONS = {
 # 允许的 kind(对齐 backend/api/outputs.py KIND_TO_TASK)
 ALLOWED_KINDS = {
     "kickoff_pptx", "kickoff_html",
-    "insight", "survey", "survey_outline", "research_report",
+    "insight", "survey", "survey_outline", "research_plan", "research_report",
     "blueprint_design",
     "implementation_plan",
     "test_plan", "acceptance_report",
@@ -100,6 +101,36 @@ class StageFlowDto(BaseModel):
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _migrate_research_plan_into_survey(stages: list[dict]) -> tuple[list[dict], bool]:
+    """惰性迁移(2026-06-03):若 stages 含 survey 阶段但其 sub_kinds 没有 research_plan,
+    自动追加 {"kind": "research_plan", "label": "调研计划(客户版)"} 到 survey_outline 之后。
+    无 survey 阶段或已含 research_plan → 不动。返回 (new_stages, mutated)。
+    """
+    mutated = False
+    new_stages: list[dict] = []
+    for st in stages:
+        if st.get("key") != "survey":
+            new_stages.append(st)
+            continue
+        sub = list(st.get("sub_kinds") or [])
+        existing = {sk.get("kind") for sk in sub}
+        if "research_plan" in existing:
+            new_stages.append(st)
+            continue
+        # 插到 survey_outline 之后(找不到就追加到末尾前 — 让 research_report 仍在最后)
+        plan_entry = {"kind": "research_plan", "label": "调研计划(客户版)"}
+        outline_idx = next((i for i, sk in enumerate(sub) if sk.get("kind") == "survey_outline"), -1)
+        if outline_idx >= 0:
+            sub.insert(outline_idx + 1, plan_entry)
+        else:
+            sub.append(plan_entry)
+        new_st = dict(st)
+        new_st["sub_kinds"] = sub
+        new_stages.append(new_st)
+        mutated = True
+    return new_stages, mutated
+
 
 def _migrate_kickoff_into_insight(stages: list[dict]) -> tuple[list[dict], bool]:
     """惰性迁移(2026-06-03):若 stages 含独立的 kickoff / kickoff_html 阶段,
@@ -145,14 +176,16 @@ async def _read() -> tuple[list[dict], bool]:
         )).scalar_one_or_none()
         if row and isinstance(row.config_value, dict) and isinstance(row.config_value.get("stages"), list):
             stages = row.config_value["stages"]
-            migrated, mutated = _migrate_kickoff_into_insight(stages)
-            if mutated:
-                row.config_value = {"stages": migrated}
+            migrated_a, mutated_a = _migrate_kickoff_into_insight(stages)
+            migrated_b, mutated_b = _migrate_research_plan_into_survey(migrated_a)
+            if mutated_a or mutated_b:
+                row.config_value = {"stages": migrated_b}
                 flag_modified(row, "config_value")
                 await s.commit()
-                logger.info("stage_flow_kickoff_merged_into_insight",
-                            before_n=len(stages), after_n=len(migrated))
-                return migrated, False
+                logger.info("stage_flow_migrated",
+                            kickoff_merged=mutated_a, research_plan_added=mutated_b,
+                            before_n=len(stages), after_n=len(migrated_b))
+                return migrated_b, False
             return stages, False
     return DEFAULT_STAGES, True
 
@@ -257,6 +290,7 @@ async def get_stage_flow_meta():
             "insight": "项目洞察",
             "survey": "调研问卷",
             "survey_outline": "调研大纲",
+            "research_plan": "调研计划(客户版)",
             "research_report": "调研报告",
             "blueprint_design": "蓝图设计",
             "implementation_plan": "实施任务清单",

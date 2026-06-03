@@ -38,7 +38,7 @@ import ImplementationWorkspace from '../../components/console/implementation/Imp
 import QA from '../QA'
 import { useEffect } from 'react'
 
-const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'object_field_layout', 'process_setup', 'implementation_plan', 'test_plan', 'acceptance_report']
+const BRIEF_KINDS: OutputKind[] = ['kickoff_pptx', 'kickoff_html', 'insight', 'survey', 'survey_outline', 'research_plan', 'research_report', 'blueprint_design', 'object_field_layout', 'process_setup', 'implementation_plan', 'test_plan', 'acceptance_report']
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -91,6 +91,7 @@ const DEFAULT_STAGES: StageDef[] = [
   { key: 'survey',       label: '需求调研',     kind: null,           icon: Bot,      active: true,
     subKinds: [
       { kind: 'survey_outline', label: '调研大纲' },
+      { kind: 'research_plan',  label: '调研计划(客户版)' },
       { kind: 'survey',         label: '调研问卷' },
       { kind: 'research_report',label: '调研报告' },
     ],
@@ -274,7 +275,7 @@ export default function ConsoleProjectDetail() {
   // v3:文档驱动的 kind — 不弹 brief,直接调 generateOutput 触发 v3 流程
   // (runner 会自动 auto_extract + planner 从 docs 兜底)
   // kickoff_pptx / kickoff_html 也走一键生成(直接基于项目洞察,不用 brief drawer)
-  const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_report', 'blueprint_design', 'object_field_layout', 'process_setup', 'implementation_plan', 'test_plan', 'acceptance_report', 'kickoff_pptx', 'kickoff_html']
+  const V3_DOC_DRIVEN_KINDS: OutputKind[] = ['insight', 'survey', 'survey_outline', 'research_plan', 'research_report', 'blueprint_design', 'object_field_layout', 'process_setup', 'implementation_plan', 'test_plan', 'acceptance_report', 'kickoff_pptx', 'kickoff_html']
 
   const startGeneration = async () => {
     if (!activeStage.active || !activeKind) return
@@ -677,6 +678,8 @@ export default function ConsoleProjectDetail() {
           projectId={id}
           outlineBundle={bundleByKind('survey_outline')}
           outlineInflight={inflightByKind('survey_outline')}
+          researchPlanBundle={bundleByKind('research_plan')}
+          researchPlanInflight={inflightByKind('research_plan')}
           surveyBundle={bundleByKind('survey')}
           surveyInflight={inflightByKind('survey')}
           reportBundle={bundleByKind('research_report')}

@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   ClipboardList, Lightbulb, Sparkles, Loader2, Workflow,
   CheckCircle2, Pencil, Users, Briefcase, FileText,
-  Crown, UserCircle2, Cpu, ChevronLeft, ChevronRight,
+  Crown, UserCircle2, Cpu, ChevronLeft, ChevronRight, Send,
 } from 'lucide-react'
 import {
   generateOutput,
@@ -43,12 +43,14 @@ import GenerationProgressCard from '../GenerationProgressCard'
 import ResearchQuestionnaire from './ResearchQuestionnaireDark'
 import ExportPreMeetingButton from '../../../components/console/research/ExportPreMeetingButton'
 
-type ResearchView = 'preparation' | 'outline' | 'questionnaire' | 'report'
+type ResearchView = 'preparation' | 'outline' | 'plan' | 'questionnaire' | 'report'
 
 interface Props {
   projectId: string
   outlineBundle: CuratedBundle | undefined
   outlineInflight: CuratedBundle | undefined
+  researchPlanBundle: CuratedBundle | undefined
+  researchPlanInflight: CuratedBundle | undefined
   surveyBundle: CuratedBundle | undefined
   surveyInflight: CuratedBundle | undefined
   reportBundle: CuratedBundle | undefined
@@ -58,7 +60,9 @@ interface Props {
 }
 
 export default function ResearchWorkspace({
-  projectId, outlineBundle, outlineInflight, surveyBundle, surveyInflight,
+  projectId, outlineBundle, outlineInflight,
+  researchPlanBundle, researchPlanInflight,
+  surveyBundle, surveyInflight,
   reportBundle, reportInflight, activeKind, onRefetch,
 }: Props) {
   const [selectedLtcKey, setSelectedLtcKey] = useState<string | null>(null)
@@ -69,27 +73,32 @@ export default function ResearchWorkspace({
   const [refsOpen, setRefsOpen] = useState(false)
   const [highlightedRef, setHighlightedRef] = useState<string | null>(null)
   const [outlineEditing, setOutlineEditing] = useState(false)
+  const [planEditing, setPlanEditing] = useState(false)
 
   // research_report 不 fallback 到 preparation — 见 components/console/research/ResearchWorkspace.tsx 同段注释
   useEffect(() => {
     if (activeKind === 'survey_outline') {
       setView(outlineBundle ? 'outline' : 'preparation')
+    } else if (activeKind === 'research_plan') {
+      setView(researchPlanBundle ? 'plan' : 'preparation')
     } else if (activeKind === 'survey') {
       setView(surveyBundle ? 'questionnaire' : 'preparation')
     } else if (activeKind === 'research_report') {
       setView('report')
     }
-  }, [activeKind, outlineBundle?.id, surveyBundle?.id, reportBundle?.id])
+  }, [activeKind, outlineBundle?.id, researchPlanBundle?.id, surveyBundle?.id, reportBundle?.id])
 
   const outlineInflightId = outlineInflight?.id
+  const planInflightId = researchPlanInflight?.id
   const surveyInflightId = surveyInflight?.id
   const reportInflightId = reportInflight?.id
   useEffect(() => {
-    if (outlineInflightId || surveyInflightId || reportInflightId) {
+    if (outlineInflightId || planInflightId || surveyInflightId || reportInflightId) {
       setView('preparation')
       setOutlineEditing(false)
+      setPlanEditing(false)
     }
-  }, [outlineInflightId, surveyInflightId, reportInflightId])
+  }, [outlineInflightId, planInflightId, surveyInflightId, reportInflightId])
 
   const { data: ltcDict } = useQuery({
     queryKey: ['research-ltc-dict'],
@@ -187,6 +196,13 @@ export default function ResearchWorkspace({
                    label={outlineInflight ? '调研大纲(生成中…)' : '调研大纲'}
                    muted={!outlineBundle || !!outlineInflight}
                    disabled={!!outlineInflight} />
+          <ViewTab active={view === 'plan'} onClick={() => setView('plan')}
+                   icon={researchPlanInflight
+                          ? <Loader2 size={11} className="animate-spin" />
+                          : <Send size={11} />}
+                   label={researchPlanInflight ? '调研计划(生成中…)' : '调研计划(客户版)'}
+                   muted={!researchPlanBundle || !!researchPlanInflight}
+                   disabled={!!researchPlanInflight} />
           <ViewTab active={view === 'questionnaire'} onClick={() => setView('questionnaire')}
                    icon={surveyInflight
                           ? <Loader2 size={11} className="animate-spin" />
@@ -202,6 +218,29 @@ export default function ResearchWorkspace({
                    muted={!reportBundle || !!reportInflight}
                    disabled={!!reportInflight} />
           <div className="flex-1" />
+          {outlineBundle?.status === 'done' && !researchPlanInflight && (
+            <button
+              onClick={async () => {
+                if (researchPlanBundle) {
+                  const ok = window.confirm(
+                    '将基于当前调研大纲重新生成对客调研计划。\n\n注意:已编辑过的旧版本将被覆盖,如已下发请先备份。是否继续?'
+                  )
+                  if (!ok) return
+                }
+                try {
+                  await generateOutput({ kind: 'research_plan', project_id: projectId })
+                  onRefetch()
+                } catch (e: any) {
+                  alert(e?.response?.data?.detail || e?.message || '生成失败')
+                }
+              }}
+              className="rd-btn text-xs inline-flex items-center gap-1 px-2.5 py-1"
+              title={researchPlanBundle ? '基于当前大纲重新生成对客调研计划' : '基于调研大纲生成可直接转达给客户的调研计划'}
+            >
+              <Send size={11} />
+              {researchPlanBundle ? '重新生成调研计划' : '生成调研计划'}
+            </button>
+          )}
           {outlineBundle?.status === 'done' && !surveyInflight && (
             <button
               onClick={async () => {
@@ -288,6 +327,48 @@ export default function ResearchWorkspace({
                     </div>
                   ) : (
                     <EmptyHint text="尚未生成调研大纲。请到「调研大纲」sub-action 触发生成。" />
+                  )}
+                </div>
+              </div>
+            )
+          )}
+          {view === 'plan' && (
+            planEditing && researchPlanBundle ? (
+              <OutlineEditorView
+                bundle={researchPlanBundle}
+                onDone={() => setPlanEditing(false)}
+              />
+            ) : (
+              <div className="min-h-full px-5 py-5">
+                <div className="max-w-[1600px] mx-auto">
+                  {researchPlanBundle ? (
+                    <div className="rd-card overflow-hidden" style={{ padding: 0 }}>
+                      <div
+                        className="flex items-center justify-end gap-2 px-4 py-2"
+                        style={{
+                          borderBottom: '1px solid var(--rd-line)',
+                          background: 'rgba(255,255,255,0.06)',
+                        }}
+                      >
+                        <span className="text-xs" style={{ color: 'var(--rd-text-2)' }}>
+                          可直接发送给客户 · 支持在线编辑
+                        </span>
+                        <button
+                          onClick={() => setPlanEditing(true)}
+                          className="rd-btn flex items-center gap-1 px-2.5 py-1 text-xs"
+                          title="在线编辑 markdown 正文"
+                        >
+                          <Pencil size={11} /> 编辑
+                        </button>
+                      </div>
+                      <div className="px-8 py-7 overflow-x-auto">
+                        <OutlineMarkdownView bundle={researchPlanBundle} />
+                      </div>
+                    </div>
+                  ) : outlineBundle?.status === 'done' ? (
+                    <EmptyHint text="尚未生成调研计划(客户版)。点上方「生成调研计划」按钮,基于当前调研大纲生成对客版本。" />
+                  ) : (
+                    <EmptyHint text="调研计划基于「调研大纲」改写。请先生成调研大纲,再生成对客调研计划。" />
                   )}
                 </div>
               </div>

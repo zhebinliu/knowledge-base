@@ -1,6 +1,6 @@
-"""Celery tasks for output generation (kickoff_pptx / kickoff_html / insight / survey / survey_outline).
+"""Celery tasks for output generation (kickoff_pptx / kickoff_html / insight / survey / survey_outline / research_plan / research_report).
 
-注：insight / survey / survey_outline 三个 task 都走 agentic runner —
+注：insight / survey / survey_outline / research_plan / research_report 都走 agentic runner —
 旧的对话式 'insight' / 'survey' generator 已下线（v3 命名归一，详见 scripts/migrate_v3_rename.py）。
 """
 import asyncio
@@ -108,6 +108,12 @@ def generate_survey_outline(self, bundle_id: str, project_id: str):
     _run(_gen(bundle_id, project_id))
 
 
+@celery_app.task(name="generate_research_plan", bind=True, max_retries=2, soft_time_limit=600, time_limit=900)
+def generate_research_plan(self, bundle_id: str, project_id: str):
+    from services.agentic.runner import generate_research_plan as _gen
+    _run(_gen(bundle_id, project_id))
+
+
 @celery_app.task(name="generate_research_report", bind=True, max_retries=2, soft_time_limit=900, time_limit=1200)
 def generate_research_report(self, bundle_id: str, project_id: str):
     from services.agentic.runner import generate_research_report as _gen
@@ -162,6 +168,7 @@ def _kind_to_task() -> dict:
         "insight": generate_insight,
         "survey": generate_survey,
         "survey_outline": generate_survey_outline,
+        "research_plan": generate_research_plan,
         "research_report": generate_research_report,
         "blueprint_design": generate_blueprint_design,
         "object_field_layout": generate_object_field_layout,
