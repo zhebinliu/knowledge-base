@@ -1519,6 +1519,7 @@ export interface OutlineSession {
   audience_roles: ResearchAudienceRole[]   // 严格 4 选 N
   participants: string                     // 参会者描述,原文
   topic_summary: string                    // 短议题
+  interview_script?: string                // 100-200 字访谈思路(开场→深入→收尾),给顾问做剧本(2026-06-03 加)
 }
 
 export interface ResearchResponseItem {

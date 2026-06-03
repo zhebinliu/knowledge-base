@@ -20,6 +20,7 @@ generate_survey_outline 出完 markdown 后,加一步「让 LLM 把 M3 表读成
         "audience_roles": ["executive" | "dept_head" | "frontline" | "it"],  # 严格 4 角色
         "participants": "总裁 + 销售 VP",        # 原文/客户方参会者描述
         "topic_summary": "高管战略对齐 1on1",   # 短议题
+        "interview_script": "...",   # 100-200 字访谈思路(开场→深入→收尾),给顾问做现场剧本
       },
       ...
     ]
@@ -56,6 +57,12 @@ SYSTEM_PROMPT = """你正在从一份调研大纲中提取【调研日程表(M3)
 6. time_slot:保留原文(如 "周二上午"),不归一
 7. session_type:只能从 1on1 / 集中访谈 / 工作坊 / 现场观察 / 资料收集 选;不在表里的归 "集中访谈"
 8. topic_summary:短短一句议题(20 字内)
+9. interview_script:**100-200 字现场访谈思路**,给顾问做剧本用。三段式:
+   - **开场(1-2 句)**:暖场切入(例:"先请贵方简短介绍当前职责/团队规模,我方汇报已了解的项目背景")
+   - **深入(2-4 句)**:针对该场议题最关键的 1-2 个深挖点(例:"重点摸清现状操作 + 痛点 + 期望产出")
+   - **收尾(1 句)**:确认下一步(例:"确认 1-2 周内的需求清单与下一场调研对接")
+   语气:中性、具体、可执行;不要喊口号(避开"赋能/抓手/全面"等空话)
+   面向:我方主访顾问,客户方看不到
 
 输出 — 严格的 JSON 数组,用 ```json``` 围栏包裹。不要任何其他文本/解释。如果 M3 章节缺失或无法解析,输出空数组 []。
 """
@@ -124,6 +131,7 @@ def _parse_sessions_json(raw: str) -> list[dict]:
             "audience_roles":   roles,
             "participants":     str(raw_s.get("participants") or "").strip(),
             "topic_summary":    str(raw_s.get("topic_summary") or "").strip(),
+            "interview_script": str(raw_s.get("interview_script") or "").strip()[:800],
         })
     return out
 
@@ -139,7 +147,7 @@ async def extract_sessions(outline_md: str, model: str | None = None) -> list[di
             system=SYSTEM_PROMPT,
             model=model,
             task="output_doc_generate",
-            max_tokens=4000, timeout=180.0,
+            max_tokens=6000, timeout=240.0,   # interview_script 让 max_tokens 多余量
         )
     except Exception as e:
         logger.warning("outline_sessions_extract_failed", err=str(e)[:200])

@@ -74,7 +74,8 @@ export default function ResearchWorkspace({
   reportBundle, reportInflight, activeKind, onRefetch,
 }: Props) {
   const [selectedLtcKey, setSelectedLtcKey] = useState<string | null>(null)
-  const [groupBy, setGroupBy] = useState<GroupBy>('role')                       // 默认按角色分组
+  // 2026-06-03 默认按场次(用户工作流首选);老数据无场次时 fallback 到角色
+  const [groupBy, setGroupBy] = useState<GroupBy>('session')
   const [selectedRole, setSelectedRole] = useState<ResearchAudienceRole | null>(null)
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null)       // 按主题模式下 sidebar 当前选中的 cluster
   const [selectedSession, setSelectedSession] = useState<string | null>(null)   // 按场次模式下 sidebar 当前选中的 session_id('__none__' = 未挂场次)
@@ -219,13 +220,9 @@ export default function ResearchWorkspace({
         {/* 分组方式切换 */}
         <div className="flex-shrink-0 px-2.5 pt-2.5 pb-2 border-b border-line">
           <div className="text-[11px] text-ink-muted mb-1.5">问卷分组方式</div>
-          <div className="flex gap-1 p-0.5 bg-slate-100 rounded flex-wrap">
-            <GroupTabBtn
-              active={groupBy === 'role'}
-              onClick={() => setGroupBy('role')}
-              icon={<Users size={11} />}
-              label="按角色"
-            />
+          <div className="flex gap-1 p-0.5 bg-slate-100 rounded">
+            {/* 2026-06-03 顶层简化为 场次 + 角色 兜底两选项(按主题/LTC 不再做顶层 tab,
+                主题作为场次内二级 facet 在 ClusterDivider 自然分隔体现) */}
             <GroupTabBtn
               active={groupBy === 'session'}
               onClick={() => setGroupBy('session')}
@@ -233,16 +230,10 @@ export default function ResearchWorkspace({
               label="按场次"
             />
             <GroupTabBtn
-              active={groupBy === 'topic'}
-              onClick={() => setGroupBy('topic')}
-              icon={<Layers size={11} />}
-              label="按主题"
-            />
-            <GroupTabBtn
-              active={groupBy === 'ltc'}
-              onClick={() => setGroupBy('ltc')}
-              icon={<Briefcase size={11} />}
-              label="按 LTC"
+              active={groupBy === 'role'}
+              onClick={() => setGroupBy('role')}
+              icon={<Users size={11} />}
+              label="按角色"
             />
           </div>
         </div>

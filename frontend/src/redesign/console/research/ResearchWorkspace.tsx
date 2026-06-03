@@ -66,7 +66,8 @@ export default function ResearchWorkspace({
   reportBundle, reportInflight, activeKind, onRefetch,
 }: Props) {
   const [selectedLtcKey, setSelectedLtcKey] = useState<string | null>(null)
-  const [groupBy, setGroupBy] = useState<GroupBy>('role')
+  // 2026-06-03 默认按场次(用户工作流首选);老数据无场次时 fallback 到角色
+  const [groupBy, setGroupBy] = useState<GroupBy>('session')
   const [selectedRole, setSelectedRole] = useState<ResearchAudienceRole | null>(null)
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null)       // 按主题模式 sidebar 选中 cluster
   const [selectedSession, setSelectedSession] = useState<string | null>(null)   // 按场次模式 sidebar 选中 session_id('__none__' = 未挂场次)
@@ -636,13 +637,7 @@ function ResearchGroupCarousel({
       {/* 顶栏:分组方式切换 + 总计统计 */}
       <div className="rd-survey-carousel-bar">
         <div className="rd-survey-segment">
-          <button
-            onClick={() => setGroupBy('role')}
-            className={`rd-survey-seg-btn${groupBy === 'role' ? ' is-active' : ''}`}
-            title="按访谈角色分组"
-          >
-            <Users size={11} /> 按角色
-          </button>
+          {/* 2026-06-03 顶层简化为 场次 + 角色 两个选项;主题作为场次内二级 facet 自动出现 */}
           <button
             onClick={() => setGroupBy('session')}
             className={`rd-survey-seg-btn${groupBy === 'session' ? ' is-active' : ''}`}
@@ -651,18 +646,11 @@ function ResearchGroupCarousel({
             <Calendar size={11} /> 按场次
           </button>
           <button
-            onClick={() => setGroupBy('topic')}
-            className={`rd-survey-seg-btn${groupBy === 'topic' ? ' is-active' : ''}`}
-            title="按主题聚类分组 — 同主题题靠在一起,客户思路不被切碎"
+            onClick={() => setGroupBy('role')}
+            className={`rd-survey-seg-btn${groupBy === 'role' ? ' is-active' : ''}`}
+            title="按访谈角色分组(兜底视角,适合老数据 / 跨场汇总)"
           >
-            <Layers size={11} /> 按主题
-          </button>
-          <button
-            onClick={() => setGroupBy('ltc')}
-            className={`rd-survey-seg-btn${groupBy === 'ltc' ? ' is-active' : ''}`}
-            title="按 LTC 业务模块分组"
-          >
-            <Briefcase size={11} /> 按 LTC
+            <Users size={11} /> 按角色
           </button>
         </div>
         <span className="rd-survey-bar-hint">

@@ -87,6 +87,11 @@ export default function ResearchQuestionnaire({
   const [editing, setEditing] = useState<EditingState>(null)
   const [searchQuery, setSearchQuery] = useState('')                    // 顶部搜索框,过滤 question/why
   const [collapsedClusters, setCollapsedClusters] = useState<Set<string>>(new Set())
+  // 2026-06-03 场次模式下二级 facet 筛选(场次内按角色 / 主题再过滤);切场次时重置
+  const [facetRole, setFacetRole] = useState<ResearchAudienceRole | null>(null)
+  const [facetCluster, setFacetCluster] = useState<string | null>(null)
+  const [scriptOpen, setScriptOpen] = useState(true)
+  useEffect(() => { setFacetRole(null); setFacetCluster(null); setScriptOpen(true) }, [selectedSession])
   const qc2 = useQueryClient()
   const refreshAll = () => {
     qc2.invalidateQueries({ queryKey: ['research-responses', bundle.id] })
@@ -111,13 +116,22 @@ export default function ResearchQuestionnaire({
       return mains.filter(it => (it.topic_cluster || '其他') === selectedTopic)
     }
     if (groupBy === 'session') {
-      if (!selectedSession) return mains    // 全部场次(含未挂场次的)
-      if (selectedSession === '__none__') return mains.filter(it => !it.session_id)
-      return mains.filter(it => it.session_id === selectedSession)
+      let pool = mains
+      if (!selectedSession) {
+        // 全部场次(不过滤)
+      } else if (selectedSession === '__none__') {
+        pool = pool.filter(it => !it.session_id)
+      } else {
+        pool = pool.filter(it => it.session_id === selectedSession)
+      }
+      // 二级 facet: 角色 + 主题(2026-06-03)
+      if (facetRole) pool = pool.filter(it => (it.audience_roles || []).includes(facetRole))
+      if (facetCluster) pool = pool.filter(it => (it.topic_cluster || '其他') === facetCluster)
+      return pool
     }
     if (!selectedLtcKey) return mains
     return mains.filter(it => it.ltc_module_key === selectedLtcKey)
-  }, [allItems, groupBy, selectedRole, selectedLtcKey, selectedTopic, selectedSession])
+  }, [allItems, groupBy, selectedRole, selectedLtcKey, selectedTopic, selectedSession, facetRole, facetCluster])
 
   // 阶段计数(只数主干题)
   const phaseCounts = useMemo(() => {
@@ -245,6 +259,34 @@ export default function ResearchQuestionnaire({
     )
   }
 
+  // 2026-06-03 场次模式专用:基于"该场原始题集"(不被 facet 过滤)算 facet 可选值
+  const sessionRawItems = useMemo(() => {
+    if (groupBy !== 'session') return [] as ResearchQuestionItem[]
+    const mains = allItems.filter(it => !it.parent_item_key)
+    if (!selectedSession) return mains
+    if (selectedSession === '__none__') return mains.filter(it => !it.session_id)
+    return mains.filter(it => it.session_id === selectedSession)
+  }, [allItems, groupBy, selectedSession])
+  const sessionAvailableRoles = useMemo(() => {
+    const s = new Set<ResearchAudienceRole>()
+    for (const it of sessionRawItems) for (const r of (it.audience_roles || [])) s.add(r as ResearchAudienceRole)
+    const order: ResearchAudienceRole[] = ['executive', 'dept_head', 'frontline', 'it']
+    return order.filter(r => s.has(r))
+  }, [sessionRawItems])
+  const sessionAvailableClusters = useMemo(() => {
+    const m: Record<string, number> = {}
+    for (const it of sessionRawItems) {
+      const c = (it.topic_cluster || '其他').trim()
+      m[c] = (m[c] || 0) + 1
+    }
+    return Object.entries(m).map(([cluster, count]) => ({ cluster, count })).sort((a, b) => b.count - a.count)
+  }, [sessionRawItems])
+  // 当前场次完整对象(用于读 interview_script)
+  const currentSession = useMemo(() => {
+    if (groupBy !== 'session' || !selectedSession || selectedSession === '__none__') return undefined
+    return (outlineSessions || []).find(s => s.session_id === selectedSession)
+  }, [groupBy, selectedSession, outlineSessions])
+
   const sessionLabel = useMemo(() => {
     if (!selectedSession) return '场次 · 全部'
     if (selectedSession === '__none__') return '场次 · 未挂场次'
@@ -332,6 +374,71 @@ export default function ResearchQuestionnaire({
           {classifyMut.isPending ? 'AI 分类中...' : '触发 AI 范围分类'}
         </button>
       </div>
+
+      {/* 2026-06-03 场次模式专用:访谈剧本卡片(从 outline_sessions.interview_script 拿) */}
+      {groupBy === 'session' && currentSession && (currentSession.interview_script || currentSession.participants) && (
+        <div className="rounded border border-orange-200 bg-orange-50/40 px-3 py-2">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setScriptOpen(o => !o)}>
+            {scriptOpen ? <ChevronDown size={12} className="text-orange-700" /> : <ChevronRight size={12} className="text-orange-700" />}
+            <span className="text-xs font-semibold text-orange-800">访谈剧本</span>
+            <span className="text-[11px] text-ink-muted">
+              {currentSession.week} {currentSession.time_slot} · {currentSession.session_type}
+              {currentSession.duration_minutes ? ` · ${currentSession.duration_minutes}min` : ''}
+              {currentSession.participants ? ` · ${currentSession.participants}` : ''}
+            </span>
+          </div>
+          {scriptOpen && currentSession.interview_script && (
+            <div className="mt-2 text-xs text-ink leading-relaxed whitespace-pre-wrap pl-5">
+              {currentSession.interview_script}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 2026-06-03 场次模式专用:二级 facet(角色 + 主题) */}
+      {groupBy === 'session' && selectedSession && selectedSession !== '__none__' && (sessionAvailableRoles.length > 0 || sessionAvailableClusters.length > 0) && (
+        <div className="flex flex-col gap-1.5 px-1">
+          {sessionAvailableRoles.length > 0 && (
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className="text-[11px] text-ink-muted mr-1">角色:</span>
+              <button
+                onClick={() => setFacetRole(null)}
+                className={`text-[11px] px-2 py-0.5 rounded transition ${!facetRole ? 'bg-orange-100 text-orange-700 ring-1 ring-orange-200' : 'bg-slate-100 text-ink-secondary hover:bg-slate-200'}`}
+              >全部</button>
+              {sessionAvailableRoles.map((r: ResearchAudienceRole) => {
+                const active = r === facetRole
+                const label = ({ executive: '高管', dept_head: '部门负责人', frontline: '一线', it: 'IT' } as Record<ResearchAudienceRole, string>)[r]
+                return (
+                  <button
+                    key={r}
+                    onClick={() => setFacetRole(active ? null : r)}
+                    className={`text-[11px] px-2 py-0.5 rounded transition ${active ? 'bg-orange-100 text-orange-700 ring-1 ring-orange-200' : 'bg-slate-100 text-ink-secondary hover:bg-slate-200'}`}
+                  >{label}</button>
+                )
+              })}
+            </div>
+          )}
+          {sessionAvailableClusters.length > 1 && (
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className="text-[11px] text-ink-muted mr-1">主题:</span>
+              <button
+                onClick={() => setFacetCluster(null)}
+                className={`text-[11px] px-2 py-0.5 rounded transition ${!facetCluster ? 'bg-orange-100 text-orange-700 ring-1 ring-orange-200' : 'bg-slate-100 text-ink-secondary hover:bg-slate-200'}`}
+              >全部</button>
+              {sessionAvailableClusters.map(({ cluster, count }) => {
+                const active = cluster === facetCluster
+                return (
+                  <button
+                    key={cluster}
+                    onClick={() => setFacetCluster(active ? null : cluster)}
+                    className={`text-[11px] px-2 py-0.5 rounded transition ${active ? 'bg-orange-100 text-orange-700 ring-1 ring-orange-200' : 'bg-slate-100 text-ink-secondary hover:bg-slate-200'}`}
+                  >{cluster} <span className="text-[10px] text-ink-muted">{count}</span></button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 顶部搜索框 — 题干 / why / topic_cluster 关键词过滤(子题永远跟父,不参与过滤) */}
       <div className="flex items-center gap-2">
