@@ -24,7 +24,7 @@ mermaid.initialize({
   startOnLoad: false,
   theme: 'base',
   securityLevel: 'loose',
-  flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'step', padding: 16, nodeSpacing: 50, rankSpacing: 70 },
+  flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis', padding: 16, nodeSpacing: 55, rankSpacing: 75 },
   sequence: { useMaxWidth: true, wrap: true, mirrorActors: false, boxMargin: 12 },
   themeVariables: {
     fontFamily: '"PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',

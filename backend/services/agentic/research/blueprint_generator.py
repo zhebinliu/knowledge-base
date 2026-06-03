@@ -207,14 +207,25 @@ mermaid 围栏:
 具体语法对照:
 
 1. **线性 / 多分支流程** → 用 `flowchart LR`(横排,推荐)或 `flowchart TB`(纵排)
-   示例 — Lead 到 Receivable 的 L2C 主流程:
+
+   **节点形状必须按语义选**(前端会按形状自动配色,形状错了图就单调难读):
+   - 普通步骤 / 动作:`A[内容]` 矩形(浅蓝)
+   - **判断 / 分支**:`A{是否符合规则?}` 菱形(浅黄)— 凡是出现"判断/是否/校验/路由/分类"的节点必须用菱形
+   - **起止 / 终态 / 外部系统**:`A([Lead 线索])` stadium 圆角(浅紫)— 流程起点、终点、外部 ERP/OA 等
+   - 子流程 / 复合步骤:`A[[子流程名]]` 双框矩形
+
+   示例 — Lead 到 Receivable 的 L2C 主流程(注意起止用 stadium、审批分叉用菱形):
    ```mermaid
    flowchart LR
-       Lead[Lead 线索] --> Opp[Opportunity 商机]
+       Lead([Lead 线索]) --> Opp[Opportunity 商机]
        Opp --> Quote[Quote 报价]
-       Quote --> Contract[Contract 合同]
+       Quote --> Approve{利润率是否 >30%?}
+       Approve -->|是| AutoPass[自动通过]
+       Approve -->|否| Manual[主管审批]
+       AutoPass --> Contract[Contract 合同]
+       Manual --> Contract
        Contract --> Order[Order 订单]
-       Order --> Receivable[Receivable 应收]
+       Order --> Receivable([Receivable 应收])
    ```
 
 2. **状态机**(对象生命周期 / 审批流转 / 应收账款状态) → 用 `stateDiagram-v2`
