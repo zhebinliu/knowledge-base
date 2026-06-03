@@ -90,6 +90,11 @@ class GenerateRequest(BaseModel):
     project_id: str
 
 
+class GenerateRoleRequest(BaseModel):
+    """按单个角色增量生成调研问卷题目。"""
+    role: str   # executive / dept_head / frontline / it
+
+
 def _bundle_dto(b: CuratedBundle) -> dict:
     extra = b.extra or {}
     fk = b.file_key or ""
@@ -118,6 +123,8 @@ def _bundle_dto(b: CuratedBundle) -> dict:
         "provenance": extra.get("provenance") or {},     # v3: {module_key: {D1/K1/W1: meta}}
         "progress": extra.get("progress") or None,       # v3.1: 进度卡片 (生成中显示)
         "challenge_summary": extra.get("challenge_summary") or None,  # v3.1: 挑战循环结果摘要
+        # 按角色逐步生成进度(2026-06-03):仅 survey kind 有,值是 {executive,dept_head,frontline,it} → status
+        "role_progress": extra.get("role_progress") or {},
         "web_search_status": extra.get("web_search_status") or None,  # v3.4: M9 web 检索结果状态
         # research — 需求调研工作区前端消费
         "questionnaire_items": extra.get("questionnaire_items") or [],
@@ -182,6 +189,54 @@ async def generate_output(
     }[body.kind]
     task_fn.delay(bundle.id, body.project_id)
 
+    return _bundle_dto(bundle)
+
+
+_VALID_SURVEY_ROLES = ("executive", "dept_head", "frontline", "it")
+
+
+@router.post("/{bundle_id}/generate-role", status_code=202)
+async def generate_survey_role(
+    bundle_id: str,
+    body: GenerateRoleRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """按单个角色增量生成调研问卷题目(2026-06-03)。
+
+    仅 kind=='survey' 的 bundle 可调。bundle 不存在或角色非法返回 4xx;
+    其余直接 fire Celery generate_survey_role,前端按既有 bundle 轮询机制
+    通过 extra.role_progress 看进度。
+    """
+    if body.role not in _VALID_SURVEY_ROLES:
+        raise HTTPException(400, f"Invalid role. Must be one of: {list(_VALID_SURVEY_ROLES)}")
+    bundle = await session.get(CuratedBundle, bundle_id)
+    if not bundle:
+        raise HTTPException(404, "Bundle not found")
+    if bundle.kind != "survey":
+        raise HTTPException(400, f"bundle.kind={bundle.kind!r}, only survey supports per-role generation")
+    if not bundle.project_id:
+        raise HTTPException(400, "Bundle has no project_id")
+
+    from services.project_acl import assert_project_access
+    await assert_project_access(current_user, bundle.project_id, "write")
+
+    # 立即把 role_progress[role] = 'generating' 写回(让前端轮询即时可见)
+    extra = dict(bundle.extra or {})
+    rp = dict(extra.get("role_progress") or {})
+    rp[body.role] = "generating"
+    extra["role_progress"] = rp
+    bundle.extra = extra
+    await session.commit()
+    await session.refresh(bundle)
+
+    # fire celery
+    from tasks.output_tasks import generate_survey_role as _task
+    _task.delay(bundle.id, bundle.project_id, body.role)
+
+    logger.info("survey_role_dispatched",
+                bundle_id=bundle_id, role=body.role,
+                project_id=bundle.project_id, user_id=current_user.id)
     return _bundle_dto(bundle)
 
 

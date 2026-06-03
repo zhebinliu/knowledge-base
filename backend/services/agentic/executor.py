@@ -497,6 +497,10 @@ async def execute_survey_subsection(
     kb_inject_block: str = "",            # research v1 — KB 二次过滤后的高分参考(由调用方预先准备好)
     customer_modules: list[str] | None = None,  # research v1 — SOW 中超出 LTC 字典的客户自定义模块
     prior_bundles: list[dict] | None = None,    # v3.2: 上游 stage 的 valid bundle(P 类源)
+    # ── 按角色逐步生成专用入参(generate_survey_for_role 注入,一键全量路径默认空) ──
+    meeting_context: str = "",            # 该项目已完成会议纪要摘要(本轮出题的访谈历史依据)
+    prior_role_questions: str = "",       # 同一 bundle 里其他角色已生成的题目(避免撞车 / 可追问)
+    target_audience: str | None = None,   # 本轮限定的严格 4 角色之一(executive / dept_head / frontline / it)
 ) -> dict:
     """生成单个 survey 分卷。
 
@@ -555,12 +559,38 @@ async def execute_survey_subsection(
     # 把分卷原始 target_roles(可能是 LTC 字典的 c_level/biz_owner...)收敛到严格 4 角色,
     # 让 LLM 直接看到本分卷应该覆盖的「严格 4 选 N」角色
     from services.agentic.research.questionnaire_schema import (
-        coerce_audience_roles, AUDIENCE_ROLE_LABELS,
+        coerce_audience_roles, AUDIENCE_ROLE_LABELS, VALID_AUDIENCE_ROLES,
     )
     strict_target_roles = coerce_audience_roles(subsection.target_roles) or ["dept_head"]
+    # 按角色逐步生成模式:若调用方限定了 target_audience,则把 strict_target_roles narrow 到单一角色
+    if target_audience and target_audience in VALID_AUDIENCE_ROLES:
+        strict_target_roles = [target_audience]
     strict_label = " / ".join(f"{r}({AUDIENCE_ROLE_LABELS[r]})" for r in strict_target_roles)
     target_roles_label = f"{' / '.join(subsection.target_roles)}  → 严格 4 角色映射: {strict_label}"
     qmin, qmax = subsection.question_count_target
+
+    # 按角色逐步生成模式专用 prompt 注入(default 路径 target_audience=None 时全部为空,不影响一键生成)
+    role_focus_block = ""
+    if target_audience and target_audience in VALID_AUDIENCE_ROLES:
+        ta_label = AUDIENCE_ROLE_LABELS.get(target_audience, target_audience)
+        role_focus_block = (
+            f"【本轮严格限定角色 — 仅为 {ta_label}({target_audience})生成题目】\n"
+            f"- 所有题目的 audience_roles 必须 = [\"{target_audience}\"],**不要**挂其他角色。\n"
+            f"- 其他角色(高管 / 部门负责人 / 一线 / IT 的另外几类)的题在本问卷别处已经/将另行生成,本轮不要重复或交叉。\n"
+            f"- 出题口吻按 {ta_label} 的语言习惯(例:对 executive 用战略/KPI 语言,对 frontline 用操作/日常事件语言)。\n"
+        )
+    meeting_context_block = ""
+    if meeting_context:
+        meeting_context_block = (
+            "【本项目已完成的调研会议纪要(出题应当呼应这些已知事实,避免重复问已经答过的)】\n"
+            f"{meeting_context}\n"
+        )
+    prior_role_questions_block = ""
+    if prior_role_questions:
+        prior_role_questions_block = (
+            "【本问卷其他角色已有的题目 — 仅供避免重复 / 寻找跨角色追问机会】\n"
+            f"{prior_role_questions}\n"
+        )
 
     # research v1:item_key 前缀(顾问录入答案时按此 key 索引)
     item_key_prefix = ltc_module_key or subsection.key
@@ -617,7 +647,7 @@ async def execute_survey_subsection(
 【访谈记录(用于个性化题目)】
 {transcript or '（无访谈记录,按通用情形出题)'}
 
-{prior_context_block + chr(10) + chr(10) if prior_context_block else ''}{kb_inject_block + chr(10) + chr(10) if kb_inject_block else ''}{industry_block + chr(10) + chr(10) if industry_block else ''}{f"【方法论】{chr(10)}{agent_prompt}{chr(10)}{chr(10)}" if agent_prompt else ''}{f"【启用技能】{chr(10)}{skill_text}" if skill_text else ''}
+{role_focus_block + chr(10) if role_focus_block else ''}{meeting_context_block + chr(10) if meeting_context_block else ''}{prior_role_questions_block + chr(10) if prior_role_questions_block else ''}{prior_context_block + chr(10) + chr(10) if prior_context_block else ''}{kb_inject_block + chr(10) + chr(10) if kb_inject_block else ''}{industry_block + chr(10) + chr(10) if industry_block else ''}{f"【方法论】{chr(10)}{agent_prompt}{chr(10)}{chr(10)}" if agent_prompt else ''}{f"【启用技能】{chr(10)}{skill_text}" if skill_text else ''}
 
 【输出格式 — 严格两段式,顺序必须先 Markdown 后 JSON】
 

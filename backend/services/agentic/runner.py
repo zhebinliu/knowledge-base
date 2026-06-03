@@ -266,6 +266,104 @@ async def _load_upstream_bundles(project_id: str, kind: str) -> list[dict]:
     return out
 
 
+# ── survey 按角色逐步生成:meeting 上下文 + 已有其他角色题目 ────────────────────
+
+def _format_meeting_context_md(rows: list[dict], max_meetings: int = 5) -> str:
+    """把 _load_meeting_evidence_for_report 返回的 list[dict] 渲染成 markdown,
+    塞进 survey executor 的 prompt 作为「访谈历史」证据,辅助下一轮角色出题。
+
+    控制总长(单 meeting ≤ ~800 字),避免吃满上下文。
+    """
+    if not rows:
+        return ""
+    out: list[str] = ["# 已有调研会议纪要(本项目内,按时间倒序)", ""]
+    for m in rows[:max_meetings]:
+        title = (m.get("title") or f"会议 #{m.get('id')}") or "未命名会议"
+        out.append(f"## {title}")
+        summary = (m.get("summary") or "").strip()
+        if summary:
+            out.append(f"**摘要**:{summary[:500]}")
+        kps = [k for k in (m.get("key_points") or []) if k][:8]
+        if kps:
+            out.append("**要点**:")
+            for kp in kps:
+                line = kp if isinstance(kp, str) else (kp.get("text") or kp.get("point") or "")
+                if line:
+                    out.append(f"- {str(line)[:200]}")
+        decisions = [d for d in (m.get("decisions") or []) if d][:6]
+        if decisions:
+            out.append("**决议**:")
+            for d in decisions:
+                line = d if isinstance(d, str) else (d.get("text") or d.get("decision") or "")
+                if line:
+                    out.append(f"- {str(line)[:200]}")
+        reqs = (m.get("requirements") or [])[:10]
+        if reqs:
+            out.append("**会议产出的需求(摘录)**:")
+            for r in reqs:
+                desc = (r.get("description") or "")[:150]
+                module = r.get("module") or ""
+                pri = r.get("priority") or ""
+                speaker = r.get("speaker") or ""
+                meta = " · ".join([s for s in [module, pri, speaker] if s])
+                out.append(f"- {desc}" + (f"  ({meta})" if meta else ""))
+        out.append("")
+    return "\n".join(out)
+
+
+def _collect_existing_role_questions(
+    bundle_extra: dict, exclude_role: str, max_per_role: int = 12
+) -> str:
+    """把 bundle.extra.questionnaire_items 里**除当前 role 之外**的其他角色已有题目
+    按角色分组摘出题干,渲染成 markdown 注入新一轮 prompt。
+
+    目的:让 LLM 看到「高管角色已问过 X / Y」,避免和高管题撞车 + 可以追问。
+    """
+    from .research.questionnaire_schema import (
+        AUDIENCE_ROLE_LABELS, coerce_audience_roles,
+    )
+    items = (bundle_extra or {}).get("questionnaire_items") or []
+    if not items:
+        return ""
+    by_role: dict[str, list[str]] = {}
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        roles = coerce_audience_roles(it.get("audience_roles") or [])
+        # 同一题可能挂多个角色 — 只要不全是当前角色,就把题干纳入「其他角色」侧
+        other_roles = [r for r in roles if r != exclude_role]
+        if not other_roles:
+            continue
+        q = (it.get("question") or "").strip()
+        if not q:
+            continue
+        for r in other_roles:
+            by_role.setdefault(r, []).append(q)
+    if not by_role:
+        return ""
+    out: list[str] = ["# 本问卷其他角色已出过的题(避免重复,可基于此追问)", ""]
+    for role_key in ("executive", "dept_head", "frontline", "it"):
+        if role_key == exclude_role:
+            continue
+        qs = by_role.get(role_key) or []
+        if not qs:
+            continue
+        out.append(f"## 角色:{AUDIENCE_ROLE_LABELS.get(role_key, role_key)}")
+        for q in qs[:max_per_role]:
+            out.append(f"- {q[:180]}")
+        out.append("")
+    return "\n".join(out)
+
+
+def _subsection_matches_audience(target_roles: list[str], target_audience: str) -> bool:
+    """老 7 角色枚举(c_level / biz_owner / ...) → 新 4 角色(executive / dept_head / frontline / it)
+    映射后,判断 subsection 是否服务于当前 target_audience。
+    """
+    from .research.questionnaire_schema import coerce_audience_roles
+    mapped = set(coerce_audience_roles(target_roles))
+    return target_audience in mapped
+
+
 async def _load_ctx(bundle_id: str, project_id: str, kind: str) -> dict:
     """读 bundle / project / brief / conversation / agent_config。
 
@@ -1478,6 +1576,266 @@ async def generate_survey(bundle_id: str, project_id: str):
         except Exception as e2:
             logger.error("survey_failed_writeback_failed", error=str(e2)[:200])
         await _mark_conv(bundle_id, "failed")
+
+
+# ── 按角色逐步生成调研问卷(2026-06-03)─────────────────────────────────────
+# 入口:POST /api/outputs/{bundle_id}/generate-role  body={role}
+# 不替代 generate_survey 一键路径,二者并存:
+#   - generate_survey:一次出整本,所有 4 角色一起
+#   - generate_survey_for_role:增量出某个 role 的题,merge 到既有 bundle.extra.questionnaire_items
+#
+# 调用前置:bundle.kind=='survey'。如果 bundle.status 还是 pending,本函数把它推到 done。
+#
+# context 注入:
+#   1) 该 project 下所有 status=completed 的 meeting 纪要摘要(summary/key_points/decisions/requirements)
+#   2) bundle.extra.questionnaire_items 里其他 3 个角色已生成的题干(按角色分组)
+#   3) executor 的 target_audience 参数把 strict_target_roles narrow 到 [role]
+#
+# 合并语义:
+#   - 同角色旧题(audience_roles==[role])整体替换
+#   - 多角色题(role 是 audience_roles 之一,但还有其他角色)只从其 audience_roles 抽掉当前 role,题保留
+#   - role_progress[role] = "done";status 维持 done
+
+async def generate_survey_for_role(bundle_id: str, project_id: str, role: str):
+    from .research.questionnaire_schema import (
+        VALID_AUDIENCE_ROLES, AUDIENCE_ROLE_LABELS, coerce_audience_roles,
+    )
+    if role not in VALID_AUDIENCE_ROLES:
+        logger.error("survey_role_invalid", bundle_id=bundle_id, role=role)
+        raise ValueError(f"invalid role: {role} (must be one of {VALID_AUDIENCE_ROLES})")
+
+    run_history: list[dict] = []
+    try:
+        # ── 进入态:把 role_progress[role] = "generating",但不动 bundle.status ──
+        async with async_session_maker() as s:
+            bundle = await s.get(CuratedBundle, bundle_id)
+            if not bundle:
+                raise RuntimeError(f"bundle {bundle_id} not found")
+            if bundle.kind != "survey":
+                raise ValueError(f"bundle.kind={bundle.kind}, expected 'survey'")
+            extra0 = dict(bundle.extra or {})
+            rp0 = dict(extra0.get("role_progress") or {})
+            rp0[role] = "generating"
+            extra0["role_progress"] = rp0
+            bundle.extra = extra0
+            await s.commit()
+        run_history.append({"phase": "started", "ts": _ts(), "detail": {"role": role}})
+
+        # ── 1. ctx ──
+        ctx = await _load_ctx(bundle_id, project_id, "survey")
+        bundle_extra_now = ctx["bundle_extra"]
+        run_history.append({
+            "phase": "ctx_loaded", "ts": _ts(),
+            "detail": {"industry": ctx["industry"],
+                       "transcript_len": len(ctx["transcript"]),
+                       "brief_fields_n": len(ctx["brief_fields"])},
+        })
+
+        # ── 2. meeting context(只对 completed 状态的会议)──
+        try:
+            meeting_rows = await _load_meeting_evidence_for_report(project_id)
+        except Exception as e:
+            logger.warning("survey_role_meeting_load_failed", error=str(e)[:120])
+            meeting_rows = []
+        meeting_md = _format_meeting_context_md(meeting_rows)
+        # ── 3. 其他角色已有题 ──
+        prior_role_q_md = _collect_existing_role_questions(bundle_extra_now, exclude_role=role)
+        run_history.append({
+            "phase": "context_collected", "ts": _ts(),
+            "detail": {
+                "meetings_n": len(meeting_rows),
+                "had_prior_role_questions": bool(prior_role_q_md),
+            },
+        })
+
+        # ── 4. LTC 映射(同 generate_survey) ──
+        ltc_map_rows: list[dict] = []
+        try:
+            from models.research_ltc_module_map import ResearchLtcModuleMap
+            async with async_session_maker() as s:
+                rows = (await s.execute(
+                    select(ResearchLtcModuleMap)
+                    .where(ResearchLtcModuleMap.project_id == project_id)
+                )).scalars().all()
+            ltc_map_rows = [
+                {"sow_term": r.sow_term, "mapped_ltc_key": r.mapped_ltc_key,
+                 "confidence": r.confidence, "is_extra": r.is_extra}
+                for r in rows
+            ]
+        except Exception as e:
+            logger.warning("survey_role_load_ltc_map_failed", error=str(e)[:120])
+        customer_modules = sorted({
+            r["sow_term"] for r in ltc_map_rows if r.get("is_extra")
+        })
+
+        # ── 5. plan + filter by role ──
+        plan = plan_survey(
+            industry=ctx["industry"],
+            transcript_text=ctx["transcript"],
+            brief_fields=ctx["brief_fields"],
+        )
+        role_subsections = [
+            s for s in plan.subsections
+            if s.status == "ready" and _subsection_matches_audience(s.target_roles, role)
+        ]
+        run_history.append({
+            "phase": "planned_for_role", "ts": _ts(),
+            "detail": {"role": role,
+                       "matched_subsections_n": len(role_subsections),
+                       "all_ready_subsections_n": sum(1 for x in plan.subsections if x.status == "ready")},
+        })
+
+        if not role_subsections:
+            # 没有匹配的分卷,直接标 done(不出新题)
+            async with async_session_maker() as s:
+                bundle = await s.get(CuratedBundle, bundle_id)
+                extra_done = dict(bundle.extra or {})
+                rp = dict(extra_done.get("role_progress") or {})
+                rp[role] = "done"
+                extra_done["role_progress"] = rp
+                rh = list(extra_done.get("run_history") or [])
+                run_history.append({"phase": "no_subsections_for_role", "ts": _ts()})
+                rh.extend(run_history)
+                extra_done["run_history"] = rh
+                if bundle.status in ("pending", "generating"):
+                    bundle.status = "done"
+                    if not bundle.content_md:
+                        bundle.content_md = "# 调研问卷\n\n(按角色逐步生成中,详见 questionnaire_items)\n"
+                bundle.extra = extra_done
+                await s.commit()
+            logger.info("survey_role_no_match", bundle_id=bundle_id, role=role)
+            return
+
+        # ── 6. fan-out execute(注入 meeting + prior_role + target_audience)──
+        async def _run_one_sub(sub_assessment):
+            sub_spec = get_subsection(sub_assessment.key)
+            if not sub_spec:
+                return sub_assessment.key, {"markdown": "", "questionnaire_items": []}
+            result = await execute_survey_subsection(
+                subsection=sub_spec,
+                project=ctx["project"], industry=ctx["industry"],
+                transcript=ctx["transcript"],
+                already_covered=plan.already_covered,
+                extra_seeds_from_pack=plan.extra_seeds_from_pack,
+                skill_text=ctx["skill_text"], agent_prompt=ctx["agent_prompt"],
+                model=ctx["agent_model"],
+                ltc_module_key=None,
+                kb_inject_block="",
+                customer_modules=customer_modules,
+                prior_bundles=ctx.get("prior_bundles"),
+                meeting_context=meeting_md,
+                prior_role_questions=prior_role_q_md,
+                target_audience=role,
+            )
+            return sub_assessment.key, result
+
+        results = await asyncio.gather(
+            *(_run_one_sub(s) for s in role_subsections),
+            return_exceptions=True,
+        )
+        new_items: list[dict] = []
+        sub_contents: dict[str, str] = {}
+        for r in results:
+            if isinstance(r, Exception):
+                logger.warning("survey_role_executor_exception", role=role, error=str(r)[:200])
+                continue
+            sk, payload = r
+            if isinstance(payload, dict):
+                sub_contents[sk] = payload.get("markdown") or ""
+                items = payload.get("questionnaire_items") or []
+                if items:
+                    new_items.extend(items)
+        run_history.append({
+            "phase": "executed", "ts": _ts(),
+            "detail": {"role": role,
+                       "subsections_completed": list(sub_contents.keys()),
+                       "new_items_n": len(new_items)},
+        })
+
+        # ── 7. merge questionnaire_items + 更新 extra ──
+        async with async_session_maker() as s:
+            bundle = await s.get(CuratedBundle, bundle_id)
+            extra_now = dict(bundle.extra or {})
+            old_items = list(extra_now.get("questionnaire_items") or [])
+            kept: list[dict] = []
+            removed_n = 0
+            stripped_n = 0
+            for it in old_items:
+                if not isinstance(it, dict):
+                    kept.append(it)
+                    continue
+                roles = coerce_audience_roles(it.get("audience_roles") or [])
+                if role in roles:
+                    if len(roles) <= 1:
+                        # 整题专属当前角色 → 整体丢弃,等下用新题覆盖
+                        removed_n += 1
+                        continue
+                    # 多角色题 → 把当前 role 从 audience_roles 抽掉,题本身保留(其他角色还需要)
+                    new_roles = [r for r in roles if r != role]
+                    it = {**it, "audience_roles": new_roles}
+                    stripped_n += 1
+                kept.append(it)
+            merged = kept + new_items
+            extra_now["questionnaire_items"] = merged
+
+            rp = dict(extra_now.get("role_progress") or {})
+            rp[role] = "done"
+            extra_now["role_progress"] = rp
+
+            rh = list(extra_now.get("run_history") or [])
+            run_history.append({
+                "phase": "merged", "ts": _ts(),
+                "detail": {
+                    "role": role,
+                    "old_total": len(old_items),
+                    "removed": removed_n,
+                    "stripped": stripped_n,
+                    "added": len(new_items),
+                    "final_total": len(merged),
+                    "had_meeting_context": bool(meeting_md),
+                    "had_prior_role_questions": bool(prior_role_q_md),
+                },
+            })
+            rh.extend(run_history)
+            extra_now["run_history"] = rh
+            # 兼容 agentic_version 字段
+            extra_now.setdefault("agentic_version", "v2")
+
+            # 冷启动场景:bundle 之前是 pending(没跑过一键全量),首次按角色生成后推到 done
+            if bundle.status in ("pending", "generating"):
+                bundle.status = "done"
+                if not bundle.content_md:
+                    bundle.content_md = "# 调研问卷\n\n(按角色逐步生成中,详见 questionnaire_items)\n"
+
+            bundle.extra = extra_now
+            await s.commit()
+        logger.info(
+            "survey_role_done",
+            bundle_id=bundle_id, role=role,
+            new_items=len(new_items),
+            removed=removed_n, stripped=stripped_n,
+        )
+
+    except Exception as e:
+        logger.exception("survey_role_failed", bundle_id=bundle_id, role=role, error=str(e)[:300])
+        run_history.append({"phase": "failed", "ts": _ts(), "detail": str(e)[:300]})
+        try:
+            async with async_session_maker() as s:
+                b = await s.get(CuratedBundle, bundle_id)
+                if b:
+                    extra_err = dict(b.extra or {})
+                    rp = dict(extra_err.get("role_progress") or {})
+                    rp[role] = "failed"
+                    extra_err["role_progress"] = rp
+                    extra_err["last_role_error"] = str(e)[:300]
+                    rh = list(extra_err.get("run_history") or [])
+                    rh.extend(run_history)
+                    extra_err["run_history"] = rh
+                    b.extra = extra_err
+                    await s.commit()
+        except Exception as e2:
+            logger.error("survey_role_failed_writeback_failed", error=str(e2)[:200])
+        raise
 
 
 # ── Outline v2 入口(survey_outline)─────────────────────────────────────────

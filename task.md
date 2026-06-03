@@ -1206,3 +1206,63 @@ docker-compose.yml: backend / celery_worker / frontend / frontend-uat 的 build 
 - httpx 没现成 SSE 解析,手写 line-based(`data:` / `event:` / `id:` / `retry:` / 空行分隔)
 - Gateway 1.3 协议字段(`message.content` 等)需在 C2 之前去 npm/`@openclaw-fs/sharecrm` 抓源码确认
 - backend 重启 = 全部连接重建,启动时串行 + 抖动
+
+---
+
+## 新迭代:调研问卷按角色逐步生成 + meeting 上下文反哺(2026-06-03)
+
+### 决策(已对齐)
+- 触发:**手动按角色按钮**(executive / dept_head / frontline / it 四个)
+- context 来源:① 该项目下 meeting 模块的会议纪要(只读 status=completed) ② 已生成的其他角色的题目本身
+- bundle:**复用同一 survey bundle**,按角色增量 patch `questionnaire_items` + `extra.role_progress` 标进度
+- **不读 research_response**(用户没选)
+
+### 改造大图
+```
+[前端] ResearchWorkspace 顶栏:
+  - 无 surveyBundle → 仍是「一键生成」(冷启动)
+  - 有 surveyBundle → 4 个角色按钮,显示「生成 / 生成中… / 已生成→重新生成」
+        ↓
+[API] POST /api/outputs/{bundle_id}/generate-role  body={role}
+        ↓
+[Celery] generate_survey_role(bundle_id, project_id, role)
+        ↓
+[runner] generate_survey_for_role:
+  1. _load_ctx
+  2. _load_meeting_context(project_id) — 拉 meeting_minutes 摘要
+  3. _summarize_existing_role_questions — 抽其他角色已有题
+  4. plan_survey + filter subsections.target_roles(老→新角色映射)
+  5. execute_survey_subsection(注入 meeting + 已有角色题 context)
+  6. critic + merge questionnaire_items(同 role 旧题清掉 → 追加)
+  7. bundle.extra.role_progress[role] = "done"
+```
+
+### 后端
+- [ ] B1 runner.py 加角色映射辅助 + `_map_subsection_roles_to_audience(subsection_target_roles)` → set[str]
+- [ ] B2 runner.py `_load_meeting_context(project_id) -> str`(摘 minutes summary/key_points/decisions/action_items,各限 600 字)
+- [ ] B3 runner.py `_summarize_existing_role_questions(bundle_extra, exclude_role) -> str`
+- [ ] B4 runner.py `generate_survey_for_role(bundle_id, project_id, role)` 主函数
+- [ ] B5 同上,完成后增量 merge questionnaire_items / role_progress / run_history
+- [ ] B6 executor.py `execute_survey_subsection` 加 `meeting_context` + `prior_role_questions` 可选参数
+- [ ] B7 tasks/output_tasks.py 注册 Celery task `generate_survey_role`
+- [ ] B8 outputs.py 新增 endpoint `POST /api/outputs/{bundle_id}/generate-role`
+- [ ] B9 outputs.py `_bundle_dto` 暴露 role_progress
+
+### 前端
+- [ ] F1 api/client.ts 加 `generateSurveyForRole` + `CuratedBundle.role_progress`
+- [ ] F2 ResearchWorkspace.tsx 顶栏改造为 4 角色按钮组
+- [ ] F3 触发后 onRefetch 复用现有轮询
+- [ ] F4 tsc 通过
+
+### 验证
+- [ ] V1 后端 import 检查
+- [ ] V2 本地起栈 → 触发某角色生成 → 看 celery 日志 + DB extra.role_progress
+- [ ] V3 挂 meeting → 第二角色生成时 prompt 带 meeting 摘要
+- [ ] V4 部署 UAT
+
+### 边界
+- 不动 generate_survey 一键路径(冷启动还得用)
+- 不动 outline / report / insight
+- 不读 research_response
+- meeting 只摘 minutes,不喂 transcript
+- critic / challenger 不改

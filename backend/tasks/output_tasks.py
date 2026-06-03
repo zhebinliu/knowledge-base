@@ -44,6 +44,15 @@ def generate_survey(self, bundle_id: str, project_id: str):
     _run(_gen(bundle_id, project_id))
 
 
+@celery_app.task(name="generate_survey_role", bind=True, max_retries=2, soft_time_limit=600, time_limit=900)
+def generate_survey_role(self, bundle_id: str, project_id: str, role: str):
+    """按单个角色增量生成调研问卷题目(executive / dept_head / frontline / it)。
+    参见 services/agentic/runner.generate_survey_for_role。
+    """
+    from services.agentic.runner import generate_survey_for_role as _gen
+    _run(_gen(bundle_id, project_id, role))
+
+
 @celery_app.task(name="generate_survey_outline", bind=True, max_retries=2, soft_time_limit=900, time_limit=1200)
 def generate_survey_outline(self, bundle_id: str, project_id: str):
     from services.agentic.runner import generate_survey_outline as _gen

@@ -1281,6 +1281,9 @@ export interface CuratedBundle {
   // research v1 — 需求调研工作区(survey_outline / survey kind 才有值)
   questionnaire_items?: ResearchQuestionItem[]
   ltc_module_map?: { sow_term: string; mapped_ltc_key: string | null; confidence: number; is_extra: boolean }[]
+  // 按角色逐步生成进度(2026-06-03,仅 survey kind):key=audience_role,value=当前状态
+  role_progress?: Partial<Record<'executive' | 'dept_head' | 'frontline' | 'it',
+    'pending' | 'generating' | 'done' | 'failed'>>
   // implementation_plan kind — 项目实施工作台前端用
   implementation_tasks?: ImplementationTask[]
   // 通用 extra(后端 _bundle_dto 不直接返回所有 extra 字段,但有些工作台需要 sources_summary 等)
@@ -1333,6 +1336,16 @@ export interface OutputPage {
 
 export const generateOutput = (body: { kind: string; project_id: string }) =>
   api.post<CuratedBundle>('/outputs/generate', body).then(r => r.data)
+
+/** 按单个角色增量生成调研问卷题目(2026-06-03)。
+ *  仅 kind=='survey' 的 bundle 可调,返回更新后的 bundle(role_progress[role]='generating')。
+ *  Celery 异步执行,前端按现有 bundle 轮询机制感知 role_progress 状态变化。*/
+export const generateSurveyForRole = (
+  bundleId: string,
+  role: 'executive' | 'dept_head' | 'frontline' | 'it',
+) =>
+  api.post<CuratedBundle>(`/outputs/${bundleId}/generate-role`, { role })
+    .then(r => r.data)
 
 export const listOutputs = (params: { project_id?: string; kind?: string; page?: number } = {}) =>
   api.get<OutputPage>('/outputs', { params }).then(r => r.data)

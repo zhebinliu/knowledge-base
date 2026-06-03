@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import {
   generateOutput,
+  generateSurveyForRole,
   getLtcDictionary,
   getOutput,
   listResearchLtcModuleMap,
@@ -292,30 +293,84 @@ export default function ResearchWorkspace({
                    muted={!reportBundle || !!reportInflight}
                    disabled={!!reportInflight} />
           <div className="flex-1" />
-          {/* 大纲已生成 + 不在生成中 → 顶栏常驻「生成 / 重新生成调研问卷」按钮(无需切回准备页) */}
+          {/* 大纲已生成 + 不在生成中 → 顶栏「生成调研问卷」入口(2026-06-03 改造为按角色逐步生成) */}
           {outlineBundle?.status === 'done' && !surveyInflight && (
-            <button
-              onClick={async () => {
-                if (surveyBundle) {
-                  const ok = window.confirm(
-                    '将基于当前调研大纲生成新一版调研问卷。\n\n注意:旧问卷答案与新问卷不互通,如已录入答案请先导出。是否继续?'
+            !surveyBundle ? (
+              // 冷启动:还没有问卷 → 先一键生成基线
+              <button
+                onClick={async () => {
+                  try {
+                    await generateOutput({ kind: 'survey', project_id: projectId })
+                    onRefetch()
+                  } catch (e: any) {
+                    alert(e?.response?.data?.detail || e?.message || '生成失败')
+                  }
+                }}
+                className="text-[11px] inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium text-white border border-orange-700"
+                style={{ background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' }}
+                title="基于调研大纲一键生成结构化问卷(覆盖全部 4 角色)"
+              >
+                <Sparkles size={11} />
+                生成调研问卷
+              </button>
+            ) : (
+              // 已有基线 → 4 角色按钮组(增量按角色重生,会带上已有会议纪要 + 其他角色已生成题作为上下文)
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-ink-muted mr-1 hidden md:inline">按角色:</span>
+                {AUDIENCE_ROLE_ORDER.map(role => {
+                  const progress = surveyBundle.role_progress?.[role]
+                  const inflight = progress === 'generating'
+                  const done = progress === 'done'
+                  const failed = progress === 'failed'
+                  const label = AUDIENCE_ROLE_LABELS[role]
+                  const titleStr = inflight
+                    ? `正在为「${label}」生成…`
+                    : done
+                      ? `重新生成「${label}」问题(会读最新会议纪要 + 其他角色已有题作为上下文)`
+                      : failed
+                        ? `上次「${label}」生成失败,点击重试`
+                        : `为「${label}」生成调研问题(会读会议纪要 + 其他角色已有题)`
+                  return (
+                    <button
+                      key={role}
+                      disabled={inflight}
+                      onClick={async () => {
+                        if (done) {
+                          const ok = window.confirm(
+                            `将为「${label}」角色重新生成问题。\n\n旧题中该角色的部分会被新题替换(其他角色不动);已录入的该角色答案如未导出会丢失。是否继续?`
+                          )
+                          if (!ok) return
+                        }
+                        try {
+                          await generateSurveyForRole(surveyBundle.id, role)
+                          onRefetch()
+                        } catch (e: any) {
+                          alert(e?.response?.data?.detail || e?.message || `${label} 生成失败`)
+                        }
+                      }}
+                      title={titleStr}
+                      className={
+                        `text-[11px] inline-flex items-center gap-1 px-2 py-1 rounded-md border transition ` +
+                        (inflight
+                          ? 'bg-orange-50 border-orange-200 text-orange-600 cursor-not-allowed'
+                          : done
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                            : failed
+                              ? 'bg-rose-50 border-rose-300 text-rose-700 hover:bg-rose-100'
+                              : 'bg-white border-line text-ink-secondary hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200')
+                      }
+                    >
+                      {inflight
+                        ? <Loader2 size={11} className="animate-spin" />
+                        : done
+                          ? <CheckCircle2 size={11} />
+                          : <Sparkles size={11} />}
+                      {label}
+                    </button>
                   )
-                  if (!ok) return
-                }
-                try {
-                  await generateOutput({ kind: 'survey', project_id: projectId })
-                  onRefetch()
-                } catch (e: any) {
-                  alert(e?.response?.data?.detail || e?.message || '生成失败')
-                }
-              }}
-              className="text-[11px] inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium text-white border border-orange-700"
-              style={{ background: 'linear-gradient(135deg, #FF8D1A, #FF7A00)' }}
-              title={surveyBundle ? '基于当前大纲重新生成问卷(旧答案不会迁移)' : '基于调研大纲一键生成结构化问卷'}
-            >
-              <Sparkles size={11} />
-              {surveyBundle ? '重新生成调研问卷' : '生成调研问卷'}
-            </button>
+                })}
+              </div>
+            )
           )}
           {view === 'questionnaire' && (
             <span className="text-[11px] text-ink-muted">
