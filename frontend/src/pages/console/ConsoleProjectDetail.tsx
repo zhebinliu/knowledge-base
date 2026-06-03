@@ -165,8 +165,13 @@ export default function ConsoleProjectDetail() {
     enabled: !!id,
     refetchInterval: (q: any) => {
       // inflight 中 2s polling — 让 GenerationProgressCard 的进度更新更顺滑
+      // 2026-06-03:按角色逐步生成 survey 时 bundle.status 维持 done,
+      // 单独检查 role_progress 是否有 generating(否则按钮一直转、拿不到最新状态)
       const items = q.state.data?.items ?? []
-      return items.some((b: CuratedBundle) => b.status === 'pending' || b.status === 'generating') ? 2000 : false
+      return items.some((b: CuratedBundle) =>
+        b.status === 'pending' || b.status === 'generating' ||
+        (b.role_progress && Object.values(b.role_progress).some(v => v === 'generating'))
+      ) ? 2000 : false
     },
   })
   const { data: meta } = useQuery({ queryKey: ['project-meta'], queryFn: getProjectMeta })
