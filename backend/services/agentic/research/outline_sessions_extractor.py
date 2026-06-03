@@ -147,7 +147,9 @@ async def extract_sessions(outline_md: str, model: str | None = None) -> list[di
             system=SYSTEM_PROMPT,
             model=model,
             task="output_doc_generate",
-            max_tokens=6000, timeout=240.0,   # interview_script 让 max_tokens 多余量
+            # 2026-06-03 timeout 收紧到 120s — 不能让 sessions 抽取拖垮整个 outline 任务
+            # max_tokens 4000 已经够装 6-15 场 + 每场 200 字 script(约 3000 字)
+            max_tokens=4000, timeout=120.0,
         )
     except Exception as e:
         logger.warning("outline_sessions_extract_failed", err=str(e)[:200])

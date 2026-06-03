@@ -102,7 +102,9 @@ def generate_survey_role(self, bundle_id: str, project_id: str, role: str):
     _run(_gen(bundle_id, project_id, role))
 
 
-@celery_app.task(name="generate_survey_outline", bind=True, max_retries=2, soft_time_limit=900, time_limit=1200)
+# 2026-06-03 outline 时间预算从 900/1200 提到 1500/1800:加了 sessions JSON 抽取的 LLM 调用后,
+# 挑战循环 + 抽取 + docx 装配累积容易超原 900s soft limit
+@celery_app.task(name="generate_survey_outline", bind=True, max_retries=2, soft_time_limit=1500, time_limit=1800)
 def generate_survey_outline(self, bundle_id: str, project_id: str):
     from services.agentic.runner import generate_survey_outline as _gen
     _run(_gen(bundle_id, project_id))
