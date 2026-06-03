@@ -2359,6 +2359,7 @@ async def generate_research_plan(bundle_id: str, project_id: str):
             if first_break > 0:
                 llm_body = llm_body[first_break + 1:].lstrip()
         title_main = project_name
+        # 跟 outline 装配头部同款:每行结尾两个空格(  )= markdown 软换行,join 用 "\n" 让每条 metadata 独立成行
         header_blocks = [
             f"# {title_main} · 调研计划\n",
             f"**生成日期**:{date.today().strftime('%Y年%m月%d日')}  ",
@@ -2366,9 +2367,9 @@ async def generate_research_plan(bundle_id: str, project_id: str):
             f"**行业**:{_industry_zh(industry)}  ",
             f"**有效性**:{_validity_zh('valid')}\n",
             "\n本计划是基于「调研大纲」改写的**对客版本**,可直接转达客户,内含调研节奏、日程、客户准备清单与联系方式。\n",
-            "\n---\n\n",
+            "\n---\n",
         ]
-        markdown = "".join(header_blocks) + llm_body
+        markdown = "\n".join(header_blocks) + "\n" + llm_body
         async with async_session_maker() as s:
             b = await s.get(CuratedBundle, bundle_id)
             new_extra = dict(b.extra or {})
