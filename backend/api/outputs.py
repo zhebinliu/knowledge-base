@@ -97,6 +97,11 @@ class GenerateRoleRequest(BaseModel):
     role: str   # executive / dept_head / frontline / it
 
 
+class GenerateSessionRequest(BaseModel):
+    """按单个场次手动触发生成调研问卷题目(2026-06-03)。"""
+    session_id: str
+
+
 def _bundle_dto(b: CuratedBundle) -> dict:
     extra = b.extra or {}
     fk = b.file_key or ""
@@ -132,6 +137,8 @@ def _bundle_dto(b: CuratedBundle) -> dict:
         "questionnaire_items": extra.get("questionnaire_items") or [],
         "ltc_module_map": extra.get("ltc_module_map") or [],
         "outline_sessions": extra.get("outline_sessions") or [],   # 2026-06-03 大纲 M3 场次结构化
+        "session_progress": extra.get("session_progress") or {},   # 2026-06-03 按场次触发进度
+
 
         # implementation — 项目实施工作台前端消费(implementation_plan kind)
         "implementation_tasks": extra.get("tasks") or [],
@@ -241,6 +248,52 @@ async def generate_survey_role(
 
     logger.info("survey_role_dispatched",
                 bundle_id=bundle_id, role=body.role,
+                project_id=bundle.project_id, user_id=current_user.id)
+    return _bundle_dto(bundle)
+
+
+@router.post("/{bundle_id}/generate-session", status_code=202)
+async def generate_survey_session(
+    bundle_id: str,
+    body: GenerateSessionRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """按单个场次手动触发生成调研问卷题目(2026-06-03)。
+
+    body={session_id};仅 kind=='survey' 的 bundle 可调。
+    立即把 session_progress[session_id]='generating' 写回 + fire celery。
+    前端按 bundle 轮询机制通过 extra.session_progress 看进度。
+    """
+    if not (body.session_id or "").strip():
+        raise HTTPException(400, "session_id is required")
+    bundle = await session.get(CuratedBundle, bundle_id)
+    if not bundle:
+        raise HTTPException(404, "Bundle not found")
+    if bundle.kind != "survey":
+        raise HTTPException(400, f"bundle.kind={bundle.kind!r}, only survey supports per-session generation")
+    if not bundle.project_id:
+        raise HTTPException(400, "Bundle has no project_id")
+
+    from services.project_acl import assert_project_access
+    await assert_project_access(current_user, bundle.project_id, "write")
+
+    # 立即写 session_progress[session_id]='generating' 让前端立即可见
+    extra = dict(bundle.extra or {})
+    sp = dict(extra.get("session_progress") or {})
+    sp[body.session_id] = "generating"
+    extra["session_progress"] = sp
+    bundle.extra = extra
+    from sqlalchemy.orm.attributes import flag_modified as _flag
+    _flag(bundle, "extra")
+    await session.commit()
+    await session.refresh(bundle)
+
+    from tasks.output_tasks import generate_survey_session as _task
+    _task.delay(bundle.id, bundle.project_id, body.session_id)
+
+    logger.info("survey_session_dispatched",
+                bundle_id=bundle_id, session_id=body.session_id,
                 project_id=bundle.project_id, user_id=current_user.id)
     return _bundle_dto(bundle)
 

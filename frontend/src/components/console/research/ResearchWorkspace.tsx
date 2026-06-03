@@ -16,6 +16,7 @@ import {
 import {
   generateOutput,
   generateSurveyForRole,
+  generateSurveyForSession,
   getLtcDictionary,
   getOutput,
   listResearchLtcModuleMap,
@@ -245,12 +246,12 @@ export default function ResearchWorkspace({
               {outlineSessions.length === 0 ? (
                 <div className="text-[11px] text-ink-muted px-2 py-3 leading-relaxed">
                   当前调研大纲未提供 M3 日程场次信息(或大纲版本较老)。
-                  请重新生成「调研大纲」→ 再重新生成「调研问卷」,即可按场次分组。
+                  请重新生成「调研大纲」→ 再按场次手动触发问卷生成。
                 </div>
               ) : (
                 <>
                   <div className="text-[10px] text-ink-muted px-1 mb-1">
-                    共 {outlineSessions.length} 场访谈 · 点击聚焦该场
+                    共 {outlineSessions.length} 场访谈 · 点 ✨ 按场生成 / 点行聚焦
                   </div>
                   <button
                     onClick={() => { setSelectedSession(null); if (surveyBundle) setView('questionnaire') }}
@@ -267,24 +268,65 @@ export default function ResearchWorkspace({
                   {outlineSessions.map(s => {
                     const selected = s.session_id === selectedSession
                     const count = sessionCounts.perSession[s.session_id] || 0
+                    const progress = surveyBundle?.session_progress?.[s.session_id]
+                    const inflight = progress === 'generating'
+                    const done = progress === 'done' || count > 0
+                    const failed = progress === 'failed'
                     return (
-                      <button
+                      <div
                         key={s.session_id}
-                        onClick={() => { setSelectedSession(s.session_id); if (surveyBundle) setView('questionnaire') }}
-                        className={`w-full text-left px-2 py-2 rounded text-xs flex flex-col gap-0.5 transition ${
+                        className={`w-full px-2 py-2 rounded text-xs flex flex-col gap-0.5 transition cursor-pointer ${
                           selected ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' : 'hover:bg-slate-50 text-ink-secondary'
                         }`}
+                        onClick={() => { setSelectedSession(s.session_id); if (surveyBundle) setView('questionnaire') }}
                         title={`${s.week} ${s.time_slot} · ${s.duration_minutes || '—'}min · ${s.session_type} · ${s.participants}`}
                       >
                         <div className="flex items-center gap-1.5">
                           <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-orange-400" />
                           <span className="font-medium truncate flex-1">{s.week} {s.time_slot}</span>
                           <span className="text-[10px] text-ink-muted shrink-0 bg-slate-100 px-1 rounded">{count}</span>
+                          {/* 按场生成按钮 */}
+                          <button
+                            disabled={inflight || !surveyBundle}
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              if (done && !window.confirm(`本场已有 ${count} 题,重新生成将替换为新一批题(其他场不动)。是否继续?`)) return
+                              try {
+                                await generateSurveyForSession(surveyBundle!.id, s.session_id)
+                                onRefetch()
+                              } catch (err: any) {
+                                alert(err?.response?.data?.detail || err?.message || '生成失败')
+                              }
+                            }}
+                            className={`shrink-0 ml-1 p-1 rounded transition ${
+                              inflight
+                                ? 'text-orange-600 cursor-not-allowed'
+                                : failed
+                                  ? 'text-rose-600 hover:bg-rose-50'
+                                  : done
+                                    ? 'text-emerald-600 hover:bg-emerald-50'
+                                    : 'text-orange-600 hover:bg-orange-100'
+                            }`}
+                            title={
+                              inflight ? '生成中…' :
+                              failed ? '上次失败 · 点击重试' :
+                              done ? '已生成 · 点击重新生成' :
+                              '按场次生成调研题目'
+                            }
+                          >
+                            {inflight
+                              ? <Loader2 size={12} className="animate-spin" />
+                              : failed
+                                ? <Sparkles size={12} />
+                                : done
+                                  ? <CheckCircle2 size={12} />
+                                  : <Sparkles size={12} />}
+                          </button>
                         </div>
                         <div className="text-[10px] text-ink-muted ml-3 truncate">
                           {s.session_type} · {s.duration_minutes ? `${s.duration_minutes}min` : '—'} · {s.participants || s.topic_summary}
                         </div>
-                      </button>
+                      </div>
                     )
                   })}
                   {sessionCounts.none > 0 && (

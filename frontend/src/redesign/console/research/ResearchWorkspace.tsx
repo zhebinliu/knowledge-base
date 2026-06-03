@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import {
   generateOutput,
+  generateSurveyForSession,
   getLtcDictionary,
   getOutput,
   listResearchLtcModuleMap,
@@ -208,6 +209,16 @@ export default function ResearchWorkspace({
           setSelectedSession={(s) => { setSelectedSession(s); if (surveyBundle) setView('questionnaire') }}
           outlineSessions={outlineSessions}
           sessionCounts={sessionCounts}
+          sessionProgress={surveyBundle?.session_progress || {}}
+          onGenerateSession={async (sid: string) => {
+            if (!surveyBundle) return
+            try {
+              await generateSurveyForSession(surveyBundle.id, sid)
+              onRefetch()
+            } catch (err: any) {
+              alert(err?.response?.data?.detail || err?.message || '生成失败')
+            }
+          }}
           roleCounts={roleCounts}
           ltcModules={ltcDict?.modules ?? []}
           sowHitKeys={sowHitKeys}
@@ -609,6 +620,7 @@ function ResearchGroupCarousel({
   topicClusters,
   selectedSession, setSelectedSession,
   outlineSessions, sessionCounts,
+  sessionProgress, onGenerateSession,
   roleCounts,
   ltcModules, sowHitKeys, ltcMapItems,
   questionnaireItems,
@@ -626,6 +638,8 @@ function ResearchGroupCarousel({
   setSelectedSession: (s: string | null) => void
   outlineSessions: import('../../../api/client').OutlineSession[]
   sessionCounts: { perSession: Record<string, number>; none: number }
+  sessionProgress: Record<string, 'generating' | 'done' | 'failed'>
+  onGenerateSession: (sessionId: string) => void
   roleCounts: Record<ResearchAudienceRole, { total: number; pre: number; meeting: number }>
   ltcModules: ResearchLtcDictionaryEntry[]
   sowHitKeys: Set<string>
@@ -686,17 +700,52 @@ function ResearchGroupCarousel({
             {outlineSessions.map(s => {
               const selected = s.session_id === selectedSession
               const count = sessionCounts.perSession[s.session_id] || 0
+              const progress = sessionProgress[s.session_id]
+              const inflight = progress === 'generating'
+              const done = progress === 'done' || count > 0
+              const failed = progress === 'failed'
               return (
-                <button
+                <div
                   key={s.session_id}
-                  onClick={() => setSelectedSession(s.session_id)}
                   className={`rd-ltc-chip${selected ? ' is-active' : ''}`}
+                  onClick={() => setSelectedSession(s.session_id)}
+                  style={{ cursor: 'pointer' }}
                   title={`${s.week} ${s.time_slot} · ${s.duration_minutes || '—'}min · ${s.session_type} · ${s.participants}`}
                 >
                   <span className="rd-ltc-chip-dot" style={{ background: '#FFB066' }} />
                   <span className="rd-ltc-chip-label">{s.week} {s.time_slot} · {s.topic_summary || s.participants}</span>
                   <span className="rd-ltc-chip-count">{count}</span>
-                </button>
+                  <span
+                    role="button"
+                    title={
+                      inflight ? '生成中…' :
+                      failed ? '上次失败 · 点击重试' :
+                      done ? '已生成 · 点击重新生成' :
+                      '按场次生成调研题目'
+                    }
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (inflight) return
+                      if (done && !window.confirm(`本场已有 ${count} 题,重新生成将替换为新一批题(其他场不动)。是否继续?`)) return
+                      onGenerateSession(s.session_id)
+                    }}
+                    style={{
+                      marginLeft: 6,
+                      padding: '2px 4px',
+                      borderRadius: 4,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      color: inflight ? '#FFB066' : failed ? '#FB7185' : done ? '#34D399' : '#FFB066',
+                      cursor: inflight ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {inflight
+                      ? <Loader2 size={11} className="animate-spin" />
+                      : done
+                        ? <CheckCircle2 size={11} />
+                        : <Sparkles size={11} />}
+                  </span>
+                </div>
               )
             })}
             {sessionCounts.none > 0 && (

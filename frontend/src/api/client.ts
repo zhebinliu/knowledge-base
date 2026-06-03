@@ -1286,6 +1286,8 @@ export interface CuratedBundle {
   // 按角色逐步生成进度(2026-06-03,仅 survey kind):key=audience_role,value=当前状态
   role_progress?: Partial<Record<'executive' | 'dept_head' | 'frontline' | 'it',
     'pending' | 'generating' | 'done' | 'failed'>>
+  // 按场次手动触发生成进度(2026-06-03,仅 survey kind):key=session_id
+  session_progress?: Record<string, 'generating' | 'done' | 'failed'>
   // implementation_plan kind — 项目实施工作台前端用
   implementation_tasks?: ImplementationTask[]
   // 通用 extra(后端 _bundle_dto 不直接返回所有 extra 字段,但有些工作台需要 sources_summary 等)
@@ -1347,6 +1349,16 @@ export const generateSurveyForRole = (
   role: 'executive' | 'dept_head' | 'frontline' | 'it',
 ) =>
   api.post<CuratedBundle>(`/outputs/${bundleId}/generate-role`, { role })
+    .then(r => r.data)
+
+/** 按单个场次手动触发生成调研问卷题目(2026-06-03)。
+ *  仅 kind=='survey' 的 bundle 可调,返回更新后的 bundle(session_progress[session_id]='generating')。
+ *  调用前置:对应 outline bundle 已生成且含该 session_id 的 outline_sessions。*/
+export const generateSurveyForSession = (
+  bundleId: string,
+  sessionId: string,
+) =>
+  api.post<CuratedBundle>(`/outputs/${bundleId}/generate-session`, { session_id: sessionId })
     .then(r => r.data)
 
 export const listOutputs = (params: { project_id?: string; kind?: string; page?: number } = {}) =>

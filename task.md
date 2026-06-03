@@ -1,5 +1,53 @@
 # 任务跟踪
 
+## 调研问卷 按场次手动触发生成(2026-06-03)— 用户 /goal
+
+### 目标
+用户:"调研问题我希望是一场一场手动去触发生成"
+- 不再强制一键全量,改为按场次一场一场手动触发
+- 每场单独 LLM 调用,以"场次"为核心(参考 participants/topic_summary/interview_script),
+  不复用 LTC subsection 框架,避免冲突
+- 已生成 / 未生成 / 生成中 状态可见,可随时重生某场
+
+并存策略:保留 generate_survey 一键 + generate_survey_for_role 按角色;新增按场次为第三种触发方式。
+
+### 拆解
+- [ ] **A. 后端 — 新建 session_questionnaire.py 场次为中心的题目生成器**
+  - SYSTEM_PROMPT + build_user_prompt(session, all_sessions, project, industry, prior_items)
+  - 喂大纲场次完整信息(participants/topic_summary/interview_script/audience_roles/duration)
+  - 已有其他场次题(去重 / 避免撞车)作为 prior_items_block 注入
+  - 输出 8-15 题,全部 session_id=该场;遵守原 prompt 所有约束(LTC/角色/topic_cluster/stage)
+  - JSON 解析复用 executor._split_markdown_and_questionnaire_json 模式
+- [ ] **B. 后端 — runner.generate_survey_for_session**
+  - 进入态:bundle.extra.session_progress[session_id]='generating'
+  - 拉 outline_sessions → 找 session;无 session 报错
+  - 拉现有 questionnaire_items 作为 prior(传 prior_items_block)
+  - 调 session_questionnaire LLM
+  - 合并:删除原同 session_id 题,加入新题;其他场题保留
+  - 写回 bundle.extra.questionnaire_items + session_progress
+- [ ] **C. 后端 — Celery task + API endpoint**
+  - tasks/output_tasks.py 加 generate_survey_session task
+  - api/outputs.py 加 POST `/{bundle_id}/generate-session` body={session_id}
+  - _bundle_dto 暴露 session_progress
+- [ ] **D. 前端 — client.ts API + 类型**
+  - 加 `generateSurveyForSession(bundleId, sessionId)`
+  - CuratedBundle 加 `session_progress?: Record<string, 'generating'|'done'|'failed'>`
+- [ ] **E. 前端 — ResearchWorkspace sidebar 加按场次生成按钮**
+  - legacy + redesign 两份
+  - 每场场次行旁边加状态徽标 + 按钮(✨ 生成 / Loader2 / CheckCircle2 重生)
+  - 顶部「生成调研问卷」(一键全量)文案改为「一键生成全部」,作为备选
+- [ ] **F. 验证 + 部署**
+  - py_compile + tsc 全过
+  - commit + push + 触发 PROD
+
+### 边界
+- 不动 generate_survey / generate_survey_for_role(并存)
+- 不动 outline_sessions_extractor / executor.execute_survey_subsection
+- 不动按角色 / 按主题 / 按 LTC 分组逻辑(场次按钮是新增入口)
+- session_progress 是新字段,老数据为空时 sidebar 显示"未生成"
+
+---
+
 ## 调研问卷 按场次分组(全链路打通)(2026-06-03)— 用户 /goal
 
 ### 目标

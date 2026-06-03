@@ -1881,6 +1881,197 @@ async def generate_survey_for_role(bundle_id: str, project_id: str, role: str):
         raise
 
 
+# ── 按场次手动触发生成调研问卷(2026-06-03)─────────────────────────────────
+# 入口:POST /api/outputs/{bundle_id}/generate-session  body={session_id}
+# 不替代 generate_survey / generate_survey_for_role,作为第三种触发模式
+#
+# 调用前置:bundle.kind=='survey'。同 generate_survey_for_role,如果 bundle.status
+# 还是 pending,首次按场次触发后推到 done。
+#
+# 合并语义:
+#   - 旧题中同 session_id 的整体替换(避免重复)
+#   - 其他 session_id 题保留
+#   - 老题 session_id 为 None 的(一键生成出的兼容老数据)不动
+#   - bundle.extra.session_progress[session_id] = "done" / "generating" / "failed"
+
+async def generate_survey_for_session(bundle_id: str, project_id: str, session_id: str):
+    from .research.session_questionnaire import generate_session_items
+    from .research.ltc_dictionary import hints_for_subsection, ALL_LTC_MODULES
+    from .executor import _post_process_items
+
+    if not session_id:
+        raise ValueError("session_id is required")
+
+    run_history: list[dict] = []
+    try:
+        # ── 进入态:session_progress[session_id]='generating' ──
+        async with async_session_maker() as s:
+            bundle = await s.get(CuratedBundle, bundle_id)
+            if not bundle:
+                raise RuntimeError(f"bundle {bundle_id} not found")
+            if bundle.kind != "survey":
+                raise ValueError(f"bundle.kind={bundle.kind}, expected 'survey'")
+            extra0 = dict(bundle.extra or {})
+            sp0 = dict(extra0.get("session_progress") or {})
+            sp0[session_id] = "generating"
+            extra0["session_progress"] = sp0
+            bundle.extra = extra0
+            await s.commit()
+        run_history.append({"phase": "started", "ts": _ts(), "detail": {"session_id": session_id}})
+
+        # ── 1. 拉最新 done outline bundle 的 outline_sessions ──
+        outline_sessions: list[dict] = []
+        async with async_session_maker() as s:
+            outline_rows = (await s.execute(
+                select(CuratedBundle)
+                .where(CuratedBundle.project_id == project_id)
+                .where(CuratedBundle.kind == "survey_outline")
+                .where(CuratedBundle.status == "done")
+                .order_by(CuratedBundle.created_at.desc())
+                .limit(1)
+            )).scalars().all()
+        if outline_rows:
+            outline_sessions = list((outline_rows[0].extra or {}).get("outline_sessions") or [])
+        session = next((s for s in outline_sessions if s.get("session_id") == session_id), None)
+        if not session:
+            raise RuntimeError(
+                f"session_id={session_id} 在最新调研大纲的 outline_sessions 里找不到。"
+                "请确认大纲已重新生成且包含该场次。"
+            )
+        run_history.append({"phase": "session_loaded", "ts": _ts(),
+                            "detail": {"week": session.get("week"),
+                                       "time_slot": session.get("time_slot"),
+                                       "participants": session.get("participants")}})
+
+        # ── 2. ctx + 现有 items ──
+        ctx = await _load_ctx(bundle_id, project_id, "survey")
+        async with async_session_maker() as s:
+            bundle = await s.get(CuratedBundle, bundle_id)
+            extra_now = dict(bundle.extra or {})
+        old_items: list[dict] = list(extra_now.get("questionnaire_items") or [])
+        run_history.append({"phase": "ctx_loaded", "ts": _ts(),
+                            "detail": {"old_items_total": len(old_items)}})
+
+        # ── 3. LTC 映射(customer_modules) ──
+        customer_modules: list[str] = []
+        try:
+            from models.research_ltc_module_map import ResearchLtcModuleMap
+            async with async_session_maker() as s:
+                rows = (await s.execute(
+                    select(ResearchLtcModuleMap)
+                    .where(ResearchLtcModuleMap.project_id == project_id)
+                )).scalars().all()
+            customer_modules = sorted({r.sow_term for r in rows if r.is_extra})
+        except Exception as e:
+            logger.warning("survey_session_load_ltc_map_failed", error=str(e)[:120])
+
+        candidate_ltc_keys = [m.key for m in ALL_LTC_MODULES]
+
+        item_key_prefix = f"S_{session_id}"
+
+        # ── 4. LLM ──
+        markdown, raw_items = await generate_session_items(
+            session=session,
+            all_sessions=outline_sessions,
+            prior_items=old_items,
+            project=ctx["project"],
+            industry=ctx["industry"],
+            transcript=ctx["transcript"],
+            item_key_prefix=item_key_prefix,
+            candidate_ltc_keys=candidate_ltc_keys,
+            customer_modules=customer_modules,
+            model=ctx["agent_model"],
+        )
+        run_history.append({"phase": "llm_done", "ts": _ts(),
+                            "detail": {"raw_items_n": len(raw_items)}})
+
+        if not raw_items:
+            raise RuntimeError("LLM 未生成任何题目(或解析失败),请稍后重试")
+
+        # ── 5. 后处理(校验 / 兜底 ltc_key / sentinel / item_key)──
+        # 用 executor._post_process_items;valid_session_ids 传本场 id,LLM 若给了其他 id 会被 None,
+        # 后面我们强制 set 回本场 id(避免 LLM 偷偷换 session)
+        target_roles = session.get("audience_roles") or ["dept_head"]
+        valid_session_ids = [session_id]
+        cleaned = _post_process_items(
+            raw_items,
+            item_key_prefix=item_key_prefix,
+            ltc_module_key=None,    # LLM 自主从 LTC 字典选
+            audience_roles=target_roles,
+            candidate_ltc_keys=candidate_ltc_keys,
+            customer_modules=customer_modules,
+            industry=ctx["industry"],
+            valid_session_ids=valid_session_ids,
+        )
+        # 强制 session_id = 本场(防止 LLM 偷换)
+        for it in cleaned:
+            it["session_id"] = session_id
+            it.setdefault("source", "ai")
+        run_history.append({"phase": "post_processed", "ts": _ts(),
+                            "detail": {"cleaned_n": len(cleaned)}})
+
+        # ── 6. 合并: 删除原同 session_id 题,加入新题 ──
+        kept = [it for it in old_items if it.get("session_id") != session_id]
+        removed_n = len(old_items) - len(kept)
+        merged = kept + cleaned
+
+        # ── 7. 持久化 ──
+        async with async_session_maker() as s:
+            bundle = await s.get(CuratedBundle, bundle_id)
+            extra_now = dict(bundle.extra or {})
+            extra_now["questionnaire_items"] = merged
+            sp = dict(extra_now.get("session_progress") or {})
+            sp[session_id] = "done"
+            extra_now["session_progress"] = sp
+            rh = list(extra_now.get("run_history") or [])
+            run_history.append({"phase": "merged", "ts": _ts(),
+                                "detail": {"old_total": len(old_items),
+                                           "removed_same_session": removed_n,
+                                           "added": len(cleaned),
+                                           "final_total": len(merged)}})
+            rh.extend(run_history)
+            extra_now["run_history"] = rh
+            extra_now.setdefault("agentic_version", "v2")
+
+            # 冷启动场景:从 pending/generating 推到 done(首次按场触发,无一键全量)
+            if bundle.status in ("pending", "generating"):
+                bundle.status = "done"
+                if not bundle.content_md:
+                    bundle.content_md = "# 调研问卷\n\n(按场次逐步生成中,详见 questionnaire_items)\n"
+
+            from sqlalchemy.orm.attributes import flag_modified
+            bundle.extra = extra_now
+            flag_modified(bundle, "extra")
+            await s.commit()
+
+        logger.info("survey_session_done",
+                    bundle_id=bundle_id, session_id=session_id,
+                    added=len(cleaned), removed_same_session=removed_n)
+    except Exception as e:
+        logger.exception("survey_session_failed", bundle_id=bundle_id, session_id=session_id,
+                         error=str(e)[:300])
+        run_history.append({"phase": "failed", "ts": _ts(), "detail": str(e)[:300]})
+        try:
+            async with async_session_maker() as s:
+                b = await s.get(CuratedBundle, bundle_id)
+                if b:
+                    extra_err = dict(b.extra or {})
+                    sp = dict(extra_err.get("session_progress") or {})
+                    sp[session_id] = "failed"
+                    extra_err["session_progress"] = sp
+                    extra_err["last_session_error"] = str(e)[:300]
+                    rh = list(extra_err.get("run_history") or [])
+                    rh.extend(run_history)
+                    extra_err["run_history"] = rh
+                    from sqlalchemy.orm.attributes import flag_modified
+                    b.extra = extra_err
+                    flag_modified(b, "extra")
+                    await s.commit()
+        except Exception as e2:
+            logger.error("survey_session_failed_writeback_failed", error=str(e2)[:200])
+        raise
+
+
 # ── Outline v2 入口(survey_outline)─────────────────────────────────────────
 
 async def generate_survey_outline(bundle_id: str, project_id: str):
