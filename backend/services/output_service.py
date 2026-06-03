@@ -92,7 +92,14 @@ def _format_refs(conv: OutputConversation | None) -> str:
     return "\n\n".join(lines[:20])
 
 
-async def _llm_call(prompt: str, system: str = "", model: str | None = None, max_tokens: int | None = 8000, timeout: float = 180.0) -> str:
+async def _llm_call(prompt: str, system: str = "", model: str | None = None,
+                    task: str | None = None,
+                    max_tokens: int | None = 8000, timeout: float = 180.0) -> str:
+    """LLM 调用三优先:
+    1. model 显式传(用户在 agent_config 配的具体模型)→ 直传无 fallback
+    2. 否则 task 传了 → 走 chat_with_routing(task),按 ROUTING_RULES 走 primary→fallback
+    3. 都没传 → 默认 output_doc_generate(m2.7 → glm-5)
+    """
     from services.model_router import model_router
     messages = []
     if system:
@@ -101,7 +108,8 @@ async def _llm_call(prompt: str, system: str = "", model: str | None = None, max
     if model:
         content, _ = await model_router.chat(model, messages, max_tokens=max_tokens, timeout=timeout)
     else:
-        content, _ = await model_router.chat_with_routing("output_doc_generate", messages, max_tokens=max_tokens, timeout=timeout)
+        routing_task = task or "output_doc_generate"
+        content, _ = await model_router.chat_with_routing(routing_task, messages, max_tokens=max_tokens, timeout=timeout)
     return content
 
 
@@ -654,11 +662,14 @@ async def generate_kickoff_pptx(bundle_id: str, project_id: str):
 
 请输出可执行的 Python 源代码，使用 python-pptx 生成 11 页启动会 .pptx，最终 prs.save("out.pptx")。每页都要有表格/矩阵/图示，不要纯文字 bullet。"""
 
-        # PPT 生成默认走小米 mimo-v2-pro；max_tokens=None 不设上限（mimo 先 think 再出代码，需要给足空间）
+        # PPT 生成走 ROUTING_RULES['kickoff_pptx_codegen'](mimo-v2-pro → glm-5);max_tokens=None 不设上限
+        # (mimo 先 think 再出代码,需要给足空间);用户在 agent_config 显式配模型时直传,无 fallback
         from services.pptx_codeexec import execute_pptx_code, strip_python_fences
 
-        pptx_model = ctx["agent_model"] or "mimo-v2-pro"
-        code_raw = await _llm_call(prompt, system=PPTGEN_PYTHON_SYSTEM, model=pptx_model, max_tokens=None, timeout=1200.0)
+        user_model = ctx["agent_model"]  # None → 走 routing 拿 fallback
+        code_raw = await _llm_call(prompt, system=PPTGEN_PYTHON_SYSTEM,
+                                   model=user_model, task="kickoff_pptx_codegen",
+                                   max_tokens=None, timeout=1200.0)
         code = strip_python_fences(code_raw)
         if "prs.save" not in code or "from pptx" not in code:
             raise RuntimeError(f"模型未输出有效 python-pptx 代码：开头 200 字符 = {code[:200]!r}")

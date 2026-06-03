@@ -178,6 +178,8 @@ ROUTING_RULES = {
     "project_audience_profile":    {"primary": "minimax-m2.7",      "fallback": "glm-5"},
     # 通用输出文档生成(insight / survey / proposal)
     "output_doc_generate":         {"primary": "minimax-m2.7",      "fallback": "glm-5"},
+    # 启动会 PPT 的 python-pptx 代码生成 — mimo 推理+代码强,但 token 紧张时回落 glm-5(2026-06-03 加)
+    "kickoff_pptx_codegen":        {"primary": "mimo-v2-pro",       "fallback": "glm-5"},
 
     # ── 挑战练习 (Challenge) ────────────────────────────────────────────────
     # 基于 KB chunk 出题
