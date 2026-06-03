@@ -156,20 +156,22 @@ export default function ResearchWorkspace({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative" style={{ background: 'transparent', minHeight: 0 }}>
-      {/* ── 顶部:分组 carousel(角色卡 / LTC chip 卡)── */}
-      <ResearchGroupCarousel
-        groupBy={groupBy}
-        setGroupBy={setGroupBy}
-        selectedRole={selectedRole}
-        setSelectedRole={(r) => { setSelectedRole(r); if (surveyBundle) setView('questionnaire') }}
-        selectedLtcKey={selectedLtcKey}
-        setSelectedLtcKey={(k) => { setSelectedLtcKey(k); if (surveyBundle) setView('questionnaire') }}
-        roleCounts={roleCounts}
-        ltcModules={ltcDict?.modules ?? []}
-        sowHitKeys={sowHitKeys}
-        ltcMapItems={ltcMap?.items ?? []}
-        questionnaireItems={questionnaireItems}
-      />
+      {/* ── 顶部:分组 carousel(角色卡 / LTC chip 卡)— 只为「调研问卷」view 服务,其他 view 不渲染 ── */}
+      {view === 'questionnaire' && (
+        <ResearchGroupCarousel
+          groupBy={groupBy}
+          setGroupBy={setGroupBy}
+          selectedRole={selectedRole}
+          setSelectedRole={(r) => { setSelectedRole(r); if (surveyBundle) setView('questionnaire') }}
+          selectedLtcKey={selectedLtcKey}
+          setSelectedLtcKey={(k) => { setSelectedLtcKey(k); if (surveyBundle) setView('questionnaire') }}
+          roleCounts={roleCounts}
+          ltcModules={ltcDict?.modules ?? []}
+          sowHitKeys={sowHitKeys}
+          ltcMapItems={ltcMap?.items ?? []}
+          questionnaireItems={questionnaireItems}
+        />
+      )}
 
       <div className="flex-1 flex overflow-hidden" style={{ minHeight: 0 }}>
       {/* ── 中:工作区 ── */}

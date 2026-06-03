@@ -176,7 +176,8 @@ export default function ResearchWorkspace({
 
   return (
     <div className="flex-shrink-0 h-[calc(100vh-56px)] flex bg-canvas overflow-hidden relative">
-      {/* ── 左:分组面板 ── */}
+      {/* ── 左:分组面板(只为「调研问卷」view 服务 — 按角色 / LTC 模块筛题,其他 view 不需要)── */}
+      {view === 'questionnaire' && (
       <div className="w-[280px] flex-shrink-0 border-r border-line bg-white flex flex-col">
         {/* 分组方式切换 */}
         <div className="flex-shrink-0 px-2.5 pt-2.5 pb-2 border-b border-line">
@@ -273,6 +274,7 @@ export default function ResearchWorkspace({
           )}
         </div>
       </div>
+      )}
 
       {/* ── 中:工作区 ── */}
       <div className="flex-1 min-h-0 flex flex-col bg-white overflow-hidden">
