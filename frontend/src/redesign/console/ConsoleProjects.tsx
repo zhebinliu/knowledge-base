@@ -20,9 +20,9 @@ import ProjectFormModal from '../../components/ProjectFormModal'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
 import GlowCard from '../components/GlowCard'
 
+// 2026-06-03:启动会 PPT 并入项目洞察阶段,列表卡 badge 仅保留两个核心阶段
 const STAGES = [
   { kind: 'insight',       label: '项目洞察', icon: Lightbulb,     color: '#A78BFA' },
-  { kind: 'kickoff_pptx',  label: '启动会',   icon: FileText,      color: '#D96400' },
   { kind: 'survey',        label: '需求调研', icon: ClipboardList, color: '#2563EB' },
 ] as const
 

@@ -79,10 +79,15 @@ function _mapStage(s: ApiStageDef): StageDef {
 }
 
 // API 拉取失败时的默认 fallback(跟后端 DEFAULT_STAGES 同步)
+// 2026-06-03:启动会 PPT/HTML 并入「项目洞察」作 sub_kinds,不再独立成 stage
 const DEFAULT_STAGES: StageDef[] = [
-  { key: 'insight',      label: '项目洞察',     kind: 'insight',      icon: Bot,      active: true },
-  { key: 'kickoff',      label: '启动会·PPT',   kind: 'kickoff_pptx', icon: FileText, active: true },
-  { key: 'kickoff_html', label: '启动会·HTML',  kind: 'kickoff_html', icon: FileText, active: true },
+  { key: 'insight',      label: '项目洞察',     kind: null,           icon: Bot,      active: true,
+    subKinds: [
+      { kind: 'insight',      label: '洞察报告' },
+      { kind: 'kickoff_pptx', label: '启动会·PPT' },
+      { kind: 'kickoff_html', label: '启动会·HTML' },
+    ],
+  },
   { key: 'survey',       label: '需求调研',     kind: null,           icon: Bot,      active: true,
     subKinds: [
       { kind: 'survey_outline', label: '调研大纲' },

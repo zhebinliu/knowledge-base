@@ -1,5 +1,34 @@
 # 任务跟踪
 
+## 启动会 PPT 并入项目洞察(2026-06-03)— 用户 /goal
+
+### 目标
+**启动会·PPT / 启动会·HTML 不再作为独立 stage**,作为「项目洞察」阶段下的 sub_kinds 并列存在(跟 insight 同 stage)。两个产物都保留,后端 kind / Celery / brief 流程不动。
+
+### 拆解
+- [x] **A. 后端默认阶段配置** `backend/api/stage_flow.py:30` DEFAULT_STAGES
+  - insight 阶段:`kind=None` + `sub_kinds=[insight, kickoff_pptx, kickoff_html]`
+  - 删 `kickoff` / `kickoff_html` 两个独立阶段
+- [x] **B. 后端惰性迁移** `_read()`:DB 已有自定义 stage_flow 且含旧的独立 kickoff/kickoff_html 阶段时,自动迁进 insight.sub_kinds(写回 DB,只跑一次,幂等)
+- [x] **C. 前端 fallback DEFAULT_STAGES** 两处同步
+  - `frontend/src/pages/console/ConsoleProjectDetail.tsx:79`
+  - `frontend/src/redesign/console/ConsoleProjectDetail.tsx:84`
+- [x] **D. 项目列表 badge STAGES** 两处去掉 kickoff_pptx 条目
+  - `frontend/src/pages/console/ConsoleProjects.tsx:11`
+  - `frontend/src/redesign/console/ConsoleProjects.tsx:23`
+- [x] **E. 验证**
+  - 后端:`_migrate_kickoff_into_insight` 4 个场景跑通(典型迁移 / 幂等 / 仅 pptx / 防重复)
+  - 前端:`npx tsc --noEmit` 跟本次改动相关 0 错误(预存在的 meeting 子模块缺失与本次无关)
+  - 边界确认:中央工作区按 activeKind 分支(InsightWorkspace / BlueprintDesignWorkspace),不依赖 stage key,免动 dispatch ✓
+
+### 边界
+- 不动 `kickoff_pptx` / `kickoff_html` 的后端 kind / Celery task / brief / API 路径
+- 不动已生成的 kickoff bundle 数据
+- 不动后台「输出智能体」/「skill」对 kickoff_pptx 的配置(那是按 kind 而非 stage)
+- 仅 UI 层和 stage_flow 配置的合并,可回退(重置默认 stage_flow 即可)
+
+---
+
 ## 四项修复(2026-06-02)— 用户 /goal,全部做完并自测
 
 ### T1. 对象字段表「卡住」永久转圈

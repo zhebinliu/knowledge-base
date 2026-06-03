@@ -28,9 +28,14 @@ router = APIRouter()
 # ── 默认流程(从原 ConsoleProjectDetail.tsx STAGES 抽出来)─────────────────────
 
 DEFAULT_STAGES: list[dict] = [
-    {"key": "insight",       "label": "项目洞察",          "kind": "insight",      "icon": "Bot",           "active": True,  "beta": False, "sub_kinds": []},
-    {"key": "kickoff",       "label": "启动会·PPT",        "kind": "kickoff_pptx", "icon": "FileText",      "active": True,  "beta": False, "sub_kinds": []},
-    {"key": "kickoff_html",  "label": "启动会·HTML",       "kind": "kickoff_html", "icon": "FileText",      "active": True,  "beta": False, "sub_kinds": []},
+    # 2026-06-03:启动会 PPT/HTML 并入「项目洞察」阶段,不再独立成 stage。
+    # 三个产物在同一阶段卡内通过 sub_kinds 切换,中央工作区按 activeKind 分支。
+    {"key": "insight",       "label": "项目洞察",          "kind": None,           "icon": "Bot",           "active": True,  "beta": False,
+     "sub_kinds": [
+         {"kind": "insight",      "label": "洞察报告"},
+         {"kind": "kickoff_pptx", "label": "启动会·PPT"},
+         {"kind": "kickoff_html", "label": "启动会·HTML"},
+     ]},
     {"key": "survey",        "label": "需求调研",          "kind": None,           "icon": "Bot",           "active": True,  "beta": False,
      "sub_kinds": [
          {"kind": "survey_outline", "label": "调研大纲"},
@@ -96,8 +101,41 @@ class StageFlowDto(BaseModel):
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
+def _migrate_kickoff_into_insight(stages: list[dict]) -> tuple[list[dict], bool]:
+    """惰性迁移(2026-06-03):若 stages 含独立的 kickoff / kickoff_html 阶段,
+    把它们并入 insight 阶段的 sub_kinds 并删除独立条目。
+    返回 (new_stages, mutated)。
+    """
+    kickoff_pptx_present = any(s.get("kind") == "kickoff_pptx" and not s.get("sub_kinds") for s in stages)
+    kickoff_html_present = any(s.get("kind") == "kickoff_html" and not s.get("sub_kinds") for s in stages)
+    if not (kickoff_pptx_present or kickoff_html_present):
+        return stages, False
+
+    new_stages: list[dict] = []
+    for st in stages:
+        # 跳过单 kind == kickoff_* 的独立阶段
+        if not st.get("sub_kinds") and st.get("kind") in ("kickoff_pptx", "kickoff_html"):
+            continue
+        if st.get("key") == "insight":
+            st = dict(st)
+            sub = list(st.get("sub_kinds") or [])
+            existing_kinds = {sk.get("kind") for sk in sub}
+            if "insight" not in existing_kinds:
+                sub.insert(0, {"kind": "insight", "label": "洞察报告"})
+            if kickoff_pptx_present and "kickoff_pptx" not in existing_kinds:
+                sub.append({"kind": "kickoff_pptx", "label": "启动会·PPT"})
+            if kickoff_html_present and "kickoff_html" not in existing_kinds:
+                sub.append({"kind": "kickoff_html", "label": "启动会·HTML"})
+            st["sub_kinds"] = sub
+            st["kind"] = None
+        new_stages.append(st)
+    return new_stages, True
+
+
 async def _read() -> tuple[list[dict], bool]:
-    """返回 (stages, is_default)。不存在则返回硬编码默认。"""
+    """返回 (stages, is_default)。不存在则返回硬编码默认。
+    存在但仍为旧版结构(独立 kickoff/kickoff_html 阶段)时自动迁移并写回。
+    """
     async with async_session_maker() as s:
         row = (await s.execute(
             select(AgentConfig).where(
@@ -105,8 +143,17 @@ async def _read() -> tuple[list[dict], bool]:
                 AgentConfig.config_key == CONFIG_KEY,
             )
         )).scalar_one_or_none()
-    if row and isinstance(row.config_value, dict) and isinstance(row.config_value.get("stages"), list):
-        return row.config_value["stages"], False
+        if row and isinstance(row.config_value, dict) and isinstance(row.config_value.get("stages"), list):
+            stages = row.config_value["stages"]
+            migrated, mutated = _migrate_kickoff_into_insight(stages)
+            if mutated:
+                row.config_value = {"stages": migrated}
+                flag_modified(row, "config_value")
+                await s.commit()
+                logger.info("stage_flow_kickoff_merged_into_insight",
+                            before_n=len(stages), after_n=len(migrated))
+                return migrated, False
+            return stages, False
     return DEFAULT_STAGES, True
 
 
