@@ -671,6 +671,8 @@ async def execute_survey_subsection(
     "ltc_module_key": "<必须从 LTC 字典中选 1 个 key,例 M02_opportunity>",
     "audience_roles": ["<从 executive / dept_head / frontline / it 中选 1-2 个,与本分卷目标人群一致>"],
     "phase": "<pre_meeting 或 in_meeting,见下方判定原则>",
+    "topic_cluster": "<本分卷内的主题聚类名,3-8 字短中文,见下方主题聚类约束>",
+    "interview_stage": "<opening | current_state | pain_point | aspiration,见下方访谈阶段约束>",
     "type": "single | multi | rating | number | text | node_pick",
     "question": "<同上方第 N 题的问题正文>",
     "why": "<同 *为什么问*>",
@@ -692,6 +694,25 @@ async def execute_survey_subsection(
 注意:**不要**输出 `best_practice_refs` 字段。系统会基于题目的 ltc_module_key + 本项目行业,
 自动从内置的「跨项目实施最佳实践库」(2025 年沉淀的 13 个项目跨行业核心做法)注入这块内容。
 你只负责出题。
+
+【topic_cluster 约束 — 让现场顾问按主题翻题,客户思路不被切碎】
+- 本分卷内分成 **3-6 个不重复的主题聚类(cluster)**,每个 cluster 名是 3-8 字短中文短语
+- cluster 名要**具体**(描述本分卷讨论的一个细颗粒话题),例:"线索分配规则"、"商机推进阶段"、"考核激励"、"对账规则"
+- **禁止**用宽泛词(如"销售流程"、"管理"、"现状"、"问题")
+- 单个 cluster 包含 2-8 题(题少了分散没意义,题多了又难翻)
+- 同 cluster 的题在 JSON 数组里必须**连续输出**(不能 A 主题题中间插一道 B 主题的)
+- 跨 subsection 的 cluster 互相独立,不需要 cluster 名跨分卷一致
+
+【interview_stage 约束 — 让 cluster 内题按客户叙事节奏自然递进】
+- 每题必须打 1 个 stage(从 opening / current_state / pain_point / aspiration 中选)
+- 含义:
+  - `opening` — 开场引导(背景 / 暖场 / 角色定位):"你们这个流程主要谁负责?"
+  - `current_state` — 现状摸底(目前怎么做 / 流程现状 / 数据现状):"目前线索由系统自动分还是人工分?"
+  - `pain_point` — 痛点挖掘(卡点 / 抱怨 / 流失 / 风险):"这个流程最烦的是什么?"
+  - `aspiration` — 期望设计(未来想要 / 改进方向 / 成功指标):"改进后你希望多久关单?"
+- 同一 cluster 内的题在 JSON 中**按 stage 顺序排**:opening → current_state → pain_point → aspiration
+- 不是每个 cluster 都要 4 个 stage 齐全(opening 经常没,有 1 道暖场就够;有些 cluster 只有 current_state + pain_point 也合理)
+- 但**绝对不要**先放 aspiration 再放 current_state(会反向叙事)
 
 【phase 判定原则 — 决定题目走「会前自填」还是「会中追问」】
 - **pre_meeting(会前)**:客观、闭合、低门槛,客户不需要顾问引导就能答 — 例如:
@@ -737,6 +758,8 @@ async def execute_survey_subsection(
 [
   {{
     "item_key": "{item_key_prefix}::stage_model",
+    "topic_cluster": "商机阶段模型",
+    "interview_stage": "current_state",
     "type": "single",
     "question": "你们目前用哪种商机阶段模型?",
     "why": "阶段模型决定 CRM 商机推进逻辑和赢率字段",
@@ -753,6 +776,8 @@ async def execute_survey_subsection(
   }},
   {{
     "item_key": "{item_key_prefix}::推进卡点",
+    "topic_cluster": "商机推进瓶颈",
+    "interview_stage": "pain_point",
     "type": "multi",
     "question": "商机推进的最大卡点是什么?(可多选)",
     "why": "找到当前流程的核心痛点,决定 CRM 重点解决方向",
@@ -771,6 +796,8 @@ async def execute_survey_subsection(
   }},
   {{
     "item_key": "{item_key_prefix}::data_completeness",
+    "topic_cluster": "商机数据基础",
+    "interview_stage": "current_state",
     "type": "rating",
     "question": "当前商机数据完整度如何?",
     "why": "数据基础决定 CRM 商机模块上线后的可用性",
@@ -809,6 +836,8 @@ async def execute_survey_subsection(
 - MECE 思维(子主题不重叠不遗漏)
 - 单分卷控制在 {qmin}-{qmax} 题,5-10 分钟可填完
 - 已访谈覆盖的话题不再重复出
+- **必须** 给每题打 topic_cluster(3-8 字主题)+ interview_stage(opening/current_state/pain_point/aspiration),
+  让现场顾问能按主题翻题、按客户叙事节奏问,客户思路不被切碎。详见 user prompt 中的两条约束。
 
 输出**两段**:Markdown 题目列表 + JSON 结构化数据。两段题目必须一致。
 """
@@ -918,11 +947,13 @@ def _post_process_items(
     customer_modules: list[str] | None = None,
     industry: str | None = None,
 ) -> list[dict]:
-    """规整结构化题目:校验 ltc_module_key / 补 sentinel / 校验 phase + audience_roles / 兜底 item_key。"""
+    """规整结构化题目:校验 ltc_module_key / 补 sentinel / 校验 phase + audience_roles / 兜底 item_key /
+    兜底 topic_cluster + interview_stage(2026-06-03)。"""
     from services.agentic.research.questionnaire_schema import (
         QuestionItem, OptionItem, ensure_sentinels, coerce_audience_roles,
+        VALID_INTERVIEW_STAGES,
     )
-    from services.agentic.research.ltc_dictionary import ALL_LTC_MODULES
+    from services.agentic.research.ltc_dictionary import ALL_LTC_MODULES, get_module as _get_ltc_module
     valid_ltc_keys = {m.key for m in ALL_LTC_MODULES} | set(customer_modules or [])
     fallback_ltc = ltc_module_key or (candidate_ltc_keys[0] if candidate_ltc_keys else None) or "_uncategorized"
 
@@ -960,6 +991,17 @@ def _post_process_items(
 
             # source:LLM 生成的题统一标 ai
             raw.setdefault("source", "ai")
+
+            # 2026-06-03:topic_cluster 兜底 — LLM 没给就用 LTC 模块 label,前端按主题分组时不至于落到 "_uncategorized"
+            tc = (raw.get("topic_cluster") or "").strip()
+            if not tc:
+                ltc_m = _get_ltc_module(raw.get("ltc_module_key") or "")
+                tc = ltc_m.label if ltc_m else "其他"
+            raw["topic_cluster"] = tc
+
+            # 2026-06-03:interview_stage 兜底 — LLM 没给或非法就标 current_state(中性,不破排序)
+            llm_stage = (raw.get("interview_stage") or "").strip()
+            raw["interview_stage"] = llm_stage if llm_stage in VALID_INTERVIEW_STAGES else "current_state"
 
             # needs_scope:战略 / 价值 / KPI / 决策链 / 干系人类的题不需要范围四分类,
             # 因为这些题问的是"想做成什么"而不是"哪些流程要新建/搬迁"。当前判断:

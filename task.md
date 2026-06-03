@@ -1,5 +1,50 @@
 # 任务跟踪
 
+## 调研问卷 主题聚类 + 访谈阶段(2026-06-03)— 用户 /goal
+
+### 目标
+现场调研时问卷题量大(单角色 60-107 题平铺),逻辑关联题分散,顾问翻题难、客户思路反复跳跃。
+加 topic_cluster + interview_stage 两字段,前端「按主题」分组,卡内按「开场→现状→痛点→期望」排,顺手加搜索框兜底定位。
+
+### 拆解
+- [x] **A. 后端 schema** `questionnaire_schema.py`
+  - QuestionItem 加 `topic_cluster: str | None` + `interview_stage: InterviewStage | None`
+  - `InterviewStage` Literal + `VALID_INTERVIEW_STAGES` 元组 + `INTERVIEW_STAGE_LABELS`
+  - docstring + to_dict / from_dict 透传
+- [x] **B. 后端 LLM prompt** `executor.py:485 execute_survey_subsection`
+  - SYSTEM_PROMPT 加约束 + JSON 输出示例每题加 topic_cluster + interview_stage
+  - user_prompt 加「topic_cluster 约束」+ 「interview_stage 约束」+ few-shot 示例同步
+  - system prompt 加方法论提醒
+- [x] **C. 后端 _post_process_items 兜底**
+  - topic_cluster 缺 → ltc_dictionary.get_module().label fallback
+  - interview_stage 缺/非法 → 'current_state'
+- [x] **D. 前端 client.ts schema**
+  - ResearchQuestionItem 加 topic_cluster / interview_stage
+  - 加 ResearchInterviewStage + RESEARCH_INTERVIEW_STAGE_ORDER + RESEARCH_INTERVIEW_STAGE_LABELS export
+- [x] **E. 前端 ResearchQuestionnaire**(legacy + redesign)
+  - Props 加 selectedTopic / groupBy 扩 'topic'
+  - axisItems / items useMemo 加 topic mode 排序(cluster + stage 顺序)
+  - 顶部搜索框过滤(题干 / why / cluster 关键词)
+  - QuestionsList 加 clusterStartMarkers / collapsedClusters / onToggleCluster props
+  - cluster boundary 插入 ClusterDivider(sticky 可折叠 + 题数 + 完成度)
+- [x] **F. 前端 ResearchWorkspace sidebar 加按主题**(legacy + redesign)
+  - GroupBy 扩 'topic',加 selectedTopic state
+  - legacy: GroupTabBtn 加按主题 + 列表主体加 topic 分支(cluster 列表 + 全部主题)
+  - redesign: ResearchGroupCarousel 加 topic 按钮 + cluster chip strip;父算 topicClusters + 传 props
+  - 把 selectedTopic 透传给 ResearchQuestionnaire
+- [x] **G. 验证 + 部署**
+  - py_compile 全过
+  - tsc 全过(剩余报错都是预存 meeting 子模块)
+  - commit + push + 触发 PROD
+
+### 边界
+- 不动 parent_item_key / phase / LTC 字典 / audience_roles
+- 不动 survey_outline 大纲生成 / generate_survey_for_role(同 prompt 改造)
+- 不写 DB migration;老 bundle 走 fallback(topic_cluster 用 LTC label, stage 不排)
+- 用户重生问卷才能享受完整效果
+
+---
+
 ## 调研计划(research_plan)— 客户版调研计划(2026-06-03)— 用户 /goal
 
 ### 目标

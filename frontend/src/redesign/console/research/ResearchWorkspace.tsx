@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   ClipboardList, Lightbulb, Sparkles, Loader2, Workflow,
   CheckCircle2, Pencil, Users, Briefcase, FileText,
-  Crown, UserCircle2, Cpu, ChevronLeft, ChevronRight, Send,
+  Crown, UserCircle2, Cpu, ChevronLeft, ChevronRight, Send, Layers,
 } from 'lucide-react'
 import {
   generateOutput,
@@ -35,7 +35,7 @@ const AUDIENCE_ROLE_DESC: Record<ResearchAudienceRole, string> = {
   it: '集成 / 数据 / 权限',
 }
 
-type GroupBy = 'role' | 'ltc'
+type GroupBy = 'role' | 'ltc' | 'topic'
 import InsightReportDark from '../InsightReportDark'
 import CitationsPanel from '../CitationsPanel'
 import MarkdownEditor from '../../../components/console/MarkdownEditor'
@@ -68,6 +68,7 @@ export default function ResearchWorkspace({
   const [selectedLtcKey, setSelectedLtcKey] = useState<string | null>(null)
   const [groupBy, setGroupBy] = useState<GroupBy>('role')
   const [selectedRole, setSelectedRole] = useState<ResearchAudienceRole | null>(null)
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null)       // 按主题模式 sidebar 选中 cluster
   const [selectedPhase, setSelectedPhase] = useState<ResearchQuestionPhase | 'all'>('all')
   const [view, setView] = useState<ResearchView>('preparation')
   const [refsOpen, setRefsOpen] = useState(false)
@@ -122,6 +123,21 @@ export default function ResearchWorkspace({
 
   const questionnaireItems = useMemo(() => surveyBundle?.questionnaire_items ?? [], [surveyBundle])
 
+  // 主题模式 cluster 列表(2026-06-03):全卷按 topic_cluster 分组,主干题统计题数
+  const topicClusters = useMemo(() => {
+    const map: Record<string, number> = {}
+    const ltcLabel: Record<string, string> = {}
+    for (const m of (ltcDict?.modules ?? [])) ltcLabel[m.key] = m.label
+    for (const q of questionnaireItems) {
+      if (q.parent_item_key) continue
+      const c = (q.topic_cluster || ltcLabel[q.ltc_module_key] || '其他').trim()
+      map[c] = (map[c] || 0) + 1
+    }
+    return Object.entries(map)
+      .map(([cluster, count]) => ({ cluster, count }))
+      .sort((a, b) => b.count - a.count)
+  }, [questionnaireItems, ltcDict])
+
   const roleCounts = useMemo(() => {
     const out: Record<ResearchAudienceRole, { total: number; pre: number; meeting: number }> = {
       executive: { total: 0, pre: 0, meeting: 0 },
@@ -143,6 +159,7 @@ export default function ResearchWorkspace({
   }, [questionnaireItems])
 
   useEffect(() => {
+    if (groupBy === 'topic') return
     if (groupBy === 'role') {
       if (selectedRole) return
       const firstWithItems = AUDIENCE_ROLE_ORDER.find(r => roleCounts[r].total > 0)
@@ -165,6 +182,9 @@ export default function ResearchWorkspace({
           setSelectedRole={(r) => { setSelectedRole(r); if (surveyBundle) setView('questionnaire') }}
           selectedLtcKey={selectedLtcKey}
           setSelectedLtcKey={(k) => { setSelectedLtcKey(k); if (surveyBundle) setView('questionnaire') }}
+          selectedTopic={selectedTopic}
+          setSelectedTopic={(t) => { setSelectedTopic(t); if (surveyBundle) setView('questionnaire') }}
+          topicClusters={topicClusters}
           roleCounts={roleCounts}
           ltcModules={ltcDict?.modules ?? []}
           sowHitKeys={sowHitKeys}
@@ -362,6 +382,7 @@ export default function ResearchWorkspace({
                   groupBy={groupBy}
                   selectedRole={selectedRole}
                   selectedLtcKey={selectedLtcKey}
+                  selectedTopic={selectedTopic}
                   selectedPhase={selectedPhase}
                   onChangePhase={setSelectedPhase}
                   onRefetch={onRefetch}
@@ -559,6 +580,8 @@ function ResearchGroupCarousel({
   groupBy, setGroupBy,
   selectedRole, setSelectedRole,
   selectedLtcKey, setSelectedLtcKey,
+  selectedTopic, setSelectedTopic,
+  topicClusters,
   roleCounts,
   ltcModules, sowHitKeys, ltcMapItems,
   questionnaireItems,
@@ -569,6 +592,9 @@ function ResearchGroupCarousel({
   setSelectedRole: (r: ResearchAudienceRole) => void
   selectedLtcKey: string | null
   setSelectedLtcKey: (k: string) => void
+  selectedTopic: string | null
+  setSelectedTopic: (t: string | null) => void
+  topicClusters: { cluster: string; count: number }[]
   roleCounts: Record<ResearchAudienceRole, { total: number; pre: number; meeting: number }>
   ltcModules: ResearchLtcDictionaryEntry[]
   sowHitKeys: Set<string>
@@ -588,6 +614,13 @@ function ResearchGroupCarousel({
             <Users size={11} /> 按角色
           </button>
           <button
+            onClick={() => setGroupBy('topic')}
+            className={`rd-survey-seg-btn${groupBy === 'topic' ? ' is-active' : ''}`}
+            title="按主题聚类分组 — 同主题题靠在一起,客户思路不被切碎"
+          >
+            <Layers size={11} /> 按主题
+          </button>
+          <button
             onClick={() => setGroupBy('ltc')}
             className={`rd-survey-seg-btn${groupBy === 'ltc' ? ' is-active' : ''}`}
             title="按 LTC 业务模块分组"
@@ -598,13 +631,42 @@ function ResearchGroupCarousel({
         <span className="rd-survey-bar-hint">
           {groupBy === 'role'
             ? '来自调研大纲的 4 类访谈人群,点卡片切换'
-            : <>共 <strong>{ltcModules.length}</strong> 个 LTC 模块 ·
-                <span style={{ color: 'var(--rd-accent-2)' }}> SOW 涉及 {sowHitKeys.size} 个</span></>}
+            : groupBy === 'topic'
+              ? <>共 <strong>{topicClusters.length}</strong> 个主题 · 点 chip 聚焦该主题(再次点击「全部」回到全卷)</>
+              : <>共 <strong>{ltcModules.length}</strong> 个 LTC 模块 ·
+                  <span style={{ color: 'var(--rd-accent-2)' }}> SOW 涉及 {sowHitKeys.size} 个</span></>}
         </span>
       </div>
 
       {/* 主体:卡片 carousel */}
-      {groupBy === 'role' ? (
+      {groupBy === 'topic' ? (
+        <div className="rd-ltc-strip">
+          <button
+            onClick={() => setSelectedTopic(null)}
+            className={`rd-ltc-chip${selectedTopic === null ? ' is-active' : ''}`}
+            title="展示全部主题(不过滤)"
+          >
+            <span className="rd-ltc-chip-dot" style={{ background: '#34D399' }} />
+            <span className="rd-ltc-chip-label">全部主题</span>
+            <span className="rd-ltc-chip-count">{topicClusters.reduce((s, g) => s + g.count, 0)}</span>
+          </button>
+          {topicClusters.map(({ cluster, count }) => {
+            const selected = cluster === selectedTopic
+            return (
+              <button
+                key={cluster}
+                onClick={() => setSelectedTopic(cluster)}
+                className={`rd-ltc-chip${selected ? ' is-active' : ''}`}
+                title={cluster}
+              >
+                <span className="rd-ltc-chip-dot" style={{ background: '#FFB066' }} />
+                <span className="rd-ltc-chip-label">{cluster}</span>
+                <span className="rd-ltc-chip-count">{count}</span>
+              </button>
+            )
+          })}
+        </div>
+      ) : groupBy === 'role' ? (
         <div className="rd-role-cards">
           {AUDIENCE_ROLE_ORDER.map(role => (
             <RoleCard

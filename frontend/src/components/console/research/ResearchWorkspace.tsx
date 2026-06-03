@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ClipboardList, Lightbulb, Sparkles, Loader2, Workflow,
-  CheckCircle2, ChevronRight, Pencil, Users, Briefcase, FileText, Send,
+  CheckCircle2, ChevronRight, Pencil, Users, Briefcase, FileText, Send, Layers,
 } from 'lucide-react'
 import {
   generateOutput,
@@ -41,7 +41,7 @@ const AUDIENCE_ROLE_DESC: Record<ResearchAudienceRole, string> = {
   it: '集成 / 数据 / 权限',
 }
 
-type GroupBy = 'role' | 'ltc'
+type GroupBy = 'role' | 'ltc' | 'topic'
 import MarkdownView from '../../MarkdownView'
 import CitedReportView from '../CitedReportView'
 import CitationsPanel from '../CitationsPanel'
@@ -76,6 +76,7 @@ export default function ResearchWorkspace({
   const [selectedLtcKey, setSelectedLtcKey] = useState<string | null>(null)
   const [groupBy, setGroupBy] = useState<GroupBy>('role')                       // 默认按角色分组
   const [selectedRole, setSelectedRole] = useState<ResearchAudienceRole | null>(null)
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null)       // 按主题模式下 sidebar 当前选中的 cluster
   const [selectedPhase, setSelectedPhase] = useState<ResearchQuestionPhase | 'all'>('all')
   const [view, setView] = useState<ResearchView>('preparation')
   const [refsOpen, setRefsOpen] = useState(false)   // 右侧"引用追溯"默认收起
@@ -140,6 +141,22 @@ export default function ResearchWorkspace({
   // 问卷 items(后端 _bundle_dto 已经 flat 出来)
   const questionnaireItems = useMemo(() => surveyBundle?.questionnaire_items ?? [], [surveyBundle])
 
+  // 主题模式 cluster 列表(2026-06-03):全卷按 topic_cluster 分组,主干题统计题数
+  // 跨角色 / 跨 LTC 统一聚类;cluster 名为空 fallback 用 LTC 模块 label(或 "其他")
+  const topicClusters = useMemo(() => {
+    const map: Record<string, number> = {}
+    const ltcLabel: Record<string, string> = {}
+    for (const m of (ltcDict?.modules ?? [])) ltcLabel[m.key] = m.label
+    for (const q of questionnaireItems) {
+      if (q.parent_item_key) continue
+      const c = (q.topic_cluster || ltcLabel[q.ltc_module_key] || '其他').trim()
+      map[c] = (map[c] || 0) + 1
+    }
+    return Object.entries(map)
+      .map(([cluster, count]) => ({ cluster, count }))
+      .sort((a, b) => b.count - a.count)
+  }, [questionnaireItems, ltcDict])
+
   // 按角色统计题数(全卷 / 会前 / 会中 三档)
   const roleCounts = useMemo(() => {
     const out: Record<ResearchAudienceRole, { total: number; pre: number; meeting: number }> = {
@@ -161,8 +178,10 @@ export default function ResearchWorkspace({
     return out
   }, [questionnaireItems])
 
-  // 第一次进来:按角色模式默认选第一个有题的角色;按 LTC 模式默认选 SOW 命中的第一个模块
+  // 第一次进来:按角色模式默认选第一个有题的角色;按 LTC 模式默认选 SOW 命中的第一个模块;
+  // 按主题模式默认 selectedTopic=null(展示全部 cluster)
   useEffect(() => {
+    if (groupBy === 'topic') return
     if (groupBy === 'role') {
       if (selectedRole) return
       const firstWithItems = AUDIENCE_ROLE_ORDER.find(r => roleCounts[r].total > 0)
@@ -190,17 +209,59 @@ export default function ResearchWorkspace({
               label="按角色"
             />
             <GroupTabBtn
+              active={groupBy === 'topic'}
+              onClick={() => setGroupBy('topic')}
+              icon={<Layers size={11} />}
+              label="按主题"
+            />
+            <GroupTabBtn
               active={groupBy === 'ltc'}
               onClick={() => setGroupBy('ltc')}
               icon={<Briefcase size={11} />}
-              label="按 LTC 模块"
+              label="按 LTC"
             />
           </div>
         </div>
 
         {/* 列表主体 */}
         <div className="flex-1 min-h-0 overflow-auto p-2 space-y-1">
-          {groupBy === 'role' ? (
+          {groupBy === 'topic' ? (
+            <>
+              <div className="text-[10px] text-ink-muted px-1 mb-1">
+                共 {topicClusters.length} 个主题 · 点击聚焦该主题
+              </div>
+              <button
+                onClick={() => { setSelectedTopic(null); if (surveyBundle) setView('questionnaire') }}
+                className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-1.5 transition ${
+                  selectedTopic === null ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' : 'hover:bg-slate-50 text-ink-secondary'
+                }`}
+              >
+                <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span className="truncate flex-1">全部主题</span>
+                <span className="text-[10px] text-ink-muted shrink-0 bg-slate-100 px-1 rounded">
+                  {topicClusters.reduce((s, g) => s + g.count, 0)} 题
+                </span>
+              </button>
+              {topicClusters.map(({ cluster, count }) => {
+                const selected = cluster === selectedTopic
+                return (
+                  <button
+                    key={cluster}
+                    onClick={() => { setSelectedTopic(cluster); if (surveyBundle) setView('questionnaire') }}
+                    className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-1.5 transition ${
+                      selected ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' : 'hover:bg-slate-50 text-ink-secondary'
+                    }`}
+                  >
+                    <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-orange-400" />
+                    <span className="truncate flex-1">{cluster}</span>
+                    <span className="text-[10px] text-ink-muted shrink-0 bg-slate-100 px-1 rounded">
+                      {count} 题
+                    </span>
+                  </button>
+                )
+              })}
+            </>
+          ) : groupBy === 'role' ? (
             <>
               <div className="text-[10px] text-ink-muted px-1 mb-1">
                 来自调研大纲的不同访谈人群
@@ -495,6 +556,7 @@ export default function ResearchWorkspace({
                 groupBy={groupBy}
                 selectedRole={selectedRole}
                 selectedLtcKey={selectedLtcKey}
+                selectedTopic={selectedTopic}
                 selectedPhase={selectedPhase}
                 onChangePhase={setSelectedPhase}
                 onRefetch={onRefetch}

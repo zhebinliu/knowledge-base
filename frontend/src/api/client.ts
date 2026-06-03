@@ -1461,6 +1461,15 @@ export interface ResearchOptionItem {
 export type ResearchAudienceRole = 'executive' | 'dept_head' | 'frontline' | 'it'
 export type ResearchQuestionPhase = 'pre_meeting' | 'in_meeting'
 export type ResearchQuestionSource = 'ai' | 'manual' | 'follow_up'
+// 访谈阶段 — 同主题 cluster 内题按此顺序排,让客户思路按节奏走(2026-06-03)
+export type ResearchInterviewStage = 'opening' | 'current_state' | 'pain_point' | 'aspiration'
+export const RESEARCH_INTERVIEW_STAGE_ORDER: ResearchInterviewStage[] = ['opening', 'current_state', 'pain_point', 'aspiration']
+export const RESEARCH_INTERVIEW_STAGE_LABELS: Record<ResearchInterviewStage, string> = {
+  opening: '开场',
+  current_state: '现状',
+  pain_point: '痛点',
+  aspiration: '期望',
+}
 
 export interface ResearchBestPracticeRef {
   title: string
@@ -1491,6 +1500,9 @@ export interface ResearchQuestionItem {
   needs_scope?: boolean                    // 答完后是否标范围四分类(战略/价值/KPI 类题为 false)
   parent_item_key?: string | null          // 动态追问挂在哪个父问题下
   source?: ResearchQuestionSource          // 默认 ai
+  // 2026-06-03 主题聚类 + 访谈阶段(给现场顾问按主题翻题 + 客户思路不被切碎)
+  topic_cluster?: string | null            // 主题聚类短中文(3-8 字),前端「按主题」分组依据;老数据为空时 fallback 用 LTC 模块名
+  interview_stage?: ResearchInterviewStage | null  // 访谈阶段,cluster 内按此排序;老数据为空时不排序
 }
 
 export interface ResearchResponseItem {

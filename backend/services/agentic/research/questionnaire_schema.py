@@ -55,6 +55,23 @@ QuestionSource = Literal[
     "follow_up",     # 由「动态追问」根据答案实时生成
 ]
 
+# 访谈阶段 — 现场访谈节奏分级,同主题 cluster 内按此顺序自动排
+# 让顾问按客户叙事节奏问,客户不被切碎(2026-06-03 加)
+InterviewStage = Literal[
+    "opening",        # 开场引导:背景 / 暖场 / 角色定位
+    "current_state",  # 现状摸底:目前怎么做 / 流程现状 / 数据现状
+    "pain_point",     # 痛点挖掘:卡点 / 抱怨 / 流失 / 风险
+    "aspiration",     # 期望设计:未来想要 / 改进方向 / 成功指标
+]
+
+VALID_INTERVIEW_STAGES = ("opening", "current_state", "pain_point", "aspiration")
+INTERVIEW_STAGE_LABELS = {
+    "opening":       "开场",
+    "current_state": "现状",
+    "pain_point":    "痛点",
+    "aspiration":    "期望",
+}
+
 VALID_AUDIENCE_ROLES = ("executive", "dept_head", "frontline", "it")
 AUDIENCE_ROLE_LABELS = {
     "executive": "高管",
@@ -162,6 +179,10 @@ class QuestionItem:
     best_practice_refs:伴随该问题展示的最佳实践参考(默认空)
     parent_item_key:动态追问时挂在哪个父问题下(None 表示主干题目)
     source:题目来源(ai/manual/follow_up,默认 ai 兼容老数据)
+    topic_cluster:同 subsection 内的主题聚类标签(3-8 字短中文,例:"线索分配规则"/"考核激励"),
+                  前端「按主题」分组的依据;老数据为 None 时前端 fallback 用 LTC 模块名(2026-06-03 加)
+    interview_stage:访谈阶段(opening/current_state/pain_point/aspiration),
+                    cluster 内按此排序;老数据为 None 时不排序(2026-06-03 加)
     """
     item_key: str
     ltc_module_key: str
@@ -184,6 +205,8 @@ class QuestionItem:
     needs_scope: bool = True                 # 答完后是否需要标范围四分类(战略/价值/KPI 类题不需要)
     parent_item_key: str | None = None
     source: QuestionSource = "ai"
+    topic_cluster: str | None = None         # 2026-06-03 主题聚类标签
+    interview_stage: InterviewStage | None = None  # 2026-06-03 访谈阶段
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -223,6 +246,8 @@ class QuestionItem:
             needs_scope=d.get("needs_scope") if d.get("needs_scope") is not None else True,
             parent_item_key=d.get("parent_item_key"),
             source=d.get("source") or "ai",
+            topic_cluster=d.get("topic_cluster"),
+            interview_stage=d.get("interview_stage"),
         )
 
 

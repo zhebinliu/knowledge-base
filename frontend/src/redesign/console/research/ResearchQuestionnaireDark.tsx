@@ -17,11 +17,13 @@ import {
 import {
   listResearchResponses, upsertResearchResponse, classifyResearchScope,
   upsertQuestionnaireItem, deleteQuestionnaireItem, generateFollowUp,
+  RESEARCH_INTERVIEW_STAGE_ORDER, RESEARCH_INTERVIEW_STAGE_LABELS,
   type CuratedBundle, type ResearchQuestionItem, type ResearchOptionItem,
   type ResearchResponseItem, type ResearchScopeLabel,
   type ResearchBestPracticeRef,
   type ResearchAudienceRole,
   type ResearchQuestionPhase,
+  type ResearchInterviewStage,
   type ResearchLtcDictionaryEntry,
 } from '../../../api/client'
 import ExportPreMeetingButton from '../../../components/console/research/ExportPreMeetingButton'
@@ -43,10 +45,12 @@ const PHASE_TAB_META: Record<PhaseFilter, { label: string; hint: string }> = {
 
 interface Props {
   bundle: CuratedBundle
-  /** 分组方式 — 决定主筛选轴(role 还是 ltc_module_key) */
-  groupBy: 'role' | 'ltc'
+  /** 分组方式 — 决定主筛选轴(role / ltc_module_key / topic_cluster) */
+  groupBy: 'role' | 'ltc' | 'topic'
   selectedRole: ResearchAudienceRole | null
   selectedLtcKey: string | null
+  /** 主题模式下父传:选中的 cluster 名(null = 展示全部 cluster) */
+  selectedTopic?: string | null
   /** 阶段筛选 — 会前 / 会中 / 全部 */
   selectedPhase: PhaseFilter
   onChangePhase: (p: PhaseFilter) => void
@@ -69,10 +73,12 @@ type EditingState =
 
 
 export default function ResearchQuestionnaire({
-  bundle, groupBy, selectedRole, selectedLtcKey, selectedPhase, onChangePhase,
+  bundle, groupBy, selectedRole, selectedLtcKey, selectedTopic, selectedPhase, onChangePhase,
   onRefetch, ltcModules,
 }: Props) {
   const [editing, setEditing] = useState<EditingState>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [collapsedClusters, setCollapsedClusters] = useState<Set<string>>(new Set())
   const qc2 = useQueryClient()
   const refreshAll = () => {
     qc2.invalidateQueries({ queryKey: ['research-responses', bundle.id] })
@@ -83,17 +89,22 @@ export default function ResearchQuestionnaire({
     [bundle.questionnaire_items]
   )
 
-  // 主轴筛选(角色或 LTC 模块)— 只对**主干题**(无 parent_item_key)应用过滤;
+  // 主轴筛选(角色 / LTC 模块 / 主题)— 只对**主干题**(无 parent_item_key)应用过滤;
   // 子题(follow-up)永远跟着它的父题走,不参与 axis / phase 过滤,避免「父题在子题不在」的割裂体验。
+  // 主题模式(2026-06-03):若 selectedTopic 为空则展开全部 cluster,否则按 cluster 过滤
   const axisItems = useMemo(() => {
     const mains = allItems.filter(it => !it.parent_item_key)
     if (groupBy === 'role') {
       if (!selectedRole) return mains
       return mains.filter(it => (it.audience_roles || []).includes(selectedRole))
     }
+    if (groupBy === 'topic') {
+      if (!selectedTopic) return mains
+      return mains.filter(it => (it.topic_cluster || '其他') === selectedTopic)
+    }
     if (!selectedLtcKey) return mains
     return mains.filter(it => it.ltc_module_key === selectedLtcKey)
-  }, [allItems, groupBy, selectedRole, selectedLtcKey])
+  }, [allItems, groupBy, selectedRole, selectedLtcKey, selectedTopic])
 
   // 阶段计数(只数主干题)
   const phaseCounts = useMemo(() => {
@@ -117,13 +128,36 @@ export default function ResearchQuestionnaire({
     return m
   }, [allItems])
 
-  // 阶段二次筛选 + 挂载子题:
-  //   先对主干题应用 phase 过滤,然后把每道主干题挂的所有 follow-up 子题紧跟其后插入。
-  //   子题不参与 phase 过滤,父在子在。
+  // 阶段二次筛选 + 搜索过滤 + 主题模式排序 + 挂载子题(2026-06-03):
+  //   - 主干题先过 phase / 搜索关键词
+  //   - 主题模式下,按 topic_cluster + interview_stage(opening→current_state→pain_point→aspiration)排
+  //   - 然后每道主干题挂的所有 follow-up 子题紧跟其后插入,子题不参与 phase / 搜索过滤,父在子在
   const items = useMemo(() => {
-    const mainsAfterPhase = selectedPhase === 'all'
+    let mainsAfterPhase = selectedPhase === 'all'
       ? axisItems
       : axisItems.filter(it => (it.phase || 'in_meeting') === selectedPhase)
+
+    const q = searchQuery.trim().toLowerCase()
+    if (q) {
+      mainsAfterPhase = mainsAfterPhase.filter(it => {
+        const hay = `${it.question || ''} ${it.why || ''} ${it.topic_cluster || ''}`.toLowerCase()
+        return hay.includes(q)
+      })
+    }
+
+    if (groupBy === 'topic') {
+      const stageOrder: Record<string, number> = {}
+      RESEARCH_INTERVIEW_STAGE_ORDER.forEach((s, i) => { stageOrder[s] = i })
+      mainsAfterPhase = [...mainsAfterPhase].sort((a, b) => {
+        const ca = a.topic_cluster || '其他'
+        const cb = b.topic_cluster || '其他'
+        if (ca !== cb) return ca.localeCompare(cb, 'zh')
+        const sa = stageOrder[a.interview_stage || 'current_state'] ?? 1
+        const sb = stageOrder[b.interview_stage || 'current_state'] ?? 1
+        return sa - sb
+      })
+    }
+
     const result: ResearchQuestionItem[] = []
     for (const it of mainsAfterPhase) {
       result.push(it)
@@ -131,7 +165,7 @@ export default function ResearchQuestionnaire({
       for (const fu of followUps) result.push(fu)
     }
     return result
-  }, [axisItems, selectedPhase, followUpsByParent])
+  }, [axisItems, selectedPhase, searchQuery, groupBy, followUpsByParent])
 
   // 每个 item_key 已挂的追问计数(全局,不受当前筛选影响)
   const followUpCount = useMemo(() => {
@@ -180,7 +214,41 @@ export default function ResearchQuestionnaire({
     ? (selectedRole ? `角色 · ${({
         executive: '高管', dept_head: '部门负责人', frontline: '一线', it: 'IT',
       } as Record<ResearchAudienceRole, string>)[selectedRole]}` : '请选择左侧角色')
-    : (selectedLtcKey ? `模块 · ${selectedLtcKey}` : '请选择左侧模块')
+    : groupBy === 'topic'
+      ? (selectedTopic ? `主题 · ${selectedTopic}` : '主题 · 全部')
+      : (selectedLtcKey ? `模块 · ${selectedLtcKey}` : '请选择左侧模块')
+
+  // 主题模式 cluster 列表 + cluster 起点标记(2026-06-03)
+  const topicGroups = useMemo(() => {
+    if (groupBy !== 'topic') return [] as { cluster: string; items: ResearchQuestionItem[]; answered: number }[]
+    const map: Record<string, ResearchQuestionItem[]> = {}
+    for (const it of items) {
+      if (it.parent_item_key) continue
+      const c = it.topic_cluster || '其他'
+      if (!map[c]) map[c] = []
+      map[c].push(it)
+    }
+    return Object.entries(map).map(([cluster, list]) => ({
+      cluster,
+      items: list,
+      answered: list.filter(it => responseByKey[it.item_key]?.answer_value != null).length,
+    }))
+  }, [items, groupBy, responseByKey])
+
+  const clusterStartMarkers = useMemo(() => {
+    if (groupBy !== 'topic') return {} as Record<string, { cluster: string; total: number; answered: number }>
+    const out: Record<string, { cluster: string; total: number; answered: number }> = {}
+    const seen = new Set<string>()
+    for (const it of items) {
+      if (it.parent_item_key) continue
+      const c = it.topic_cluster || '其他'
+      if (seen.has(c)) continue
+      seen.add(c)
+      const g = topicGroups.find(g => g.cluster === c)
+      out[it.item_key] = { cluster: c, total: g?.items.length || 0, answered: g?.answered || 0 }
+    }
+    return out
+  }, [items, groupBy, topicGroups])
 
   const answeredN = items.filter(it => responseByKey[it.item_key]?.answer_value != null).length
 
@@ -205,6 +273,31 @@ export default function ResearchQuestionnaire({
         >
           {classifyMut.isPending ? 'AI 分类中...' : '触发 AI 范围分类'}
         </button>
+      </div>
+
+      {/* 顶部搜索框(2026-06-03) */}
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="搜索题目(题干 / 为什么问 / 主题)…"
+          className="flex-1 max-w-md px-2.5 py-1 text-xs bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.12)] rounded text-white placeholder-[rgba(255,255,255,0.45)] focus:outline-none focus:border-[#FB923C]"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="text-xs text-[rgba(255,255,255,0.55)] hover:text-white"
+            title="清空搜索"
+          >
+            <X size={12} />
+          </button>
+        )}
+        {searchQuery && (
+          <span className="text-[10px] text-[rgba(255,255,255,0.55)]">
+            匹配 {items.filter(it => !it.parent_item_key).length} / {axisItems.length} 主干题
+          </span>
+        )}
       </div>
 
       {/* 阶段筛选(会前 / 会中 / 全部) */}
@@ -263,6 +356,13 @@ export default function ResearchQuestionnaire({
           responseByKey={responseByKey}
           followUpCount={followUpCount}
           refreshAll={refreshAll}
+          clusterStartMarkers={clusterStartMarkers}
+          collapsedClusters={collapsedClusters}
+          onToggleCluster={(c) => setCollapsedClusters(prev => {
+            const next = new Set(prev)
+            if (next.has(c)) next.delete(c); else next.add(c)
+            return next
+          })}
           editorDefaults={{
             ltc_module_key: groupBy === 'ltc' && selectedLtcKey
               ? selectedLtcKey
@@ -298,6 +398,7 @@ interface EditorDefaults {
 function QuestionsList({
   items, bundle, ltcModules, editing, setEditing,
   responseByKey, followUpCount, refreshAll, editorDefaults,
+  clusterStartMarkers, collapsedClusters, onToggleCluster,
 }: {
   items: ResearchQuestionItem[]
   bundle: CuratedBundle
@@ -308,6 +409,10 @@ function QuestionsList({
   followUpCount: Record<string, number>
   refreshAll: () => void
   editorDefaults: EditorDefaults
+  // 主题模式专用(2026-06-03)
+  clusterStartMarkers?: Record<string, { cluster: string; total: number; answered: number }>
+  collapsedClusters?: Set<string>
+  onToggleCluster?: (cluster: string) => void
 }) {
   const isNewAt = (insertAfter: string | null): boolean =>
     !!editing && editing.mode === 'new' && editing.insertAfter === insertAfter
@@ -332,40 +437,95 @@ function QuestionsList({
           <InsertSlot onClick={() => setEditing({ mode: 'new', insertAfter: '' })}
                       hint="在最前插入" />
         )}
-        {items.map((it, idx) => (
-          <div key={it.item_key} className="space-y-3">
-            {editing && editing.mode === 'edit' && editing.itemKey === it.item_key ? (
-              <QuestionEditor
-                bundleId={bundle.id}
-                ltcModules={ltcModules}
-                initial={it}
-                onCancel={() => setEditing(null)}
-                onSaved={() => { setEditing(null); refreshAll() }}
-              />
-            ) : (
-              <div id={`q-${it.item_key}`} className="scroll-mt-20">
-                <QuestionRow
-                  item={it}
-                  index={idx + 1}
-                  response={responseByKey[it.item_key]}
-                  bundle={bundle}
-                  followUpCount={followUpCount[it.item_key] || 0}
-                  onEdit={() => setEditing({ mode: 'edit', itemKey: it.item_key })}
-                  onDeleted={() => refreshAll()}
-                  onFollowUpGenerated={() => refreshAll()}
+        {(() => {
+          const markers = clusterStartMarkers || {}
+          const collapsed = collapsedClusters || new Set<string>()
+          let currentCluster: string | null = null
+          let currentCollapsed = false
+          const out: React.ReactNode[] = []
+          items.forEach((it, idx) => {
+            const marker = markers[it.item_key]
+            if (marker) {
+              currentCluster = marker.cluster
+              currentCollapsed = collapsed.has(marker.cluster)
+              out.push(
+                <ClusterDivider
+                  key={`cluster-${marker.cluster}`}
+                  cluster={marker.cluster}
+                  total={marker.total}
+                  answered={marker.answered}
+                  collapsed={currentCollapsed}
+                  onToggle={() => onToggleCluster?.(marker.cluster)}
                 />
+              )
+            }
+            if (currentCollapsed && currentCluster) return
+            out.push(
+              <div key={it.item_key} id={`q-${it.item_key}`} className="space-y-3 scroll-mt-20">
+                {editing && editing.mode === 'edit' && editing.itemKey === it.item_key ? (
+                  <QuestionEditor
+                    bundleId={bundle.id}
+                    ltcModules={ltcModules}
+                    initial={it}
+                    onCancel={() => setEditing(null)}
+                    onSaved={() => { setEditing(null); refreshAll() }}
+                  />
+                ) : (
+                  <QuestionRow
+                    item={it}
+                    index={idx + 1}
+                    response={responseByKey[it.item_key]}
+                    bundle={bundle}
+                    followUpCount={followUpCount[it.item_key] || 0}
+                    onEdit={() => setEditing({ mode: 'edit', itemKey: it.item_key })}
+                    onDeleted={() => refreshAll()}
+                    onFollowUpGenerated={() => refreshAll()}
+                  />
+                )}
+                {/* 题后插槽 */}
+                {isNewAt(it.item_key) ? renderEditor(it.item_key) : (
+                  <InsertSlot onClick={() => setEditing({ mode: 'new', insertAfter: it.item_key })} />
+                )}
               </div>
-            )}
-            {/* 题后插槽 */}
-            {isNewAt(it.item_key) ? renderEditor(it.item_key) : (
-              <InsertSlot onClick={() => setEditing({ mode: 'new', insertAfter: it.item_key })} />
-            )}
-          </div>
-        ))}
+            )
+          })
+          return out
+        })()}
       </div>
 
       {/* 右侧题号 minimap — sticky 浮在右边 */}
       <QuestionsMiniMap items={items} responseByKey={responseByKey} />
+    </div>
+  )
+}
+
+
+// ── 主题模式 cluster 分隔条(深色,2026-06-03) ───────────────────────────────
+function ClusterDivider({
+  cluster, total, answered, collapsed, onToggle,
+}: {
+  cluster: string
+  total: number
+  answered: number
+  collapsed: boolean
+  onToggle: () => void
+}) {
+  return (
+    <div
+      onClick={onToggle}
+      className="flex items-center gap-2 px-3 py-2 my-2 rounded border cursor-pointer sticky top-12 z-[5]"
+      style={{
+        background: 'rgba(255,141,26,0.10)',
+        borderColor: 'rgba(255,141,26,0.32)',
+        backdropFilter: 'blur(12px)',
+      }}
+      title={collapsed ? '展开本主题题目' : '折叠本主题题目'}
+    >
+      {collapsed ? <ChevronRight size={14} className="text-[#FFB066]" /> : <ChevronDown size={14} className="text-[#FFB066]" />}
+      <span className="text-sm font-semibold text-[#FFB066]">{cluster}</span>
+      <span className="text-xs text-[rgba(255,255,255,0.55)]">{total} 题</span>
+      <div className="flex-1" />
+      <span className="text-xs text-[#34D399]">已答 {answered} / {total}</span>
     </div>
   )
 }
