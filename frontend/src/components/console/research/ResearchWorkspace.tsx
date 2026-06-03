@@ -276,38 +276,15 @@ export default function ResearchWorkspace({
 
       {/* ── 中:工作区 ── */}
       <div className="flex-1 min-h-0 flex flex-col bg-white overflow-hidden">
-        {/* 顶栏:view 切换 */}
-        <div className="flex-shrink-0 px-3 py-2 border-b border-line bg-slate-50/60 flex items-center gap-1">
-          <ViewTab active={view === 'preparation'} onClick={() => setView('preparation')}
-                   icon={<Sparkles size={11} />} label="准备" />
-          <ViewTab active={view === 'outline'} onClick={() => setView('outline')}
-                   icon={outlineInflight
-                          ? <Loader2 size={11} className="animate-spin" />
-                          : <ClipboardList size={11} />}
-                   label={outlineInflight ? '调研大纲(生成中…)' : '调研大纲'}
-                   muted={!outlineBundle || !!outlineInflight}
-                   disabled={!!outlineInflight} />
-          <ViewTab active={view === 'plan'} onClick={() => setView('plan')}
-                   icon={researchPlanInflight
-                          ? <Loader2 size={11} className="animate-spin" />
-                          : <Send size={11} />}
-                   label={researchPlanInflight ? '调研计划(生成中…)' : '调研计划(客户版)'}
-                   muted={!researchPlanBundle || !!researchPlanInflight}
-                   disabled={!!researchPlanInflight} />
-          <ViewTab active={view === 'questionnaire'} onClick={() => setView('questionnaire')}
-                   icon={surveyInflight
-                          ? <Loader2 size={11} className="animate-spin" />
-                          : <Workflow size={11} />}
-                   label={surveyInflight ? '调研问卷(生成中…)' : '调研问卷(录入)'}
-                   muted={!surveyBundle || !!surveyInflight}
-                   disabled={!!surveyInflight} />
-          <ViewTab active={view === 'report'} onClick={() => setView('report')}
-                   icon={reportInflight
-                          ? <Loader2 size={11} className="animate-spin" />
-                          : <FileText size={11} />}
-                   label={reportInflight ? '调研报告(生成中…)' : '调研报告'}
-                   muted={!reportBundle || !!reportInflight}
-                   disabled={!!reportInflight} />
+        {/* 顶栏 — ViewTab 已删除(顶部「本阶段产物」chip 已能切 sub-kind,避免重复) */}
+        <div className="flex-shrink-0 px-3 py-2 border-b border-line bg-slate-50/60 flex items-center gap-2">
+          <span className="text-xs inline-flex items-center gap-1 font-semibold text-ink">
+            {view === 'preparation' && <><Sparkles size={11} /> 准备</>}
+            {view === 'outline' && <>{outlineInflight ? <Loader2 size={11} className="animate-spin" /> : <ClipboardList size={11} />} 调研大纲{outlineInflight ? '(生成中…)' : ''}</>}
+            {view === 'plan' && <>{researchPlanInflight ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />} 调研计划(客户版){researchPlanInflight ? '(生成中…)' : ''}</>}
+            {view === 'questionnaire' && <>{surveyInflight ? <Loader2 size={11} className="animate-spin" /> : <Workflow size={11} />} 调研问卷(录入){surveyInflight ? '(生成中…)' : ''}</>}
+            {view === 'report' && <>{reportInflight ? <Loader2 size={11} className="animate-spin" /> : <FileText size={11} />} 调研报告{reportInflight ? '(生成中…)' : ''}</>}
+          </span>
           <div className="flex-1" />
           {/* 大纲已生成 → 顶栏「生成调研计划(客户版)」入口 — 把大纲改写成对客版,直接下发客户 */}
           {outlineBundle?.status === 'done' && !researchPlanInflight && (
@@ -671,35 +648,6 @@ function LtcModuleRow({
           {answeredCount} 题
         </span>
       )}
-    </button>
-  )
-}
-
-function ViewTab({
-  active, onClick, icon, label, muted, disabled,
-}: {
-  active: boolean
-  onClick: () => void
-  icon: React.ReactNode
-  label: string
-  muted?: boolean
-  disabled?: boolean
-}) {
-  return (
-    <button
-      onClick={disabled ? undefined : onClick}
-      disabled={disabled}
-      title={disabled ? '正在重新生成,请稍候…' : undefined}
-      className={`flex items-center gap-1 px-2 py-1 text-[11px] rounded transition ${
-        active
-          ? 'bg-white text-ink ring-1 ring-line shadow-sm'
-          : muted
-          ? 'text-ink-muted hover:text-ink hover:bg-white/60'
-          : 'text-ink-secondary hover:text-ink hover:bg-white/60'
-      } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
-    >
-      {icon}
-      <span>{label}</span>
     </button>
   )
 }

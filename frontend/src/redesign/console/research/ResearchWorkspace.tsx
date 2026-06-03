@@ -178,7 +178,7 @@ export default function ResearchWorkspace({
         style={{ background: 'transparent' }}
       >
         <div
-          className="flex-shrink-0 px-3 py-2 flex items-center gap-1"
+          className="flex-shrink-0 px-3 py-2 flex items-center gap-2"
           style={{
             borderBottom: '1px solid rgba(255,255,255,0.06)',
             background: 'rgba(255,255,255,0.05)',
@@ -187,36 +187,14 @@ export default function ResearchWorkspace({
             boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10)',
           }}
         >
-          <ViewTab active={view === 'preparation'} onClick={() => setView('preparation')}
-                   icon={<Sparkles size={11} />} label="准备" />
-          <ViewTab active={view === 'outline'} onClick={() => setView('outline')}
-                   icon={outlineInflight
-                          ? <Loader2 size={11} className="animate-spin" />
-                          : <ClipboardList size={11} />}
-                   label={outlineInflight ? '调研大纲(生成中…)' : '调研大纲'}
-                   muted={!outlineBundle || !!outlineInflight}
-                   disabled={!!outlineInflight} />
-          <ViewTab active={view === 'plan'} onClick={() => setView('plan')}
-                   icon={researchPlanInflight
-                          ? <Loader2 size={11} className="animate-spin" />
-                          : <Send size={11} />}
-                   label={researchPlanInflight ? '调研计划(生成中…)' : '调研计划(客户版)'}
-                   muted={!researchPlanBundle || !!researchPlanInflight}
-                   disabled={!!researchPlanInflight} />
-          <ViewTab active={view === 'questionnaire'} onClick={() => setView('questionnaire')}
-                   icon={surveyInflight
-                          ? <Loader2 size={11} className="animate-spin" />
-                          : <Workflow size={11} />}
-                   label={surveyInflight ? '调研问卷(生成中…)' : '调研问卷(录入)'}
-                   muted={!surveyBundle || !!surveyInflight}
-                   disabled={!!surveyInflight} />
-          <ViewTab active={view === 'report'} onClick={() => setView('report')}
-                   icon={reportInflight
-                          ? <Loader2 size={11} className="animate-spin" />
-                          : <FileText size={11} />}
-                   label={reportInflight ? '调研报告(生成中…)' : '调研报告'}
-                   muted={!reportBundle || !!reportInflight}
-                   disabled={!!reportInflight} />
+          {/* 当前视图 label — 替代之前的 ViewTab 栏(顶部「本阶段产物」chip 已经能切换 sub-kind,这里只显示当前在哪个视图) */}
+          <span className="text-xs inline-flex items-center gap-1" style={{ color: 'var(--rd-text)', fontWeight: 600 }}>
+            {view === 'preparation' && <><Sparkles size={11} /> 准备</>}
+            {view === 'outline' && <>{outlineInflight ? <Loader2 size={11} className="animate-spin" /> : <ClipboardList size={11} />} 调研大纲{outlineInflight ? '(生成中…)' : ''}</>}
+            {view === 'plan' && <>{researchPlanInflight ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />} 调研计划(客户版){researchPlanInflight ? '(生成中…)' : ''}</>}
+            {view === 'questionnaire' && <>{surveyInflight ? <Loader2 size={11} className="animate-spin" /> : <Workflow size={11} />} 调研问卷(录入){surveyInflight ? '(生成中…)' : ''}</>}
+            {view === 'report' && <>{reportInflight ? <Loader2 size={11} className="animate-spin" /> : <FileText size={11} />} 调研报告{reportInflight ? '(生成中…)' : ''}</>}
+          </span>
           <div className="flex-1" />
           {outlineBundle?.status === 'done' && !researchPlanInflight && (
             <button
@@ -768,36 +746,6 @@ function RoleCard({
   )
 }
 
-function ViewTab({
-  active, onClick, icon, label, muted, disabled,
-}: {
-  active: boolean
-  onClick: () => void
-  icon: React.ReactNode
-  label: string
-  muted?: boolean
-  disabled?: boolean
-}) {
-  return (
-    <button
-      onClick={disabled ? undefined : onClick}
-      disabled={disabled}
-      title={disabled ? '正在重新生成,请稍候…' : undefined}
-      className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition"
-      style={{
-        background: active ? 'rgba(255,255,255,0.10)' : 'transparent',
-        border: active ? '1px solid var(--rd-line)' : '1px solid transparent',
-        color: active ? 'var(--rd-text)' : (muted ? 'var(--rd-text-3)' : 'var(--rd-text-2)'),
-        boxShadow: active ? '0 1px 4px rgba(20,20,40,0.06)' : 'none',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.6 : 1,
-      }}
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
-  )
-}
 
 function PreparationView({
   projectId, outlineBundle, outlineInflight, surveyBundle, surveyInflight,
