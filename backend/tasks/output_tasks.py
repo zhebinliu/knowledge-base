@@ -36,6 +36,55 @@ def generate_kickoff_html(self, bundle_id: str, project_id: str):
 def generate_insight(self, bundle_id: str, project_id: str):
     from services.agentic.runner import generate_insight as _gen
     _run(_gen(bundle_id, project_id))
+    # 2026-06-03:insight 完成后自动连带触发启动会 PPT 生成。
+    # chain 必须 swallow 异常,否则会让已成功的 insight task 被 Celery 误标 failed/retry。
+    try:
+        _run(_chain_kickoff_pptx_after_insight(bundle_id, project_id))
+    except Exception as e:
+        logger.warning("kickoff_chain_failed_but_insight_ok",
+                       insight_bundle_id=bundle_id, project_id=project_id, error=str(e))
+
+
+async def _chain_kickoff_pptx_after_insight(insight_bundle_id: str, project_id: str) -> None:
+    """insight 成功后自动新建 kickoff_pptx bundle 并 dispatch 生成任务。
+
+    - 仅当 insight bundle 真正 `status='done'` 时才连带(insight 内部标 failed 时跳过)
+    - 每次新建一条(与 `/api/outputs/generate` 路由的现有语义一致,前端按最新 done 展示)
+    - 不去重已有 kickoff bundle —— 用户已确认「重生 insight 时总是连带重生 PPT」
+    """
+    from models import async_session_maker
+    from models.project import Project
+    from models.curated_bundle import CuratedBundle
+
+    async with async_session_maker() as s:
+        insight = await s.get(CuratedBundle, insight_bundle_id)
+        if not insight or insight.status != "done":
+            logger.info("kickoff_chain_skipped_insight_not_done",
+                        insight_bundle_id=insight_bundle_id,
+                        insight_status=(insight.status if insight else None))
+            return
+        proj = await s.get(Project, project_id)
+        if not proj:
+            logger.warning("kickoff_chain_project_missing", project_id=project_id)
+            return
+        bundle = CuratedBundle(
+            kind="kickoff_pptx",
+            project_id=project_id,
+            title=f"启动会 PPT(pptxgen) · {proj.name}",
+            status="pending",
+            created_by=insight.created_by,                 # 归属到触发 insight 的用户
+            created_by_name=insight.created_by_name or "auto",
+        )
+        s.add(bundle)
+        await s.commit()
+        await s.refresh(bundle)
+        new_bid = bundle.id
+
+    generate_kickoff_pptx.delay(new_bid, project_id)
+    logger.info("kickoff_chain_dispatched",
+                kickoff_bundle_id=new_bid,
+                insight_bundle_id=insight_bundle_id,
+                project_id=project_id)
 
 
 @celery_app.task(name="generate_survey", bind=True, max_retries=2, soft_time_limit=900, time_limit=1200)

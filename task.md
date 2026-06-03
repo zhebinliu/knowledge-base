@@ -1,5 +1,27 @@
 # 任务跟踪
 
+## 项目洞察生成时自动连带启动会 PPT(2026-06-03)— 用户 /goal
+
+### 目标
+点「生成项目洞察」 → insight 完成后**自动**新建并触发 kickoff_pptx 生成(只 PPT 不 HTML;每次重生 insight 都连带重生 PPT)。
+
+### 拆解
+- [x] **A. Celery chain** `backend/tasks/output_tasks.py`
+  - `generate_insight` task 跑完 `_run(_gen(...))` 后,调 `_chain_kickoff_pptx_after_insight`
+  - chain helper:async 拿 insight bundle 状态,只有 `status='done'` 才创建 kickoff_pptx bundle + dispatch task
+  - chain 异常 swallow(Logger warning),不能让 chain 失败误把 insight task 标 failed/retry
+  - 每次新建 kickoff bundle(与 `/api/outputs/generate` 现有语义一致,前端按最新 done 展示)
+- [x] **B. 验证**
+  - 后端 syntax check ✓
+  - 边界:insight task 抛异常 → 不 chain(`_run` 已抛);insight bundle 标 failed → chain skip;auto-restart insight → chain 也会触发(语义 OK)
+
+### 边界
+- 不动 runner / output_service,只在 Celery task 层挂钩
+- 不去重「项目里已有 kickoff bundle」— 每次都新建(用户已确认「总是连带重生」)
+- 自动连带不触发 kickoff_html(用户已确认仅 PPT)
+
+---
+
 ## 启动会 PPT 并入项目洞察(2026-06-03)— 用户 /goal
 
 ### 目标
