@@ -45,12 +45,16 @@ const PHASE_TAB_META: Record<PhaseFilter, { label: string; hint: string }> = {
 
 interface Props {
   bundle: CuratedBundle
-  /** 分组方式 — 决定主筛选轴(role / ltc_module_key / topic_cluster) */
-  groupBy: 'role' | 'ltc' | 'topic'
+  /** 分组方式 — 决定主筛选轴(role / ltc_module_key / topic_cluster / session_id) */
+  groupBy: 'role' | 'ltc' | 'topic' | 'session'
   selectedRole: ResearchAudienceRole | null
   selectedLtcKey: string | null
   /** 主题模式下父传:选中的 cluster 名(null = 展示全部 cluster) */
   selectedTopic?: string | null
+  /** 场次模式下父传:选中的 session_id(null = 全部,'__none__' = 未挂场次) */
+  selectedSession?: string | null
+  /** 大纲场次列表 */
+  outlineSessions?: import('../../../api/client').OutlineSession[]
   /** 阶段筛选 — 会前 / 会中 / 全部 */
   selectedPhase: PhaseFilter
   onChangePhase: (p: PhaseFilter) => void
@@ -73,7 +77,8 @@ type EditingState =
 
 
 export default function ResearchQuestionnaire({
-  bundle, groupBy, selectedRole, selectedLtcKey, selectedTopic, selectedPhase, onChangePhase,
+  bundle, groupBy, selectedRole, selectedLtcKey, selectedTopic, selectedSession,
+  outlineSessions, selectedPhase, onChangePhase,
   onRefetch, ltcModules,
 }: Props) {
   const [editing, setEditing] = useState<EditingState>(null)
@@ -102,9 +107,14 @@ export default function ResearchQuestionnaire({
       if (!selectedTopic) return mains
       return mains.filter(it => (it.topic_cluster || '其他') === selectedTopic)
     }
+    if (groupBy === 'session') {
+      if (!selectedSession) return mains
+      if (selectedSession === '__none__') return mains.filter(it => !it.session_id)
+      return mains.filter(it => it.session_id === selectedSession)
+    }
     if (!selectedLtcKey) return mains
     return mains.filter(it => it.ltc_module_key === selectedLtcKey)
-  }, [allItems, groupBy, selectedRole, selectedLtcKey, selectedTopic])
+  }, [allItems, groupBy, selectedRole, selectedLtcKey, selectedTopic, selectedSession])
 
   // 阶段计数(只数主干题)
   const phaseCounts = useMemo(() => {
@@ -145,13 +155,15 @@ export default function ResearchQuestionnaire({
       })
     }
 
-    if (groupBy === 'topic') {
+    if (groupBy === 'topic' || groupBy === 'session') {
       const stageOrder: Record<string, number> = {}
       RESEARCH_INTERVIEW_STAGE_ORDER.forEach((s, i) => { stageOrder[s] = i })
       mainsAfterPhase = [...mainsAfterPhase].sort((a, b) => {
-        const ca = a.topic_cluster || '其他'
-        const cb = b.topic_cluster || '其他'
-        if (ca !== cb) return ca.localeCompare(cb, 'zh')
+        if (groupBy === 'topic') {
+          const ca = a.topic_cluster || '其他'
+          const cb = b.topic_cluster || '其他'
+          if (ca !== cb) return ca.localeCompare(cb, 'zh')
+        }
         const sa = stageOrder[a.interview_stage || 'current_state'] ?? 1
         const sb = stageOrder[b.interview_stage || 'current_state'] ?? 1
         return sa - sb
@@ -210,13 +222,23 @@ export default function ResearchQuestionnaire({
     )
   }
 
+  const sessionLabel = useMemo(() => {
+    if (!selectedSession) return '场次 · 全部'
+    if (selectedSession === '__none__') return '场次 · 未挂场次'
+    const s = (outlineSessions || []).find(x => x.session_id === selectedSession)
+    if (!s) return `场次 · ${selectedSession}`
+    return `场次 · ${s.week} ${s.time_slot} · ${s.topic_summary || s.participants}`
+  }, [selectedSession, outlineSessions])
+
   const axisLabel = groupBy === 'role'
     ? (selectedRole ? `角色 · ${({
         executive: '高管', dept_head: '部门负责人', frontline: '一线', it: 'IT',
       } as Record<ResearchAudienceRole, string>)[selectedRole]}` : '请选择左侧角色')
     : groupBy === 'topic'
       ? (selectedTopic ? `主题 · ${selectedTopic}` : '主题 · 全部')
-      : (selectedLtcKey ? `模块 · ${selectedLtcKey}` : '请选择左侧模块')
+      : groupBy === 'session'
+        ? sessionLabel
+        : (selectedLtcKey ? `模块 · ${selectedLtcKey}` : '请选择左侧模块')
 
   // 主题模式 cluster 列表 + cluster 起点标记(2026-06-03)
   const topicGroups = useMemo(() => {

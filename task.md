@@ -1,5 +1,36 @@
 # 任务跟踪
 
+## 调研问卷 按场次分组(全链路打通)(2026-06-03)— 用户 /goal
+
+### 目标
+打通调研大纲 M3 日程表 ↔ 调研问卷,让顾问到了"Week 1 周二上午 销售总监 1on1"这一场,
+打开问卷直接定位到这一场要问的所有题(按主题+开场→现状→痛点→期望排)。
+
+用户决策:
+- 题↔场次 = **一对一**(每题挂 1 个 session_id)
+- 老问卷 / 老大纲 兼容:**走「重生才享受」** — 没 session_id 前端提示"请重新生成大纲和问卷"
+
+### 拆解
+- [x] **A. 后端 — QuestionItem 加 session_id 字段**
+- [x] **B. 后端 — 大纲生成后抽 sessions JSON**(新建 outline_sessions_extractor.py + 在 generate_survey_outline phase 5 前调一次,失败不阻断)
+- [x] **C. 后端 — 问卷生成喂 outline_sessions 给 LLM**(generate_survey + generate_survey_for_role 都从最新 outline bundle 拉;executor 加 outline_sessions 参数 + prompt 约束 + JSON 示例 + few-shot 同步)
+- [x] **D. 后端 — _post_process_items 兜底**(session_id 不在候选 → None,前端 fallback "未挂场次")
+- [x] **E. 后端 — outputs.py DTO 暴露 outline_sessions**
+- [x] **F. 前端 — client.ts**(ResearchQuestionItem 加 session_id;新 OutlineSession 类型;CuratedBundle 加 outline_sessions)
+- [x] **G. 前端 — ResearchQuestionnaire 按场次分组**(legacy + redesign):groupBy 扩 'session';加 selectedSession + outlineSessions props;axisItems 加 session 分支;排序在 session 模式也走 stage(opening→current_state→pain_point→aspiration);axisLabel 加 sessionLabel
+- [x] **H. 前端 — ResearchWorkspace sidebar 加按场次**(legacy + redesign):GroupBy 扩 'session';加 selectedSession state;outlineSessions 从 outlineBundle 拿;sessionCounts 统计;legacy sidebar 加按场次 tab + session 列表(带「全部场次」+「未挂场次」);redesign Carousel 加按场次按钮 + chip strip;透传给 Questionnaire
+- [x] **I. 验证 + 部署**
+  - py_compile + tsc 全过
+  - commit + push + 触发 PROD
+
+### 边界
+- 不动 outline M3 prompt 本身(M3 表保持原样,sessions JSON 走二次抽取)
+- 不动按主题 / 角色 / LTC 分组逻辑(场次跟它们并列第四种)
+- 老问卷 / 老大纲:fallback 显示 + 提示重生,不写迁移
+- session_id 一对一映射(LLM 必须从大纲候选中选 1 个;没合适就留 null)
+
+---
+
 ## 调研问卷 主题聚类 + 访谈阶段(2026-06-03)— 用户 /goal
 
 ### 目标

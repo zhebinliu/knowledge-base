@@ -1281,6 +1281,8 @@ export interface CuratedBundle {
   // research v1 — 需求调研工作区(survey_outline / survey kind 才有值)
   questionnaire_items?: ResearchQuestionItem[]
   ltc_module_map?: { sow_term: string; mapped_ltc_key: string | null; confidence: number; is_extra: boolean }[]
+  // 2026-06-03 大纲 M3 场次结构化(只有 survey_outline kind 才有值)
+  outline_sessions?: OutlineSession[]
   // 按角色逐步生成进度(2026-06-03,仅 survey kind):key=audience_role,value=当前状态
   role_progress?: Partial<Record<'executive' | 'dept_head' | 'frontline' | 'it',
     'pending' | 'generating' | 'done' | 'failed'>>
@@ -1503,6 +1505,20 @@ export interface ResearchQuestionItem {
   // 2026-06-03 主题聚类 + 访谈阶段(给现场顾问按主题翻题 + 客户思路不被切碎)
   topic_cluster?: string | null            // 主题聚类短中文(3-8 字),前端「按主题」分组依据;老数据为空时 fallback 用 LTC 模块名
   interview_stage?: ResearchInterviewStage | null  // 访谈阶段,cluster 内按此排序;老数据为空时不排序
+  // 2026-06-03 按场次分组 — 挂到大纲 M3 哪一场访谈(一对一,无合适场次为 null)
+  session_id?: string | null
+}
+
+// 大纲 M3 提取出的访谈场次(只 outline bundle 才有);问卷按场次分组依据
+export interface OutlineSession {
+  session_id: string                       // S1 / S2 ... 本 outline 内唯一
+  week: string                             // "Week 1"
+  time_slot: string                        // "周二上午"
+  duration_minutes: number | null
+  session_type: string                     // 1on1 / 集中访谈 / 工作坊 / 现场观察 / 资料收集
+  audience_roles: ResearchAudienceRole[]   // 严格 4 选 N
+  participants: string                     // 参会者描述,原文
+  topic_summary: string                    // 短议题
 }
 
 export interface ResearchResponseItem {

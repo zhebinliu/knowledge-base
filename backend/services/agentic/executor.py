@@ -501,6 +501,8 @@ async def execute_survey_subsection(
     meeting_context: str = "",            # 该项目已完成会议纪要摘要(本轮出题的访谈历史依据)
     prior_role_questions: str = "",       # 同一 bundle 里其他角色已生成的题目(避免撞车 / 可追问)
     target_audience: str | None = None,   # 本轮限定的严格 4 角色之一(executive / dept_head / frontline / it)
+    # ── 2026-06-03 加 outline_sessions:让 LLM 给每题打 session_id,前端按场次分组 ──
+    outline_sessions: list[dict] | None = None,
 ) -> dict:
     """生成单个 survey 分卷。
 
@@ -625,9 +627,40 @@ async def execute_survey_subsection(
     )
     ltc_dict_block = "\n".join(ltc_dict_block_lines)
 
+    # 2026-06-03:渲染大纲访谈场次候选列表(给每题打 session_id 用)
+    outline_sessions_block = ""
+    valid_session_ids: list[str] = []
+    if outline_sessions:
+        lines = ["【大纲日程表 — 本分卷每题必须挂到下面某场访谈的 session_id(一对一)】"]
+        lines.append("| session_id | 周次 | 时间 | 时长 | 类型 | 受众角色 | 参会者 | 议题 |")
+        lines.append("|---|---|---|---|---|---|---|---|")
+        for s in outline_sessions:
+            sid = s.get("session_id") or ""
+            if not sid:
+                continue
+            valid_session_ids.append(sid)
+            roles_zh = "/".join(s.get("audience_roles") or [])
+            dur = s.get("duration_minutes")
+            dur_s = f"{dur}min" if dur else "—"
+            lines.append(
+                f"| {sid} | {s.get('week') or '—'} | {s.get('time_slot') or '—'} | {dur_s} "
+                f"| {s.get('session_type') or '集中访谈'} | {roles_zh or '—'} "
+                f"| {s.get('participants') or '—'} | {s.get('topic_summary') or '—'} |"
+            )
+        lines.append(f"\n候选 session_id:{', '.join(valid_session_ids)}")
+        lines.append(
+            "**挂题规则**:每题按其议题语义,从上面候选 session_id 中选 1 个**最贴合**的填到 session_id 字段。\n"
+            "- 优先按受众角色匹配(本题 audience_roles 跟该场 audience_roles 重合)\n"
+            "- 再按议题相关度(本题问题主旨贴近该场 topic_summary / 参会者职责)\n"
+            "- 没有任何场次合适时,session_id 留 null(不要瞎填);**禁止**编新 session_id\n"
+        )
+        outline_sessions_block = "\n".join(lines)
+
     user_prompt = f"""请为本分卷生成一份**实施前调研问卷**。
 
 {ltc_dict_block}
+
+{outline_sessions_block + chr(10) if outline_sessions_block else ''}
 
 【分卷】{subsection.title}({subsection.layer})
 【目标受众】{target_roles_label}
@@ -673,6 +706,7 @@ async def execute_survey_subsection(
     "phase": "<pre_meeting 或 in_meeting,见下方判定原则>",
     "topic_cluster": "<本分卷内的主题聚类名,3-8 字短中文,见下方主题聚类约束>",
     "interview_stage": "<opening | current_state | pain_point | aspiration,见下方访谈阶段约束>",
+    "session_id": "<挂到大纲哪一场,从「大纲日程表」候选 session_id 中选 1 个;没合适的填 null;**禁止瞎编新 id**>",
     "type": "single | multi | rating | number | text | node_pick",
     "question": "<同上方第 N 题的问题正文>",
     "why": "<同 *为什么问*>",
@@ -694,6 +728,15 @@ async def execute_survey_subsection(
 注意:**不要**输出 `best_practice_refs` 字段。系统会基于题目的 ltc_module_key + 本项目行业,
 自动从内置的「跨项目实施最佳实践库」(2025 年沉淀的 13 个项目跨行业核心做法)注入这块内容。
 你只负责出题。
+
+【session_id 约束 — 让前端按场次分组,顾问到现场打开就是一份这场访谈的剧本】
+- 每题必须挂 1 个 session_id,从【大纲日程表】候选 session_id 中选,**一对一**(同题不挂多场)
+- 选择原则(从严到宽):
+  1) 受众角色匹配:本题 audience_roles 跟该场 audience_roles 重合 → 强优先
+  2) 议题相关度:本题问题主旨跟该场 topic_summary / 参会者职责贴近 → 次优先
+  3) 阶段匹配:opening 类题倾向放该角色"开场场次"(往往是第一场);aspiration 类题倾向放最后一场
+- **没有大纲日程表(空候选)或没有合适场次** → session_id 填 null,**绝对不要瞎编**新 id
+- 同一 session_id 下题数差异 OK(不需要平均分配);但同一场次内的题最好属于 1-3 个 topic_cluster(议题聚焦)
 
 【topic_cluster 约束 — 让现场顾问按主题翻题,客户思路不被切碎】
 - 本分卷内分成 **3-6 个不重复的主题聚类(cluster)**,每个 cluster 名是 3-8 字短中文短语
@@ -760,6 +803,7 @@ async def execute_survey_subsection(
     "item_key": "{item_key_prefix}::stage_model",
     "topic_cluster": "商机阶段模型",
     "interview_stage": "current_state",
+    "session_id": "S2",
     "type": "single",
     "question": "你们目前用哪种商机阶段模型?",
     "why": "阶段模型决定 CRM 商机推进逻辑和赢率字段",
@@ -778,6 +822,7 @@ async def execute_survey_subsection(
     "item_key": "{item_key_prefix}::推进卡点",
     "topic_cluster": "商机推进瓶颈",
     "interview_stage": "pain_point",
+    "session_id": "S2",
     "type": "multi",
     "question": "商机推进的最大卡点是什么?(可多选)",
     "why": "找到当前流程的核心痛点,决定 CRM 重点解决方向",
@@ -798,6 +843,7 @@ async def execute_survey_subsection(
     "item_key": "{item_key_prefix}::data_completeness",
     "topic_cluster": "商机数据基础",
     "interview_stage": "current_state",
+    "session_id": "S2",
     "type": "rating",
     "question": "当前商机数据完整度如何?",
     "why": "数据基础决定 CRM 商机模块上线后的可用性",
@@ -836,8 +882,9 @@ async def execute_survey_subsection(
 - MECE 思维(子主题不重叠不遗漏)
 - 单分卷控制在 {qmin}-{qmax} 题,5-10 分钟可填完
 - 已访谈覆盖的话题不再重复出
-- **必须** 给每题打 topic_cluster(3-8 字主题)+ interview_stage(opening/current_state/pain_point/aspiration),
-  让现场顾问能按主题翻题、按客户叙事节奏问,客户思路不被切碎。详见 user prompt 中的两条约束。
+- **必须** 给每题打 topic_cluster(3-8 字主题)+ interview_stage(opening/current_state/pain_point/aspiration)
+  + session_id(从大纲日程表候选 id 中选 1 个;无候选填 null,严禁瞎编),
+  让现场顾问能按主题翻题、按场次组织剧本、按客户叙事节奏问,客户思路不被切碎。详见 user prompt 中三条约束。
 
 输出**两段**:Markdown 题目列表 + JSON 结构化数据。两段题目必须一致。
 """
@@ -852,6 +899,7 @@ async def execute_survey_subsection(
             candidate_ltc_keys=candidate_ltc_keys,
             customer_modules=customer_modules,
             industry=industry,
+            valid_session_ids=valid_session_ids,   # 2026-06-03 session_id 兜底校验
         )
         # 批量调 advisor LLM,给每题写一段贴合的「最佳实践建议」
         # 失败 / 部分缺失 → 该题 advice 为空,前端折叠区不显示(不影响题目本身)
@@ -887,6 +935,7 @@ def _split_markdown_and_questionnaire_json(
     candidate_ltc_keys: list[str] | None = None,
     customer_modules: list[str] | None = None,
     industry: str | None = None,
+    valid_session_ids: list[str] | None = None,    # 2026-06-03
 ) -> tuple[str, list[dict]]:
     """从 LLM 原始输出里拆分 Markdown 部分和 JSON 数组。
 
@@ -917,7 +966,8 @@ def _split_markdown_and_questionnaire_json(
                                                      audience_roles=audience_roles,
                                                      candidate_ltc_keys=candidate_ltc_keys,
                                                      customer_modules=customer_modules,
-                                                     industry=industry)
+                                                     industry=industry,
+                                                     valid_session_ids=valid_session_ids)
             except Exception:
                 pass
         return raw, []
@@ -937,7 +987,8 @@ def _split_markdown_and_questionnaire_json(
                                           audience_roles=audience_roles,
                                           candidate_ltc_keys=candidate_ltc_keys,
                                           customer_modules=customer_modules,
-                                          industry=industry)
+                                          industry=industry,
+                                          valid_session_ids=valid_session_ids)
 
 
 def _post_process_items(
@@ -946,6 +997,7 @@ def _post_process_items(
     candidate_ltc_keys: list[str] | None = None,
     customer_modules: list[str] | None = None,
     industry: str | None = None,
+    valid_session_ids: list[str] | None = None,    # 2026-06-03
 ) -> list[dict]:
     """规整结构化题目:校验 ltc_module_key / 补 sentinel / 校验 phase + audience_roles / 兜底 item_key /
     兜底 topic_cluster + interview_stage(2026-06-03)。"""
@@ -1002,6 +1054,13 @@ def _post_process_items(
             # 2026-06-03:interview_stage 兜底 — LLM 没给或非法就标 current_state(中性,不破排序)
             llm_stage = (raw.get("interview_stage") or "").strip()
             raw["interview_stage"] = llm_stage if llm_stage in VALID_INTERVIEW_STAGES else "current_state"
+
+            # 2026-06-03:session_id 兜底 — LLM 给的必须在候选 valid_session_ids 内;否则 None(前端归"未挂场次")
+            llm_sid = (raw.get("session_id") or "").strip() or None
+            if valid_session_ids is not None and llm_sid not in valid_session_ids:
+                raw["session_id"] = None
+            else:
+                raw["session_id"] = llm_sid
 
             # needs_scope:战略 / 价值 / KPI / 决策链 / 干系人类的题不需要范围四分类,
             # 因为这些题问的是"想做成什么"而不是"哪些流程要新建/搬迁"。当前判断:

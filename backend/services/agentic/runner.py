@@ -1352,6 +1352,29 @@ async def generate_survey(bundle_id: str, project_id: str):
                        "brief_fields_n": len(ctx["brief_fields"])},
         })
 
+        # ── Phase 1.4: 拉最新 done outline bundle 的 outline_sessions(2026-06-03)──
+        # 用于给每题打 session_id;outline 无 sessions 时为空数组,LLM 不打 session_id 走 fallback
+        outline_sessions: list[dict] = []
+        try:
+            from sqlalchemy import select as _select
+            async with async_session_maker() as s:
+                rows = (await s.execute(
+                    _select(CuratedBundle)
+                    .where(CuratedBundle.project_id == project_id)
+                    .where(CuratedBundle.kind == "survey_outline")
+                    .where(CuratedBundle.status == "done")
+                    .order_by(CuratedBundle.created_at.desc())
+                    .limit(1)
+                )).scalars().all()
+            if rows:
+                outline_sessions = list((rows[0].extra or {}).get("outline_sessions") or [])
+        except Exception as e:
+            logger.warning("survey_load_outline_sessions_failed", error=str(e)[:120])
+        run_history.append({
+            "phase": "outline_sessions_loaded", "ts": _ts(),
+            "detail": {"sessions_n": len(outline_sessions)},
+        })
+
         # ── Phase 1.5: 拉 SOW → LTC 映射(outline 阶段已经写入,survey 阶段直接读) ──
         # 含 is_extra=true 的项是客户自定义模块(超出 LTC 字典),survey 也要给它们生成题
         from sqlalchemy import select
@@ -1410,6 +1433,7 @@ async def generate_survey(bundle_id: str, project_id: str):
                 kb_inject_block="",
                 customer_modules=customer_modules,  # research v1:SOW 中超出字典的客户自定义模块
                 prior_bundles=ctx.get("prior_bundles"),   # v3.2: 上游 stage(insight / kickoff / outline)产物
+                outline_sessions=outline_sessions,  # 2026-06-03 给每题打 session_id 用
             )
             return sub_assessment.key, result
 
@@ -1668,6 +1692,24 @@ async def generate_survey_for_role(bundle_id: str, project_id: str, role: str):
             r["sow_term"] for r in ltc_map_rows if r.get("is_extra")
         })
 
+        # ── 4.5 outline_sessions(2026-06-03) ──
+        outline_sessions: list[dict] = []
+        try:
+            from sqlalchemy import select as _select
+            async with async_session_maker() as s:
+                rows = (await s.execute(
+                    _select(CuratedBundle)
+                    .where(CuratedBundle.project_id == project_id)
+                    .where(CuratedBundle.kind == "survey_outline")
+                    .where(CuratedBundle.status == "done")
+                    .order_by(CuratedBundle.created_at.desc())
+                    .limit(1)
+                )).scalars().all()
+            if rows:
+                outline_sessions = list((rows[0].extra or {}).get("outline_sessions") or [])
+        except Exception as e:
+            logger.warning("survey_role_load_outline_sessions_failed", error=str(e)[:120])
+
         # ── 5. plan + filter by role ──
         plan = plan_survey(
             industry=ctx["industry"],
@@ -1726,6 +1768,7 @@ async def generate_survey_for_role(bundle_id: str, project_id: str, role: str):
                 meeting_context=meeting_md,
                 prior_role_questions=prior_role_q_md,
                 target_audience=role,
+                outline_sessions=outline_sessions,  # 2026-06-03 给每题打 session_id
             )
             return sub_assessment.key, result
 
@@ -2211,6 +2254,19 @@ async def generate_survey_outline(bundle_id: str, project_id: str):
         except Exception as e:
             logger.warning("survey_outline_docx_failed", error=str(e)[:120])
 
+        # 2026-06-03:从 M3 markdown 表抽 sessions JSON,存到 extra.outline_sessions
+        # 失败不阻断 outline 完成(返回 []),问卷生成时按需消费
+        outline_sessions: list[dict] = []
+        try:
+            from .research.outline_sessions_extractor import extract_sessions
+            outline_sessions = await extract_sessions(full_md, model=ctx.get("agent_model"))
+            run_history.append({
+                "phase": "outline_sessions_extracted", "ts": _ts(),
+                "detail": {"sessions_n": len(outline_sessions)},
+            })
+        except Exception as e:
+            logger.warning("outline_sessions_extract_step_failed", error=str(e)[:200])
+
         new_extra = dict(ctx["bundle_extra"])
         new_extra.update({
             "validity_status": validity_status,
@@ -2226,6 +2282,7 @@ async def generate_survey_outline(bundle_id: str, project_id: str):
                 "final_verdict": challenge_summary["final_verdict"],
                 "issues_remaining": challenge_summary["issues_remaining"],
             },
+            "outline_sessions": outline_sessions,  # 2026-06-03 M3 场次结构化,问卷按场次分组依据
         })
         await _mark(bundle_id, "done", content_md=full_md, file_key=docx_key, extra=new_extra)
         await _mark_conv(bundle_id, "done")

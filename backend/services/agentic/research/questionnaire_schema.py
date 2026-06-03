@@ -183,6 +183,8 @@ class QuestionItem:
                   前端「按主题」分组的依据;老数据为 None 时前端 fallback 用 LTC 模块名(2026-06-03 加)
     interview_stage:访谈阶段(opening/current_state/pain_point/aspiration),
                     cluster 内按此排序;老数据为 None 时不排序(2026-06-03 加)
+    session_id:挂到大纲 M3 哪一场访谈(对应 bundle.extra.outline_sessions 里某条的 session_id);
+                **一对一映射** — 每题只挂 1 场;老数据为 None 时前端「按场次」模式归"未挂场次"(2026-06-03 加)
     """
     item_key: str
     ltc_module_key: str
@@ -207,6 +209,7 @@ class QuestionItem:
     source: QuestionSource = "ai"
     topic_cluster: str | None = None         # 2026-06-03 主题聚类标签
     interview_stage: InterviewStage | None = None  # 2026-06-03 访谈阶段
+    session_id: str | None = None            # 2026-06-03 挂到大纲 M3 哪场访谈(一对一)
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -248,6 +251,7 @@ class QuestionItem:
             source=d.get("source") or "ai",
             topic_cluster=d.get("topic_cluster"),
             interview_stage=d.get("interview_stage"),
+            session_id=d.get("session_id"),
         )
 
 

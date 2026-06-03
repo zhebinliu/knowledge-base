@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ClipboardList, Lightbulb, Sparkles, Loader2, Workflow,
-  CheckCircle2, ChevronRight, Pencil, Users, Briefcase, FileText, Send, Layers,
+  CheckCircle2, ChevronRight, Pencil, Users, Briefcase, FileText, Send, Layers, Calendar,
 } from 'lucide-react'
 import {
   generateOutput,
@@ -41,7 +41,7 @@ const AUDIENCE_ROLE_DESC: Record<ResearchAudienceRole, string> = {
   it: '集成 / 数据 / 权限',
 }
 
-type GroupBy = 'role' | 'ltc' | 'topic'
+type GroupBy = 'role' | 'ltc' | 'topic' | 'session'
 import MarkdownView from '../../MarkdownView'
 import CitedReportView from '../CitedReportView'
 import CitationsPanel from '../CitationsPanel'
@@ -77,6 +77,7 @@ export default function ResearchWorkspace({
   const [groupBy, setGroupBy] = useState<GroupBy>('role')                       // 默认按角色分组
   const [selectedRole, setSelectedRole] = useState<ResearchAudienceRole | null>(null)
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null)       // 按主题模式下 sidebar 当前选中的 cluster
+  const [selectedSession, setSelectedSession] = useState<string | null>(null)   // 按场次模式下 sidebar 当前选中的 session_id('__none__' = 未挂场次)
   const [selectedPhase, setSelectedPhase] = useState<ResearchQuestionPhase | 'all'>('all')
   const [view, setView] = useState<ResearchView>('preparation')
   const [refsOpen, setRefsOpen] = useState(false)   // 右侧"引用追溯"默认收起
@@ -141,6 +142,23 @@ export default function ResearchWorkspace({
   // 问卷 items(后端 _bundle_dto 已经 flat 出来)
   const questionnaireItems = useMemo(() => surveyBundle?.questionnaire_items ?? [], [surveyBundle])
 
+  // 场次模式 sessions 列表(2026-06-03):从 outlineBundle.outline_sessions 拿,题数从 questionnaire 统计
+  const outlineSessions = useMemo(
+    () => (outlineBundle?.outline_sessions ?? []),
+    [outlineBundle]
+  )
+  const sessionCounts = useMemo(() => {
+    const m: Record<string, number> = {}
+    let noneCount = 0
+    for (const q of questionnaireItems) {
+      if (q.parent_item_key) continue
+      const sid = q.session_id
+      if (sid) m[sid] = (m[sid] || 0) + 1
+      else noneCount += 1
+    }
+    return { perSession: m, none: noneCount }
+  }, [questionnaireItems])
+
   // 主题模式 cluster 列表(2026-06-03):全卷按 topic_cluster 分组,主干题统计题数
   // 跨角色 / 跨 LTC 统一聚类;cluster 名为空 fallback 用 LTC 模块 label(或 "其他")
   const topicClusters = useMemo(() => {
@@ -179,9 +197,9 @@ export default function ResearchWorkspace({
   }, [questionnaireItems])
 
   // 第一次进来:按角色模式默认选第一个有题的角色;按 LTC 模式默认选 SOW 命中的第一个模块;
-  // 按主题模式默认 selectedTopic=null(展示全部 cluster)
+  // 按主题 / 场次模式默认 null(展示全部)
   useEffect(() => {
-    if (groupBy === 'topic') return
+    if (groupBy === 'topic' || groupBy === 'session') return
     if (groupBy === 'role') {
       if (selectedRole) return
       const firstWithItems = AUDIENCE_ROLE_ORDER.find(r => roleCounts[r].total > 0)
@@ -201,12 +219,18 @@ export default function ResearchWorkspace({
         {/* 分组方式切换 */}
         <div className="flex-shrink-0 px-2.5 pt-2.5 pb-2 border-b border-line">
           <div className="text-[11px] text-ink-muted mb-1.5">问卷分组方式</div>
-          <div className="flex gap-1 p-0.5 bg-slate-100 rounded">
+          <div className="flex gap-1 p-0.5 bg-slate-100 rounded flex-wrap">
             <GroupTabBtn
               active={groupBy === 'role'}
               onClick={() => setGroupBy('role')}
               icon={<Users size={11} />}
               label="按角色"
+            />
+            <GroupTabBtn
+              active={groupBy === 'session'}
+              onClick={() => setGroupBy('session')}
+              icon={<Calendar size={11} />}
+              label="按场次"
             />
             <GroupTabBtn
               active={groupBy === 'topic'}
@@ -225,7 +249,72 @@ export default function ResearchWorkspace({
 
         {/* 列表主体 */}
         <div className="flex-1 min-h-0 overflow-auto p-2 space-y-1">
-          {groupBy === 'topic' ? (
+          {groupBy === 'session' ? (
+            <>
+              {outlineSessions.length === 0 ? (
+                <div className="text-[11px] text-ink-muted px-2 py-3 leading-relaxed">
+                  当前调研大纲未提供 M3 日程场次信息(或大纲版本较老)。
+                  请重新生成「调研大纲」→ 再重新生成「调研问卷」,即可按场次分组。
+                </div>
+              ) : (
+                <>
+                  <div className="text-[10px] text-ink-muted px-1 mb-1">
+                    共 {outlineSessions.length} 场访谈 · 点击聚焦该场
+                  </div>
+                  <button
+                    onClick={() => { setSelectedSession(null); if (surveyBundle) setView('questionnaire') }}
+                    className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-1.5 transition ${
+                      selectedSession === null ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' : 'hover:bg-slate-50 text-ink-secondary'
+                    }`}
+                  >
+                    <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span className="truncate flex-1">全部场次</span>
+                    <span className="text-[10px] text-ink-muted shrink-0 bg-slate-100 px-1 rounded">
+                      {questionnaireItems.filter(q => !q.parent_item_key).length} 题
+                    </span>
+                  </button>
+                  {outlineSessions.map(s => {
+                    const selected = s.session_id === selectedSession
+                    const count = sessionCounts.perSession[s.session_id] || 0
+                    return (
+                      <button
+                        key={s.session_id}
+                        onClick={() => { setSelectedSession(s.session_id); if (surveyBundle) setView('questionnaire') }}
+                        className={`w-full text-left px-2 py-2 rounded text-xs flex flex-col gap-0.5 transition ${
+                          selected ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' : 'hover:bg-slate-50 text-ink-secondary'
+                        }`}
+                        title={`${s.week} ${s.time_slot} · ${s.duration_minutes || '—'}min · ${s.session_type} · ${s.participants}`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-orange-400" />
+                          <span className="font-medium truncate flex-1">{s.week} {s.time_slot}</span>
+                          <span className="text-[10px] text-ink-muted shrink-0 bg-slate-100 px-1 rounded">{count}</span>
+                        </div>
+                        <div className="text-[10px] text-ink-muted ml-3 truncate">
+                          {s.session_type} · {s.duration_minutes ? `${s.duration_minutes}min` : '—'} · {s.participants || s.topic_summary}
+                        </div>
+                      </button>
+                    )
+                  })}
+                  {sessionCounts.none > 0 && (
+                    <button
+                      onClick={() => { setSelectedSession('__none__'); if (surveyBundle) setView('questionnaire') }}
+                      className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-1.5 transition mt-2 border-t border-dashed pt-2 ${
+                        selectedSession === '__none__' ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-200' : 'hover:bg-slate-50 text-ink-muted'
+                      }`}
+                      title="未挂场次的题 — 老问卷或 LLM 漏打 session_id 的题"
+                    >
+                      <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-rose-400" />
+                      <span className="truncate flex-1">未挂场次</span>
+                      <span className="text-[10px] text-ink-muted shrink-0 bg-slate-100 px-1 rounded">
+                        {sessionCounts.none}
+                      </span>
+                    </button>
+                  )}
+                </>
+              )}
+            </>
+          ) : groupBy === 'topic' ? (
             <>
               <div className="text-[10px] text-ink-muted px-1 mb-1">
                 共 {topicClusters.length} 个主题 · 点击聚焦该主题
@@ -557,6 +646,8 @@ export default function ResearchWorkspace({
                 selectedRole={selectedRole}
                 selectedLtcKey={selectedLtcKey}
                 selectedTopic={selectedTopic}
+                selectedSession={selectedSession}
+                outlineSessions={outlineSessions}
                 selectedPhase={selectedPhase}
                 onChangePhase={setSelectedPhase}
                 onRefetch={onRefetch}

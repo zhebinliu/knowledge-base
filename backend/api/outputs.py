@@ -131,6 +131,8 @@ def _bundle_dto(b: CuratedBundle) -> dict:
         # research — 需求调研工作区前端消费
         "questionnaire_items": extra.get("questionnaire_items") or [],
         "ltc_module_map": extra.get("ltc_module_map") or [],
+        "outline_sessions": extra.get("outline_sessions") or [],   # 2026-06-03 大纲 M3 场次结构化
+
         # implementation — 项目实施工作台前端消费(implementation_plan kind)
         "implementation_tasks": extra.get("tasks") or [],
     }
