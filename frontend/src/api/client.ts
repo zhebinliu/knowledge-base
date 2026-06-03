@@ -1283,6 +1283,9 @@ export interface CuratedBundle {
   ltc_module_map?: { sow_term: string; mapped_ltc_key: string | null; confidence: number; is_extra: boolean }[]
   // 2026-06-03 大纲 M3 场次结构化(只有 survey_outline kind 才有值)
   outline_sessions?: OutlineSession[]
+  // 2026-06-03 计划日程抽出的场次(只有 research_plan kind 才有值;
+  // 用户编辑计划 markdown 保存后会重抽,问卷按场次生成时优先用这个)
+  plan_sessions?: OutlineSession[]
   // 按角色逐步生成进度(2026-06-03,仅 survey kind):key=audience_role,value=当前状态
   role_progress?: Partial<Record<'executive' | 'dept_head' | 'frontline' | 'it',
     'pending' | 'generating' | 'done' | 'failed'>>

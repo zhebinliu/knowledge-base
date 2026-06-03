@@ -1375,6 +1375,18 @@ async def generate_survey(bundle_id: str, project_id: str):
             "detail": {"sessions_n": len(outline_sessions)},
         })
 
+        # ── Phase 1.45: 拉会议纪要(去重出题用)── 2026-06-03
+        meeting_md = ""
+        try:
+            meeting_rows = await _load_meeting_evidence_for_report(project_id)
+            meeting_md = _format_meeting_context_md(meeting_rows)
+        except Exception as e:
+            logger.warning("survey_meeting_load_failed", error=str(e)[:120])
+        run_history.append({
+            "phase": "meeting_loaded", "ts": _ts(),
+            "detail": {"meeting_md_chars": len(meeting_md)},
+        })
+
         # ── Phase 1.5: 拉 SOW → LTC 映射(outline 阶段已经写入,survey 阶段直接读) ──
         # 含 is_extra=true 的项是客户自定义模块(超出 LTC 字典),survey 也要给它们生成题
         from sqlalchemy import select
@@ -1434,6 +1446,7 @@ async def generate_survey(bundle_id: str, project_id: str):
                 customer_modules=customer_modules,  # research v1:SOW 中超出字典的客户自定义模块
                 prior_bundles=ctx.get("prior_bundles"),   # v3.2: 上游 stage(insight / kickoff / outline)产物
                 outline_sessions=outline_sessions,  # 2026-06-03 给每题打 session_id 用
+                meeting_context=meeting_md,         # 2026-06-03 已完成会议纪要,LLM 据此去重
             )
             return sub_assessment.key, result
 
@@ -1919,38 +1932,65 @@ async def generate_survey_for_session(bundle_id: str, project_id: str, session_i
             await s.commit()
         run_history.append({"phase": "started", "ts": _ts(), "detail": {"session_id": session_id}})
 
-        # ── 1. 拉最新 done outline bundle 的 outline_sessions ──
-        outline_sessions: list[dict] = []
+        # ── 1. 拉 sessions —— 优先用 plan_sessions(用户可编辑的对客版),无则 fallback outline_sessions(2026-06-03) ──
+        sessions: list[dict] = []
+        sessions_source = "none"
         async with async_session_maker() as s:
-            outline_rows = (await s.execute(
+            plan_rows = (await s.execute(
                 select(CuratedBundle)
                 .where(CuratedBundle.project_id == project_id)
-                .where(CuratedBundle.kind == "survey_outline")
+                .where(CuratedBundle.kind == "research_plan")
                 .where(CuratedBundle.status == "done")
                 .order_by(CuratedBundle.created_at.desc())
                 .limit(1)
             )).scalars().all()
-        if outline_rows:
-            outline_sessions = list((outline_rows[0].extra or {}).get("outline_sessions") or [])
-        session = next((s for s in outline_sessions if s.get("session_id") == session_id), None)
+        if plan_rows:
+            plan_sessions = list((plan_rows[0].extra or {}).get("plan_sessions") or [])
+            if plan_sessions:
+                sessions = plan_sessions
+                sessions_source = "plan"
+        if not sessions:
+            async with async_session_maker() as s:
+                outline_rows = (await s.execute(
+                    select(CuratedBundle)
+                    .where(CuratedBundle.project_id == project_id)
+                    .where(CuratedBundle.kind == "survey_outline")
+                    .where(CuratedBundle.status == "done")
+                    .order_by(CuratedBundle.created_at.desc())
+                    .limit(1)
+                )).scalars().all()
+            if outline_rows:
+                sessions = list((outline_rows[0].extra or {}).get("outline_sessions") or [])
+                sessions_source = "outline"
+        outline_sessions = sessions  # 沿用变量名,下游 LLM prompt 用
+        session = next((s for s in sessions if s.get("session_id") == session_id), None)
         if not session:
             raise RuntimeError(
-                f"session_id={session_id} 在最新调研大纲的 outline_sessions 里找不到。"
-                "请确认大纲已重新生成且包含该场次。"
+                f"session_id={session_id} 在 {sessions_source} sessions 里找不到。"
+                "请确认大纲/计划已生成且包含该场次。"
             )
         run_history.append({"phase": "session_loaded", "ts": _ts(),
                             "detail": {"week": session.get("week"),
                                        "time_slot": session.get("time_slot"),
-                                       "participants": session.get("participants")}})
+                                       "participants": session.get("participants"),
+                                       "sessions_source": sessions_source}})
 
-        # ── 2. ctx + 现有 items ──
+        # ── 2. ctx + 现有 items + meeting 纪要(去重出题) ──
         ctx = await _load_ctx(bundle_id, project_id, "survey")
         async with async_session_maker() as s:
             bundle = await s.get(CuratedBundle, bundle_id)
             extra_now = dict(bundle.extra or {})
         old_items: list[dict] = list(extra_now.get("questionnaire_items") or [])
+        # 2026-06-03 拉本项目所有 completed 会议纪要,渲染成 meeting_md 喂给 LLM 让它去重
+        meeting_md = ""
+        try:
+            meeting_rows = await _load_meeting_evidence_for_report(project_id)
+            meeting_md = _format_meeting_context_md(meeting_rows)
+        except Exception as e:
+            logger.warning("survey_session_meeting_load_failed", error=str(e)[:120])
         run_history.append({"phase": "ctx_loaded", "ts": _ts(),
-                            "detail": {"old_items_total": len(old_items)}})
+                            "detail": {"old_items_total": len(old_items),
+                                       "meeting_md_chars": len(meeting_md)}})
 
         # ── 3. LTC 映射(customer_modules) ──
         customer_modules: list[str] = []
@@ -1981,6 +2021,7 @@ async def generate_survey_for_session(bundle_id: str, project_id: str, session_i
             candidate_ltc_keys=candidate_ltc_keys,
             customer_modules=customer_modules,
             model=ctx["agent_model"],
+            meeting_context=meeting_md,
         )
         run_history.append({"phase": "llm_done", "ts": _ts(),
                             "detail": {"raw_items_n": len(raw_items)}})
@@ -2634,6 +2675,13 @@ async def generate_research_plan(bundle_id: str, project_id: str):
             await s.commit()
         logger.info("research_plan_generated", bundle_id=bundle_id,
                     chars=len(markdown), source_outline=outline_b.id)
+        # 2026-06-03 plan 完成后异步抽 plan_sessions(失败不阻断,Celery 重试)
+        try:
+            from tasks.output_tasks import extract_plan_sessions as _t
+            _t.delay(bundle_id)
+        except Exception as e:
+            logger.warning("plan_sessions_dispatch_failed",
+                           bundle_id=bundle_id, error=str(e)[:200])
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
@@ -2654,6 +2702,45 @@ async def generate_research_plan(bundle_id: str, project_id: str):
                     await s.commit()
         except Exception as e2:
             logger.error("research_plan_failed_writeback_failed", error=str(e2)[:200])
+
+
+# ── plan_sessions 抽取(2026-06-03):用户编辑计划 markdown 后,从中抽场次 JSON ──
+# 复用 outline_sessions_extractor;生成时机:plan 生成完 / PUT /content 保存后
+
+async def extract_plan_sessions_async(plan_bundle_id: str):
+    """从 research_plan bundle 的最新 content_md 抽 sessions JSON,写到 extra.plan_sessions。
+    失败不抛,只 log warning。"""
+    try:
+        async with async_session_maker() as s:
+            bundle = await s.get(CuratedBundle, plan_bundle_id)
+            if not bundle or bundle.kind != "research_plan":
+                logger.warning("plan_sessions_extract_skipped",
+                               bundle_id=plan_bundle_id,
+                               reason="bundle missing or not research_plan")
+                return
+            md = (bundle.content_md or "").strip()
+        if not md:
+            logger.info("plan_sessions_extract_empty_md", bundle_id=plan_bundle_id)
+            return
+        # 复用 outline sessions extractor — plan 日程表的格式跟大纲 M3 一致(LLM 改写时只调措辞)
+        from .research.outline_sessions_extractor import extract_sessions
+        # 拿 agent_config 的 model(跟 outline 同源)— 简单做法:不传 model,走默认 routing
+        sessions = await extract_sessions(md, model=None)
+        async with async_session_maker() as s:
+            bundle = await s.get(CuratedBundle, plan_bundle_id)
+            if not bundle:
+                return
+            extra = dict(bundle.extra or {})
+            extra["plan_sessions"] = sessions
+            from sqlalchemy.orm.attributes import flag_modified
+            bundle.extra = extra
+            flag_modified(bundle, "extra")
+            await s.commit()
+        logger.info("plan_sessions_extracted",
+                    bundle_id=plan_bundle_id, sessions_n=len(sessions))
+    except Exception as e:
+        logger.warning("plan_sessions_extract_failed",
+                       bundle_id=plan_bundle_id, error=str(e)[:200])
 
 
 # ── 调研报告(2026-05-29):单次 LLM 大调用,给 PM 出方案设计用 ──────────────

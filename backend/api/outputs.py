@@ -137,6 +137,7 @@ def _bundle_dto(b: CuratedBundle) -> dict:
         "questionnaire_items": extra.get("questionnaire_items") or [],
         "ltc_module_map": extra.get("ltc_module_map") or [],
         "outline_sessions": extra.get("outline_sessions") or [],   # 2026-06-03 大纲 M3 场次结构化
+        "plan_sessions":    extra.get("plan_sessions") or [],      # 2026-06-03 计划 markdown 抽出来的对客版场次
         "session_progress": extra.get("session_progress") or {},   # 2026-06-03 按场次触发进度
 
 
@@ -754,6 +755,15 @@ async def save_content_md(
             await mark_stale(b.project_id)
         except Exception as _e:
             logger.warning("smart_advice_mark_stale_failed", project_id=b.project_id, error=str(_e)[:200])
+
+    # 2026-06-03 research_plan 保存后异步抽 plan_sessions
+    # (用户编辑日程表行后,下游问卷按场次生成会拿新的 plan_sessions)
+    if b.kind == "research_plan":
+        try:
+            from tasks.output_tasks import extract_plan_sessions as _t
+            _t.delay(bundle_id)
+        except Exception as _e:
+            logger.warning("plan_sessions_dispatch_failed", bundle_id=bundle_id, error=str(_e)[:200])
 
     return {"ok": True, "bytes": len(md.encode("utf-8"))}
 

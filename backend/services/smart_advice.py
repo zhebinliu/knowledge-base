@@ -57,7 +57,12 @@ async def get_or_generate_advice(project_id: str, force: bool = False) -> dict:
         new_hash = _compute_hash(ctx)
 
         # 决策:跑还是不跑 LLM
-        need_run = force or existing is None or existing.is_stale or existing.inputs_hash != new_hash
+        # 2026-06-03 改为完全手动刷新模式 — is_stale=True 或 hash 变化都不再自动重跑 LLM,
+        # 只在 force=True(用户主动点 refresh)或首次无 advice 时跑。
+        # 前端看到 is_stale 仅展示"已过期"徽标,引导用户主动点刷新,不再后台 refetch。
+        # 老逻辑(自动重跑)注释保留:
+        #   need_run = force or existing is None or existing.is_stale or existing.inputs_hash != new_hash
+        need_run = force or existing is None
 
         if not need_run and existing:
             return _row_to_dict(existing, is_fresh=False)

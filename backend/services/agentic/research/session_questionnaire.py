@@ -108,11 +108,23 @@ def build_user_prompt(
     ltc_dict_block: str,
     item_key_prefix: str,
     transcript: str = "",
+    meeting_context: str = "",
 ) -> str:
     session_block = _format_session_block(session)
     all_brief = _format_all_sessions_brief(all_sessions, session.get("session_id", ""))
     prior_brief = _format_prior_items_brief(prior_items, session.get("session_id", ""))
     transcript_block = (transcript or "")[:6000]
+    meeting_block = ""
+    if meeting_context:
+        meeting_block = (
+            "【本项目已完成的调研会议纪要 — 出题时务必去重】\n"
+            "下面是本项目所有已完成调研会议的纪要(摘要/要点/决议/产出需求)。\n"
+            "**核心约束**:**已经在会议里有明确答案的话题不要再出题**(避免客户被反复问)。\n"
+            "- 例:会议里已经明确「线索分配走自动规则」→ 本场不再问「线索如何分配」\n"
+            "- 例:会议里已经明确「商机阶段用 LTC 6 段」→ 本场不再问阶段模型选择\n"
+            "- 例外:某话题虽然在会议里出现过但需要本场深挖具体子项 → 可以问细化题(标 in_meeting)\n"
+            f"\n{meeting_context}\n"
+        )
 
     return f"""请为下面这**一场访谈**生成 8-15 题调研题目。
 
@@ -126,6 +138,8 @@ def build_user_prompt(
 
 【项目元数据】
 {project_block}
+
+{meeting_block}
 
 【访谈记录(若有)】
 {transcript_block or '（无访谈记录,按场次信息出题)'}
@@ -214,6 +228,7 @@ async def generate_session_items(
     candidate_ltc_keys: list[str],
     customer_modules: list[str],
     model: str | None,
+    meeting_context: str = "",   # 2026-06-03 已完成会议纪要(去重出题用)
 ) -> tuple[str, list[dict]]:
     """LLM 一次性出本场的题目。返回 (markdown, items)。
 
@@ -244,6 +259,7 @@ async def generate_session_items(
         ltc_dict_block=ltc_dict_block,
         item_key_prefix=item_key_prefix,
         transcript=transcript,
+        meeting_context=meeting_context,
     )
     try:
         content = await _llm_call(

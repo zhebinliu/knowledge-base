@@ -125,6 +125,17 @@ def generate_research_plan(self, bundle_id: str, project_id: str):
     _run(_gen(bundle_id, project_id))
 
 
+@celery_app.task(name="extract_plan_sessions", bind=True, max_retries=1, soft_time_limit=200, time_limit=300)
+def extract_plan_sessions(self, plan_bundle_id: str):
+    """从 research_plan bundle 的最新 markdown 抽 plan_sessions JSON,写到 extra.plan_sessions(2026-06-03)。
+    生成时机:
+      - generate_research_plan 完成后自动调用一次
+      - PUT /outputs/{id}/content 保存 plan markdown 后自动调用
+    复用 outline_sessions_extractor;失败不抛(只 log)。"""
+    from services.agentic.runner import extract_plan_sessions_async as _gen
+    _run(_gen(plan_bundle_id))
+
+
 @celery_app.task(name="generate_research_report", bind=True, max_retries=2, soft_time_limit=900, time_limit=1200)
 def generate_research_report(self, bundle_id: str, project_id: str):
     from services.agentic.runner import generate_research_report as _gen

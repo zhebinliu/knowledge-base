@@ -7,7 +7,7 @@
  *   - 后端事件触发后(文档上传/输出物完成/在线编辑/问卷)前端 invalidate query, 自动重生成
  *   - is_stale=true 时显示「正在更新…」标识 + 自动 refetch
  */
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Sparkles, ChevronDown, ChevronUp, RotateCw, AlertTriangle, ArrowRight, Loader2 } from 'lucide-react'
 import { getSmartAdvice, refreshSmartAdvice, type SmartAdviceDto } from '../../api/client'
@@ -24,10 +24,11 @@ export default function SmartAdviceBanner({ projectId }: { projectId: string }) 
   const [expanded, setExpanded] = useState(false)
 
   // GET advice — 首次会触发后端同步生成(几秒); 后续 cache 命中即返
-  const { data, isLoading, isFetching, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     queryKey: smartAdviceQueryKey(projectId),
     queryFn: () => getSmartAdvice(projectId, false),
-    staleTime: 60 * 1000,                 // 1 min stale time, refetch 触发后端 hash 检查
+    // 2026-06-03 staleTime 提到 10min,refetchOnWindowFocus 关 — 只在主动点刷新时跑 LLM
+    staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: 1,
   })
@@ -40,12 +41,9 @@ export default function SmartAdviceBanner({ projectId }: { projectId: string }) 
     },
   })
 
-  // 后端 is_stale=true 时, 自动后台 refetch 一次
-  useEffect(() => {
-    if (data?.is_stale && !isFetching && !refreshMut.isPending) {
-      refetch()
-    }
-  }, [data?.is_stale, isFetching, refreshMut.isPending, refetch])
+  // 2026-06-03 改为完全手动刷新模式:is_stale=true 时不再自动 refetch / 不再触发后端 LLM 重跑
+  // 用户看到「已过期」徽标后,主动点「刷新」按钮才会 refreshMut.mutate 触发后端 force LLM 重跑
+  // (原自动 refetch 逻辑导致每次有任何动作就触发 LLM 重跑,token 消耗很大)
 
   // —— 渲染 ——
   if (isLoading) {

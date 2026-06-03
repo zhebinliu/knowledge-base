@@ -144,10 +144,12 @@ export default function ResearchWorkspace({
   // 问卷 items(后端 _bundle_dto 已经 flat 出来)
   const questionnaireItems = useMemo(() => surveyBundle?.questionnaire_items ?? [], [surveyBundle])
 
-  // 场次模式 sessions 列表(2026-06-03):从 outlineBundle.outline_sessions 拿,题数从 questionnaire 统计
+  // 场次模式 sessions 列表(2026-06-03):优先 planBundle.plan_sessions(用户可编辑的对客版),无则 outlineBundle.outline_sessions
   const outlineSessions = useMemo(
-    () => (outlineBundle?.outline_sessions ?? []),
-    [outlineBundle]
+    () => (researchPlanBundle?.plan_sessions?.length
+      ? researchPlanBundle.plan_sessions
+      : (outlineBundle?.outline_sessions ?? [])),
+    [outlineBundle, researchPlanBundle]
   )
   const sessionCounts = useMemo(() => {
     const m: Record<string, number> = {}

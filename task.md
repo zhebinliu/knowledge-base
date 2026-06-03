@@ -12,33 +12,12 @@
 并存策略:保留 generate_survey 一键 + generate_survey_for_role 按角色;新增按场次为第三种触发方式。
 
 ### 拆解
-- [ ] **A. 后端 — 新建 session_questionnaire.py 场次为中心的题目生成器**
-  - SYSTEM_PROMPT + build_user_prompt(session, all_sessions, project, industry, prior_items)
-  - 喂大纲场次完整信息(participants/topic_summary/interview_script/audience_roles/duration)
-  - 已有其他场次题(去重 / 避免撞车)作为 prior_items_block 注入
-  - 输出 8-15 题,全部 session_id=该场;遵守原 prompt 所有约束(LTC/角色/topic_cluster/stage)
-  - JSON 解析复用 executor._split_markdown_and_questionnaire_json 模式
-- [ ] **B. 后端 — runner.generate_survey_for_session**
-  - 进入态:bundle.extra.session_progress[session_id]='generating'
-  - 拉 outline_sessions → 找 session;无 session 报错
-  - 拉现有 questionnaire_items 作为 prior(传 prior_items_block)
-  - 调 session_questionnaire LLM
-  - 合并:删除原同 session_id 题,加入新题;其他场题保留
-  - 写回 bundle.extra.questionnaire_items + session_progress
-- [ ] **C. 后端 — Celery task + API endpoint**
-  - tasks/output_tasks.py 加 generate_survey_session task
-  - api/outputs.py 加 POST `/{bundle_id}/generate-session` body={session_id}
-  - _bundle_dto 暴露 session_progress
-- [ ] **D. 前端 — client.ts API + 类型**
-  - 加 `generateSurveyForSession(bundleId, sessionId)`
-  - CuratedBundle 加 `session_progress?: Record<string, 'generating'|'done'|'failed'>`
-- [ ] **E. 前端 — ResearchWorkspace sidebar 加按场次生成按钮**
-  - legacy + redesign 两份
-  - 每场场次行旁边加状态徽标 + 按钮(✨ 生成 / Loader2 / CheckCircle2 重生)
-  - 顶部「生成调研问卷」(一键全量)文案改为「一键生成全部」,作为备选
-- [ ] **F. 验证 + 部署**
-  - py_compile + tsc 全过
-  - commit + push + 触发 PROD
+- [x] **A. 后端 — session_questionnaire.py** SYSTEM_PROMPT + build_user_prompt + generate_session_items
+- [x] **B. 后端 — runner.generate_survey_for_session**(进入态/拉 outline_sessions/调 LLM/_post_process_items 兜底+强制 session_id/合并)
+- [x] **C. 后端 — Celery generate_survey_session + POST /generate-session + DTO session_progress**
+- [x] **D. 前端 — client.ts** generateSurveyForSession API + CuratedBundle.session_progress
+- [x] **E. 前端 — sidebar 每场加按钮**(legacy + redesign):未生成 ✨ / 生成中 Loader / 已生成 CheckCircle2 / 失败 红 ✨;hover 文案变;重生 confirm
+- [x] **F. 验证 + 部署**:py_compile + tsc 全过,PROD success
 
 ### 边界
 - 不动 generate_survey / generate_survey_for_role(并存)
