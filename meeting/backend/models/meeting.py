@@ -62,6 +62,9 @@ class Meeting(Base):
     stakeholder_kb_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     stakeholder_kb_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # 业务流程 / 工作流(JSON {flows[], version})
+    process_flows: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
     def __repr__(self) -> str:
         return f"<Meeting id={self.id} title={self.title!r} status={self.status!r}>"
 

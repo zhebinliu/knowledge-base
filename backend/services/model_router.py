@@ -140,6 +140,8 @@ ROUTING_RULES = {
     "meeting_minutes_extract":     {"primary": "minimax-m2.7",      "fallback": "glm-5"},
     # 需求抽取:从纪要找 P0-P3 需求,结构化标注
     "meeting_requirements_extract":{"primary": "minimax-m2.5",      "fallback": "mimo-v2-pro"},
+    # 流程识别:从会议转写提取业务流程并生成 Mermaid 流程图
+    "meeting_process_flows_extract":{"primary": "minimax-m2.5",      "fallback": "mimo-v2-pro"},
     # 干系人图谱抽取:从纪要识别人物 + 组织关系
     "meeting_stakeholders_extract":{"primary": "minimax-m2.7",      "fallback": "glm-5"},
     # 会议内容问答:用户在 console 问会议,长上下文 + 高质量

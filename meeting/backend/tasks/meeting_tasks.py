@@ -90,6 +90,7 @@ async def _process_meeting_async(meeting_id: int):
         stage_errors = result.get("stage_errors") or []
         m.polished_transcript = result.get("polished_transcript") or ""
         m.stakeholder_map = result.get("stakeholder_map") or {}
+        m.process_flows = result.get("process_flows") or {"flows": [], "version": 1}
         # 纪要(核心交付物)生成失败(模型 403/429/超时/解析失败)→ 标 failed + 纪要置空,
         # 前端显示「失败 + 重新生成」而非静默空表;用户一键重跑(POST /{id}/process)。
         if "minutes" in stage_errors:

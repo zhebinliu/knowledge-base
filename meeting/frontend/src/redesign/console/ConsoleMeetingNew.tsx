@@ -107,7 +107,7 @@ export default function NewConsoleMeetingNew() {
           letterSpacing: '-0.025em', lineHeight: 1.1, margin: 0, marginBottom: 6,
         }}>新建会议</h1>
         <p style={{ fontSize: 13.5, color: 'var(--rd-text-2)', margin: 0, maxWidth: 580, lineHeight: 1.6 }}>
-          上传录音(自动转写)或直接粘贴会议文本,系统会生成纪要、待办、需求和干系人图谱。
+          上传录音(自动转写)或直接粘贴会议文本,系统会生成纪要、待办、需求、业务流程图和干系人图谱。
         </p>
       </div>
 
@@ -299,7 +299,7 @@ export default function NewConsoleMeetingNew() {
                 style={{ fontFamily: 'ui-monospace, monospace', resize: 'vertical', lineHeight: 1.6 }}
               />
               <p style={{ fontSize: 11, color: 'var(--rd-text-3)', margin: '8px 0 0' }}>
-                提交后立即触发 AI 流水线(润色 / 纪要 / 需求 / 干系人)。一般 30 秒到 2 分钟出结果。
+                提交后立即触发 AI 流水线(润色 / 纪要 / 需求 / 流程 / 干系人)。一般 30 秒到 2 分钟出结果。
               </p>
             </div>
           )}

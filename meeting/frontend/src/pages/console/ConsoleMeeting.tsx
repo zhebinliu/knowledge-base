@@ -91,7 +91,7 @@ export default function ConsoleMeeting() {
         <div>
           <h1 className="text-2xl font-extrabold text-ink leading-tight">会议纪要</h1>
           <p className="text-sm text-ink-secondary mt-1">
-            上传录音 / 粘贴文本,AI 自动提取纪要、待办、需求清单和干系人图谱。
+            上传录音 / 粘贴文本,AI 自动提取纪要、待办、需求清单、业务流程图和干系人图谱。
           </p>
         </div>
         <div className="flex items-center gap-2">

@@ -13,7 +13,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   ChevronLeft, Loader2, RefreshCw, Trash2, FolderKanban,
-  FileText, ListChecks, Users, Settings as SettingsIcon, Info,
+  FileText, ListChecks, Users, Settings as SettingsIcon, Info, GitBranch,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -24,7 +24,7 @@ import {
   StatusBadge, fmt,
   SeekToContext,
   OverviewTab, TranscriptTab, MinutesTab,
-  RequirementsTab, StakeholdersTab, ActionsTab,
+  RequirementsTab, ProcessFlowsTab, StakeholdersTab, ActionsTab,
 } from '../../pages/console/ConsoleMeetingDetail'
 import { getMeetingAudioUrl } from '../../api/meeting-ext'
 import AudioPlayer, { type AudioPlayerHandle } from '../../components/AudioPlayer'
@@ -32,13 +32,14 @@ import ChatWidget from '../../components/ChatSidebar'
 import TemplateSelector from '../../components/TemplateSelector'
 import GlowCard from '../components/GlowCard'
 
-type LeftTab = 'minutes' | 'requirements' | 'stakeholders'
+type LeftTab = 'minutes' | 'requirements' | 'process_flows' | 'stakeholders'
 type RightTab = 'transcript' | 'polished'
 
 const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: LucideIcon }> = [
-  { key: 'minutes',      label: '会议纪要', Icon: ListChecks },
-  { key: 'requirements', label: '需求清单', Icon: ListChecks },
-  { key: 'stakeholders', label: '干系人',   Icon: Users },
+  { key: 'minutes',       label: '会议纪要', Icon: ListChecks },
+  { key: 'requirements',  label: '需求清单', Icon: ListChecks },
+  { key: 'process_flows', label: '业务流程', Icon: GitBranch },
+  { key: 'stakeholders',  label: '干系人',   Icon: Users },
 ]
 
 const RIGHT_TABS: Array<{ key: RightTab; label: string; Icon: LucideIcon }> = [
@@ -319,8 +320,9 @@ export default function NewConsoleMeetingDetail() {
                 </div>
                 {/* 左侧内容 */}
                 <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(100vh - 340px)' }}>
-                  {leftTab === 'minutes'      && <MinutesTab meeting={meeting} />}
-                  {leftTab === 'requirements' && <RequirementsTab meeting={meeting} />}
+                  {leftTab === 'minutes'       && <MinutesTab meeting={meeting} />}
+                  {leftTab === 'requirements'  && <RequirementsTab meeting={meeting} />}
+                  {leftTab === 'process_flows' && <ProcessFlowsTab meeting={meeting} />}
                   {leftTab === 'stakeholders'  && <StakeholdersTab meeting={meeting} />}
                 </div>
               </div>

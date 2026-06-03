@@ -18,6 +18,8 @@ from prompts.meeting import (
     MINUTES_USER,
     REQUIREMENT_SYSTEM,
     REQUIREMENT_USER,
+    PROCESS_FLOW_SYSTEM,
+    PROCESS_FLOW_USER,
     STAKEHOLDER_SYSTEM,
     STAKEHOLDER_USER,
 )
@@ -173,6 +175,72 @@ async def extract_requirements(transcript: str) -> list[dict]:
     return cleaned
 
 
+# ── 阶段 3.5:业务流程 / 工作流识别(Mermaid) ─────────────────────────────
+
+_EMPTY_PROCESS_FLOWS = {"flows": [], "version": 1}
+
+
+def _normalize_mermaid(raw: str) -> str:
+    """去掉 LLM 可能包裹的围栏,确保以 flowchart/graph 开头。"""
+    text = (raw or "").strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    if text.lower().startswith("mermaid"):
+        text = text.split("\n", 1)[-1].strip()
+    return text
+
+
+async def extract_process_flows(transcript: str) -> dict:
+    """识别会议中的业务流程/工作流,返回 Mermaid 流程图列表。"""
+    if not transcript or not transcript.strip():
+        return dict(_EMPTY_PROCESS_FLOWS)
+
+    messages = [
+        {"role": "system", "content": PROCESS_FLOW_SYSTEM},
+        {"role": "user", "content": PROCESS_FLOW_USER.format(transcript=transcript)},
+    ]
+    content, model = await model_router.chat_with_routing(
+        task="meeting_process_flows_extract",
+        messages=messages,
+        temperature=0.2,
+        max_tokens=8000,
+        response_format={"type": "json_object"},
+    )
+    result = _safe_json_loads(content, dict(_EMPTY_PROCESS_FLOWS))
+    if not isinstance(result, dict):
+        result = dict(_EMPTY_PROCESS_FLOWS)
+    items = result.get("flows", [])
+    if not isinstance(items, list):
+        items = []
+
+    cleaned: list[dict] = []
+    for idx, raw in enumerate(items, start=1):
+        if not isinstance(raw, dict):
+            continue
+        mermaid = _normalize_mermaid(raw.get("mermaid") or "")
+        if not mermaid:
+            continue
+        cleaned.append({
+            "flow_id": raw.get("flow_id") or f"FLOW-{idx:03d}",
+            "title": (raw.get("title") or f"流程 {idx}").strip(),
+            "category": (raw.get("category") or "业务流程").strip(),
+            "summary": (raw.get("summary") or "").strip(),
+            "description": (raw.get("description") or "").strip(),
+            "source": (raw.get("source") or "").strip() or None,
+            "speaker": (raw.get("speaker") or "").strip() or None,
+            "start_seconds": raw.get("start_seconds"),
+            "end_seconds": raw.get("end_seconds"),
+            "mermaid": mermaid,
+        })
+    logger.info("process_flows_done", model=model, count=len(cleaned))
+    return {"flows": cleaned, "version": 1}
+
+
 # ── 阶段 4:干系人图谱 ─────────────────────────────────────────────────
 
 _EMPTY_STAKEHOLDERS = {"stakeholders": [], "relations": []}
@@ -245,9 +313,9 @@ async def run_full_pipeline(
     template_dict: dict | None = None,
     skip_polish: bool = False,
 ) -> dict:
-    """串行 + 并行编排:polish → (minutes ∥ requirements) → stakeholders。
+    """串行 + 并行编排:polish → (minutes ∥ requirements ∥ process_flows) → stakeholders。
 
-    返回 {polished_transcript, meeting_minutes, requirements, stakeholder_map}。
+    返回 {polished_transcript, meeting_minutes, requirements, process_flows, stakeholder_map}。
     任何一阶段失败不阻断后续(降级为空结果),由调用方在 DB 里反映 status。
 
     Args:
@@ -273,11 +341,12 @@ async def run_full_pipeline(
             polished = raw_transcript  # 失败时直接用原文
             stage_errors.append("polish")
 
-    # Step 2 & 3: 并行
+    # Step 2 & 3: 纪要 + 需求 + 流程 并行
     minutes_task = asyncio.create_task(generate_minutes(polished, meeting_title, template_dict))
     reqs_task = asyncio.create_task(extract_requirements(polished))
-    minutes, requirements = await asyncio.gather(
-        minutes_task, reqs_task, return_exceptions=True
+    flows_task = asyncio.create_task(extract_process_flows(polished))
+    minutes, requirements, process_flows = await asyncio.gather(
+        minutes_task, reqs_task, flows_task, return_exceptions=True
     )
     if isinstance(minutes, Exception):
         logger.exception("minutes_failed", error=str(minutes)[:200])
@@ -287,6 +356,12 @@ async def run_full_pipeline(
         logger.exception("requirements_failed", error=str(requirements)[:200])
         requirements = []
         stage_errors.append("requirements")
+    if isinstance(process_flows, Exception):
+        logger.exception("process_flows_failed", error=str(process_flows)[:200])
+        process_flows = dict(_EMPTY_PROCESS_FLOWS)
+        stage_errors.append("process_flows")
+    elif not isinstance(process_flows, dict):
+        process_flows = dict(_EMPTY_PROCESS_FLOWS)
 
     # Step 4: 干系人(可选,失败不阻断)
     stakeholder_map: dict = dict(_EMPTY_STAKEHOLDERS)
@@ -307,6 +382,7 @@ async def run_full_pipeline(
         meeting_id=meeting_id,
         kp=len(minutes.get("key_points", [])) if isinstance(minutes, dict) else 0,
         reqs=len(requirements),
+        flows=len(process_flows.get("flows", [])) if isinstance(process_flows, dict) else 0,
         stakeholders=len(stakeholder_map.get("stakeholders", [])),
         stage_errors=stage_errors,
     )
@@ -314,6 +390,7 @@ async def run_full_pipeline(
         "polished_transcript": polished,
         "meeting_minutes": minutes,
         "requirements": requirements,
+        "process_flows": process_flows,
         "stakeholder_map": stakeholder_map,
         "stage_errors": stage_errors,
     }

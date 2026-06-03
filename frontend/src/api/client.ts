@@ -1771,6 +1771,24 @@ export interface StakeholderMap {
   version?: number
 }
 
+export interface MeetingProcessFlow {
+  flow_id: string
+  title: string
+  category: string
+  summary: string
+  description: string
+  source: string | null
+  speaker: string | null
+  start_seconds: number | null
+  end_seconds: number | null
+  mermaid: string
+}
+
+export interface MeetingProcessFlows {
+  flows: MeetingProcessFlow[]
+  version?: number
+}
+
 export interface MeetingRequirement {
   id: number
   meeting_id: number
@@ -1811,11 +1829,12 @@ export interface Meeting {
   stakeholder_kb_doc_id: string | null
   stakeholder_kb_url: string | null
   stakeholder_kb_synced_at: string | null
+  process_flows: MeetingProcessFlows | null
   // 详情接口含
   requirements?: MeetingRequirement[]
 }
 
-export type MeetingAction = 'polish' | 'summarize' | 'extract_requirements' | 'extract_stakeholders'
+export type MeetingAction = 'polish' | 'summarize' | 'extract_requirements' | 'extract_process_flows' | 'extract_stakeholders'
 
 // ── CRUD ─────────────────────────────────────────────────────────────────
 
@@ -1884,6 +1903,16 @@ export const putMeetingStakeholderMap = async (
 ): Promise<Meeting> => {
   const { data } = await api.put<Meeting>(`/meeting/${id}/stakeholder-map`, {
     stakeholder_map: stakeholderMap,
+  })
+  return data
+}
+
+export const putMeetingProcessFlows = async (
+  id: number,
+  processFlows: MeetingProcessFlows,
+): Promise<Meeting> => {
+  const { data } = await api.put<Meeting>(`/meeting/${id}/process-flows`, {
+    process_flows: processFlows,
   })
   return data
 }

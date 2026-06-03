@@ -108,7 +108,7 @@ export default function NewConsoleMeeting() {
             letterSpacing: '-0.025em', lineHeight: 1.1, margin: 0, marginBottom: 6,
           }}>所有会议</h1>
           <p style={{ fontSize: 13.5, color: 'var(--rd-text-2)', margin: 0, maxWidth: 580, lineHeight: 1.6 }}>
-            上传录音 / 粘贴文本,AI 自动提取纪要、待办、需求清单和干系人图谱。
+            上传录音 / 粘贴文本,AI 自动提取纪要、待办、需求清单、业务流程图和干系人图谱。
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>

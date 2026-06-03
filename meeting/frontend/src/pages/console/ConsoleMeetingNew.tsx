@@ -91,7 +91,7 @@ export default function ConsoleMeetingNew() {
 
       <h1 className="text-2xl font-extrabold text-ink mb-1">新建会议</h1>
       <p className="text-sm text-ink-secondary mb-6">
-        上传录音(自动转写)或直接粘贴会议文本,系统会生成纪要、待办、需求和干系人图谱。
+        上传录音(自动转写)或直接粘贴会议文本,系统会生成纪要、待办、需求、业务流程图和干系人图谱。
       </p>
 
       {/* Mode tabs */}
@@ -222,7 +222,7 @@ export default function ConsoleMeetingNew() {
               className="w-full px-3 py-2 rounded-lg border border-line text-sm font-mono focus:outline-none focus:border-brand resize-y"
             />
             <p className="text-[11px] text-ink-muted mt-1">
-              提交后立即触发 AI 流水线(润色 / 纪要 / 需求 / 干系人)。一般 30 秒到 2 分钟出结果。
+              提交后立即触发 AI 流水线(润色 / 纪要 / 需求 / 流程 / 干系人)。一般 30 秒到 2 分钟出结果。
             </p>
           </div>
         )}

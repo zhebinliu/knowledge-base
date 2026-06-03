@@ -15,7 +15,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   ChevronLeft, Loader2, RefreshCw, Trash2, FolderKanban, CheckCircle2, AlertCircle, Mic,
   FileText, ListChecks, Users, Settings as SettingsIcon, Info, ExternalLink, Save,
-  Download, Pencil, X, Check, Clock, Share2,
+  Download, Pencil, X, Check, Clock, Share2, GitBranch,
 } from 'lucide-react'
 import {
   getMeeting, deleteMeeting, processMeeting, patchMeeting, linkMeetingProject,
@@ -38,10 +38,11 @@ import { toast } from '../../components/Toaster'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import TemplateSelector from '../../components/TemplateSelector'
+import { MermaidBlock } from '../../components/markdown/ReportMarkdown'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 type TopView = 'overview' | 'split' | 'actions'
-type LeftTab = 'minutes' | 'requirements' | 'stakeholders'
+type LeftTab = 'minutes' | 'requirements' | 'process_flows' | 'stakeholders'
 type RightTab = 'transcript' | 'polished'
 
 // ── 时间戳跳转 Context ────────────────────────────────────────────────────
@@ -124,9 +125,10 @@ const TOP_VIEWS: Array<{ key: TopView; label: string; Icon: typeof Info }> = [
 ]
 
 const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: typeof Info }> = [
-  { key: 'minutes',      label: '纪要',     Icon: ListChecks },
-  { key: 'requirements', label: '需求清单', Icon: ListChecks },
-  { key: 'stakeholders', label: '干系人',   Icon: Users },
+  { key: 'minutes',       label: '纪要',     Icon: ListChecks },
+  { key: 'requirements',  label: '需求清单', Icon: ListChecks },
+  { key: 'process_flows', label: '业务流程', Icon: GitBranch },
+  { key: 'stakeholders',  label: '干系人',   Icon: Users },
 ]
 
 const RIGHT_TABS: Array<{ key: RightTab; label: string; Icon: typeof Info }> = [
@@ -1514,6 +1516,110 @@ export function StakeholdersTab({ meeting }: { meeting: Meeting }) {
   )
 }
 
+// ── Tab: 业务流程(Mermaid) ───────────────────────────────────────────────
+
+const FLOW_CATEGORY_CLS: Record<string, string> = {
+  '业务流程': 'bg-blue-50 text-blue-700 border-blue-200',
+  '工作流':   'bg-purple-50 text-purple-700 border-purple-200',
+  '审批流':   'bg-amber-50 text-amber-700 border-amber-200',
+  '操作步骤': 'bg-teal-50 text-teal-700 border-teal-200',
+}
+
+export function ProcessFlowsTab({ meeting }: { meeting: Meeting }) {
+  const qc = useQueryClient()
+  const flows = meeting.process_flows?.flows || []
+  const [expandedId, setExpandedId] = useState<string | null>(flows[0]?.flow_id ?? null)
+
+  const regenMut = useMutation({
+    mutationFn: () => runMeetingAction(meeting.id, 'extract_process_flows'),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting', meeting.id] }),
+  })
+
+  if (flows.length === 0) {
+    return (
+      <div className="text-center py-12 text-ink-muted">
+        <GitBranch size={28} className="mx-auto mb-2" />
+        <p className="text-sm mb-1">尚未识别业务流程</p>
+        <p className="text-xs mb-4 text-ink-muted/80">AI 将从会议讨论中提取工作流、审批流等,并生成 Mermaid 流程图</p>
+        <button
+          onClick={() => regenMut.mutate()}
+          disabled={regenMut.isPending || !meeting.raw_transcript}
+          className="px-4 py-1.5 rounded-md text-sm text-white inline-flex items-center gap-1.5 disabled:opacity-50"
+          style={{ background: BRAND_GRAD }}
+        >
+          {regenMut.isPending ? <Loader2 size={13} className="animate-spin" /> : null}
+          立即识别
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center flex-wrap gap-3">
+        <p className="text-sm text-ink-muted">
+          共识别 <span className="font-semibold text-ink">{flows.length}</span> 个流程
+        </p>
+        <button
+          onClick={() => regenMut.mutate()}
+          disabled={regenMut.isPending || !meeting.raw_transcript}
+          className="px-3 py-1.5 rounded-md text-sm border border-line bg-white hover:bg-canvas inline-flex items-center gap-1.5"
+        >
+          {regenMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+          重新识别
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        {flows.map((flow) => {
+          const open = expandedId === flow.flow_id
+          const catCls = FLOW_CATEGORY_CLS[flow.category] || 'bg-slate-50 text-slate-600 border-line'
+          return (
+            <div
+              key={flow.flow_id}
+              className="rounded-xl border border-line bg-white overflow-hidden shadow-sm"
+            >
+              <button
+                type="button"
+                onClick={() => setExpandedId(open ? null : flow.flow_id)}
+                className="w-full text-left px-4 py-3 flex items-start justify-between gap-3 hover:bg-canvas/40 transition-colors"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="text-[11px] font-mono text-ink-muted">{flow.flow_id}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${catCls}`}>{flow.category}</span>
+                    <TimeRangeBadge start={flow.start_seconds} end={flow.end_seconds} />
+                  </div>
+                  <div className="font-semibold text-ink text-[15px]">{flow.title}</div>
+                  {flow.summary && (
+                    <p className="text-[13px] text-ink-secondary mt-0.5 line-clamp-2">{flow.summary}</p>
+                  )}
+                </div>
+                <span className="text-ink-muted text-xs shrink-0 pt-1">{open ? '收起' : '展开'}</span>
+              </button>
+
+              {open && (
+                <div className="px-4 pb-4 border-t border-line/60 pt-3 space-y-3">
+                  {flow.description && (
+                    <p className="text-[13px] text-ink-secondary leading-relaxed">{flow.description}</p>
+                  )}
+                  {flow.source && (
+                    <blockquote className="text-[12px] text-ink-muted border-l-2 border-orange-200 pl-3 italic">
+                      「{flow.source}」
+                      {flow.speaker && <span className="not-italic ml-1">— {flow.speaker}</span>}
+                    </blockquote>
+                  )}
+                  <MermaidBlock code={flow.mermaid} />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ── 干系人卡片(view / edit)─────────────────────────────────────────────
 
 function StakeholderViewCard({ stake, onEdit }: { stake: StakeholderItem; onEdit: () => void }) {
@@ -2529,9 +2635,10 @@ export default function ConsoleMeetingDetail() {
                   </div>
                   {/* 左侧内容 */}
                   <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 360px)' }}>
-                    {leftTab === 'minutes'      && <MinutesTab meeting={meeting} />}
-                    {leftTab === 'requirements' && <RequirementsTab meeting={meeting} />}
-                    {leftTab === 'stakeholders'  && <StakeholdersTab meeting={meeting} />}
+                    {leftTab === 'minutes'       && <MinutesTab meeting={meeting} />}
+                    {leftTab === 'requirements'  && <RequirementsTab meeting={meeting} />}
+                    {leftTab === 'process_flows' && <ProcessFlowsTab meeting={meeting} />}
+                    {leftTab === 'stakeholders'   && <StakeholdersTab meeting={meeting} />}
                   </div>
                 </div>
 

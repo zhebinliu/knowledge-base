@@ -318,6 +318,7 @@ async def startup():
             "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS stakeholder_kb_doc_id VARCHAR(64)",
             "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS stakeholder_kb_url TEXT",
             "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS stakeholder_kb_synced_at TIMESTAMP",
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS process_flows JSON",
             # 会议需求 — 录音时间戳字段
             "ALTER TABLE meeting_requirements ADD COLUMN IF NOT EXISTS start_seconds FLOAT",
             "ALTER TABLE meeting_requirements ADD COLUMN IF NOT EXISTS end_seconds FLOAT",
