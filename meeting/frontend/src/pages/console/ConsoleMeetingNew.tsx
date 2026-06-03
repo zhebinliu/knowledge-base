@@ -83,7 +83,7 @@ export default function ConsoleMeetingNew() {
   return (
     <div className="max-w-3xl mx-auto px-6 py-8">
       <button
-        onClick={() => nav(projectId ? `/console/project/${projectId}` : '/console/meeting')}
+        onClick={() => nav(projectId ? `/console/projects/${projectId}` : '/console/meeting')}
         className="inline-flex items-center gap-1 text-ink-muted hover:text-ink text-sm mb-4"
       >
         <ChevronLeft size={16} /> {projectId ? '返回项目' : '返回列表'}
@@ -235,7 +235,7 @@ export default function ConsoleMeetingNew() {
 
         <div className="flex justify-end gap-3 pt-2">
           <button
-            onClick={() => nav(projectId ? `/console/project/${projectId}` : '/console/meeting')}
+            onClick={() => nav(projectId ? `/console/projects/${projectId}` : '/console/meeting')}
             disabled={submitting}
             className="px-4 py-2 rounded-lg border border-line text-sm text-ink hover:bg-canvas disabled:opacity-50"
           >

@@ -54,7 +54,7 @@ export default function NewConsoleMeetingDetail() {
   // URL ?from_project=<pid>:从项目详情页跳过来,返回时回项目页而不是会议总列表
   const [searchParams] = useSearchParams()
   const fromProject = searchParams.get('from_project') || ''
-  const backHref = fromProject ? `/console/project/${fromProject}` : '/console/meeting'
+  const backHref = fromProject ? `/console/projects/${fromProject}` : '/console/meeting'
   const backLabel = fromProject ? '返回项目' : '返回列表'
   // 视图模式: 'split'(默认左右分栏) | 'overview' | 'actions'
   const [view, setView] = useState<'split' | 'overview' | 'actions'>('split')

@@ -87,7 +87,7 @@ export default function NewConsoleMeetingNew() {
     <div className="rd-page" style={{ maxWidth: 800 }}>
       {/* 返回:URL 带 project_id 时回项目页(从项目详情「新建会议」按钮过来的场景),否则回会议总列表 */}
       <button
-        onClick={() => nav(projectId ? `/console/project/${projectId}` : '/console/meeting')}
+        onClick={() => nav(projectId ? `/console/projects/${projectId}` : '/console/meeting')}
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 4,
           background: 'transparent', border: 'none', padding: '4px 0',
@@ -322,7 +322,7 @@ export default function NewConsoleMeetingNew() {
           {/* 提交按钮 */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 6 }}>
             <button
-              onClick={() => nav(projectId ? `/console/project/${projectId}` : '/console/meeting')}
+              onClick={() => nav(projectId ? `/console/projects/${projectId}` : '/console/meeting')}
               disabled={submitting}
               className="rd-btn"
             >
