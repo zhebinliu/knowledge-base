@@ -2350,8 +2350,25 @@ async def generate_research_plan(bundle_id: str, project_id: str):
         if not raw or not raw.strip():
             raise RuntimeError("LLM 返回为空")
 
-        # ── Phase 4: 持久化 ──
-        markdown = raw.strip()
+        # ── Phase 4: 装配头部(跟调研大纲同款 — H1 + 元信息 + 一句说明)+ 持久化 ──
+        # LLM 已被 prompt 约束不出 H1,直接从「## 致 XX 项目组」开始,这里在最前补 H1
+        llm_body = raw.strip()
+        # 如果 LLM 仍然顽固出了顶层 # H1(只匹配最前面那一个),剥掉避免双 H1
+        if llm_body.startswith("# "):
+            first_break = llm_body.find("\n")
+            if first_break > 0:
+                llm_body = llm_body[first_break + 1:].lstrip()
+        title_main = project_name
+        header_blocks = [
+            f"# {title_main} · 调研计划\n",
+            f"**生成日期**:{date.today().strftime('%Y年%m月%d日')}  ",
+            f"**客户**:{customer or '—'}  ",
+            f"**行业**:{_industry_zh(industry)}  ",
+            f"**有效性**:{_validity_zh('valid')}\n",
+            "\n本计划是基于「调研大纲」改写的**对客版本**,可直接转达客户,内含调研节奏、日程、客户准备清单与联系方式。\n",
+            "\n---\n\n",
+        ]
+        markdown = "".join(header_blocks) + llm_body
         async with async_session_maker() as s:
             b = await s.get(CuratedBundle, bundle_id)
             new_extra = dict(b.extra or {})
