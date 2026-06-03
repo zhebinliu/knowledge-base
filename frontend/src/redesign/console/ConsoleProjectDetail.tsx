@@ -23,7 +23,7 @@ import {
   ArrowLeft, FileText, ClipboardList, Lightbulb, MessageSquare, Sparkles,
   CheckCircle2, Loader2, Lock, Download, ExternalLink,
   Save, X, Wand2, AlertCircle, Pencil, Home, Files, Search,
-  Bot, ShieldAlert, ChevronDown, ChevronRight, ChevronLeft, Users, Eye, RotateCw, Plus,
+  Bot, ShieldAlert, ChevronDown, ChevronRight, ChevronLeft, Users, Eye, RotateCw, Plus, Contact,
 } from 'lucide-react'
 
 // 11 个子组件全部走 Liquid Glass 新版(redesign 目录下)
@@ -380,30 +380,38 @@ export default function NewConsoleProjectDetail() {
             <Eye size={10} /> 只读
           </span>
         )}
-        <button onClick={() => setCollabOpen(true)} className="rd-btn" style={{ padding: '6px 12px', fontSize: 12 }} title="项目成员">
-          <Users size={11} /> <span className="hidden-sm">成员</span>
+        <button onClick={() => setCollabOpen(true)} className="rd-btn" style={{ padding: '6px 9px', fontSize: 12 }} title="项目成员">
+          <Users size={13} />
         </button>
-        <button onClick={() => setStakesOpen(true)} className="rd-btn" style={{ padding: '6px 12px', fontSize: 12 }} title="项目级干系人">
-          <Users size={11} /> <span className="hidden-sm">干系人</span>
+        <button onClick={() => setStakesOpen(true)} className="rd-btn" style={{ padding: '6px 9px', fontSize: 12 }} title="项目级干系人(跨会议合并的人物资产)">
+          <Contact size={13} />
         </button>
-        <button onClick={() => setMeetingsOpen(true)} className="rd-btn" style={{ padding: '6px 12px', fontSize: 12 }} title="关联会议(纪要 / 录音 / 需求)">
-          <MessageSquare size={11} /> <span className="hidden-sm">会议</span>
-        </button>
-        <button
-          onClick={() => nav(`/console/meeting/new?project_id=${project.id}`)}
-          className="rd-btn"
-          style={{ padding: '6px 10px', fontSize: 12 }}
-          title="新建会议(默认关联本项目,完成后可一键返回)"
-        >
-          <Plus size={11} /> <span className="hidden-sm">新建会议</span>
-        </button>
+        {/* 会议 split button:左半开抽屉看列表 / 右半直接新建,共享一根中间分隔线 */}
+        <div style={{ display: 'inline-flex' }}>
+          <button
+            onClick={() => setMeetingsOpen(true)}
+            className="rd-btn"
+            style={{ padding: '6px 11px', fontSize: 12, borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRightWidth: 0 }}
+            title="关联会议(纪要 / 录音 / 需求)"
+          >
+            <MessageSquare size={11} /> <span className="hidden-sm">会议</span>
+          </button>
+          <button
+            onClick={() => nav(`/console/meeting/new?project_id=${project.id}`)}
+            className="rd-btn"
+            style={{ padding: '6px 8px', fontSize: 12, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
+            title="新建会议(默认关联本项目,完成后可一键返回)"
+          >
+            <Plus size={13} />
+          </button>
+        </div>
         <button
           onClick={() => setEditing(v => !v)}
           className={editing ? 'rd-btn rd-btn-primary' : 'rd-btn'}
-          style={{ padding: '6px 12px', fontSize: 12 }}
+          style={{ padding: '6px 9px', fontSize: 12 }}
           title="项目信息"
         >
-          <Pencil size={11} /> <span className="hidden-sm">项目信息</span>
+          <Pencil size={13} />
         </button>
         {(project.my_role === 'owner' || user?.is_admin) && (
           <DeleteProjectControl
@@ -1208,18 +1216,31 @@ function CompactInsightHeader({
             <Eye size={10} /> 只读
           </span>
         )}
-        <button onClick={onOpenCollab} className="rd-btn" style={{ padding: '5px 10px', fontSize: 12 }} title="项目成员">
+        <button onClick={onOpenCollab} className="rd-btn" style={{ padding: '5px 9px', fontSize: 12 }} title="项目成员">
           <Users size={11} />
         </button>
-        <button onClick={onOpenStakes} className="rd-btn" style={{ padding: '5px 10px', fontSize: 12 }} title="项目级干系人">
-          <Users size={11} />
+        <button onClick={onOpenStakes} className="rd-btn" style={{ padding: '5px 9px', fontSize: 12 }} title="项目级干系人">
+          <Contact size={11} />
         </button>
-        <button onClick={onOpenMeetings} className="rd-btn" style={{ padding: '5px 10px', fontSize: 12 }} title="关联会议">
-          <MessageSquare size={11} />
-        </button>
-        <button onClick={onNewMeeting} className="rd-btn" style={{ padding: '5px 10px', fontSize: 12 }} title="新建会议(默认关联本项目)">
-          <Plus size={11} />
-        </button>
+        {/* 会议 split button — 跟主按钮区一致 */}
+        <div style={{ display: 'inline-flex' }}>
+          <button
+            onClick={onOpenMeetings}
+            className="rd-btn"
+            style={{ padding: '5px 9px', fontSize: 12, borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRightWidth: 0 }}
+            title="关联会议"
+          >
+            <MessageSquare size={11} />
+          </button>
+          <button
+            onClick={onNewMeeting}
+            className="rd-btn"
+            style={{ padding: '5px 7px', fontSize: 12, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
+            title="新建会议(默认关联本项目)"
+          >
+            <Plus size={11} />
+          </button>
+        </div>
         <button
           onClick={onEdit}
           className={editing ? 'rd-btn rd-btn-primary' : 'rd-btn'}

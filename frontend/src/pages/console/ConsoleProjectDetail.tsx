@@ -5,7 +5,7 @@ import {
   ArrowLeft, FileText, ClipboardList, Lightbulb, MessageSquare, Sparkles,
   CheckCircle2, Loader2, Lock, Download, ExternalLink, RotateCw,
   Save, X, Wand2, AlertCircle, Pencil, Home, Files, Search,
-  Bot, ShieldAlert, ChevronDown, ChevronRight, Users, Eye, Plus,
+  Bot, ShieldAlert, ChevronDown, ChevronRight, Users, Eye, Plus, Contact,
 } from 'lucide-react'
 import CollaboratorsModal from '../../components/console/CollaboratorsModal'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
@@ -344,45 +344,44 @@ export default function ConsoleProjectDetail() {
         )}
         <button
           onClick={() => setCollabOpen(true)}
-          className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-line text-ink-secondary hover:bg-canvas transition-colors"
+          className="shrink-0 flex items-center justify-center w-8 h-8 text-xs rounded-lg border border-line text-ink-secondary hover:bg-canvas transition-colors"
           title="项目成员 / 协作者"
         >
-          <Users size={11} />
-          <span className="hidden sm:inline">成员</span>
+          <Users size={13} />
         </button>
         <button
           onClick={() => setStakesOpen(true)}
-          className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-line text-ink-secondary hover:bg-canvas transition-colors"
-          title="项目级干系人(跨会议合并)"
+          className="shrink-0 flex items-center justify-center w-8 h-8 text-xs rounded-lg border border-line text-ink-secondary hover:bg-canvas transition-colors"
+          title="项目级干系人(跨会议合并的人物资产)"
         >
-          <Users size={11} />
-          <span className="hidden sm:inline">干系人</span>
+          <Contact size={13} />
         </button>
-        <button
-          onClick={() => setMeetingsOpen(true)}
-          className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-line text-ink-secondary hover:bg-canvas transition-colors"
-          title="关联会议(纪要 / 录音 / 需求)"
-        >
-          <MessageSquare size={11} />
-          <span className="hidden sm:inline">会议</span>
-        </button>
-        <button
-          onClick={() => nav(`/console/meeting/new?project_id=${id}`)}
-          className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-line text-ink-secondary hover:bg-canvas transition-colors"
-          title="新建会议(默认关联本项目,完成后可一键返回)"
-        >
-          <Plus size={11} />
-          <span className="hidden sm:inline">新建会议</span>
-        </button>
+        {/* 会议 split button:左半开抽屉看列表 / 右半直接新建,共享一根中间分隔线 */}
+        <div className="shrink-0 inline-flex">
+          <button
+            onClick={() => setMeetingsOpen(true)}
+            className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-l-lg border border-r-0 border-line text-ink-secondary hover:bg-canvas transition-colors"
+            title="关联会议(纪要 / 录音 / 需求)"
+          >
+            <MessageSquare size={11} />
+            <span className="hidden sm:inline">会议</span>
+          </button>
+          <button
+            onClick={() => nav(`/console/meeting/new?project_id=${id}`)}
+            className="flex items-center justify-center px-2 py-1.5 text-xs rounded-r-lg border border-line text-ink-secondary hover:bg-canvas transition-colors"
+            title="新建会议(默认关联本项目,完成后可一键返回)"
+          >
+            <Plus size={13} />
+          </button>
+        </div>
         <button
           onClick={() => setEditing(v => !v)}
-          className={`shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
+          className={`shrink-0 flex items-center justify-center w-8 h-8 text-xs rounded-lg border transition-colors ${
             editing ? 'border-orange-300 text-orange-700 bg-orange-50' : 'border-line text-ink-secondary hover:bg-canvas'
           }`}
           title="项目信息"
         >
-          <Pencil size={11} />
-          <span className="hidden sm:inline">项目信息</span>
+          <Pencil size={13} />
         </button>
         {(project.my_role === 'owner' || user?.is_admin) && (
           <DeleteProjectControl
