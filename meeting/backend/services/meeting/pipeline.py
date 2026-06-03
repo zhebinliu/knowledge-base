@@ -112,11 +112,14 @@ async def generate_minutes(
             ),
         },
     ]
+    # 2026-06-03 max_tokens 8000→16000:22k+ 字符长会议时 minutes JSON 输出
+    # (含 summary + 5-15 个 key_points + decisions + action_items + unresolved 列表)
+    # 容易超 8000,被截断 → JSON 不平衡 → parse 失败 → 落到空 default(用户表现:有完成态但内容全空)
     content, model = await model_router.chat_with_routing(
         task="meeting_minutes_extract",
         messages=messages,
         temperature=0.2,
-        max_tokens=8000,
+        max_tokens=16000,
         response_format={"type": "json_object"},
     )
     result = _safe_json_loads(content, dict(_EMPTY_MINUTES))
@@ -124,6 +127,7 @@ async def generate_minutes(
         "minutes_done",
         model=model,
         keys=list(result.keys()) if isinstance(result, dict) else None,
+        raw_chars=len(content or ""),
     )
     return result
 
