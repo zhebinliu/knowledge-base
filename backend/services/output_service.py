@@ -96,9 +96,13 @@ async def _llm_call(prompt: str, system: str = "", model: str | None = None,
                     task: str | None = None,
                     max_tokens: int | None = 8000, timeout: float = 180.0) -> str:
     """LLM 调用三优先:
-    1. model 显式传(用户在 agent_config 配的具体模型)→ 直传无 fallback
+    1. model 显式传(用户在 agent_config 配的具体模型)→ 直传,失败时若 task 给了则降级到该 task 的 routing fallback
     2. 否则 task 传了 → 走 chat_with_routing(task),按 ROUTING_RULES 走 primary→fallback
     3. 都没传 → 默认 output_doc_generate(m2.7 → glm-5)
+
+    2026-06-03 加 #1 的「显式 model 失败也降级」:
+    用户在管理后台配的 model 可能挂掉(限流/下线),不能因「尊重用户配置」就让任务死。
+    failover 走 chat_with_routing(task) — 复用现成的 primary→fallback 链,日志可追。
     """
     from services.model_router import model_router
     messages = []
@@ -106,11 +110,20 @@ async def _llm_call(prompt: str, system: str = "", model: str | None = None,
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
     if model:
-        content, _ = await model_router.chat(model, messages, max_tokens=max_tokens, timeout=timeout)
+        try:
+            content, _ = await model_router.chat(model, messages, max_tokens=max_tokens, timeout=timeout)
+            return content
+        except Exception as e:
+            if not task:
+                raise  # 没 task 不知道往哪降级,只能往上抛
+            logger.warning("llm_user_model_failed_fallback_to_task_routing",
+                           user_model=model, task=task, error=type(e).__name__, msg=str(e)[:160])
+            content, _ = await model_router.chat_with_routing(task, messages, max_tokens=max_tokens, timeout=timeout)
+            return content
     else:
         routing_task = task or "output_doc_generate"
         content, _ = await model_router.chat_with_routing(routing_task, messages, max_tokens=max_tokens, timeout=timeout)
-    return content
+        return content
 
 
 async def _mark_bundle(bundle_id: str, status: str, **kwargs):
@@ -746,8 +759,11 @@ async def generate_kickoff_html(bundle_id: str, project_id: str):
 
 请输出完整自包含 HTML，11 页 16:9 幻灯片（1280×720），从 <!DOCTYPE html> 起到 </html> 止。"""
 
-        html_model = ctx["agent_model"]  # 走 doc_generation 路由
-        html = await _llm_call(prompt, system=HTML_PPTX_SYSTEM, model=html_model, max_tokens=None, timeout=900.0)
+        html_model = ctx["agent_model"]  # 用户没配 → None → 走 output_doc_generate 路由
+        # 2026-06-03:加 task 形参 — 用户在 agent_config 显式配的 model 挂了也降级
+        html = await _llm_call(prompt, system=HTML_PPTX_SYSTEM, model=html_model,
+                               task="output_doc_generate",
+                               max_tokens=None, timeout=900.0)
         # 去 ``` 围栏
         s = (html or "").strip()
         if s.startswith("```"):
