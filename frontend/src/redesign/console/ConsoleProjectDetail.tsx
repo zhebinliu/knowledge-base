@@ -23,7 +23,7 @@ import {
   ArrowLeft, FileText, ClipboardList, Lightbulb, MessageSquare, Sparkles,
   CheckCircle2, Loader2, Lock, Download, ExternalLink,
   Save, X, Wand2, AlertCircle, Pencil, Home, Files, Search,
-  Bot, ShieldAlert, ChevronDown, ChevronRight, ChevronLeft, Users, Eye, RotateCw,
+  Bot, ShieldAlert, ChevronDown, ChevronRight, ChevronLeft, Users, Eye, RotateCw, Plus,
 } from 'lucide-react'
 
 // 11 个子组件全部走 Liquid Glass 新版(redesign 目录下)
@@ -296,6 +296,7 @@ export default function NewConsoleProjectDetail() {
             onOpenCollab={() => setCollabOpen(true)}
             onOpenStakes={() => setStakesOpen(true)}
             onOpenMeetings={() => setMeetingsOpen(true)}
+            onNewMeeting={() => nav(`/console/meeting/new?project_id=${project.id}`)}
             onEdit={() => setEditing(v => !v)}
             editing={editing}
             onBack={() => nav('/console/projects')}
@@ -387,6 +388,14 @@ export default function NewConsoleProjectDetail() {
         </button>
         <button onClick={() => setMeetingsOpen(true)} className="rd-btn" style={{ padding: '6px 12px', fontSize: 12 }} title="关联会议(纪要 / 录音 / 需求)">
           <MessageSquare size={11} /> <span className="hidden-sm">会议</span>
+        </button>
+        <button
+          onClick={() => nav(`/console/meeting/new?project_id=${project.id}`)}
+          className="rd-btn"
+          style={{ padding: '6px 10px', fontSize: 12 }}
+          title="新建会议(默认关联本项目,完成后可一键返回)"
+        >
+          <Plus size={11} /> <span className="hidden-sm">新建会议</span>
         </button>
         <button
           onClick={() => setEditing(v => !v)}
@@ -1029,7 +1038,7 @@ function BlueprintDesignWorkspace({
 // ──────────────────────────────────────────────────────────────────────────
 function CompactInsightHeader({
   project, industryLabel, stages, activeStageKey, setActiveStageKey, stageStatus,
-  onOpenCollab, onOpenStakes, onOpenMeetings, onEdit, editing, onBack, actions,
+  onOpenCollab, onOpenStakes, onOpenMeetings, onNewMeeting, onEdit, editing, onBack, actions,
 }: {
   project: Project
   industryLabel: (val: string | null) => string | null
@@ -1040,6 +1049,7 @@ function CompactInsightHeader({
   onOpenCollab: () => void
   onOpenStakes: () => void
   onOpenMeetings: () => void
+  onNewMeeting: () => void
   onEdit: () => void
   editing: boolean
   onBack: () => void
@@ -1206,6 +1216,9 @@ function CompactInsightHeader({
         </button>
         <button onClick={onOpenMeetings} className="rd-btn" style={{ padding: '5px 10px', fontSize: 12 }} title="关联会议">
           <MessageSquare size={11} />
+        </button>
+        <button onClick={onNewMeeting} className="rd-btn" style={{ padding: '5px 10px', fontSize: 12 }} title="新建会议(默认关联本项目)">
+          <Plus size={11} />
         </button>
         <button
           onClick={onEdit}

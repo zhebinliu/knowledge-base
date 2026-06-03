@@ -153,7 +153,7 @@ export default function NewProjectMeetingsDrawer({
           {!isLoading && list.map(m => (
             <button
               key={m.id}
-              onClick={() => { onClose(); nav(`/console/meeting/${m.id}`) }}
+              onClick={() => { onClose(); nav(`/console/meeting/${m.id}?from_project=${projectId}`) }}
               style={{
                 textAlign: 'left',
                 padding: '12px 14px',

@@ -64,7 +64,7 @@ export default function NewConsoleMeetingNew() {
         project_id: projectId || null,
       })
     },
-    onSuccess: (res) => nav(`/console/meeting/${res.meeting_id}`),
+    onSuccess: (res) => nav(`/console/meeting/${res.meeting_id}${projectId ? `?from_project=${projectId}` : ''}`),
     onError: (e: Error) => setError(e?.message || '上传失败'),
   })
 
@@ -77,7 +77,7 @@ export default function NewConsoleMeetingNew() {
         project_id: projectId || null,
       })
     },
-    onSuccess: (m) => nav(`/console/meeting/${m.id}`),
+    onSuccess: (m) => nav(`/console/meeting/${m.id}${projectId ? `?from_project=${projectId}` : ''}`),
     onError: (e: Error) => setError(e?.message || '创建失败'),
   })
 
@@ -85,9 +85,9 @@ export default function NewConsoleMeetingNew() {
 
   return (
     <div className="rd-page" style={{ maxWidth: 800 }}>
-      {/* 返回 */}
+      {/* 返回:URL 带 project_id 时回项目页(从项目详情「新建会议」按钮过来的场景),否则回会议总列表 */}
       <button
-        onClick={() => nav('/console/meeting')}
+        onClick={() => nav(projectId ? `/console/project/${projectId}` : '/console/meeting')}
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 4,
           background: 'transparent', border: 'none', padding: '4px 0',
@@ -97,7 +97,7 @@ export default function NewConsoleMeetingNew() {
         onMouseEnter={e => e.currentTarget.style.color = 'var(--rd-text)'}
         onMouseLeave={e => e.currentTarget.style.color = 'var(--rd-text-3)'}
       >
-        <ChevronLeft size={14} /> 返回列表
+        <ChevronLeft size={14} /> {projectId ? '返回项目' : '返回列表'}
       </button>
 
       {/* Hero */}
@@ -322,7 +322,7 @@ export default function NewConsoleMeetingNew() {
           {/* 提交按钮 */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 6 }}>
             <button
-              onClick={() => nav('/console/meeting')}
+              onClick={() => nav(projectId ? `/console/project/${projectId}` : '/console/meeting')}
               disabled={submitting}
               className="rd-btn"
             >

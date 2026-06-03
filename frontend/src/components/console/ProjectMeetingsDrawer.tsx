@@ -119,7 +119,7 @@ export default function ProjectMeetingsDrawer({
           {!isLoading && list.map(m => (
             <button
               key={m.id}
-              onClick={() => { onClose(); nav(`/console/meeting/${m.id}`) }}
+              onClick={() => { onClose(); nav(`/console/meeting/${m.id}?from_project=${projectId}`) }}
               className="text-left px-3.5 py-3 rounded-lg border border-line bg-white hover:border-orange-200 hover:bg-orange-50/40 transition-colors flex flex-col gap-1.5"
               title="查看会议详情"
             >

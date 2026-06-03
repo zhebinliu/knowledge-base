@@ -9,7 +9,7 @@
  * Tab 内部组件复用 ConsoleMeetingDetail.tsx 导出的老实现。
  */
 import { useState, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   ChevronLeft, Loader2, RefreshCw, Trash2, FolderKanban,
@@ -51,6 +51,11 @@ export default function NewConsoleMeetingDetail() {
   const meetingId = Number(id)
   const nav = useNavigate()
   const qc = useQueryClient()
+  // URL ?from_project=<pid>:从项目详情页跳过来,返回时回项目页而不是会议总列表
+  const [searchParams] = useSearchParams()
+  const fromProject = searchParams.get('from_project') || ''
+  const backHref = fromProject ? `/console/project/${fromProject}` : '/console/meeting'
+  const backLabel = fromProject ? '返回项目' : '返回列表'
   // 视图模式: 'split'(默认左右分栏) | 'overview' | 'actions'
   const [view, setView] = useState<'split' | 'overview' | 'actions'>('split')
   const [leftTab, setLeftTab] = useState<LeftTab>('minutes')
@@ -74,7 +79,7 @@ export default function NewConsoleMeetingDetail() {
 
   const delMut = useMutation({
     mutationFn: () => deleteMeeting(meetingId),
-    onSuccess: () => nav('/console/meeting'),
+    onSuccess: () => nav(backHref),
   })
 
   if (!Number.isFinite(meetingId)) {
@@ -100,9 +105,9 @@ export default function NewConsoleMeetingDetail() {
 
   return (
     <div className="rd-page" style={{ maxWidth: 1280 }}>
-      {/* 返回 */}
+      {/* 返回:URL 带 from_project 时回项目页,否则回会议总列表 */}
       <button
-        onClick={() => nav('/console/meeting')}
+        onClick={() => nav(backHref)}
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 4,
           background: 'transparent', border: 'none', padding: '4px 0',
@@ -112,7 +117,7 @@ export default function NewConsoleMeetingDetail() {
         onMouseEnter={e => e.currentTarget.style.color = 'var(--rd-text)'}
         onMouseLeave={e => e.currentTarget.style.color = 'var(--rd-text-3)'}
       >
-        <ChevronLeft size={14} /> 返回列表
+        <ChevronLeft size={14} /> {backLabel}
       </button>
 
       {/* Header 卡 */}

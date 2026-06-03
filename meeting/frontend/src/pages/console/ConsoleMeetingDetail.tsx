@@ -10,7 +10,7 @@
  *  - actions: 同步 KB / 飞书导出 / 多维表同步 / 单点 actions
  */
 import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   ChevronLeft, Loader2, RefreshCw, Trash2, FolderKanban, CheckCircle2, AlertCircle, Mic,
@@ -2316,6 +2316,11 @@ export default function ConsoleMeetingDetail() {
   const meetingId = Number(id)
   const nav = useNavigate()
   const qc = useQueryClient()
+  // URL ?from_project=<pid>:从项目详情页跳过来,返回时回项目页而不是会议总列表
+  const [searchParams] = useSearchParams()
+  const fromProject = searchParams.get('from_project') || ''
+  const backHref = fromProject ? `/console/project/${fromProject}` : '/console/meeting'
+  const backLabel = fromProject ? '返回项目' : '返回列表'
   const [topView, setTopView] = useState<TopView>('split')
   const [leftTab, setLeftTab] = useState<LeftTab>('minutes')
   const [rightTab, setRightTab] = useState<RightTab>('transcript')
@@ -2338,7 +2343,7 @@ export default function ConsoleMeetingDetail() {
 
   const delMut = useMutation({
     mutationFn: () => deleteMeeting(meetingId),
-    onSuccess: () => nav('/console/meeting'),
+    onSuccess: () => nav(backHref),
   })
 
   const handleSeekTo = (seconds: number) => {
@@ -2363,12 +2368,12 @@ export default function ConsoleMeetingDetail() {
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-screen-2xl mx-auto px-6 py-5">
-        {/* 返回列表 */}
+        {/* 返回:URL 带 from_project 时回项目页,否则回会议总列表 */}
         <button
-          onClick={() => nav('/console/meeting')}
+          onClick={() => nav(backHref)}
           className="inline-flex items-center gap-1 text-ink-muted hover:text-ink text-sm mb-3"
         >
-          <ChevronLeft size={16} /> 返回列表
+          <ChevronLeft size={16} /> {backLabel}
         </button>
 
         {/* Header 卡片 */}

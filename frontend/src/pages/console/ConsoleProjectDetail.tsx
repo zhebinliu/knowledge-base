@@ -5,7 +5,7 @@ import {
   ArrowLeft, FileText, ClipboardList, Lightbulb, MessageSquare, Sparkles,
   CheckCircle2, Loader2, Lock, Download, ExternalLink, RotateCw,
   Save, X, Wand2, AlertCircle, Pencil, Home, Files, Search,
-  Bot, ShieldAlert, ChevronDown, ChevronRight, Users, Eye,
+  Bot, ShieldAlert, ChevronDown, ChevronRight, Users, Eye, Plus,
 } from 'lucide-react'
 import CollaboratorsModal from '../../components/console/CollaboratorsModal'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
@@ -365,6 +365,14 @@ export default function ConsoleProjectDetail() {
         >
           <MessageSquare size={11} />
           <span className="hidden sm:inline">会议</span>
+        </button>
+        <button
+          onClick={() => nav(`/console/meeting/new?project_id=${id}`)}
+          className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-line text-ink-secondary hover:bg-canvas transition-colors"
+          title="新建会议(默认关联本项目,完成后可一键返回)"
+        >
+          <Plus size={11} />
+          <span className="hidden sm:inline">新建会议</span>
         </button>
         <button
           onClick={() => setEditing(v => !v)}
