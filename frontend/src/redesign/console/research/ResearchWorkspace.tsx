@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   ClipboardList, Lightbulb, Sparkles, Loader2, Workflow,
   CheckCircle2, Pencil, Users, Briefcase, FileText,
-  Crown, UserCircle2, Cpu, ChevronLeft, ChevronRight, Send, Layers, Calendar, X,
+  Crown, UserCircle2, Cpu, ChevronLeft, ChevronRight, Send, Layers, Calendar,
 } from 'lucide-react'
 import {
   generateOutput,
@@ -72,10 +72,6 @@ export default function ResearchWorkspace({
   const [selectedRole, setSelectedRole] = useState<ResearchAudienceRole | null>(null)
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null)       // 按主题模式 sidebar 选中 cluster
   const [selectedSession, setSelectedSession] = useState<string | null>(null)   // 按场次模式 sidebar 选中 session_id('__none__' = 未挂场次)
-  // 2026-06-04 按场重生 modal
-  const [regenSessionId, setRegenSessionId] = useState<string | null>(null)
-  const [regenExtraContext, setRegenExtraContext] = useState('')
-  const [regenSubmitting, setRegenSubmitting] = useState(false)
   const [selectedPhase, setSelectedPhase] = useState<ResearchQuestionPhase | 'all'>('all')
   const [view, setView] = useState<ResearchView>('preparation')
   const [refsOpen, setRefsOpen] = useState(false)
@@ -216,11 +212,14 @@ export default function ResearchWorkspace({
           outlineSessions={outlineSessions}
           sessionCounts={sessionCounts}
           sessionProgress={surveyBundle?.session_progress || {}}
-          onGenerateSession={(sid: string) => {
+          onGenerateSession={async (sid: string) => {
             if (!surveyBundle) return
-            // 2026-06-04 打开 modal,让用户可选补充内容后再触发
-            setRegenSessionId(sid)
-            setRegenExtraContext('')
+            try {
+              await generateSurveyForSession(surveyBundle.id, sid)
+              onRefetch()
+            } catch (err: any) {
+              alert(err?.response?.data?.detail || err?.message || '生成失败')
+            }
           }}
           roleCounts={roleCounts}
           ltcModules={ltcDict?.modules ?? []}
@@ -492,117 +491,6 @@ export default function ResearchWorkspace({
         )
       ) : null}
       </div>
-
-      {/* 2026-06-04 按场重生 modal — 玻璃风 */}
-      {regenSessionId && surveyBundle && (() => {
-        const sess = outlineSessions.find(s => s.session_id === regenSessionId)
-        const existingCount = sess ? (sessionCounts.perSession[regenSessionId] || 0) : 0
-        return (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center"
-            style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
-            onClick={() => !regenSubmitting && setRegenSessionId(null)}
-          >
-            <div
-              className="rounded-lg w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col"
-              style={{
-                background: 'rgba(30,30,40,0.88)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
-                backdropFilter: 'blur(24px)',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between px-4 py-3"
-                style={{ borderBottom: '1px solid rgba(255,255,255,0.10)' }}>
-                <div className="text-sm font-semibold" style={{ color: 'var(--rd-text)' }}>
-                  按场重新生成 · {sess ? `${sess.week} ${sess.time_slot} · ${sess.topic_summary || sess.participants}` : regenSessionId}
-                </div>
-                <button
-                  onClick={() => !regenSubmitting && setRegenSessionId(null)}
-                  disabled={regenSubmitting}
-                  className="p-1 rounded"
-                  style={{ color: 'var(--rd-text-2)' }}
-                >
-                  <X size={14} />
-                </button>
-              </div>
-              <div className="flex-1 overflow-auto p-4 space-y-3">
-                {existingCount > 0 && (
-                  <div className="text-xs px-3 py-2 rounded"
-                    style={{ background: 'rgba(245,158,11,0.14)', color: '#FBBF24',
-                             border: '1px solid rgba(245,158,11,0.28)' }}>
-                    本场已有 {existingCount} 题,重新生成将整体替换为新一批(其他场不动)。
-                  </div>
-                )}
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--rd-text)' }}>
-                    可选:补充内容(粘贴新会议纪要 / 新文档摘要 / 客户反馈 / 阶段性结论 等)
-                  </label>
-                  <div className="text-[11px] mb-2" style={{ color: 'var(--rd-text-2)' }}>
-                    AI 会结合本项目大纲 + 已完成会议 + 你提供的补充内容,**重新出题**:
-                    去掉已有答案的话题、补针对新风险/新需求的题、调整跟原大纲不一致的方向。
-                    留空也可以,等同于纯按场重生。
-                  </div>
-                  <textarea
-                    value={regenExtraContext}
-                    onChange={(e) => setRegenExtraContext(e.target.value)}
-                    placeholder="例如:&#10;- 客户昨天反馈线索从「按区域分配」改为「按行业分配」,需重新摸现状&#10;- 上周补了一份《售后流程现状.pdf》,要点是…&#10;- 高管会议确认 MVP 范围缩到 3 个核心场景…"
-                    rows={10}
-                    disabled={regenSubmitting}
-                    className="w-full px-3 py-2 text-xs rounded font-mono focus:outline-none"
-                    style={{
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.12)',
-                      color: 'var(--rd-text)',
-                    }}
-                    autoFocus
-                  />
-                  <div className="text-[10px] mt-1" style={{ color: 'var(--rd-text-3)' }}>
-                    {regenExtraContext.length} / 8000 字
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center justify-end gap-2 px-4 py-3"
-                style={{ borderTop: '1px solid rgba(255,255,255,0.10)' }}>
-                <button
-                  onClick={() => setRegenSessionId(null)}
-                  disabled={regenSubmitting}
-                  className="px-3 py-1.5 text-xs rounded disabled:opacity-50"
-                  style={{
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.10)',
-                    color: 'var(--rd-text-2)',
-                  }}
-                >
-                  取消
-                </button>
-                <button
-                  onClick={async () => {
-                    setRegenSubmitting(true)
-                    try {
-                      await generateSurveyForSession(surveyBundle.id, regenSessionId, regenExtraContext.trim())
-                      onRefetch()
-                      setRegenSessionId(null)
-                      setRegenExtraContext('')
-                    } catch (err: any) {
-                      alert(err?.response?.data?.detail || err?.message || '生成失败')
-                    } finally {
-                      setRegenSubmitting(false)
-                    }
-                  }}
-                  disabled={regenSubmitting}
-                  className="px-3 py-1.5 text-xs font-semibold text-white rounded shadow-sm inline-flex items-center gap-1 disabled:opacity-60"
-                  style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}
-                >
-                  {regenSubmitting ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
-                  {regenSubmitting ? '触发中…' : (regenExtraContext.trim() ? '结合补充内容生成' : '直接生成本场')}
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      })()}
     </div>
   )
 }
