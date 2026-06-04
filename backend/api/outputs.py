@@ -253,6 +253,103 @@ async def generate_survey_role(
     return _bundle_dto(bundle)
 
 
+@router.post("/{bundle_id}/items/{item_key}/regenerate")
+async def regenerate_survey_item(
+    bundle_id: str,
+    item_key: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """单题手动重新生成(2026-06-03)。
+
+    同步调 LLM(约 5-15s,nginx proxy_read_timeout 180s 足够);成功后写回 bundle
+    并返回更新后的 bundle DTO。保留 item_key / session_id / topic_cluster /
+    interview_stage / audience_roles / ltc_module_key / phase / type 不变,
+    只改 question / why / options / hint / rating_scale / number_unit。
+    """
+    from sqlalchemy.orm.attributes import flag_modified as _flag
+
+    bundle = await session.get(CuratedBundle, bundle_id)
+    if not bundle:
+        raise HTTPException(404, "Bundle not found")
+    if bundle.kind != "survey":
+        raise HTTPException(400, f"bundle.kind={bundle.kind!r}, only survey supports item regeneration")
+    if not bundle.project_id:
+        raise HTTPException(400, "Bundle has no project_id")
+
+    from services.project_acl import assert_project_access
+    await assert_project_access(current_user, bundle.project_id, "write")
+
+    extra = dict(bundle.extra or {})
+    items: list[dict] = list(extra.get("questionnaire_items") or [])
+    idx = next((i for i, it in enumerate(items) if it.get("item_key") == item_key), -1)
+    if idx < 0:
+        raise HTTPException(404, f"item_key={item_key} not found in bundle.extra.questionnaire_items")
+    original = items[idx]
+
+    # 加载 sessions(优先 plan_sessions,fallback outline_sessions)以便给 LLM 上下文
+    from sqlalchemy import select as _select
+    target_session: dict | None = None
+    other_items_in_session: list[dict] = []
+    sid = (original.get("session_id") or "").strip()
+    if sid:
+        sessions: list[dict] = []
+        try:
+            plan_rows = (await session.execute(
+                _select(CuratedBundle)
+                .where(CuratedBundle.project_id == bundle.project_id)
+                .where(CuratedBundle.kind == "research_plan")
+                .where(CuratedBundle.status == "done")
+                .order_by(CuratedBundle.created_at.desc())
+                .limit(1)
+            )).scalars().all()
+            if plan_rows:
+                sessions = list((plan_rows[0].extra or {}).get("plan_sessions") or [])
+            if not sessions:
+                outline_rows = (await session.execute(
+                    _select(CuratedBundle)
+                    .where(CuratedBundle.project_id == bundle.project_id)
+                    .where(CuratedBundle.kind == "survey_outline")
+                    .where(CuratedBundle.status == "done")
+                    .order_by(CuratedBundle.created_at.desc())
+                    .limit(1)
+                )).scalars().all()
+                if outline_rows:
+                    sessions = list((outline_rows[0].extra or {}).get("outline_sessions") or [])
+        except Exception as e:
+            logger.warning("regenerate_item_load_sessions_failed", error=str(e)[:200])
+        target_session = next((s for s in sessions if s.get("session_id") == sid), None)
+        other_items_in_session = [it for it in items if it.get("session_id") == sid]
+
+    # 调 LLM 改写
+    from services.agentic.research.single_q_regenerator import regenerate_item as _regen
+    # 选 model:沿用 survey 的 agent_config
+    from services.output_service import _get_output_agent_config
+    agent_cfg = await _get_output_agent_config("survey")
+    model = agent_cfg.get("model")
+    new_item = await _regen(
+        item=original,
+        session=target_session,
+        other_items_in_session=other_items_in_session,
+        model=model,
+    )
+    if not new_item:
+        raise HTTPException(502, "LLM 改写失败或返回无效内容,请重试")
+
+    # 替换 + 持久化
+    items[idx] = new_item
+    extra["questionnaire_items"] = items
+    bundle.extra = extra
+    _flag(bundle, "extra")
+    await session.commit()
+    await session.refresh(bundle)
+
+    logger.info("survey_item_regenerated",
+                bundle_id=bundle_id, item_key=item_key,
+                project_id=bundle.project_id, user_id=current_user.id)
+    return _bundle_dto(bundle)
+
+
 @router.post("/{bundle_id}/generate-session", status_code=202)
 async def generate_survey_session(
     bundle_id: str,

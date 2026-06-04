@@ -1364,6 +1364,17 @@ export const generateSurveyForSession = (
   api.post<CuratedBundle>(`/outputs/${bundleId}/generate-session`, { session_id: sessionId })
     .then(r => r.data)
 
+/** 单题手动重新生成(2026-06-03)。
+ *  同步调 LLM(约 5-15s),成功后返回更新后的 bundle。
+ *  保留 item_key / session_id / topic_cluster / interview_stage / audience_roles /
+ *  ltc_module_key / phase / type 不变;只改 question / why / options / hint / rating_scale / number_unit。*/
+export const regenerateSurveyItem = (
+  bundleId: string,
+  itemKey: string,
+) =>
+  api.post<CuratedBundle>(`/outputs/${bundleId}/items/${encodeURIComponent(itemKey)}/regenerate`)
+    .then(r => r.data)
+
 export const listOutputs = (params: { project_id?: string; kind?: string; page?: number } = {}) =>
   api.get<OutputPage>('/outputs', { params }).then(r => r.data)
 

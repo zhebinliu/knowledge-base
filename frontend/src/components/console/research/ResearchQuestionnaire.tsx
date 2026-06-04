@@ -13,12 +13,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Tag, Save, BookOpen, ChevronDown, ChevronRight,
   Pencil, Trash2, Plus, X, Sparkles, Loader2, CornerDownRight,
-  Check, Lightbulb,
+  Check, Lightbulb, RefreshCw,
 } from 'lucide-react'
 import {
   listResearchResponses, upsertResearchResponse, classifyResearchScope,
   upsertQuestionnaireItem, deleteQuestionnaireItem, generateFollowUp,
-  proposeAnswersFromMeetings,
+  proposeAnswersFromMeetings, regenerateSurveyItem,
   RESEARCH_INTERVIEW_STAGE_ORDER, RESEARCH_INTERVIEW_STAGE_LABELS,
   type CuratedBundle, type ResearchQuestionItem, type ResearchOptionItem,
   type ResearchResponseItem, type ResearchScopeLabel,
@@ -921,6 +921,20 @@ function QuestionRow({
     },
   })
 
+  // 2026-06-03 单题重新生成
+  const regenMut = useMutation({
+    mutationFn: () => regenerateSurveyItem(bundle.id, item.item_key),
+    onSuccess: () => onFollowUpGenerated?.(),   // 复用 onRefetch 通路拉新 bundle
+    onError: (err: any) => {
+      alert(err?.response?.data?.detail || err?.message || '重新生成失败,请重试')
+    },
+  })
+  const handleRegen = () => {
+    if (window.confirm(`将让 AI 重新改写该题(保留题型/角色/主题/场次不变,只改题干和选项)。\n\n「${item.question}」\n\n继续?`)) {
+      regenMut.mutate()
+    }
+  }
+
   const handleDelete = () => {
     const tail = item.source === 'ai' ? '\n(AI 自动生成,删除后下次重新生成可能再次出现。)' : ''
     if (window.confirm(`确认删除该题?\n「${item.question}」${tail}`)) {
@@ -988,11 +1002,20 @@ function QuestionRow({
             {item.phase === 'pre_meeting' ? '会前' : '会中'}
           </span>
         )}
-        {/* 编辑 / 删除 */}
+        {/* 重新生成 / 编辑 / 删除 */}
+        <button
+          onClick={handleRegen}
+          disabled={regenMut.isPending}
+          className="shrink-0 p-1 rounded text-ink-muted hover:text-orange-600 hover:bg-orange-50 disabled:opacity-50"
+          title="让 AI 重新改写该题(保留题型/角色/主题/场次,只改题干和选项)"
+        >
+          {regenMut.isPending ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+        </button>
         {onEdit && (
           <button
             onClick={onEdit}
-            className="shrink-0 p-1 rounded text-ink-muted hover:text-orange-600 hover:bg-orange-50"
+            disabled={regenMut.isPending}
+            className="shrink-0 p-1 rounded text-ink-muted hover:text-orange-600 hover:bg-orange-50 disabled:opacity-50"
             title="编辑该题"
           >
             <Pencil size={11} />
@@ -1001,7 +1024,7 @@ function QuestionRow({
         {onDeleted && (
           <button
             onClick={handleDelete}
-            disabled={delMut.isPending}
+            disabled={delMut.isPending || regenMut.isPending}
             className="shrink-0 p-1 rounded text-ink-muted hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
             title="删除该题"
           >
