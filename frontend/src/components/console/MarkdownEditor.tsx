@@ -27,6 +27,7 @@ import { Markdown } from 'tiptap-markdown'
 import {
   Save, X, AlertCircle, Loader2,
   Bold, Italic, Code, List, ListOrdered, Quote, Heading2, Heading3, Undo, Redo,
+  Table as TableIcon, RowsIcon, Columns, Trash2,
 } from 'lucide-react'
 import { saveOutputContent, type CuratedBundle } from '../../api/client'
 
@@ -165,6 +166,56 @@ export default function MarkdownEditor({ bundle, initialContent, onClose, onSave
           <ToolbarBtn onClick={() => editor.chain().focus().redo().run()}
                       disabled={!editor.can().redo()}
                       title="重做 (Ctrl+Y)"><Redo size={13} /></ToolbarBtn>
+          <ToolbarSep />
+          {/* 表格操作 — 光标不在表格内时只显示「插入表格」;在表格内时显示增删行/列 */}
+          {editor.isActive('table') ? (
+            <>
+              <ToolbarBtn
+                onClick={() => editor.chain().focus().addRowAfter().run()}
+                disabled={!editor.can().addRowAfter()}
+                title="在下方插入行"
+              >
+                <span className="inline-flex items-center gap-0.5 text-[11px]"><RowsIcon size={13} />+</span>
+              </ToolbarBtn>
+              <ToolbarBtn
+                onClick={() => editor.chain().focus().deleteRow().run()}
+                disabled={!editor.can().deleteRow()}
+                title="删除当前行"
+              >
+                <span className="inline-flex items-center gap-0.5 text-[11px]"><RowsIcon size={13} />−</span>
+              </ToolbarBtn>
+              <ToolbarBtn
+                onClick={() => editor.chain().focus().addColumnAfter().run()}
+                disabled={!editor.can().addColumnAfter()}
+                title="在右侧插入列"
+              >
+                <span className="inline-flex items-center gap-0.5 text-[11px]"><Columns size={13} />+</span>
+              </ToolbarBtn>
+              <ToolbarBtn
+                onClick={() => editor.chain().focus().deleteColumn().run()}
+                disabled={!editor.can().deleteColumn()}
+                title="删除当前列"
+              >
+                <span className="inline-flex items-center gap-0.5 text-[11px]"><Columns size={13} />−</span>
+              </ToolbarBtn>
+              <ToolbarBtn
+                onClick={() => {
+                  if (window.confirm('确定删除整张表格?')) editor.chain().focus().deleteTable().run()
+                }}
+                disabled={!editor.can().deleteTable()}
+                title="删除整张表格"
+              >
+                <Trash2 size={13} />
+              </ToolbarBtn>
+            </>
+          ) : (
+            <ToolbarBtn
+              onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+              title="在光标处插入 3×3 表格(后续可增删行列)"
+            >
+              <TableIcon size={13} />
+            </ToolbarBtn>
+          )}
         </div>
       )}
 
