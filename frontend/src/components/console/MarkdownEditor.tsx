@@ -27,7 +27,7 @@ import { Markdown } from 'tiptap-markdown'
 import {
   Save, X, AlertCircle, Loader2,
   Bold, Italic, Code, List, ListOrdered, Quote, Heading2, Heading3, Undo, Redo,
-  Table as TableIcon, RowsIcon, Columns, Trash2,
+  Table as TableIcon, RowsIcon, Columns, Trash2, FileCode,
 } from 'lucide-react'
 import { saveOutputContent, type CuratedBundle } from '../../api/client'
 
@@ -42,6 +42,9 @@ export default function MarkdownEditor({ bundle, initialContent, onClose, onSave
   // ─ 所有 hooks 在最顶部、固定顺序、无条件调用 — 防 React error #310 ─
   const [error, setError] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
+  // 2026-06-04 源码模式:WYSIWYG 表格识别失败时兜底,用户直接改 markdown 文本
+  const [sourceMode, setSourceMode] = useState(false)
+  const [sourceText, setSourceText] = useState(initialContent)
   const qc = useQueryClient()
   const editor = useEditor({
     extensions: [
@@ -71,9 +74,14 @@ export default function MarkdownEditor({ bundle, initialContent, onClose, onSave
   })
   const mut = useMutation({
     mutationFn: async () => {
-      if (!editor) throw new Error('编辑器未就绪')
-      // tiptap-markdown 提供的 markdown serializer
-      const md = (editor.storage as any).markdown.getMarkdown() as string
+      // 源码模式直接拿 textarea 内容;WYSIWYG 模式从 tiptap-markdown 序列化
+      let md: string
+      if (sourceMode) {
+        md = sourceText
+      } else {
+        if (!editor) throw new Error('编辑器未就绪')
+        md = (editor.storage as any).markdown.getMarkdown() as string
+      }
       return saveOutputContent(bundle.id, md)
     },
     onSuccess: () => {
@@ -88,8 +96,13 @@ export default function MarkdownEditor({ bundle, initialContent, onClose, onSave
 
   const handleSave = () => {
     setError(null)
-    if (!editor) return
-    const md = ((editor.storage as any).markdown.getMarkdown() as string).trim()
+    let md: string
+    if (sourceMode) {
+      md = sourceText.trim()
+    } else {
+      if (!editor) return
+      md = ((editor.storage as any).markdown.getMarkdown() as string).trim()
+    }
     if (!md) {
       setError('正文不能为空')
       return
@@ -111,6 +124,26 @@ export default function MarkdownEditor({ bundle, initialContent, onClose, onSave
           <span className="text-[11px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">未保存</span>
         )}
         <div className="ml-auto flex items-center gap-2">
+          {/* 2026-06-04 源码 / 富文本 切换 — 表格识别不出时兜底直接改 markdown */}
+          <button
+            onClick={() => {
+              if (sourceMode) {
+                // 源码 → 富文本: 把 sourceText 灌回 editor
+                if (editor) editor.commands.setContent(sourceText)
+                setSourceMode(false)
+              } else {
+                // 富文本 → 源码: 序列化当前 editor 内容
+                const md = editor ? (editor.storage as any).markdown.getMarkdown() as string : initialContent
+                setSourceText(md)
+                setSourceMode(true)
+              }
+            }}
+            disabled={mut.isPending}
+            className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md border border-line text-ink-secondary hover:bg-white hover:text-ink disabled:opacity-50"
+            title={sourceMode ? '切回所见即所得编辑(表格能直接点)' : '切换到 markdown 源码编辑(表格识别不准时用这个改)'}
+          >
+            <FileCode size={11} /> {sourceMode ? '富文本' : '源码'}
+          </button>
           <button
             onClick={handleCancel}
             disabled={mut.isPending}
@@ -130,8 +163,8 @@ export default function MarkdownEditor({ bundle, initialContent, onClose, onSave
         </div>
       </div>
 
-      {/* 工具栏 */}
-      {editor && (
+      {/* 工具栏 — 源码模式下隐藏(textarea 直接改) */}
+      {editor && !sourceMode && (
         <div className="flex-shrink-0 px-3 py-1.5 border-b border-line bg-slate-50/30 flex items-center gap-0.5 flex-wrap">
           <ToolbarBtn active={editor.isActive('heading', { level: 2 })}
                       onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
@@ -167,55 +200,51 @@ export default function MarkdownEditor({ bundle, initialContent, onClose, onSave
                       disabled={!editor.can().redo()}
                       title="重做 (Ctrl+Y)"><Redo size={13} /></ToolbarBtn>
           <ToolbarSep />
-          {/* 表格操作 — 光标不在表格内时只显示「插入表格」;在表格内时显示增删行/列 */}
-          {editor.isActive('table') ? (
-            <>
-              <ToolbarBtn
-                onClick={() => editor.chain().focus().addRowAfter().run()}
-                disabled={!editor.can().addRowAfter()}
-                title="在下方插入行"
-              >
-                <span className="inline-flex items-center gap-0.5 text-[11px]"><RowsIcon size={13} />+</span>
-              </ToolbarBtn>
-              <ToolbarBtn
-                onClick={() => editor.chain().focus().deleteRow().run()}
-                disabled={!editor.can().deleteRow()}
-                title="删除当前行"
-              >
-                <span className="inline-flex items-center gap-0.5 text-[11px]"><RowsIcon size={13} />−</span>
-              </ToolbarBtn>
-              <ToolbarBtn
-                onClick={() => editor.chain().focus().addColumnAfter().run()}
-                disabled={!editor.can().addColumnAfter()}
-                title="在右侧插入列"
-              >
-                <span className="inline-flex items-center gap-0.5 text-[11px]"><Columns size={13} />+</span>
-              </ToolbarBtn>
-              <ToolbarBtn
-                onClick={() => editor.chain().focus().deleteColumn().run()}
-                disabled={!editor.can().deleteColumn()}
-                title="删除当前列"
-              >
-                <span className="inline-flex items-center gap-0.5 text-[11px]"><Columns size={13} />−</span>
-              </ToolbarBtn>
-              <ToolbarBtn
-                onClick={() => {
-                  if (window.confirm('确定删除整张表格?')) editor.chain().focus().deleteTable().run()
-                }}
-                disabled={!editor.can().deleteTable()}
-                title="删除整张表格"
-              >
-                <Trash2 size={13} />
-              </ToolbarBtn>
-            </>
-          ) : (
-            <ToolbarBtn
-              onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
-              title="在光标处插入 3×3 表格(后续可增删行列)"
-            >
-              <TableIcon size={13} />
-            </ToolbarBtn>
-          )}
+          {/* 2026-06-04 表格操作 — 一直显示;光标不在表格里时按钮自动 disable */}
+          <ToolbarBtn
+            onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+            disabled={editor.isActive('table')}
+            title={editor.isActive('table') ? '光标已在表格里(点其他位置后再用)' : '在光标处插入 3×3 表格'}
+          >
+            <TableIcon size={13} />
+          </ToolbarBtn>
+          <ToolbarBtn
+            onClick={() => editor.chain().focus().addRowAfter().run()}
+            disabled={!editor.can().addRowAfter()}
+            title="在下方插入行(光标必须在表格里)"
+          >
+            <span className="inline-flex items-center gap-0.5 text-[11px]"><RowsIcon size={13} />+</span>
+          </ToolbarBtn>
+          <ToolbarBtn
+            onClick={() => editor.chain().focus().deleteRow().run()}
+            disabled={!editor.can().deleteRow()}
+            title="删除当前行(光标必须在表格里)"
+          >
+            <span className="inline-flex items-center gap-0.5 text-[11px]"><RowsIcon size={13} />−</span>
+          </ToolbarBtn>
+          <ToolbarBtn
+            onClick={() => editor.chain().focus().addColumnAfter().run()}
+            disabled={!editor.can().addColumnAfter()}
+            title="在右侧插入列(光标必须在表格里)"
+          >
+            <span className="inline-flex items-center gap-0.5 text-[11px]"><Columns size={13} />+</span>
+          </ToolbarBtn>
+          <ToolbarBtn
+            onClick={() => editor.chain().focus().deleteColumn().run()}
+            disabled={!editor.can().deleteColumn()}
+            title="删除当前列(光标必须在表格里)"
+          >
+            <span className="inline-flex items-center gap-0.5 text-[11px]"><Columns size={13} />−</span>
+          </ToolbarBtn>
+          <ToolbarBtn
+            onClick={() => {
+              if (window.confirm('确定删除整张表格?')) editor.chain().focus().deleteTable().run()
+            }}
+            disabled={!editor.can().deleteTable()}
+            title="删除整张表格(光标必须在表格里)"
+          >
+            <Trash2 size={13} />
+          </ToolbarBtn>
         </div>
       )}
 
@@ -226,11 +255,22 @@ export default function MarkdownEditor({ bundle, initialContent, onClose, onSave
         </div>
       )}
 
-      {/* 编辑区 — 在白卡内,跟读视图同款灰底环境 */}
+      {/* 编辑区 — 在白卡内,跟读视图同款灰底环境;源码模式渲染 textarea */}
       <div className="flex-1 min-h-0 overflow-auto bg-canvas px-5 py-5">
         <div className="max-w-[1600px] mx-auto">
           <div className="bg-white rounded-xl border border-line shadow-sm overflow-hidden">
-            <EditorContent editor={editor} />
+            {sourceMode ? (
+              <textarea
+                value={sourceText}
+                onChange={(e) => { setSourceText(e.target.value); setDirty(true) }}
+                className="w-full px-6 py-5 text-xs font-mono leading-relaxed focus:outline-none resize-none"
+                style={{ minHeight: 'calc(100vh - 240px)', whiteSpace: 'pre' }}
+                spellCheck={false}
+                placeholder="直接编辑 markdown 源码。表格用 | 分隔单元格,新增一行直接复制上一行格式回车即可。"
+              />
+            ) : (
+              <EditorContent editor={editor} />
+            )}
           </div>
         </div>
       </div>
