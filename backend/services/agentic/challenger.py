@@ -120,57 +120,6 @@ verdict: minor_issues
 """
 
 
-def _strip_code_fence(text: str) -> str:
-    """LLM 偶尔无视 contract 包 ```json,这里强行剥掉。"""
-    text = text.strip()
-    if text.startswith("```"):
-        lines = text.split("\n")
-        if lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-    return text
-
-
-def _balanced_json_block(text: str) -> str | None:
-    """从 text 里抓**最长的**括号平衡 {} 块,handle 嵌套。"""
-    candidates: list[str] = []
-    stack = 0
-    start = -1
-    for i, ch in enumerate(text):
-        if ch == '{':
-            if stack == 0:
-                start = i
-            stack += 1
-        elif ch == '}':
-            if stack > 0:
-                stack -= 1
-                if stack == 0 and start >= 0:
-                    candidates.append(text[start:i + 1])
-                    start = -1
-    if not candidates:
-        return None
-    return max(candidates, key=len)        # 选最长的 (最完整的)
-
-
-def _clean_jsonish(text: str) -> str:
-    """LLM 输出里常见的"非标准 JSON"字符做归一化:
-    - 移除 // 行注释 / /* ... */ 块注释
-    - 移除尾随逗号 (`, ]` / `, }`)
-    - 移除 Unicode BOM
-    """
-    # 移除 BOM
-    text = text.lstrip('﻿')
-    # 移除 /* ... */ 块注释
-    text = re.sub(r'/\*[\s\S]*?\*/', '', text)
-    # 移除 // 行注释 (但要避开 url 里的 //)
-    text = re.sub(r'(?<![:\w])//[^\n]*', '', text)
-    # 移除尾随逗号
-    text = re.sub(r',(\s*[\]\}])', r'\1', text)
-    return text
-
-
 def _parse_critique_json(raw: str) -> tuple[dict, str | None]:
     """解析挑战器的 Markdown 半结构化输出(函数名保留 _json 是历史遗留)。
 
@@ -446,9 +395,9 @@ async def challenge_report(
                 max_tokens=8000,                            # 推理模型 think 块占用大,4000 容易跑光导致 content 空
                 temperature=0.2 if attempt == 0 else 0.1,
                 timeout=180.0,
-                strip_think=False,        # 关键:推理模型 GLM-5 可能把 JSON 也写在 <think>
+                strip_think=False,        # 关键:推理模型 GLM-5 可能把内容写在 <think>
                                             # 块里,默认剥光会变成空字符串。这里拿原始内容,
-                                            # _parse_critique_json 用 _balanced_json_block 自己抓 JSON
+                                            # _parse_critique_json 用正则逐字段解析
             )
             # 立即记录 LLM 返回的原始内容,定位"为什么空" — 是真没意见 / 推理跑光 / API 异常
             _r = result or ""

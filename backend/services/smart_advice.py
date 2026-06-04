@@ -364,38 +364,12 @@ async def _generate_with_llm(ctx: dict) -> tuple[str, list[str], list[str]]:
         DEFAULT_MODEL, messages, max_tokens=2000, temperature=0.4, timeout=60.0,
     )
     # 解析 JSON
-    parsed = _parse_json_loose(content)
+    from services.llm_json import loads_lenient
+    parsed = loads_lenient(content, default={})
     advice_md = str(parsed.get("advice_md") or "").strip()
     next_steps = _ensure_str_list(parsed.get("next_steps"))
     risks = _ensure_str_list(parsed.get("risks"))
     return advice_md, next_steps, risks
-
-
-def _parse_json_loose(text: str) -> dict:
-    """容忍 LLM 偶尔给 markdown 围栏。"""
-    if not text:
-        return {}
-    s = text.strip()
-    # 去掉可能的 ```json ... ``` 围栏
-    if s.startswith("```"):
-        nl = s.find("\n")
-        if nl >= 0:
-            s = s[nl + 1:]
-        if s.endswith("```"):
-            s = s[: -3]
-        s = s.strip()
-    try:
-        return json.loads(s)
-    except Exception:
-        # 再试:截取第一个 { 到最后一个 } 之间
-        l = s.find("{")
-        r = s.rfind("}")
-        if l >= 0 and r > l:
-            try:
-                return json.loads(s[l : r + 1])
-            except Exception:
-                return {}
-        return {}
 
 
 def _ensure_str_list(v: Any) -> list[str]:
