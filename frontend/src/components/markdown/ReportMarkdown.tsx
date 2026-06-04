@@ -16,15 +16,20 @@ import { useEffect, useId, useState } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import mermaid from 'mermaid'
+import elkLayouts from '@mermaid-js/layout-elk'
 import { type ProvenanceEntry } from '../../api/client'
 
-// mermaid 全局初始化(模块级,只跑一次):base theme + 冷色调主题,对齐 Lucid 风格连线 + 形状区分配色。
-// 连线用折线(curve: 'step'),节点按形状自动分色:矩形浅蓝、椭圆/圆浅紫、菱形/六边形浅黄。
+// mermaid 全局初始化(模块级,只跑一次):
+// - ELK 布局引擎(替代默认 dagre)— 折线连接质量明显更高,密集分叉/汇聚不绕路、不穿节点,接近 Lucid。
+// - base theme + 冷色调主题,矩形浅蓝/椭圆浅紫/菱形浅黄,前端三色自动分色。
+// - curve: step,配合 ELK 走干净 L 型折线(用 dagre + step 会绕路,所以之前退回 basis)。
+mermaid.registerLayoutLoaders(elkLayouts)
 mermaid.initialize({
   startOnLoad: false,
   theme: 'base',
   securityLevel: 'loose',
-  flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis', padding: 16, nodeSpacing: 55, rankSpacing: 75 },
+  layout: 'elk',
+  flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'step', padding: 16, nodeSpacing: 55, rankSpacing: 75 },
   sequence: { useMaxWidth: true, wrap: true, mirrorActors: false, boxMargin: 12 },
   themeVariables: {
     fontFamily: '"PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
