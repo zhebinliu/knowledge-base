@@ -94,12 +94,13 @@ def generate_survey(self, bundle_id: str, project_id: str):
 
 
 @celery_app.task(name="generate_survey_session", bind=True, max_retries=2, soft_time_limit=600, time_limit=900)
-def generate_survey_session(self, bundle_id: str, project_id: str, session_id: str):
+def generate_survey_session(self, bundle_id: str, project_id: str, session_id: str, extra_context: str = ""):
     """按场次手动触发生成调研问卷题目(2026-06-03)。
     参见 services/agentic/runner.generate_survey_for_session。
+    extra_context (2026-06-04):用户本次重生前刚补的新内容,LLM 据此改写出题方向。
     """
     from services.agentic.runner import generate_survey_for_session as _gen
-    _run(_gen(bundle_id, project_id, session_id))
+    _run(_gen(bundle_id, project_id, session_id, extra_context=extra_context or ""))
 
 
 @celery_app.task(name="generate_survey_role", bind=True, max_retries=2, soft_time_limit=600, time_limit=900)

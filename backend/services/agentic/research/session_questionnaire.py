@@ -109,6 +109,7 @@ def build_user_prompt(
     item_key_prefix: str,
     transcript: str = "",
     meeting_context: str = "",
+    extra_context: str = "",
 ) -> str:
     session_block = _format_session_block(session)
     all_brief = _format_all_sessions_brief(all_sessions, session.get("session_id", ""))
@@ -125,6 +126,17 @@ def build_user_prompt(
             "- 例外:某话题虽然在会议里出现过但需要本场深挖具体子项 → 可以问细化题(标 in_meeting)\n"
             f"\n{meeting_context}\n"
         )
+    extra_block = ""
+    if extra_context and extra_context.strip():
+        extra_block = (
+            "【本次重生的补充上下文 — 用户刚提供】\n"
+            "下面是用户在重生前刚补的新内容(可能是新会议纪要 / 新文档摘要 / 客户反馈 / 阶段性结论 等)。\n"
+            "**核心要求**:**优先纳入这部分**,据此改写题目方向:\n"
+            "- 已经在补充内容里有答案的话题 → 本场不再问(跟会议纪要同等约束)\n"
+            "- 补充内容暴露了新风险 / 新需求 / 新约束 → 据此增加针对性题\n"
+            "- 补充内容跟原大纲场次议题有出入 → 以补充为准,本场议题可微调\n"
+            f"\n{extra_context.strip()[:8000]}\n"
+        )
 
     return f"""请为下面这**一场访谈**生成 8-15 题调研题目。
 
@@ -140,6 +152,8 @@ def build_user_prompt(
 {project_block}
 
 {meeting_block}
+
+{extra_block}
 
 【访谈记录(若有)】
 {transcript_block or '（无访谈记录,按场次信息出题)'}
@@ -229,6 +243,7 @@ async def generate_session_items(
     customer_modules: list[str],
     model: str | None,
     meeting_context: str = "",   # 2026-06-03 已完成会议纪要(去重出题用)
+    extra_context: str = "",     # 2026-06-04 用户在本次重生前刚补的新内容
 ) -> tuple[str, list[dict]]:
     """LLM 一次性出本场的题目。返回 (markdown, items)。
 
@@ -260,6 +275,7 @@ async def generate_session_items(
         item_key_prefix=item_key_prefix,
         transcript=transcript,
         meeting_context=meeting_context,
+        extra_context=extra_context,
     )
     try:
         content = await _llm_call(

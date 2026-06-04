@@ -1907,7 +1907,8 @@ async def generate_survey_for_role(bundle_id: str, project_id: str, role: str):
 #   - 老题 session_id 为 None 的(一键生成出的兼容老数据)不动
 #   - bundle.extra.session_progress[session_id] = "done" / "generating" / "failed"
 
-async def generate_survey_for_session(bundle_id: str, project_id: str, session_id: str):
+async def generate_survey_for_session(bundle_id: str, project_id: str, session_id: str,
+                                       extra_context: str = ""):
     from .research.session_questionnaire import generate_session_items
     from .research.ltc_dictionary import hints_for_subsection, ALL_LTC_MODULES
     from .executor import _post_process_items
@@ -2022,6 +2023,7 @@ async def generate_survey_for_session(bundle_id: str, project_id: str, session_i
             customer_modules=customer_modules,
             model=ctx["agent_model"],
             meeting_context=meeting_md,
+            extra_context=extra_context,
         )
         run_history.append({"phase": "llm_done", "ts": _ts(),
                             "detail": {"raw_items_n": len(raw_items)}})

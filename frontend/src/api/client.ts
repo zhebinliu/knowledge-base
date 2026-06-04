@@ -1360,9 +1360,12 @@ export const generateSurveyForRole = (
 export const generateSurveyForSession = (
   bundleId: string,
   sessionId: string,
+  extraContext: string = '',
 ) =>
-  api.post<CuratedBundle>(`/outputs/${bundleId}/generate-session`, { session_id: sessionId })
-    .then(r => r.data)
+  api.post<CuratedBundle>(`/outputs/${bundleId}/generate-session`, {
+    session_id: sessionId,
+    extra_context: extraContext || undefined,
+  }).then(r => r.data)
 
 /** 单题手动重新生成(2026-06-03)。
  *  同步调 LLM(约 5-15s),成功后返回更新后的 bundle。

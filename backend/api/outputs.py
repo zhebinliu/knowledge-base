@@ -98,8 +98,11 @@ class GenerateRoleRequest(BaseModel):
 
 
 class GenerateSessionRequest(BaseModel):
-    """按单个场次手动触发生成调研问卷题目(2026-06-03)。"""
+    """按单个场次手动触发生成调研问卷题目(2026-06-03)。
+    extra_context (2026-06-04):用户本次重生前刚提供的补充内容(新会议纪要 / 新文档摘要 /
+    客户反馈 等),LLM 据此结合现有上下文重新出题。空字符串等同于不补充。"""
     session_id: str
+    extra_context: str | None = None
 
 
 def _bundle_dto(b: CuratedBundle) -> dict:
@@ -388,11 +391,12 @@ async def generate_survey_session(
     await session.refresh(bundle)
 
     from tasks.output_tasks import generate_survey_session as _task
-    _task.delay(bundle.id, bundle.project_id, body.session_id)
+    _task.delay(bundle.id, bundle.project_id, body.session_id, (body.extra_context or "").strip())
 
     logger.info("survey_session_dispatched",
                 bundle_id=bundle_id, session_id=body.session_id,
-                project_id=bundle.project_id, user_id=current_user.id)
+                project_id=bundle.project_id, user_id=current_user.id,
+                extra_chars=len((body.extra_context or "").strip()))
     return _bundle_dto(bundle)
 
 
