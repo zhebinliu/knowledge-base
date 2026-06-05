@@ -176,6 +176,27 @@ export function MermaidBlock({ code }: { code: string }) {
   }, [cleaned, id])
 
   if (error) {
+    // 2026-06-05:识别 vite chunk 旧 hash 失效场景。新部署后旧 tab 引用旧 chunk,
+    // mermaid lazy-load 子图类型(stateDiagram-v2 / gantt 等)时报 dynamically
+    // imported module fetch 失败。main.tsx 已挂全局 vite:preloadError 自动 reload,
+    // 这里是兜底:万一全局监听没接住(老浏览器 / 时序怪异),给用户一个明确的刷新按钮。
+    const isStaleChunk = /Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError/i.test(error)
+    if (isStaleChunk) {
+      return (
+        <div className="my-3 text-xs bg-amber-50 border border-amber-200 px-3 py-2 rounded">
+          <div className="text-amber-700 font-medium mb-1">⚠️ 检测到前端有新版本</div>
+          <div className="text-amber-700/80 mb-2">
+            页面缓存了旧的代码块,新版本部署后导致图表无法加载。刷新页面即可恢复。
+          </div>
+          <button
+            onClick={() => { try { sessionStorage.removeItem('vite-preload-reload-at') } catch {}; window.location.reload() }}
+            className="px-3 py-1 text-xs bg-amber-600 text-white rounded hover:bg-amber-700"
+          >
+            立即刷新页面
+          </button>
+        </div>
+      )
+    }
     return (
       <div className="my-3">
         <div className="text-xs text-red-600 bg-red-50 border border-red-200 px-3 py-1.5 rounded-t">
