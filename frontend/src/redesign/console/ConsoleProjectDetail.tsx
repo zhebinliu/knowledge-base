@@ -22,7 +22,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, FileText, ClipboardList, Lightbulb, MessageSquare, Sparkles,
   CheckCircle2, Loader2, Lock, Download, ExternalLink,
-  Save, X, Wand2, AlertCircle, Pencil, Home, Files, Search,
+  Save, X, Wand2, AlertCircle, AlertTriangle, Pencil, Home, Files, Search,
   Bot, ShieldAlert, ChevronDown, ChevronRight, ChevronLeft, Users, Eye, RotateCw, Plus, Contact,
   Upload,
 } from 'lucide-react'
@@ -51,7 +51,7 @@ import NewQA from '../QA'
 
 import {
   getProject, updateProject, generateCustomerProfile, generateOutput,
-  listProjectDocuments, getDocumentMarkdown, listOutputs, downloadOutputUrl, viewOutputUrl,
+  listProjectDocuments, getDocumentMarkdown, listOutputs, listLatestByKind, downloadOutputUrl, viewOutputUrl,
   getOutput, getProjectMeta, TOKEN_STORAGE_KEY, getStageFlow,
   type CuratedBundle, type OutputKind, type Project, type ProjectDocument,
   type StageDef as ApiStageDef,
@@ -161,20 +161,37 @@ export default function NewConsoleProjectDetail() {
   const { data: docs } = useQuery({
     queryKey: ['project-docs', id], queryFn: () => listProjectDocuments(id!), enabled: !!id,
   })
-  const { data: outputs, refetch: refetchOutputs } = useQuery({
+  // 2026-06-05:chip 跟 failed 数量彻底脱钩 — 不再走分页 listOutputs(第一页 20 条会被
+  // 同款 kind 的失败堆叠击穿),改用专门的 latest-by-kind endpoint,只看 done + inflight。
+  // listOutputs 保留给「产物历史」用,但 chip 不依赖。
+  const { data: latestByKind, refetch: refetchLatest } = useQuery({
+    queryKey: ['project-latest-by-kind', id],
+    queryFn: () => listLatestByKind(id!),
+    enabled: !!id,
+    refetchInterval: (q: any) => {
+      const dict = q.state.data ?? {}
+      // 任一 kind 有 inflight bundle → 继续轮询
+      const anyInflight = Object.values(dict).some((slot: any) => slot?.inflight)
+      // 按角色 / 按场次生成:bundle.status='done' 但 role_progress / session_progress 里有 generating
+      const anyPartial = Object.values(dict).some((slot: any) => {
+        const b: CuratedBundle | null = slot?.done
+        if (!b) return false
+        const rp = b.role_progress || {}
+        const sp = (b as any).session_progress || {}
+        return Object.values(rp).some(v => v === 'generating') ||
+               Object.values(sp).some(v => v === 'generating')
+      })
+      return (anyInflight || anyPartial) ? 2000 : false
+    },
+  })
+  // outputs 历史列表(底部产物列表等场景用),不再驱动 chip
+  const { refetch: refetchOutputsRaw } = useQuery({
     queryKey: ['project-bundles', id],
     queryFn: () => listOutputs({ project_id: id, page: 1 }),
     enabled: !!id,
-    refetchInterval: (q: any) => {
-      // 2026-06-03:按角色逐步生成 survey 时 bundle.status 维持 done,
-      // 单独检查 role_progress 是否有 generating(否则按钮一直转、拿不到最新状态)
-      const items = q.state.data?.items ?? []
-      return items.some((b: CuratedBundle) =>
-        b.status === 'pending' || b.status === 'generating' ||
-        (b.role_progress && Object.values(b.role_progress).some(v => v === 'generating'))
-      ) ? 2000 : false
-    },
   })
+  // 所有「触发生成」回调都该同时刷 chip(latest-by-kind)+ 产物列表(outputs)
+  const refetchOutputs = () => { refetchOutputsRaw(); refetchLatest() }
   const { data: meta } = useQuery({ queryKey: ['project-meta'], queryFn: getProjectMeta })
   const { data: stageFlow } = useQuery({
     queryKey: ['stage-flow'], queryFn: getStageFlow,
@@ -193,9 +210,9 @@ export default function NewConsoleProjectDetail() {
     : DEFAULT_STAGES
   const STAGES: StageDef[] = ALL_STAGES.filter(s => s.active)
 
-  const bundles = outputs?.items ?? []
-  const bundleByKind = (kind: OutputKind) => bundles.find(b => b.kind === kind && b.status === 'done')
-  const inflightByKind = (kind: OutputKind) => bundles.find(b => b.kind === kind && (b.status === 'pending' || b.status === 'generating'))
+  // 2026-06-05:从 latest-by-kind dict 读 done / inflight,跟 failed 数量脱钩。
+  const bundleByKind = (kind: OutputKind) => latestByKind?.[kind]?.done ?? undefined
+  const inflightByKind = (kind: OutputKind) => latestByKind?.[kind]?.inflight ?? undefined
 
   const stageStatus = (s: StageDef): StageStatus => {
     if (!s.active) return 'locked'
@@ -219,6 +236,12 @@ export default function NewConsoleProjectDetail() {
     : (activeStage?.label ?? '')
   const activeBundle = activeKind ? bundleByKind(activeKind) : undefined
   const activeInflight = activeKind ? inflightByKind(activeKind) : undefined
+  // 最近一次失败 — 仅当比 done 新(或没有 done)时才显示「最近一次失败 · trace=xxx」
+  const activeFailed = activeKind ? (latestByKind?.[activeKind]?.failed ?? null) : null
+  const hasRecentFailure = !!activeFailed && (
+    !activeBundle ||
+    new Date(activeFailed.updated_at).getTime() > new Date(activeBundle.updated_at).getTime()
+  )
 
   useEffect(() => {
     if (!activeKind) return
@@ -522,6 +545,27 @@ export default function NewConsoleProjectDetail() {
            activeInflight ? `${activeKindLabel} · 正在生成中…` :
            `${activeKindLabel} · 尚未生成`}
         </span>
+        {/* 2026-06-05:最近一次失败 — 显示 trace_id,点击复制给后台 grep 日志 */}
+        {hasRecentFailure && activeFailed && (
+          <span
+            title={`点击复制 trace_id\n${activeFailed.error || ''}`}
+            onClick={() => {
+              const tid = activeFailed.trace_id || ''
+              if (!tid) { alert('该失败记录没有 trace_id(老数据,无法追踪)'); return }
+              try { navigator.clipboard.writeText(tid); alert(`已复制 trace_id: ${tid}`) }
+              catch { alert(`trace_id: ${tid}`) }
+            }}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '3px 8px', fontSize: 11, color: '#F87171',
+              border: '1px solid rgba(248,113,113,0.4)', borderRadius: 4,
+              cursor: 'pointer', userSelect: 'none', flexShrink: 0,
+            }}
+          >
+            <AlertTriangle size={10} />
+            最近一次生成失败 {activeFailed.trace_id ? `· trace=${activeFailed.trace_id.slice(0, 8)}…` : ''}
+          </span>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', flexShrink: 0 }}>
           {activeStage.active && activeKind && BRIEF_KINDS.includes(activeKind) && !activeInflight && (
             <button onClick={openBriefForActive} className="rd-btn" style={{ padding: '5px 12px', fontSize: 12 }} title="查看 / 编辑项目要点">

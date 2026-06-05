@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, FileText, ClipboardList, Lightbulb, MessageSquare, Sparkles,
   CheckCircle2, Loader2, Lock, Download, ExternalLink, RotateCw,
-  Save, X, Wand2, AlertCircle, Pencil, Home, Files, Search,
+  Save, X, Wand2, AlertCircle, AlertTriangle, Pencil, Home, Files, Search,
   Bot, ShieldAlert, ChevronDown, ChevronRight, Users, Eye, Plus, Contact,
   Upload,
 } from 'lucide-react'
@@ -17,7 +17,7 @@ import ProjectMeetingsDrawer from '../../components/console/ProjectMeetingsDrawe
 import SmartAdviceBanner, { smartAdviceQueryKey } from '../../components/console/SmartAdviceBanner'
 import {
   getProject, updateProject, generateCustomerProfile, generateOutput,
-  listProjectDocuments, getDocumentMarkdown, listOutputs, downloadOutputUrl, viewOutputUrl,
+  listProjectDocuments, getDocumentMarkdown, listOutputs, listLatestByKind, downloadOutputUrl, viewOutputUrl,
   getOutput,
   getProjectMeta, TOKEN_STORAGE_KEY,
   getStageFlow,
@@ -162,21 +162,33 @@ export default function ConsoleProjectDetail() {
   const { data: docs } = useQuery({
     queryKey: ['project-docs', id], queryFn: () => listProjectDocuments(id!), enabled: !!id,
   })
-  const { data: outputs, refetch: refetchOutputs } = useQuery({
+  // 2026-06-05:chip 跟 failed 数量彻底脱钩 — 走 latest-by-kind,只看 done + inflight。
+  // listOutputs 保留给「产物历史」等场景,chip 不再依赖。背景:今早事故 — 一个 kind
+  // 失败 18 条把 listOutputs 第一页打爆,chip 全显示「尚未生成」。
+  const { data: latestByKind, refetch: refetchLatest } = useQuery({
+    queryKey: ['project-latest-by-kind', id],
+    queryFn: () => listLatestByKind(id!),
+    enabled: !!id,
+    refetchInterval: (q: any) => {
+      const dict = q.state.data ?? {}
+      const anyInflight = Object.values(dict).some((slot: any) => slot?.inflight)
+      const anyPartial = Object.values(dict).some((slot: any) => {
+        const b: CuratedBundle | null = slot?.done
+        if (!b) return false
+        const rp = b.role_progress || {}
+        const sp = (b as any).session_progress || {}
+        return Object.values(rp).some(v => v === 'generating') ||
+               Object.values(sp).some(v => v === 'generating')
+      })
+      return (anyInflight || anyPartial) ? 2000 : false
+    },
+  })
+  const { refetch: refetchOutputsRaw } = useQuery({
     queryKey: ['project-bundles', id],
     queryFn: () => listOutputs({ project_id: id, page: 1 }),
     enabled: !!id,
-    refetchInterval: (q: any) => {
-      // inflight 中 2s polling — 让 GenerationProgressCard 的进度更新更顺滑
-      // 2026-06-03:按角色逐步生成 survey 时 bundle.status 维持 done,
-      // 单独检查 role_progress 是否有 generating(否则按钮一直转、拿不到最新状态)
-      const items = q.state.data?.items ?? []
-      return items.some((b: CuratedBundle) =>
-        b.status === 'pending' || b.status === 'generating' ||
-        (b.role_progress && Object.values(b.role_progress).some(v => v === 'generating'))
-      ) ? 2000 : false
-    },
   })
+  const refetchOutputs = () => { refetchOutputsRaw(); refetchLatest() }
   const { data: meta } = useQuery({ queryKey: ['project-meta'], queryFn: getProjectMeta })
 
   // 项目阶段流程 — 后端动态配置(/api/settings/stage-flow);失败 fallback 到内置默认
@@ -204,9 +216,9 @@ export default function ConsoleProjectDetail() {
   const STAGES: StageDef[] = ALL_STAGES.filter(s => s.active)
 
   // ─ 派生状态 — 在 early return 之前计算,以便 useEffect 引用(React 规则:hook 必须在 return 之前) ─
-  const bundles = outputs?.items ?? []
-  const bundleByKind = (kind: OutputKind) => bundles.find(b => b.kind === kind && b.status === 'done')
-  const inflightByKind = (kind: OutputKind) => bundles.find(b => b.kind === kind && (b.status === 'pending' || b.status === 'generating'))
+  // 2026-06-05:从 latest-by-kind dict 读 done / inflight,跟 failed 数量脱钩。
+  const bundleByKind = (kind: OutputKind) => latestByKind?.[kind]?.done ?? undefined
+  const inflightByKind = (kind: OutputKind) => latestByKind?.[kind]?.inflight ?? undefined
 
   const stageStatus = (s: StageDef): StageStatus => {
     if (!s.active) return 'locked'
@@ -233,6 +245,12 @@ export default function ConsoleProjectDetail() {
     : (activeStage?.label ?? '')
   const activeBundle = activeKind ? bundleByKind(activeKind) : undefined
   const activeInflight = activeKind ? inflightByKind(activeKind) : undefined
+  // 最近一次失败 — 仅当比 done 新(或没有 done)时显示「最近一次失败 · trace=xxx」
+  const activeFailed = activeKind ? (latestByKind?.[activeKind]?.failed ?? null) : null
+  const hasRecentFailure = !!activeFailed && (
+    !activeBundle ||
+    new Date(activeFailed.updated_at).getTime() > new Date(activeBundle.updated_at).getTime()
+  )
 
   // chatMode 跟随 activeKind 同步 — 解决两个问题:
   //  1. 用户切换阶段后,chatMode.kind 残留旧值会让 OutputChatPanel 显示上一阶段的标题
@@ -532,6 +550,22 @@ export default function ConsoleProjectDetail() {
            activeInflight ? `${activeKindLabel} · 正在生成中…` :
            `${activeKindLabel} · 尚未生成`}
         </span>
+        {/* 2026-06-05:最近一次失败 — 显示 trace_id,点击复制给后台 grep 日志 */}
+        {hasRecentFailure && activeFailed && (
+          <span
+            title={`点击复制 trace_id\n${activeFailed.error || ''}`}
+            onClick={() => {
+              const tid = activeFailed.trace_id || ''
+              if (!tid) { alert('该失败记录没有 trace_id(老数据,无法追踪)'); return }
+              try { navigator.clipboard.writeText(tid); alert(`已复制 trace_id: ${tid}`) }
+              catch { alert(`trace_id: ${tid}`) }
+            }}
+            className="flex items-center gap-1 text-[11px] text-red-400 border border-red-300 rounded px-2 py-0.5 cursor-pointer select-none shrink-0"
+          >
+            <AlertTriangle size={10} />
+            最近一次生成失败 {activeFailed.trace_id ? `· trace=${activeFailed.trace_id.slice(0, 8)}…` : ''}
+          </span>
+        )}
         <div className="flex items-center gap-1.5 ml-auto shrink-0">
           {/* 「要点」按钮 — V3 文档驱动 kind (insight / survey / survey_outline) 在中央 CenterWorkspace 有更好的 brief 入口, 这里就不重复显示 */}
           {activeStage.active && activeKind && BRIEF_KINDS.includes(activeKind)

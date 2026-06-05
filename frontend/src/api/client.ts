@@ -1225,6 +1225,9 @@ export interface CuratedBundle {
   title: string
   status: 'pending' | 'generating' | 'done' | 'failed'
   error: string | null
+  /** 2026-06-05 全链路追踪 id:触发请求的 X-Request-ID,贯穿 API → bundle.extra → Celery 日志 → 错误提示。
+   *  失败时把这个给后台,grep 日志能拉出该次生成全部上下文。 */
+  trace_id?: string | null
   has_content: boolean
   has_file: boolean
   file_ext?: string
@@ -1388,6 +1391,17 @@ export const listOutputs = (params: { project_id?: string; kind?: string; page?:
 export interface StageStatusRow { project_id: string | null; kind: string; status: string }
 export const listStageSummary = () =>
   api.get<{ items: StageStatusRow[] }>('/outputs/stage-summary').then(r => r.data.items)
+
+/** 项目详情页 chip 专用:返回该项目下每个 kind 的最新 done / inflight / failed bundle。
+ *  - chip(已生成 / 生成中 / 未开始)只看 done + inflight,跟 failed 数量彻底脱钩(2026-06-05 事故根因)。
+ *  - failed slot 暴露最近一条失败的 bundle,前端在状态行显示 trace_id 让用户复制给后台查日志。 */
+export type LatestByKind = Record<string, {
+  done: CuratedBundle | null
+  inflight: CuratedBundle | null
+  failed: CuratedBundle | null
+}>
+export const listLatestByKind = (project_id: string) =>
+  api.get<LatestByKind>('/outputs/latest-by-kind', { params: { project_id } }).then(r => r.data)
 
 export const getOutput = (id: string) =>
   api.get<CuratedBundle>(`/outputs/${id}`).then(r => r.data)

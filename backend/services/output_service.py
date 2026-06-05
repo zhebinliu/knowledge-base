@@ -131,6 +131,20 @@ async def _mark_bundle(bundle_id: str, status: str, **kwargs):
     async with async_session_maker() as s:
         b = await s.get(CuratedBundle, bundle_id)
         if b:
+            # 2026-06-05:从 bundle.extra.trace_id 把 trace 重新 bind 到 structlog 的 contextvars,
+            # Celery 任务起来后是新 contextvar 上下文,这样后续所有 logger 自动带 trace_id。
+            # 失败时同步把 [trace=xxx] 前缀塞到 error,前端不解析 extra 也能看到。
+            _trace = ((b.extra or {}).get("trace_id") or "")
+            if _trace:
+                try:
+                    from structlog.contextvars import bind_contextvars as _bind
+                    _bind(trace_id=_trace, bundle_id=bundle_id, kind=b.kind)
+                except Exception:
+                    pass
+            if status == "failed" and _trace and "error" in kwargs and kwargs["error"]:
+                err = str(kwargs["error"])
+                if f"[trace={_trace}]" not in err:
+                    kwargs["error"] = f"[trace={_trace}] {err}"[:500]
             b.status = status
             for k, v in kwargs.items():
                 setattr(b, k, v)

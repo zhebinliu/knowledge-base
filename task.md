@@ -1,5 +1,51 @@
 # 任务跟踪
 
+## chip 跟 failed 脱钩 + 生成 trace_id 全链路(2026-06-05)— 用户 /goal
+
+### 背景
+今早事故:format_meeting_evidence 对 list[str] key_points 不兼容 → 调研报告生成炸 →
+用户循环点 18 次 → failed bundle 把 listOutputs 第一页打爆 → chip 全显示「尚未生成」。
+用户直评:这个逻辑太蠢。同时要求加 trace_id 让用户在前端看到错误后能去后台查。
+
+### 目标
+1. **chip 判定根治** — chip(已生成 / 生成中 / 未开始)只看 done + inflight,
+   彻底跟 failed 数量脱钩。
+2. **trace_id 全链路** — 触发生成时拿到一个 id,API / Celery / 失败提示统一显示,
+   后台日志按这个 id 能拉出该次生成的全部 log。
+
+### 拆解
+- [x] **A. 后端 — 新 endpoint `GET /outputs/latest-by-kind?project_id=...`**
+    - 返回 `{<kind>: {done, inflight, failed}}` 三档,每档取该 (project_id, kind) 下
+      updated_at 最新一条;failed slot 让前端识别「最近一次失败」显示 trace_id。
+- [x] **B. 后端 — generate_output / generate-role / generate-session 注入 trace_id**
+    - 新增 _current_trace_id() 从 structlog contextvars 读 request_id
+    - generate_output 创建 bundle 时 extra={"trace_id": ...};
+      role / session 二次触发时 extra["trace_id"] 也刷新
+    - _bundle_dto 暴露 trace_id 字段
+- [x] **C. Celery 链路 bind trace_id**
+    - _mark_bundle 拉到 bundle 时,从 b.extra.trace_id 重新 bind 到 structlog contextvars
+    - 同时 bind bundle_id + kind,worker 全部 log 自动带这三个字段
+    - status='failed' 时 error 前缀加 [trace=xxx],前端无需解析 extra 也能看到
+- [x] **D. 前端 — listLatestByKind API + chip 切换数据源**
+    - client.ts: 新 listLatestByKind() + LatestByKind 类型 + CuratedBundle.trace_id
+    - redesign ConsoleProjectDetail + legacy pages/console/ConsoleProjectDetail 都改:
+      bundleByKind / inflightByKind 从 latest-by-kind 读;outputs 保留给历史列表
+- [x] **E. 失败提示显示 trace_id**
+    - activeFailed + hasRecentFailure(failed updated_at 比 done 新)
+    - 状态行右侧红色「最近一次生成失败 · trace=xxxx」chip,点击复制 trace_id
+    - title 里挂完整 error 供 hover 看
+- [x] **F. 验证 + 部署**
+    - python ast OK + tsc OK(忽略 pre-existing meeting overlay 错误)
+    - 部署到 prod
+
+### 边界
+- 不动 list_outputs / stage-summary 的现有签名(只新增 latest-by-kind)
+- 不改 X-Request-ID 中间件(复用现有 rid 作为 trace_id)
+- 不改 bundle 表 schema(trace_id 走 extra JSON)
+- failed bundle 历史保留,但 chip 不再看它们
+
+---
+
 ## 调研问卷 按场次手动触发生成(2026-06-03)— 用户 /goal
 
 ### 目标

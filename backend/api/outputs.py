@@ -54,6 +54,20 @@ async def get_user_via_query_or_header(
 
 router = APIRouter()
 
+
+def _current_trace_id() -> str | None:
+    """读 main.py request_id middleware 已 bind 到 structlog contextvars 的 request_id。
+
+    在 generate API 创建 bundle 时塞到 extra.trace_id,Celery 任务起来后再从 bundle 读出
+    rebind,这样异步任务链路里所有 logger.info/error 都自动带这个 trace_id。
+    """
+    try:
+        from structlog.contextvars import get_contextvars
+        return get_contextvars().get("request_id")
+    except Exception:
+        return None
+
+
 KIND_TO_TASK = {
     "kickoff_pptx": "generate_kickoff_pptx",
     "kickoff_html": "generate_kickoff_html",
@@ -116,6 +130,9 @@ def _bundle_dto(b: CuratedBundle) -> dict:
         "title": b.title,
         "status": b.status,
         "error": b.error,
+        # 2026-06-05:trace_id 从触发请求的 X-Request-ID 继承,贯穿 API → bundle → Celery 日志 → 错误提示;
+        # 用户看到 failed 时把 trace_id 给后台,grep 一下能拉出全部 log。
+        "trace_id": extra.get("trace_id"),
         "has_content": bool(b.content_md),
         "has_file": bool(b.file_key),
         "file_ext": file_ext,
@@ -174,6 +191,7 @@ async def generate_output(
         status="pending",
         created_by=current_user.id,
         created_by_name=current_user.username,
+        extra={"trace_id": _current_trace_id()},
     )
     session.add(bundle)
     await session.commit()
@@ -238,10 +256,12 @@ async def generate_survey_role(
     await assert_project_access(current_user, bundle.project_id, "write")
 
     # 立即把 role_progress[role] = 'generating' 写回(让前端轮询即时可见)
+    # 顺手刷新 trace_id 为本次触发的 request_id,跟新一轮 celery 日志对齐
     extra = dict(bundle.extra or {})
     rp = dict(extra.get("role_progress") or {})
     rp[body.role] = "generating"
     extra["role_progress"] = rp
+    extra["trace_id"] = _current_trace_id()
     bundle.extra = extra
     await session.commit()
     await session.refresh(bundle)
@@ -380,10 +400,12 @@ async def generate_survey_session(
     await assert_project_access(current_user, bundle.project_id, "write")
 
     # 立即写 session_progress[session_id]='generating' 让前端立即可见
+    # 顺手刷新 trace_id 为本次触发的 request_id,跟新一轮 celery 日志对齐
     extra = dict(bundle.extra or {})
     sp = dict(extra.get("session_progress") or {})
     sp[body.session_id] = "generating"
     extra["session_progress"] = sp
+    extra["trace_id"] = _current_trace_id()
     bundle.extra = extra
     from sqlalchemy.orm.attributes import flag_modified as _flag
     _flag(bundle, "extra")
@@ -471,6 +493,57 @@ async def stage_summary(
         {"project_id": pid, "kind": kind, "status": status}
         for (pid, kind, status) in rows
     ]}
+
+
+@router.get("/latest-by-kind")
+async def latest_bundle_by_kind(
+    project_id: str = Query(...),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """项目详情页 chip 专用:返回该项目下每个 kind 的最新 done + inflight bundle。
+
+    chip(已生成 / 生成中 / 未开始)只看 done 和 pending/generating,彻底跟 failed
+    bundle 数量脱钩。背景:2026-06-05 事故 — 同款 bug 让 research_report 短时间
+    积累 18 条 failed,把 list_outputs(分页 page_size=20)第一页打爆,导致前端按
+    kind 找 done 时全找不到,chip 全显示「尚未生成」。
+
+    返回结构:
+      { "<kind>": {
+          "done":     bundle_dto | null,    # 最近一条成功 — chip 「已生成交付物」
+          "inflight": bundle_dto | null,    # 最近一条 pending/generating — chip 「正在生成中…」
+          "failed":   bundle_dto | null,    # 最近一条失败 — 若 updated_at 比 done 新,前端显示「最近一次失败 · trace=xxx」
+      } }
+
+    每个 (project_id, kind) 三档分别取 updated_at 最新一条。failed 暴露的目的:
+    用户点了重试但失败,前端能在 chip 状态行显示「最近一次生成失败」+ trace_id 一键复制,
+    便于把 trace 给后台 grep 日志。这是 2026-06-05 用户直接要求的能力。
+
+    不分页 — 每个项目 kind 数固定(<20),每种最多 3 条返回,数据量极小。
+    """
+    # 权限沿用项目级
+    if not current_user.is_admin:
+        from services.project_acl import assert_project_access
+        await assert_project_access(current_user, project_id, "read")
+
+    # 一把拉该项目所有 done / inflight / failed bundle,内存里按 kind 分桶取每档最新
+    rows = (await session.execute(
+        select(CuratedBundle)
+        .where(CuratedBundle.project_id == project_id)
+        .where(CuratedBundle.status.in_(["done", "pending", "generating", "failed"]))
+        .order_by(CuratedBundle.updated_at.desc())
+    )).scalars().all()
+
+    out: dict[str, dict] = {}
+    for b in rows:
+        slot = out.setdefault(b.kind, {"done": None, "inflight": None, "failed": None})
+        if b.status == "done" and slot["done"] is None:
+            slot["done"] = _bundle_dto(b)
+        elif b.status in ("pending", "generating") and slot["inflight"] is None:
+            slot["inflight"] = _bundle_dto(b)
+        elif b.status == "failed" and slot["failed"] is None:
+            slot["failed"] = _bundle_dto(b)
+    return out
 
 
 @router.get("/{bundle_id}")
