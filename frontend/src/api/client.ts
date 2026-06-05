@@ -1378,8 +1378,10 @@ export const regenerateSurveyItem = (
   api.post<CuratedBundle>(`/outputs/${bundleId}/items/${encodeURIComponent(itemKey)}/regenerate`)
     .then(r => r.data)
 
-export const listOutputs = (params: { project_id?: string; kind?: string; page?: number } = {}) =>
-  api.get<OutputPage>('/outputs', { params }).then(r => r.data)
+export const listOutputs = (params: { project_id?: string; kind?: string; page?: number; page_size?: number } = {}) =>
+  // page_size 默认 100(后端最大值):防御性堵 ConsoleProjectDetail 按 kind 找 done bundle 时
+  // 被一组失败 bundle 把第一页打爆 → chip 全显示「尚未生成」(2026-06-05 实际事故)。
+  api.get<OutputPage>('/outputs', { params: { page_size: 100, ...params } }).then(r => r.data)
 
 /** 轻量阶段状态:每个项目每种 kind 是否已生成 / 生成中。列表页阶段徽章专用,不分页 —
  *  避免老项目的 bundle 被全局最近 N 条挤掉导致徽章误回落成「未开始」。 */
