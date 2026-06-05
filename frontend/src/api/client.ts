@@ -1398,6 +1398,49 @@ export const viewOutputUrl = (id: string) => `/api/outputs/${id}/view`
 export const saveOutputContent = (id: string, content_md: string) =>
   api.put<{ ok: boolean; bytes: number }>(`/outputs/${id}/content`, { content_md }).then(r => r.data)
 
+/** 人工修订上传覆盖 — 适用方案设计三件套 + 调研报告
+ * (research_report / blueprint_design / object_field_layout / process_setup)。
+ *
+ * 两种输入形态:
+ *  - 文件上传(.md / .markdown / .txt / .docx)→ 传 `file`
+ *  - 粘贴文本                                  → 传 `content_md`
+ *
+ * 后端按 Content-Type 自动分支:有 file 走 multipart,否则走 JSON。
+ * 覆盖后 bundle.extra.user_modified_history 累加最近 5 条修订记录,
+ * 智能建议会被 mark_stale,下游对象字段表 / 流程建设表再生成时自动吃修订版作 [B1]。 */
+export interface OverrideMarkdownResp {
+  ok: boolean
+  bundle_id: string
+  kind: string
+  source: string  // "upload-md" | "upload-docx" | "paste"
+  original_chars: number
+  new_chars: number
+  modified_at: string
+}
+
+export const overrideBundleMarkdown = (
+  bundleId: string,
+  payload: { file: File } | { content_md: string },
+  sourceLabel?: string,
+) => {
+  if ('file' in payload) {
+    const form = new FormData()
+    form.append('file', payload.file)
+    if (sourceLabel) form.append('source_label', sourceLabel)
+    return api.post<OverrideMarkdownResp>(
+      `/outputs/${bundleId}/markdown-override`,
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    ).then(r => r.data)
+  }
+  // 粘贴形态:JSON body
+  return api.post<OverrideMarkdownResp>(
+    `/outputs/${bundleId}/markdown-override`,
+    { content_md: payload.content_md },
+    { headers: { 'Content-Type': 'application/json' } },
+  ).then(r => r.data)
+}
+
 // ── Project Brief ────────────────────────────────────────────────────────────
 
 export type BriefConfidence = 'high' | 'medium' | 'low' | null

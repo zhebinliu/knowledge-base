@@ -2,7 +2,7 @@
 import io
 import structlog
 from urllib.parse import quote
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
 
 from services._time import iso_utc
 
@@ -867,6 +867,182 @@ async def save_content_md(
             logger.warning("plan_sessions_dispatch_failed", bundle_id=bundle_id, error=str(_e)[:200])
 
     return {"ok": True, "bytes": len(md.encode("utf-8"))}
+
+
+# 允许人工修订上传覆盖的 kind 白名单 — 方案设计三件套 + 调研报告
+# (insight / survey / survey_outline / research_plan 走 PUT /content 在线编辑,不在这里)
+_OVERRIDABLE_KINDS = {"research_report", "blueprint_design", "object_field_layout", "process_setup"}
+
+# 上传体积上限:4 MB(跟 PUT /content 对齐)
+_MARKDOWN_OVERRIDE_MAX_BYTES = 4 * 1024 * 1024
+
+
+class OverrideMarkdownBody(BaseModel):
+    """粘贴形态:直接给 markdown 文本。"""
+    content_md: str
+
+
+@router.post("/{bundle_id}/markdown-override")
+async def override_bundle_markdown(
+    bundle_id: str,
+    request: Request,
+    # 文件上传形态(.md / .docx)— Optional,因为也支持 JSON body 粘贴
+    file: UploadFile | None = File(None),
+    source_label: str | None = Form(None),  # 可选:前端标注来源 "upload-md" / "upload-docx" / "paste"
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """用户人工修订完蓝图 / 对象字段表 / 流程建设表 / 调研报告后,
+    上传修订版 markdown 覆盖 bundle.content_md。
+
+    覆盖后下游产物(对象字段表 / 流程建设表)再次生成时,
+    `_generate_design_artifact` 会从 DB query 最新的上游 bundle,
+    自动以修订版作为 [B1] 主输入。
+
+    输入形态(根据 Content-Type 自动分支):
+    - **multipart/form-data**:`file` 字段,接 .md / .markdown / .txt(UTF-8)/ .docx
+    - **application/json**:`{"content_md": "..."}` 粘贴文本
+
+    .docx 走 `extract_text_from_docx`(跟 KB 文档上传同一套),保留段落 + 表格纯文本;
+    不做格式 / 图片 / mermaid 还原 — 用户若要保留这些,应该直接传 .md。
+
+    权限:created_by 或 admin 或 project write 权限。
+    白名单 kind:`research_report` / `blueprint_design` / `object_field_layout` / `process_setup`。
+    在 `bundle.extra["user_modified"]` 记录修订元数据(时间 / user_id / source / 原长 / 新长),
+    历史不归档(覆盖式),想看历史只能重生成或 git/备份。
+    """
+    b = await session.get(CuratedBundle, bundle_id)
+    if not b:
+        raise HTTPException(404, "Bundle not found")
+
+    # 权限:跟 PUT /content 一致 — admin 直通,否则 project write
+    if b.project_id and not current_user.is_admin:
+        from services.project_acl import assert_project_access
+        await assert_project_access(current_user, b.project_id, "write")
+
+    # kind 白名单
+    if b.kind not in _OVERRIDABLE_KINDS:
+        raise HTTPException(
+            400,
+            f"产物类型 {b.kind} 不支持人工修订上传(仅 {', '.join(sorted(_OVERRIDABLE_KINDS))})"
+        )
+
+    # 状态校验 — 必须已经生成完成,才允许"覆盖"语义
+    if b.status != "done":
+        raise HTTPException(400, f"产物状态 {b.status} 不支持覆盖(需先生成完成 status=done)")
+
+    # ── 取出 markdown ──────────────────────────────────────────────
+    md: str
+    source: str  # 给 extra.user_modified 用
+
+    content_type = (request.headers.get("content-type") or "").lower()
+    if file is not None:
+        # multipart 形态
+        filename = (file.filename or "").lower()
+        raw = await file.read()
+        if not raw:
+            raise HTTPException(400, "上传文件为空")
+        if len(raw) > _MARKDOWN_OVERRIDE_MAX_BYTES:
+            raise HTTPException(400, f"上传文件体积异常({len(raw)} 字节,上限 4MB)")
+
+        if filename.endswith((".md", ".markdown", ".txt")):
+            try:
+                md = raw.decode("utf-8")
+            except UnicodeDecodeError as e:
+                raise HTTPException(400, f"文件不是 UTF-8 编码:{e}")
+            source = source_label or "upload-md"
+        elif filename.endswith(".docx"):
+            # 复用 KB 文档上传同一套 docx → 纯文本(段落 + 表格)
+            try:
+                from agents.converter_agent import extract_text_from_docx
+                md = extract_text_from_docx(raw)
+            except Exception as e:
+                logger.warning("override_docx_parse_failed", bundle_id=bundle_id, error=str(e)[:200])
+                raise HTTPException(400, f"无法解析 docx 文件:{str(e)[:120]}")
+            if not md.strip():
+                raise HTTPException(400, "docx 解析后内容为空(可能是扫描件 / 空文档)")
+            source = source_label or "upload-docx"
+        elif filename.endswith((".doc", ".pptx", ".ppt", ".pdf", ".xlsx", ".xls")):
+            raise HTTPException(400, f"暂不支持 {filename.rsplit('.', 1)[-1]} 格式,请转成 .md 或 .docx 后再传")
+        else:
+            raise HTTPException(400, f"不支持的文件类型(文件名 {filename!r}),仅接 .md / .markdown / .txt / .docx")
+    elif "application/json" in content_type:
+        # JSON 粘贴形态
+        try:
+            payload = await request.json()
+        except Exception as e:
+            raise HTTPException(400, f"请求体不是合法 JSON:{e}")
+        try:
+            body = OverrideMarkdownBody(**(payload or {}))
+        except Exception as e:
+            raise HTTPException(400, f"请求体格式错误:{e}")
+        md = body.content_md or ""
+        source = source_label or "paste"
+    else:
+        raise HTTPException(
+            400,
+            "请提供 multipart 文件(file=...)或 JSON body({content_md: ...})"
+        )
+
+    # ── 内容校验 ──────────────────────────────────────────────────
+    md = md.strip()
+    if not md:
+        raise HTTPException(400, "修订内容为空")
+    if len(md.encode("utf-8")) > _MARKDOWN_OVERRIDE_MAX_BYTES:
+        raise HTTPException(400, f"修订内容超过 4MB(实际 {len(md.encode('utf-8'))} 字节)")
+
+    # ── 覆盖 + 记修订元数据 ───────────────────────────────────────
+    original_chars = len(b.content_md or "")
+    new_chars = len(md)
+    b.content_md = md
+
+    # extra.user_modified — 累加历史(最多保留最近 5 次),前端可读出来展示
+    extra = dict(b.extra or {})
+    history = list(extra.get("user_modified_history") or [])
+    history.append({
+        "ts": iso_utc(),
+        "user_id": str(getattr(current_user, "id", "") or ""),
+        "username": getattr(current_user, "username", None) or getattr(current_user, "email", None),
+        "source": source,
+        "original_chars": original_chars,
+        "new_chars": new_chars,
+    })
+    extra["user_modified_history"] = history[-5:]  # 只留最近 5 次,避免 extra 无限膨胀
+    extra["user_modified_latest"] = history[-1]
+    b.extra = extra
+    # SQLAlchemy 检测 JSON 字段变化要 flag_modified,否则 commit 不会持久化嵌套字段
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(b, "extra")
+
+    await session.commit()
+
+    # 智能建议过期(跟 PUT /content 一致)
+    if b.project_id:
+        try:
+            from services.smart_advice import mark_stale
+            await mark_stale(b.project_id)
+        except Exception as _e:
+            logger.warning("smart_advice_mark_stale_failed_override", project_id=b.project_id, error=str(_e)[:200])
+
+    logger.info(
+        "bundle_markdown_override",
+        bundle_id=bundle_id,
+        kind=b.kind,
+        source=source,
+        original_chars=original_chars,
+        new_chars=new_chars,
+        user=str(getattr(current_user, "username", "")),
+    )
+
+    return {
+        "ok": True,
+        "bundle_id": bundle_id,
+        "kind": b.kind,
+        "source": source,
+        "original_chars": original_chars,
+        "new_chars": new_chars,
+        "modified_at": history[-1]["ts"],
+    }
 
 
 @router.put("/{bundle_id}/html")

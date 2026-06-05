@@ -6,8 +6,10 @@ import {
   CheckCircle2, Loader2, Lock, Download, ExternalLink, RotateCw,
   Save, X, Wand2, AlertCircle, Pencil, Home, Files, Search,
   Bot, ShieldAlert, ChevronDown, ChevronRight, Users, Eye, Plus, Contact,
+  Upload,
 } from 'lucide-react'
 import CollaboratorsModal from '../../components/console/CollaboratorsModal'
+import BundleOverrideModal from '../../components/console/BundleOverrideModal'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
 import { useAuth } from '../../auth/AuthContext'
 import ProjectStakeholdersDrawer from '../../components/console/ProjectStakeholdersDrawer'
@@ -912,6 +914,7 @@ function BlueprintDesignWorkspace({
   ctaLabel?: string
 }) {
   const [error, setError] = useState<string | null>(null)
+  const [overrideModalOpen, setOverrideModalOpen] = useState(false)
   const genMut = useMutation({
     mutationFn: () => generateOutput({ kind, project_id: projectId }),
     onSuccess: () => { onRefetch(); setError(null) },
@@ -920,6 +923,9 @@ function BlueprintDesignWorkspace({
 
   const isInflight = !!activeInflight
   const isDone = activeBundle?.status === 'done'
+  // 只对 4 个 markdown 类 bundle 显示「上传修订版」按钮 — kickoff_pptx / kickoff_html 是文件类不支持
+  const OVERRIDABLE_KINDS = new Set(['research_report', 'blueprint_design', 'object_field_layout', 'process_setup'])
+  const canOverride = OVERRIDABLE_KINDS.has(kind as string)
 
   // 注意:list API(/api/outputs)为节省 payload 不返回 content_md,要单独拉
   // detail(/api/outputs/{id})。CenterWorkspace.tsx 也是同样套路。
@@ -1067,10 +1073,20 @@ function BlueprintDesignWorkspace({
             <CheckCircle2 size={10} /> 已生成
           </span>
         )}
+        {canOverride && isDone && (
+          <button
+            onClick={() => setOverrideModalOpen(true)}
+            className="ml-auto inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs border border-gray-200 text-gray-600 hover:text-orange-600 hover:border-orange-200 transition-colors"
+            title="上传你修订后的版本(.md / .docx / 粘贴),覆盖当前内容。下游产物再生成时自动以修订版作为依据。"
+          >
+            <Upload size={12} />
+            上传修订版
+          </button>
+        )}
         <button
           onClick={() => genMut.mutate()}
           disabled={genMut.isPending}
-          className="ml-auto inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs border border-gray-200 text-gray-600 hover:text-orange-600 hover:border-orange-200 transition-colors disabled:opacity-50"
+          className={`${canOverride && isDone ? '' : 'ml-auto'} inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs border border-gray-200 text-gray-600 hover:text-orange-600 hover:border-orange-200 transition-colors disabled:opacity-50`}
           title="基于最新资料重新生成"
         >
           {genMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <RotateCw size={12} />}
@@ -1083,6 +1099,18 @@ function BlueprintDesignWorkspace({
           ? <CitedReportView content={md} provenance={provenance} onCitationClick={handleCitationClick} />
           : <p className="text-xs text-gray-400">报告内容为空 — 试一下「重新生成」?</p>}
       </div>
+
+      {/* 人工修订上传 Modal — 上传 .md / .docx / 粘贴文本覆盖 content_md */}
+      {canOverride && activeBundle?.id && (
+        <BundleOverrideModal
+          open={overrideModalOpen}
+          bundleId={activeBundle.id}
+          bundleKindLabel={displayName}
+          currentChars={md.length}
+          onClose={() => setOverrideModalOpen(false)}
+          onSuccess={onRefetch}
+        />
+      )}
 
       {citationModal && (
         <div

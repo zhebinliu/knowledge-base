@@ -24,10 +24,12 @@ import {
   CheckCircle2, Loader2, Lock, Download, ExternalLink,
   Save, X, Wand2, AlertCircle, Pencil, Home, Files, Search,
   Bot, ShieldAlert, ChevronDown, ChevronRight, ChevronLeft, Users, Eye, RotateCw, Plus, Contact,
+  Upload,
 } from 'lucide-react'
 
 // 11 个子组件全部走 Liquid Glass 新版(redesign 目录下)
 import CollaboratorsModal from './CollaboratorsModal'
+import BundleOverrideModal from '../../components/console/BundleOverrideModal'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
 import { useAuth } from '../../auth/AuthContext'
 import ProjectStakeholdersDrawer from './ProjectStakeholdersDrawer'
@@ -945,6 +947,7 @@ function BlueprintDesignWorkspace({
   onRefetch: () => void
 }) {
   const [error, setError] = useState<string | null>(null)
+  const [overrideModalOpen, setOverrideModalOpen] = useState(false)
   const genMut = useMutation({
     mutationFn: () => generateOutput({ kind: 'blueprint_design', project_id: projectId }),
     onSuccess: () => { onRefetch(); setError(null) },
@@ -1023,11 +1026,22 @@ function BlueprintDesignWorkspace({
             <CheckCircle2 size={10} /> 已生成
           </span>
         )}
+        {isDone && (
+          <button
+            onClick={() => setOverrideModalOpen(true)}
+            className="rd-btn"
+            style={{ padding: '4px 10px', fontSize: 12, marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            title="上传你修订后的版本(.md / .docx / 粘贴),覆盖当前内容。下游产物再生成时自动以修订版作为依据。"
+          >
+            <Upload size={12} />
+            上传修订版
+          </button>
+        )}
         <button
           onClick={() => genMut.mutate()}
           disabled={genMut.isPending}
           className="rd-btn"
-          style={{ padding: '4px 10px', fontSize: 12, marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          style={{ padding: '4px 10px', fontSize: 12, marginLeft: isDone ? 0 : 'auto', display: 'inline-flex', alignItems: 'center', gap: 4 }}
           title="基于最新资料重新生成"
         >
           {genMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <RotateCw size={12} />}
@@ -1040,6 +1054,18 @@ function BlueprintDesignWorkspace({
           ? <MarkdownView content={md} size="base" toolbar={false} />
           : <p style={{ fontSize: 12, color: 'var(--rd-text-3)' }}>报告内容为空 — 试一下「重新生成」?</p>}
       </div>
+
+      {/* 人工修订上传 Modal — 上传 .md / .docx / 粘贴文本覆盖 content_md */}
+      {activeBundle?.id && (
+        <BundleOverrideModal
+          open={overrideModalOpen}
+          bundleId={activeBundle.id}
+          bundleKindLabel="方案设计 · 蓝图"
+          currentChars={md.length}
+          onClose={() => setOverrideModalOpen(false)}
+          onSuccess={onRefetch}
+        />
+      )}
     </div>
   )
 }
