@@ -503,6 +503,175 @@ async def list_project_documents(
     ]
 
 
+# ── 项目实施交接包(2026-06-05) ────────────────────────────────────────────
+# 让顾问一键打包带去外部实施平台(http://58.87.103.20/v2/):
+# - 所有 SOW 文档原件(doc_type='sow',MinIO 直读)
+# - 蓝图设计 / 对象字段表 / 流程建设表 三份 bundle 的 docx(实时 _build_docx)
+# - 一个 README.txt 写本次交接内容 + 外部平台地址 + 操作指引
+
+@router.get("/{project_id}/handoff-bundle")
+async def project_handoff_bundle(
+    project_id: str,
+    session: AsyncSession = Depends(get_session),
+    _user: User = Depends(require_project_access("read")),
+):
+    import io as _io
+    import zipfile
+    from datetime import datetime
+    from fastapi.responses import StreamingResponse
+    from models.curated_bundle import CuratedBundle
+    from services.output_service import _build_docx
+    from config import settings
+    from urllib.parse import quote
+
+    p = await session.get(Project, project_id)
+    if not p:
+        raise HTTPException(404, "项目不存在")
+
+    # 1. SOW 文档(原件,从 MinIO 直读)
+    sow_docs = (await session.scalars(
+        select(Document)
+        .where(Document.project_id == project_id)
+        .where(Document.doc_type == "sow")
+        .order_by(Document.created_at.desc())
+    )).all()
+
+    # 2. 三份产物 bundle(蓝图 / 字段表 / 流程表 — 各取最新 done)
+    HANDOFF_KINDS = [
+        ("blueprint_design",     "蓝图方案设计"),
+        ("object_field_layout",  "对象字段表"),
+        ("process_setup",        "流程建设表"),
+    ]
+    handoff_bundles: list[tuple[str, str, CuratedBundle]] = []  # (kind, label, bundle)
+    for kind, label in HANDOFF_KINDS:
+        b = (await session.scalars(
+            select(CuratedBundle)
+            .where(CuratedBundle.project_id == project_id)
+            .where(CuratedBundle.kind == kind)
+            .where(CuratedBundle.status == "done")
+            .order_by(CuratedBundle.updated_at.desc())
+        )).first()
+        if b:
+            handoff_bundles.append((kind, label, b))
+
+    if not sow_docs and not handoff_bundles:
+        raise HTTPException(
+            400,
+            "本项目暂无可打包的内容。请先上传 SOW 文档,或生成蓝图设计 / 对象字段表 / 流程建设表。"
+        )
+
+    # 3. 打 zip(内存里组装,小项目几 MB 量级,够用)
+    buf = _io.BytesIO()
+    missing_warnings: list[str] = []
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        # SOW 原件
+        if sow_docs:
+            from minio import Minio
+            mc = Minio(
+                settings.minio_endpoint,
+                access_key=settings.minio_user,
+                secret_key=settings.minio_password,
+                secure=False,
+            )
+            for i, d in enumerate(sow_docs, 1):
+                if not d.file_path:
+                    missing_warnings.append(f"SOW《{d.filename}》没有源文件,已跳过")
+                    continue
+                try:
+                    resp = mc.get_object(settings.minio_bucket, d.file_path)
+                    data = resp.read()
+                    safe_name = _safe_zip_name(d.filename or f"SOW-{i}")
+                    zf.writestr(f"01_SOW/{i:02d}-{safe_name}", data)
+                except Exception as e:
+                    logger.warning("handoff_sow_fetch_failed",
+                                   doc_id=d.id, filename=d.filename, error=str(e)[:200])
+                    missing_warnings.append(f"SOW《{d.filename}》读取失败:{str(e)[:80]}")
+        else:
+            missing_warnings.append("未上传任何 SOW 文档(项目库 → 文档管理上传后重新打包)")
+
+        # 三份产物 docx
+        prefix_map = {"blueprint_design": "02", "object_field_layout": "03", "process_setup": "04"}
+        existing_kinds = {k for k, _, _ in handoff_bundles}
+        for kind, label, b in handoff_bundles:
+            if not b.content_md:
+                missing_warnings.append(f"《{label}》没有 markdown 内容,已跳过")
+                continue
+            try:
+                docx_bytes = _build_docx(b.title or label, b.content_md)
+                fname = f"{prefix_map[kind]}_{label}.docx"
+                zf.writestr(fname, docx_bytes)
+            except Exception as e:
+                logger.warning("handoff_docx_build_failed",
+                               bundle_id=b.id, kind=kind, error=str(e)[:200])
+                missing_warnings.append(f"《{label}》docx 生成失败:{str(e)[:80]}")
+        for kind, label in HANDOFF_KINDS:
+            if kind not in existing_kinds:
+                missing_warnings.append(f"《{label}》尚未生成,本次打包未包含")
+
+        # README 写交接说明
+        readme = _build_handoff_readme(
+            project_name=p.name or "",
+            customer=p.customer or "",
+            sow_count=len([d for d in sow_docs if d.file_path]),
+            handoff_kinds=[(label, b.updated_at) for _, label, b in handoff_bundles],
+            warnings=missing_warnings,
+        )
+        zf.writestr("README.txt", readme.encode("utf-8"))
+
+    buf.seek(0)
+    date_str = datetime.utcnow().strftime("%Y%m%d")
+    zip_name = f"{p.name or '项目'}-实施交接包-{date_str}.zip"
+    headers = {
+        "Content-Disposition": f"attachment; filename*=UTF-8''{quote(zip_name, safe='')}",
+    }
+    return StreamingResponse(buf, media_type="application/zip", headers=headers)
+
+
+def _safe_zip_name(name: str) -> str:
+    """zip 内文件名去掉路径分隔符和危险字符。"""
+    import re
+    name = (name or "").strip() or "file"
+    return re.sub(r'[\\/:*?"<>|]', "_", name)[:120]
+
+
+def _build_handoff_readme(
+    *, project_name: str, customer: str,
+    sow_count: int,
+    handoff_kinds: list[tuple[str, object]],
+    warnings: list[str],
+) -> str:
+    from datetime import datetime
+    lines = [
+        f"项目实施交接包",
+        f"========================",
+        f"项目名称: {project_name}",
+        f"客户名称: {customer or '—'}",
+        f"打包时间: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}",
+        "",
+        f"包含内容",
+        f"--------",
+        f"01_SOW/                 — SOW 需求说明书原件 × {sow_count}",
+    ]
+    for label, ts in handoff_kinds:
+        lines.append(f"{label} — 最新版({ts.strftime('%Y-%m-%d') if ts else '—'})")
+    lines += [
+        "",
+        f"下一步:在外部实施平台完成需求分析与部署",
+        f"-------------------------------------------",
+        f"1. 打开 http://58.87.103.20/v2/ 登录(或通过 SSO 跳转)",
+        f"2. 上传本 zip 中的 SOW 文档 + 三份方案设计 docx",
+        f"3. 在平台内完成需求分析 → APL / 流程 / 字段配置生成 → 部署到客户租户",
+        "",
+    ]
+    if warnings:
+        lines.append("注意事项")
+        lines.append("--------")
+        for w in warnings:
+            lines.append(f"• {w}")
+        lines.append("")
+    return "\n".join(lines)
+
+
 # ── 项目洞察"先看体检"端点(规则化预 plan,不调 LLM) ─────────────────────────
 
 @router.post("/{project_id}/insight-checkup")

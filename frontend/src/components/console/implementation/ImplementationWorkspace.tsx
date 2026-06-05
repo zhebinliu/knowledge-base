@@ -22,10 +22,13 @@ import {
   generateOutput,
   generateTaskConfig,
   tenantConfigZipUrl,
+  projectHandoffBundleUrl,
+  TOKEN_STORAGE_KEY,
   type CuratedBundle,
   type ImplementationTask,
   type ShareDevSkill,
 } from '../../../api/client'
+import { ExternalLink } from 'lucide-react'
 import MarkdownView from '../../MarkdownView'
 import GenerationProgressCard from '../GenerationProgressCard'
 
@@ -158,23 +161,29 @@ export default function ImplementationWorkspace({
   // ── PreparationView(尚未生成实施任务清单)──
   if (view === 'preparation' && !planBundle && !planInflight) {
     return (
-      <PreparationView projectId={projectId} onRefetch={onRefetch} />
+      <div className="overflow-auto h-[calc(100vh-56px)]">
+        <HandoffBanner projectId={projectId} />
+        <PreparationView projectId={projectId} onRefetch={onRefetch} />
+      </div>
     )
   }
 
   // ── 生成中 ──
   if (planInflight) {
     return (
-      <div className="p-6 max-w-3xl mx-auto">
-        <div className="rounded-lg border border-line bg-white p-5 space-y-3">
-          <div className="text-base font-semibold text-ink flex items-center gap-2">
-            <Package size={15} className="text-orange-600" />
-            实施任务清单(生成中)
+      <div className="overflow-auto h-[calc(100vh-56px)]">
+        <HandoffBanner projectId={projectId} />
+        <div className="p-6 max-w-3xl mx-auto">
+          <div className="rounded-lg border border-line bg-white p-5 space-y-3">
+            <div className="text-base font-semibold text-ink flex items-center gap-2">
+              <Package size={15} className="text-orange-600" />
+              实施任务清单(生成中)
+            </div>
+            <div className="text-sm text-ink-secondary">
+              综合调研报告 + 蓝图设计,LLM 一次大调用产出 5 章 markdown + 结构化任务清单(15-80 条),约 2-4 分钟。
+            </div>
+            <GenerationProgressCard bundle={planInflight} />
           </div>
-          <div className="text-sm text-ink-secondary">
-            综合调研报告 + 蓝图设计,LLM 一次大调用产出 5 章 markdown + 结构化任务清单(15-80 条),约 2-4 分钟。
-          </div>
-          <GenerationProgressCard bundle={planInflight} />
         </div>
       </div>
     )
@@ -182,7 +191,9 @@ export default function ImplementationWorkspace({
 
   // ── 三栏工作台 ──
   return (
-    <div className="flex-shrink-0 h-[calc(100vh-56px)] flex bg-canvas overflow-hidden">
+    <div className="flex-shrink-0 h-[calc(100vh-56px)] flex flex-col bg-canvas overflow-hidden">
+      <HandoffBanner projectId={projectId} compact />
+      <div className="flex-1 min-h-0 flex overflow-hidden">
       {/* 左栏:任务清单(按 skill 分组) */}
       <div className="w-[320px] flex-shrink-0 border-r border-line bg-white flex flex-col">
         <div className="flex-shrink-0 px-3 py-2 border-b border-line">
@@ -294,6 +305,120 @@ export default function ImplementationWorkspace({
             </ul>
             <div className="text-[10px] text-ink-muted mt-1.5">
               APL / PWC(12 个 skill)Phase 3 上线
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>{/* /flex-1 min-h-0 flex */}
+    </div>
+  )
+}
+
+// ── HandoffBanner(2026-06-05) ───────────────────────────────────────────────
+// 引导顾问到外部实施平台:一键打包 SOW + 蓝图 + 字段表 + 流程表,然后跳外部平台。
+// compact=true 时是顶部窄条;否则是大卡片。
+
+const HANDOFF_PLATFORM_URL = 'http://58.87.103.20/v2/'
+
+function HandoffBanner({ projectId, compact = false }: { projectId: string; compact?: boolean }) {
+  const [downloading, setDownloading] = useState(false)
+  const downloadHandoff = async () => {
+    if (downloading) return
+    setDownloading(true)
+    try {
+      const token = localStorage.getItem(TOKEN_STORAGE_KEY) || ''
+      const res = await fetch(projectHandoffBundleUrl(projectId), {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) {
+        let msg = `下载失败(HTTP ${res.status})`
+        try { const j = await res.json(); msg = j.detail || msg } catch {}
+        alert(msg)
+        return
+      }
+      const disposition = res.headers.get('content-disposition') || ''
+      const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+      const asciiMatch = disposition.match(/filename="([^"]+)"/)
+      const filename = decodeURIComponent(
+        utf8Match ? utf8Match[1] : (asciiMatch ? asciiMatch[1] : '实施交接包.zip')
+      )
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = filename
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (e: any) {
+      alert(e?.message || '下载失败')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  if (compact) {
+    return (
+      <div className="flex-shrink-0 flex items-center gap-3 px-3 py-2 bg-gradient-to-r from-orange-50 to-amber-50 border-b border-orange-200/60 text-[12px]">
+        <Package size={14} className="text-orange-600 flex-shrink-0" />
+        <span className="text-ink truncate">
+          建议在外部实施平台完成后续工作:打包本项目的 SOW + 蓝图 + 字段表 + 流程表,带去平台
+        </span>
+        <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+          <button
+            onClick={downloadHandoff}
+            disabled={downloading}
+            className="inline-flex items-center gap-1 px-3 py-1 text-[11px] rounded bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50"
+          >
+            {downloading ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
+            {downloading ? '打包中…' : '下载交接包'}
+          </button>
+          <a
+            href={HANDOFF_PLATFORM_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 px-3 py-1 text-[11px] rounded border border-orange-300 text-orange-700 bg-white hover:bg-orange-50"
+          >
+            <ExternalLink size={11} /> 前往实施平台
+          </a>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="px-6 pt-6">
+      <div className="rounded-lg border border-orange-300 bg-gradient-to-r from-orange-50 to-amber-50 p-4">
+        <div className="flex items-start gap-3">
+          <Package size={20} className="text-orange-600 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-base font-semibold text-ink mb-1">在外部实施平台完成需求分析与部署</div>
+            <div className="text-sm text-ink-secondary leading-relaxed mb-3">
+              项目实施阶段建议在专门的实施平台上完成。一键打包本项目的:
+              <strong className="text-ink">SOW 需求说明书</strong>、
+              <strong className="text-ink">蓝图方案设计</strong>、
+              <strong className="text-ink">对象字段表</strong>、
+              <strong className="text-ink">流程建设表</strong>
+              ,然后登录外部实施平台上传 zip,继续后续工作。
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={downloadHandoff}
+                disabled={downloading}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50"
+              >
+                {downloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                {downloading ? '打包中…' : '一键下载交接包(zip)'}
+              </button>
+              <a
+                href={HANDOFF_PLATFORM_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded border border-orange-300 text-orange-700 bg-white hover:bg-orange-50"
+              >
+                <ExternalLink size={14} /> 前往外部实施平台
+              </a>
+              <span className="text-[11px] text-ink-muted">
+                平台地址:<code className="bg-white border border-orange-200 px-1.5 py-0.5 rounded text-[10px]">{HANDOFF_PLATFORM_URL}</code>
+              </span>
             </div>
           </div>
         </div>

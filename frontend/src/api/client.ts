@@ -2375,6 +2375,11 @@ export const generateTaskConfig = async (
 export const tenantConfigZipUrl = (bundleId: string) =>
   `/api/implementation/bundles/${bundleId}/tenant-config-zip`
 
+/** 2026-06-05 项目实施交接包:SOW + 蓝图 + 字段表 + 流程表 一键打包,带去外部实施平台。
+ *  返回的是 GET URL — 浏览器直接 window.location.href 或 <a download> 触发下载即可。 */
+export const projectHandoffBundleUrl = (projectId: string) =>
+  `/api/projects/${projectId}/handoff-bundle`
+
 // ── 企信 IM 接入(2026-05-29):用户级 Bot 凭证 + 消息读取 ───────────────
 
 export interface QixinCredentialsStatus {
