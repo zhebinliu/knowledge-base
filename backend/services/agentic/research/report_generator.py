@@ -342,17 +342,27 @@ def format_meeting_evidence(meetings: list[dict]) -> str:
         if key_points:
             chunk.append("讨论要点:")
             for kp in key_points[:8]:
-                topic = kp.get("topic", "")
-                content = kp.get("content", "")
-                if topic or content:
-                    chunk.append(f"- 【{topic}】{content[:200]}")
+                if isinstance(kp, dict):
+                    topic = kp.get("topic", "")
+                    content = kp.get("content", "")
+                    if topic or content:
+                        chunk.append(f"- 【{topic}】{content[:200]}")
+                elif isinstance(kp, str):
+                    text = kp.strip()
+                    if text:
+                        chunk.append(f"- {text[:240]}")
         decisions = m.get("decisions") or []
         if decisions:
             chunk.append("决议:")
             for d in decisions[:5]:
-                content = d.get("content", "")
-                if content:
-                    chunk.append(f"- {content[:200]}")
+                if isinstance(d, dict):
+                    content = d.get("content", "")
+                    if content:
+                        chunk.append(f"- {content[:200]}")
+                elif isinstance(d, str):
+                    text = d.strip()
+                    if text:
+                        chunk.append(f"- {text[:240]}")
         reqs = m.get("requirements") or []
         if reqs:
             chunk.append(f"提取的需求({len(reqs)} 条):")
