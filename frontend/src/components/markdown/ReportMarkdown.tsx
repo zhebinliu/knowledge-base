@@ -12,7 +12,7 @@
  * (亮/暗/紧凑/rd 变量),本组件只把 code/a 两个行为型渲染器叠加上去,不动其余元素样式。
  * 这样「同内容复用同逻辑」,又不会把各处外观推平、零视觉风险。
  */
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import mermaid from 'mermaid'
@@ -154,6 +154,7 @@ export function MermaidBlock({ code }: { code: string }) {
   const id = `mermaid-${rawId.replace(/[^a-zA-Z0-9]/g, '')}`
   const [svg, setSvg] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
 
   const cleaned = code
     .split('\n')
@@ -208,11 +209,140 @@ export function MermaidBlock({ code }: { code: string }) {
   }
   if (!svg) return <pre className="text-xs text-gray-400 bg-gray-50 p-3 rounded my-3">渲染图表中…</pre>
   return (
+    <>
+      <div
+        className="mermaid-block my-5 flex justify-center overflow-x-auto bg-white border border-slate-200 rounded-xl px-6 py-5 shadow-sm cursor-zoom-in relative group"
+        style={{ boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.04)' }}
+        onClick={() => setLightboxOpen(true)}
+        title="点击查看大图(滚轮缩放 / 拖拽移动 / ESC 关闭)"
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
+      {lightboxOpen && (
+        <MermaidLightbox svg={svg} onClose={() => setLightboxOpen(false)} />
+      )}
+    </>
+  )
+}
+
+// ── MermaidLightbox — 点击 Mermaid 图弹出全屏大图 ────────────────────────────
+// 滚轮缩放(0.3x – 8x)+ 鼠标拖拽平移 + 双击复原 + ESC / 点遮罩关闭 + 下载 SVG。
+// 不引第三方库,纯 React + transform。
+function MermaidLightbox({ svg, onClose }: { svg: string; onClose: () => void }) {
+  const [scale, setScale] = useState(1)
+  const [tx, setTx] = useState(0)
+  const [ty, setTy] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const dragRef = useRef({ x: 0, y: 0 })
+
+  // ESC 关闭
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    // 锁定 body 滚动
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [onClose])
+
+  const reset = () => { setScale(1); setTx(0); setTy(0) }
+
+  const onWheel = (e: React.WheelEvent) => {
+    // 不调 preventDefault — React 的 wheel 是 passive 会 warn;body overflow 已 hidden,自然不滚穿
+    const delta = -e.deltaY * 0.0015
+    setScale(s => Math.min(8, Math.max(0.3, s * (1 + delta))))
+  }
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return
+    setDragging(true)
+    dragRef.current.x = e.clientX - tx
+    dragRef.current.y = e.clientY - ty
+  }
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!dragging) return
+    setTx(e.clientX - dragRef.current.x)
+    setTy(e.clientY - dragRef.current.y)
+  }
+  const stopDrag = () => setDragging(false)
+
+  const downloadSvg = () => {
+    try {
+      const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `mermaid-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.svg`
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (e) { console.warn('download svg failed', e) }
+  }
+
+  return (
     <div
-      className="mermaid-block my-5 flex justify-center overflow-x-auto bg-white border border-slate-200 rounded-xl px-6 py-5 shadow-sm"
-      style={{ boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.04)' }}
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
+      className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center select-none"
+      onClick={onClose}
+      onWheel={onWheel}
+    >
+      {/* 顶部工具栏 */}
+      <div
+        className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/40 backdrop-blur-sm rounded-lg px-2 py-1.5"
+        onClick={e => e.stopPropagation()}
+      >
+        <button
+          onClick={() => setScale(s => Math.max(0.3, s * 0.8))}
+          className="px-2 py-1 text-xs text-white hover:bg-white/10 rounded"
+          title="缩小"
+        >−</button>
+        <span className="text-xs text-white/80 w-12 text-center tabular-nums">{Math.round(scale * 100)}%</span>
+        <button
+          onClick={() => setScale(s => Math.min(8, s * 1.25))}
+          className="px-2 py-1 text-xs text-white hover:bg-white/10 rounded"
+          title="放大"
+        >+</button>
+        <div className="w-px h-4 bg-white/20 mx-1" />
+        <button onClick={reset} className="px-2 py-1 text-xs text-white hover:bg-white/10 rounded" title="复原">复原</button>
+        <button onClick={downloadSvg} className="px-2 py-1 text-xs text-white hover:bg-white/10 rounded" title="下载 SVG">下载</button>
+        <button onClick={onClose} className="px-2 py-1 text-xs text-white hover:bg-white/10 rounded" title="关闭 (ESC)">✕</button>
+      </div>
+
+      {/* 底部提示 */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[11px] text-white/60 bg-black/30 px-3 py-1 rounded-full pointer-events-none">
+        滚轮缩放 · 拖拽移动 · 双击复原 · ESC 关闭
+      </div>
+
+      {/* 图区:用 div 包 svg + transform */}
+      <div
+        className="bg-white rounded-xl shadow-2xl"
+        style={{
+          maxWidth: '95vw',
+          maxHeight: '92vh',
+          padding: '16px',
+          overflow: 'hidden',
+          cursor: dragging ? 'grabbing' : 'grab',
+        }}
+        onClick={e => e.stopPropagation()}
+        onDoubleClick={reset}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={stopDrag}
+        onMouseLeave={stopDrag}
+      >
+        <div
+          style={{
+            transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
+            transformOrigin: 'center center',
+            transition: dragging ? 'none' : 'transform 0.08s ease-out',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+      </div>
+    </div>
   )
 }
 
