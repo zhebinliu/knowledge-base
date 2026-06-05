@@ -504,10 +504,10 @@ async def list_project_documents(
 
 
 # ── 项目实施交接包(2026-06-05) ────────────────────────────────────────────
-# 让顾问一键打包带去外部实施平台(http://58.87.103.20/v2/):
+# 让顾问一键打包带去 APL 工作台(http://58.87.103.20/v2/):
 # - 所有 SOW 文档原件(doc_type='sow',MinIO 直读)
 # - 蓝图设计 / 对象字段表 / 流程建设表 三份 bundle 的 docx(实时 _build_docx)
-# - 一个 README.txt 写本次交接内容 + 外部平台地址 + 操作指引
+# - 一个 README.txt 写本次交接内容 + APL 工作台地址 + 操作指引
 
 @router.get("/{project_id}/handoff-bundle")
 async def project_handoff_bundle(
@@ -656,7 +656,7 @@ def _build_handoff_readme(
         lines.append(f"{label} — 最新版({ts.strftime('%Y-%m-%d') if ts else '—'})")
     lines += [
         "",
-        f"下一步:在外部实施平台完成需求分析与部署",
+        f"下一步:在 APL 工作台完成需求分析与部署",
         f"-------------------------------------------",
         f"1. 打开 http://58.87.103.20/v2/ 登录(或通过 SSO 跳转)",
         f"2. 上传本 zip 中的 SOW 文档 + 三份方案设计 docx",

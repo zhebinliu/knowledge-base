@@ -19,7 +19,6 @@ import {
   Download, FileCode2,
 } from 'lucide-react'
 import {
-  generateOutput,
   generateTaskConfig,
   tenantConfigZipUrl,
   projectHandoffBundleUrl,
@@ -158,12 +157,12 @@ export default function ImplementationWorkspace({
   const selectedTask = selectedTaskId ? tasks.find(t => t.task_id === selectedTaskId) : null
   const configuredCount = tasks.filter(t => t.config?.ok).length
 
-  // ── PreparationView(尚未生成实施任务清单)──
+  // ── 未生成实施任务清单 ──(2026-06-05 改:本阶段引导用户去 APL 工作台,不再在
+  // 这里生成「实施任务清单」。HandoffBanner 大卡片是这阶段的主入口。)
   if (view === 'preparation' && !planBundle && !planInflight) {
     return (
       <div className="overflow-auto h-[calc(100vh-56px)]">
         <HandoffBanner projectId={projectId} />
-        <PreparationView projectId={projectId} onRefetch={onRefetch} />
       </div>
     )
   }
@@ -315,7 +314,7 @@ export default function ImplementationWorkspace({
 }
 
 // ── HandoffBanner(2026-06-05) ───────────────────────────────────────────────
-// 引导顾问到外部实施平台:一键打包 SOW + 蓝图 + 字段表 + 流程表,然后跳外部平台。
+// 引导顾问到 APL 工作台:一键打包 SOW + 蓝图 + 字段表 + 流程表,然后跳外部平台。
 // compact=true 时是顶部窄条;否则是大卡片。
 
 const HANDOFF_PLATFORM_URL = 'http://58.87.103.20/v2/'
@@ -360,7 +359,7 @@ function HandoffBanner({ projectId, compact = false }: { projectId: string; comp
       <div className="flex-shrink-0 flex items-center gap-3 px-3 py-2 bg-gradient-to-r from-orange-50 to-amber-50 border-b border-orange-200/60 text-[12px]">
         <Package size={14} className="text-orange-600 flex-shrink-0" />
         <span className="text-ink truncate">
-          建议在外部实施平台完成后续工作:打包本项目的 SOW + 蓝图 + 字段表 + 流程表,带去平台
+          建议在 APL 工作台完成后续工作:打包本项目的 SOW + 蓝图 + 字段表 + 流程表,带去平台
         </span>
         <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
           <button
@@ -377,7 +376,7 @@ function HandoffBanner({ projectId, compact = false }: { projectId: string; comp
             rel="noreferrer"
             className="inline-flex items-center gap-1 px-3 py-1 text-[11px] rounded border border-orange-300 text-orange-700 bg-white hover:bg-orange-50"
           >
-            <ExternalLink size={11} /> 前往实施平台
+            <ExternalLink size={11} /> 前往 APL 工作台
           </a>
         </div>
       </div>
@@ -390,14 +389,14 @@ function HandoffBanner({ projectId, compact = false }: { projectId: string; comp
         <div className="flex items-start gap-3">
           <Package size={20} className="text-orange-600 mt-0.5 flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <div className="text-base font-semibold text-ink mb-1">在外部实施平台完成需求分析与部署</div>
+            <div className="text-base font-semibold text-ink mb-1">在 APL 工作台完成需求分析与部署</div>
             <div className="text-sm text-ink-secondary leading-relaxed mb-3">
-              项目实施阶段建议在专门的实施平台上完成。一键打包本项目的:
+              项目实施阶段建议在 APL 工作台上完成。一键打包本项目的:
               <strong className="text-ink">SOW 需求说明书</strong>、
               <strong className="text-ink">蓝图方案设计</strong>、
               <strong className="text-ink">对象字段表</strong>、
               <strong className="text-ink">流程建设表</strong>
-              ,然后登录外部实施平台上传 zip,继续后续工作。
+              ,然后登录 APL 工作台上传 zip,继续后续工作。
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -414,7 +413,7 @@ function HandoffBanner({ projectId, compact = false }: { projectId: string; comp
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded border border-orange-300 text-orange-700 bg-white hover:bg-orange-50"
               >
-                <ExternalLink size={14} /> 前往外部实施平台
+                <ExternalLink size={14} /> 前往 APL 工作台
               </a>
               <span className="text-[11px] text-ink-muted">
                 平台地址:<code className="bg-white border border-orange-200 px-1.5 py-0.5 rounded text-[10px]">{HANDOFF_PLATFORM_URL}</code>
@@ -427,49 +426,8 @@ function HandoffBanner({ projectId, compact = false }: { projectId: string; comp
   )
 }
 
-// ── PreparationView(尚未生成实施任务清单)──
-
-function PreparationView({ projectId, onRefetch }: { projectId: string; onRefetch: () => void }) {
-  const [triggering, setTriggering] = useState(false)
-  const trigger = async () => {
-    setTriggering(true)
-    try {
-      await generateOutput({ kind: 'implementation_plan', project_id: projectId })
-      onRefetch()
-    } catch (e: any) {
-      alert(e?.response?.data?.detail || e?.message || '触发生成失败。请确认本项目已生成「调研报告」和「蓝图设计」。')
-    } finally {
-      setTriggering(false)
-    }
-  }
-  return (
-    <div className="p-8 max-w-3xl mx-auto">
-      <div className="rounded-lg border border-line bg-white p-5 space-y-3">
-        <div className="text-base font-semibold text-ink flex items-center gap-2">
-          <Package size={15} className="text-orange-600" />
-          实施任务清单
-        </div>
-        <div className="text-sm text-ink-secondary leading-relaxed">
-          综合本项目的<strong>调研报告</strong> + <strong>蓝图设计</strong>,LLM 一次输出 5 章 markdown
-          + 结构化任务清单(15-80 条原子任务,每条关联一个 sharedev skill)。
-          顾问拿到任务清单 → 点单条任务 → (Phase 2)调对应 sharedev skill 的方法论生成 xml/Groovy
-          → 部署到客户租户。
-        </div>
-        <div className="text-xs text-ink-muted">
-          前置条件:本项目需先生成「调研报告」和「蓝图设计」。生成耗时 2-4 分钟。
-        </div>
-        <button
-          onClick={trigger}
-          disabled={triggering}
-          className="inline-flex items-center gap-1 px-4 py-2 text-sm rounded border border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 disabled:opacity-50"
-        >
-          {triggering ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-          立即生成实施任务清单
-        </button>
-      </div>
-    </div>
-  )
-}
+// PreparationView 已下线(2026-06-05):本阶段引导用户去 APL 工作台,不再在系统内生成
+// 「实施任务清单」。如需恢复,git log 找回。
 
 // ── SkillGroup ─────────────────────────────────────────────────────
 
