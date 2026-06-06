@@ -603,6 +603,8 @@ class ModelRouter:
 
         while True:
             try:
+                logger.info("image_gen_request", prompt_len=len(prompt),
+                            width=width, height=height, attempt=attempt)
                 resp = await self.client.post(
                     "https://api.minimax.chat/v1/images/generations",
                     headers={
@@ -619,6 +621,7 @@ class ModelRouter:
                     timeout=timeout,
                 )
                 last_status = resp.status_code
+                logger.info("image_gen_response", status=resp.status_code)
                 if resp.status_code in (429,) or 500 <= resp.status_code < 600:
                     if attempt < len(backoffs):
                         wait = backoffs[attempt]
@@ -657,13 +660,19 @@ class ModelRouter:
                 return result
 
             except httpx.HTTPStatusError as e:
-                logger.error("image_gen_failed", status=e.response.status_code, error=str(e)[:200])
+                body_text = ""
+                try:
+                    body_text = e.response.text[:500]
+                except Exception:
+                    pass
+                logger.error("image_gen_failed", status=e.response.status_code,
+                             error=str(e)[:200], response_body=body_text)
                 log_llm_call(
                     model_name="minimax-image-01", caller_module=_detect_caller_module(),
                     task="image_generation",
                     input_tokens=None, output_tokens=None,
                     duration_ms=int((time.monotonic() - t0) * 1000),
-                    status_code=e.response.status_code, error_message=str(e)[:500],
+                    status_code=e.response.status_code, error_message=f"{str(e)[:200]} | body: {body_text[:300]}",
                 )
                 raise
             except (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError) as e:

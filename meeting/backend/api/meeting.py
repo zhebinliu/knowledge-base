@@ -952,15 +952,34 @@ async def action_extract_illustrations(
     user: User = Depends(get_current_user),
 ):
     """从会议内容生成手绘解释图(覆盖式)。"""
+    import time as _time
+    import structlog
+    _log = structlog.get_logger()
     from services.meeting import extract_illustrations
+
+    _log.info("extract_illustrations_endpoint_hit", meeting_id=meeting_id, user_id=user.id)
     m = await _load_meeting_owned(meeting_id, session, user)
     text = m.polished_transcript or m.raw_transcript
     if not text:
         raise HTTPException(400, "无可用 transcript")
-    illustrations = await extract_illustrations(
-        text,
-        m.meeting_minutes if isinstance(m.meeting_minutes, dict) else None,
-    )
+
+    _log.info("extract_illustrations_start", meeting_id=meeting_id, text_chars=len(text))
+    t0 = _time.monotonic()
+    try:
+        illustrations = await extract_illustrations(
+            text,
+            m.meeting_minutes if isinstance(m.meeting_minutes, dict) else None,
+        )
+    except Exception as e:
+        _log.error("extract_illustrations_unhandled", meeting_id=meeting_id, error=str(e)[:300])
+        raise HTTPException(500, f"解释图生成失败: {str(e)[:200]}")
+    elapsed = _time.monotonic() - t0
+
+    count = len(illustrations.get("illustrations", []))
+    with_image = sum(1 for i in illustrations.get("illustrations", []) if i.get("image_url"))
+    _log.info("extract_illustrations_done", meeting_id=meeting_id,
+              elapsed_s=round(elapsed, 1), total=count, with_image=with_image)
+
     m.illustrations = illustrations
     await session.commit()
     return {"illustrations": illustrations}

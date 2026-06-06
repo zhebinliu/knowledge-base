@@ -343,6 +343,7 @@ async def extract_illustrations(transcript: str, minutes: dict | None = None) ->
     2. 对每张图调用 MiniMax 图像生成 API → 返回 base64 图片
     """
     if not transcript or not transcript.strip():
+        logger.warning("illustrations_skip", reason="empty_transcript")
         return dict(_EMPTY_ILLUSTRATIONS)
 
     # Step 1: LLM 分析 + 生成 prompt
@@ -352,44 +353,59 @@ async def extract_illustrations(transcript: str, minutes: dict | None = None) ->
         if summary:
             context = f"会议摘要:{summary}\n\n{context}"
 
+    logger.info("illustrations_step1_llm_start", transcript_chars=len(context))
     messages = [
         {"role": "system", "content": ILLUSTRATION_SYSTEM},
         {"role": "user", "content": ILLUSTRATION_USER.format(transcript=context)},
     ]
-    content, model = await model_router.chat_with_routing(
-        task="meeting_illustrations_extract",
-        messages=messages,
-        temperature=0.4,
-        max_tokens=8000,
-        response_format={"type": "json_object"},
-    )
+    try:
+        content, model = await model_router.chat_with_routing(
+            task="meeting_illustrations_extract",
+            messages=messages,
+            temperature=0.4,
+            max_tokens=8000,
+            response_format={"type": "json_object"},
+        )
+    except Exception as e:
+        logger.error("illustrations_step1_llm_failed", error=str(e)[:300])
+        return dict(_EMPTY_ILLUSTRATIONS)
+
     result = _safe_json_loads(content, dict(_EMPTY_ILLUSTRATIONS))
     if not isinstance(result, dict):
         result = dict(_EMPTY_ILLUSTRATIONS)
     items = result.get("illustrations", [])
     if not isinstance(items, list):
         items = []
+    logger.info("illustrations_step1_llm_done", model=model, prompt_count=len(items))
 
-    # Step 2: 逐张调用图像生成 API
+    # Step 2: 逐张调用图像生成 API(每张独立 try/except,单张失败不阻塞整体)
+    import time as _time
     cleaned: list[dict] = []
     for idx, raw in enumerate(items, start=1):
         if not isinstance(raw, dict):
             continue
         prompt = (raw.get("prompt") or "").strip()
         if not prompt:
+            logger.warning("illustrations_skip_empty_prompt", ill_id=raw.get("id"))
             continue
 
-        # 尝试调用图像生成 API
+        ill_id = raw.get("id") or f"ILL-{idx:03d}"
         image_url = ""
+        t0 = _time.monotonic()
         try:
+            logger.info("illustrations_step2_image_start", ill_id=ill_id, prompt_len=len(prompt))
             image_url = await model_router.generate_image(prompt)
+            elapsed = _time.monotonic() - t0
+            logger.info("illustrations_step2_image_done", ill_id=ill_id, elapsed_s=round(elapsed, 1),
+                        has_image=bool(image_url))
         except Exception as e:
-            logger.warning("illustration_image_failed", ill_id=raw.get("id"), error=str(e)[:200])
-            # 图像生成失败时仍保留元数据,前端可显示 prompt 让用户手动生成
+            elapsed = _time.monotonic() - t0
+            logger.error("illustrations_step2_image_failed", ill_id=ill_id,
+                         elapsed_s=round(elapsed, 1), error=str(e)[:300])
             image_url = ""
 
         cleaned.append({
-            "id": raw.get("id") or f"ILL-{idx:03d}",
+            "id": ill_id,
             "title": (raw.get("title") or f"解释图 {idx}").strip(),
             "theme": (raw.get("theme") or "").strip(),
             "structure_type": (raw.get("structure_type") or "concept_metaphor").strip(),
