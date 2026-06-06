@@ -146,6 +146,8 @@ ROUTING_RULES = {
     "meeting_stakeholders_extract":{"primary": "minimax-m2.7",      "fallback": "glm-5"},
     # 会议内容问答:用户在 console 问会议,长上下文 + 高质量
     "meeting_qa_answer":           {"primary": "minimax-m2.7",      "fallback": "glm-5"},
+    # 解释图 prompt 生成:从会议内容提取认知锚点并生成图像 prompt
+    "meeting_illustrations_extract":{"primary": "minimax-m2.7",      "fallback": "glm-5"},
     # 纪要模板演化:基于历史样本归纳模板,元分析任务
     "meeting_template_evolve":     {"primary": "minimax-m2.7",      "fallback": "glm-5"},
 
@@ -576,6 +578,103 @@ class ModelRouter:
             logger.warning("stream_falling_back", task=task, primary=primary, fallback=fallback, reason=str(e)[:100])
             async for token, model in self.chat_stream(fallback, messages, **kwargs):
                 yield token, model
+
+    async def generate_image(
+        self,
+        prompt: str,
+        width: int = 1792,
+        height: int = 1024,
+        timeout: float = 120.0,
+    ) -> str:
+        """调用 MiniMax 文生图 API,返回 base64 图片数据(data URL)。
+
+        使用已有的 minimax_api_key,endpoint 为 api.minimax.chat/v1/images/generations。
+        """
+        from services.call_log_service import log_llm_call
+
+        api_key = getattr(settings, "minimax_api_key", "")
+        if not api_key:
+            raise RuntimeError("minimax_api_key 未配置,无法生成图像")
+
+        t0 = time.monotonic()
+        backoffs = [10, 20, 30]
+        attempt = 0
+        last_status: int | None = None
+
+        while True:
+            try:
+                resp = await self.client.post(
+                    "https://api.minimax.chat/v1/images/generations",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": "image-01",
+                        "prompt": prompt,
+                        "n": 1,
+                        "width": width,
+                        "height": height,
+                    },
+                    timeout=timeout,
+                )
+                last_status = resp.status_code
+                if resp.status_code in (429,) or 500 <= resp.status_code < 600:
+                    if attempt < len(backoffs):
+                        wait = backoffs[attempt]
+                        attempt += 1
+                        logger.warning("image_gen_retrying", status=resp.status_code, attempt=attempt, wait_s=wait)
+                        await asyncio.sleep(wait)
+                        continue
+                resp.raise_for_status()
+                body = resp.json()
+
+                # MiniMax 返回格式: { "data": [{ "b64_json": "...", "url": "..." }] }
+                images = body.get("data") or []
+                if not images:
+                    raise RuntimeError(f"MiniMax 图像生成返回空结果: {body}")
+
+                img = images[0]
+                b64 = img.get("b64_json")
+                url = img.get("url")
+
+                if b64:
+                    result = f"data:image/png;base64,{b64}"
+                elif url:
+                    result = url
+                else:
+                    raise RuntimeError(f"MiniMax 图像生成无有效数据: {img}")
+
+                log_llm_call(
+                    model_name="minimax-image-01",
+                    caller_module=_detect_caller_module(),
+                    task="image_generation",
+                    input_tokens=None,
+                    output_tokens=None,
+                    duration_ms=int((time.monotonic() - t0) * 1000),
+                    status_code=last_status,
+                )
+                return result
+
+            except httpx.HTTPStatusError as e:
+                logger.error("image_gen_failed", status=e.response.status_code, error=str(e)[:200])
+                log_llm_call(
+                    model_name="minimax-image-01", caller_module=_detect_caller_module(),
+                    task="image_generation",
+                    input_tokens=None, output_tokens=None,
+                    duration_ms=int((time.monotonic() - t0) * 1000),
+                    status_code=e.response.status_code, error_message=str(e)[:500],
+                )
+                raise
+            except (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError) as e:
+                if attempt < len(backoffs):
+                    wait = backoffs[attempt]
+                    attempt += 1
+                    logger.warning("image_gen_network_retrying", error=type(e).__name__, attempt=attempt, wait_s=wait)
+                    await asyncio.sleep(wait)
+                    continue
+                logger.error("image_gen_network_failed", error=type(e).__name__)
+                raise
 
     async def test_connectivity(self) -> dict:
         test_msg = [{"role": "user", "content": "回复OK"}]

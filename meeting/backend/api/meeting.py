@@ -100,6 +100,7 @@ def _meeting_dto(m: Meeting, project_name: Optional[str] = None) -> dict:
         "stakeholder_kb_url": m.stakeholder_kb_url,
         "stakeholder_kb_synced_at": m.stakeholder_kb_synced_at,
         "process_flows": m.process_flows,
+        "illustrations": m.illustrations,
     }
 
 
@@ -942,6 +943,27 @@ async def action_extract_process_flows(
     m.process_flows = flows
     await session.commit()
     return {"process_flows": flows}
+
+
+@router.post("/{meeting_id}/actions/extract_illustrations")
+async def action_extract_illustrations(
+    meeting_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """从会议内容生成手绘解释图(覆盖式)。"""
+    from services.meeting import extract_illustrations
+    m = await _load_meeting_owned(meeting_id, session, user)
+    text = m.polished_transcript or m.raw_transcript
+    if not text:
+        raise HTTPException(400, "无可用 transcript")
+    illustrations = await extract_illustrations(
+        text,
+        m.meeting_minutes if isinstance(m.meeting_minutes, dict) else None,
+    )
+    m.illustrations = illustrations
+    await session.commit()
+    return {"illustrations": illustrations}
 
 
 # ── KB 同步(Block E.1) ────────────────────────────────────────────────

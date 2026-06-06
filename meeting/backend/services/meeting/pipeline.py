@@ -22,6 +22,8 @@ from prompts.meeting import (
     PROCESS_FLOW_USER,
     STAKEHOLDER_SYSTEM,
     STAKEHOLDER_USER,
+    ILLUSTRATION_SYSTEM,
+    ILLUSTRATION_USER,
 )
 from services.ai.template_evolver import _build_system_prompt_from_dict
 from services.model_router import model_router
@@ -181,7 +183,14 @@ _EMPTY_PROCESS_FLOWS = {"flows": [], "version": 1}
 
 
 def _normalize_mermaid(raw: str) -> str:
-    """去掉 LLM 可能包裹的围栏,确保以 flowchart/graph 开头。"""
+    """去掉 LLM 可能包裹的围栏,确保以 flowchart/graph 开头。
+
+    2026-06-06:额外修复 Mermaid 保留字冲突——LLM 经常把 `end` 用作节点 ID
+    (如 `end([结束])` / `f --> end`),但 `end` 在 Mermaid 语法里是保留关键字
+    (subgraph 终止符),导致 Parse error。替换为 `node_end`。
+    同理处理其他可能冲突的保留字(subgraph / click / style / classDef / class)。
+    """
+    import re as _re
     text = (raw or "").strip()
     if text.startswith("```"):
         lines = text.split("\n")
@@ -192,6 +201,24 @@ def _normalize_mermaid(raw: str) -> str:
         text = "\n".join(lines).strip()
     if text.lower().startswith("mermaid"):
         text = text.split("\n", 1)[-1].strip()
+
+    # 修复 Mermaid 保留字用作节点 ID 的问题:
+    # 匹配行首或空白后的保留字 ID(后跟括号/方括号/花括号,或行中被引用如 `--> end`)
+    _RESERVED = {"end", "subgraph", "click", "style", "classDef", "class", "direction"}
+    for word in _RESERVED:
+        safe = f"node_{word}"
+        # 场景 1:节点定义 — `end([结束])` / `end[步骤]` / `end{判断?}`
+        text = _re.sub(
+            rf'(?<!\w){_re.escape(word)}(\d*)([\(\[\{{])',
+            rf'{safe}\1\2',
+            text,
+        )
+        # 场景 2:连线引用 — `f --> end` / `f -->|是| end`
+        text = _re.sub(
+            rf'(-->|--)\s*(?:\|[^\|]*\|)?\s*{_re.escape(word)}(?=\s*$)',
+            rf'\1 {safe}',
+            text,
+        )
     return text
 
 
@@ -301,6 +328,81 @@ async def extract_stakeholders(
         relations=len(result.get("relations", [])),
     )
     return result
+
+
+# ── 阶段 5:解释图 ────────────────────────────────────────────────────────
+
+_EMPTY_ILLUSTRATIONS: dict = {"illustrations": [], "version": 1}
+
+
+async def extract_illustrations(transcript: str, minutes: dict | None = None) -> dict:
+    """从会议内容提取认知锚点,为每个锚点生成手绘解释图。
+
+    两步流程:
+    1. LLM 分析会议内容 → 输出 4-8 张图的 prompt 列表
+    2. 对每张图调用 MiniMax 图像生成 API → 返回 base64 图片
+    """
+    if not transcript or not transcript.strip():
+        return dict(_EMPTY_ILLUSTRATIONS)
+
+    # Step 1: LLM 分析 + 生成 prompt
+    context = transcript[:30000]
+    if minutes:
+        summary = minutes.get("summary", "")
+        if summary:
+            context = f"会议摘要:{summary}\n\n{context}"
+
+    messages = [
+        {"role": "system", "content": ILLUSTRATION_SYSTEM},
+        {"role": "user", "content": ILLUSTRATION_USER.format(transcript=context)},
+    ]
+    content, model = await model_router.chat_with_routing(
+        task="meeting_illustrations_extract",
+        messages=messages,
+        temperature=0.4,
+        max_tokens=8000,
+        response_format={"type": "json_object"},
+    )
+    result = _safe_json_loads(content, dict(_EMPTY_ILLUSTRATIONS))
+    if not isinstance(result, dict):
+        result = dict(_EMPTY_ILLUSTRATIONS)
+    items = result.get("illustrations", [])
+    if not isinstance(items, list):
+        items = []
+
+    # Step 2: 逐张调用图像生成 API
+    cleaned: list[dict] = []
+    for idx, raw in enumerate(items, start=1):
+        if not isinstance(raw, dict):
+            continue
+        prompt = (raw.get("prompt") or "").strip()
+        if not prompt:
+            continue
+
+        # 尝试调用图像生成 API
+        image_url = ""
+        try:
+            image_url = await model_router.generate_image(prompt)
+        except Exception as e:
+            logger.warning("illustration_image_failed", ill_id=raw.get("id"), error=str(e)[:200])
+            # 图像生成失败时仍保留元数据,前端可显示 prompt 让用户手动生成
+            image_url = ""
+
+        cleaned.append({
+            "id": raw.get("id") or f"ILL-{idx:03d}",
+            "title": (raw.get("title") or f"解释图 {idx}").strip(),
+            "theme": (raw.get("theme") or "").strip(),
+            "structure_type": (raw.get("structure_type") or "concept_metaphor").strip(),
+            "core_idea": (raw.get("core_idea") or "").strip(),
+            "composition": (raw.get("composition") or "").strip(),
+            "elements": raw.get("elements") or [],
+            "annotations": raw.get("annotations") or [],
+            "prompt": prompt,
+            "image_url": image_url,
+        })
+
+    logger.info("illustrations_done", model=model, count=len(cleaned))
+    return {"illustrations": cleaned, "version": 1}
 
 
 # ── 全流程编排 ──────────────────────────────────────────────────────────

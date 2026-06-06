@@ -1862,6 +1862,24 @@ export interface MeetingProcessFlows {
   version?: number
 }
 
+export interface MeetingIllustration {
+  id: string
+  title: string
+  theme: string
+  structure_type: string
+  core_idea: string
+  composition: string
+  elements: string[]
+  annotations: string[]
+  prompt: string
+  image_url: string
+}
+
+export interface MeetingIllustrations {
+  illustrations: MeetingIllustration[]
+  version?: number
+}
+
 export interface MeetingRequirement {
   id: number
   meeting_id: number
@@ -1903,11 +1921,12 @@ export interface Meeting {
   stakeholder_kb_url: string | null
   stakeholder_kb_synced_at: string | null
   process_flows: MeetingProcessFlows | null
+  illustrations: MeetingIllustrations | null
   // 详情接口含
   requirements?: MeetingRequirement[]
 }
 
-export type MeetingAction = 'polish' | 'summarize' | 'extract_requirements' | 'extract_process_flows' | 'extract_stakeholders'
+export type MeetingAction = 'polish' | 'summarize' | 'extract_requirements' | 'extract_process_flows' | 'extract_stakeholders' | 'extract_illustrations'
 
 // ── CRUD ─────────────────────────────────────────────────────────────────
 

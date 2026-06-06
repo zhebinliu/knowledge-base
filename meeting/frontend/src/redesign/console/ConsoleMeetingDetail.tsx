@@ -13,7 +13,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   ChevronLeft, Loader2, RefreshCw, Trash2, FolderKanban,
-  FileText, ListChecks, Users, Settings as SettingsIcon, Info, GitBranch,
+  FileText, ListChecks, Users, Settings as SettingsIcon, Info, GitBranch, ChevronRight, Palette,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -25,6 +25,7 @@ import {
   SeekToContext,
   OverviewTab, TranscriptTab, MinutesTab,
   RequirementsTab, ProcessFlowsTab, StakeholdersTab, ActionsTab,
+  IllustrationsTab,
 } from '../../pages/console/ConsoleMeetingDetail'
 import { getMeetingAudioUrl } from '../../api/meeting-ext'
 import AudioPlayer, { type AudioPlayerHandle } from '../../components/AudioPlayer'
@@ -32,7 +33,7 @@ import ChatWidget from '../../components/ChatSidebar'
 import TemplateSelector from '../../components/TemplateSelector'
 import GlowCard from '../components/GlowCard'
 
-type LeftTab = 'minutes' | 'requirements' | 'process_flows' | 'stakeholders'
+type LeftTab = 'minutes' | 'requirements' | 'process_flows' | 'stakeholders' | 'illustrations'
 type RightTab = 'transcript' | 'polished'
 
 const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: LucideIcon }> = [
@@ -40,6 +41,7 @@ const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: LucideIcon }> = [
   { key: 'requirements',  label: '需求清单', Icon: ListChecks },
   { key: 'process_flows', label: '业务流程', Icon: GitBranch },
   { key: 'stakeholders',  label: '干系人',   Icon: Users },
+  { key: 'illustrations', label: '解释图',   Icon: Palette },
 ]
 
 const RIGHT_TABS: Array<{ key: RightTab; label: string; Icon: LucideIcon }> = [
@@ -61,6 +63,7 @@ export default function NewConsoleMeetingDetail() {
   const [view, setView] = useState<'split' | 'overview' | 'actions'>('split')
   const [leftTab, setLeftTab] = useState<LeftTab>('minutes')
   const [rightTab, setRightTab] = useState<RightTab>('transcript')
+  const [rightPanelOpen, setRightPanelOpen] = useState(true)
   const audioPlayerRef = useRef<AudioPlayerHandle>(null)
 
   const { data: meeting, isLoading, error } = useQuery({
@@ -288,35 +291,63 @@ export default function NewConsoleMeetingDetail() {
             /* ── 左右分栏 ── */
             <div className="grid grid-cols-1 lg:grid-cols-5" style={{ minHeight: 480 }}>
               {/* 左侧面板: 纪要 / 需求清单 / 干系人 */}
-              <div style={{ borderRight: '1px solid var(--rd-line)' }} className="lg:col-span-3">
+              <div
+                style={rightPanelOpen ? { borderRight: '1px solid var(--rd-line)' } : undefined}
+                className={rightPanelOpen ? 'lg:col-span-3' : 'lg:col-span-5'}
+              >
                 {/* 左侧 Tab 栏 */}
                 <div style={{
-                  display: 'flex', borderBottom: '1px solid var(--rd-line)',
+                  display: 'flex', alignItems: 'center',
+                  borderBottom: '1px solid var(--rd-line)',
                   background: 'rgba(15,18,36,.008)',
                 }}>
-                  {LEFT_TABS.map(t => {
-                    const Ic = t.Icon
-                    const active = leftTab === t.key
-                    return (
-                      <button
-                        key={t.key}
-                        onClick={() => setLeftTab(t.key)}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 5,
-                          padding: '11px 20px',
-                          fontSize: 13, fontWeight: active ? 700 : 500,
-                          color: active ? 'var(--rd-accent-2)' : 'var(--rd-text-3)',
-                          background: active ? 'rgba(255,141,26,.06)' : 'transparent',
-                          border: 'none',
-                          borderBottom: `2px solid ${active ? 'var(--rd-accent)' : 'transparent'}`,
-                          marginBottom: -1,
-                          cursor: 'pointer', transition: 'all .2s', fontFamily: 'inherit',
-                        }}
-                      >
-                        <Ic size={13} /> {t.label}
-                      </button>
-                    )
-                  })}
+                  <div style={{ display: 'flex', flex: 1, minWidth: 0, overflowX: 'auto' }}>
+                    {LEFT_TABS.map(t => {
+                      const Ic = t.Icon
+                      const active = leftTab === t.key
+                      return (
+                        <button
+                          key={t.key}
+                          onClick={() => setLeftTab(t.key)}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            padding: '11px 20px',
+                            fontSize: 13, fontWeight: active ? 700 : 500,
+                            color: active ? 'var(--rd-accent-2)' : 'var(--rd-text-3)',
+                            background: active ? 'rgba(255,141,26,.06)' : 'transparent',
+                            border: 'none',
+                            borderBottom: `2px solid ${active ? 'var(--rd-accent)' : 'transparent'}`,
+                            marginBottom: -1,
+                            cursor: 'pointer', transition: 'all .2s', fontFamily: 'inherit',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          <Ic size={13} /> {t.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {!rightPanelOpen && (
+                    <button
+                      type="button"
+                      onClick={() => setRightPanelOpen(true)}
+                      style={{
+                        flexShrink: 0,
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        padding: '11px 16px',
+                        fontSize: 13, fontWeight: 500,
+                        color: '#2563eb',
+                        background: 'transparent',
+                        border: 'none',
+                        borderLeft: '1px solid var(--rd-line)',
+                        cursor: 'pointer', fontFamily: 'inherit',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title="展开转写面板"
+                    >
+                      <ChevronLeft size={14} /> 转写
+                    </button>
+                  )}
                 </div>
                 {/* 左侧内容 */}
                 <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(100vh - 340px)' }}>
@@ -324,45 +355,70 @@ export default function NewConsoleMeetingDetail() {
                   {leftTab === 'requirements'  && <RequirementsTab meeting={meeting} />}
                   {leftTab === 'process_flows' && <ProcessFlowsTab meeting={meeting} />}
                   {leftTab === 'stakeholders'  && <StakeholdersTab meeting={meeting} />}
+                  {leftTab === 'illustrations' && <IllustrationsTab meeting={meeting} />}
                 </div>
               </div>
 
-              {/* 右侧面板: 转录 / 润色转写 */}
-              <div className="lg:col-span-2">
-                {/* 右侧 Tab 栏 */}
-                <div style={{
-                  display: 'flex', borderBottom: '1px solid var(--rd-line)',
-                  background: 'rgba(15,18,36,.008)',
-                }}>
-                  {RIGHT_TABS.map(t => {
-                    const Ic = t.Icon
-                    const active = rightTab === t.key
-                    return (
-                      <button
-                        key={t.key}
-                        onClick={() => setRightTab(t.key)}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 5,
-                          padding: '11px 20px',
-                          fontSize: 13, fontWeight: active ? 700 : 500,
-                          color: active ? '#2563eb' : 'var(--rd-text-3)',
-                          background: active ? 'rgba(37,99,235,.06)' : 'transparent',
-                          border: 'none',
-                          borderBottom: `2px solid ${active ? '#2563eb' : 'transparent'}`,
-                          marginBottom: -1,
-                          cursor: 'pointer', transition: 'all .2s', fontFamily: 'inherit',
-                        }}
-                      >
-                        <Ic size={13} /> {t.label}
-                      </button>
-                    )
-                  })}
+              {/* 右侧面板: 转录 / 润色转写(可收起) */}
+              {rightPanelOpen && (
+                <div className="lg:col-span-2">
+                  {/* 右侧 Tab 栏 */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center',
+                    borderBottom: '1px solid var(--rd-line)',
+                    background: 'rgba(15,18,36,.008)',
+                  }}>
+                    <div style={{ display: 'flex', flex: 1, minWidth: 0 }}>
+                      {RIGHT_TABS.map(t => {
+                        const Ic = t.Icon
+                        const active = rightTab === t.key
+                        return (
+                          <button
+                            key={t.key}
+                            onClick={() => setRightTab(t.key)}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 5,
+                              padding: '11px 20px',
+                              fontSize: 13, fontWeight: active ? 700 : 500,
+                              color: active ? '#2563eb' : 'var(--rd-text-3)',
+                              background: active ? 'rgba(37,99,235,.06)' : 'transparent',
+                              border: 'none',
+                              borderBottom: `2px solid ${active ? '#2563eb' : 'transparent'}`,
+                              marginBottom: -1,
+                              cursor: 'pointer', transition: 'all .2s', fontFamily: 'inherit',
+                            }}
+                          >
+                            <Ic size={13} /> {t.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setRightPanelOpen(false)}
+                      style={{
+                        flexShrink: 0,
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        padding: '11px 16px',
+                        fontSize: 13, fontWeight: 500,
+                        color: 'var(--rd-text-3)',
+                        background: 'transparent',
+                        border: 'none',
+                        borderLeft: '1px solid var(--rd-line)',
+                        cursor: 'pointer', fontFamily: 'inherit',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title="收起转写面板"
+                    >
+                      收起 <ChevronRight size={14} />
+                    </button>
+                  </div>
+                  {/* 右侧内容 */}
+                  <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(100vh - 340px)', background: 'rgba(248,250,252,.35)' }}>
+                    <TranscriptPanel meeting={meeting} rightTab={rightTab} />
+                  </div>
                 </div>
-                {/* 右侧内容 */}
-                <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(100vh - 340px)', background: 'rgba(248,250,252,.35)' }}>
-                  <TranscriptPanel meeting={meeting} rightTab={rightTab} />
-                </div>
-              </div>
+              )}
             </div>
           )}
         </SeekToContext.Provider>

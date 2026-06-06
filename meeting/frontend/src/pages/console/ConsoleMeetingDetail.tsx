@@ -15,7 +15,8 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   ChevronLeft, Loader2, RefreshCw, Trash2, FolderKanban, CheckCircle2, AlertCircle, Mic,
   FileText, ListChecks, Users, Settings as SettingsIcon, Info, ExternalLink, Save,
-  Download, Pencil, X, Check, Clock, Share2, GitBranch,
+  Download, Pencil, X, Check, Clock, Share2, GitBranch, ChevronRight, Palette,
+  Maximize2, Copy,
 } from 'lucide-react'
 import {
   getMeeting, deleteMeeting, processMeeting, patchMeeting, linkMeetingProject,
@@ -29,6 +30,7 @@ import {
   syncMeetingStakeholdersToProject,
   type Meeting, type MeetingStatus, type MeetingMinutes, type MeetingRequirement,
   type StakeholderItem, type FeishuUrlCheckResult,
+  type MeetingIllustration,
 } from '../../api/client'
 import { getMeetingAudioUrl } from '../../api/meeting-ext'
 import AudioPlayer, { type AudioPlayerHandle } from '../../components/AudioPlayer'
@@ -42,7 +44,7 @@ import { MermaidBlock } from '../../components/markdown/ReportMarkdown'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 type TopView = 'overview' | 'split' | 'actions'
-type LeftTab = 'minutes' | 'requirements' | 'process_flows' | 'stakeholders'
+type LeftTab = 'minutes' | 'requirements' | 'process_flows' | 'stakeholders' | 'illustrations'
 type RightTab = 'transcript' | 'polished'
 
 // ── 时间戳跳转 Context ────────────────────────────────────────────────────
@@ -129,6 +131,7 @@ const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: typeof Info }> = [
   { key: 'requirements',  label: '需求清单', Icon: ListChecks },
   { key: 'process_flows', label: '业务流程', Icon: GitBranch },
   { key: 'stakeholders',  label: '干系人',   Icon: Users },
+  { key: 'illustrations', label: '解释图',   Icon: Palette },
 ]
 
 const RIGHT_TABS: Array<{ key: RightTab; label: string; Icon: typeof Info }> = [
@@ -1620,6 +1623,194 @@ export function ProcessFlowsTab({ meeting }: { meeting: Meeting }) {
   )
 }
 
+// ── Tab: 解释图 ─────────────────────────────────────────────────────────
+
+export function IllustrationsTab({ meeting }: { meeting: Meeting }) {
+  const qc = useQueryClient()
+  const [lightbox, setLightbox] = useState<MeetingIllustration | null>(null)
+  const illustrations = meeting.illustrations?.illustrations || []
+
+  const genMut = useMutation({
+    mutationFn: () => runMeetingAction(meeting.id, 'extract_illustrations'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
+      toast.success('解释图生成完成')
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || err?.message || '生成失败'),
+  })
+
+  const handleDownload = (ill: MeetingIllustration) => {
+    if (!ill.image_url) return
+    const a = document.createElement('a')
+    a.href = ill.image_url
+    a.download = `${ill.id}-${ill.title}.png`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
+  const handleCopy = async (ill: MeetingIllustration) => {
+    if (!ill.image_url) return
+    try {
+      // 把 data URL 转成 Blob
+      const resp = await fetch(ill.image_url)
+      const blob = await resp.blob()
+      await navigator.clipboard.write([
+        new ClipboardItem({ [blob.type]: blob }),
+      ])
+      toast.success('已复制到剪贴板')
+    } catch {
+      toast.error('复制失败,请使用下载')
+    }
+  }
+
+  if (illustrations.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <Palette size={40} className="mx-auto mb-3 text-gray-300" />
+        <p className="text-sm text-ink-muted mb-4">将会议中的判断、流程、结构、状态或隐喻转化为手绘解释图</p>
+        <button
+          onClick={() => genMut.mutate()}
+          disabled={genMut.isPending}
+          className="px-4 py-2 rounded-lg text-sm text-white inline-flex items-center gap-1.5"
+          style={{ background: BRAND_GRAD }}
+        >
+          {genMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Palette size={14} />}
+          {genMut.isPending ? '生成中…' : '生成解释图'}
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-base font-bold text-ink tracking-wide">解释图</h2>
+        <button
+          onClick={() => genMut.mutate()}
+          disabled={genMut.isPending}
+          className="px-3 py-1.5 rounded-md text-sm text-white inline-flex items-center gap-1.5"
+          style={{ background: BRAND_GRAD }}
+        >
+          {genMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+          重新生成
+        </button>
+      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        {illustrations.map(ill => (
+          <div key={ill.id} className="rounded-lg border border-line bg-white overflow-hidden shadow-sm group">
+            {/* 图片区域 */}
+            <div
+              className="relative bg-gray-50 cursor-pointer"
+              style={{ aspectRatio: '16/9' }}
+              onClick={() => ill.image_url && setLightbox(ill)}
+            >
+              {ill.image_url ? (
+                <img
+                  src={ill.image_url}
+                  alt={ill.title}
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-ink-muted text-sm">
+                  图像生成失败 · 可重新生成
+                </div>
+              )}
+              {/* 悬浮操作按钮 */}
+              {ill.image_url && (
+                <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleCopy(ill) }}
+                    className="p-1.5 rounded bg-black/50 text-white hover:bg-black/70 transition-colors"
+                    title="复制图片"
+                  >
+                    <Copy size={14} />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDownload(ill) }}
+                    className="p-1.5 rounded bg-black/50 text-white hover:bg-black/70 transition-colors"
+                    title="下载图片"
+                  >
+                    <Download size={14} />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setLightbox(ill) }}
+                    className="p-1.5 rounded bg-black/50 text-white hover:bg-black/70 transition-colors"
+                    title="放大查看"
+                  >
+                    <Maximize2 size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+            {/* 信息区域 */}
+            <div className="p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-200">
+                  {ill.structure_type}
+                </span>
+                <span className="text-xs text-ink-muted">{ill.id}</span>
+              </div>
+              <div className="text-sm font-medium text-ink mb-0.5">{ill.title}</div>
+              <div className="text-[12px] text-ink-secondary leading-relaxed">{ill.core_idea}</div>
+              {ill.annotations.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {ill.annotations.map((a, i) => (
+                    <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-ink-muted">{a}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Lightbox 全屏查看 */}
+      {lightbox && lightbox.image_url && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+          onClick={() => setLightbox(null)}
+        >
+          <div className="relative max-w-[90vw] max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <img
+              src={lightbox.image_url}
+              alt={lightbox.title}
+              className="max-w-full max-h-[85vh] object-contain rounded-lg"
+            />
+            {/* 底部信息栏 */}
+            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-4 rounded-b-lg">
+              <div className="text-white text-sm font-medium">{lightbox.title}</div>
+              <div className="text-white/70 text-[12px]">{lightbox.core_idea}</div>
+            </div>
+            {/* 关闭按钮 */}
+            <button
+              onClick={() => setLightbox(null)}
+              className="absolute top-3 right-3 p-2 rounded-full bg-black/50 text-white hover:bg-black/70"
+            >
+              <X size={18} />
+            </button>
+            {/* 操作按钮 */}
+            <div className="absolute top-3 left-3 flex gap-2">
+              <button
+                onClick={() => handleCopy(lightbox)}
+                className="px-3 py-1.5 rounded-lg bg-black/50 text-white text-sm hover:bg-black/70 inline-flex items-center gap-1.5"
+              >
+                <Copy size={14} /> 复制
+              </button>
+              <button
+                onClick={() => handleDownload(lightbox)}
+                className="px-3 py-1.5 rounded-lg bg-black/50 text-white text-sm hover:bg-black/70 inline-flex items-center gap-1.5"
+              >
+                <Download size={14} /> 下载
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── 干系人卡片(view / edit)─────────────────────────────────────────────
 
 function StakeholderViewCard({ stake, onEdit }: { stake: StakeholderItem; onEdit: () => void }) {
@@ -2430,6 +2621,7 @@ export default function ConsoleMeetingDetail() {
   const [topView, setTopView] = useState<TopView>('split')
   const [leftTab, setLeftTab] = useState<LeftTab>('minutes')
   const [rightTab, setRightTab] = useState<RightTab>('transcript')
+  const [rightPanelOpen, setRightPanelOpen] = useState(true)
   const audioPlayerRef = useRef<AudioPlayerHandle>(null)
 
   const { data: meeting, isLoading, error } = useQuery({
@@ -2612,26 +2804,38 @@ export default function ConsoleMeetingDetail() {
             {topView === 'split' && (
               <div className="grid grid-cols-1 lg:grid-cols-5" style={{ minHeight: 480 }}>
                 {/* 左侧面板: 纪要 / 需求清单 / 干系人 */}
-                <div className="lg:col-span-3 border-r border-line">
+                <div className={`${rightPanelOpen ? 'lg:col-span-3 border-r border-line' : 'lg:col-span-5'}`}>
                   {/* 左侧 Tab 栏 */}
-                  <div className="flex border-b border-line bg-slate-50/30">
-                    {LEFT_TABS.map(t => {
-                      const Icon = t.Icon
-                      const active = leftTab === t.key
-                      return (
-                        <button
-                          key={t.key}
-                          onClick={() => setLeftTab(t.key)}
-                          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
-                            active
-                              ? 'border-brand text-brand bg-brand/5'
-                              : 'border-transparent text-ink-muted hover:text-ink hover:bg-canvas/40'
-                          }`}
-                        >
-                          <Icon size={13} /> {t.label}
-                        </button>
-                      )
-                    })}
+                  <div className="flex border-b border-line bg-slate-50/30 items-center">
+                    <div className="flex flex-1 min-w-0 overflow-x-auto">
+                      {LEFT_TABS.map(t => {
+                        const Icon = t.Icon
+                        const active = leftTab === t.key
+                        return (
+                          <button
+                            key={t.key}
+                            onClick={() => setLeftTab(t.key)}
+                            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
+                              active
+                                ? 'border-brand text-brand bg-brand/5'
+                                : 'border-transparent text-ink-muted hover:text-ink hover:bg-canvas/40'
+                            }`}
+                          >
+                            <Icon size={13} /> {t.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {!rightPanelOpen && (
+                      <button
+                        type="button"
+                        onClick={() => setRightPanelOpen(true)}
+                        className="shrink-0 px-3 py-2.5 text-sm text-blue-600 hover:bg-blue-50/80 inline-flex items-center gap-1 border-l border-line whitespace-nowrap"
+                        title="展开转写面板"
+                      >
+                        <ChevronLeft size={14} /> 转写
+                      </button>
+                    )}
                   </div>
                   {/* 左侧内容 */}
                   <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 360px)' }}>
@@ -2639,36 +2843,49 @@ export default function ConsoleMeetingDetail() {
                     {leftTab === 'requirements'  && <RequirementsTab meeting={meeting} />}
                     {leftTab === 'process_flows' && <ProcessFlowsTab meeting={meeting} />}
                     {leftTab === 'stakeholders'   && <StakeholdersTab meeting={meeting} />}
+                    {leftTab === 'illustrations' && <IllustrationsTab meeting={meeting} />}
                   </div>
                 </div>
 
-                {/* 右侧面板: 原文 / AI润色 */}
-                <div className="lg:col-span-2">
-                  {/* 右侧 Tab 栏 */}
-                  <div className="flex border-b border-line bg-slate-50/30">
-                    {RIGHT_TABS.map(t => {
-                      const Icon = t.Icon
-                      const active = rightTab === t.key
-                      return (
-                        <button
-                          key={t.key}
-                          onClick={() => setRightTab(t.key)}
-                          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
-                            active
-                              ? 'border-blue-600 text-blue-600 bg-blue-50/50'
-                              : 'border-transparent text-ink-muted hover:text-ink hover:bg-canvas/40'
-                          }`}
-                        >
-                          <Icon size={13} /> {t.label}
-                        </button>
-                      )
-                    })}
+                {/* 右侧面板: 原文 / AI润色(可收起) */}
+                {rightPanelOpen && (
+                  <div className="lg:col-span-2">
+                    {/* 右侧 Tab 栏 */}
+                    <div className="flex border-b border-line bg-slate-50/30 items-center">
+                      <div className="flex flex-1 min-w-0">
+                        {RIGHT_TABS.map(t => {
+                          const Icon = t.Icon
+                          const active = rightTab === t.key
+                          return (
+                            <button
+                              key={t.key}
+                              onClick={() => setRightTab(t.key)}
+                              className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
+                                active
+                                  ? 'border-blue-600 text-blue-600 bg-blue-50/50'
+                                  : 'border-transparent text-ink-muted hover:text-ink hover:bg-canvas/40'
+                              }`}
+                            >
+                              <Icon size={13} /> {t.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setRightPanelOpen(false)}
+                        className="shrink-0 px-3 py-2.5 text-sm text-ink-muted hover:text-ink hover:bg-canvas/40 inline-flex items-center gap-1 border-l border-line whitespace-nowrap"
+                        title="收起转写面板"
+                      >
+                        收起 <ChevronRight size={14} />
+                      </button>
+                    </div>
+                    {/* 右侧内容 */}
+                    <div className="p-4 overflow-y-auto bg-canvas/30" style={{ maxHeight: 'calc(100vh - 360px)' }}>
+                      <TranscriptPanel meeting={meeting} tab={rightTab} />
+                    </div>
                   </div>
-                  {/* 右侧内容 */}
-                  <div className="p-4 overflow-y-auto bg-canvas/30" style={{ maxHeight: 'calc(100vh - 360px)' }}>
-                    <TranscriptPanel meeting={meeting} tab={rightTab} />
-                  </div>
-                </div>
+                )}
               </div>
             )}
           </SeekToContext.Provider>
