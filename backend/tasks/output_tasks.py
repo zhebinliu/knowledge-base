@@ -181,6 +181,78 @@ def generate_process_setup(self, bundle_id: str, project_id: str):
     _run(_gen(bundle_id, project_id))
 
 
+# ── 修订版学习(2026-06-08)─────────────────────────────────────────────────
+# 用户上传修订版覆盖 AI 产出后,异步抽取「用户偏好笔记」沉淀到 bundle_revision_memories,
+# 下次同 kind 生成时拼到 system prompt 顶部。失败不影响主流程(覆盖已 commit)。
+@celery_app.task(
+    name="analyze_bundle_revision",
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+    soft_time_limit=180,
+    time_limit=240,
+)
+def analyze_bundle_revision(
+    self,
+    bundle_id: str,
+    bundle_kind: str,
+    original_md: str,
+    revised_md: str,
+    project_id: str | None = None,
+    user_id: str | None = None,
+):
+    """异步分析 AI 原版 vs 用户修订版,产出偏好笔记并 INSERT 到 bundle_revision_memories。"""
+    from services.revision_learning import analyze_revision
+    from models import async_session_maker
+    from models.bundle_revision_memory import BundleRevisionMemory
+
+    async def _go():
+        try:
+            notes, model_used = await analyze_revision(original_md, revised_md, bundle_kind)
+        except Exception as e:
+            logger.error("analyze_bundle_revision_llm_failed",
+                         bundle_id=bundle_id, kind=bundle_kind, error=str(e)[:300])
+            raise
+
+        # 边界:空 notes 或明确「无系统性偏好」的情况不入库,避免污染下次 prompt
+        notes_stripped = (notes or "").strip()
+        if not notes_stripped or "无显著系统性偏好" in notes_stripped or "无明确的系统性偏好" in notes_stripped:
+            logger.info("analyze_bundle_revision_skip_trivial",
+                        bundle_id=bundle_id, kind=bundle_kind, notes_chars=len(notes_stripped))
+            return
+
+        async with async_session_maker() as session:
+            mem = BundleRevisionMemory(
+                bundle_kind=bundle_kind,
+                source_bundle_id=bundle_id,
+                source_project_id=project_id,
+                source_user_id=user_id,
+                notes_md=notes_stripped,
+                enabled=True,
+                original_chars=len(original_md or ""),
+                new_chars=len(revised_md or ""),
+                llm_model=model_used,
+            )
+            session.add(mem)
+            await session.commit()
+            logger.info("analyze_bundle_revision_saved",
+                        memory_id=mem.id, bundle_id=bundle_id, kind=bundle_kind,
+                        model=model_used, notes_chars=len(notes_stripped))
+
+    try:
+        _run(_go())
+    except Exception as e:
+        # 自动重试 3 次,每次间隔 60s
+        if self.request.retries < self.max_retries:
+            logger.warning("analyze_bundle_revision_retry",
+                           bundle_id=bundle_id, attempt=self.request.retries + 1,
+                           error=str(e)[:200])
+            raise self.retry(exc=e)
+        # 用完重试还失败:吞掉(主流程已经 commit,不影响用户)
+        logger.error("analyze_bundle_revision_giveup",
+                     bundle_id=bundle_id, error=str(e)[:300])
+
+
 # ── kind → 生成任务 映射(供自动重启复用)──────────────────────────────────
 def _kind_to_task() -> dict:
     """bundle.kind → 对应的 Celery 生成任务,用于卡死后自动重新触发。

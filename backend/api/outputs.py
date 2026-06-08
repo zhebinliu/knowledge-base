@@ -1065,7 +1065,9 @@ async def override_bundle_markdown(
         raise HTTPException(400, f"修订内容超过 4MB(实际 {len(md.encode('utf-8'))} 字节)")
 
     # ── 覆盖 + 记修订元数据 ───────────────────────────────────────
-    original_chars = len(b.content_md or "")
+    # 在覆盖前先把原文备份出来,后面 enqueue 修订学习任务要用
+    original_md_for_learning = b.content_md or ""
+    original_chars = len(original_md_for_learning)
     new_chars = len(md)
     b.content_md = md
 
@@ -1106,6 +1108,24 @@ async def override_bundle_markdown(
         new_chars=new_chars,
         user=str(getattr(current_user, "username", "")),
     )
+
+    # ── 修订学习:异步抽取「用户偏好笔记」沉淀到 bundle_revision_memories(2026-06-08)
+    # 失败不影响主流程(覆盖已 commit)。原版字符数 < 50 跳过(几乎没差异不值得 LLM 调用)。
+    if original_chars >= 50 and new_chars >= 50:
+        try:
+            from tasks.output_tasks import analyze_bundle_revision
+            analyze_bundle_revision.delay(
+                bundle_id=bundle_id,
+                bundle_kind=b.kind,
+                original_md=original_md_for_learning,
+                revised_md=md,
+                project_id=b.project_id,
+                user_id=str(getattr(current_user, "id", "") or "") or None,
+            )
+            logger.info("revision_learning_enqueued", bundle_id=bundle_id, kind=b.kind)
+        except Exception as _e:
+            logger.warning("revision_learning_enqueue_failed",
+                           bundle_id=bundle_id, kind=b.kind, error=str(_e)[:200])
 
     return {
         "ok": True,

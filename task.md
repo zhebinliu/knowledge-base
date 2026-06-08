@@ -1,5 +1,81 @@
 # 任务跟踪
 
+## 修订版学习 — AI 从用户修订中持续进化(2026-06-08)
+
+> 决策已拍板:**全局 + bundle kind** scope / **LLM 抽自然语言笔记** / **注入 system prompt 顶部** / **可见 + 可一键停用**
+
+### 架构总览
+
+```
+[用户上传修订版] → POST /api/outputs/{id}/markdown-override(已有)
+   ↓ commit content_md + enqueue Celery 异步任务
+[analyze_bundle_revision] → LLM 看 A/B 全文 → 3-5 条「用户偏好笔记」→ INSERT bundle_revision_memories
+[下次同类 bundle 生成] → SELECT 启用中 memories(按 kind / DESC / LIMIT)→ 拼到 system prompt 顶部
+[管理后台 /admin/bundle-memories] → 列表 + 来源 bundle 链接 + 一键启停
+```
+
+### 子任务
+
+- [x] **Task 1 · DB schema** ✅ 2026-06-08
+  - 新建 `backend/models/bundle_revision_memory.py` 12 字段 + 复合索引
+  - `backend/main.py:238` 加 `from models.bundle_revision_memory import BundleRevisionMemory`
+  - prod 容器 import smoke 测试通(类名/表名/字段/索引全对)
+  - `Base.metadata.create_all` 部署后会自动建表
+
+- [x] **Task 2 · LLM 分析服务** ✅ 2026-06-08
+  - 新建 `backend/services/revision_learning.py::analyze_revision()`
+  - prompt 设计:扮演 CRM 顾问 coach,对比 A/B → 3-5 条「用户偏好...」+ 价值括注
+  - 走 model_router,新 task `revision_learning` (primary minimax-m2.7, fallback glm-5)
+  - 超长截断:头尾保留 8k 字符
+  - 输出边界检查:< 20 字符 → 标记空,> 3000 字符 → 截断
+  - prod 容器实测产出 4 条高质量规则(qwen3-next-80b-a3b 路由命中)
+
+- [x] **Task 3 · Celery 异步任务 + endpoint hook** ✅ 2026-06-08
+  - `backend/tasks/output_tasks.py` 加 `analyze_bundle_revision`,3 次重试 60s 退避
+  - 任务体:LLM 调用 → 边界过滤(空/「无显著系统性偏好」直接 skip)→ INSERT memory
+  - `backend/api/outputs.py` markdown-override commit 后 `.delay(...)` enqueue
+  - 原文/修订文 < 50 字符跳过(避免空 LLM 调用)
+  - enqueue 失败/任务失败完全不影响主流程(已 commit)
+
+- [x] **Task 4 · 生成时注入 prompt** ✅ 2026-06-08
+  - `revision_learning.py::fetch_revision_memories_block()` helper
+  - 上限:10 条 / 4000 字符 / kind 隔离 / 只取 enabled=true
+  - 注入 3 处:generate_research_report / generate_blueprint_design / _generate_design_artifact
+  - 后两个 kind(object_field_layout / process_setup)共享 _generate_design_artifact
+  - 每次注入 log `revision_memories_injected` 便于排查
+
+- [ ] **Task 5 · 管理后台 API + 前端**(~1.5h)
+  - 后端:`backend/api/admin_bundle_memories.py` — GET list / PATCH enabled / DELETE
+  - 前端:`frontend/src/pages/admin/BundleMemoriesAdmin.tsx`
+    - 列:bundle_kind / 来源 bundle 链接 / notes 预览 / 创建时间 / 启停开关
+    - 按 kind 筛选 tab(4 类)
+    - 注册到 admin 导航 + redesign 同步
+  - 权限:admin only
+
+- [ ] **Task 6 · 文档 + LEARNING**(~20min)
+  - PROJECT_OVERVIEW.md 加「修订学习」模块章节
+  - LEARNING.md §13 沉淀:scope 决策依据 + 上限设计 + 失败容错策略
+
+### 边界(不做)
+
+- ❌ 不接 RAG / embedding 检索(V2 再说)
+- ❌ 不存原/修订对作 few-shot(MVP 只存 LLM 抽出的 notes_md)
+- ❌ 不破坏已有 `bundle.extra.user_modified_history`,只新增表
+- ❌ kickoff_pptx / kickoff_html 不在范围(本就不支持修订上传)
+
+### 验收
+
+1. 修一个真实蓝图 → 上传修订版 → 1 分钟内后台出现新 memory 条目
+2. 触发同 kind 重新生成 → 后端日志看到 prompt 注入了 memory 内容
+3. 后台单条 disable → 下一次生成不再注入这条
+4. LLM 调用失败 → 任务 retry 3 次 → 仍失败不影响 endpoint 主流程(已 commit)
+
+### 进度
+
+- 2026-06-08:决策拍板 + 拆任务
+
+---
+
 ## chip 跟 failed 脱钩 + 生成 trace_id 全链路(2026-06-05)— 用户 /goal
 
 ### 背景

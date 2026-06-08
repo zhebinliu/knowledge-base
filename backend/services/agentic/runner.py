@@ -2804,8 +2804,14 @@ async def generate_research_report(bundle_id: str, project_id: str):
 
         # ── Phase 4: LLM ──
         # max_tokens=16000 给 8 章 + 需求清单大表(15-50 行)足够余量
+        # 历史修订经验注入 system prompt 顶部(2026-06-08 加,详见 services/revision_learning.py)
+        from services.revision_learning import fetch_revision_memories_block
+        _memories_block = await fetch_revision_memories_block("research_report")
+        _system_with_memories = (_memories_block + SYSTEM_PROMPT) if _memories_block else SYSTEM_PROMPT
+        if _memories_block:
+            logger.info("revision_memories_injected", kind="research_report", memories_chars=len(_memories_block))
         raw = await _llm_call(
-            user_prompt, system=SYSTEM_PROMPT,
+            user_prompt, system=_system_with_memories,
             model=ctx["agent_model"],
             max_tokens=16000, timeout=720.0,
         )
@@ -3357,8 +3363,14 @@ async def generate_blueprint_design(bundle_id: str, project_id: str):
 
         # ── Phase 5: LLM ──
         # max_tokens=16000 给 7 章 + 表格 + mermaid 状态机足够余量
+        # 历史修订经验注入(2026-06-08)
+        from services.revision_learning import fetch_revision_memories_block
+        _memories_block = await fetch_revision_memories_block("blueprint_design")
+        _system_with_memories = (_memories_block + SYSTEM_PROMPT) if _memories_block else SYSTEM_PROMPT
+        if _memories_block:
+            logger.info("revision_memories_injected", kind="blueprint_design", memories_chars=len(_memories_block))
         raw = await _llm_call(
-            user_prompt, system=SYSTEM_PROMPT,
+            user_prompt, system=_system_with_memories,
             model=ctx["agent_model"],
             max_tokens=16000, timeout=720.0,
         )
@@ -3534,8 +3546,14 @@ async def _generate_design_artifact(
             industry_pack_block=format_industry_pack(pack),
         )
 
+        # 历史修订经验注入(2026-06-08,kind 是函数参数,object_field_layout/process_setup 共用)
+        from services.revision_learning import fetch_revision_memories_block
+        _memories_block = await fetch_revision_memories_block(kind)
+        _system_with_memories = (_memories_block + generator_module.SYSTEM_PROMPT) if _memories_block else generator_module.SYSTEM_PROMPT
+        if _memories_block:
+            logger.info("revision_memories_injected", kind=kind, memories_chars=len(_memories_block))
         raw = await _llm_call(
-            user_prompt, system=generator_module.SYSTEM_PROMPT,
+            user_prompt, system=_system_with_memories,
             model=ctx["agent_model"],
             max_tokens=18000, timeout=720.0,
         )
