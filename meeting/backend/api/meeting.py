@@ -101,6 +101,7 @@ def _meeting_dto(m: Meeting, project_name: Optional[str] = None) -> dict:
         "stakeholder_kb_synced_at": m.stakeholder_kb_synced_at,
         "process_flows": m.process_flows,
         "illustrations": m.illustrations,
+        "illustrations_svg": m.illustrations_svg,
     }
 
 
