@@ -1895,7 +1895,7 @@ export function IllustrationsSvgTab({ meeting }: { meeting: Meeting }) {
             >
               {ill.svg_code ? (
                 <div
-                  className="w-full h-full flex items-center justify-center"
+                  className="w-full h-full flex items-center justify-center illustration-svg-wrap"
                   dangerouslySetInnerHTML={{ __html: ill.svg_code }}
                 />
               ) : (
@@ -1958,9 +1958,9 @@ export function IllustrationsSvgTab({ meeting }: { meeting: Meeting }) {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
           onClick={() => setLightbox(null)}
         >
-          <div className="relative max-w-[90vw] max-h-[90vh]" onClick={e => e.stopPropagation()}>
+          <div className="relative max-w-[90vw] max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
             <div
-              className="max-w-full max-h-[85vh] rounded-lg bg-white"
+              className="max-w-full rounded-lg bg-white illustration-svg-lightbox"
               dangerouslySetInnerHTML={{ __html: lightbox.svg_code }}
             />
             {/* 底部信息栏 */}

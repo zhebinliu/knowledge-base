@@ -660,3 +660,18 @@
   float: left;
   height: 0;
 }
+
+/* ── 解释图 SVG 容器 ──────────────────────────────────────────────────── */
+/* 让 dangerouslySetInnerHTML 注入的 <svg> 自适应容器尺寸 */
+.illustration-svg-wrap svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+/* lightbox 内 SVG 不限高,由 max-h 控制 */
+.illustration-svg-lightbox svg {
+  max-width: 100%;
+  max-height: 85vh;
+  display: block;
+  margin: 0 auto;
+}
