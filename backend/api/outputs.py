@@ -4,7 +4,7 @@ import structlog
 from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
 
-from services._time import iso_utc
+from services._time import iso_utc, utcnow_naive
 
 logger = structlog.get_logger()
 
@@ -1073,7 +1073,7 @@ async def override_bundle_markdown(
     extra = dict(b.extra or {})
     history = list(extra.get("user_modified_history") or [])
     history.append({
-        "ts": iso_utc(),
+        "ts": iso_utc(utcnow_naive()),
         "user_id": str(getattr(current_user, "id", "") or ""),
         "username": getattr(current_user, "username", None) or getattr(current_user, "email", None),
         "source": source,
