@@ -185,6 +185,49 @@ export const createInviteCode = (body: {
 export const revokeInviteCode = (id: string) =>
   api.post<InviteCode>(`/admin/invite-codes/${id}/revoke`).then(r => r.data)
 
+// ── 后台:修订学习记忆管理(2026-06-08)──────────────────────────────────────
+
+export type BundleMemoryKind = 'blueprint_design' | 'object_field_layout' | 'process_setup' | 'research_report'
+
+export interface BundleMemory {
+  id: string
+  bundle_kind: BundleMemoryKind
+  source_bundle_id: string | null
+  source_bundle_title: string | null
+  source_project_id: string | null
+  source_project_name: string | null
+  source_user_id: string | null
+  source_username: string | null
+  notes_md: string
+  enabled: boolean
+  original_chars: number | null
+  new_chars: number | null
+  llm_model: string | null
+  created_at: string
+  updated_at: string
+}
+
+export const listBundleMemories = (params: {
+  kind?: BundleMemoryKind
+  enabled?: boolean
+  limit?: number
+  offset?: number
+}) =>
+  api.get<{ items: BundleMemory[]; total: number; limit: number; offset: number }>(
+    '/admin/bundle-memories', { params }
+  ).then(r => r.data)
+
+export const fetchBundleMemoriesKindsSummary = () =>
+  api.get<{ summary: Record<BundleMemoryKind, { enabled: number; total: number }> }>(
+    '/admin/bundle-memories/kinds'
+  ).then(r => r.data)
+
+export const updateBundleMemory = (id: string, body: { enabled?: boolean; notes_md?: string }) =>
+  api.patch<BundleMemory>(`/admin/bundle-memories/${id}`, body).then(r => r.data)
+
+export const deleteBundleMemory = (id: string) =>
+  api.delete<{ ok: boolean }>(`/admin/bundle-memories/${id}`).then(r => r.data)
+
 export const fetchMe = () =>
   api.get<AuthUser>('/auth/me').then(r => r.data)
 

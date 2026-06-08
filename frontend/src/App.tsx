@@ -68,6 +68,7 @@ import Settings  from './pages/Settings'
 import SystemConfig from './pages/SystemConfig'
 import PersonalSettings from './pages/PersonalSettings'
 import InviteCodes from './pages/InviteCodes'
+import BundleMemoriesAdmin from './pages/BundleMemoriesAdmin'
 import Projects from './pages/Projects'
 import ProjectDetail from './pages/ProjectDetail'
 import Login     from './pages/Login'
@@ -158,6 +159,7 @@ export default function App() {
           <Route path="personal-settings" element={IS_NEW_UI ? <NewBackendPersonalSettings /> : <PersonalSettings />} />
           <Route path="system-config" element={IS_NEW_UI ? <NewBackendSystemConfig /> : <SystemConfig />} />
           <Route path="invite-codes"  element={<InviteCodes />} />
+          <Route path="bundle-memories" element={<BundleMemoriesAdmin />} />
         </Route>
       </Route>
     </Routes>

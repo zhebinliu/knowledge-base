@@ -24,6 +24,7 @@ const pathToModule: Record<string, string> = {
   '/settings': 'settings',
   '/system-config': 'settings',  // 归到 settings
   '/invite-codes': 'settings',
+  '/bundle-memories': 'settings',
 }
 
 /** 所有"后台"模块(用于判断用户是否完全没有后台权限,如果没有则跳 /console) */
@@ -49,6 +50,7 @@ const allNavGroups = [
       { to: '/system-config', label: '系统配置', icon: Sliders, adminOnly: true },
       { to: '/settings',      label: '系统设置', icon: Settings, adminOnly: true },
       { to: '/invite-codes',  label: '邀请码',   icon: Shield, adminOnly: true },
+      { to: '/bundle-memories', label: '修订学习记忆库', icon: Brain, adminOnly: true },
     ],
   },
 ]
