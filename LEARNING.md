@@ -786,3 +786,19 @@ docstring 里把 endpoint 路径写全、写明 schema 差异,下次维护就不
 
 修复见 `backend/services/model_router.py::generate_image()`,把 `base_resp.status_code` 业务码
 检查也加上,1002/1008/1013 这种限流码走指数退避重试。
+
+【第二层坑】修了 URL/schema 之后实测又撞到 `code=1004 login fail` —— 因为我们的
+`settings.minimax_api_key` 实际是 **edgefn 代理的 key**(`sk-xxx` 格式),所有 chat 调用都走
+`api.edgefn.net/v1` 由代理转发到 MiniMax,这个 key 不能直接拿去打 `api.minimax.chat`。而 edgefn
+代理 **只转发 chat,不转发图像/视频接口**(`/v1/image_generation` 和 `/v1/images/generations`
+两条路径都 404)。所以图像必须用 **MiniMax 官方直连 key**(eyJ... JWT,从
+https://platform.minimaxi.com 申请),配在独立环境变量 `MINIMAX_NATIVE_API_KEY` 里。
+
+下次接 MiniMax 的视频 / 语音 / TTS 等"非 chat"接口同理 —— 默认用 `minimax_native_api_key`,
+不要用 `minimax_api_key`(代理 key)。
+
+【调试方法学】今天踩坑暴露一个反模式:Claude 直接照 OpenAI 文档写,既没确认 endpoint 路径,
+也没区分两套 key 的归属。下次新接外部 API,**三件事必须做**:
+1. 拿到第一份调用代码后,curl 一发空请求看真实 4xx/404 区分"路径错"还是"鉴权错"
+2. 看清楚 `settings.xxx_api_key` 是直连 key 还是代理 key,前缀(sk-/eyJ/Bearer)就是线索
+3. 业务错误码独立于 HTTP code,有 `base_resp` / `error_code` 这种字段都得显式检查

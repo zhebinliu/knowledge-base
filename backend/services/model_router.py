@@ -587,7 +587,11 @@ class ModelRouter:
     ) -> str:
         """调用 MiniMax 文生图 API,返回 base64 图片数据(data URL)。
 
-        使用已有的 minimax_api_key,endpoint 为 api.minimax.chat/v1/image_generation。
+        使用 MiniMax 直连 API,endpoint 为 api.minimax.chat/v1/image_generation。
+
+        注意:本项目的 minimax_api_key 是 edgefn 代理 key(走 api.edgefn.net),仅代理 chat 接口,
+        不代理图像 — 图像必须用 MiniMax 官方直连 key(eyJ... JWT 格式),配置在
+        `settings.minimax_native_api_key`。
 
         注意:MiniMax 的图像 API 不是 OpenAI 风格(/v1/images/generations + width/height + b64_json),
         而是自己的 schema —— 路径单数 /v1/image_generation,用 aspect_ratio,响应是
@@ -598,9 +602,13 @@ class ModelRouter:
         """
         from services.call_log_service import log_llm_call
 
-        api_key = getattr(settings, "minimax_api_key", "")
+        api_key = getattr(settings, "minimax_native_api_key", "")
         if not api_key:
-            raise RuntimeError("minimax_api_key 未配置,无法生成图像")
+            raise RuntimeError(
+                "minimax_native_api_key 未配置,无法生成图像。"
+                "注意:不是 minimax_api_key(edgefn 代理 key)— 图像需要 MiniMax 官方直连 key "
+                "(eyJ... JWT,从 https://platform.minimaxi.com 申请)"
+            )
 
         t0 = time.monotonic()
         backoffs = [10, 20, 30]

@@ -39,7 +39,8 @@ class Settings(BaseSettings):
 
     # 大模型 API Keys
     zhipu_api_key: str = ""
-    minimax_api_key: str = ""
+    minimax_api_key: str = ""           # edgefn 代理 key(sk-xxx),用于 chat / 文本接口
+    minimax_native_api_key: str = ""    # MiniMax 官方直连 key(eyJ... JWT),用于图像 / 视频等代理不转发的接口
     xiaomi_api_key: str = ""
     dashscope_api_key: str = ""
 
