@@ -582,13 +582,19 @@ class ModelRouter:
     async def generate_image(
         self,
         prompt: str,
-        width: int = 1792,
-        height: int = 1024,
+        aspect_ratio: str = "16:9",
         timeout: float = 120.0,
     ) -> str:
         """调用 MiniMax 文生图 API,返回 base64 图片数据(data URL)。
 
-        使用已有的 minimax_api_key,endpoint 为 api.minimax.chat/v1/images/generations。
+        使用已有的 minimax_api_key,endpoint 为 api.minimax.chat/v1/image_generation。
+
+        注意:MiniMax 的图像 API 不是 OpenAI 风格(/v1/images/generations + width/height + b64_json),
+        而是自己的 schema —— 路径单数 /v1/image_generation,用 aspect_ratio,响应是
+        { data: { image_base64: [...] }, base_resp: { status_code, status_msg } },
+        且 HTTP 200 不等于成功,要看 base_resp.status_code == 0。
+
+        支持的 aspect_ratio: "1:1" | "16:9" | "4:3" | "3:2" | "2:3" | "3:4" | "9:16" | "21:9"。
         """
         from services.call_log_service import log_llm_call
 
@@ -604,9 +610,9 @@ class ModelRouter:
         while True:
             try:
                 logger.info("image_gen_request", prompt_len=len(prompt),
-                            width=width, height=height, attempt=attempt)
+                            aspect_ratio=aspect_ratio, attempt=attempt)
                 resp = await self.client.post(
-                    "https://api.minimax.chat/v1/images/generations",
+                    "https://api.minimax.chat/v1/image_generation",
                     headers={
                         "Authorization": f"Bearer {api_key}",
                         "Content-Type": "application/json",
@@ -615,8 +621,9 @@ class ModelRouter:
                         "model": "image-01",
                         "prompt": prompt,
                         "n": 1,
-                        "width": width,
-                        "height": height,
+                        "aspect_ratio": aspect_ratio,
+                        "response_format": "base64",
+                        "prompt_optimizer": True,
                     },
                     timeout=timeout,
                 )
@@ -632,21 +639,32 @@ class ModelRouter:
                 resp.raise_for_status()
                 body = resp.json()
 
-                # MiniMax 返回格式: { "data": [{ "b64_json": "...", "url": "..." }] }
-                images = body.get("data") or []
-                if not images:
-                    raise RuntimeError(f"MiniMax 图像生成返回空结果: {body}")
+                # MiniMax 业务错误码:HTTP 200 也可能 base_resp.status_code != 0(余额/审核/限流等)
+                base_resp = body.get("base_resp") or {}
+                biz_code = base_resp.get("status_code")
+                if biz_code not in (0, None):
+                    biz_msg = base_resp.get("status_msg") or ""
+                    # 1002/1008/1013 等限流类错误也走重试
+                    if biz_code in (1002, 1008, 1013) and attempt < len(backoffs):
+                        wait = backoffs[attempt]
+                        attempt += 1
+                        logger.warning("image_gen_biz_retrying", biz_code=biz_code, biz_msg=biz_msg,
+                                       attempt=attempt, wait_s=wait)
+                        await asyncio.sleep(wait)
+                        continue
+                    raise RuntimeError(f"MiniMax 业务错误 code={biz_code} msg={biz_msg}")
 
-                img = images[0]
-                b64 = img.get("b64_json")
-                url = img.get("url")
+                # MiniMax 返回格式: { "data": { "image_base64": ["..."], "image_urls": ["..."] } }
+                data = body.get("data") or {}
+                b64_list = data.get("image_base64") or []
+                url_list = data.get("image_urls") or []
 
-                if b64:
-                    result = f"data:image/png;base64,{b64}"
-                elif url:
-                    result = url
+                if b64_list:
+                    result = f"data:image/png;base64,{b64_list[0]}"
+                elif url_list:
+                    result = url_list[0]
                 else:
-                    raise RuntimeError(f"MiniMax 图像生成无有效数据: {img}")
+                    raise RuntimeError(f"MiniMax 图像生成无有效数据: {data}")
 
                 log_llm_call(
                     model_name="minimax-image-01",

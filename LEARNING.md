@@ -754,3 +754,35 @@ edited_minutes JSON` ② **必须重启 backend** —— 光加列不够,asyncpg
 CI 也兜不住这类:`deploy-meeting.yml` 只做前端 tsc 自检,后端 Docker build 不跑 Python,
 backend 模型/迁移问题要到服务器 startup 或运行时才暴露。submodule 改后端模型后,主仓迁移
 一定要手动跟上。
+
+---
+
+### 12. MiniMax 图像 API 不是 OpenAI 风格(2026-06-06)
+
+【症状】commit `515d824` 引入「会议解释图」feature,prod 日志狂报
+`image_gen_failed status=404 'Page not found' url 'api.minimax.chat/v1/images/generations'`,
+整条 illustrations 链路 100% 挂掉。
+
+【根因】Claude 写代码时按 OpenAI 风格的肌肉记忆套了 schema,但 MiniMax 自家 API 完全不同:
+
+| 维度 | OpenAI 风格(错) | MiniMax 真实 |
+|---|---|---|
+| URL | `/v1/images/generations`(复数 + 斜杠) | `/v1/image_generation`(**单数 + 下划线**) |
+| 尺寸 | `width: 1792, height: 1024` | `aspect_ratio: "16:9"`(枚举,不是数字) |
+| 输出格式 | `response_format` 不传或 b64 | `response_format: "base64"` 或 `"url"` |
+| 响应数据 | `data: [{ b64_json, url }]`(数组) | `data: { image_base64: [...], image_urls: [...] }`(对象) |
+| 业务错误 | HTTP 4xx 直接抛 | **HTTP 200 也可能失败** —— 看 `base_resp.status_code == 0` 才算成功 |
+
+【确认方式】prod 没接通时用 curl 探一下两个候选 URL 直接比对 HTTP code:
+```bash
+curl -s -o /dev/null -w 'HTTP %{http_code}\n' -X POST \
+  'https://api.minimax.chat/v1/image_generation' -H 'Content-Type: application/json' -d '{}'
+# 路径对的话返回 4xx + 业务错误 body,路径错才会 404 "Page not found"
+```
+
+【固定教训】调外部 LLM 厂商接口前,**不要 assume OpenAI schema** —— 国产厂商(MiniMax / 智谱 /
+通义)即使支持 `/v1/chat/completions` 兼容路径,他们自家的图像 / 语音 / 嵌入接口往往是私有 schema。
+docstring 里把 endpoint 路径写全、写明 schema 差异,下次维护就不会再用 OpenAI 直觉改。
+
+修复见 `backend/services/model_router.py::generate_image()`,把 `base_resp.status_code` 业务码
+检查也加上,1002/1008/1013 这种限流码走指数退避重试。
