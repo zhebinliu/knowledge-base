@@ -1923,6 +1923,23 @@ export interface MeetingIllustrations {
   version?: number
 }
 
+export interface MeetingIllustrationSvg {
+  id: string
+  title: string
+  theme: string
+  structure_type: string
+  core_idea: string
+  composition: string
+  elements: string[]
+  annotations: string[]
+  svg_code: string
+}
+
+export interface MeetingIllustrationsSvg {
+  illustrations: MeetingIllustrationSvg[]
+  version?: number
+}
+
 export interface MeetingRequirement {
   id: number
   meeting_id: number
@@ -1965,11 +1982,12 @@ export interface Meeting {
   stakeholder_kb_synced_at: string | null
   process_flows: MeetingProcessFlows | null
   illustrations: MeetingIllustrations | null
+  illustrations_svg: MeetingIllustrationsSvg | null
   // 详情接口含
   requirements?: MeetingRequirement[]
 }
 
-export type MeetingAction = 'polish' | 'summarize' | 'extract_requirements' | 'extract_process_flows' | 'extract_stakeholders' | 'extract_illustrations'
+export type MeetingAction = 'polish' | 'summarize' | 'extract_requirements' | 'extract_process_flows' | 'extract_stakeholders' | 'extract_illustrations' | 'extract_illustrations_svg'
 
 // ── CRUD ─────────────────────────────────────────────────────────────────
 

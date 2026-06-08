@@ -24,6 +24,8 @@ from prompts.meeting import (
     STAKEHOLDER_USER,
     ILLUSTRATION_SYSTEM,
     ILLUSTRATION_USER,
+    ILLUSTRATION_SVG_SYSTEM,
+    ILLUSTRATION_SVG_USER,
 )
 from services.ai.template_evolver import _build_system_prompt_from_dict
 from services.model_router import model_router
@@ -418,6 +420,76 @@ async def extract_illustrations(transcript: str, minutes: dict | None = None) ->
         })
 
     logger.info("illustrations_done", model=model, count=len(cleaned))
+    return {"illustrations": cleaned, "version": 1}
+
+
+_EMPTY_ILLUSTRATIONS_SVG: dict = {"illustrations": [], "version": 1}
+
+
+async def extract_illustrations_svg(transcript: str, minutes: dict | None = None) -> dict:
+    """从会议内容提取认知锚点,为每个锚点生成 SVG 解释图。
+
+    一步流程:LLM 分析会议内容 → 直接输出 SVG 代码(无需调用图像 API)。
+    """
+    if not transcript or not transcript.strip():
+        logger.warning("illustrations_svg_skip", reason="empty_transcript")
+        return dict(_EMPTY_ILLUSTRATIONS_SVG)
+
+    # LLM 分析 + 生成 SVG
+    context = transcript[:30000]
+    if minutes:
+        summary = minutes.get("summary", "")
+        if summary:
+            context = f"会议摘要:{summary}\n\n{context}"
+
+    logger.info("illustrations_svg_llm_start", transcript_chars=len(context))
+    messages = [
+        {"role": "system", "content": ILLUSTRATION_SVG_SYSTEM},
+        {"role": "user", "content": ILLUSTRATION_SVG_USER.format(transcript=context)},
+    ]
+    try:
+        content, model = await model_router.chat_with_routing(
+            task="meeting_illustrations_extract",
+            messages=messages,
+            temperature=0.4,
+            max_tokens=16000,
+            response_format={"type": "json_object"},
+        )
+    except Exception as e:
+        logger.error("illustrations_svg_llm_failed", error=str(e)[:300])
+        return dict(_EMPTY_ILLUSTRATIONS_SVG)
+
+    result = _safe_json_loads(content, dict(_EMPTY_ILLUSTRATIONS_SVG))
+    if not isinstance(result, dict):
+        result = dict(_EMPTY_ILLUSTRATIONS_SVG)
+    items = result.get("illustrations", [])
+    if not isinstance(items, list):
+        items = []
+    logger.info("illustrations_svg_llm_done", model=model, prompt_count=len(items))
+
+    cleaned: list[dict] = []
+    for idx, raw in enumerate(items, start=1):
+        if not isinstance(raw, dict):
+            continue
+        svg_code = (raw.get("svg_code") or "").strip()
+        if not svg_code:
+            logger.warning("illustrations_svg_skip_empty", ill_id=raw.get("id"))
+            continue
+
+        ill_id = raw.get("id") or f"ILL-{idx:03d}"
+        cleaned.append({
+            "id": ill_id,
+            "title": (raw.get("title") or f"解释图 {idx}").strip(),
+            "theme": (raw.get("theme") or "").strip(),
+            "structure_type": (raw.get("structure_type") or "concept_metaphor").strip(),
+            "core_idea": (raw.get("core_idea") or "").strip(),
+            "composition": (raw.get("composition") or "").strip(),
+            "elements": raw.get("elements") or [],
+            "annotations": raw.get("annotations") or [],
+            "svg_code": svg_code,
+        })
+
+    logger.info("illustrations_svg_done", model=model, count=len(cleaned))
     return {"illustrations": cleaned, "version": 1}
 
 

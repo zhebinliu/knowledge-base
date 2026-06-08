@@ -10,6 +10,7 @@ from services.meeting.pipeline import (
     extract_process_flows,
     extract_stakeholders,
     extract_illustrations,
+    extract_illustrations_svg,
     run_full_pipeline,
 )
 
@@ -20,5 +21,6 @@ __all__ = [
     "extract_process_flows",
     "extract_stakeholders",
     "extract_illustrations",
+    "extract_illustrations_svg",
     "run_full_pipeline",
 ]

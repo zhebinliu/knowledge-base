@@ -31,6 +31,7 @@ import {
   type Meeting, type MeetingStatus, type MeetingMinutes, type MeetingRequirement,
   type StakeholderItem, type FeishuUrlCheckResult,
   type MeetingIllustration,
+  type MeetingIllustrationSvg,
 } from '../../api/client'
 import { getMeetingAudioUrl } from '../../api/meeting-ext'
 import AudioPlayer, { type AudioPlayerHandle } from '../../components/AudioPlayer'
@@ -44,7 +45,7 @@ import { MermaidBlock } from '../../components/markdown/ReportMarkdown'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 type TopView = 'overview' | 'split' | 'actions'
-type LeftTab = 'minutes' | 'requirements' | 'process_flows' | 'stakeholders' | 'illustrations'
+type LeftTab = 'minutes' | 'requirements' | 'process_flows' | 'stakeholders' | 'illustrations' | 'illustrations_svg'
 type RightTab = 'transcript' | 'polished'
 
 // ── 时间戳跳转 Context ────────────────────────────────────────────────────
@@ -127,11 +128,12 @@ const TOP_VIEWS: Array<{ key: TopView; label: string; Icon: typeof Info }> = [
 ]
 
 const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: typeof Info }> = [
-  { key: 'minutes',       label: '纪要',     Icon: ListChecks },
-  { key: 'requirements',  label: '需求清单', Icon: ListChecks },
-  { key: 'process_flows', label: '业务流程', Icon: GitBranch },
-  { key: 'stakeholders',  label: '干系人',   Icon: Users },
-  { key: 'illustrations', label: '解释图',   Icon: Palette },
+  { key: 'minutes',            label: '纪要',       Icon: ListChecks },
+  { key: 'requirements',       label: '需求清单',   Icon: ListChecks },
+  { key: 'process_flows',      label: '业务流程',   Icon: GitBranch },
+  { key: 'stakeholders',       label: '干系人',     Icon: Users },
+  { key: 'illustrations',      label: '解释图',     Icon: Palette },
+  { key: 'illustrations_svg',  label: '解释图svg',  Icon: Palette },
 ]
 
 const RIGHT_TABS: Array<{ key: RightTab; label: string; Icon: typeof Info }> = [
@@ -1811,6 +1813,190 @@ export function IllustrationsTab({ meeting }: { meeting: Meeting }) {
   )
 }
 
+// ── 解释图 SVG Tab ────────────────────────────────────────────────────
+
+export function IllustrationsSvgTab({ meeting }: { meeting: Meeting }) {
+  const qc = useQueryClient()
+  const [lightbox, setLightbox] = useState<MeetingIllustrationSvg | null>(null)
+  const illustrations = meeting.illustrations_svg?.illustrations || []
+
+  const genMut = useMutation({
+    mutationFn: () => runMeetingAction(meeting.id, 'extract_illustrations_svg'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
+      toast.success('SVG 解释图生成完成')
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || err?.message || '生成失败'),
+  })
+
+  const handleDownload = (ill: MeetingIllustrationSvg) => {
+    if (!ill.svg_code) return
+    const blob = new Blob([ill.svg_code], { type: 'image/svg+xml' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${ill.id}-${ill.title}.svg`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const handleCopy = async (ill: MeetingIllustrationSvg) => {
+    if (!ill.svg_code) return
+    try {
+      await navigator.clipboard.writeText(ill.svg_code)
+      toast.success('SVG 代码已复制到剪贴板')
+    } catch {
+      toast.error('复制失败,请使用下载')
+    }
+  }
+
+  if (illustrations.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <Palette size={40} className="mx-auto mb-3 text-gray-300" />
+        <p className="text-sm text-ink-muted mb-4">将会议中的判断、流程、结构、状态或隐喻转化为 SVG 手绘解释图</p>
+        <button
+          onClick={() => genMut.mutate()}
+          disabled={genMut.isPending}
+          className="px-4 py-2 rounded-lg text-sm text-white inline-flex items-center gap-1.5"
+          style={{ background: BRAND_GRAD }}
+        >
+          {genMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Palette size={14} />}
+          {genMut.isPending ? '生成中…' : '生成 SVG 解释图'}
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-base font-bold text-ink tracking-wide">解释图 SVG</h2>
+        <button
+          onClick={() => genMut.mutate()}
+          disabled={genMut.isPending}
+          className="px-3 py-1.5 rounded-md text-sm text-white inline-flex items-center gap-1.5"
+          style={{ background: BRAND_GRAD }}
+        >
+          {genMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+          重新生成
+        </button>
+      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        {illustrations.map(ill => (
+          <div key={ill.id} className="rounded-lg border border-line bg-white overflow-hidden shadow-sm group">
+            {/* SVG 区域 */}
+            <div
+              className="relative bg-gray-50 cursor-pointer"
+              style={{ aspectRatio: '16/9' }}
+              onClick={() => ill.svg_code && setLightbox(ill)}
+            >
+              {ill.svg_code ? (
+                <div
+                  className="w-full h-full flex items-center justify-center"
+                  dangerouslySetInnerHTML={{ __html: ill.svg_code }}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-ink-muted text-sm">
+                  SVG 生成失败 · 可重新生成
+                </div>
+              )}
+              {/* 悬浮操作按钮 */}
+              {ill.svg_code && (
+                <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleCopy(ill) }}
+                    className="p-1.5 rounded bg-black/50 text-white hover:bg-black/70 transition-colors"
+                    title="复制 SVG 代码"
+                  >
+                    <Copy size={14} />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDownload(ill) }}
+                    className="p-1.5 rounded bg-black/50 text-white hover:bg-black/70 transition-colors"
+                    title="下载 SVG"
+                  >
+                    <Download size={14} />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setLightbox(ill) }}
+                    className="p-1.5 rounded bg-black/50 text-white hover:bg-black/70 transition-colors"
+                    title="放大查看"
+                  >
+                    <Maximize2 size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+            {/* 信息区域 */}
+            <div className="p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-200">
+                  {ill.structure_type}
+                </span>
+                <span className="text-xs text-ink-muted">{ill.id}</span>
+              </div>
+              <div className="text-sm font-medium text-ink mb-0.5">{ill.title}</div>
+              <div className="text-[12px] text-ink-secondary leading-relaxed">{ill.core_idea}</div>
+              {ill.annotations.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {ill.annotations.map((a, i) => (
+                    <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-ink-muted">{a}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Lightbox 全屏查看 */}
+      {lightbox && lightbox.svg_code && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+          onClick={() => setLightbox(null)}
+        >
+          <div className="relative max-w-[90vw] max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <div
+              className="max-w-full max-h-[85vh] rounded-lg bg-white"
+              dangerouslySetInnerHTML={{ __html: lightbox.svg_code }}
+            />
+            {/* 底部信息栏 */}
+            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-4 rounded-b-lg">
+              <div className="text-white text-sm font-medium">{lightbox.title}</div>
+              <div className="text-white/70 text-[12px]">{lightbox.core_idea}</div>
+            </div>
+            {/* 关闭按钮 */}
+            <button
+              onClick={() => setLightbox(null)}
+              className="absolute top-3 right-3 p-2 rounded-full bg-black/50 text-white hover:bg-black/70"
+            >
+              <X size={18} />
+            </button>
+            {/* 操作按钮 */}
+            <div className="absolute top-3 left-3 flex gap-2">
+              <button
+                onClick={() => handleCopy(lightbox)}
+                className="px-3 py-1.5 rounded-lg bg-black/50 text-white text-sm hover:bg-black/70 inline-flex items-center gap-1.5"
+              >
+                <Copy size={14} /> 复制
+              </button>
+              <button
+                onClick={() => handleDownload(lightbox)}
+                className="px-3 py-1.5 rounded-lg bg-black/50 text-white text-sm hover:bg-black/70 inline-flex items-center gap-1.5"
+              >
+                <Download size={14} /> 下载
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── 干系人卡片(view / edit)─────────────────────────────────────────────
 
 function StakeholderViewCard({ stake, onEdit }: { stake: StakeholderItem; onEdit: () => void }) {
@@ -2844,6 +3030,7 @@ export default function ConsoleMeetingDetail() {
                     {leftTab === 'process_flows' && <ProcessFlowsTab meeting={meeting} />}
                     {leftTab === 'stakeholders'   && <StakeholdersTab meeting={meeting} />}
                     {leftTab === 'illustrations' && <IllustrationsTab meeting={meeting} />}
+                    {leftTab === 'illustrations_svg' && <IllustrationsSvgTab meeting={meeting} />}
                   </div>
                 </div>
 

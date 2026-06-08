@@ -364,6 +364,8 @@ async def startup():
             "ALTER TABLE output_conversations ALTER COLUMN industry TYPE VARCHAR(200)",
             "ALTER TABLE conversations ALTER COLUMN industry TYPE VARCHAR(200)",
             "ALTER TABLE coverage_gaps ALTER COLUMN industry TYPE VARCHAR(200)",
+            # 解释图 SVG(2026-06-08)
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS illustrations_svg JSON",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")
