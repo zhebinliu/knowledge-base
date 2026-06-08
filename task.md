@@ -44,17 +44,16 @@
   - 后两个 kind(object_field_layout / process_setup)共享 _generate_design_artifact
   - 每次注入 log `revision_memories_injected` 便于排查
 
-- [ ] **Task 5 · 管理后台 API + 前端**(~1.5h)
-  - 后端:`backend/api/admin_bundle_memories.py` — GET list / PATCH enabled / DELETE
-  - 前端:`frontend/src/pages/admin/BundleMemoriesAdmin.tsx`
-    - 列:bundle_kind / 来源 bundle 链接 / notes 预览 / 创建时间 / 启停开关
-    - 按 kind 筛选 tab(4 类)
-    - 注册到 admin 导航 + redesign 同步
-  - 权限:admin only
+- [x] **Task 5 · 管理后台 API + 前端** ✅ 2026-06-08
+  - 后端 `backend/api/admin_bundle_memories.py` — GET list / GET kinds summary / PATCH / DELETE
+  - 前端 `frontend/src/pages/BundleMemoriesAdmin.tsx` — 4 tab + 启停 + 编辑 + 删除 + 筛选
+  - api client 4 个函数:list / kinds-summary / update / delete
+  - 注册到 App.tsx 路由 + Layout.tsx 系统组导航(admin only)
+  - 用户指示:redesign 不做,只做 legacy
 
-- [ ] **Task 6 · 文档 + LEARNING**(~20min)
-  - PROJECT_OVERVIEW.md 加「修订学习」模块章节
-  - LEARNING.md §13 沉淀:scope 决策依据 + 上限设计 + 失败容错策略
+- [x] **Task 6 · 文档** ✅ 2026-06-08
+  - PROJECT_OVERVIEW.md §13 加「修订学习记忆系统」章节(数据流 + 文件表 + 容错 + 边界)
+  - LEARNING.md §13 沉淀:scope 决策对比 / 上限设计 / 失败容错三道防线 / schema 关键决策
 
 ### 边界(不做)
 

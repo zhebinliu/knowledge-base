@@ -784,3 +784,71 @@ Docker 镜像里 overlay 后,文件落到原路径 —— Python / TS 的 import
 - `frontend/src/components/console/research/ExportPreMeetingButton.tsx`(research 模块导出按钮)
 
 改 `meeting/` 下的 router prefix / model tablename 这种,主仓注册点要跟着同步。
+
+---
+
+## 13. 修订学习记忆系统(2026-06-08)
+
+让 AI 从用户的人工修订中学习偏好,下次生成同类产物自动应用。
+
+### 数据流
+
+```
+[用户上传修订版]
+  POST /api/outputs/{id}/markdown-override(已有,4 类 bundle:蓝图/对象字段表/流程建设表/调研报告)
+  ↓ commit content_md
+  ↓ analyze_bundle_revision.delay(...)  ← 异步 enqueue,不阻塞
+[Celery worker @ tasks/output_tasks.py]
+  ↓ services/revision_learning.py::analyze_revision()
+  ↓ LLM(model_router task=revision_learning,primary minimax-m2.7 / fallback glm-5)
+  ↓ 产出 3-5 条「用户偏好...」 markdown bullet
+  ↓ INSERT bundle_revision_memories
+[下次同 kind bundle 生成]
+  ↓ services/agentic/runner.py 3 处入口:
+  ↓   generate_research_report() / generate_blueprint_design() / _generate_design_artifact()
+  ↓ fetch_revision_memories_block(kind) → SELECT enabled=true ORDER BY DESC LIMIT 10
+  ↓ prepend 到 SYSTEM_PROMPT 顶部(上限 4000 字符避免膨胀)
+  ↓ LLM 拿到历史偏好生成更精准产物
+[管理后台 /bundle-memories(admin only)]
+  - 4 个 kind tab + 启用/总数角标
+  - 单条:启停 / 编辑 / 删除
+  - 数据查 GET /api/admin/bundle-memories ; toggle 用 PATCH ; 删除 DELETE
+```
+
+### scope 决策
+
+- **全局 + bundle kind 隔离**(不按 user / project 隔离)— 公司方法论沉淀场景下复用价值最大
+- 决策依据 + 候选对比详见 [LEARNING.md §13](LEARNING.md)
+
+### 关键文件
+
+| 文件 | 作用 |
+|---|---|
+| `backend/models/bundle_revision_memory.py` | DB 表 schema + 复合索引 |
+| `backend/services/revision_learning.py` | LLM 抽笔记 + fetch 拼接 helper |
+| `backend/api/admin_bundle_memories.py` | admin CRUD endpoint |
+| `backend/tasks/output_tasks.py::analyze_bundle_revision` | Celery 异步任务 |
+| `backend/api/outputs.py::override_bundle_markdown` | endpoint hook(commit 后 enqueue) |
+| `backend/services/agentic/runner.py` | 3 处注入点(research_report / blueprint_design / _generate_design_artifact) |
+| `frontend/src/pages/BundleMemoriesAdmin.tsx` | admin 管理页面(legacy) |
+| `frontend/src/api/client.ts` | api client(listBundleMemories 等) |
+
+### 失败容错
+
+三道防线,任意失败都不影响主流程:
+1. **enqueue 失败**:catch 异常只 log warning,主 commit 已成功
+2. **LLM 任务失败**:Celery `max_retries=3 default_retry_delay=60`,3 次都失败吞掉
+3. **fetch 失败**:返回空串,生成时不注入但流程继续
+
+### 边界
+
+- 原文 / 修订文 < 50 字符不触发学习(噪声)
+- LLM 输出空 / 包含「无显著系统性偏好」不入库
+- LLM 输出 > 3000 字符截断(防异常)
+- 注入 10 条 / 4000 字符上限(防 prompt 膨胀)
+
+### 不在范围
+
+- kickoff_pptx / kickoff_html 等文件类不支持(本就没有上传修订入口)
+- redesign 版前端管理页面未做(legacy 完整,后端 API 复用)
+- 不接 RAG / few-shot / 自动评估 — V2 再说

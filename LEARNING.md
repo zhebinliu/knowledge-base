@@ -802,3 +802,62 @@ https://platform.minimaxi.com 申请),配在独立环境变量 `MINIMAX_NATIVE_A
 1. 拿到第一份调用代码后,curl 一发空请求看真实 4xx/404 区分"路径错"还是"鉴权错"
 2. 看清楚 `settings.xxx_api_key` 是直连 key 还是代理 key,前缀(sk-/eyJ/Bearer)就是线索
 3. 业务错误码独立于 HTTP code,有 `base_resp` / `error_code` 这种字段都得显式检查
+
+---
+
+### 13. 修订学习记忆系统的 scope / 上限 / 失败容错决策(2026-06-08)
+
+【背景】「方案设计」阶段四类 markdown 产物(蓝图设计 / 对象字段表 / 流程建设表 / 调研报告)
+被用户上传修订版覆盖时,修订动作本质是 implicit feedback。光记字数 / 时间元数据没把语义偏好
+沉淀下来,下次生成同类还是按默认风格出,用户反复改同样的地方。引入「修订学习记忆系统」。
+
+【scope 决策:全局 + bundle kind】不按 user / 不按 project 隔离
+
+| 候选 | 优势 | 取舍 |
+|---|---|---|
+| **全局 + bundle kind** ✅ | 公司方法论沉淀场景,跨项目 / 跨人复用价值最大 | 一个顾问的偏好会影响全公司,需配后台启停兜底 |
+| 按项目类型(行业) | 隔离更细,制造业不污染 SaaS | 项目要打 industry tag,初期数据稀疏 |
+| 按 user | 个人风格独立 | 团队协作场景下偏好分散,无法复用 |
+
+结论:取「全局 + bundle kind」,搭配可见 + 一键停用单条 + 编辑笔记的后台兜底。
+
+【prompt 注入上限】10 条 / 4000 字符 / kind 隔离
+
+- **kind 隔离**:`SELECT WHERE bundle_kind=?` —— 蓝图改的偏好不能去污染对象字段表生成 prompt
+- **10 条 LIMIT**:再多模型注意力会被冲淡,而且 prompt 膨胀
+- **4000 字符 cap**:防止某条 memory 异常长(LLM 抽出 3000 字符的情况)累计撑爆 system prompt;
+  累计超上限就停止追加,保留时间最新的几条
+
+【失败容错】三道防线,任何一道失败都不影响主流程
+
+1. **enqueue 失败**:`markdown-override` endpoint 已经 commit 完才 enqueue,catch enqueue 异常
+   只 log warning 不抛
+2. **LLM 调用失败**:Celery 任务 `max_retries=3 default_retry_delay=60`,3 次都失败后吞掉异常
+3. **fetch 失败**:`fetch_revision_memories_block()` 内部 try/catch DB 异常返回空串,生成不受影响
+
+【边界过滤】这些情况不入库,避免污染下次 prompt:
+- 原文 < 50 字符 / 修订文 < 50 字符:几乎没差异,值不回 LLM 调用成本
+- LLM 输出 < 20 字符:多半是失败,标记成「无显著系统性偏好」
+- LLM 输出包含「无显著系统性偏好」/「无明确的系统性偏好」:用户只改了错别字,不入库
+- LLM 输出 > 3000 字符:截断到 3000(防止异常输出)
+
+【schema 关键决策】
+- `source_*` 字段(bundle/project/user)用 `ondelete="SET NULL"` —— memory 已经是抽象知识,
+  source bundle 被删了不影响这条知识本身
+- 复合索引 `(bundle_kind, enabled, created_at)` 给 hot path 用:
+  fetch_revision_memories_block 的 `WHERE kind=? AND enabled=true ORDER BY created_at DESC LIMIT 10`
+- `enabled` 是 BOOL 不是 status enum —— 后台一键启停 toggle 比改 enum 干净
+
+【关键文件】
+- `backend/models/bundle_revision_memory.py` — 表 schema
+- `backend/services/revision_learning.py` — LLM 抽笔记 + fetch 拼 block
+- `backend/api/admin_bundle_memories.py` — admin CRUD endpoint
+- `backend/tasks/output_tasks.py::analyze_bundle_revision` — Celery worker
+- `backend/api/outputs.py::override_bundle_markdown` — endpoint hook 处
+- `backend/services/agentic/runner.py` — 3 处注入点
+- `frontend/src/pages/BundleMemoriesAdmin.tsx` — admin 页面(legacy,redesign 未做)
+
+【未来扩展】
+- V2:存原版 + 修订版整对,按相似度检索做 few-shot
+- V2:接 embedding,跨 kind 但语义相关的 memory 也能召回
+- V2:加自动评估 — 注入 memory 前后生成质量打分对比
