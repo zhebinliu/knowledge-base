@@ -1,11 +1,7 @@
 """
-Services 包 —— 基础服务层
+meeting.backend.services: 会议服务层 — 存储、同步、AI 处理
 
-功能说明：
-  - model_router:      大模型路由，所有 Agent 通过它调用 LLM
-  - embedding_service: 文本向量化（bge-m3）
-  - rerank_service:    检索结果重排（bge-reranker-v2-m3）
-  - vector_store:      Qdrant 封装，插入/检索向量
+overlay 到 backend/services/ 后包含原有的基础服务 + 会议服务
 """
 
 from services.model_router import model_router, ModelRouter, MODEL_REGISTRY, ROUTING_RULES

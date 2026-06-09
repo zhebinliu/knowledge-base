@@ -266,7 +266,7 @@ export default function ProjectTodos() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, overflowY: 'auto' }}>
                 {col.items.map(todo => (
-                  <TodoCard key={todo.id} todo={todo} onClick={() => setModal(todo)} onStatusChange={(status) => patchMut.mutate({ id: todo.id, body: { status } })} />
+                  <TodoCard key={todo.id} todo={todo} onClick={() => setModal(todo)} onStatusChange={(status) => patchMut.mutate({ id: todo.id, body: { status: status as ProjectTodo['status'] } })} />
                 ))}
               </div>
             </div>
