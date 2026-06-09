@@ -1947,6 +1947,25 @@ export interface IllustrationStylesResponse {
   default: string
 }
 
+// ── 项目待办看板 ──────────────────────────────────────────────────
+
+export interface ProjectTodo {
+  id: number
+  project_id: string
+  meeting_id: number | null
+  content: string
+  assignee: string
+  due_date: string | null
+  priority: 'P0' | 'P1' | 'P2'
+  status: 'pending' | 'doing' | 'done'
+  source_quote: string | null
+  note: string | null
+  created_at: string | null
+  updated_at: string | null
+  meeting_title?: string | null
+  meeting_date?: string | null
+}
+
 export interface MeetingRequirement {
   id: number
   meeting_id: number
@@ -2272,6 +2291,42 @@ export const runMeetingAction = async (id: number, action: MeetingAction, body?:
 export const getIllustrationStyles = async (): Promise<IllustrationStylesResponse> => {
   const { data } = await api.get<IllustrationStylesResponse>('/meeting/illustration-styles')
   return data
+}
+
+// ── 项目待办看板 ────────────────────────────────────────────────────
+
+export const getProjectTodos = async (
+  projectId: string,
+  filters?: { status?: string; assignee?: string; priority?: string },
+): Promise<ProjectTodo[]> => {
+  const params: Record<string, string> = {}
+  if (filters?.status) params.status = filters.status
+  if (filters?.assignee) params.assignee = filters.assignee
+  if (filters?.priority) params.priority = filters.priority
+  const { data } = await api.get<ProjectTodo[]>(`/projects/${projectId}/todos`, { params })
+  return data
+}
+
+export const createProjectTodo = async (
+  projectId: string,
+  body: { content: string; assignee?: string; due_date?: string; priority?: string; note?: string },
+): Promise<ProjectTodo> => {
+  const { data } = await api.post<ProjectTodo>(`/projects/${projectId}/todos`, body)
+  return data
+}
+
+export const syncProjectTodos = async (projectId: string): Promise<{ imported: number; meetings_scanned: number }> => {
+  const { data } = await api.post<{ imported: number; meetings_scanned: number }>(`/projects/${projectId}/todos/sync`)
+  return data
+}
+
+export const patchTodo = async (todoId: number, body: Partial<Pick<ProjectTodo, 'content' | 'assignee' | 'due_date' | 'priority' | 'status' | 'note'>>): Promise<ProjectTodo> => {
+  const { data } = await api.patch<ProjectTodo>(`/todos/${todoId}`, body)
+  return data
+}
+
+export const deleteTodo = async (todoId: number): Promise<void> => {
+  await api.delete(`/todos/${todoId}`)
 }
 
 // ── KB / 飞书同步 ────────────────────────────────────────────────────────

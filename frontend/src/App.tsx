@@ -32,6 +32,7 @@ import NewConsoleMeeting        from './redesign/console/ConsoleMeeting'
 import NewConsoleMeetingNew     from './redesign/console/ConsoleMeetingNew'
 import NewConsoleMeetingDetail  from './redesign/console/ConsoleMeetingDetail'
 import NewTemplateManager      from './redesign/console/TemplateManager'
+import NewProjectTodos          from './redesign/console/ProjectTodos'
 
 // ConsoleQA 在生产中是个薄 wrapper(import QA + 套高度),uat 下用 NewQA 替换
 function NewConsoleQAWrapper() {
@@ -81,6 +82,7 @@ import ConsoleHome from './pages/console/ConsoleHome'
 import ConsoleQA from './pages/console/ConsoleQA'
 import ConsoleProjects from './pages/console/ConsoleProjects'
 import ConsoleProjectDetail from './pages/console/ConsoleProjectDetail'
+import ProjectTodosPage from './pages/console/ProjectTodos'
 import ConsoleMeeting from './pages/console/ConsoleMeeting'
 import ConsoleMeetingDetail from './pages/console/ConsoleMeetingDetail'
 import ConsoleMeetingNew from './pages/console/ConsoleMeetingNew'
@@ -135,6 +137,7 @@ export default function App() {
           <Route path="qa"           element={IS_NEW_UI ? <NewConsoleQAWrapper />   : <ConsoleQA />} />
           <Route path="projects"     element={IS_NEW_UI ? <NewConsoleProjects />    : <ConsoleProjects />} />
           <Route path="projects/:id" element={IS_NEW_UI ? <NewConsoleProjectDetail /> : <ConsoleProjectDetail />} />
+          <Route path="projects/:id/todos" element={IS_NEW_UI ? <NewProjectTodos /> : <ProjectTodosPage />} />
           <Route path="meeting"      element={IS_NEW_UI ? <NewConsoleMeeting />     : <ConsoleMeeting />} />
           <Route path="meeting/new"  element={IS_NEW_UI ? <NewConsoleMeetingNew />  : <ConsoleMeetingNew />} />
           <Route path="meeting/templates" element={<NewTemplateManager variant={IS_NEW_UI ? 'redesign' : 'legacy'} />} />

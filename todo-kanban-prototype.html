@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>项目待办看板 — 实施工作台风格</title>
+<style>
+  /* ── rd-root design tokens (与 redesign.css 完全一致) ── */
+  .rd-root {
+    --rd-bg: #0A0F1E;
+    --rd-bg-2: #050810;
+    --rd-surface: rgba(255,255,255,0.04);
+    --rd-surface-2: rgba(255,255,255,0.06);
+    --rd-surface-solid: #161A2A;
+    --rd-surface-elev: rgba(255,255,255,0.08);
+    --rd-line: rgba(255,255,255,0.10);
+    --rd-line-strong: rgba(255,255,255,0.18);
+    --rd-line-glow: rgba(255,141,26,0.35);
+    --rd-accent: #FF8D1A;
+    --rd-accent-2: #FFB066;
+    --rd-accent-deep: #D96400;
+    --rd-accent-soft: rgba(255,141,26,0.18);
+    --rd-violet: #C084FC;
+    --rd-cyan: #38BDF8;
+    --rd-green: #34D399;
+    --rd-red: #FB7185;
+    --rd-amber: #FBBF24;
+    --rd-blue: #60A5FA;
+    --rd-text: #FFFFFF;
+    --rd-text-2: rgba(255,255,255,0.62);
+    --rd-text-3: rgba(255,255,255,0.38);
+    --rd-text-faint: rgba(255,255,255,0.22);
+    --rd-radius-sm: 8px;
+    --rd-radius: 12px;
+    --rd-radius-lg: 16px;
+    --rd-radius-xl: 22px;
+    --rd-ease: cubic-bezier(.16,1,.3,1);
+    --rd-ease-out: cubic-bezier(.22,1,.36,1);
+    --rd-accent-glow: 0 0 28px rgba(255,141,26,0.55);
+    --rd-accent-glow-lg: 0 0 80px -20px rgba(255,141,26,0.55), 0 0 30px -10px rgba(255,141,26,0.35);
+
+    font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-feature-settings: "ss01","cv11";
+    -webkit-font-smoothing: antialiased;
+    color: var(--rd-text);
+    background: var(--rd-bg);
+    min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+  /* ── MeshOrbs 背景光球 ── */
+  .rd-orbs { position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden; }
+  .rd-orb { position:absolute; border-radius:50%; filter:blur(110px); opacity:.45; }
+  .rd-orb-1 { width:520px; height:520px; background:#FF8D1A; top:-80px; left:-60px; animation:rd-orb-float 18s ease-in-out infinite; }
+  .rd-orb-2 { width:580px; height:580px; background:#D96400; top:-120px; right:-100px; animation:rd-orb-float 22s ease-in-out infinite reverse; }
+  .rd-orb-3 { width:540px; height:540px; background:#60A5FA; bottom:-160px; left:30%; animation:rd-orb-float 30s ease-in-out infinite; }
+  @keyframes rd-orb-float {
+    0%,100%{ transform:translate(0,0) scale(1); }
+    33%{ transform:translate(30px,-20px) scale(1.05); }
+    66%{ transform:translate(-20px,15px) scale(.95); }
+  }
+
+  /* ── 网格背景 ── */
+  .rd-grid-bg {
+    position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0);
+    background-size:32px 32px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 80%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 80%);
+  }
+
+  /* ── Scan Line ── */
+  .rd-scan {
+    position:fixed; left:0; right:0; height:2px; z-index:1; pointer-events:none;
+    background: linear-gradient(90deg, transparent, var(--rd-accent), transparent);
+    opacity:.35;
+    animation: rd-scan-sweep 7s linear infinite;
+  }
+  @keyframes rd-scan-sweep { 0%{top:-2px} 100%{top:100vh} }
+
+  /* ── Shell 布局 ── */
+  .rd-shell { position:relative; z-index:2; min-height:100vh; display:flex; flex-direction:column; }
+
+  /* ── 顶部浮动栏 ── */
+  .rd-floatbar {
+    position:sticky; top:0; z-index:20;
+    padding:10px 32px;
+    display:flex; align-items:center; justify-content:space-between;
+    background: rgba(10,15,30,0.6);
+    backdrop-filter: blur(24px) saturate(140%);
+    border-bottom:1px solid var(--rd-line);
+  }
+  .rd-floatbar-left { display:flex; align-items:center; gap:12px; }
+  .rd-floatbar-back {
+    font-size:13px; color:var(--rd-text-3); cursor:pointer;
+    transition: color .15s;
+  }
+  .rd-floatbar-back:hover { color:var(--rd-accent); }
+  .rd-floatbar-sep { width:1px; height:16px; background:var(--rd-line); }
+  .rd-floatbar-project { font-size:12px; color:var(--rd-text-3); }
+  .rd-floatbar-title { font-size:15px; font-weight:700; letter-spacing:-0.01em; }
+  .rd-floatbar-right { display:flex; align-items:center; gap:12px; }
+  .rd-avatar {
+    width:32px; height:32px; border-radius:50%;
+    background: linear-gradient(135deg, var(--rd-accent), var(--rd-accent-deep));
+    display:flex; align-items:center; justify-content:center;
+    font-size:13px; font-weight:700; cursor:pointer;
+    border:2px solid rgba(255,255,255,0.1);
+    transition: border-color .2s;
+  }
+  .rd-avatar:hover { border-color:var(--rd-line-glow); }
+
+  /* ── 主内容区 ── */
+  .rd-main { flex:1; padding:24px 40px 120px; max-width:1800px; margin:0 auto; width:100%; }
+
+  /* ── 页面标题 ── */
+  .rd-page-header { margin-bottom:24px; }
+  .rd-page-title { font-size:28px; font-weight:700; letter-spacing:-0.02em; margin-bottom:4px; }
+  .rd-page-desc { font-size:13px; color:var(--rd-text-3); }
+
+  /* ── rd-card ── */
+  .rd-card {
+    background: var(--rd-surface);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+            backdrop-filter: blur(20px) saturate(140%);
+    border:1px solid var(--rd-line);
+    border-radius: var(--rd-radius-lg);
+    padding:20px;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.05),
+      0 30px 60px -20px rgba(0,0,0,0.45);
+    transition: transform .25s var(--rd-ease), border-color .2s, box-shadow .25s var(--rd-ease);
+  }
+  .rd-card.is-interactive { cursor:pointer; }
+  .rd-card.is-interactive:hover {
+    transform: translateY(-2px);
+    border-color: var(--rd-line-glow);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.08),
+      0 30px 60px -20px rgba(0,0,0,0.55),
+      0 0 24px -6px rgba(255,141,26,0.35);
+  }
+  .rd-card.is-glow {
+    border-color: var(--rd-line-glow);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), var(--rd-accent-glow-lg);
+  }
+
+  /* ── rd-btn ── */
+  .rd-btn {
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    padding:7px 14px; border-radius:var(--rd-radius-sm);
+    font-size:12.5px; font-weight:500;
+    border:1px solid var(--rd-line);
+    background:rgba(255,255,255,0.04);
+    backdrop-filter:blur(16px) saturate(140%);
+    color:var(--rd-text);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.05);
+    cursor:pointer; transition:all .2s var(--rd-ease);
+  }
+  .rd-btn:hover {
+    background:rgba(255,255,255,0.08);
+    border-color:var(--rd-line-glow);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.08), 0 0 16px -6px rgba(255,141,26,0.45);
+  }
+  .rd-btn-primary {
+    background:linear-gradient(135deg,#FFB066 0%,#FF8D1A 50%,#D96400 100%);
+    border-color:rgba(255,141,26,0.55);
+    color:#fff;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.30), 0 0 24px -6px rgba(255,141,26,0.55);
+  }
+  .rd-btn-primary:hover {
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.30), var(--rd-accent-glow);
+  }
+  .rd-btn-ghost { background:transparent; border-color:transparent; color:var(--rd-text-2); backdrop-filter:none; box-shadow:none; }
+  .rd-btn-ghost:hover { color:var(--rd-text); background:rgba(255,255,255,0.04); }
+  .rd-btn-danger { background:rgba(251,113,133,0.08); border-color:rgba(251,113,133,0.2); color:var(--rd-red); }
+  .rd-btn-danger:hover { background:rgba(251,113,133,0.15); border-color:rgba(251,113,133,0.35); }
+
+  /* ── rd-input / rd-select ── */
+  .rd-input, .rd-select {
+    padding:7px 12px; border-radius:var(--rd-radius-sm);
+    font-size:12.5px; border:1px solid var(--rd-line);
+    background:rgba(255,255,255,0.04);
+    backdrop-filter:blur(16px) saturate(140%);
+    color:var(--rd-text); outline:none;
+    transition:border-color .2s, box-shadow .2s;
+  }
+  .rd-input::placeholder { color:var(--rd-text-faint); }
+  .rd-input:focus, .rd-select:focus {
+    border-color:var(--rd-line-glow);
+    box-shadow:0 0 12px -4px rgba(255,141,26,0.3);
+  }
+  .rd-select { cursor:pointer; }
+  .rd-select option { background:var(--rd-surface-solid); color:var(--rd-text); }
+
+  /* ── rd-chip ── */
+  .rd-chip {
+    display:inline-flex; align-items:center; gap:4px;
+    padding:3px 10px; border-radius:20px;
+    font-size:11px; font-weight:600;
+    border:1px solid var(--rd-line);
+    background:rgba(255,255,255,0.04);
+    backdrop-filter:blur(16px) saturate(140%);
+    letter-spacing:0.02em;
+  }
+  .rd-chip-accent { background:var(--rd-accent-soft); border-color:rgba(255,141,26,0.3); color:var(--rd-accent-2); }
+  .rd-chip-red { background:rgba(251,113,133,0.1); border-color:rgba(251,113,133,0.25); color:var(--rd-red); }
+  .rd-chip-green { background:rgba(52,211,153,0.1); border-color:rgba(52,211,153,0.25); color:var(--rd-green); }
+  .rd-chip-blue { background:rgba(96,165,250,0.1); border-color:rgba(96,165,250,0.25); color:var(--rd-blue); }
+  .rd-chip-amber { background:rgba(251,191,36,0.1); border-color:rgba(251,191,36,0.25); color:var(--rd-amber); }
+
+  /* ── 筛选栏 ── */
+  .filter-panel { margin-bottom:20px; }
+  .filter-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+  .filter-row .rd-input { margin-left:auto; width:200px; }
+
+  /* ── 统计卡 ── */
+  .stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .stat-card {
+    padding:14px 18px;
+    display:flex; align-items:center; gap:12px;
+  }
+  .stat-icon { font-size:22px; line-height:1; }
+  .stat-label { font-size:11px; font-weight:600; color:var(--rd-text-3); text-transform:uppercase; letter-spacing:0.14em; margin-bottom:2px; }
+  .stat-value { font-size:32px; font-weight:800; letter-spacing:-0.03em; line-height:1; }
+  .stat-card.is-overdue .stat-value { color:var(--rd-red); animation:rd-pulse 2.4s ease-in-out infinite; }
+
+  /* ── 看板 ── */
+  .kanban { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+  .kanban-col { min-height:500px; display:flex; flex-direction:column; padding:16px; }
+  .col-header {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:14px; padding-bottom:12px;
+    border-bottom:1px solid var(--rd-line);
+  }
+  .col-title { font-size:14px; font-weight:700; display:flex; align-items:center; gap:6px; }
+  .col-count {
+    font-size:11px; padding:2px 8px; border-radius:20px;
+    background:rgba(255,255,255,0.06); color:var(--rd-text-3);
+    font-weight:600;
+  }
+  .col-cards { display:flex; flex-direction:column; gap:10px; flex:1; overflow-y:auto; }
+
+  /* ── 卡片 ── */
+  .todo-card {
+    padding:14px 16px; cursor:pointer;
+    position:relative;
+    animation: rd-elem-in .55s var(--rd-ease-out) both;
+  }
+  .todo-card:nth-child(1) { animation-delay:.05s }
+  .todo-card:nth-child(2) { animation-delay:.10s }
+  .todo-card:nth-child(3) { animation-delay:.15s }
+  .todo-card:nth-child(4) { animation-delay:.20s }
+  .todo-card:nth-child(5) { animation-delay:.25s }
+  @keyframes rd-elem-in { from{opacity:0;transform:translateY(12px);filter:blur(4px)} to{opacity:1;transform:none;filter:none} }
+
+  .todo-card-top { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .todo-card-title { font-size:13px; font-weight:500; line-height:1.6; color:var(--rd-text); }
+  .todo-card-meta { display:flex; align-items:center; gap:10px; margin-top:10px; font-size:11px; color:var(--rd-text-3); }
+  .todo-card-meta .meta-overdue { color:var(--rd-red); font-weight:600; }
+  .todo-card-meta .meta-today { color:var(--rd-amber); font-weight:600; }
+  .todo-card-meta .meta-done { color:var(--rd-green); }
+  .overdue-badge {
+    position:absolute; top:-7px; right:14px;
+    background:var(--rd-red); color:#fff;
+    font-size:9px; font-weight:700; padding:2px 8px; border-radius:6px;
+    animation:rd-pulse 2.4s ease-in-out infinite;
+    box-shadow:0 0 12px rgba(251,113,133,0.4);
+  }
+  @keyframes rd-pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+  .kanban-col.is-done .todo-card { opacity:.55; }
+  .kanban-col.is-done .todo-card:hover { opacity:.8; }
+  .kanban-col.is-done .todo-card-title { text-decoration:line-through; color:var(--rd-text-2); }
+
+  /* ── Modal ── */
+  .modal-scrim {
+    display:none; position:fixed; inset:0; z-index:100;
+    background:rgba(5,8,16,0.7);
+    backdrop-filter:blur(8px);
+    align-items:center; justify-content:center;
+  }
+  .modal-scrim.is-open { display:flex; }
+  .modal-box {
+    width:580px; max-height:85vh; overflow-y:auto;
+    background:var(--rd-surface-solid);
+    border:1px solid var(--rd-line);
+    border-radius:var(--rd-radius-xl);
+    backdrop-filter:blur(40px) saturate(140%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.06),
+      0 40px 100px -20px rgba(0,0,0,0.7),
+      var(--rd-accent-glow-lg);
+    animation:rd-modal-in .35s var(--rd-ease-out);
+  }
+  @keyframes rd-modal-in { from{opacity:0;transform:translateY(20px) scale(.97);filter:blur(6px)} to{opacity:1;transform:none;filter:none} }
+  .modal-head {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 24px 16px;
+    border-bottom:1px solid var(--rd-line);
+  }
+  .modal-head h2 { font-size:15px; font-weight:700; }
+  .modal-close {
+    width:28px; height:28px; border-radius:var(--rd-radius-sm);
+    background:rgba(255,255,255,0.04); border:1px solid var(--rd-line);
+    color:var(--rd-text-3); cursor:pointer; font-size:14px;
+    display:flex; align-items:center; justify-content:center;
+    transition:all .15s;
+  }
+  .modal-close:hover { background:rgba(251,113,133,0.1); color:var(--rd-red); border-color:rgba(251,113,133,0.3); }
+  .modal-body { padding:20px 24px; }
+  .modal-title { font-size:18px; font-weight:700; line-height:1.5; margin-bottom:14px; letter-spacing:-0.01em; }
+  .modal-tags { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; }
+  .modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
+  .modal-field-label { font-size:11px; font-weight:600; color:var(--rd-text-3); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:3px; }
+  .modal-field-value { font-size:13px; color:var(--rd-text); }
+
+  .modal-section {
+    background:rgba(255,255,255,0.02);
+    border:1px solid var(--rd-line);
+    border-radius:var(--rd-radius);
+    padding:16px; margin-bottom:14px;
+  }
+  .modal-section-title { font-size:11px; font-weight:600; color:var(--rd-text-3); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px; }
+  .modal-quote {
+    font-size:13px; line-height:1.8; color:var(--rd-text-2);
+    font-style:italic; border-left:3px solid var(--rd-accent-soft);
+    padding-left:12px;
+  }
+  .modal-quote-src { font-size:11px; color:var(--rd-text-faint); margin-top:8px; text-align:right; font-style:normal; }
+
+  .modal-meeting-link {
+    display:flex; align-items:center; gap:10px;
+    padding:12px 16px; border-radius:var(--rd-radius);
+    background:rgba(255,141,26,0.04);
+    border:1px solid rgba(255,141,26,0.12);
+    cursor:pointer; transition:all .2s var(--rd-ease);
+  }
+  .modal-meeting-link:hover {
+    background:rgba(255,141,26,0.08);
+    border-color:var(--rd-line-glow);
+    box-shadow:0 0 16px -6px rgba(255,141,26,0.3);
+  }
+  .modal-meeting-link .link-title { font-size:13px; font-weight:500; }
+  .modal-meeting-link .link-meta { font-size:11px; color:var(--rd-text-3); }
+  .modal-meeting-link .link-arrow { margin-left:auto; font-size:12px; color:var(--rd-accent); }
+
+  .modal-actions { display:flex; gap:10px; padding:16px 24px 20px; border-top:1px solid var(--rd-line); }
+  .modal-actions .rd-btn { flex:1; }
+
+  /* ── Dock 底栏 ── */
+  .rd-dock {
+    position:fixed; bottom:16px; left:50%; transform:translateX(-50%); z-index:30;
+    display:flex; align-items:center; gap:6px;
+    padding:6px 10px;
+    background:rgba(10,15,30,0.65);
+    backdrop-filter:blur(24px) saturate(160%);
+    border:1px solid var(--rd-line);
+    border-radius:var(--rd-radius-xl);
+    box-shadow:0 20px 60px -10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .dock-item {
+    display:flex; flex-direction:column; align-items:center; gap:3px;
+    padding:10px 16px 9px; border-radius:var(--rd-radius);
+    font-size:12.5px; font-weight:700; color:var(--rd-text-3);
+    cursor:pointer; transition:all .2s var(--rd-ease);
+    position:relative;
+  }
+  .dock-item:hover { color:var(--rd-text-2); background:rgba(255,255,255,0.04); }
+  .dock-item.is-active { color:var(--rd-accent); }
+  .dock-item.is-active::after {
+    content:''; position:absolute; bottom:4px; left:50%; transform:translateX(-50%);
+    width:4px; height:4px; border-radius:50%;
+    background:var(--rd-accent);
+    box-shadow:0 0 8px var(--rd-accent);
+    animation:rd-pulse 2.4s ease-in-out infinite;
+  }
+  .dock-icon { font-size:18px; line-height:1; }
+</style>
+</head>
+<body class="rd-root">
+
+<!-- MeshOrbs -->
+<div class="rd-orbs">
+  <div class="rd-orb rd-orb-1"></div>
+  <div class="rd-orb rd-orb-2"></div>
+  <div class="rd-orb rd-orb-3"></div>
+</div>
+<div class="rd-grid-bg"></div>
+<div class="rd-scan"></div>
+
+<div class="rd-shell">
+  <!-- 顶栏 -->
+  <div class="rd-floatbar">
+    <div class="rd-floatbar-left">
+      <span class="rd-floatbar-back">◄ 返回</span>
+      <span class="rd-floatbar-sep"></span>
+      <span class="rd-floatbar-project">XX集团 CRM 实施</span>
+      <span class="rd-floatbar-title">项目待办看板</span>
+    </div>
+    <div class="rd-floatbar-right">
+      <div class="rd-avatar">李</div>
+    </div>
+  </div>
+
+  <!-- 主内容 -->
+  <div class="rd-main">
+    <!-- 筛选栏 -->
+    <div class="filter-panel">
+      <div class="filter-row">
+        <select class="rd-select"><option>👤 负责人: 全部</option><option>张三</option><option>李四</option><option>王五</option></select>
+        <select class="rd-select"><option>🏷 优先级: 全部</option><option>P0 · 紧急</option><option>P1 · 重要</option><option>P2 · 一般</option></select>
+        <select class="rd-select"><option>📎 来源会议: 全部</option><option>项目启动会</option><option>需求调研会</option><option>方案评审会</option><option>内部技术评审</option></select>
+        <input class="rd-input" type="text" placeholder="🔍 搜索待办…">
+      </div>
+      <div class="stats-row">
+        <div class="rd-card stat-card">
+          <span class="stat-icon">📋</span>
+          <div><div class="stat-label">总待办</div><div class="stat-value">23</div></div>
+        </div>
+        <div class="rd-card stat-card">
+          <span class="stat-icon">⏳</span>
+          <div><div class="stat-label">待处理</div><div class="stat-value" style="color:var(--rd-blue)">8</div></div>
+        </div>
+        <div class="rd-card stat-card is-overdue">
+          <span class="stat-icon">⚠️</span>
+          <div><div class="stat-label">逾期</div><div class="stat-value">3</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 看板 -->
+    <div class="kanban">
+      <!-- 待处理 -->
+      <div class="kanban-col rd-card" id="col-pending" style="padding:16px">
+        <div class="col-header">
+          <span class="col-title">⬜ 待处理</span>
+          <span class="col-count">8</span>
+        </div>
+        <div class="col-cards">
+          <div class="rd-card is-interactive todo-card" onclick="openModal(0)">
+            <div class="overdue-badge">逾期 2 天</div>
+            <div class="todo-card-top"><span class="rd-chip rd-chip-red">P0</span></div>
+            <div class="todo-card-title">完成客户主数据字段映射方案</div>
+            <div class="todo-card-meta"><span>👤 张三</span><span>📎 项目启动会</span><span class="meta-overdue">📅 06-10</span></div>
+          </div>
+          <div class="rd-card is-interactive todo-card" onclick="openModal(1)">
+            <div class="todo-card-top"><span class="rd-chip rd-chip-accent">P1</span></div>
+            <div class="todo-card-title">准备培训材料 (V2.0 版本)</div>
+            <div class="todo-card-meta"><span>👤 李四</span><span>📎 需求调研会</span><span>📅 06-18</span></div>
+          </div>
+          <div class="rd-card is-interactive todo-card" onclick="openModal(2)">
+            <div class="todo-card-top"><span class="rd-chip">P2</span></div>
+            <div class="todo-card-title">整理历史数据迁移清单</div>
+            <div class="todo-card-meta"><span>👤 王五</span><span>📎 需求调研会</span><span>📅 06-20</span></div>
+          </div>
+          <div class="rd-card is-interactive todo-card" onclick="openModal(3)">
+            <div class="todo-card-top"><span class="rd-chip rd-chip-accent">P1</span></div>
+            <div class="todo-card-title">确认客户方验收标准和流程</div>
+            <div class="todo-card-meta"><span>👤 张三</span><span>📎 方案评审会</span><span>📅 06-15</span></div>
+          </div>
+          <div class="rd-card is-interactive todo-card" onclick="openModal(4)">
+            <div class="todo-card-top"><span class="rd-chip">P2</span></div>
+            <div class="todo-card-title">输出系统权限矩阵文档</div>
+            <div class="todo-card-meta"><span>👤 李四</span><span>📎 内部技术评审</span><span>📅 06-22</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 进行中 -->
+      <div class="kanban-col rd-card" id="col-doing" style="padding:16px">
+        <div class="col-header">
+          <span class="col-title">🔵 进行中</span>
+          <span class="col-count">9</span>
+        </div>
+        <div class="col-cards">
+          <div class="rd-card is-interactive todo-card" onclick="openModal(5)">
+            <div class="overdue-badge">逾期 5 天</div>
+            <div class="todo-card-top"><span class="rd-chip rd-chip-red">P0</span></div>
+            <div class="todo-card-title">修复审批流程多级审批 bug</div>
+            <div class="todo-card-meta"><span>👤 张三</span><span>📎 内部技术评审</span><span class="meta-overdue">📅 06-08</span></div>
+          </div>
+          <div class="rd-card is-interactive todo-card" onclick="openModal(6)">
+            <div class="todo-card-top"><span class="rd-chip rd-chip-accent">P1</span></div>
+            <div class="todo-card-title">对接第三方接口 OAuth2.0 认证</div>
+            <div class="todo-card-meta"><span>👤 李四</span><span>📎 方案评审会</span><span>📅 06-20</span></div>
+          </div>
+          <div class="rd-card is-interactive todo-card" onclick="openModal(7)">
+            <div class="todo-card-top"><span class="rd-chip rd-chip-red">P0</span></div>
+            <div class="todo-card-title">完成报表定制开发（销售漏斗）</div>
+            <div class="todo-card-meta"><span>👤 王五</span><span>📎 方案评审会</span><span class="meta-today">📅 今天截止</span></div>
+          </div>
+          <div class="rd-card is-interactive todo-card" onclick="openModal(8)">
+            <div class="todo-card-top"><span class="rd-chip rd-chip-accent">P1</span></div>
+            <div class="todo-card-title">配置自动化工作流（线索分配）</div>
+            <div class="todo-card-meta"><span>👤 张三</span><span>📎 项目启动会</span><span>📅 06-25</span></div>
+          </div>
+          <div class="rd-card is-interactive todo-card" onclick="openModal(9)">
+            <div class="todo-card-top"><span class="rd-chip">P2</span></div>
+            <div class="todo-card-title">编写 API 接口文档</div>
+            <div class="todo-card-meta"><span>👤 李四</span><span>📎 内部技术评审</span><span>📅 06-28</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 已完成 -->
+      <div class="kanban-col rd-card is-done" id="col-done" style="padding:16px">
+        <div class="col-header">
+          <span class="col-title">✅ 已完成</span>
+          <span class="col-count">6</span>
+        </div>
+        <div class="col-cards">
+          <div class="rd-card is-interactive todo-card" onclick="openModal(10)">
+            <div class="todo-card-top"><span class="rd-chip rd-chip-accent">P1</span></div>
+            <div class="todo-card-title">搭建测试环境</div>
+            <div class="todo-card-meta"><span>👤 王五</span><span>📎 需求调研会</span><span class="meta-done">✅ 06-05</span></div>
+          </div>
+          <div class="rd-card is-interactive todo-card" onclick="openModal(11)">
+            <div class="todo-card-top"><span class="rd-chip rd-chip-red">P0</span></div>
+            <div class="todo-card-title">编写用户手册</div>
+            <div class="todo-card-meta"><span>👤 张三</span><span>📎 验收准备会</span><span class="meta-done">✅ 06-03</span></div>
+          </div>
+          <div class="rd-card is-interactive todo-card" onclick="openModal(12)">
+            <div class="todo-card-top"><span class="rd-chip">P2</span></div>
+            <div class="todo-card-title">完成客户调研问卷分析</div>
+            <div class="todo-card-meta"><span>👤 李四</span><span>📎 需求调研会</span><span class="meta-done">✅ 06-01</span></div>
+          </div>
+          <div class="rd-card is-interactive todo-card" onclick="openModal(13)">
+            <div class="todo-card-top"><span class="rd-chip rd-chip-accent">P1</span></div>
+            <div class="todo-card-title">签署项目实施合同</div>
+            <div class="todo-card-meta"><span>👤 张三</span><span>📎 项目启动会</span><span class="meta-done">✅ 05-28</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Dock -->
+<div class="rd-dock">
+  <div class="dock-item"><span class="dock-icon">🏠</span>工作台</div>
+  <div class="dock-item"><span class="dock-icon">💬</span>问答</div>
+  <div class="dock-item"><span class="dock-icon">📁</span>项目</div>
+  <div class="dock-item"><span class="dock-icon">🎙</span>会议</div>
+  <div class="dock-item is-active"><span class="dock-icon">📋</span>待办</div>
+</div>
+
+<!-- Modal -->
+<div class="modal-scrim" id="scrim" onclick="closeModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <h2>待办详情</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-title" id="mTitle"></div>
+      <div class="modal-tags" id="mTags"></div>
+      <div class="modal-grid" id="mGrid"></div>
+      <div class="modal-section">
+        <div class="modal-section-title">📝 原文摘录</div>
+        <div class="modal-quote" id="mQuote"></div>
+      </div>
+      <div class="modal-section">
+        <div class="modal-section-title">📎 来源会议</div>
+        <div class="modal-meeting-link" id="mMeeting"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="rd-btn rd-btn-primary">✅ 标记完成</button>
+      <button class="rd-btn">✏️ 编辑</button>
+      <button class="rd-btn rd-btn-danger">🗑 删除</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const D=[
+  {t:'完成客户主数据字段映射方案',p:'P0',a:'张三',s:'待处理',d:'2026-06-10',od:2,m:'项目启动会',md:'2026-06-01 10:00-12:00',att:'张三、李四、王五、客户方刘经理',q:'"张三负责在6月10日前完成客户主数据（客户、联系人、产品）的字段映射方案，包括标准字段和自定义字段的对应关系，提交评审。"',c:'2026-06-01 14:30'},
+  {t:'准备培训材料 (V2.0 版本)',p:'P1',a:'李四',s:'待处理',d:'2026-06-18',od:0,m:'需求调研会',md:'2026-06-03 14:00-16:00',att:'李四、王五、客户方培训负责人',q:'"李四负责准备V2.0版本的用户培训材料，包括操作手册、视频教程和常见问题解答，6月18日前完成初稿。"',c:'2026-06-03 16:30'},
+  {t:'整理历史数据迁移清单',p:'P2',a:'王五',s:'待处理',d:'2026-06-20',od:0,m:'需求调研会',md:'2026-06-03 14:00-16:00',att:'李四、王五',q:'"王五负责梳理客户现有系统的历史数据，输出数据迁移清单，包括字段映射、数据量评估和迁移优先级。"',c:'2026-06-03 16:45'},
+  {t:'确认客户方验收标准和流程',p:'P1',a:'张三',s:'待处理',d:'2026-06-15',od:0,m:'方案评审会',md:'2026-06-05 10:00-12:00',att:'张三、李四、客户方项目经理',q:'"张三负责与客户方项目经理确认验收标准和验收流程，输出验收checklist，6月15日前提交双方确认。"',c:'2026-06-05 12:30'},
+  {t:'输出系统权限矩阵文档',p:'P2',a:'李四',s:'待处理',d:'2026-06-22',od:0,m:'内部技术评审',md:'2026-06-06 15:00-16:30',att:'张三、李四、王五',q:'"李四负责根据客户组织架构和业务角色，输出系统权限矩阵文档，包括角色、功能权限和数据权限的对应关系。"',c:'2026-06-06 17:00'},
+  {t:'修复审批流程多级审批 bug',p:'P0',a:'张三',s:'进行中',d:'2026-06-08',od:5,m:'内部技术评审',md:'2026-06-06 15:00-16:30',att:'张三、李四、王五',q:'"张三负责修复审批流程中多级审批时节点跳过的bug，需要在6月8日前完成hotfix并部署到测试环境验证。"',c:'2026-06-06 17:15'},
+  {t:'对接第三方接口 OAuth2.0 认证',p:'P1',a:'李四',s:'进行中',d:'2026-06-20',od:0,m:'方案评审会',md:'2026-06-05 10:00-12:00',att:'张三、李四、客户方IT',q:'"李四负责完成与客户方第三方系统的OAuth2.0认证对接，包括token刷新机制和异常处理，6月20日前完成联调。"',c:'2026-06-05 12:45'},
+  {t:'完成报表定制开发（销售漏斗）',p:'P0',a:'王五',s:'进行中',d:'2026-06-08',od:0,m:'方案评审会',md:'2026-06-05 10:00-12:00',att:'张三、李四、王五',q:'"王五负责完成销售漏斗报表的定制开发，支持按阶段、按销售人员、按时间维度的漏斗分析，今天截止。"',c:'2026-06-05 13:00'},
+  {t:'配置自动化工作流（线索分配）',p:'P1',a:'张三',s:'进行中',d:'2026-06-25',od:0,m:'项目启动会',md:'2026-06-01 10:00-12:00',att:'张三、李四、王五、客户方刘经理',q:'"张三负责根据客户业务规则配置线索自动分配工作流，包括分配规则、升级规则和通知机制。"',c:'2026-06-01 15:00'},
+  {t:'编写 API 接口文档',p:'P2',a:'李四',s:'进行中',d:'2026-06-28',od:0,m:'内部技术评审',md:'2026-06-06 15:00-16:30',att:'张三、李四、王五',q:'"李四负责编写系统API接口文档，包括接口说明、请求参数、响应格式和错误码，供客户方IT团队对接使用。"',c:'2026-06-06 17:30'},
+  {t:'搭建测试环境',p:'P1',a:'王五',s:'已完成',d:'2026-06-05',od:0,m:'需求调研会',md:'2026-05-28 14:00-16:00',att:'王五、客户方IT',q:'"王五负责在6月5日前搭建完成测试环境，包括数据库初始化、基础数据导入和测试账号配置。"',c:'2026-05-28 16:30'},
+  {t:'编写用户手册',p:'P0',a:'张三',s:'已完成',d:'2026-06-03',od:0,m:'验收准备会',md:'2026-05-25 10:00-11:30',att:'张三、李四',q:'"张三负责编写最终用户操作手册，覆盖核心业务流程的操作步骤，6月3日前完成并提交客户审阅。"',c:'2026-05-25 12:00'},
+  {t:'完成客户调研问卷分析',p:'P2',a:'李四',s:'已完成',d:'2026-06-01',od:0,m:'需求调研会',md:'2026-05-20 14:00-16:00',att:'李四、王五',q:'"李四负责分析客户调研问卷结果，输出需求分析报告，识别核心需求和痛点。"',c:'2026-05-20 16:30'},
+  {t:'签署项目实施合同',p:'P1',a:'张三',s:'已完成',d:'2026-05-28',od:0,m:'项目启动会',md:'2026-05-15 10:00-12:00',att:'张三、客户方采购',q:'"张三负责跟进客户方采购流程，确保项目实施合同在5月28日前完成签署。"',c:'2026-05-15 12:30'},
+];
+const PC={P0:'#FB7185',P1:'#FF8D1A',P2:'rgba(255,255,255,0.38)'};
+const PCcls={P0:'rd-chip-red',P1:'rd-chip-accent',P2:''};
+const SL={'待处理':'⬜ 待处理','进行中':'🔵 进行中','已完成':'✅ 已完成'};
+
+function openModal(i){
+  const x=D[i];
+  document.getElementById('mTitle').textContent=x.t;
+  let th=`<span class="rd-chip ${PCcls[x.p]}" style="color:${PC[x.p]}">${x.p==='P0'?'🔴':'🟠'} ${x.p} ${x.p==='P0'?'紧急':x.p==='P1'?'重要':'一般'}</span>`;
+  if(x.od>0) th+=`<span class="rd-chip rd-chip-red">⚠ 逾期 ${x.od} 天</span>`;
+  if(x.s==='已完成') th+=`<span class="rd-chip rd-chip-green">✅ 已完成</span>`;
+  document.getElementById('mTags').innerHTML=th;
+  const dc=x.od>0?'var(--rd-red)':x.s==='已完成'?'var(--rd-green)':'var(--rd-text)';
+  const dt=x.od>0?`${x.d} ⚠逾期`:x.s==='已完成'?`✅ ${x.d}`:x.d;
+  document.getElementById('mGrid').innerHTML=`
+    <div><div class="modal-field-label">负责人</div><div class="modal-field-value">${x.a}</div></div>
+    <div><div class="modal-field-label">状态</div><div class="modal-field-value">${SL[x.s]}</div></div>
+    <div><div class="modal-field-label">截止日期</div><div class="modal-field-value" style="color:${dc}">${dt}</div></div>
+    <div><div class="modal-field-label">创建时间</div><div class="modal-field-value">${x.c}</div></div>`;
+  document.getElementById('mQuote').innerHTML=`${x.q}<div class="modal-quote-src">—— 摘自「${x.m}」会议纪要</div>`;
+  document.getElementById('mMeeting').innerHTML=`
+    <span style="font-size:20px">🎙</span>
+    <div><div class="link-title">${x.m}</div><div class="link-meta">${x.md} · ${x.att}</div></div>
+    <span class="link-arrow">查看详情 →</span>`;
+  document.getElementById('scrim').classList.add('is-open');
+}
+function closeModal(){ document.getElementById('scrim').classList.remove('is-open'); }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
+</script>
+</body>
+</html>

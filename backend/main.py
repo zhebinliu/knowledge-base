@@ -200,6 +200,8 @@ app.include_router(stakeholder_graph.router, prefix="/api/stakeholder-graph", ta
 app.include_router(research.router, prefix="/api/research", tags=["research"])
 app.include_router(project_stakeholders.router, prefix="/api/projects/{project_id}/stakeholders", tags=["project-stakeholders"])
 app.include_router(smart_advice.router, prefix="/api", tags=["smart-advice"])
+from api.project_todos import router as project_todos_router  # 项目待办看板(2026-06-08)
+app.include_router(project_todos_router, prefix="/api", tags=["project-todos"])
 
 
 @app.on_event("startup")
@@ -237,6 +239,7 @@ async def startup():
     from models.project_smart_advice import SmartAdvice  # noqa: F401  项目智能建议(2026-05-15)
     from models.qixin_message import QixinMessage  # noqa: F401  企信 IM 消息(2026-05-29)
     from models.bundle_revision_memory import BundleRevisionMemory  # noqa: F401  修订版学习记忆(2026-06-08)
+    from models.project_todo import ProjectTodo  # noqa: F401  项目待办看板(2026-06-08)
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
