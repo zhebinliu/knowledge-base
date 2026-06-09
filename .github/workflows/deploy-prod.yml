@@ -299,6 +299,13 @@ jobs:
 
             if [ "$HEALTHY" = "true" ]; then
               echo "$SHORT_SHA" > .last-good-sha
+              # 2026-06-09 修 fallback tag 老代码事故:把 docker-compose.yml 的
+              # fallback tag(kb-backend:latest / kb-frontend-prod:latest)也 retag
+              # 到当前 sha image。这样将来任何人手动 `docker compose up` 不带
+              # BACKEND_IMAGE / FRONTEND_IMAGE env,也不会拉到本地早期 build 的过期
+              # :latest tag — 不会再出"deploy 完几小时后被悄悄拽回老代码"的事故。
+              sudo docker tag "$BACKEND_IMAGE_FULL"  kb-backend:latest       || true
+              sudo docker tag "$FRONTEND_IMAGE_FULL" kb-frontend-prod:latest || true
               sudo rm -f /opt/kb-system/run/.maintenance
               echo "✅ PROD deployed sha-${SHORT_SHA}"
             else
