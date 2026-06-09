@@ -5,7 +5,7 @@ import {
   CheckCircle2, Loader2, Sparkles, Building2,
 } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
-import { listProjects, listOutputs, type CuratedBundle } from '../../api/client'
+import { listProjects, listOutputs, getOverdueTodos, type CuratedBundle } from '../../api/client'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -62,6 +62,14 @@ export default function ConsoleHome() {
   const doneCount = bundles.filter(b => b.status === 'done').length
   const inflightCount = bundles.filter(b => b.status === 'pending' || b.status === 'generating').length
 
+  // 逾期待办查询
+  const { data: overdueTodos } = useQuery({
+    queryKey: ['overdue-todos'],
+    queryFn: getOverdueTodos,
+    staleTime: 60_000,
+  })
+  const overdueCount = overdueTodos?.length ?? 0
+
   const recentProjects = (projects ?? []).slice(0, 4)
   const recentDoneBundles = bundles
     .filter(b => b.status === 'done')
@@ -103,6 +111,26 @@ export default function ConsoleHome() {
           color="#2563EB" bg="bg-blue-50"
         />
       </div>
+
+      {/* 逾期告警 */}
+      {overdueCount > 0 && (
+        <Link to={`/console/projects/${overdueTodos![0].project_id}/todos`}
+          className="block mb-6 px-5 py-3.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition-colors group">
+          <div className="flex items-center gap-3">
+            <span className="text-lg">⚠️</span>
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-red-700">
+                {overdueCount} 条待办已逾期
+              </div>
+              <div className="text-xs text-red-500 mt-0.5">
+                {overdueTodos!.slice(0, 3).map(t => t.content).join('、')}
+                {overdueCount > 3 ? ` 等 ${overdueCount} 条` : ''}
+              </div>
+            </div>
+            <ArrowRight size={16} className="text-red-400 group-hover:text-red-600 transition-colors" />
+          </div>
+        </Link>
+      )}
 
       {/* Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">

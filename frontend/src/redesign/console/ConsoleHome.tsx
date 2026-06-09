@@ -17,7 +17,7 @@ import {
   CheckCircle2, Loader2, Sparkles, Building2,
 } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
-import { listProjects, listOutputs, type CuratedBundle } from '../../api/client'
+import { listProjects, listOutputs, getOverdueTodos, type CuratedBundle } from '../../api/client'
 import GlowCard from '../components/GlowCard'
 import CountUp from '../components/CountUp'
 
@@ -88,6 +88,9 @@ export default function NewConsoleHome() {
   const doneCount = bundles.filter(b => b.status === 'done').length
   const inflightCount = bundles.filter(b => b.status === 'pending' || b.status === 'generating').length
 
+  const { data: overdueTodos } = useQuery({ queryKey: ['overdue-todos'], queryFn: getOverdueTodos, staleTime: 60_000 })
+  const overdueCount = overdueTodos?.length ?? 0
+
   const recentProjects = (projects ?? []).slice(0, 4)
   const recentDoneBundles = bundles
     .filter(b => b.status === 'done')
@@ -144,6 +147,23 @@ export default function NewConsoleHome() {
           </GlowCard>
         ))}
       </div>
+
+      {/* 逾期告警 */}
+      {overdueCount > 0 && (
+        <Link to={`/console/projects/${overdueTodos![0].project_id}/todos`}
+          style={{ display: 'block', marginBottom: 24, padding: '12px 20px', borderRadius: 16, background: 'rgba(251,113,133,0.06)', border: '1px solid rgba(251,113,133,0.2)', cursor: 'pointer', textDecoration: 'none', color: 'inherit', transition: 'all 0.2s' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 20 }}>⚠️</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#FB7185' }}>{overdueCount} 条待办已逾期</div>
+              <div style={{ fontSize: 12, color: 'rgba(251,113,133,0.7)', marginTop: 2 }}>
+                {overdueTodos!.slice(0, 3).map(t => t.content).join('、')}{overdueCount > 3 ? ` 等 ${overdueCount} 条` : ''}
+              </div>
+            </div>
+            <ArrowUpRight size={16} color="#FB7185" />
+          </div>
+        </Link>
+      )}
 
       {/* 3 主入口 */}
       <div className="rd-grid-3 rd-stagger" style={{ marginBottom: 32 }}>

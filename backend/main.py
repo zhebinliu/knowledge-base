@@ -367,6 +367,9 @@ async def startup():
             "ALTER TABLE output_conversations ALTER COLUMN industry TYPE VARCHAR(200)",
             "ALTER TABLE conversations ALTER COLUMN industry TYPE VARCHAR(200)",
             "ALTER TABLE coverage_gaps ALTER COLUMN industry TYPE VARCHAR(200)",
+            # 项目待办看板(2026-06-09):blocked_by 自引用 + 索引
+            "ALTER TABLE project_todos ADD COLUMN IF NOT EXISTS blocked_by INTEGER REFERENCES project_todos(id) ON DELETE SET NULL",
+            "CREATE INDEX IF NOT EXISTS ix_project_todos_due ON project_todos(due_date) WHERE due_date IS NOT NULL",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")

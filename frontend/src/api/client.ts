@@ -1979,6 +1979,8 @@ export interface ProjectTodo {
   status: 'pending' | 'doing' | 'done'
   source_quote: string | null
   note: string | null
+  blocked_by: number | null
+  blocked_by_content: string | null
   created_at: string | null
   updated_at: string | null
   meeting_title?: string | null
@@ -2346,6 +2348,29 @@ export const patchTodo = async (todoId: number, body: Partial<Pick<ProjectTodo, 
 
 export const deleteTodo = async (todoId: number): Promise<void> => {
   await api.delete(`/todos/${todoId}`)
+}
+
+export const getOverdueTodos = async (): Promise<ProjectTodo[]> => {
+  const { data } = await api.get<ProjectTodo[]>('/todos/overdue')
+  return data
+}
+
+export const getMyTodos = async (filters?: { assignee?: string; status?: string }): Promise<ProjectTodo[]> => {
+  const params: Record<string, string> = {}
+  if (filters?.assignee) params.assignee = filters.assignee
+  if (filters?.status) params.status = filters.status
+  const { data } = await api.get<ProjectTodo[]>('/todos/my', { params })
+  return data
+}
+
+export const batchPatchTodos = async (ids: number[], body: { status?: string; assignee?: string; priority?: string }): Promise<{ updated: number }> => {
+  const { data } = await api.patch<{ updated: number }>('/todos/batch', { ids, ...body })
+  return data
+}
+
+export const smartAssignTodo = async (todoId: number): Promise<{ assignee: string; reason: string; current: string }> => {
+  const { data } = await api.post<{ assignee: string; reason: string; current: string }>(`/todos/${todoId}/smart-assign`)
+  return data
 }
 
 // ── KB / 飞书同步 ────────────────────────────────────────────────────────

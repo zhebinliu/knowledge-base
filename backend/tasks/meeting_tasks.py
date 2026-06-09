@@ -119,6 +119,16 @@ async def _process_meeting_async(meeting_id: int):
         await session.commit()
         logger.info("meeting_processed", meeting_id=meeting_id, status=m.status)
 
+        # 自动同步待办到项目看板(会议完成后)
+        if m.status == "completed" and m.project_id:
+            try:
+                from api.project_todos import sync_todos_for_meeting
+                imported = await sync_todos_for_meeting(meeting_id, session)
+                if imported:
+                    logger.info("auto_sync_todos", meeting_id=meeting_id, imported=imported)
+            except Exception as e:
+                logger.warning("auto_sync_todos_failed", meeting_id=meeting_id, error=str(e)[:200])
+
 
 @celery_app.task(name="process_meeting", bind=True, max_retries=1, soft_time_limit=1500, time_limit=1800)
 def process_meeting(self, meeting_id: int):

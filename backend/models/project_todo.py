@@ -50,6 +50,11 @@ class ProjectTodo(Base):
     # 备注
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # 依赖关系：被哪个待办阻塞（FK 自引用）
+    blocked_by: Mapped[int | None] = mapped_column(
+        ForeignKey("project_todos.id", ondelete="SET NULL"), nullable=True,
+    )
+
     # 时间戳
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
