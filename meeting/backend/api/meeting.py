@@ -281,6 +281,17 @@ async def list_meetings(
     return [_meeting_dto(m, project_names.get(m.project_id)) for m in rows]
 
 
+@router.get("/illustration-styles")
+async def list_illustration_styles():
+    """返回可用的配图风格列表。"""
+    from prompts.illustration_styles import CONTENT_STYLES, STYLE_GROUPS, DEFAULT_STYLE
+    return {
+        "styles": CONTENT_STYLES,
+        "groups": STYLE_GROUPS,
+        "default": DEFAULT_STYLE,
+    }
+
+
 @router.get("/{meeting_id}")
 async def get_meeting(
     meeting_id: int,
@@ -986,17 +997,6 @@ async def action_extract_illustrations(
     m.illustrations = illustrations
     await session.commit()
     return {"illustrations": illustrations}
-
-
-@router.get("/illustration-styles")
-async def list_illustration_styles():
-    """返回可用的配图风格列表。"""
-    from prompts.illustration_styles import CONTENT_STYLES, STYLE_GROUPS, DEFAULT_STYLE
-    return {
-        "styles": CONTENT_STYLES,
-        "groups": STYLE_GROUPS,
-        "default": DEFAULT_STYLE,
-    }
 
 
 # ── KB 同步(Block E.1) ────────────────────────────────────────────────
