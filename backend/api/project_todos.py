@@ -9,8 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.auth import get_current_user
-from db import get_session
+from services.auth import get_current_user
+from models import get_session
 from models.project_todo import ProjectTodo
 from models.meeting import Meeting
 from models.user import User
