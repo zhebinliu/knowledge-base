@@ -23,6 +23,7 @@ import {
   runMeetingAction, syncMeetingToKB, syncMeetingStakeholdersToKB,
   exportMeetingToFeishu, syncMeetingRequirementsToBitable,
   syncActionItemsToBitable, createActionKanban, checkFeishuUrl,
+  getIllustrationStyles, type IllustrationStyle, type IllustrationStylesResponse,
   listProjects, getFeishuCredentials, putFeishuCredentials, deleteFeishuCredentials,
   exportMeetingDocxUrl, TOKEN_STORAGE_KEY,
   putMeetingStakeholderMap, patchMeetingRequirement, renameStakeholderRefs,
@@ -1628,13 +1629,24 @@ export function ProcessFlowsTab({ meeting }: { meeting: Meeting }) {
 export function IllustrationsTab({ meeting }: { meeting: Meeting }) {
   const qc = useQueryClient()
   const [lightbox, setLightbox] = useState<MeetingIllustration | null>(null)
+  const [styleId, setStyleId] = useState<string>('auto')
   const illustrations = meeting.illustrations?.illustrations || []
+  const currentStyleId = meeting.illustrations?.style_id
+
+  // 获取风格列表
+  const { data: stylesData } = useQuery({
+    queryKey: ['illustration-styles'],
+    queryFn: getIllustrationStyles,
+    staleTime: 10 * 60 * 1000,
+  })
+  const styles = stylesData?.styles || []
+  const groups = stylesData?.groups || {}
 
   const genMut = useMutation({
-    mutationFn: () => runMeetingAction(meeting.id, 'extract_illustrations'),
+    mutationFn: () => runMeetingAction(meeting.id, 'extract_illustrations', { style_id: styleId }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
-      toast.success('解释图生成完成')
+      toast.success('配图生成完成')
     },
     onError: (err: any) => toast.error(err?.response?.data?.detail || err?.message || '生成失败'),
   })
@@ -1652,23 +1664,47 @@ export function IllustrationsTab({ meeting }: { meeting: Meeting }) {
   const handleCopy = async (ill: MeetingIllustration) => {
     if (!ill.image_url) return
     try {
-      // 把 data URL 转成 Blob
       const resp = await fetch(ill.image_url)
       const blob = await resp.blob()
-      await navigator.clipboard.write([
-        new ClipboardItem({ [blob.type]: blob }),
-      ])
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })])
       toast.success('已复制到剪贴板')
     } catch {
       toast.error('复制失败,请使用下载')
     }
   }
 
+  // 封面图和正文图分离
+  const cover = illustrations.find(i => i.image_type === 'cover')
+  const bodyImages = illustrations.filter(i => i.image_type !== 'cover')
+
+  // 找当前风格名
+  const currentStyleName = currentStyleId
+    ? (styles.find(s => s.id === currentStyleId)?.name || currentStyleId)
+    : '自动匹配'
+
   if (illustrations.length === 0) {
     return (
       <div className="text-center py-12">
         <Palette size={40} className="mx-auto mb-3 text-gray-300" />
-        <p className="text-sm text-ink-muted mb-4">将会议中的判断、流程、结构、状态或隐喻转化为手绘解释图</p>
+        <p className="text-sm text-ink-muted mb-4">将会议内容转化为封面图 + 正文配图</p>
+        {/* 风格选择器 */}
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <span className="text-xs text-ink-muted">风格:</span>
+          <select
+            value={styleId}
+            onChange={e => setStyleId(e.target.value)}
+            className="text-xs border border-line rounded px-2 py-1 bg-white text-ink"
+          >
+            <option value="auto">自动匹配</option>
+            {Object.entries(groups).map(([groupName, groupStyles]) => (
+              <optgroup key={groupName} label={groupName}>
+                {groupStyles.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
         <button
           onClick={() => genMut.mutate()}
           disabled={genMut.isPending}
@@ -1676,7 +1712,7 @@ export function IllustrationsTab({ meeting }: { meeting: Meeting }) {
           style={{ background: BRAND_GRAD }}
         >
           {genMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Palette size={14} />}
-          {genMut.isPending ? '生成中…' : '生成解释图'}
+          {genMut.isPending ? '生成中…' : '生成配图'}
         </button>
       </div>
     )
@@ -1684,75 +1720,114 @@ export function IllustrationsTab({ meeting }: { meeting: Meeting }) {
 
   return (
     <div>
+      {/* 顶部操作栏 */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-bold text-ink tracking-wide">解释图</h2>
-        <button
-          onClick={() => genMut.mutate()}
-          disabled={genMut.isPending}
-          className="px-3 py-1.5 rounded-md text-sm text-white inline-flex items-center gap-1.5"
-          style={{ background: BRAND_GRAD }}
-        >
-          {genMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-          重新生成
-        </button>
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-bold text-ink tracking-wide">解释图</h2>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-200">
+            {currentStyleName}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={styleId}
+            onChange={e => setStyleId(e.target.value)}
+            className="text-[11px] border border-line rounded px-1.5 py-1 bg-white text-ink"
+          >
+            <option value="auto">自动匹配</option>
+            {Object.entries(groups).map(([groupName, groupStyles]) => (
+              <optgroup key={groupName} label={groupName}>
+                {groupStyles.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          <button
+            onClick={() => genMut.mutate()}
+            disabled={genMut.isPending}
+            className="px-3 py-1.5 rounded-md text-sm text-white inline-flex items-center gap-1.5"
+            style={{ background: BRAND_GRAD }}
+          >
+            {genMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            重新生成
+          </button>
+        </div>
       </div>
+
+      {/* 封面图(21:9,占满一行) */}
+      {cover && (
+        <div className="mb-4">
+          <div className="rounded-lg border border-line bg-white overflow-hidden shadow-sm group">
+            <div
+              className="relative bg-gray-50 cursor-pointer"
+              style={{ aspectRatio: '21/9' }}
+              onClick={() => cover.image_url && setLightbox(cover)}
+            >
+              {cover.image_url ? (
+                <img src={cover.image_url} alt={cover.title} className="w-full h-full object-contain" />
+              ) : (
+                <div className="flex items-center justify-center h-full text-ink-muted text-sm">
+                  封面生成失败 · 可重新生成
+                </div>
+              )}
+              {cover.image_url && (
+                <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={(e) => { e.stopPropagation(); handleCopy(cover) }} className="p-1.5 rounded bg-black/50 text-white hover:bg-black/70" title="复制"><Copy size={14} /></button>
+                  <button onClick={(e) => { e.stopPropagation(); handleDownload(cover) }} className="p-1.5 rounded bg-black/50 text-white hover:bg-black/70" title="下载"><Download size={14} /></button>
+                  <button onClick={(e) => { e.stopPropagation(); setLightbox(cover) }} className="p-1.5 rounded bg-black/50 text-white hover:bg-black/70" title="放大"><Maximize2 size={14} /></button>
+                </div>
+              )}
+              {/* 封面标签 */}
+              <div className="absolute top-2 left-2">
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500 text-white">封面 21:9</span>
+              </div>
+            </div>
+            <div className="p-3">
+              <div className="text-sm font-medium text-ink mb-0.5">{cover.title}</div>
+              {cover.subtitle && <div className="text-[12px] text-ink-secondary">{cover.subtitle}</div>}
+              {cover.bottom_conclusion && <div className="text-[11px] text-ink-muted mt-1 italic">「{cover.bottom_conclusion}」</div>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 正文配图(16:9,两列) */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        {illustrations.map(ill => (
+        {bodyImages.map(ill => (
           <div key={ill.id} className="rounded-lg border border-line bg-white overflow-hidden shadow-sm group">
-            {/* 图片区域 */}
             <div
               className="relative bg-gray-50 cursor-pointer"
               style={{ aspectRatio: '16/9' }}
               onClick={() => ill.image_url && setLightbox(ill)}
             >
               {ill.image_url ? (
-                <img
-                  src={ill.image_url}
-                  alt={ill.title}
-                  className="w-full h-full object-contain"
-                />
+                <img src={ill.image_url} alt={ill.title} className="w-full h-full object-contain" />
               ) : (
                 <div className="flex items-center justify-center h-full text-ink-muted text-sm">
                   图像生成失败 · 可重新生成
                 </div>
               )}
-              {/* 悬浮操作按钮 */}
               {ill.image_url && (
                 <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleCopy(ill) }}
-                    className="p-1.5 rounded bg-black/50 text-white hover:bg-black/70 transition-colors"
-                    title="复制图片"
-                  >
-                    <Copy size={14} />
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleDownload(ill) }}
-                    className="p-1.5 rounded bg-black/50 text-white hover:bg-black/70 transition-colors"
-                    title="下载图片"
-                  >
-                    <Download size={14} />
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setLightbox(ill) }}
-                    className="p-1.5 rounded bg-black/50 text-white hover:bg-black/70 transition-colors"
-                    title="放大查看"
-                  >
-                    <Maximize2 size={14} />
-                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); handleCopy(ill) }} className="p-1.5 rounded bg-black/50 text-white hover:bg-black/70" title="复制"><Copy size={14} /></button>
+                  <button onClick={(e) => { e.stopPropagation(); handleDownload(ill) }} className="p-1.5 rounded bg-black/50 text-white hover:bg-black/70" title="下载"><Download size={14} /></button>
+                  <button onClick={(e) => { e.stopPropagation(); setLightbox(ill) }} className="p-1.5 rounded bg-black/50 text-white hover:bg-black/70" title="放大"><Maximize2 size={14} /></button>
                 </div>
               )}
             </div>
-            {/* 信息区域 */}
             <div className="p-3">
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-200">
-                  {ill.structure_type}
-                </span>
+                {ill.structure && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                    {ill.structure}
+                  </span>
+                )}
                 <span className="text-xs text-ink-muted">{ill.id}</span>
               </div>
               <div className="text-sm font-medium text-ink mb-0.5">{ill.title}</div>
-              <div className="text-[12px] text-ink-secondary leading-relaxed">{ill.core_idea}</div>
+              {ill.bubble_text && <div className="text-[11px] text-orange-600 mt-0.5">💬 {ill.bubble_text}</div>}
+              {ill.bottom_conclusion && <div className="text-[11px] text-ink-muted mt-0.5 italic">「{ill.bottom_conclusion}」</div>}
               {ill.annotations.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2">
                   {ill.annotations.map((a, i) => (
@@ -1765,44 +1840,20 @@ export function IllustrationsTab({ meeting }: { meeting: Meeting }) {
         ))}
       </div>
 
-      {/* Lightbox 全屏查看 */}
+      {/* Lightbox */}
       {lightbox && lightbox.image_url && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
-          onClick={() => setLightbox(null)}
-        >
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={() => setLightbox(null)}>
           <div className="relative max-w-[90vw] max-h-[90vh]" onClick={e => e.stopPropagation()}>
-            <img
-              src={lightbox.image_url}
-              alt={lightbox.title}
-              className="max-w-full max-h-[85vh] object-contain rounded-lg"
-            />
-            {/* 底部信息栏 */}
+            <img src={lightbox.image_url} alt={lightbox.title} className="max-w-full max-h-[85vh] object-contain rounded-lg" />
             <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-4 rounded-b-lg">
               <div className="text-white text-sm font-medium">{lightbox.title}</div>
-              <div className="text-white/70 text-[12px]">{lightbox.core_idea}</div>
+              {lightbox.bubble_text && <div className="text-white/80 text-[12px]">💬 {lightbox.bubble_text}</div>}
+              {lightbox.bottom_conclusion && <div className="text-white/60 text-[11px] italic">「{lightbox.bottom_conclusion}」</div>}
             </div>
-            {/* 关闭按钮 */}
-            <button
-              onClick={() => setLightbox(null)}
-              className="absolute top-3 right-3 p-2 rounded-full bg-black/50 text-white hover:bg-black/70"
-            >
-              <X size={18} />
-            </button>
-            {/* 操作按钮 */}
+            <button onClick={() => setLightbox(null)} className="absolute top-3 right-3 p-2 rounded-full bg-black/50 text-white hover:bg-black/70"><X size={18} /></button>
             <div className="absolute top-3 left-3 flex gap-2">
-              <button
-                onClick={() => handleCopy(lightbox)}
-                className="px-3 py-1.5 rounded-lg bg-black/50 text-white text-sm hover:bg-black/70 inline-flex items-center gap-1.5"
-              >
-                <Copy size={14} /> 复制
-              </button>
-              <button
-                onClick={() => handleDownload(lightbox)}
-                className="px-3 py-1.5 rounded-lg bg-black/50 text-white text-sm hover:bg-black/70 inline-flex items-center gap-1.5"
-              >
-                <Download size={14} /> 下载
-              </button>
+              <button onClick={() => handleCopy(lightbox)} className="px-3 py-1.5 rounded-lg bg-black/50 text-white text-sm hover:bg-black/70 inline-flex items-center gap-1.5"><Copy size={14} /> 复制</button>
+              <button onClick={() => handleDownload(lightbox)} className="px-3 py-1.5 rounded-lg bg-black/50 text-white text-sm hover:bg-black/70 inline-flex items-center gap-1.5"><Download size={14} /> 下载</button>
             </div>
           </div>
         </div>

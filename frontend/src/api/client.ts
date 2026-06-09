@@ -1907,20 +1907,44 @@ export interface MeetingProcessFlows {
 
 export interface MeetingIllustration {
   id: string
+  image_type: 'cover' | 'body'
+  style_id: string
+  aspect_ratio: string
   title: string
-  theme: string
-  structure_type: string
-  core_idea: string
-  composition: string
+  subtitle: string
+  structure: string
+  metaphor: string
+  modules: string[]
   elements: string[]
   annotations: string[]
+  character_action: string
+  bubble_text: string
+  bottom_conclusion: string
   prompt: string
   image_url: string
+  // 兼容旧字段
+  theme?: string
+  core_idea?: string
+  composition?: string
 }
 
 export interface MeetingIllustrations {
   illustrations: MeetingIllustration[]
   version?: number
+  style_id?: string
+}
+
+export interface IllustrationStyle {
+  id: string
+  name: string
+  group: string
+  best_for: string
+}
+
+export interface IllustrationStylesResponse {
+  styles: IllustrationStyle[]
+  groups: Record<string, IllustrationStyle[]>
+  default: string
 }
 
 export interface MeetingRequirement {
@@ -2240,8 +2264,13 @@ export const processMeeting = async (id: number): Promise<{ status: string; meet
   return data
 }
 
-export const runMeetingAction = async (id: number, action: MeetingAction): Promise<unknown> => {
-  const { data } = await api.post(`/meeting/${id}/actions/${action}`)
+export const runMeetingAction = async (id: number, action: MeetingAction, body?: Record<string, unknown>): Promise<unknown> => {
+  const { data } = await api.post(`/meeting/${id}/actions/${action}`, body)
+  return data
+}
+
+export const getIllustrationStyles = async (): Promise<IllustrationStylesResponse> => {
+  const { data } = await api.get<IllustrationStylesResponse>('/meeting/illustration-styles')
   return data
 }
 

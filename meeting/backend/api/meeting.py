@@ -948,27 +948,30 @@ async def action_extract_process_flows(
 @router.post("/{meeting_id}/actions/extract_illustrations")
 async def action_extract_illustrations(
     meeting_id: int,
+    body: dict | None = None,
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    """从会议内容生成手绘解释图(覆盖式)。"""
+    """从会议内容生成配图(覆盖式)。可选 body: {"style_id": "..."}。"""
     import time as _time
     import structlog
     _log = structlog.get_logger()
     from services.meeting import extract_illustrations
 
-    _log.info("extract_illustrations_endpoint_hit", meeting_id=meeting_id, user_id=user.id)
+    style_id = (body or {}).get("style_id", "auto")
+    _log.info("extract_illustrations_endpoint_hit", meeting_id=meeting_id, user_id=user.id, style_id=style_id)
     m = await _load_meeting_owned(meeting_id, session, user)
     text = m.polished_transcript or m.raw_transcript
     if not text:
         raise HTTPException(400, "无可用 transcript")
 
-    _log.info("extract_illustrations_start", meeting_id=meeting_id, text_chars=len(text))
+    _log.info("extract_illustrations_start", meeting_id=meeting_id, text_chars=len(text), style_id=style_id)
     t0 = _time.monotonic()
     try:
         illustrations = await extract_illustrations(
             text,
             m.meeting_minutes if isinstance(m.meeting_minutes, dict) else None,
+            style_id=style_id,
         )
     except Exception as e:
         _log.error("extract_illustrations_unhandled", meeting_id=meeting_id, error=str(e)[:300])
@@ -983,6 +986,17 @@ async def action_extract_illustrations(
     m.illustrations = illustrations
     await session.commit()
     return {"illustrations": illustrations}
+
+
+@router.get("/illustration-styles")
+async def list_illustration_styles():
+    """返回可用的配图风格列表。"""
+    from prompts.illustration_styles import CONTENT_STYLES, STYLE_GROUPS, DEFAULT_STYLE
+    return {
+        "styles": CONTENT_STYLES,
+        "groups": STYLE_GROUPS,
+        "default": DEFAULT_STYLE,
+    }
 
 
 # ── KB 同步(Block E.1) ────────────────────────────────────────────────

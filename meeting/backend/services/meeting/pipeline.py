@@ -22,8 +22,8 @@ from prompts.meeting import (
     PROCESS_FLOW_USER,
     STAKEHOLDER_SYSTEM,
     STAKEHOLDER_USER,
-    ILLUSTRATION_SYSTEM,
-    ILLUSTRATION_USER,
+    build_illustration_system,
+    ILLUSTRATION_USER_TEMPLATE,
 )
 from services.ai.template_evolver import _build_system_prompt_from_dict
 from services.model_router import model_router
@@ -335,16 +335,36 @@ async def extract_stakeholders(
 _EMPTY_ILLUSTRATIONS: dict = {"illustrations": [], "version": 1}
 
 
-async def extract_illustrations(transcript: str, minutes: dict | None = None) -> dict:
-    """从会议内容提取认知锚点,为每个锚点生成手绘解释图。
+async def extract_illustrations(
+    transcript: str,
+    minutes: dict | None = None,
+    style_id: str | None = None,
+) -> dict:
+    """从会议内容提取认知锚点,为每个锚点生成配图。
 
     两步流程:
-    1. LLM 分析会议内容 → 输出 4-8 张图的 prompt 列表
+    1. LLM 分析会议内容 → 输出 1 封面 + 3-6 正文图的 prompt 列表
     2. 对每张图调用 MiniMax 图像生成 API → 返回 base64 图片
+
+    Args:
+        style_id: cc2image 风格 ID,默认 handdrawn_knowledge_card。
     """
+    from prompts.illustration_styles import (
+        DEFAULT_STYLE, STYLE_MAP, get_style_description, get_style_name, auto_match_style,
+    )
+
     if not transcript or not transcript.strip():
         logger.warning("illustrations_skip", reason="empty_transcript")
         return dict(_EMPTY_ILLUSTRATIONS)
+
+    # 确定风格
+    if not style_id or style_id == "auto":
+        style_id = auto_match_style(transcript[:5000])
+    if style_id not in STYLE_MAP:
+        style_id = DEFAULT_STYLE
+    style_name = get_style_name(style_id)
+    style_desc = get_style_description(style_id)
+    logger.info("illustrations_style", style_id=style_id, style_name=style_name)
 
     # Step 1: LLM 分析 + 生成 prompt
     context = transcript[:30000]
@@ -353,10 +373,14 @@ async def extract_illustrations(transcript: str, minutes: dict | None = None) ->
         if summary:
             context = f"会议摘要:{summary}\n\n{context}"
 
+    system_prompt = build_illustration_system(style_id, style_name, style_desc)
+    user_prompt = ILLUSTRATION_USER_TEMPLATE.format(
+        style_id=style_id, style_name=style_name, transcript=context,
+    )
     logger.info("illustrations_step1_llm_start", transcript_chars=len(context))
     messages = [
-        {"role": "system", "content": ILLUSTRATION_SYSTEM},
-        {"role": "user", "content": ILLUSTRATION_USER.format(transcript=context)},
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
     ]
     try:
         content, model = await model_router.chat_with_routing(
@@ -390,11 +414,14 @@ async def extract_illustrations(transcript: str, minutes: dict | None = None) ->
             continue
 
         ill_id = raw.get("id") or f"ILL-{idx:03d}"
+        image_type = raw.get("image_type", "body")
+        aspect_ratio = raw.get("aspect_ratio", "16:9")
         image_url = ""
         t0 = _time.monotonic()
         try:
-            logger.info("illustrations_step2_image_start", ill_id=ill_id, prompt_len=len(prompt))
-            image_url = await model_router.generate_image(prompt)
+            logger.info("illustrations_step2_image_start", ill_id=ill_id,
+                        image_type=image_type, aspect_ratio=aspect_ratio, prompt_len=len(prompt))
+            image_url = await model_router.generate_image(prompt, aspect_ratio=aspect_ratio)
             elapsed = _time.monotonic() - t0
             logger.info("illustrations_step2_image_done", ill_id=ill_id, elapsed_s=round(elapsed, 1),
                         has_image=bool(image_url))
@@ -406,19 +433,25 @@ async def extract_illustrations(transcript: str, minutes: dict | None = None) ->
 
         cleaned.append({
             "id": ill_id,
-            "title": (raw.get("title") or f"解释图 {idx}").strip(),
-            "theme": (raw.get("theme") or "").strip(),
-            "structure_type": (raw.get("structure_type") or "concept_metaphor").strip(),
-            "core_idea": (raw.get("core_idea") or "").strip(),
-            "composition": (raw.get("composition") or "").strip(),
+            "image_type": image_type,
+            "style_id": raw.get("style_id", style_id),
+            "aspect_ratio": aspect_ratio,
+            "title": (raw.get("title") or f"配图 {idx}").strip(),
+            "subtitle": (raw.get("subtitle") or "").strip(),
+            "structure": (raw.get("structure") or "").strip(),
+            "metaphor": (raw.get("metaphor") or "").strip(),
+            "modules": raw.get("modules") or [],
             "elements": raw.get("elements") or [],
             "annotations": raw.get("annotations") or [],
+            "character_action": (raw.get("character_action") or "").strip(),
+            "bubble_text": (raw.get("bubble_text") or "").strip(),
+            "bottom_conclusion": (raw.get("bottom_conclusion") or "").strip(),
             "prompt": prompt,
             "image_url": image_url,
         })
 
-    logger.info("illustrations_done", model=model, count=len(cleaned))
-    return {"illustrations": cleaned, "version": 1}
+    logger.info("illustrations_done", model=model, style_id=style_id, count=len(cleaned))
+    return {"illustrations": cleaned, "version": 2, "style_id": style_id}
 
 
 # ── 全流程编排 ──────────────────────────────────────────────────────────
