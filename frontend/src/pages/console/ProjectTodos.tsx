@@ -148,7 +148,7 @@ export default function ProjectTodos() {
   const assignees = [...new Set(todos.map(t => t.assignee).filter(Boolean))]
 
   return (
-    <div style={{ padding: '8px 40px 24px', maxWidth: 1800, margin: '0 auto' }}>
+    <div style={{ minHeight: '100vh', background: '#0A0F1E', color: 'white', padding: '8px 40px 24px', maxWidth: 1800, margin: '0 auto' }}>
       {/* 顶栏 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

@@ -397,6 +397,13 @@ export default function ConsoleProjectDetail() {
           </button>
         </div>
         <button
+          onClick={() => nav(`/console/projects/${id}/todos`)}
+          className="shrink-0 flex items-center justify-center w-8 h-8 text-xs rounded-lg border border-line text-ink-secondary hover:bg-canvas transition-colors"
+          title="待办看板"
+        >
+          <ClipboardList size={13} />
+        </button>
+        <button
           onClick={() => setEditing(v => !v)}
           className={`shrink-0 flex items-center justify-center w-8 h-8 text-xs rounded-lg border transition-colors ${
             editing ? 'border-orange-300 text-orange-700 bg-orange-50' : 'border-line text-ink-secondary hover:bg-canvas'

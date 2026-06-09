@@ -432,6 +432,14 @@ export default function NewConsoleProjectDetail() {
           </button>
         </div>
         <button
+          onClick={() => nav(`/console/projects/${project.id}/todos`)}
+          className="rd-btn"
+          style={{ padding: '6px 9px', fontSize: 12 }}
+          title="待办看板"
+        >
+          <ClipboardList size={13} />
+        </button>
+        <button
           onClick={() => setEditing(v => !v)}
           className={editing ? 'rd-btn rd-btn-primary' : 'rd-btn'}
           style={{ padding: '6px 9px', fontSize: 12 }}
