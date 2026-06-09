@@ -11,7 +11,14 @@ RUN npm ci --prefer-offline --legacy-peer-deps
 # overlay:先 frontend/ 整体,再 meeting/frontend/ 把 meeting 的 6 个 tsx 落到 src/ 对应位置
 COPY frontend/ /app/
 COPY meeting/frontend/ /app/
-RUN npm run build
+# 2026-06-09:写一份 version.json 到 dist 根,前端启动 + 每 60s poll 检测版本变化,
+# 变了就提示用户「有新版本,点击刷新」— 避免新部署后用户看老页面。
+# 优先用 GitHub Actions 注入的 GIT_SHA;本地 build / 无 GIT_SHA 时退到 "local"。
+ARG GIT_SHA=local
+ENV GIT_SHA=${GIT_SHA}
+RUN npm run build && \
+    echo "{\"sha\":\"${GIT_SHA}\",\"ts\":\"$(date -u +%FT%TZ)\"}" > /app/dist/version.json && \
+    cat /app/dist/version.json
 
 # ── Stage 2: serve ───────────────────────────────────────────────────────────
 FROM nginx:1.27-alpine

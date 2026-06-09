@@ -91,6 +91,7 @@ jobs:
           push: true
           build-args: |
             ENV=uat
+            GIT_SHA=${{ github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=frontend-uat

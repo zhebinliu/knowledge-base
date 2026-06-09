@@ -203,6 +203,7 @@ jobs:
           push: true
           build-args: |
             ENV=prod
+            GIT_SHA=${{ github.sha }}
           tags: ${{ steps.meta-frontend.outputs.tags }}
           labels: ${{ steps.meta-frontend.outputs.labels }}
           cache-from: type=gha,scope=frontend-prod
