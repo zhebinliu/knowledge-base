@@ -17,7 +17,7 @@ import ProjectMeetingsDrawer from '../../components/console/ProjectMeetingsDrawe
 import SmartAdviceBanner, { smartAdviceQueryKey } from '../../components/console/SmartAdviceBanner'
 import {
   getProject, updateProject, generateCustomerProfile, generateOutput,
-  listProjectDocuments, getDocumentMarkdown, listOutputs, listLatestByKind, downloadOutputUrl, viewOutputUrl,
+  listProjectDocuments, getDocumentMarkdown, updateDocumentMarkdown, listOutputs, listLatestByKind, downloadOutputUrl, viewOutputUrl,
   getOutput,
   getProjectMeta, TOKEN_STORAGE_KEY,
   getStageFlow,
@@ -28,6 +28,7 @@ import OutputChatPanel from '../../components/OutputChatPanel'
 import BriefDrawer from '../../components/BriefDrawer'
 import MarkdownView from '../../components/MarkdownView'
 import CitedReportView from '../../components/console/CitedReportView'
+import MarkdownEditor from '../../components/console/MarkdownEditor'
 import IndustryCascadePicker from '../../components/IndustryCascadePicker'
 import AgenticGapFiller from '../../components/AgenticGapFiller'
 import DocChecklist from '../../components/console/DocChecklist'
@@ -1478,6 +1479,7 @@ function BundlePreviewBtn({ b }: { b: CuratedBundle }) {
 function BundleInlinePreview({ bundle }: { bundle: CuratedBundle }) {
   const isHtmlFile = bundle.has_file && bundle.file_ext === 'html'
   const token = isHtmlFile ? (localStorage.getItem(TOKEN_STORAGE_KEY) || '') : ''
+  const [editing, setEditing] = useState(false)
 
   // 非 HTML:拉完整 bundle 拿 content_md(列表接口为节省流量可能不返回 content_md)
   const { data: full, isLoading } = useQuery({
@@ -1510,8 +1512,27 @@ function BundleInlinePreview({ bundle }: { bundle: CuratedBundle }) {
 
   const md = full?.content_md || bundle.content_md || ''
   if (md) {
+    if (editing) {
+      return (
+        <MarkdownEditor
+          bundle={bundle}
+          initialContent={md}
+          onClose={() => setEditing(false)}
+          onSaved={() => setEditing(false)}
+        />
+      )
+    }
     return (
-      <div className="flex-1 min-h-0 overflow-auto px-6 py-5">
+      <div className="flex-1 min-h-0 overflow-auto px-6 py-5 relative">
+        <div className="absolute top-3 right-5 z-10">
+          <button
+            onClick={() => setEditing(true)}
+            className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] rounded-md border border-line bg-white text-ink-secondary hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 shadow-sm"
+            title="在线编辑这份交付物 markdown(覆盖式保存)"
+          >
+            <Pencil size={11} /> 编辑
+          </button>
+        </div>
         <MarkdownView content={md} size="base" toolbar={false} />
       </div>
     )
@@ -1807,12 +1828,15 @@ function DocPreviewDrawer({ docId, docs, onClose }: {
   docs: ProjectDocument[]
   onClose: () => void
 }) {
+  const qc = useQueryClient()
   const meta = docs.find(d => d.id === docId)
+  const [editing, setEditing] = useState(false)
   const { data, isLoading, error } = useQuery({
     queryKey: ['doc-md', docId],
     queryFn: () => getDocumentMarkdown(docId),
     enabled: !!docId,
   })
+  const canEdit = data?.status === 'completed' && !!data?.markdown_content
   return (
     <div className="fixed inset-0 z-40 bg-black/30 flex justify-end animate-in fade-in" onClick={onClose}>
       <div
@@ -1829,21 +1853,53 @@ function DocPreviewDrawer({ docId, docs, onClose }: {
               <p className="text-[11px] text-ink-muted">{meta?.doc_type_label || '未分类'}</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-ink-muted hover:text-ink p-1 rounded hover:bg-canvas">
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {canEdit && !editing && (
+              <button
+                onClick={() => setEditing(true)}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] rounded-md border border-line text-ink-secondary hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200"
+                title="编辑提取后的 markdown(保存后异步重新切片+重新嵌入)"
+              >
+                <Pencil size={11} /> 编辑
+              </button>
+            )}
+            <button onClick={onClose} className="text-ink-muted hover:text-ink p-1 rounded hover:bg-canvas">
+              <X size={16} />
+            </button>
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          {isLoading ? (
-            <div className="flex items-center gap-2 text-xs text-ink-muted"><Loader2 size={13} className="animate-spin" />加载中…</div>
-          ) : error ? (
-            <div className="text-xs text-red-500">加载失败</div>
-          ) : !data?.markdown_content ? (
-            <div className="text-xs text-ink-muted py-8 text-center">该文档尚未转换为 Markdown 或内容为空</div>
-          ) : (
-            <MarkdownView content={data.markdown_content} size="sm" toolbar={false} />
-          )}
-        </div>
+        {editing && data?.markdown_content ? (
+          <div className="flex-1 min-h-0 flex flex-col">
+            <div className="flex-shrink-0 px-4 py-1.5 text-[11px] bg-amber-50 border-b border-amber-100 text-amber-800">
+              保存后将异步重新切片 + 重新嵌入(约 1-3 分钟);已生成的洞察 / 调研报告不会变,下一次 RAG 检索会用新版本切片。
+            </div>
+            <div className="flex-1 min-h-0">
+              <MarkdownEditor
+                title={`编辑 · ${data.filename}`}
+                initialContent={data.markdown_content}
+                onSave={(md) => updateDocumentMarkdown(docId, md)}
+                onClose={() => setEditing(false)}
+                onSaved={() => {
+                  qc.invalidateQueries({ queryKey: ['document', docId] })
+                  qc.invalidateQueries({ queryKey: ['doc-md', docId] })
+                  setEditing(false)
+                }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {isLoading ? (
+              <div className="flex items-center gap-2 text-xs text-ink-muted"><Loader2 size={13} className="animate-spin" />加载中…</div>
+            ) : error ? (
+              <div className="text-xs text-red-500">加载失败</div>
+            ) : !data?.markdown_content ? (
+              <div className="text-xs text-ink-muted py-8 text-center">该文档尚未转换为 Markdown 或内容为空</div>
+            ) : (
+              <MarkdownView content={data.markdown_content} size="sm" toolbar={false} />
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

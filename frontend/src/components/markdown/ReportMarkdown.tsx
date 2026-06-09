@@ -29,6 +29,10 @@ mermaid.initialize({
   theme: 'base',
   securityLevel: 'loose',
   layout: 'elk',
+  // 2026-06-09:关掉 mermaid 11+ 默认的"💣 + Syntax error in text" fallback SVG。
+  // 关掉后,render() 失败会真正 reject promise,我们下面的 .catch 才能把错误写到
+  // 红色提示卡 + 展示源码,而不是一片炸弹海洋。
+  suppressErrorRendering: true,
   flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'step', padding: 16, nodeSpacing: 55, rankSpacing: 75 },
   sequence: { useMaxWidth: true, wrap: true, mirrorActors: false, boxMargin: 12 },
   themeVariables: {

@@ -329,6 +329,58 @@ async def update_document(
     }
 
 
+@router.put("/{doc_id}/markdown")
+async def update_document_markdown(
+    doc_id: str,
+    body: dict,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """覆盖式更新文档的 markdown_content(用户在前端预览框里直接编辑提取后的 md)。
+
+    业务语义:
+      - 已脱敏后的 markdown 是下游切片 / 检索 / RAG 的实际消费源,允许用户修订错别字、
+        补充关键条款、删冗余段落。
+      - 保存后异步触发 reslice_document:清旧 chunks + 向量 → 用新 md 重新切片 + 重新嵌入。
+        已生成的 insight / 调研报告不会变,但下一次 RAG 检索会用新切片。
+      - 不再触发二次脱敏:用户的编辑被视为可信意图,他们看到的就是脱敏版,改的也是脱敏版。
+      - markdown_content_raw(原始转写)保持不动,留作历史回溯。
+
+    边界:
+      - 仅在 conversion_status ∈ {completed, failed} 时允许编辑,避免跟正在跑的 convert 冲突。
+      - 必须有写权限(项目文档→项目 write;公共 KB 文档→上传者本人或 admin)。
+
+    body: { content_md: string }
+    """
+    content_md = (body.get("content_md") or "").strip()
+    if not content_md:
+        raise HTTPException(400, "正文不能为空")
+
+    doc = await session.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(404, "文档不存在")
+    await _doc_access_check(doc, current_user, "write")
+
+    if doc.conversion_status not in ("completed", "failed"):
+        raise HTTPException(
+            400,
+            f"文档当前状态为 {doc.conversion_status},无法编辑;请等转换完成或重新上传",
+        )
+
+    doc.markdown_content = content_md
+    # 改状态为 slicing 让前端 polling 显示"重新切片中…"
+    doc.conversion_status = "slicing"
+    doc.convert_progress = "等待重新切片(用户已修订 markdown)…"
+    doc.conversion_error = None
+    await session.commit()
+
+    from tasks.convert_task import reslice_document
+    reslice_document.delay(str(doc.id))
+
+    logger.info("doc_markdown_updated", doc_id=doc_id, user_id=current_user.id, bytes=len(content_md))
+    return {"ok": True, "bytes": len(content_md), "reslice_enqueued": True}
+
+
 async def purge_document_storage(session: AsyncSession, doc: Document) -> None:
     """彻底删除一个文档的全部痕迹:chunk 的向量(qdrant)+ 原文件(minio)+ chunk/doc 行。
 

@@ -29,8 +29,18 @@ from services._time import iso_utc
 logger = structlog.get_logger()
 router = APIRouter()
 
-_ALLOWED_KINDS = ("blueprint_design", "object_field_layout", "process_setup", "research_report")
-KindLiteral = Literal["blueprint_design", "object_field_layout", "process_setup", "research_report"]
+# 2026-06-09 修订学习放开到全部 markdown 类 bundle:跟 outputs.py _EDITABLE_MARKDOWN_KINDS 同一套。
+# kickoff_pptx / kickoff_html 是二进制 kind,不走 markdown 学习,故不在此列。
+_ALLOWED_KINDS = (
+    "insight", "survey", "survey_outline", "research_plan", "research_report",
+    "blueprint_design", "object_field_layout", "process_setup",
+    "implementation_plan", "test_plan", "acceptance_report",
+)
+KindLiteral = Literal[
+    "insight", "survey", "survey_outline", "research_plan", "research_report",
+    "blueprint_design", "object_field_layout", "process_setup",
+    "implementation_plan", "test_plan", "acceptance_report",
+]
 
 
 def _ensure_admin(user: User) -> None:

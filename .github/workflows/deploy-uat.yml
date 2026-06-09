@@ -91,6 +91,7 @@ jobs:
           push: true
           build-args: |
             ENV=uat
+            GIT_SHA=${{ github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=frontend-uat
@@ -156,6 +157,11 @@ jobs:
 
             if [ "$HEALTHY" = "true" ]; then
               echo "$SHORT_SHA" > .last-good-uat-sha
+              # 2026-06-09 修 fallback tag 老代码事故:把 kb-frontend-uat:latest
+              # 这个 docker-compose.yml fallback tag 也 retag 到当前 sha image。
+              # 这样将来任何人手动 `docker compose up` 不带 FRONTEND_UAT_IMAGE env,
+              # 也不会拉到本地早期 build 的过期 :latest tag。
+              sudo docker tag "$FRONTEND_UAT_IMAGE_FULL" kb-frontend-uat:latest || true
               echo "✅ UAT deployed sha-${SHORT_SHA}"
             else
               echo "❌ UAT health check failed,容器日志:"

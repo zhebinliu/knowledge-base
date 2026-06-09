@@ -19,11 +19,19 @@ logger = structlog.get_logger()
 _MAX_CHARS_PER_SIDE = 8000
 
 # bundle_kind 到中文标签的映射(给 LLM 看更友好)
+# 2026-06-09 扩展:跟 outputs.py _EDITABLE_MARKDOWN_KINDS 同步,覆盖全部 markdown 类 bundle。
 KIND_LABELS = {
+    "insight": "项目洞察",
+    "survey": "调研问卷",
+    "survey_outline": "调研大纲",
+    "research_plan": "调研计划",
+    "research_report": "调研报告",
     "blueprint_design": "蓝图设计",
     "object_field_layout": "对象字段表",
     "process_setup": "流程建设表",
-    "research_report": "调研报告",
+    "implementation_plan": "实施任务清单",
+    "test_plan": "测试方案",
+    "acceptance_report": "验收报告",
 }
 
 

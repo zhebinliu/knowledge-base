@@ -2,7 +2,8 @@
  * 后台:修订学习记忆库 — 仅 is_admin 可访问。
  *
  * 功能:
- * - 4 个 kind tab(蓝图设计 / 对象字段表 / 流程建设表 / 调研报告),角标显示启用/总数
+ * - 11 个 markdown 类 bundle kind tab(insight / 调研三件套 / 方案三件套 / 实施三件套),
+ *   角标显示启用/总数。kickoff_pptx / kickoff_html 二进制 kind 不在此处。
  * - 列表:笔记内容预览 + 来源 bundle/project/user + 创建时间 + 启停开关
  * - 操作:启停切换(即时生效)/ 编辑笔记 / 删除
  * - 数据流:见 backend/services/revision_learning.py 顶部 docstring
@@ -20,18 +21,31 @@ import {
 } from '../api/client'
 
 const KIND_LABEL: Record<BundleMemoryKind, string> = {
+  insight:              '项目洞察',
+  survey:               '调研问卷',
+  survey_outline:       '调研大纲',
+  research_plan:        '调研计划',
+  research_report:      '调研报告',
   blueprint_design:     '蓝图设计',
   object_field_layout:  '对象字段表',
   process_setup:        '流程建设表',
-  research_report:      '调研报告',
+  implementation_plan:  '实施任务清单',
+  test_plan:            '测试方案',
+  acceptance_report:    '验收报告',
 }
 
-const ALL_KINDS: BundleMemoryKind[] = ['blueprint_design', 'object_field_layout', 'process_setup', 'research_report']
+// 按业务阶段排列:洞察 → 调研三件套 → 方案三件套 → 实施三件套
+const ALL_KINDS: BundleMemoryKind[] = [
+  'insight',
+  'survey_outline', 'research_plan', 'survey', 'research_report',
+  'blueprint_design', 'object_field_layout', 'process_setup',
+  'implementation_plan', 'test_plan', 'acceptance_report',
+]
 
 
 export default function BundleMemoriesAdmin() {
   const qc = useQueryClient()
-  const [activeKind, setActiveKind] = useState<BundleMemoryKind>('blueprint_design')
+  const [activeKind, setActiveKind] = useState<BundleMemoryKind>('insight')
   const [showOnlyEnabled, setShowOnlyEnabled] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState('')
@@ -129,9 +143,9 @@ export default function BundleMemoriesAdmin() {
         </button>
       </div>
 
-      {/* Kind tab */}
-      <div className="border-b">
-        <div className="flex gap-1">
+      {/* Kind tab — 11 个 kind 横向滚动避免溢出 */}
+      <div className="border-b overflow-x-auto">
+        <div className="flex gap-1 min-w-max">
           {ALL_KINDS.map(k => {
             const s = kindsSummary?.summary?.[k] ?? { enabled: 0, total: 0 }
             const isActive = activeKind === k
