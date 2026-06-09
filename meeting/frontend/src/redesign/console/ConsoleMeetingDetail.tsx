@@ -26,7 +26,6 @@ import {
   OverviewTab, TranscriptTab, MinutesTab,
   RequirementsTab, ProcessFlowsTab, StakeholdersTab, ActionsTab,
   IllustrationsTab,
-  IllustrationsSvgTab,
 } from '../../pages/console/ConsoleMeetingDetail'
 import { getMeetingAudioUrl } from '../../api/meeting-ext'
 import AudioPlayer, { type AudioPlayerHandle } from '../../components/AudioPlayer'
@@ -34,16 +33,15 @@ import ChatWidget from '../../components/ChatSidebar'
 import TemplateSelector from '../../components/TemplateSelector'
 import GlowCard from '../components/GlowCard'
 
-type LeftTab = 'minutes' | 'requirements' | 'process_flows' | 'stakeholders' | 'illustrations' | 'illustrations_svg'
+type LeftTab = 'minutes' | 'requirements' | 'process_flows' | 'stakeholders' | 'illustrations'
 type RightTab = 'transcript' | 'polished'
 
 const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: LucideIcon }> = [
-  { key: 'minutes',            label: '会议纪要',   Icon: ListChecks },
-  { key: 'requirements',       label: '需求清单',   Icon: ListChecks },
-  { key: 'process_flows',      label: '业务流程',   Icon: GitBranch },
-  { key: 'stakeholders',       label: '干系人',     Icon: Users },
-  { key: 'illustrations',      label: '解释图',     Icon: Palette },
-  { key: 'illustrations_svg',  label: '解释图svg',  Icon: Palette },
+  { key: 'minutes',       label: '会议纪要', Icon: ListChecks },
+  { key: 'requirements',  label: '需求清单', Icon: ListChecks },
+  { key: 'process_flows', label: '业务流程', Icon: GitBranch },
+  { key: 'stakeholders',  label: '干系人',   Icon: Users },
+  { key: 'illustrations', label: '解释图',   Icon: Palette },
 ]
 
 const RIGHT_TABS: Array<{ key: RightTab; label: string; Icon: LucideIcon }> = [
@@ -358,7 +356,6 @@ export default function NewConsoleMeetingDetail() {
                   {leftTab === 'process_flows' && <ProcessFlowsTab meeting={meeting} />}
                   {leftTab === 'stakeholders'  && <StakeholdersTab meeting={meeting} />}
                   {leftTab === 'illustrations' && <IllustrationsTab meeting={meeting} />}
-                  {leftTab === 'illustrations_svg' && <IllustrationsSvgTab meeting={meeting} />}
                 </div>
               </div>
 

@@ -101,7 +101,6 @@ def _meeting_dto(m: Meeting, project_name: Optional[str] = None) -> dict:
         "stakeholder_kb_synced_at": m.stakeholder_kb_synced_at,
         "process_flows": m.process_flows,
         "illustrations": m.illustrations,
-        "illustrations_svg": m.illustrations_svg,
     }
 
 
@@ -984,45 +983,6 @@ async def action_extract_illustrations(
     m.illustrations = illustrations
     await session.commit()
     return {"illustrations": illustrations}
-
-
-@router.post("/{meeting_id}/actions/extract_illustrations_svg")
-async def action_extract_illustrations_svg(
-    meeting_id: int,
-    session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
-):
-    """从会议内容生成 SVG 解释图(覆盖式)。"""
-    import time as _time
-    import structlog
-    _log = structlog.get_logger()
-    from services.meeting import extract_illustrations_svg
-
-    _log.info("extract_illustrations_svg_endpoint_hit", meeting_id=meeting_id, user_id=user.id)
-    m = await _load_meeting_owned(meeting_id, session, user)
-    text = m.polished_transcript or m.raw_transcript
-    if not text:
-        raise HTTPException(400, "无可用 transcript")
-
-    _log.info("extract_illustrations_svg_start", meeting_id=meeting_id, text_chars=len(text))
-    t0 = _time.monotonic()
-    try:
-        illustrations_svg = await extract_illustrations_svg(
-            text,
-            m.meeting_minutes if isinstance(m.meeting_minutes, dict) else None,
-        )
-    except Exception as e:
-        _log.error("extract_illustrations_svg_unhandled", meeting_id=meeting_id, error=str(e)[:300])
-        raise HTTPException(500, f"SVG 解释图生成失败: {str(e)[:200]}")
-    elapsed = _time.monotonic() - t0
-
-    count = len(illustrations_svg.get("illustrations", []))
-    _log.info("extract_illustrations_svg_done", meeting_id=meeting_id,
-              elapsed_s=round(elapsed, 1), total=count)
-
-    m.illustrations_svg = illustrations_svg
-    await session.commit()
-    return {"illustrations_svg": illustrations_svg}
 
 
 # ── KB 同步(Block E.1) ────────────────────────────────────────────────

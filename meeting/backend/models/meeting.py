@@ -68,9 +68,6 @@ class Meeting(Base):
     # 解释图(JSON {illustrations[], version})
     illustrations: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
-    # 解释图 SVG(JSON {illustrations[], version})
-    illustrations_svg: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-
     def __repr__(self) -> str:
         return f"<Meeting id={self.id} title={self.title!r} status={self.status!r}>"
 
