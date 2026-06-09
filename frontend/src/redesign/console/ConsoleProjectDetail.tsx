@@ -52,7 +52,7 @@ import NewQA from '../QA'
 import {
   getProject, updateProject, generateCustomerProfile, generateOutput,
   listProjectDocuments, getDocumentMarkdown, listOutputs, listLatestByKind, downloadOutputUrl, viewOutputUrl,
-  getOutput, getProjectMeta, TOKEN_STORAGE_KEY, getStageFlow,
+  getOutput, getProjectMeta, TOKEN_STORAGE_KEY, getStageFlow, getProjectTodos,
   type CuratedBundle, type OutputKind, type Project, type ProjectDocument,
   type StageDef as ApiStageDef,
 } from '../../api/client'
@@ -183,6 +183,16 @@ export default function NewConsoleProjectDetail() {
       })
       return (anyInflight || anyPartial) ? 2000 : false
     },
+  })
+  // 待办看板 badge:获取待处理数量
+  const { data: pendingTodos } = useQuery({
+    queryKey: ['project-todos-pending-count', id],
+    queryFn: async () => {
+      const todos = await getProjectTodos(id!, { status: 'pending' })
+      return todos.length
+    },
+    enabled: !!id,
+    staleTime: 30_000,
   })
   // outputs 历史列表(底部产物列表等场景用),不再驱动 chip
   const { refetch: refetchOutputsRaw } = useQuery({
@@ -434,10 +444,21 @@ export default function NewConsoleProjectDetail() {
         <button
           onClick={() => nav(`/console/projects/${project.id}/todos`)}
           className="rd-btn"
-          style={{ padding: '6px 9px', fontSize: 12 }}
+          style={{ padding: '6px 9px', fontSize: 12, position: 'relative' }}
           title="待办看板"
         >
           <ClipboardList size={13} />
+          {pendingTodos != null && pendingTodos > 0 && (
+            <span style={{
+              position: 'absolute', top: -6, right: -6, minWidth: 16, height: 16,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              borderRadius: 8, fontSize: 9, fontWeight: 700, color: 'white',
+              background: '#EF4444', boxShadow: '0 0 6px rgba(239,68,68,0.5)',
+              padding: '0 4px', lineHeight: 1,
+            }}>
+              {pendingTodos > 10 ? '9+' : pendingTodos}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setEditing(v => !v)}

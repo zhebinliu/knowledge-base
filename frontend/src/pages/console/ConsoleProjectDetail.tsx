@@ -20,7 +20,7 @@ import {
   listProjectDocuments, getDocumentMarkdown, updateDocumentMarkdown, listOutputs, listLatestByKind, downloadOutputUrl, viewOutputUrl,
   getOutput,
   getProjectMeta, TOKEN_STORAGE_KEY,
-  getStageFlow,
+  getStageFlow, getProjectTodos,
   type CuratedBundle, type OutputKind, type Project, type ProjectDocument,
   type StageDef as ApiStageDef,
 } from '../../api/client'
@@ -183,6 +183,16 @@ export default function ConsoleProjectDetail() {
       })
       return (anyInflight || anyPartial) ? 2000 : false
     },
+  })
+  // 待办看板 badge:获取待处理数量
+  const { data: pendingTodos } = useQuery({
+    queryKey: ['project-todos-pending-count', id],
+    queryFn: async () => {
+      const todos = await getProjectTodos(id!, { status: 'pending' })
+      return todos.length
+    },
+    enabled: !!id,
+    staleTime: 30_000,
   })
   const { refetch: refetchOutputsRaw } = useQuery({
     queryKey: ['project-bundles', id],
@@ -398,10 +408,16 @@ export default function ConsoleProjectDetail() {
         </div>
         <button
           onClick={() => nav(`/console/projects/${id}/todos`)}
-          className="shrink-0 flex items-center justify-center w-8 h-8 text-xs rounded-lg border border-line text-ink-secondary hover:bg-canvas transition-colors"
+          className="shrink-0 relative flex items-center justify-center w-8 h-8 text-xs rounded-lg border border-line text-ink-secondary hover:bg-canvas transition-colors"
           title="待办看板"
         >
           <ClipboardList size={13} />
+          {pendingTodos != null && pendingTodos > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] flex items-center justify-center rounded-full text-[9px] font-bold text-white leading-none px-1"
+              style={{ background: '#EF4444', boxShadow: '0 0 6px rgba(239,68,68,0.5)' }}>
+              {pendingTodos > 10 ? '9+' : pendingTodos}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setEditing(v => !v)}

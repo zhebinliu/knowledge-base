@@ -57,6 +57,8 @@ export default function ProjectTodos() {
   const [newContent, setNewContent] = useState('')
   const [newAssignee, setNewAssignee] = useState('')
   const [newPriority, setNewPriority] = useState('P1')
+  const [draggingId, setDraggingId] = useState<number | null>(null)
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null)
 
   // 查询项目信息
   const { data: project } = useQuery({
@@ -259,14 +261,37 @@ export default function ProjectTodos() {
             { key: 'doing', title: '🔵 进行中', items: doing },
             { key: 'done', title: '✅ 已完成', items: done },
           ].map(col => (
-            <div key={col.key} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: 16, minHeight: 400, display: 'flex', flexDirection: 'column' }}>
+            <div key={col.key}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverCol(col.key) }}
+              onDragLeave={() => setDragOverCol(prev => prev === col.key ? null : prev)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setDragOverCol(null)
+                const todoId = Number(e.dataTransfer.getData('text/plain'))
+                if (todoId && draggingId === todoId) {
+                  patchMut.mutate({ id: todoId, body: { status: col.key as ProjectTodo['status'] } })
+                }
+                setDraggingId(null)
+              }}
+              style={{
+                background: dragOverCol === col.key ? 'rgba(255,141,26,0.04)' : 'rgba(255,255,255,0.02)',
+                border: dragOverCol === col.key ? '1px dashed rgba(255,141,26,0.4)' : '1px solid rgba(255,255,255,0.06)',
+                borderRadius: 16, padding: 16, minHeight: 400, display: 'flex', flexDirection: 'column',
+                transition: 'background 0.2s, border-color 0.2s',
+              }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                 <span style={{ fontSize: 14, fontWeight: 700 }}>{col.title}</span>
                 <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.38)', fontWeight: 600 }}>{col.items.length}</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, overflowY: 'auto' }}>
                 {col.items.map(todo => (
-                  <TodoCard key={todo.id} todo={todo} onClick={() => setModal(todo)} onStatusChange={(status) => patchMut.mutate({ id: todo.id, body: { status: status as ProjectTodo['status'] } })} />
+                  <TodoCard key={todo.id} todo={todo}
+                    isDragging={draggingId === todo.id}
+                    onClick={() => setModal(todo)}
+                    onStatusChange={(status) => patchMut.mutate({ id: todo.id, body: { status: status as ProjectTodo['status'] } })}
+                    onDragStart={() => setDraggingId(todo.id)}
+                    onDragEnd={() => { setDraggingId(null); setDragOverCol(null) }}
+                  />
                 ))}
               </div>
             </div>
@@ -354,22 +379,31 @@ export default function ProjectTodos() {
 
 // ── 待办卡片组件 ────────────────────────────────────────────────────
 
-function TodoCard({ todo, onClick, onStatusChange }: { todo: ProjectTodo; onClick: () => void; onStatusChange: (status: string) => void }) {
+function TodoCard({ todo, onClick, onStatusChange, isDragging, onDragStart, onDragEnd }: {
+  todo: ProjectTodo; onClick: () => void; onStatusChange: (status: string) => void;
+  isDragging?: boolean; onDragStart?: () => void; onDragEnd?: () => void;
+}) {
   const days = daysUntil(todo.due_date)
   const isOverdue = todo.status !== 'done' && days !== null && days < 0
   const isToday = todo.status !== 'done' && days === 0
   const pri = PRI_LABELS[todo.priority] || PRI_LABELS.P1
 
   return (
-    <div onClick={onClick}
+    <div
+      draggable
+      onDragStart={(e) => { e.dataTransfer.setData('text/plain', String(todo.id)); e.dataTransfer.effectAllowed = 'move'; onDragStart?.() }}
+      onDragEnd={() => onDragEnd?.()}
+      onClick={onClick}
       style={{
-        background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(20px) saturate(140%)',
-        border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '14px 16px',
-        cursor: 'pointer', position: 'relative', transition: 'all 0.25s cubic-bezier(.16,1,.3,1)',
-        opacity: todo.status === 'done' ? 0.55 : 1,
+        background: isDragging ? 'rgba(255,141,26,0.08)' : 'rgba(255,255,255,0.04)', backdropFilter: 'blur(20px) saturate(140%)',
+        border: isDragging ? '1px solid rgba(255,141,26,0.4)' : '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '14px 16px',
+        cursor: 'grab', position: 'relative', transition: 'all 0.25s cubic-bezier(.16,1,.3,1)',
+        opacity: isDragging ? 0.5 : todo.status === 'done' ? 0.55 : 1,
+        transform: isDragging ? 'scale(1.02) rotate(1deg)' : undefined,
+        boxShadow: isDragging ? '0 12px 40px rgba(255,141,26,0.2)' : undefined,
       }}
-      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.borderColor = 'rgba(255,141,26,0.35)'; e.currentTarget.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,0.08), 0 0 24px -6px rgba(255,141,26,0.35)' }}
-      onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.boxShadow = 'none' }}
+      onMouseEnter={e => { if (!isDragging) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.borderColor = 'rgba(255,141,26,0.35)'; e.currentTarget.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,0.08), 0 0 24px -6px rgba(255,141,26,0.35)' } }}
+      onMouseLeave={e => { if (!isDragging) { e.currentTarget.style.transform = ''; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.boxShadow = 'none' } }}
     >
       {isOverdue && <div style={{ position: 'absolute', top: -7, right: 14, background: '#FB7185', color: 'white', fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 6, animation: 'pulse 2.4s ease-in-out infinite', boxShadow: '0 0 12px rgba(251,113,133,0.4)' }}>逾期 {Math.abs(days!)} 天</div>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
