@@ -16,19 +16,22 @@ import { useMutation } from '@tanstack/react-query'
 import {
   Loader2, Sparkles, Settings, Package, Code2, Layers,
   ChevronRight, FileText, AlertCircle, CheckCircle2, AlertTriangle,
-  Download, FileCode2,
+  Download, FileCode2, Pencil,
 } from 'lucide-react'
 import {
   generateTaskConfig,
   tenantConfigZipUrl,
   projectHandoffBundleUrl,
   TOKEN_STORAGE_KEY,
+  getOutput,
   type CuratedBundle,
   type ImplementationTask,
   type ShareDevSkill,
 } from '../../../api/client'
+import { useQuery } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
 import MarkdownView from '../../MarkdownView'
+import MarkdownEditor from '../MarkdownEditor'
 import GenerationProgressCard from '../GenerationProgressCard'
 
 // ── sharedev skill 分组 + 标签 ───────────────────────────────────────
@@ -236,9 +239,7 @@ export default function ImplementationWorkspace({
       {/* 中栏:当前 view 的主体 */}
       <div className="flex-1 min-h-0 flex flex-col bg-white overflow-hidden">
         {view === 'overview' && planBundle && (
-          <div className="flex-1 min-h-0 overflow-auto p-6 max-w-[1200px] mx-auto w-full">
-            <MarkdownView content={planBundle.content_md || ''} />
-          </div>
+          <PlanOverviewView bundle={planBundle} onRefetch={onRefetch} />
         )}
         {view === 'task_detail' && selectedTask && (
           <TaskDetailPanel
@@ -310,6 +311,69 @@ export default function ImplementationWorkspace({
       </div>
       </div>{/* /flex-1 min-h-0 flex */}
     </div>
+  )
+}
+
+// ── 任务清单概览(读 / 编辑 双态) ──────────────────────────────────────────
+// 拆出独立子组件,让 editing → 独立 fiber tree,避免 React #310 hook 顺序异常。
+
+function PlanOverviewView({
+  bundle, onRefetch,
+}: {
+  bundle: CuratedBundle
+  onRefetch: () => Promise<unknown> | unknown
+}) {
+  const [editing, setEditing] = useState(false)
+  if (editing) {
+    return (
+      <PlanOverviewEditor
+        bundle={bundle}
+        onDone={() => { setEditing(false); void onRefetch() }}
+      />
+    )
+  }
+  return (
+    <div className="flex-1 min-h-0 overflow-auto p-6 max-w-[1200px] mx-auto w-full relative">
+      <div className="absolute top-3 right-3 z-10">
+        <button
+          onClick={() => setEditing(true)}
+          className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] rounded-md border border-line bg-white text-ink-secondary hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 shadow-sm"
+          title="在线编辑任务清单 markdown(保存后覆盖)"
+        >
+          <Pencil size={11} /> 编辑
+        </button>
+      </div>
+      <MarkdownView content={bundle.content_md || ''} />
+    </div>
+  )
+}
+
+function PlanOverviewEditor({
+  bundle, onDone,
+}: {
+  bundle: CuratedBundle
+  onDone: () => void
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['output', bundle.id],
+    queryFn: () => getOutput(bundle.id),
+    enabled: !bundle.content_md,
+    initialData: bundle.content_md ? bundle as any : undefined,
+  })
+  if (isLoading || !data?.content_md) {
+    return (
+      <div className="h-full flex items-center justify-center text-xs text-ink-muted">
+        <Loader2 size={14} className="inline animate-spin mr-1" /> 加载报告内容…
+      </div>
+    )
+  }
+  return (
+    <MarkdownEditor
+      bundle={bundle}
+      initialContent={data.content_md}
+      onClose={onDone}
+      onSaved={onDone}
+    />
   )
 }
 

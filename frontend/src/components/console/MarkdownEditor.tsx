@@ -32,18 +32,32 @@ import {
 import { saveOutputContent, type CuratedBundle } from '../../api/client'
 
 interface Props {
-  bundle: CuratedBundle
   initialContent: string
   onClose: () => void
   onSaved: () => void
+  // ── 模式 A:bundle 模式(原有调用方) ───────────────────────────────
+  //   传 bundle → 自动用 bundle.title 做标题、saveOutputContent 做保存、invalidate 默认 query。
+  bundle?: CuratedBundle
+  // ── 模式 B:通用模式(DocPreview / DocPreviewDrawer 等非 bundle 数据源) ─
+  //   传 title + onSave → 覆盖 bundle 默认行为。query invalidate 由调用方在 onSaved 里做。
+  title?: string
+  onSave?: (md: string) => Promise<unknown>
 }
 
-export default function MarkdownEditor({ bundle, initialContent, onClose, onSaved }: Props) {
+export default function MarkdownEditor({ bundle, initialContent, onClose, onSaved, title, onSave }: Props) {
+  // 运行期断言:两种模式至少有一个
+  if (!bundle && !onSave) {
+    throw new Error('MarkdownEditor: 必须传 bundle 或 onSave 之一')
+  }
+  const effectiveTitle = title ?? (bundle ? `编辑 · ${bundle.title}` : '编辑')
   // ─ 所有 hooks 在最顶部、固定顺序、无条件调用 — 防 React error #310 ─
   const [error, setError] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   // 2026-06-04 源码模式:WYSIWYG 表格识别失败时兜底,用户直接改 markdown 文本
-  const [sourceMode, setSourceMode] = useState(false)
+  // 2026-06-09:含 ```mermaid 块时默认开源码模式 — tiptap WYSIWYG 下用户点工具栏按钮
+  //   很容易把代码块降级成 paragraph,所有图表会一起报 "Syntax error in text"。
+  const hasMermaidBlock = /```\s*mermaid\b/i.test(initialContent)
+  const [sourceMode, setSourceMode] = useState(hasMermaidBlock)
   const [sourceText, setSourceText] = useState(initialContent)
   const qc = useQueryClient()
   const editor = useEditor({
@@ -82,11 +96,16 @@ export default function MarkdownEditor({ bundle, initialContent, onClose, onSave
         if (!editor) throw new Error('编辑器未就绪')
         md = (editor.storage as any).markdown.getMarkdown() as string
       }
-      return saveOutputContent(bundle.id, md)
+      // 通用 onSave 优先;否则走 bundle 默认保存路径
+      if (onSave) return onSave(md)
+      return saveOutputContent(bundle!.id, md)
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['output', bundle.id] })
-      qc.invalidateQueries({ queryKey: ['research-outline-detail', bundle.id] })
+      if (bundle) {
+        qc.invalidateQueries({ queryKey: ['output', bundle.id] })
+        qc.invalidateQueries({ queryKey: ['research-outline-detail', bundle.id] })
+      }
+      // 通用模式由调用方在 onSaved 回调里做 invalidate
       onSaved()
     },
     onError: (err: any) => {
@@ -119,9 +138,17 @@ export default function MarkdownEditor({ bundle, initialContent, onClose, onSave
     <div className="h-full flex flex-col bg-white">
       {/* 顶栏:标题 + 操作 */}
       <div className="flex-shrink-0 px-4 py-2.5 border-b border-line bg-slate-50/60 flex items-center gap-2">
-        <span className="text-sm font-semibold text-ink">编辑 · {bundle.title}</span>
+        <span className="text-sm font-semibold text-ink truncate" title={effectiveTitle}>{effectiveTitle}</span>
         {dirty && (
           <span className="text-[11px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">未保存</span>
+        )}
+        {hasMermaidBlock && sourceMode && (
+          <span
+            className="text-[11px] text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200"
+            title="WYSIWYG 模式编辑 mermaid 块容易把图表语法打坏(整页变 Syntax error),已自动进源码模式。如需富文本,可手动切换,但请勿改动 ```mermaid 块。"
+          >
+            含图表 · 已自动进源码模式
+          </span>
         )}
         <div className="ml-auto flex items-center gap-2">
           {/* 2026-06-04 源码 / 富文本 切换 — 表格识别不出时兜底直接改 markdown */}

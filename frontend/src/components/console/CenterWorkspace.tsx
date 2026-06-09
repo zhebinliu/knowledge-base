@@ -16,7 +16,7 @@ import {
 import {
   getDocumentMarkdown, getDocChecklist,
   getVirtualArtifact, submitVirtualArtifact,
-  generateOutput, getInsightCheckup,
+  generateOutput, getInsightCheckup, updateDocumentMarkdown,
   type CuratedBundle, type AgenticGapPrompt, type InsightCheckupResult,
 } from '../../api/client'
 import { useState } from 'react'
@@ -356,18 +356,39 @@ function StatCard({
 // ── 文档预览 ─────────────────────────────────────────────────────────────────
 
 function DocPreview({ docId }: { docId: string }) {
+  const [editing, setEditing] = useState(false)
+  if (editing) {
+    return <DocPreviewEditor docId={docId} onDone={() => setEditing(false)} />
+  }
+  return <DocPreviewRead docId={docId} onEdit={() => setEditing(true)} />
+}
+
+function DocPreviewRead({ docId, onEdit }: { docId: string; onEdit: () => void }) {
   const { data, isLoading } = useQuery({
     queryKey: ['document', docId],
     queryFn: () => getDocumentMarkdown(docId),
   })
   if (isLoading) return <div className="h-full bg-white flex items-center justify-center text-xs text-ink-muted"><Loader2 size={16} className="inline animate-spin mr-2" /> 加载中…</div>
   if (!data) return <div className="h-full bg-white p-6 text-center text-xs text-ink-muted">文档不存在</div>
+  // 仅 completed 状态允许编辑(避免跟正在跑的 convert / reslice 冲突)
+  const canEdit = data.status === 'completed' && !!data.markdown_content
   return (
     <div className="h-full bg-white overflow-auto">
       <div className="max-w-[1100px] mx-auto px-6 py-6">
-        <div className="mb-4 pb-3 border-b border-line flex items-center gap-2">
-          <FileText size={14} className="text-ink-muted" />
-          <h3 className="text-sm font-semibold text-ink">{data.filename}</h3>
+        <div className="mb-4 pb-3 border-b border-line flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <FileText size={14} className="text-ink-muted shrink-0" />
+            <h3 className="text-sm font-semibold text-ink truncate">{data.filename}</h3>
+          </div>
+          {canEdit && (
+            <button
+              onClick={onEdit}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] rounded-md border border-line bg-white text-ink-secondary hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 shadow-sm shrink-0"
+              title="编辑提取后的 markdown(保存后异步重新切片+重新嵌入)"
+            >
+              <Pencil size={11} /> 编辑
+            </button>
+          )}
         </div>
         {data.markdown_content ? (
           <MarkdownView content={data.markdown_content} />
@@ -376,6 +397,49 @@ function DocPreview({ docId }: { docId: string }) {
             {data.status === 'completed' ? '该文档无 Markdown 内容(可能转换异常)' : `转换中(${data.status})…`}
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+function DocPreviewEditor({ docId, onDone }: { docId: string; onDone: () => void }) {
+  const qc = useQueryClient()
+  const { data, isLoading } = useQuery({
+    queryKey: ['document', docId],
+    queryFn: () => getDocumentMarkdown(docId),
+  })
+  if (isLoading || !data) {
+    return (
+      <div className="h-full flex items-center justify-center text-xs text-ink-muted">
+        <Loader2 size={14} className="inline animate-spin mr-1" /> 加载文档内容…
+      </div>
+    )
+  }
+  if (!data.markdown_content) {
+    return (
+      <div className="h-full p-8 text-center text-xs text-ink-muted">
+        该文档无 markdown 内容,无法编辑。
+        <button onClick={onDone} className="ml-2 px-2 py-1 border border-line rounded">返回</button>
+      </div>
+    )
+  }
+  return (
+    <div className="h-full flex flex-col">
+      <div className="flex-shrink-0 px-4 py-1.5 text-[11px] bg-amber-50 border-b border-amber-100 text-amber-800">
+        提示:保存后将自动重新切片 + 重新嵌入向量(后台异步,约 1-3 分钟);已生成的洞察 / 调研报告不会变,但下一次 RAG 检索会用新版本切片。
+      </div>
+      <div className="flex-1 min-h-0">
+        <MarkdownEditor
+          title={`编辑 · ${data.filename}`}
+          initialContent={data.markdown_content}
+          onSave={(md) => updateDocumentMarkdown(docId, md)}
+          onClose={onDone}
+          onSaved={() => {
+            qc.invalidateQueries({ queryKey: ['document', docId] })
+            qc.invalidateQueries({ queryKey: ['doc-md', docId] })
+            onDone()
+          }}
+        />
       </div>
     </div>
   )

@@ -548,6 +548,180 @@ async def _process_document_async(doc_id: str):
             raise
 
 
+@celery_app.task(name="reslice_document", bind=True, max_retries=3, soft_time_limit=600, time_limit=900)
+def reslice_document(self, doc_id: str):
+    """用户在前端编辑了 document.markdown_content 后,异步重新切片 + 重新嵌入。
+
+    与 process_document 的区别:跳过 minio 拉文件 / convert / 脱敏,直接吃 DB 里现有的
+    markdown_content 走 slice → embed → completed。原 chunks + 向量先清掉再重建,
+    项目 modules 同步合并(逻辑与 process_document 一致)。
+
+    失败重试:60 / 180 / 480s 指数退避,3 次用尽后写 conversion_error。
+    """
+    from models.user import User  # noqa: F401
+    from models.project import Project  # noqa: F401
+
+    try:
+        logger.info("reslice_task_received", doc_id=doc_id, task_id=self.request.id, attempt=self.request.retries + 1)
+        run_async(_reslice_document_async(doc_id))
+    except Exception as exc:
+        err_msg = (str(exc)[:500] or type(exc).__name__)
+        logger.error("reslice_document_failed", doc_id=doc_id, error=err_msg[:200])
+        countdowns = [60, 180, 480]
+        retries_done = self.request.retries
+        if retries_done < self.max_retries:
+            async def _mark_retry():
+                from models import async_session_maker
+                from models.document import Document
+                async with async_session_maker() as s:
+                    d = await s.get(Document, doc_id)
+                    if d:
+                        d.conversion_status = "retrying"
+                        await s.commit()
+            run_async(_mark_retry())
+            raise self.retry(exc=exc, countdown=countdowns[min(retries_done, len(countdowns) - 1)])
+        async def _mark_failed():
+            from models import async_session_maker
+            from models.document import Document
+            async with async_session_maker() as s:
+                d = await s.get(Document, doc_id)
+                if d:
+                    d.conversion_status = "failed"
+                    d.conversion_error = err_msg
+                    await s.commit()
+        run_async(_mark_failed())
+        raise
+
+
+async def _reslice_document_async(doc_id: str):
+    from models import async_session_maker
+    from models.user import User  # noqa: F401
+    from models.project import Project
+    from models.document import Document
+    from models.chunk import Chunk
+    from models.review_queue import ReviewQueue
+    from agents.slicer_agent import slice_and_classify
+    from services.embedding_service import embedding_service
+    from services.vector_store import vector_store
+    from services.config_service import config_service
+    from services.model_router import model_router
+    from sqlalchemy import select, delete as sa_delete
+
+    model_router.set_config_service(config_service)
+
+    async with async_session_maker() as session:
+        doc = await session.get(Document, doc_id)
+        if not doc:
+            logger.error("reslice_document_not_found", doc_id=doc_id)
+            return
+        if not doc.markdown_content:
+            logger.error("reslice_skip_no_markdown", doc_id=doc_id)
+            doc.conversion_status = "failed"
+            doc.conversion_error = "重切片时 markdown_content 为空"
+            await session.commit()
+            return
+
+        async def _heartbeat(msg: str):
+            try:
+                async with async_session_maker() as hs:
+                    d = await hs.get(Document, doc_id)
+                    if d:
+                        d.convert_progress = msg[:200]
+                        await hs.commit()
+            except Exception as he:
+                logger.warning("heartbeat_failed", doc_id=doc_id, err=str(he)[:80])
+
+        await _heartbeat("清理旧切片…")
+        existing_ids = (await session.execute(
+            select(Chunk.id).where(Chunk.document_id == doc_id)
+        )).scalars().all()
+        if existing_ids:
+            await session.execute(
+                sa_delete(Chunk).where(Chunk.document_id == doc_id)
+            )
+            await session.commit()
+            try:
+                await vector_store.delete_by_document(doc_id)
+            except Exception as ve:
+                logger.warning("qdrant_cleanup_failed", doc_id=doc_id, error=str(ve)[:80])
+            logger.info("existing_chunks_cleared_for_reslice", doc_id=doc_id, count=len(existing_ids))
+
+        markdown = doc.markdown_content
+        await _heartbeat(f"切片中(共 {len(markdown)//500 + 1} 段预估)…")
+
+        _t_slice_start = time.time()
+        slices = await slice_and_classify(markdown, doc.filename)
+        _slice_elapsed = time.time() - _t_slice_start
+        doc.slice_duration_s = round(_slice_elapsed, 2)
+        logger.info("reslice_slicing_done", doc_id=doc_id, chunks=len(slices), duration_s=round(_slice_elapsed, 2))
+
+        await _heartbeat(f"向量化入库中({len(slices)} 段)…")
+        _t_embed_start = time.time()
+        for slice_data in slices:
+            chunk = Chunk(
+                document_id=doc_id,
+                content=slice_data["content"],
+                chunk_index=slice_data["chunk_index"],
+                ltc_stage=slice_data["ltc_stage"],
+                ltc_stage_confidence=slice_data["ltc_stage_confidence"],
+                industry=slice_data["industry"],
+                module=slice_data["module"],
+                tags=slice_data["tags"],
+                source_section=slice_data["section_path"],
+                char_count=slice_data["char_count"],
+                review_status=slice_data["review_status"],
+                generated_by_model=slice_data.get("classified_by_model"),
+            )
+            session.add(chunk)
+            await session.flush()
+
+            vector = await embedding_service.embed(slice_data["content"])
+            await vector_store.upsert(
+                chunk.id,
+                vector,
+                {
+                    "chunk_id": chunk.id,
+                    "document_id": doc_id,
+                    "ltc_stage": slice_data["ltc_stage"],
+                    "industry": slice_data["industry"],
+                    "doc_industry": doc.industry or "",
+                    "section_path": slice_data.get("section_path", ""),
+                    "content_preview": slice_data["content"][:500],
+                    "review_status": slice_data["review_status"],
+                    "ltc_stage_confidence": slice_data.get("ltc_stage_confidence", 0.0),
+                },
+            )
+            chunk.vector_id = chunk.id
+
+            if slice_data["review_status"] == "needs_review":
+                conf = slice_data.get("ltc_stage_confidence", 0)
+                reasoning = slice_data.get("reasoning", "")
+                reason = f"置信度 {conf:.0%}"
+                if reasoning:
+                    reason += f":{reasoning}"
+                session.add(ReviewQueue(chunk_id=chunk.id, reason=reason[:200]))
+
+        if doc.project_id and slices:
+            new_modules = {s["module"] for s in slices if s.get("module") and s["module"].strip()}
+            if new_modules:
+                project = await session.get(Project, doc.project_id)
+                if project:
+                    existing = set(project.modules or [])
+                    merged = sorted(existing | new_modules)
+                    if merged != sorted(existing):
+                        project.modules = merged
+                        logger.info("project_modules_updated_on_reslice", project_id=doc.project_id, added=sorted(new_modules - existing))
+
+        _embed_elapsed = time.time() - _t_embed_start
+        doc.embed_duration_s = round(_embed_elapsed, 2)
+        doc.conversion_status = "completed"
+        doc.convert_progress = None
+        doc.conversion_error = None
+        await session.commit()
+        logger.info("reslice_completed", doc_id=doc_id, chunks=len(slices),
+                    slice_s=doc.slice_duration_s, embed_s=doc.embed_duration_s)
+
+
 @celery_app.task(name="infer_doc_types_batch")
 def infer_doc_types_batch():
     """批量补推断文档类型（对 completed 且 doc_type 为空的文档）。"""

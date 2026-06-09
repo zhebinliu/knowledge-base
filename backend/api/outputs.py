@@ -84,6 +84,16 @@ KIND_TO_TASK = {
     "acceptance_report": "generate_acceptance_report",
 }
 
+# 所有 markdown 类 bundle kind — 走 content_md 字段,前端预览框可在线编辑 / 上传修订版。
+# 二进制 kind(kickoff_pptx / kickoff_html)走自己的 PUT /html 路径,不在此列。
+# PUT /{id}/content(在线编辑)+ POST /{id}/markdown-override(上传修订版)共用此白名单,
+# 都触发修订学习 analyze_bundle_revision。
+_EDITABLE_MARKDOWN_KINDS = {
+    "insight", "survey", "survey_outline", "research_plan", "research_report",
+    "blueprint_design", "object_field_layout", "process_setup",
+    "implementation_plan", "test_plan", "acceptance_report",
+}
+
 KIND_TITLES = {
     "kickoff_pptx": "启动会 PPT（pptxgen）",
     "kickoff_html": "启动会 PPT（htmlppt）",
@@ -893,13 +903,16 @@ async def save_content_md(
 ):
     """编辑器内点保存:把 markdown 正文写回 bundle.content_md。
 
-    适用 kind:insight / survey_outline / survey(MD 类型 bundle)。
+    白名单:`_EDITABLE_MARKDOWN_KINDS`(全部 markdown 类 bundle)。
     kickoff_pptx / kickoff_html 走 PUT /{id}/html(HTML 文件)。
 
     权限:created_by 或 admin 可改 — 跟 HTML 编辑端点一致。
     不维护 provenance — 用户改了角标后可能与原 provenance 对不上,
     这是主动编辑代价,前端 CitationsPanel 仍按 bundle.provenance 渲染。
     不存历史 — 覆盖式更新;想要旧版可重生成。
+
+    2026-06-09:在线编辑保存也触发修订学习(原先只有 POST /markdown-override 触发),
+    跟上传修订版语义一致 — 都把"用户偏好"沉淀到 bundle_revision_memories,下次生成自动应用。
     """
     b = await session.get(CuratedBundle, bundle_id)
     if not b:
@@ -908,7 +921,7 @@ async def save_content_md(
         from services.project_acl import assert_project_access
         # 写操作:必须 write 权限,read-only 协作者不能改报告(2026-05-12 修复:此前误写 "read")
         await assert_project_access(current_user, b.project_id, "write")
-    if b.kind not in ("insight", "survey_outline", "survey", "research_plan"):
+    if b.kind not in _EDITABLE_MARKDOWN_KINDS:
         raise HTTPException(400, f"产物类型 {b.kind} 不支持 markdown 编辑")
     if b.status != "done":
         raise HTTPException(400, f"产物状态 {b.status} 不支持编辑(需先生成完成)")
@@ -918,6 +931,11 @@ async def save_content_md(
         raise HTTPException(400, "正文不能为空")
     if len(md) > 4 * 1024 * 1024:
         raise HTTPException(400, f"正文体积异常({len(md)} 字节,上限 4MB)")
+
+    # 备份原 markdown,后面 enqueue 修订学习时用
+    original_md_for_learning = b.content_md or ""
+    original_chars = len(original_md_for_learning)
+    new_chars = len(md)
 
     b.content_md = md
     await session.commit()
@@ -939,12 +957,29 @@ async def save_content_md(
         except Exception as _e:
             logger.warning("plan_sessions_dispatch_failed", bundle_id=bundle_id, error=str(_e)[:200])
 
+    # 2026-06-09:在线编辑也触发修订学习(失败不阻断主流程,原版/新版 < 50 字符跳过)
+    if original_chars >= 50 and new_chars >= 50 and original_md_for_learning != md:
+        try:
+            from tasks.output_tasks import analyze_bundle_revision
+            analyze_bundle_revision.delay(
+                bundle_id=bundle_id,
+                bundle_kind=b.kind,
+                original_md=original_md_for_learning,
+                revised_md=md,
+                project_id=b.project_id,
+                user_id=str(getattr(current_user, "id", "") or "") or None,
+            )
+            logger.info("revision_learning_enqueued_from_edit", bundle_id=bundle_id, kind=b.kind)
+        except Exception as _e:
+            logger.warning("revision_learning_enqueue_failed_from_edit",
+                           bundle_id=bundle_id, kind=b.kind, error=str(_e)[:200])
+
     return {"ok": True, "bytes": len(md.encode("utf-8"))}
 
 
-# 允许人工修订上传覆盖的 kind 白名单 — 方案设计三件套 + 调研报告
-# (insight / survey / survey_outline / research_plan 走 PUT /content 在线编辑,不在这里)
-_OVERRIDABLE_KINDS = {"research_report", "blueprint_design", "object_field_layout", "process_setup"}
+# 允许人工修订上传覆盖的 kind 白名单 — 跟在线编辑 PUT /content 用同一套白名单。
+# 2026-06-09 之前只放开方案设计三件套 + 调研报告;现在全部 markdown 类 bundle 都允许。
+_OVERRIDABLE_KINDS = _EDITABLE_MARKDOWN_KINDS
 
 # 上传体积上限:4 MB(跟 PUT /content 对齐)
 _MARKDOWN_OVERRIDE_MAX_BYTES = 4 * 1024 * 1024

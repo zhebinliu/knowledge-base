@@ -187,7 +187,18 @@ export const revokeInviteCode = (id: string) =>
 
 // ── 后台:修订学习记忆管理(2026-06-08)──────────────────────────────────────
 
-export type BundleMemoryKind = 'blueprint_design' | 'object_field_layout' | 'process_setup' | 'research_report'
+export type BundleMemoryKind =
+  | 'insight'
+  | 'survey'
+  | 'survey_outline'
+  | 'research_plan'
+  | 'research_report'
+  | 'blueprint_design'
+  | 'object_field_layout'
+  | 'process_setup'
+  | 'implementation_plan'
+  | 'test_plan'
+  | 'acceptance_report'
 
 export interface BundleMemory {
   id: string
@@ -356,6 +367,14 @@ export const getDocumentMarkdown = (id: string) =>
 
 export const getDocumentChunks = (id: string) =>
   api.get<Chunk[]>(`/documents/${id}/chunks`).then(r => r.data)
+
+/** 在线编辑保存文档 markdown(用户在预览框直接改提取出来的 md)。
+ *  后端覆盖式更新 markdown_content 并异步重新切片+重新嵌入。
+ *  已生成的洞察 / 调研报告不变,下一次 RAG 检索会用新切片。 */
+export const updateDocumentMarkdown = (id: string, content_md: string) =>
+  api.put<{ ok: boolean; bytes: number; reslice_enqueued: boolean }>(
+    `/documents/${id}/markdown`, { content_md }
+  ).then(r => r.data)
 
 // ── Chunks ───────────────────────────────────────────────────────────────────
 

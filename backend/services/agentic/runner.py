@@ -2627,8 +2627,14 @@ async def generate_research_plan(bundle_id: str, project_id: str):
             kickoff_date=kickoff_date,
             owner_name=owner_name,
         )
+        # 历史修订经验注入 system prompt 顶部(2026-06-09)
+        from services.revision_learning import fetch_revision_memories_block
+        _memories_block = await fetch_revision_memories_block("research_plan")
+        _system_with_memories = (_memories_block + SYSTEM_PROMPT) if _memories_block else SYSTEM_PROMPT
+        if _memories_block:
+            logger.info("revision_memories_injected", kind="research_plan", memories_chars=len(_memories_block))
         raw = await _llm_call(
-            user_prompt, system=SYSTEM_PROMPT,
+            user_prompt, system=_system_with_memories,
             model=ctx["agent_model"],
             task="output_doc_generate",
             max_tokens=8000, timeout=360.0,
@@ -3006,8 +3012,13 @@ async def generate_test_plan(bundle_id: str, project_id: str):
             industry_pack_block=format_industry_pack(pack),
         )
 
+        from services.revision_learning import fetch_revision_memories_block
+        _memories_block = await fetch_revision_memories_block("test_plan")
+        _system_with_memories = (_memories_block + SYSTEM_PROMPT) if _memories_block else SYSTEM_PROMPT
+        if _memories_block:
+            logger.info("revision_memories_injected", kind="test_plan", memories_chars=len(_memories_block))
         raw = await _llm_call(
-            user_prompt, system=SYSTEM_PROMPT,
+            user_prompt, system=_system_with_memories,
             model=ctx["agent_model"],
             max_tokens=16000, timeout=720.0,
         )
@@ -3113,8 +3124,13 @@ async def generate_acceptance_report(bundle_id: str, project_id: str):
             industry_pack_block=format_industry_pack(pack),
         )
 
+        from services.revision_learning import fetch_revision_memories_block
+        _memories_block = await fetch_revision_memories_block("acceptance_report")
+        _system_with_memories = (_memories_block + SYSTEM_PROMPT) if _memories_block else SYSTEM_PROMPT
+        if _memories_block:
+            logger.info("revision_memories_injected", kind="acceptance_report", memories_chars=len(_memories_block))
         raw = await _llm_call(
-            user_prompt, system=SYSTEM_PROMPT,
+            user_prompt, system=_system_with_memories,
             model=ctx["agent_model"],
             max_tokens=14000, timeout=720.0,
         )
@@ -3233,8 +3249,13 @@ async def generate_implementation_plan(bundle_id: str, project_id: str):
             industry_pack_block=format_industry_pack(pack),
         )
 
+        from services.revision_learning import fetch_revision_memories_block
+        _memories_block = await fetch_revision_memories_block("implementation_plan")
+        _system_with_memories = (_memories_block + SYSTEM_PROMPT) if _memories_block else SYSTEM_PROMPT
+        if _memories_block:
+            logger.info("revision_memories_injected", kind="implementation_plan", memories_chars=len(_memories_block))
         raw = await _llm_call(
-            user_prompt, system=SYSTEM_PROMPT,
+            user_prompt, system=_system_with_memories,
             model=ctx["agent_model"],
             max_tokens=16000, timeout=720.0,
         )
