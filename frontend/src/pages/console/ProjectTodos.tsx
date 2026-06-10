@@ -238,7 +238,6 @@ export default function ProjectTodos({ variant = 'legacy' }: { variant?: Variant
 
   return (
     <div
-      className={dk ? undefined : 'max-w-7xl mx-auto'}
       style={dk
         ? { minHeight: '100vh', background: '#0A0F1E', color: 'white', padding: '8px 40px 120px', maxWidth: 1800, margin: '0 auto' }
         : { color: '#1A1D2E', paddingBottom: 40 }}
