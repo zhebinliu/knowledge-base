@@ -20,7 +20,7 @@ import {
   ArrowLeft, Loader2, RefreshCw, Plus, X, Trash2,
   CheckCircle2, Circle, CircleDot, Clock, AlertCircle,
   LayoutGrid, Calendar, Bot, Square, CheckSquare,
-  Search, ClipboardList, User, Lock, Paperclip, Mic,
+  Search, ClipboardList, User, Lock, Paperclip, Mic, Pencil, Save,
 } from 'lucide-react'
 import {
   getProjectTodos, syncProjectTodos, patchTodo, deleteTodo, createProjectTodo,
@@ -122,6 +122,35 @@ export default function ProjectTodos({ variant = 'legacy' }: { variant?: Variant
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [batchMode, setBatchMode] = useState(false)
   const [aiResult, setAiResult] = useState<{ assignee: string; reason: string } | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [editContent, setEditContent] = useState('')
+  const [editAssignee, setEditAssignee] = useState('')
+  const [editDueDate, setEditDueDate] = useState('')
+  const [editPriority, setEditPriority] = useState<'P0' | 'P1' | 'P2'>('P1')
+
+  const closeModal = () => { setModal(null); setAiResult(null); setEditing(false) }
+  const startEdit = () => {
+    if (!modal) return
+    setEditContent(modal.content)
+    setEditAssignee(modal.assignee || '')
+    setEditDueDate(modal.due_date || '')
+    setEditPriority(modal.priority)
+    setEditing(true)
+  }
+  const saveEdit = () => {
+    if (!modal || !editContent.trim()) return
+    const prevMeeting = { meeting_title: modal.meeting_title, meeting_date: modal.meeting_date }
+    patchMut.mutate(
+      { id: modal.id, body: { content: editContent.trim(), assignee: editAssignee, due_date: editDueDate, priority: editPriority } },
+      {
+        onSuccess: (updated) => {
+          // PATCH 返回的 DTO 不含 meeting_title/meeting_date,沿用原 modal 上的
+          setModal({ ...updated, ...prevMeeting } as ProjectTodo)
+          setEditing(false)
+        },
+      },
+    )
+  }
 
   const { data: project } = useQuery({ queryKey: ['project', projectId], queryFn: () => getProject(projectId!), enabled: !!projectId })
   const { data: todos = [], isLoading } = useQuery({ queryKey: ['project-todos', projectId], queryFn: () => getProjectTodos(projectId!), enabled: !!projectId })
@@ -360,27 +389,70 @@ export default function ProjectTodos({ variant = 'legacy' }: { variant?: Variant
 
       {/* 详情 Modal */}
       {modal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: t.overlay, backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => { setModal(null); setAiResult(null) }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: t.overlay, backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={closeModal}>
           <div style={{ width: 580, maxHeight: '85vh', overflowY: 'auto', background: t.modalBg, border: `1px solid ${t.cardBorder}`, borderRadius: dk ? 22 : 16, boxShadow: t.modalShadow, color: t.text }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 16px', borderBottom: `1px solid ${t.divider}` }}>
-              <span style={{ fontSize: 15, fontWeight: 700 }}>待办详情</span>
-              <button onClick={() => { setModal(null); setAiResult(null) }} style={{ width: 28, height: 28, borderRadius: 8, background: t.inputBg, border: `1px solid ${t.inputBorder}`, color: t.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
+              <span style={{ fontSize: 15, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                待办详情
+                {editing && modal.meeting_id && <span style={{ fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 6, background: `${t.sem.blue}1A`, color: t.sem.blue, border: `1px solid ${t.sem.blue}33` }}>保存后将同步到会议纪要</span>}
+              </span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {!editing && (
+                  <button onClick={startEdit} title="编辑待办" style={{ width: 28, height: 28, borderRadius: 8, background: t.inputBg, border: `1px solid ${t.inputBorder}`, color: t.textSub, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Pencil size={13} /></button>
+                )}
+                <button onClick={closeModal} style={{ width: 28, height: 28, borderRadius: 8, background: t.inputBg, border: `1px solid ${t.inputBorder}`, color: t.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
+              </div>
             </div>
             <div style={{ padding: '20px 24px' }}>
-              <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.5, marginBottom: 14 }}>{modal.content}</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
-                <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: PRI[modal.priority].bg, color: PRI[modal.priority].color, border: `1px solid ${PRI[modal.priority].color}33`, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: 4, background: PRI[modal.priority].color }}></span> {PRI[modal.priority].label}
-                </span>
-                {modal.status === 'done' && <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: `${t.sem.green}1A`, color: t.sem.green, border: `1px solid ${t.sem.green}40`, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}><CheckCircle2 size={11} /> 已完成</span>}
-                {modal.status !== 'done' && modal.due_date && daysUntil(modal.due_date)! < 0 && <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: `${t.sem.red}1A`, color: t.sem.red, border: `1px solid ${t.sem.red}40`, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}><AlertCircle size={11} /> 逾期 {Math.abs(daysUntil(modal.due_date)!)} 天</span>}
-                {modal.blocked_by_content && <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: `${t.sem.amber}1A`, color: t.sem.amber, border: `1px solid ${t.sem.amber}40`, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Lock size={11} /> 等待: {modal.blocked_by_content}</span>}
-              </div>
+              {editing ? (
+                <div style={{ marginBottom: 18 }}>
+                  <div style={labelStyle}>待办内容</div>
+                  <textarea value={editContent} onChange={e => setEditContent(e.target.value)} autoFocus rows={3} style={{ ...inputStyle, width: '100%', fontSize: 15, fontWeight: 600, lineHeight: 1.6, resize: 'vertical', minHeight: 72 }} />
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.5, marginBottom: 14 }}>{modal.content}</div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+                    <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: PRI[modal.priority].bg, color: PRI[modal.priority].color, border: `1px solid ${PRI[modal.priority].color}33`, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ width: 7, height: 7, borderRadius: 4, background: PRI[modal.priority].color }}></span> {PRI[modal.priority].label}
+                    </span>
+                    {modal.status === 'done' && <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: `${t.sem.green}1A`, color: t.sem.green, border: `1px solid ${t.sem.green}40`, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}><CheckCircle2 size={11} /> 已完成</span>}
+                    {modal.status !== 'done' && modal.due_date && daysUntil(modal.due_date)! < 0 && <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: `${t.sem.red}1A`, color: t.sem.red, border: `1px solid ${t.sem.red}40`, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}><AlertCircle size={11} /> 逾期 {Math.abs(daysUntil(modal.due_date)!)} 天</span>}
+                    {modal.blocked_by_content && <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: `${t.sem.amber}1A`, color: t.sem.amber, border: `1px solid ${t.sem.amber}40`, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Lock size={11} /> 等待: {modal.blocked_by_content}</span>}
+                  </div>
+                </>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
-                <div><div style={labelStyle}>负责人</div><div style={{ fontSize: 13 }}>{modal.assignee || '-'}</div></div>
-                <div><div style={labelStyle}>状态</div><div style={{ fontSize: 13 }}>{STATUS_LABELS[modal.status]}</div></div>
-                <div><div style={labelStyle}>截止日期</div><div style={{ fontSize: 13, color: modal.due_date && daysUntil(modal.due_date)! < 0 && modal.status !== 'done' ? t.sem.red : modal.status === 'done' ? t.sem.green : t.text }}>{modal.due_date || '-'}</div></div>
-                <div><div style={labelStyle}>创建时间</div><div style={{ fontSize: 13 }}>{modal.created_at?.slice(0, 16).replace('T', ' ') || '-'}</div></div>
+                <div>
+                  <div style={labelStyle}>负责人</div>
+                  {editing
+                    ? <input value={editAssignee} onChange={e => setEditAssignee(e.target.value)} placeholder="负责人" style={{ ...inputStyle, width: '100%' }} />
+                    : <div style={{ fontSize: 13 }}>{modal.assignee || '-'}</div>
+                  }
+                </div>
+                <div>
+                  <div style={labelStyle}>优先级</div>
+                  {editing
+                    ? <select value={editPriority} onChange={e => setEditPriority(e.target.value as 'P0' | 'P1' | 'P2')} style={{ ...selectStyle, width: '100%' }}>
+                        <option value="P0">P0 紧急</option><option value="P1">P1 重要</option><option value="P2">P2 一般</option>
+                      </select>
+                    : <div style={{ fontSize: 13 }}>{STATUS_LABELS[modal.status]}</div>
+                  }
+                </div>
+                <div>
+                  <div style={labelStyle}>截止日期</div>
+                  {editing
+                    ? <input type="date" value={editDueDate} onChange={e => setEditDueDate(e.target.value)} style={{ ...inputStyle, width: '100%' }} />
+                    : <div style={{ fontSize: 13, color: modal.due_date && daysUntil(modal.due_date)! < 0 && modal.status !== 'done' ? t.sem.red : modal.status === 'done' ? t.sem.green : t.text }}>{modal.due_date || '-'}</div>
+                  }
+                </div>
+                <div>
+                  <div style={labelStyle}>{editing ? '状态' : '创建时间'}</div>
+                  {editing
+                    ? <div style={{ fontSize: 13, color: t.textSub }}>{STATUS_LABELS[modal.status]} <span style={{ color: t.textMuted }}>(在看板拖拽切换)</span></div>
+                    : <div style={{ fontSize: 13 }}>{modal.created_at?.slice(0, 16).replace('T', ' ') || '-'}</div>
+                  }
+                </div>
               </div>
 
               {/* AI 分配结果 */}
@@ -414,9 +486,20 @@ export default function ProjectTodos({ variant = 'legacy' }: { variant?: Variant
               )}
             </div>
             <div style={{ display: 'flex', gap: 10, padding: '16px 24px 20px', borderTop: `1px solid ${t.divider}` }}>
-              {modal.status !== 'done' && <button onClick={() => { patchMut.mutate({ id: modal.id, body: { status: 'done' } }); setModal(null) }} style={{ flex: 1, padding: 10, borderRadius: 10, background: BRAND_GRAD, color: 'white', border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><CheckCircle2 size={14} /> 完成</button>}
-              {modal.meeting_id && <button onClick={() => smartMut.mutate(modal.id)} disabled={smartMut.isPending} style={{ flex: 1, padding: 10, borderRadius: 10, background: `${t.sem.blue}14`, color: t.sem.blue, border: `1px solid ${t.sem.blue}33`, fontSize: 13, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>{smartMut.isPending ? '分析中…' : <><Bot size={14} /> AI 分配</>}</button>}
-              <button onClick={() => deleteMut.mutate(modal.id)} style={{ flex: 1, padding: 10, borderRadius: 10, background: `${t.sem.red}14`, color: t.sem.red, border: `1px solid ${t.sem.red}33`, fontSize: 13, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><Trash2 size={14} /> 删除</button>
+              {editing ? (
+                <>
+                  <button onClick={() => setEditing(false)} style={{ flex: 1, padding: 10, borderRadius: 10, background: t.inputBg, color: t.text, border: `1px solid ${t.inputBorder}`, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>取消</button>
+                  <button onClick={saveEdit} disabled={!editContent.trim() || patchMut.isPending} style={{ flex: 2, padding: 10, borderRadius: 10, background: BRAND_GRAD, color: 'white', border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', opacity: !editContent.trim() ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                    {patchMut.isPending ? <><Loader2 size={14} className="animate-spin" /> 保存中…</> : <><Save size={14} /> 保存</>}
+                  </button>
+                </>
+              ) : (
+                <>
+                  {modal.status !== 'done' && <button onClick={() => { patchMut.mutate({ id: modal.id, body: { status: 'done' } }); setModal(null) }} style={{ flex: 1, padding: 10, borderRadius: 10, background: BRAND_GRAD, color: 'white', border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><CheckCircle2 size={14} /> 完成</button>}
+                  {modal.meeting_id && <button onClick={() => smartMut.mutate(modal.id)} disabled={smartMut.isPending} style={{ flex: 1, padding: 10, borderRadius: 10, background: `${t.sem.blue}14`, color: t.sem.blue, border: `1px solid ${t.sem.blue}33`, fontSize: 13, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>{smartMut.isPending ? '分析中…' : <><Bot size={14} /> AI 分配</>}</button>}
+                  <button onClick={() => deleteMut.mutate(modal.id)} style={{ flex: 1, padding: 10, borderRadius: 10, background: `${t.sem.red}14`, color: t.sem.red, border: `1px solid ${t.sem.red}33`, fontSize: 13, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><Trash2 size={14} /> 删除</button>
+                </>
+              )}
             </div>
           </div>
         </div>

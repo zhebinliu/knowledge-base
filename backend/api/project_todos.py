@@ -206,23 +206,46 @@ async def sync_todos_for_project(project_id: str, session: AsyncSession) -> dict
 
 # ── 回写会议纪要 ─────────────────────────────────────────────────────
 
-async def _write_back_to_meeting(todo: ProjectTodo, session: AsyncSession) -> None:
-    """将待办状态变更回写到源会议 meeting_minutes.action_items。"""
+# action_items 中字段反向映射:与 sync_todos_for_meeting 保持对称,
+# 这样回写后再次 sync 也能用 (meeting_id, content) 命中幂等键
+_STATUS_TO_ZH = {"pending": "待办", "doing": "进行中", "done": "已完成"}
+_PRIORITY_TO_RAW = {"P0": "high", "P1": "medium", "P2": "low"}
+
+
+async def _write_back_to_meeting(
+    todo: ProjectTodo,
+    session: AsyncSession,
+    *,
+    match_content: str | None = None,
+) -> None:
+    """将待办变更(content / assignee / due_date / priority / status)回写到源会议 meeting_minutes.action_items。
+
+    match_content: 用于在 action_items 里定位条目的 task 字符串。
+    当用户编辑了 content 时,调用方必须传入**旧的** content,否则会匹配不到。
+    不传则用 todo.content(适用于只改状态等场景)。
+    """
     if not todo.meeting_id:
         return
     m = await session.get(Meeting, todo.meeting_id)
     if not m or not m.meeting_minutes:
         return
 
+    key = (match_content if match_content is not None else todo.content).strip()
     mt = dict(m.meeting_minutes)
     items = mt.get("action_items") or []
-    status_map = {"pending": "待办", "doing": "进行中", "done": "已完成"}
     changed = False
     for item in items:
-        if isinstance(item, dict) and (item.get("task") or "").strip() == todo.content:
-            item["status"] = status_map.get(todo.status, todo.status)
-            changed = True
-            break
+        if not isinstance(item, dict):
+            continue
+        if (item.get("task") or "").strip() != key:
+            continue
+        item["task"] = todo.content
+        item["owner"] = todo.assignee or ""
+        item["deadline"] = todo.due_date.isoformat() if todo.due_date else ""
+        item["priority"] = _PRIORITY_TO_RAW.get(todo.priority, "medium")
+        item["status"] = _STATUS_TO_ZH.get(todo.status, todo.status)
+        changed = True
+        break
     if changed:
         m.meeting_minutes = mt
         await session.commit()
@@ -356,7 +379,14 @@ async def patch_todo(
     if not todo:
         raise HTTPException(404, "待办不存在")
 
-    status_changed = False
+    # 快照旧值:回写会议纪要时用旧 content 匹配 action_item;
+    # 任一可写字段变化都需要触发回写,因此这里也快照其他字段做对比
+    old_content = todo.content
+    old_assignee = todo.assignee
+    old_due_date = todo.due_date
+    old_priority = todo.priority
+    old_status = todo.status
+
     if body.content is not None:
         todo.content = body.content
     if body.assignee is not None:
@@ -381,8 +411,6 @@ async def patch_todo(
             blocker = await session.get(ProjectTodo, todo.blocked_by)
             if blocker and blocker.status != "done":
                 raise HTTPException(400, f"此待办被「{blocker.content}」阻塞，请先完成前置待办")
-        if body.status != todo.status:
-            status_changed = True
         todo.status = body.status
     if body.note is not None:
         todo.note = body.note
@@ -398,9 +426,15 @@ async def patch_todo(
     todo.updated_at = datetime.utcnow()
     await session.commit()
 
-    # 状态变更时回写会议纪要
-    if status_changed:
-        await _write_back_to_meeting(todo, session)
+    # 任一可写字段变化都回写会议纪要,保住 sync 幂等键
+    if (
+        todo.content != old_content
+        or todo.assignee != old_assignee
+        or todo.due_date != old_due_date
+        or todo.priority != old_priority
+        or todo.status != old_status
+    ):
+        await _write_back_to_meeting(todo, session, match_content=old_content)
 
     await session.refresh(todo)
     return _todo_dto(todo)
@@ -425,7 +459,9 @@ async def batch_patch_todos(
     )).all()
 
     updated = 0
+    dirty: list[ProjectTodo] = []
     for todo in todos:
+        changed = False
         if body.status:
             if body.status not in ("pending", "doing", "done"):
                 continue
@@ -434,16 +470,26 @@ async def batch_patch_todos(
                 blocker = await session.get(ProjectTodo, todo.blocked_by)
                 if blocker and blocker.status != "done":
                     continue
-            todo.status = body.status
-        if body.assignee is not None:
+            if todo.status != body.status:
+                todo.status = body.status
+                changed = True
+        if body.assignee is not None and todo.assignee != body.assignee:
             todo.assignee = body.assignee
-        if body.priority:
-            if body.priority in ("P0", "P1", "P2"):
-                todo.priority = body.priority
+            changed = True
+        if body.priority and body.priority in ("P0", "P1", "P2") and todo.priority != body.priority:
+            todo.priority = body.priority
+            changed = True
         todo.updated_at = datetime.utcnow()
         updated += 1
+        if changed and todo.meeting_id:
+            dirty.append(todo)
 
     await session.commit()
+
+    # 批量改完后回写会议纪要(batch 不改 content,直接用当前 content 匹配即可)
+    for todo in dirty:
+        await _write_back_to_meeting(todo, session)
+
     return {"updated": updated}
 
 
