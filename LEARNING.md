@@ -861,3 +861,72 @@ https://platform.minimaxi.com 申请),配在独立环境变量 `MINIMAX_NATIVE_A
 - V2:存原版 + 修订版整对,按相似度检索做 few-shot
 - V2:接 embedding,跨 kind 但语义相关的 memory 也能召回
 - V2:加自动评估 — 注入 memory 前后生成质量打分对比
+
+---
+
+### 14. new-api 默认丢 OpenAI SDK 的扩展字段 → prompt cache 静默失效(2026-06-11)
+
+【现象】aihub 上一个用户(tingya)用 OpenAI Python SDK 调 `claude-sonnet-4-6`,system prompt
+固定 54K tokens(纷享销客 APL 文档),5 小时跑 1576 次,烧 3.6M tokens / ~$11。本来开 prompt cache
+后续应该 90% 折扣,实际**没有任何缓存命中** —— 月度估算少省 $120+。
+
+【排查路径】不是猜,是用旁路 tap 拿到完整 req+resp 反查:
+
+1. 请求体里 grep `cache_control` → **有**,客户端代码确实写了 `cache_control: {type: "ephemeral"}`,
+   位置也对(在最后一个 content block 上)
+2. 响应 SSE 流里看 `usage.prompt_tokens_details.cached_tokens` → **0**
+3. 响应里 `claude_cache_creation_5_m_tokens` → **0**
+4. 结论:**客户端发出去时有,Anthropic 收到时没有** —— 字段在 new-api 中间层被吃掉了
+
+【真因】new-api 的 OpenAI → Anthropic 协议转换默认**只识别标准字段**,扩展字段(包括
+`cache_control`、`metadata`、Anthropic 私有的 `system` 数组结构等)被解构 + 重组的过程里直接
+丢掉。每个渠道有个 `setting.pass_through_body_enabled` 控制要不要原样透传请求体,**默认 false**。
+
+【修复】
+
+```sql
+-- 对 Anthropic 直连渠道(type=14)开启原样透传
+UPDATE channels SET setting = jsonb_set(
+  setting::jsonb, '{pass_through_body_enabled}', 'true'
+) WHERE id = <CLAUDE 渠道 id>;
+-- 然后 docker restart new-api(options/setting 不会热加载)
+```
+
+UI 路径:渠道编辑 → 高级设置 → 「请求体原样透传」开关。
+
+【为什么不全部渠道一刀切开】**火山方舟 coding plan 渠道(type=14 但 base_url=`doubao-coding-plan`)
+不能开**。它走的是 new-api 内置的 `volcengine` adaptor,该 adaptor 用了 `ChannelSpecialBases` map
+做协议路径改写(把 OpenAI 协议转成 Anthropic 协议打到 `/api/coding/v1/messages`)。开原样透传
+会绕过这层改写,直接发 OpenAI 格式过去 → 404。
+
+只对**纯 Anthropic 直连渠道**开,其它带协议改写的渠道(火山 / Moonshot Kimi coding-plan 等)
+保持 false。
+
+【检测方法 — 怎么知道有没有真的开 cache】
+
+监控视角:看响应 usage 里的两个字段
+- `usage.prompt_tokens_details.cached_tokens > 0` → 缓存命中(省钱)
+- `usage.claude_cache_creation_5_m_tokens > 0` → 缓存首次写入
+
+请求视角:logs/tap.jsonl 里 grep `cache_control`,有就是客户端写了 ↔ 看响应 cached_tokens 是不是 0
+
+排错三步走:
+1. 请求里**没有** `cache_control` → 客户端没写,让用户自己加
+2. 请求里**有**但响应 cached/creation 都是 0 → new-api 透传开关没开,改 setting
+3. 请求有 + 响应 cached > 0 但创建是 0 → 缓存还在 5 分钟 TTL 内,这是正常命中
+
+【关键文件】
+- `new-api/relay/channel/volcengine/adaptor.go` — 火山渠道用 ChannelSpecialBases 改写路径,
+  跟 `pass_through_body_enabled` 互斥,不能同时开
+- new-api 数据库 `channels.setting` 字段(text 存 JSON,值如 `{"pass_through_body_enabled":true,...}`)
+
+【方法学】**LLM 网关 protocol translation 默认丢数据,要旁路抓 raw body 才能定位**。
+
+`pass_through_body_enabled` 这种"小开关"在 UI 上很容易被忽略,默认值还反人类(应该默认 true)。
+以后接入任何带协议转换的 gateway,**第一件事**:旁路抓一次 req+resp,对比客户端发出去 / 上游
+收到的字段差异,确认转换层没静默 drop 扩展字段。Cache / metadata / safety_settings / tools 这
+些 Anthropic 私有字段都是高危区。
+
+【实战工具】`/opt/aihub-tap/` 这套 Go tee-proxy(80 行)能在 nginx 和 new-api 之间录全部
+`/v1/*` 的请求体+响应体(含 SSE 流),写 jsonl。是这种问题的标准抓手。详见
+`aihub-tap/main.go` 和 `aihub-tap/docker-compose.yml`。

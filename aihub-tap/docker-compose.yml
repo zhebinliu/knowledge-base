@@ -1,0 +1,31 @@
+# aihub-tap — 透明记录代理
+#
+# 部署: cd /opt/aihub-tap && sudo docker compose up -d
+# 改代码: 改完 main.go 后 docker compose restart aihub-tap(go run 会重编)
+# 日志: tail -f /opt/aihub-tap/logs/tap.jsonl
+
+services:
+  aihub-tap:
+    image: golang:1.22-alpine
+    container_name: aihub-tap
+    restart: always
+    working_dir: /app
+    volumes:
+      - ./main.go:/app/main.go:ro
+      - ./logs:/logs
+    environment:
+      - GOPROXY=https://goproxy.cn,direct
+      - GOCACHE=/tmp/gocache
+    networks:
+      - kb-system_default
+    command: ["go", "run", "main.go"]
+    healthcheck:
+      # 没有 wget 在 alpine,用 nc(默认有)
+      test: ["CMD-SHELL", "nc -z localhost 8080 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  kb-system_default:
+    external: true
