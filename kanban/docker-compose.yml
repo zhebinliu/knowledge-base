@@ -1,0 +1,77 @@
+# kanban.tokenwave.cloud — Planka 看板(开源 Trello 替代,Fair Use License,内部使用免费)
+#
+# 独立 compose,不进主 docker-compose.yml(边界隔离:独立 postgres 实例,
+# 数据库 schema 跟 kb-system 零耦合)。入口由主 frontend 容器 nginx 持证反代,
+# 模式同 aihub/new-api,见 frontend/nginx.prod.conf 的 KANBAN 段。
+#
+# 部署(同 aihub-tap 模式,本目录 rsync 到服务器 /opt/kanban):
+#   rsync -avz -e "ssh -i ~/.ssh/id_rsa_github_deploy" kanban/ liu@34.67.136.67:/tmp/kanban/ \
+#     && ssh ... 'sudo rsync -a /tmp/kanban/ /opt/kanban/ && cd /opt/kanban && sudo docker compose up -d'
+#   首次部署前先在服务器 /opt/kanban/.env 配密钥(见 .env.example)。
+#
+# 升级:cd /opt/kanban && sudo docker compose pull && sudo docker compose up -d
+# 数据:docker volume kanban_data(附件/头像等)+ kanban_db-data(PG)
+
+name: kanban
+
+services:
+  planka:
+    image: ghcr.io/plankanban/planka:latest
+    # container_name 即 nginx 反代用的 DNS 名(在 kb-system_default 网络里解析)
+    container_name: planka
+    restart: unless-stopped
+    mem_limit: 512m
+    volumes:
+      - data:/app/data
+    environment:
+      - TZ=Asia/Shanghai
+      - BASE_URL=https://kanban.tokenwave.cloud
+      # PG 主机名用 kanban-postgres 而不是 postgres:planka 同时挂在 kb-system_default
+      # 网络上,那边已有 kb-system 的 postgres 别名,叫 postgres 会解析歧义连错库
+      - DATABASE_URL=postgresql://postgres@kanban-postgres/planka
+      - SECRET_KEY=${SECRET_KEY:?在 /opt/kanban/.env 里配 SECRET_KEY}
+      # 在 nginx 反代后面,信任 X-Forwarded-* 头
+      - TRUST_PROXY=true
+      - DEFAULT_LANGUAGE=zh-CN
+      # 首次启动自动建管理员;之后改密码/邮箱在 UI 里操作
+      - DEFAULT_ADMIN_EMAIL=${ADMIN_EMAIL:?在 /opt/kanban/.env 里配 ADMIN_EMAIL}
+      - DEFAULT_ADMIN_PASSWORD=${ADMIN_PASSWORD:?在 /opt/kanban/.env 里配 ADMIN_PASSWORD}
+      - DEFAULT_ADMIN_NAME=${ADMIN_NAME:-管理员}
+      - DEFAULT_ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+    networks:
+      - default
+      - kb-system_default
+    depends_on:
+      kanban-postgres:
+        condition: service_healthy
+
+  kanban-postgres:
+    image: postgres:16-alpine
+    container_name: kanban-postgres
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      - TZ=Asia/Shanghai
+      - POSTGRES_DB=planka
+      # 只在 kanban 内网可达(不挂 kb-system_default、不发布端口),trust 可接受
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d planka"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  # kanban 内网(planka ↔ kanban-postgres)
+  default: {}
+  # 接入主栈网络,让 frontend 容器的 nginx 能反代 planka:1337
+  kb-system_default:
+    external: true
+
+volumes:
+  data:
+  db-data:

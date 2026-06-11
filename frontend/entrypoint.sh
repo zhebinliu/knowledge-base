@@ -37,6 +37,7 @@ trim_site() {
 
 trim_site skillhub.tokenwave.cloud SKILLHUB
 trim_site aihub.tokenwave.cloud AIHUB
+trim_site kanban.tokenwave.cloud KANBAN
 
 nginx -t
 exec nginx -g 'daemon off;'
