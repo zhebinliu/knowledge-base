@@ -4,7 +4,7 @@
 # 每次启动都从模板重新生成 /etc/nginx/conf.d/default.conf,然后按证书存在与否裁剪:
 #   - <SITE>_HTTPS 段:证书不存在 → 整段剥掉
 #   - <SITE>_REDIRECT 段:证书存在 → 替换成 301(HTTP → HTTPS)
-# 目前支持的 SITE:skillhub.tokenwave.cloud / aihub.tokenwave.cloud
+# 目前支持的 SITE:skillhub.tokenwave.cloud / aihub.tokenwave.cloud / kanban.tokenwave.cloud
 set -e
 
 TPL=/etc/nginx/templates/default.conf.tpl

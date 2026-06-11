@@ -1013,3 +1013,27 @@ curl -k -I https://uat.tokenwave.cloud/health    # UAT 仍 200
 登录 smoke:先 `GET /auth/get-csrf-token/`,再带 cookie 和 `X-CSRFToken` POST
 `/auth/sign-in/`;管理员后台 POST `/api/instances/admins/sign-in/` 应 302 到
 `/god-mode/general/` 并设置 `admin-session-id`。
+
+【默认语言改中文】Plane v1.3.1 后端 `Profile.language` 模型默认值硬编码为 `en`,前端启动时还会
+优先读浏览器 `localStorage.userLanguage`;因此只改数据库不够。当前做法分两层:
+
+```sql
+UPDATE profiles SET language = 'zh-CN' WHERE language IS DISTINCT FROM 'zh-CN';
+ALTER TABLE profiles ALTER COLUMN language SET DEFAULT 'zh-CN';
+CREATE OR REPLACE FUNCTION set_default_profile_language_zh_cn()
+RETURNS trigger AS $func$
+BEGIN
+  IF NEW.language IS NULL OR NEW.language = '' OR NEW.language = 'en' THEN
+    NEW.language := 'zh-CN';
+  END IF;
+  RETURN NEW;
+END;
+$func$ LANGUAGE plpgsql;
+CREATE TRIGGER trg_default_profile_language_zh_cn
+BEFORE INSERT ON profiles
+FOR EACH ROW EXECUTE FUNCTION set_default_profile_language_zh_cn();
+```
+
+同时在 `frontend/nginx.prod.conf` 的 kanban 反代里用 `sub_filter` 给 HTML 注入一次性
+`localStorage` 种子:`userLanguage=zh-CN`。注意要清掉上游压缩头:
+`proxy_set_header Accept-Encoding "";`,否则压缩 HTML 不会被替换。
