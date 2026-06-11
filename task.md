@@ -1,5 +1,50 @@
 # 任务跟踪
 
+## kanban.tokenwave.cloud 恢复访问 + 管理员账号定位(2026-06-11)
+
+### 目标
+1. 恢复 `https://kanban.tokenwave.cloud/` 可访问。
+2. 从服务器已有配置 / 数据库中定位管理员用户名；如无法读出明文密码，则按应用机制重置或创建可登录管理员。
+
+### 边界
+- 不改 KB 主系统业务代码。
+- 不删除远程数据卷 / 数据库。
+- 优先复用服务器上的 `/opt/kanban` compose 与现有 nginx 反代配置。
+
+### 验收
+- `curl -I https://kanban.tokenwave.cloud/` 返回可用 HTTP 状态。
+- 远程 `docker compose ps` 中 kanban 相关服务健康或正常运行。
+- 给出可登录的管理员用户名 / 密码处理结果。
+
+### 子任务
+- [x] A. 确认 DNS / HTTPS / nginx 反代当前故障点。
+  - DNS 指向 `34.67.136.67`;主 nginx 返回 502。
+  - 第一层故障:`/opt/kanban` compose 未启动。
+  - 第二层故障:Plane proxy(Caddy)因 `CERT_ACME_CA` 空 env 重启。
+  - 第三层故障:运行中 frontend nginx 仍指旧 `planka:1337` upstream。
+- [x] B. 检查并启动远程 `/opt/kanban` 服务。
+  - 执行 `cd /opt/kanban && sudo docker compose up -d` 拉起 Plane v1.3.1 全家桶。
+  - 修 `/opt/kanban/.env`:补 `WEB_URL/APP_DOMAIN/CORS_ALLOWED_ORIGINS/SITE_ADDRESS/CERT_ACME_CA`。
+  - 同步本地 `kanban/docker-compose.yml` 默认值,避免下次空 env 复发。
+- [x] C. 查看 kanban 应用类型与数据库结构，定位管理员账号。
+  - 当前看板是 Plane,不是旧 Planka。
+  - 数据库初始为空;`/opt/kanban/.env` 里有管理员账号记录,但 Plane v1.3.1 不会自动消费。
+- [x] D. 如无可用明文密码，执行安全重置 / 创建管理员并验证登录。
+  - 用 `createsuperuser --noinput` 创建管理员用户。
+  - 用 `create_instance_admin` 加入 `instance_admins`。
+  - 补 `Profile` + `instances.is_setup_done=true` 等初始化标志。
+  - 登录 smoke 通过:`/auth/sign-in/` 设置 `session-id`;`/api/instances/admins/sign-in/` 302 到 `/god-mode/general/` 并设置 `admin-session-id`。
+- [x] E. 更新文档中 kanban 服务的实际恢复方式与踩坑。
+  - `CLAUDE.md`:Planka → Plane,upstream `plane-proxy:80`。
+  - `PROJECT_OVERVIEW.md`:补 Plane 独立栈拓扑。
+  - `LEARNING.md §15`:沉淀 Caddy 空 env / nginx upstream / Plane 管理员初始化坑。
+
+### 验收记录
+- `curl -k -I https://kanban.tokenwave.cloud/` → HTTP/2 200,`Via: Caddy`。
+- `curl -k -I https://kb.tokenwave.cloud/health` → HTTP/2 200。
+- `curl -k -I https://uat.tokenwave.cloud/health` → HTTP/2 200。
+- `docker compose ps`:kanban `web/admin/space/proxy` 正常,主栈 `frontend/backend/frontend-uat` 正常。
+
 ## 修订版学习 — AI 从用户修订中持续进化(2026-06-08)
 
 > 决策已拍板:**全局 + bundle kind** scope / **LLM 抽自然语言笔记** / **注入 system prompt 顶部** / **可见 + 可一键停用**

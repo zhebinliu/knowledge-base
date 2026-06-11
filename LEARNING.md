@@ -930,3 +930,86 @@ UI 路径:渠道编辑 → 高级设置 → 「请求体原样透传」开关。
 【实战工具】`/opt/aihub-tap/` 这套 Go tee-proxy(80 行)能在 nginx 和 new-api 之间录全部
 `/v1/*` 的请求体+响应体(含 SSE 流),写 jsonl。是这种问题的标准抓手。详见
 `aihub-tap/main.go` 和 `aihub-tap/docker-compose.yml`。
+
+---
+
+### 15. kanban.tokenwave.cloud / Plane 首次启动三连坑(2026-06-11)
+
+【现象】`https://kanban.tokenwave.cloud/` 返回 502。DNS 正确指向 `34.67.136.67`,主 nginx 能接请求。
+
+【真因 1:Plane 栈没起】`/opt/kanban` 目录存在,但 `cd /opt/kanban && sudo docker compose ps`
+为空。直接 `sudo docker compose up -d` 会拉 Plane v1.3.1 全家桶。
+
+【真因 2:Caddy 空 env 覆盖默认值】Plane proxy 的 Caddyfile 写的是:
+
+```caddyfile
+acme_ca {$CERT_ACME_CA:https://acme-v02.api.letsencrypt.org/directory}
+```
+
+但 compose 里如果写 `CERT_ACME_CA: ${CERT_ACME_CA}`,而 `.env` 没有值,Docker Compose 会把
+空字符串传进容器,导致 Caddy 默认值不生效,报:
+
+```text
+wrong argument count or unexpected line ending after 'acme_ca'
+```
+
+【做法】compose 里必须给非空默认:
+
+```yaml
+CERT_ACME_CA: ${CERT_ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}
+WEB_URL: ${WEB_URL:-https://kanban.tokenwave.cloud}
+APP_DOMAIN: ${APP_DOMAIN:-kanban.tokenwave.cloud}
+CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://kanban.tokenwave.cloud}
+SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+```
+
+【真因 3:主 nginx 仍指旧 Planka upstream】Plane 迁移后,`frontend/nginx.prod.conf` 必须反代
+`plane-proxy:80`,不能再是 `planka:1337`。运行中验证:
+
+```bash
+sudo docker compose exec -T frontend sh -c \
+  'grep -R "kanban_upstream\|plane-proxy\|planka:1337" /etc/nginx/conf.d/default.conf'
+sudo docker compose exec -T frontend wget -S -O- http://plane-proxy/ | head
+```
+
+【首次初始化 Plane 管理员】Plane v1.3.1 不会自动消费 `/opt/kanban/.env` 里的
+`ADMIN_EMAIL/ADMIN_PASSWORD`。空库首次启动后需要:
+
+```bash
+cd /opt/kanban
+sudo docker compose exec -T -e DJANGO_SUPERUSER_PASSWORD='<密码>' \
+  api python manage.py createsuperuser --email '<邮箱>' --username admin --noinput
+sudo docker compose exec -T api python manage.py create_instance_admin '<邮箱>'
+```
+
+如果绕过 Web 首次注册创建管理员,还要补 `Profile` 和实例 setup 标志,否则登录会跳回
+`INSTANCE_NOT_CONFIGURED`:
+
+```python
+from django.contrib.auth import get_user_model
+from plane.license.models import Instance, InstanceAdmin
+from plane.db.models import Profile
+U = get_user_model()
+u = U.objects.get(email="<邮箱>")
+Profile.objects.get_or_create(user=u, defaults={"company_name": "纷享销客"})
+Instance.objects.all().update(
+    is_setup_done=True,
+    is_signup_screen_visited=True,
+    is_verified=True,
+    domain="kanban.tokenwave.cloud",
+    instance_name="纷享销客团队看板",
+)
+InstanceAdmin.objects.filter(user=u).update(is_verified=True)
+```
+
+【验证】
+
+```bash
+curl -k -I https://kanban.tokenwave.cloud/       # 200,Via: Caddy
+curl -k -I https://kb.tokenwave.cloud/health     # 主站仍 200
+curl -k -I https://uat.tokenwave.cloud/health    # UAT 仍 200
+```
+
+登录 smoke:先 `GET /auth/get-csrf-token/`,再带 cookie 和 `X-CSRFToken` POST
+`/auth/sign-in/`;管理员后台 POST `/api/instances/admins/sign-in/` 应 302 到
+`/god-mode/general/` 并设置 `admin-session-id`。

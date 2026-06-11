@@ -1,77 +1,249 @@
-# kanban.tokenwave.cloud — Planka 看板(开源 Trello 替代,Fair Use License,内部使用免费)
+# kanban.tokenwave.cloud — Plane(开源 Jira/Linear 替代)自托管全家桶
 #
-# 独立 compose,不进主 docker-compose.yml(边界隔离:独立 postgres 实例,
-# 数据库 schema 跟 kb-system 零耦合)。入口由主 frontend 容器 nginx 持证反代,
-# 模式同 aihub/new-api,见 frontend/nginx.prod.conf 的 KANBAN 段。
+# 基于官方 v1.3.1 自托管 compose 改造(原始版:
+#   https://github.com/makeplane/plane/releases/download/v1.3.1/docker-compose.yml)
+# 改造点(升级时对照官方重新套用):
+#   1. proxy(Caddy)不再抢宿主 80/443 —— 去掉 ports,接入主栈网络 kb-system_default
+#      给别名 plane-proxy,由主 frontend 容器 nginx 持证反代(模式同 aihub/skillhub)。
+#      CERT_EMAIL 留空 → Caddy 不申请证书,纯 HTTP 监听,TLS 全交给主 nginx。
+#   2. 每个服务加 mem_limit —— 这台机器无 swap,13 服务全家桶要防 OOM 连累 kb 生产。
+#   3. 每个服务加 restart: unless-stopped —— 官方用 deploy.restart_policy,非 swarm 的
+#      docker compose 会忽略它,必须显式 restart 才会开机/异常自启。
+#   4. 后端 db/redis/mq/minio 不发布宿主端口,纯 kanban 内网,沿用官方默认凭证。
 #
-# 部署(同 aihub-tap 模式,本目录 rsync 到服务器 /opt/kanban):
-#   rsync -avz -e "ssh -i ~/.ssh/id_rsa_github_deploy" kanban/ liu@34.67.136.67:/tmp/kanban/ \
-#     && ssh ... 'sudo rsync -a /tmp/kanban/ /opt/kanban/ && cd /opt/kanban && sudo docker compose up -d'
-#   首次部署前先在服务器 /opt/kanban/.env 配密钥(见 .env.example)。
-#
-# 升级:cd /opt/kanban && sudo docker compose pull && sudo docker compose up -d
-# 数据:docker volume kanban_data(附件/头像等)+ kanban_db-data(PG)
+# 部署:本目录 rsync 到服务器 /opt/kanban,配好 .env(见 .env.example)后
+#   cd /opt/kanban && sudo docker compose up -d
+# 升级:改 .env 的 APP_RELEASE → sudo docker compose pull && sudo docker compose up -d
 
 name: kanban
 
-services:
-  planka:
-    image: ghcr.io/plankanban/planka:latest
-    # container_name 即 nginx 反代用的 DNS 名(在 kb-system_default 网络里解析)
-    container_name: planka
-    restart: unless-stopped
-    mem_limit: 512m
-    volumes:
-      - data:/app/data
-    environment:
-      - TZ=Asia/Shanghai
-      - BASE_URL=https://kanban.tokenwave.cloud
-      # PG 主机名用 kanban-postgres 而不是 postgres:planka 同时挂在 kb-system_default
-      # 网络上,那边已有 kb-system 的 postgres 别名,叫 postgres 会解析歧义连错库
-      - DATABASE_URL=postgresql://postgres@kanban-postgres/planka
-      - SECRET_KEY=${SECRET_KEY:?在 /opt/kanban/.env 里配 SECRET_KEY}
-      # 在 nginx 反代后面,信任 X-Forwarded-* 头
-      - TRUST_PROXY=true
-      - DEFAULT_LANGUAGE=zh-CN
-      # 首次启动自动建管理员;之后改密码/邮箱在 UI 里操作
-      - DEFAULT_ADMIN_EMAIL=${ADMIN_EMAIL:?在 /opt/kanban/.env 里配 ADMIN_EMAIL}
-      - DEFAULT_ADMIN_PASSWORD=${ADMIN_PASSWORD:?在 /opt/kanban/.env 里配 ADMIN_PASSWORD}
-      - DEFAULT_ADMIN_NAME=${ADMIN_NAME:-管理员}
-      - DEFAULT_ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
-    networks:
-      - default
-      - kb-system_default
-    depends_on:
-      kanban-postgres:
-        condition: service_healthy
+x-db-env: &db-env
+  PGHOST: ${PGHOST:-plane-db}
+  PGDATABASE: ${PGDATABASE:-plane}
+  POSTGRES_USER: ${POSTGRES_USER:-plane}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plane}
+  POSTGRES_DB: ${POSTGRES_DB:-plane}
+  POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+  PGDATA: ${PGDATA:-/var/lib/postgresql/data}
 
-  kanban-postgres:
-    image: postgres:16-alpine
-    container_name: kanban-postgres
+x-redis-env: &redis-env
+  REDIS_HOST: ${REDIS_HOST:-plane-redis}
+  REDIS_PORT: ${REDIS_PORT:-6379}
+  REDIS_URL: ${REDIS_URL:-redis://plane-redis:6379/}
+
+x-minio-env: &minio-env
+  MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID:-access-key}
+  MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY:-secret-key}
+
+x-aws-s3-env: &aws-s3-env
+  AWS_REGION: ${AWS_REGION:-}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-access-key}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-secret-key}
+  AWS_S3_ENDPOINT_URL: ${AWS_S3_ENDPOINT_URL:-http://plane-minio:9000}
+  AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME:-uploads}
+
+x-proxy-env: &proxy-env
+  APP_DOMAIN: ${APP_DOMAIN:-kanban.tokenwave.cloud}
+  FILE_SIZE_LIMIT: ${FILE_SIZE_LIMIT:-5242880}
+  CERT_EMAIL: ${CERT_EMAIL:-}
+  CERT_ACME_CA: ${CERT_ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}
+  CERT_ACME_DNS: ${CERT_ACME_DNS:-}
+  LISTEN_HTTP_PORT: ${LISTEN_HTTP_PORT:-80}
+  LISTEN_HTTPS_PORT: ${LISTEN_HTTPS_PORT:-443}
+  BUCKET_NAME: ${AWS_S3_BUCKET_NAME:-uploads}
+  SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+
+x-mq-env: &mq-env
+  RABBITMQ_HOST: ${RABBITMQ_HOST:-plane-mq}
+  RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+  RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-plane}
+  RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-plane}
+  RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-plane}
+  RABBITMQ_VHOST: ${RABBITMQ_VHOST:-plane}
+
+x-live-env: &live-env
+  API_BASE_URL: ${API_BASE_URL:-http://api:8000}
+  LIVE_SERVER_SECRET_KEY: ${LIVE_SERVER_SECRET_KEY:-2FiJk1U2aiVPEQtzLehYGlTSnTnrs7LW}
+
+x-app-env: &app-env
+  WEB_URL: ${WEB_URL:-https://kanban.tokenwave.cloud}
+  DEBUG: ${DEBUG:-0}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://kanban.tokenwave.cloud}
+  GUNICORN_WORKERS: 1
+  USE_MINIO: ${USE_MINIO:-1}
+  DATABASE_URL: ${DATABASE_URL:-postgresql://plane:plane@plane-db/plane}
+  SECRET_KEY: ${SECRET_KEY:-60gp0byfz2dvffa45cxl20p1scy9xbpf6d8c5y0geejgkyp1b5}
+  AMQP_URL: ${AMQP_URL:-amqp://plane:plane@plane-mq:5672/plane}
+  API_KEY_RATE_LIMIT: ${API_KEY_RATE_LIMIT:-60/minute}
+  MINIO_ENDPOINT_SSL: ${MINIO_ENDPOINT_SSL:-0}
+  LIVE_SERVER_SECRET_KEY: ${LIVE_SERVER_SECRET_KEY:-2FiJk1U2aiVPEQtzLehYGlTSnTnrs7LW}
+  WEBHOOK_ALLOWED_IPS: ${WEBHOOK_ALLOWED_IPS:-}
+  WEBHOOK_ALLOWED_HOSTS: ${WEBHOOK_ALLOWED_HOSTS:-}
+
+services:
+  web:
+    image: makeplane/plane-frontend:${APP_RELEASE:-v1.3.1}
+    restart: unless-stopped
+    mem_limit: 384m
+    depends_on:
+      - api
+      - worker
+
+  space:
+    image: makeplane/plane-space:${APP_RELEASE:-v1.3.1}
+    restart: unless-stopped
+    mem_limit: 256m
+    depends_on:
+      - api
+      - worker
+      - web
+
+  admin:
+    image: makeplane/plane-admin:${APP_RELEASE:-v1.3.1}
+    restart: unless-stopped
+    mem_limit: 256m
+    depends_on:
+      - api
+      - web
+
+  live:
+    image: makeplane/plane-live:${APP_RELEASE:-v1.3.1}
     restart: unless-stopped
     mem_limit: 256m
     environment:
-      - TZ=Asia/Shanghai
-      - POSTGRES_DB=planka
-      # 只在 kanban 内网可达(不挂 kb-system_default、不发布端口),trust 可接受
-      - POSTGRES_HOST_AUTH_METHOD=trust
+      <<: [*live-env, *redis-env]
+    depends_on:
+      - api
+      - web
+
+  api:
+    image: makeplane/plane-backend:${APP_RELEASE:-v1.3.1}
+    command: ./bin/docker-entrypoint-api.sh
+    restart: unless-stopped
+    mem_limit: 640m
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - logs_api:/code/plane/logs
+    environment:
+      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
+    depends_on:
+      - plane-db
+      - plane-redis
+      - plane-mq
+
+  worker:
+    image: makeplane/plane-backend:${APP_RELEASE:-v1.3.1}
+    command: ./bin/docker-entrypoint-worker.sh
+    restart: unless-stopped
+    mem_limit: 512m
+    volumes:
+      - logs_worker:/code/plane/logs
+    environment:
+      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
+    depends_on:
+      - api
+      - plane-db
+      - plane-redis
+      - plane-mq
+
+  beat-worker:
+    image: makeplane/plane-backend:${APP_RELEASE:-v1.3.1}
+    command: ./bin/docker-entrypoint-beat.sh
+    restart: unless-stopped
+    mem_limit: 256m
+    volumes:
+      - logs_beat-worker:/code/plane/logs
+    environment:
+      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
+    depends_on:
+      - api
+      - plane-db
+      - plane-redis
+      - plane-mq
+
+  migrator:
+    image: makeplane/plane-backend:${APP_RELEASE:-v1.3.1}
+    command: ./bin/docker-entrypoint-migrator.sh
+    restart: on-failure
+    mem_limit: 512m
+    volumes:
+      - logs_migrator:/code/plane/logs
+    environment:
+      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
+    depends_on:
+      - plane-db
+      - plane-redis
+
+  plane-db:
+    image: postgres:15.7-alpine
+    command: postgres -c 'max_connections=1000'
+    restart: unless-stopped
+    mem_limit: 384m
+    environment:
+      <<: *db-env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  plane-redis:
+    image: valkey/valkey:7.2.11-alpine
+    restart: unless-stopped
+    mem_limit: 128m
+    volumes:
+      - redisdata:/data
+
+  plane-mq:
+    image: rabbitmq:3.13.6-management-alpine
+    restart: unless-stopped
+    mem_limit: 384m
+    environment:
+      <<: *mq-env
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  plane-minio:
+    image: minio/minio:latest
+    command: server /export --console-address ":9090"
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      <<: *minio-env
+    volumes:
+      - uploads:/export
+
+  # Caddy 反代 —— 改造:不抢宿主 80/443,接入主栈网络给别名 plane-proxy,纯 HTTP
+  proxy:
+    image: makeplane/plane-proxy:${APP_RELEASE:-v1.3.1}
+    restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      <<: *proxy-env
     networks:
-      - default
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d planka"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      default: {}
+      kb-shared:
+        aliases:
+          - plane-proxy
+    depends_on:
+      - web
+      - api
+      - space
+      - admin
+      - live
 
 networks:
-  # kanban 内网(planka ↔ kanban-postgres)
+  # kanban 内网(plane 各服务间通信)
   default: {}
-  # 接入主栈网络,让 frontend 容器的 nginx 能反代 planka:1337
-  kb-system_default:
+  # 主栈网络,让 frontend 容器 nginx 能反代 plane-proxy
+  kb-shared:
     external: true
+    name: kb-system_default
 
 volumes:
-  data:
-  db-data:
+  pgdata:
+  redisdata:
+  uploads:
+  logs_api:
+  logs_worker:
+  logs_beat-worker:
+  logs_migrator:
+  rabbitmq_data:
+  proxy_config:
+  proxy_data:

@@ -16,7 +16,7 @@
 - 生产域名: https://kb.liii.in（强制 HTTPS）
 - 备用域名: https://kb.tokenwave.cloud（同一服务器，独立证书）
 - **新前端预览**: https://uat.tokenwave.cloud — 深色 Liquid Glass 重构版,根 `/` 默认 302 到 `/redesign/console`。**同一服务器,独立证书,复用同一份 dist + 后端 + 数据。** 现在 `/redesign/*` 是 mock 数据状态,等逐页接 API 后即"可用的新前端"。
-- **团队看板**: https://kanban.tokenwave.cloud — Planka(开源 Trello 替代)。独立 compose `/opt/kanban`(源码在本仓 `kanban/`),独立 postgres,由主 frontend nginx 持证反代,模式同 aihub。
+- **团队看板**: https://kanban.tokenwave.cloud — Plane(开源 Jira/Linear 替代)。独立 compose `/opt/kanban`(源码在本仓 `kanban/`),独立 postgres/redis/rabbitmq/minio,由主 frontend nginx 持证反代到 `plane-proxy:80`,模式同 aihub。
 - 直连 IP: 34.67.136.67（80→301 跳 HTTPS）
 
 ## 部署
