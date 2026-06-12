@@ -1,5 +1,35 @@
 # 任务跟踪
 
+## 修复 convert 转写管线把空文档当成功入库的 bug(2026-06-12)
+
+> 现象:锐达仪表合同.pdf(doc_id 614c187b-5ea5-410d-9279-39122a72a12a)convert 被配成推理模型
+> minimax-m3 → 模型把 max_tokens 全烧在 `<think>` 推理上,返回 finish_reason=length + content 近空
+> → 旧代码把空 markdown 当成功 → 文档 completed,但 markdown_content 仅 2 字、0 切片、0 向量。
+
+### 真因
+1. `model_router.chat()` 拿到 200 响应即返回 content,不校验空 / finish_reason=length。
+2. `chat_with_routing()` 只在**抛异常**时回退;空响应(HTTP 200)不触发 fallback。
+3. `converter_agent._convert_one` 直接吃返回,空也照拼;`convert_task` 把空 markdown 入库 → completed。
+
+### 子任务
+- [x] A1 `model_router.chat()`:抓 finish_reason;加 `return_meta` / `retry_backoffs` 可选参,默认行为不变
+- [x] A2 `model_router`:`ModelOutputError` 异常 + `chat_with_routing(validator=...)` 带校验回退;
+      validator=None(所有现有调用方)行为零变化;主备都不过 → raise ModelOutputError
+- [x] A3 `converter_agent`:`ConversionError` + `_is_bad_conversion_output()`(空 / length 且产出<20%输入)
+      + `_convert_one` 用 validator;主备都失败 → ConversionError(带段号)
+- [x] A4 `converter_agent._refine_markdown_with_llm`:timeout 180→60、retry_backoffs=[](best-effort,
+      失败即回退草稿,绝不 ALONE 吃满 celery soft_time_limit=900)
+- [x] A5 `convert_task`:convert 返回后加 doc 级空 markdown 兜底 → ConversionError,绝不 completed 入库空文档
+- [x] B1 三个改动文件 import + 单测 `_is_bad_conversion_output` 各分支
+- [ ] B2 部署(GitHub Actions deploy-prod)
+- [ ] C1 DB `routing_rules / doc_markdown_convert` 复位 primary=minimax-m2.5(确认是否被改成 m3)
+- [ ] C2 重跑 doc 614c187b,确认转出非空 markdown + 切片 + 向量
+- [ ] C3 (可选)用 /opt/aihub-tap/logs/tap.jsonl 复盘 614c187b 真实 finish_reason/usage
+
+### 边界
+- 不改 convert 正常重试预算(只把空响应变成"快速 fallback");不动其它 task 的路由 / 模型。
+- validator 为 opt-in,默认 None 时 chat_with_routing 行为零变化。
+
 ## kanban.tokenwave.cloud 恢复访问 + 管理员账号定位(2026-06-11)
 
 ### 目标

@@ -10,6 +10,9 @@ from config import settings
 
 logger = structlog.get_logger()
 
+# 转换结果若 strip 后短于此字符数 → 判定为空文档,拒绝入库(标 failed,不 completed)
+_MIN_VALID_MARKDOWN_CHARS = 10
+
 celery_app = Celery("kb_tasks", broker=settings.redis_url, backend=settings.redis_url)
 
 
@@ -304,7 +307,7 @@ async def _process_document_async(doc_id: str):
     from models.document import Document
     from models.chunk import Chunk
     from models.review_queue import ReviewQueue
-    from agents.converter_agent import convert_to_markdown
+    from agents.converter_agent import convert_to_markdown, ConversionError
     from agents.slicer_agent import slice_and_classify
     from services.embedding_service import embedding_service
     from services.vector_store import vector_store
@@ -372,6 +375,14 @@ async def _process_document_async(doc_id: str):
                 heartbeat=_heartbeat,             # 让 converter 内部分段时也能写心跳
             )
             _convert_elapsed = time.time() - _t_convert_start
+
+            # 兜底:转换结果为空 / 近空 → 拒绝入库(否则文档 completed 但 0 切片 0 向量)。
+            # converter 段级 validator 已拦住绝大多数空响应,这里防 xlsx 空文件 / OCR 空结果等其它路径。
+            if not markdown or len(markdown.strip()) < _MIN_VALID_MARKDOWN_CHARS:
+                raise ConversionError(
+                    f"转换结果为空 markdown(仅 {len((markdown or '').strip())} 字,model={convert_model}),"
+                    "拒绝入库。疑似模型空响应/截断或源文件无可抽取内容。"
+                )
 
             # ── 脱敏 ────────────────────────────────────────────────────────
             # 仅项目下文档执行脱敏(KB 公共文档保留原文)

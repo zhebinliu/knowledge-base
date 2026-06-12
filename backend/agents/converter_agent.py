@@ -7,10 +7,45 @@
 import io
 import re
 import structlog
-from services.model_router import model_router
+from services.model_router import model_router, ModelOutputError
 from prompts.conversion import build_conversion_prompt
 
 logger = structlog.get_logger()
+
+
+class ConversionError(Exception):
+    """文档转换硬失败:某段主备模型都返回空/截断输出,无法产出有效 markdown。
+
+    抛出后由 Celery process_document 标记文档 failed + 写 conversion_error,
+    绝不能把空 markdown 当成功入库(否则文档 completed 但 0 切片 0 向量)。
+    """
+
+
+# 转换输出校验:产出字符数 ≥ 输入的此比例才算"没截断"(finish_reason=length 时)
+_MIN_OUTPUT_RATIO = 0.2
+# 任意 finish_reason 下,正常长度输入的产出低于此字符数即判空/无效
+_MIN_OUTPUT_CHARS = 10
+# 输入本身极短(罕见,通常是末尾残料)时不苛求产出长度,只要求非全空
+_SHORT_INPUT_CHARS = 50
+
+
+def _is_bad_conversion_output(content: str | None, segment_input: str, finish_reason: str) -> bool:
+    """判定一段 convert 输出是否无效(应触发 fallback / 段失败)。
+
+    命中任一即为坏:
+      1. 输入正常长度,但产出空 / 近空(< 10 字)—— 推理模型把 max_tokens 烧在 <think> 上的典型特征
+      2. finish_reason == 'length' 且产出远小于输入(< 20%)—— 截断
+    输入本身极短(< 50 字)时只要求非全空,避免误伤末尾小段。
+    """
+    stripped = (content or "").strip()
+    inp = (segment_input or "").strip()
+    if len(inp) < _SHORT_INPUT_CHARS:
+        return len(stripped) == 0
+    if len(stripped) < _MIN_OUTPUT_CHARS:
+        return True
+    if finish_reason == "length" and len(stripped) < len(inp) * _MIN_OUTPUT_RATIO:
+        return True
+    return False
 
 SUPPORTED_FORMATS = {".doc", ".docx", ".pdf", ".ppt", ".pptx", ".xls", ".xlsx", ".csv", ".md", ".txt"}
 # OLE2 二进制旧版 Office 格式 — 上传后先用 libreoffice headless 转成 OOXML 新格式
@@ -598,16 +633,38 @@ async def convert_to_markdown(
     n_segments = len(segments)
     completed_n = {"v": 0}            # 闭包计数器(并发完成数)
 
+    def _make_validator(segment: str):
+        # validator 看到的是 chat() 已剥 <think> 后的 content + finish_reason
+        return lambda content, finish_reason: not _is_bad_conversion_output(content, segment, finish_reason)
+
     async def _convert_one(idx: int, segment: str) -> tuple[int, str, str | None]:
         async with sem:
             prompt = await build_conversion_prompt(segment)
-            result, model = await model_router.chat_with_routing(
-                "doc_markdown_convert",
-                [{"role": "user", "content": prompt}],
-                max_tokens=8000,
-                timeout=180.0,
-            )
+            # validator:空 / finish_reason=length 且产出远小于输入 → 触发 fallback;
+            # 主备都不过 → ModelOutputError(下面转成 ConversionError 让文档标 failed)
+            try:
+                result, model = await model_router.chat_with_routing(
+                    "doc_markdown_convert",
+                    [{"role": "user", "content": prompt}],
+                    max_tokens=8000,
+                    timeout=180.0,
+                    validator=_make_validator(segment),
+                )
+            except ModelOutputError as e:
+                logger.error(
+                    "segment_conversion_hard_failed",
+                    filename=filename, segment=idx + 1, total=n_segments,
+                    input_chars=len(segment), error=str(e)[:200],
+                )
+                raise ConversionError(
+                    f"第 {idx + 1}/{n_segments} 段转换失败:模型返回空/截断内容(主备模型均无效)。{str(e)[:160]}"
+                ) from e
             result = re.sub(r"<think>[\s\S]*?</think>", "", result, flags=re.IGNORECASE).strip()
+            # 双保险:剥 think 后若仍为空(validator 已基本拦住,这里兜极端情况)→ 段失败
+            if not result:
+                raise ConversionError(
+                    f"第 {idx + 1}/{n_segments} 段转换失败:剥离 <think> 后内容为空(model={model})"
+                )
             # 截断检测：输出字符数贴近 max_tokens 对应字符上限就 warn
             if len(result) >= TRUNCATION_WARN_CHARS:
                 logger.warning(
@@ -716,6 +773,9 @@ async def _refine_markdown_with_llm(*, raw_text: str, draft_md: str, filename: s
 请按 system 指令输出修正后的 markdown 全文。"""
 
     try:
+        # refine 是 best-effort 质检:失败即回退草稿,绝不能 ALONE 吃满 celery soft_time_limit=900。
+        # 旧值 timeout=180 + 默认 3 次网络重试(主备各 ~575s)最坏 >1100s → 整任务无限 retry。
+        # 收紧为 timeout=60 + retry_backoffs=[](不重试):主备最坏 ~120s,优雅回退在预算内完成。
         result, model = await model_router.chat_with_routing(
             "doc_markdown_refine",
             [
@@ -724,7 +784,8 @@ async def _refine_markdown_with_llm(*, raw_text: str, draft_md: str, filename: s
             ],
             max_tokens=12000,
             temperature=0.1,
-            timeout=180.0,
+            timeout=60.0,
+            retry_backoffs=[],
         )
         result = (result or "").strip()
         # 去除可能的 ```markdown 包装

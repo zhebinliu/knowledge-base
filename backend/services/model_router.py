@@ -54,6 +54,16 @@ def _strip_think(text: str) -> str:
 
 logger = structlog.get_logger()
 
+
+class ModelOutputError(Exception):
+    """主备模型都返回了无效输出(空 / 截断且产出远小于输入)。
+
+    跟普通的 HTTP / 网络异常区分:这是 HTTP 200 但内容无效的情况,
+    chat_with_routing(validator=...) 在主备都过不了 validator 时抛出,
+    让调用方(如文档转换)据此把任务标 failed,而不是把空内容当成功入库。
+    """
+
+
 # edgefn 代理 base URL（统一接入 GLM / MiniMax / Qwen）
 _EDGEFN = "https://api.edgefn.net/v1"
 # 小米 Mimo base URL
@@ -255,11 +265,14 @@ class ModelRouter:
         timeout: float = 180.0,
         strip_think: bool = True,                 # 推理模型 think 块默认剥;
                                                    # 调用方需要原始内容(JSON 抽取/debug)时传 False
+        retry_backoffs: list[int] | None = None,  # 可重试错误(429/5xx/网络)的退避秒数;
+                                                   # 默认 [5,10,20](3 次);传 [] 关闭重试(best-effort 调用)
+        return_meta: bool = False,                # True 时返回 (content, model_name, finish_reason) 三元组
         _log_task: str | None = None,             # 仅供 logging 用,不进 payload
         _log_caller: str | None = None,
-    ) -> tuple[str, str]:
-        """Returns (content, model_name) tuple. Retries on 429 with exponential backoff.
-        max_tokens=None 时不下发该字段，由模型按自身 max 输出。"""
+    ) -> tuple:
+        """Returns (content, model_name) — 或 return_meta=True 时 (content, model_name, finish_reason)。
+        可重试错误按 retry_backoffs 指数退避。max_tokens=None 时不下发该字段，由模型按自身 max 输出。"""
         from services.call_log_service import log_llm_call
 
         config = await self._get_model_config(model_name)
@@ -278,9 +291,10 @@ class ModelRouter:
             payload["response_format"] = response_format
 
         # 退避策略(2026-05-12 改进):
-        #   - 429 / 5xx / 网络超时 / 连接错误 都退避重试,直到三轮失败
+        #   - 429 / 5xx / 网络超时 / 连接错误 都退避重试,直到退避列表用尽
         #   - 其他 4xx(401/403/400 等)是配置错误,立即 raise 触发上层 fallback
-        backoffs = [5, 10, 20]
+        # retry_backoffs=[] 时不重试(refine 这类 best-effort 调用用,避免吃满 celery 预算)
+        backoffs = retry_backoffs if retry_backoffs is not None else [5, 10, 20]
         attempt = 0
         last_status: int | None = None
         while True:
@@ -306,7 +320,9 @@ class ModelRouter:
                 resp.raise_for_status()
                 self._failure_counts[model_name] = 0
                 body = resp.json()
-                content = body["choices"][0]["message"]["content"]
+                choice = body["choices"][0]
+                content = choice["message"].get("content")
+                finish_reason = choice.get("finish_reason") or ""
                 usage = body.get("usage") or {}
                 if strip_think:
                     # 统一剥离 <think>...</think> 思考块,避免污染下游解析/展示
@@ -321,6 +337,8 @@ class ModelRouter:
                     duration_ms=int((time.monotonic() - t0) * 1000),
                     status_code=last_status,
                 )
+                if return_meta:
+                    return content, model_name, finish_reason
                 return content, model_name
             except httpx.HTTPStatusError as e:
                 # 退避用完仍失败,或非可重试 4xx
@@ -463,9 +481,18 @@ class ModelRouter:
         self,
         task: str,
         messages: list[dict],
+        *,
+        validator=None,
         **kwargs,
     ) -> tuple[str, str]:
-        """Returns (content, model_name) tuple with automatic fallback."""
+        """Returns (content, model_name) tuple with automatic fallback.
+
+        validator: 可选 callable(content, finish_reason) -> bool。
+          - None(默认):行为与历史一致 —— 只在 primary **抛异常**时回退到 fallback。
+          - 传入时:primary 输出过不了 validator(空 / 截断等)也触发回退;
+            主备都过不了 → raise ModelOutputError。
+            这样空响应(HTTP 200 但 content 无效)不会被当成成功结果返回。
+        """
         rule = await self._get_routing_rule(task)
         primary = rule["primary"]
         fallback = rule["fallback"]
@@ -476,11 +503,39 @@ class ModelRouter:
         merged.setdefault("_log_task", task)
         merged.setdefault("_log_caller", _detect_caller_module())
 
+        if validator is None:
+            # 历史路径:仅异常时回退
+            try:
+                return await self.chat(primary, messages, **merged)
+            except Exception as e:
+                logger.warning("falling_back", task=task, primary=primary, fallback=fallback, reason=str(e)[:100])
+                return await self.chat(fallback, messages, **merged)
+
+        # 带校验路径:空/截断输出也算失败,触发回退;主备都失败 → ModelOutputError
+        primary_reject: str | None = None
         try:
-            return await self.chat(primary, messages, **merged)
+            content, model, finish = await self.chat(primary, messages, return_meta=True, **merged)
+            if validator(content, finish):
+                return content, model
+            primary_reject = f"finish_reason={finish!r} len={len(content or '')}"
+            logger.warning("primary_output_rejected", task=task, primary=primary, detail=primary_reject)
         except Exception as e:
+            primary_reject = f"exception={str(e)[:100]}"
             logger.warning("falling_back", task=task, primary=primary, fallback=fallback, reason=str(e)[:100])
-            return await self.chat(fallback, messages, **merged)
+
+        try:
+            content, model, finish = await self.chat(fallback, messages, return_meta=True, **merged)
+        except Exception as e:
+            raise ModelOutputError(
+                f"task={task} 主备模型均失败:primary({primary}) {primary_reject};"
+                f" fallback({fallback}) exception={str(e)[:100]}"
+            ) from e
+        if validator(content, finish):
+            return content, model
+        raise ModelOutputError(
+            f"task={task} 主备模型输出均无效(空/截断):primary({primary}) {primary_reject};"
+            f" fallback({fallback}) finish_reason={finish!r} len={len(content or '')}"
+        )
 
     async def chat_stream(
         self,
