@@ -30,6 +30,9 @@ services:
       - /opt/kb-system/run:/var/run/kb-deploy:ro
       # aihub.tokenwave.cloud/help 接入手册静态页(host 维护,改 md 后 pandoc 重渲染即可,不用 rebuild 镜像)
       - /opt/aihub-docs:/usr/share/nginx/aihub-help:ro
+      # kanban.tokenwave.cloud 内部访问 Basic Auth 入口密码(host 维护,改密码不用 rebuild 镜像)
+      # 生成:openssl passwd -apr1 → echo "team:<hash>" > /opt/kb-system/kanban.htpasswd
+      - /opt/kb-system/kanban.htpasswd:/etc/nginx/kanban.htpasswd:ro
     depends_on:
       backend:
         condition: service_healthy
