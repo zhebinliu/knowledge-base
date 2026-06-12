@@ -24,9 +24,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models import get_session
 from models.curated_bundle import CuratedBundle
 from models.challenge_round import ChallengeRound
+from models.bundle_share import BundleShare
 from services.auth import get_current_user, decode_access_token
+from services.project_acl import assert_project_access
 from models.user import User
 import jwt as _jwt
+import secrets
+
+# 「客户向」交付物白名单 — 仅这些 kind 可生成免登录公开分享链接(对外可见)。
+# 内部/工程类(object_field_layout / process_setup / implementation_plan / insight /
+# research_report / kickoff_pptx / sharedev 等)一律不可公开分享。
+PUBLIC_SHAREABLE_KINDS = {
+    "kickoff_html",       # 启动会 PPT(HTML 在线播放)
+    "research_plan",      # 调研计划(客户版)
+    "survey_outline",     # 调研大纲
+    "blueprint_design",   # 蓝图设计
+    "test_plan",          # 测试计划
+    "acceptance_report",  # 项目验收报告
+}
 
 
 async def get_user_via_query_or_header(
@@ -888,6 +903,146 @@ async def view_output(
         )
 
     raise HTTPException(400, "No previewable content")
+
+
+# ── 公开分享(免登录只读) ──────────────────────────────────────────────────
+_DECK_NAV_READONLY = """
+<style id="__deck_nav_css">
+  body { background:#1F2937 !important; min-height:100vh; margin:0; padding:24px 0 80px; }
+  .slide { display:none !important; margin:0 auto !important; }
+  .slide.__active { display:block !important; }
+  .__deck-nav { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); z-index:9999;
+    background:rgba(31,41,55,.95); border:1px solid #4B5563; border-radius:12px;
+    padding:8px 14px; display:flex; align-items:center; gap:10px;
+    color:#fff; font-family:-apple-system,"Microsoft YaHei",sans-serif; font-size:13px;
+    box-shadow:0 8px 24px rgba(0,0,0,.4); }
+  .__deck-nav button { background:transparent; color:#fff; border:1px solid #4B5563; border-radius:6px;
+    padding:4px 10px; cursor:pointer; font-size:12px; }
+  .__deck-nav button:hover { background:#374151; }
+  .__deck-nav button:disabled { opacity:.35; cursor:not-allowed; }
+  .__deck-nav .__sep { width:1px; height:18px; background:#4B5563; }
+  .__deck-nav .__page { min-width:56px; text-align:center; opacity:.8; }
+</style>
+<div class="__deck-nav" id="__deck_nav">
+  <button id="__deck_prev" title="上一页 ←">←</button>
+  <span class="__page" id="__deck_page">1 / 1</span>
+  <button id="__deck_next" title="下一页 →">→</button>
+  <span class="__sep"></span>
+  <button id="__deck_full" title="全屏 F">⛶</button>
+</div>
+<script id="__deck_nav_js">
+(function(){
+  var slides = Array.from(document.querySelectorAll('.slide'));
+  if (slides.length === 0) { document.getElementById('__deck_nav').style.display='none'; return; }
+  var idx = 0;
+  function render(){
+    slides.forEach(function(s,i){ s.classList.toggle('__active', i===idx); });
+    document.getElementById('__deck_page').textContent = (idx+1)+' / '+slides.length;
+    document.getElementById('__deck_prev').disabled = idx===0;
+    document.getElementById('__deck_next').disabled = idx===slides.length-1;
+  }
+  document.getElementById('__deck_prev').onclick = function(){ if(idx>0){idx--;render();} };
+  document.getElementById('__deck_next').onclick = function(){ if(idx<slides.length-1){idx++;render();} };
+  document.getElementById('__deck_full').onclick = function(){
+    if(document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen();
+  };
+  document.addEventListener('keydown', function(e){
+    if(e.key==='ArrowLeft'||e.key==='PageUp') document.getElementById('__deck_prev').click();
+    if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '){ document.getElementById('__deck_next').click(); e.preventDefault(); }
+    if(e.key==='f'||e.key==='F') document.getElementById('__deck_full').click();
+  });
+  render();
+})();
+</script>
+"""
+
+
+def _inject_deck_nav_readonly(html: bytes) -> bytes:
+    """只读版 deck-nav(仅翻页 / 全屏,无编辑 / 保存)— 用于公开分享页。"""
+    text = html.decode("utf-8", errors="replace")
+    if "</body>" in text:
+        text = text.replace("</body>", _DECK_NAV_READONLY + "\n</body>", 1)
+    else:
+        text += _DECK_NAV_READONLY
+    return text.encode("utf-8")
+
+
+class ShareInfo(BaseModel):
+    shared: bool
+    share_path: str | None = None   # 形如 /api/public/share/{token},前端拼 origin
+
+
+async def _load_bundle_for_share(bundle_id: str, user: User, session: AsyncSession) -> CuratedBundle:
+    b = await session.get(CuratedBundle, bundle_id)
+    if not b:
+        raise HTTPException(404, "Bundle not found")
+    if b.project_id and not user.is_admin:
+        await assert_project_access(user, b.project_id, "read")
+    return b
+
+
+@router.post("/{bundle_id}/share", response_model=ShareInfo)
+async def create_bundle_share(
+    bundle_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """为「客户向」交付物生成 / 重启免登录只读分享链接。"""
+    b = await _load_bundle_for_share(bundle_id, current_user, session)
+    if b.kind not in PUBLIC_SHAREABLE_KINDS:
+        raise HTTPException(403, f"「{KIND_TITLES.get(b.kind, b.kind)}」不支持公开分享")
+    if b.status != "done":
+        raise HTTPException(400, "交付物尚未生成完成,无法分享")
+    share = (await session.execute(
+        select(BundleShare).where(BundleShare.bundle_id == bundle_id)
+    )).scalar_one_or_none()
+    if share:
+        share.enabled = True   # 之前关过 → 重新打开(token 不变)
+    else:
+        share = BundleShare(
+            bundle_id=bundle_id,
+            share_token=secrets.token_urlsafe(24),
+            enabled=True,
+            created_by=current_user.id,
+        )
+        session.add(share)
+    await session.commit()
+    logger.info("bundle_share_created", bundle_id=bundle_id, kind=b.kind, by=current_user.id)
+    return ShareInfo(shared=True, share_path=f"/api/public/share/{share.share_token}")
+
+
+@router.get("/{bundle_id}/share", response_model=ShareInfo)
+async def get_bundle_share(
+    bundle_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """查询某交付物当前分享状态(前端打开分享面板时拉)。"""
+    await _load_bundle_for_share(bundle_id, current_user, session)
+    share = (await session.execute(
+        select(BundleShare).where(BundleShare.bundle_id == bundle_id, BundleShare.enabled == True)
+    )).scalar_one_or_none()
+    if not share:
+        return ShareInfo(shared=False)
+    return ShareInfo(shared=True, share_path=f"/api/public/share/{share.share_token}")
+
+
+@router.delete("/{bundle_id}/share", response_model=ShareInfo)
+async def revoke_bundle_share(
+    bundle_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """关闭分享:已发出的公开链接立即失效(记录保留,可再次开启)。"""
+    await _load_bundle_for_share(bundle_id, current_user, session)
+    share = (await session.execute(
+        select(BundleShare).where(BundleShare.bundle_id == bundle_id)
+    )).scalar_one_or_none()
+    if share and share.enabled:
+        share.enabled = False
+        await session.commit()
+        logger.info("bundle_share_revoked", bundle_id=bundle_id, by=current_user.id)
+    return ShareInfo(shared=False)
 
 
 class UpdateContentBody(BaseModel):

@@ -1471,6 +1471,22 @@ export const getOutput = (id: string) =>
 export const downloadOutputUrl = (id: string) => `/api/outputs/${id}/download`
 export const viewOutputUrl = (id: string) => `/api/outputs/${id}/view`
 
+// ── 交付物公开分享(免登录只读) ──────────────────────────────────────────
+export interface BundleShareInfo { shared: boolean; share_path?: string | null }
+/** 仅这些「客户向」kind 可生成公开分享链接(与后端 PUBLIC_SHAREABLE_KINDS 对齐) */
+export const PUBLIC_SHAREABLE_KINDS = new Set<string>([
+  'kickoff_html', 'research_plan', 'survey_outline',
+  'blueprint_design', 'test_plan', 'acceptance_report',
+])
+export const getBundleShare = (bundleId: string) =>
+  api.get<BundleShareInfo>(`/outputs/${bundleId}/share`).then(r => r.data)
+export const createBundleShare = (bundleId: string) =>
+  api.post<BundleShareInfo>(`/outputs/${bundleId}/share`).then(r => r.data)
+export const revokeBundleShare = (bundleId: string) =>
+  api.delete<BundleShareInfo>(`/outputs/${bundleId}/share`).then(r => r.data)
+/** share_path 形如 /api/public/share/{token},拼成完整可分享链接 */
+export const fullShareUrl = (sharePath: string) => `${window.location.origin}${sharePath}`
+
 /** 在线编辑保存 — 适用 markdown 类产物(insight / survey_outline / survey / research_plan)。
  *  权限:created_by 或 admin。覆盖式更新,不存历史,不动 provenance。 */
 export const saveOutputContent = (id: string, content_md: string) =>

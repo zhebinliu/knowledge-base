@@ -191,6 +191,8 @@ app.include_router(template.router, prefix="/api/templates", tags=["templates"])
 from api.markup_template import router as markup_template_router
 app.include_router(markup_template_router, prefix="/api/markup-templates", tags=["markup-templates"])
 app.include_router(output_chats.router, prefix="/api/output-chats", tags=["output-chats"])
+from api.public_share import router as public_share_router  # 2026-06-12:交付物免登录只读公开分享
+app.include_router(public_share_router, prefix="/api/public", tags=["public-share"])
 app.include_router(briefs.router, prefix="/api/briefs", tags=["briefs"])
 app.include_router(stage_flow.router, prefix="/api/settings", tags=["stage-flow"])
 app.include_router(doc_checklist.router, prefix="/api/doc-checklist", tags=["doc-checklist"])
@@ -240,6 +242,7 @@ async def startup():
     from models.qixin_message import QixinMessage  # noqa: F401  企信 IM 消息(2026-05-29)
     from models.bundle_revision_memory import BundleRevisionMemory  # noqa: F401  修订版学习记忆(2026-06-08)
     from models.project_todo import ProjectTodo  # noqa: F401  项目待办看板(2026-06-08)
+    from models.bundle_share import BundleShare  # noqa: F401  交付物公开分享(2026-06-12,create_all 建 bundle_shares 表)
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

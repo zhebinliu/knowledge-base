@@ -6,7 +6,7 @@ import {
   CheckCircle2, Loader2, Lock, Download, ExternalLink, RotateCw,
   Save, X, Wand2, AlertCircle, AlertTriangle, Pencil, Home, Files, Search,
   Bot, ShieldAlert, ChevronDown, ChevronRight, Users, Eye, Plus, Contact,
-  Upload,
+  Upload, Share2, Copy, Check,
 } from 'lucide-react'
 import CollaboratorsModal from '../../components/console/CollaboratorsModal'
 import BundleOverrideModal from '../../components/console/BundleOverrideModal'
@@ -19,9 +19,10 @@ import {
   getProject, updateProject, generateCustomerProfile, generateOutput,
   listProjectDocuments, getDocumentMarkdown, updateDocumentMarkdown, listOutputs, listLatestByKind, downloadOutputUrl, viewOutputUrl,
   getOutput,
+  getBundleShare, createBundleShare, revokeBundleShare, fullShareUrl, PUBLIC_SHAREABLE_KINDS,
   getProjectMeta, TOKEN_STORAGE_KEY,
   getStageFlow, getProjectTodos,
-  type CuratedBundle, type OutputKind, type Project, type ProjectDocument,
+  type CuratedBundle, type OutputKind, type Project, type ProjectDocument, type BundleShareInfo,
   type StageDef as ApiStageDef,
 } from '../../api/client'
 import OutputChatPanel from '../../components/OutputChatPanel'
@@ -607,6 +608,7 @@ export default function ConsoleProjectDetail() {
             <>
               <BundlePreviewBtn b={activeBundle} />
               <BundleDownloadBtn b={activeBundle} />
+              <BundleShareBtn b={activeBundle} />
               {activeInflight ? (
                 <span className="flex items-center gap-1 px-2.5 py-1 text-xs text-blue-700">
                   <Loader2 size={11} className="animate-spin" /> 重新生成中…
@@ -1491,6 +1493,88 @@ function BundlePreviewBtn({ b }: { b: CuratedBundle }) {
     >
       <ExternalLink size={11} /> 在线预览
     </button>
+  )
+}
+
+/** 公开分享按钮:仅「客户向」交付物可见,生成免登录只读链接,可复制 / 关闭。 */
+function BundleShareBtn({ b }: { b: CuratedBundle }) {
+  if (!PUBLIC_SHAREABLE_KINDS.has(b.kind)) return null
+  const [open, setOpen] = useState(false)
+  const [info, setInfo] = useState<BundleShareInfo | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const toggle = () => {
+    const next = !open
+    setOpen(next)
+    if (next && !info) {
+      setBusy(true)
+      getBundleShare(b.id).then(setInfo).finally(() => setBusy(false))
+    }
+  }
+  const enable = () => {
+    setBusy(true)
+    createBundleShare(b.id).then(setInfo).catch(() => alert('生成失败')).finally(() => setBusy(false))
+  }
+  const disable = () => {
+    setBusy(true)
+    revokeBundleShare(b.id).then(setInfo).finally(() => setBusy(false))
+  }
+  const link = info?.share_path ? fullShareUrl(info.share_path) : ''
+  const copy = () => {
+    if (!link) return
+    navigator.clipboard?.writeText(link).then(() => {
+      setCopied(true); setTimeout(() => setCopied(false), 1500)
+    })
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={toggle}
+        className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg border border-line text-ink-secondary hover:bg-canvas"
+        title="生成可分享给非用户(免登录)的只读链接"
+      >
+        <Share2 size={11} /> 分享
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 w-80 p-3 rounded-xl border border-line bg-white shadow-lg text-xs">
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-semibold text-ink">公开分享(只读)</span>
+            <button onClick={() => setOpen(false)} className="text-ink-muted hover:text-ink"><X size={13} /></button>
+          </div>
+          {busy && !info ? (
+            <div className="flex items-center gap-1 text-ink-muted py-2"><Loader2 size={12} className="animate-spin" /> 加载中…</div>
+          ) : info?.shared && link ? (
+            <>
+              <p className="text-ink-muted mb-2 leading-relaxed">任何人(无需登录)可通过此链接只读查看,不能下载原文件。</p>
+              <div className="flex items-center gap-1 mb-2">
+                <input
+                  readOnly value={link} onFocus={e => e.currentTarget.select()}
+                  className="flex-1 min-w-0 px-2 py-1 rounded border border-line bg-canvas text-ink-secondary truncate"
+                />
+                <button onClick={copy} className="flex items-center gap-1 shrink-0 px-2 py-1 rounded border border-orange-200 text-orange-700 hover:bg-orange-50">
+                  {copied ? <><Check size={11} /> 已复制</> : <><Copy size={11} /> 复制</>}
+                </button>
+              </div>
+              <button onClick={disable} disabled={busy} className="text-red-600 hover:underline disabled:opacity-50">
+                关闭分享(链接立即失效)
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-ink-muted mb-2 leading-relaxed">生成一个免登录只读链接,可发给客户 / 非系统用户查看本交付物。</p>
+              <button
+                onClick={enable} disabled={busy}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50"
+              >
+                {busy ? <Loader2 size={12} className="animate-spin" /> : <Share2 size={12} />} 生成分享链接
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
