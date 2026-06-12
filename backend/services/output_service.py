@@ -103,26 +103,45 @@ async def _llm_call(prompt: str, system: str = "", model: str | None = None,
     2026-06-03 加 #1 的「显式 model 失败也降级」:
     用户在管理后台配的 model 可能挂掉(限流/下线),不能因「尊重用户配置」就让任务死。
     failover 走 chat_with_routing(task) — 复用现成的 primary→fallback 链,日志可追。
+
+    2026-06-12 加「空响应也降级」(trace=09085a60 启动会 HTML 复盘):
+    推理模型(minimax-m3)被 max_tokens 截断在 think 块里,_strip_think 后 content 为空 —— HTTP 200
+    但内容无效。旧逻辑把空串当成功返回,只在最末端校验时报 RuntimeError,fallback 永远不触发。
+    现在:显式 model 返回空 → 降级到 routing;routing 路径统一带 validator(空/截断算失败,触发 fallback,
+    主备都空 → ModelOutputError),不会把空内容当成功结果。
     """
     from services.model_router import model_router
+
+    def _nonempty(content: str | None, finish: str = "") -> bool:
+        return bool(content and content.strip())
+
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
     if model:
+        explicit_ok = False
         try:
             content, _ = await model_router.chat(model, messages, max_tokens=max_tokens, timeout=timeout)
-            return content
+            explicit_ok = True
         except Exception as e:
             if not task:
                 raise  # 没 task 不知道往哪降级,只能往上抛
             logger.warning("llm_user_model_failed_fallback_to_task_routing",
                            user_model=model, task=task, error=type(e).__name__, msg=str(e)[:160])
-            content, _ = await model_router.chat_with_routing(task, messages, max_tokens=max_tokens, timeout=timeout)
+        if explicit_ok and _nonempty(content):
             return content
+        if explicit_ok:  # 调用成功但内容空 —— 不当成功,继续降级
+            if not task:
+                raise RuntimeError(f"模型 {model} 返回空内容(HTTP 200 但 content 为空)")
+            logger.warning("llm_user_model_empty_fallback_to_task_routing", user_model=model, task=task)
+        content, _ = await model_router.chat_with_routing(
+            task, messages, max_tokens=max_tokens, timeout=timeout, validator=_nonempty)
+        return content
     else:
         routing_task = task or "output_doc_generate"
-        content, _ = await model_router.chat_with_routing(routing_task, messages, max_tokens=max_tokens, timeout=timeout)
+        content, _ = await model_router.chat_with_routing(
+            routing_task, messages, max_tokens=max_tokens, timeout=timeout, validator=_nonempty)
         return content
 
 
@@ -689,14 +708,15 @@ async def generate_kickoff_pptx(bundle_id: str, project_id: str):
 
 请输出可执行的 Python 源代码，使用 python-pptx 生成 11 页启动会 .pptx，最终 prs.save("out.pptx")。每页都要有表格/矩阵/图示，不要纯文字 bullet。"""
 
-        # PPT 生成走 ROUTING_RULES['kickoff_pptx_codegen'](mimo-v2-pro → glm-5);max_tokens=None 不设上限
-        # (mimo 先 think 再出代码,需要给足空间);用户在 agent_config 显式配模型时直传,无 fallback
+        # PPT 生成走 ROUTING_RULES['kickoff_pptx_codegen'];模型先 think 再出代码,需给足输出空间。
+        # 2026-06-12:之前传 max_tokens=None,上游代理默认只给 4096,会把代码截断/think 撑满成空 ——
+        # 跟启动会 HTML 同一个坑(trace=09085a60),统一给 32000。
         from services.pptx_codeexec import execute_pptx_code, strip_python_fences
 
         user_model = ctx["agent_model"]  # None → 走 routing 拿 fallback
         code_raw = await _llm_call(prompt, system=PPTGEN_PYTHON_SYSTEM,
                                    model=user_model, task="kickoff_pptx_codegen",
-                                   max_tokens=None, timeout=1200.0)
+                                   max_tokens=32000, timeout=1200.0)
         code = strip_python_fences(code_raw)
         if "prs.save" not in code or "from pptx" not in code:
             raise RuntimeError(f"模型未输出有效 python-pptx 代码：开头 200 字符 = {code[:200]!r}")
@@ -775,9 +795,11 @@ async def generate_kickoff_html(bundle_id: str, project_id: str):
 
         html_model = ctx["agent_model"]  # 用户没配 → None → 走 output_doc_generate 路由
         # 2026-06-03:加 task 形参 — 用户在 agent_config 显式配的 model 挂了也降级
+        # 2026-06-12:max_tokens 给足 — 之前传 None,上游代理默认只给 4096,11 页 HTML 远不够,
+        # 推理模型 think 块把 4096 撑满(finish=length)后被剥成空,导致整篇失败(trace=09085a60)。
         html = await _llm_call(prompt, system=HTML_PPTX_SYSTEM, model=html_model,
                                task="output_doc_generate",
-                               max_tokens=None, timeout=900.0)
+                               max_tokens=32000, timeout=900.0)
         # 去 ``` 围栏
         s = (html or "").strip()
         if s.startswith("```"):
