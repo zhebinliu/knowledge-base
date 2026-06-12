@@ -1056,3 +1056,22 @@ docker run --rm --entrypoint sh ghcr.io/zhebinliu/knowledge-base-frontend-prod:s
 **恢复**:见 memory `project_server_worktree_stale`——retag fallback tag 回 ghcr sha + `FRONTEND_IMAGE=... BACKEND_IMAGE=... docker compose up -d --no-deps frontend backend`。
 
 **注意 deploy 在 2026-06-09 加的 `docker tag ghcr...:sha → kb-frontend-prod:latest` 防护只挡 bare `up -d`,挡不住 `--build`**(`--build` 重新生成并覆盖同名 tag)。要根治 `--build` 这条路:要么清干净服务器 worktree(风险见 memory),要么服务器永不 `--build`、app 镜像只从 ghcr 拉。
+
+### 17. 启动会 HTML/PPT 生成"成功但空" = max_tokens=None→代理默认 4096 + 推理模型 think 撑满(2026-06-12)
+
+**症状**:启动会·HTML(`kickoff_html`)一直生成失败,前端报 `最近一次生成失败 · trace=09085a60…`,DB `curated_bundles.error` = `RuntimeError: 模型未输出有效 HTML:开头 200 字符 = ''`——模型**返回了空字符串**。
+
+**确诊**(全靠 aihub-tap,见 memory `reference_aihub_tap_log`):tap.jsonl 里这条请求 `model=minimax-m3 finish_reason='length' completion_tokens=4096 content_len=0`。三个信号叠在一起就是这个坑。
+
+**真因有三层,缺一不致命,凑齐才空**:
+1. **agent_config 模型误配**:`output_agent.kickoff_html` / `kickoff_pptx` 的 `model` 被设成 `mimo-v2-omni`——那是**视觉/OCR 模型**(`MODEL_REGISTRY` 里 `best_for: ocr_fallback`,走独立 vision_endpoint + `api-key` header)。它在 chat 路径上报错 → `_llm_call` 降级到 `output_doc_generate` 路由的 primary `minimax-m3`(**DB routing_rules 覆盖了代码默认的 m2.7,实际跑 m3→glm-5.1**)。
+2. **`max_tokens=None` 被代理默认成 4096**:`model_router.chat()` 里 `max_tokens=None` 时**不下发该字段**,上游代理(edgefn)默认只给 4096。11 页 HTML 至少要 ~16–36k token,4096 根本不够。
+3. **推理模型 think 块撑满 + 空响应不算异常**:m3 是 reasoning 模型,4096 全被未闭合的 `<think>` 吃掉(`finish=length`),`_strip_think` 把没闭合的 think 之后内容全删 → content 变空串。**空响应是 HTTP 200 不是异常**,`chat_with_routing` 默认只在抛异常时回退,所以 `glm-5.1` fallback **从没触发**;空串一路返回到最末端 `<!DOCTYPE` 校验才报 RuntimeError。
+
+**修复**(commit `b024d5a` + 一条 DB 改):
+- `services/output_service.py::_llm_call`:显式 model 返回空(HTTP 200 但 content 空)也降级到 routing;routing 路径统一传 `validator=_nonempty`,空/截断算失败 → 触发 fallback,主备都空 → `ModelOutputError`,不再把空内容当成功。
+- `generate_kickoff_html` / `generate_kickoff_pptx` 的 `max_tokens` 从 `None` 改成 **32000**(代理会 clamp 到模型真实上限,远大于 4096)。
+- DB(运行时,60s 缓存生效):`UPDATE agent_configs SET config_value=((config_value::jsonb)-'model')::json WHERE config_type='output_agent' AND config_key IN ('kickoff_html','kickoff_pptx')`——**注意 `config_value` 列是 `json` 不是 `jsonb`,删 key 要先 `::jsonb` 再转回**。清掉误配的视觉模型,回到 routing 链。
+- 复测:在线 enqueue → `html_generated size=36654`,bundle `done`,无 fallback/reject 日志(说明 primary 拿到 32k 预算后一次成功)。
+
+**通用教训**:跟 memory `project_kb_model_routing_db` 的"convert 用 m3 转空"同一族。**给推理模型派"大输出"任务时,max_tokens 必须显式给足**——别传 None 指望"不设上限",代理会偷偷塞 4096,reasoning 模型先把它 think 光,你拿到的是空。判空要落在 LLM 调用层(validator/降级),别只在业务校验层抛错——那时 fallback 已经错过了。
