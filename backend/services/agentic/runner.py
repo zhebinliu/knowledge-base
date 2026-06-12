@@ -2809,7 +2809,8 @@ async def generate_research_report(bundle_id: str, project_id: str):
         )
 
         # ── Phase 4: LLM ──
-        # max_tokens=16000 给 8 章 + 需求清单大表(15-50 行)足够余量
+        # max_tokens=32000:8 章 + 需求清单大表正文够,但 m3 推理 <think> 先占预算,
+        #   16000 时思考占满导致正文截断(2026-06-12,同 blueprint)
         # 历史修订经验注入 system prompt 顶部(2026-06-08 加,详见 services/revision_learning.py)
         from services.revision_learning import fetch_revision_memories_block
         _memories_block = await fetch_revision_memories_block("research_report")
@@ -2819,7 +2820,7 @@ async def generate_research_report(bundle_id: str, project_id: str):
         raw = await _llm_call(
             user_prompt, system=_system_with_memories,
             model=ctx["agent_model"],
-            max_tokens=16000, timeout=720.0,
+            max_tokens=32000, timeout=720.0,
         )
         run_history.append({
             "phase": "llm_done", "ts": _ts(),
@@ -3020,7 +3021,7 @@ async def generate_test_plan(bundle_id: str, project_id: str):
         raw = await _llm_call(
             user_prompt, system=_system_with_memories,
             model=ctx["agent_model"],
-            max_tokens=16000, timeout=720.0,
+            max_tokens=32000, timeout=720.0,
         )
         run_history.append({"phase": "llm_done", "ts": _ts(), "detail": {"raw_chars": len(raw or "")}})
         if not raw or not raw.strip():
@@ -3257,7 +3258,7 @@ async def generate_implementation_plan(bundle_id: str, project_id: str):
         raw = await _llm_call(
             user_prompt, system=_system_with_memories,
             model=ctx["agent_model"],
-            max_tokens=16000, timeout=720.0,
+            max_tokens=32000, timeout=720.0,
         )
         run_history.append({"phase": "llm_done", "ts": _ts(),
                             "detail": {"raw_chars": len(raw or "")}})
@@ -3383,7 +3384,8 @@ async def generate_blueprint_design(bundle_id: str, project_id: str):
         )
 
         # ── Phase 5: LLM ──
-        # max_tokens=16000 给 7 章 + 表格 + mermaid 状态机足够余量
+        # max_tokens=32000:7 章 + 表格 + mermaid 正文本身够,但 m3 是推理模型,
+        #   <think> 块会先吃掉一大截预算,16000 时思考占满 → 正文被截断为空(2026-06-12)
         # 历史修订经验注入(2026-06-08)
         from services.revision_learning import fetch_revision_memories_block
         _memories_block = await fetch_revision_memories_block("blueprint_design")
@@ -3393,7 +3395,7 @@ async def generate_blueprint_design(bundle_id: str, project_id: str):
         raw = await _llm_call(
             user_prompt, system=_system_with_memories,
             model=ctx["agent_model"],
-            max_tokens=16000, timeout=720.0,
+            max_tokens=32000, timeout=720.0,
         )
         run_history.append({
             "phase": "llm_done", "ts": _ts(),
