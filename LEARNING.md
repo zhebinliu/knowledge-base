@@ -1037,3 +1037,22 @@ FOR EACH ROW EXECUTE FUNCTION set_default_profile_language_zh_cn();
 同时在 `frontend/nginx.prod.conf` 的 kanban 反代里用 `sub_filter` 给 HTML 注入一次性
 `localStorage` 种子:`userLanguage=zh-CN`。注意要清掉上游压缩头:
 `proxy_set_header Accept-Encoding "";`,否则压缩 HTML 不会被替换。
+
+### 16. prod 界面"无故回滚" = 服务器脏树被 `--build` 重建(2026-06-12)
+
+**症状**:GitHub Actions 部署明明成功,过几小时 / 隔天 prod 界面悄悄退回旧版("界面又回滚了")。
+
+**真因**:`docker-compose.yml` 的 `frontend`/`backend` 服务是 `image: ${FRONTEND_IMAGE:-kb-frontend-prod:latest}` + 带 `build:` 段。服务器 `/opt/kb-system` worktree 长期落后(本次落后 **254 commit** 停在 `f05d51e`)且大面积 dirty(见 [PROJECT_OVERVIEW]/memory)。**只要有人在服务器上为别的事跑 `docker compose up -d --build`(本次是接 kanban nginx 反代要让新 `nginx.prod.conf` 生效),就会从这棵远古脏树本地重建 `kb-frontend-prod:latest` / `kb-backend:latest`,覆盖掉 ghcr 镜像,prod 被拽回半年前。**
+
+**怎么确诊**:对比"运行中容器镜像"和"ghcr 该 sha 镜像"是不是同一个 image ID,以及容器内 `index.html` 引用的 bundle hash 是否一致。
+```bash
+docker ps --format '{{.Names}}\t{{.Image}}' | grep -E 'front|back'      # 跑的是 kb-frontend-prod:latest(本地)还是 ghcr...:sha-xxx?
+docker exec kb-system-frontend-1 grep -oE 'assets/[^"]+\.js' /usr/share/nginx/html/index.html
+docker run --rm --entrypoint sh ghcr.io/zhebinliu/knowledge-base-frontend-prod:sha-<sha> -c \
+  'grep -oE "assets/[^\"]+\.js" /usr/share/nginx/html/index.html'    # 两个 bundle 不一致 = 被本地脏树覆盖了
+```
+旁证:`celery_worker` 通常不被 `--build` 波及,仍停在正确 ghcr sha,prod fe/be 与它不一致就是回滚了。
+
+**恢复**:见 memory `project_server_worktree_stale`——retag fallback tag 回 ghcr sha + `FRONTEND_IMAGE=... BACKEND_IMAGE=... docker compose up -d --no-deps frontend backend`。
+
+**注意 deploy 在 2026-06-09 加的 `docker tag ghcr...:sha → kb-frontend-prod:latest` 防护只挡 bare `up -d`,挡不住 `--build`**(`--build` 重新生成并覆盖同名 tag)。要根治 `--build` 这条路:要么清干净服务器 worktree(风险见 memory),要么服务器永不 `--build`、app 镜像只从 ghcr 拉。
