@@ -29,22 +29,19 @@ export const MATERIAL_BUCKETS: { materialKind: MaterialKind; label: string }[] =
 // 来源:backend/services/agentic/runner.py STAGE_PRIORS(阶段 1-3 已接线)
 //       + 各 research generator 的 prior_bundles 签名(阶段 4-7,当前仅视觉)。
 // ⚠️ 这是唯一硬编码 OutputKind 字符串的地方 —— 增删 kind 时同步更新。
+// 精简成「主链」(每个节点只连主要上游),避免画布连线太多/交叉。用户可自行补连。
 export const SEED_DEPENDENCY_EDGES: Partial<Record<OutputKind, OutputKind[]>> = {
-  insight:             ['kickoff_pptx', 'kickoff_html', 'survey_outline', 'survey', 'blueprint_design'],
-  survey_outline:      ['research_plan', 'survey', 'research_report'],
+  insight:             ['kickoff_pptx', 'kickoff_html', 'survey_outline'],
+  survey_outline:      ['survey'],
   survey:              ['research_report'],
-  research_report:     ['blueprint_design', 'object_field_layout', 'process_setup', 'implementation_plan', 'test_plan', 'acceptance_report'],
-  blueprint_design:    ['object_field_layout', 'process_setup', 'implementation_plan', 'test_plan', 'acceptance_report'],
-  implementation_plan: ['test_plan', 'acceptance_report'],
+  research_report:     ['blueprint_design'],
+  blueprint_design:    ['object_field_layout', 'process_setup', 'implementation_plan'],
+  implementation_plan: ['test_plan'],
   test_plan:           ['acceptance_report'],
 }
 
-// 资料 → 生成节点的种子边(纯视觉,提示"喂素材")
-const MATERIAL_SEED_EDGES: { material: MaterialKind; to: OutputKind }[] = [
-  { material: 'docs',     to: 'insight' },
-  { material: 'meetings', to: 'insight' },
-  { material: 'docs',     to: 'survey_outline' },
-]
+// 资料 → 生成节点的种子边:默认不连(用户自行连),保持画布清爽
+const MATERIAL_SEED_EDGES: { material: MaterialKind; to: OutputKind }[] = []
 
 // ── 节点 id 规则:每个 kind / 资料桶在画布上至多一份 → 用确定性 id,天然去重 ──────
 export const genNodeId = (kind: OutputKind) => `gen_${kind}`

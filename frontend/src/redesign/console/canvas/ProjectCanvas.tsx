@@ -15,7 +15,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ReactFlow, ReactFlowProvider, Background, Controls, MiniMap,
-  useNodesState, useEdgesState, addEdge, useReactFlow, MarkerType,
+  useNodesState, useEdgesState, addEdge, reconnectEdge, useReactFlow, MarkerType,
   type Node, type Edge, type Connection, type NodeChange, type EdgeChange,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -165,6 +165,13 @@ function CanvasInner() {
       if (eds.some(e => e.source === c.source && e.target === c.target)) return eds
       return addEdge({ ...c, id: edgeId(c.source!, c.target!) }, eds)
     })
+    setDirty(true)
+  }, [setEdges])
+
+  // 拖动已有连线的端点 → 重新接到别的节点
+  const onReconnect = useCallback((oldEdge: Edge, newConn: Connection) => {
+    if (!newConn.source || !newConn.target || newConn.source === newConn.target) return
+    setEdges(eds => reconnectEdge(oldEdge, newConn, eds))
     setDirty(true)
   }, [setEdges])
 
@@ -379,12 +386,13 @@ function CanvasInner() {
               onNodesChange={handleNodesChange}
               onEdgesChange={handleEdgesChange}
               onConnect={onConnect}
+              onReconnect={onReconnect}
               nodeTypes={nodeTypes}
               deleteKeyCode={['Delete', 'Backspace']}
               minZoom={0.2}
               fitView
               style={{ position: 'absolute', inset: 0 }}
-              defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' } }}
+              defaultEdgeOptions={{ type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' } }}
             >
               <Background gap={18} size={1} />
               <Controls showInteractive={false} />
