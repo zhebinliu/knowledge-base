@@ -508,6 +508,19 @@ agentic 生成流水线必须过两道审:
 
 老配置(独立 kickoff 阶段)由 `_migrate_kickoff_into_insight` 惰性迁移并入 insight。**改 stage 配置时,任何 sub_kind 的 kind 必须在 `ALLOWED_KINDS` 集合里**,否则保存会 400。
 
+### 6.13 项目画布(节点式编排视图,2026-06-13)
+
+线性阶段 Tab 之外的**第二种项目推进形态**:把 13 种交付物 + 4 个资料桶(项目资料 / 会议纪要 / Brief / 网络调研)摆成 React Flow 节点,可拖拽自由排布、任意顺序/并行运行、双击进现有阶段工作区。与线性界面**并存**,不替换。范围锁定 **Level A** —— 只做编排层,后端生成器零改动(节点仍自动拉它已知的输入);连线是**可视化依赖图,不驱动数据路由**(连线驱动上下文是后续 Level B)。
+
+- **技术底座**:`@xyflow/react`(React Flow),暗色 Liquid Glass 主题。前端在 [`frontend/src/redesign/console/canvas/`](frontend/src/redesign/console/canvas/)(`ProjectCanvas` 容器 / `GenerationNode` / `MaterialNode` / `NodePalette` / `CanvasToolbar` / `canvasModel.ts` 纯逻辑 / `canvasContext.ts` / `canvas.css`)。
+- **仅 `IS_NEW_UI` 启用**:`App.tsx` 路由 `console/projects/:id/canvas` 条件注册 + 懒加载(独立 chunk,~52KB gzip,不进主包);入口是 `redesign/console/ConsoleProjectDetail` 头部「画布」按钮。旧浅色界面(kb.liii.in)既不显示入口也不注册路由。
+- **持久化**:`GET/PUT /api/workflow-canvas/{project_id}`([`backend/api/workflow_canvas.py`](backend/api/workflow_canvas.py)),**复用 `ProjectBrief` 表**(`output_kind='workflow_canvas'`)存 `{nodes,edges}` 布局,**无迁移** —— 与 §6 干系人图谱(`stakeholder_graph`)同构,只存坐标/类型/kind/连线。
+- **节点状态不入库**:已生成/生成中/失败/未开始由 `listLatestByKind` 2s 轮询经 context 合并到节点,保存时剥掉;运行走 `generateOutput`;kind 列表运行时从 `getStageFlow()` 派生(不硬编码)。
+- **唯一硬编码 kind 处**:`canvasModel.ts` 的 `SEED_DEPENDENCY_EDGES`(种子依赖边),增删 kind 时除 §6.8 三处外,也要同步这里。
+- **种子图**:空项目首载时前端从 stage-flow + 依赖边生成种子图,用户首次保存才落库。双击生成节点深链 `?stage=&sub=` 回阶段工作区(`ConsoleProjectDetail` 消费 `?sub=` 一次即抹掉)。
+
+> ⚠️ **后端虽属 prod 共享镜像**:`/api/workflow-canvas` 是后端路由,UAT 与 prod 共享后端 → `deploy-uat` 不重启 backend,改后端(含本路由)即使只为 UAT 验证也得走 `deploy-prod`。前端 canvas 锁在 `IS_NEW_UI` 后,prod 部署对 kb.liii.in 用户无感。
+
 ---
 
 ## 7. 数据库 schema 关键表关系
