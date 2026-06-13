@@ -23,6 +23,10 @@ export interface CanvasActions {
   onOpenMaterial: (materialKind: string) => void
   /** 资料桶角标计数(如文档数),无则 null */
   countOf: (materialKind: string) => number | null
+  /** 自定义输入节点:更新内容(text/url/...)并标记未保存 */
+  updateNodeData: (id: string, patch: Record<string, any>) => void
+  /** 文件输入节点:上传文件 → 关联文档,回写 docId/filename/status */
+  uploadFile: (id: string, file: File) => void
 }
 
 const noop = () => {}
@@ -33,6 +37,8 @@ export const CanvasActionsContext = createContext<CanvasActions>({
   onOpenGeneration: noop,
   onOpenMaterial: noop,
   countOf: () => null,
+  updateNodeData: noop,
+  uploadFile: noop,
 })
 
 export const useCanvasActions = () => useContext(CanvasActionsContext)

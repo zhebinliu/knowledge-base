@@ -48,10 +48,12 @@ OUTPUT_KIND = "workflow_canvas"
 
 class GraphNode(BaseModel):
     id: str
-    type: str                       # "generation" | "material"
+    type: str                       # "generation" | "material" | "note" | "webpage" | "file"
     kind: str | None = None         # generation:OutputKind
     materialKind: str | None = None  # material:docs/meetings/brief/research
     label: str | None = None
+    # 自定义输入节点内容:note→{text}、webpage→{url}、file→{docId,filename}
+    data: dict | None = None
     x: float = 0
     y: float = 0
 

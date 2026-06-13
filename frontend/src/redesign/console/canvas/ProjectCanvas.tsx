@@ -24,15 +24,17 @@ import { ArrowLeft, Loader2 } from 'lucide-react'
 
 import {
   getWorkflowCanvas, saveWorkflowCanvas, listLatestByKind, generateOutput,
-  getStageFlow, getProject, listProjectDocuments,
+  getStageFlow, getProject, listProjectDocuments, uploadDocument,
   type OutputKind, type CuratedBundle, type WorkflowCanvasNode,
 } from '../../../api/client'
 import {
   buildSeedGraph, toRFNodes, toRFEdges, fromRFNodes, fromRFEdges,
   kindToStageKey, genNodeId, matNodeId, edgeId, flattenKinds, SEED_DEPENDENCY_EDGES,
+  newInputNode, type InputNodeType,
 } from './canvasModel'
 import GenerationNode from './GenerationNode'
 import MaterialNode from './MaterialNode'
+import { NoteNode, WebpageNode, FileNode } from './InputNodes'
 import NodePalette, { DND_MIME, type PalettePayload } from './NodePalette'
 import CanvasToolbar from './CanvasToolbar'
 import OrthEdge from './OrthEdge'
@@ -40,7 +42,10 @@ import OrthEdge from './OrthEdge'
 import { CanvasActionsContext, type CanvasActions, type NodeStatus } from './canvasContext'
 
 // nodeTypes/edgeTypes 必须模块级稳定引用(否则 React Flow 每次渲染重建报警)
-const nodeTypes = { generation: GenerationNode, material: MaterialNode }
+const nodeTypes = {
+  generation: GenerationNode, material: MaterialNode,
+  note: NoteNode, webpage: WebpageNode, file: FileNode,
+}
 const edgeTypes = { orth: OrthEdge }
 
 // ── 自研分层布局(longest-path):无第三方依赖,左→右 DAG ─────────────────────
@@ -186,9 +191,14 @@ function CanvasInner() {
 
   // ── 添加节点(拖拽 / 点击)────────────────────────────────────────────────────
   const addNodeFromPayload = useCallback((p: PalettePayload, position: { x: number; y: number }) => {
-    const persisted: WorkflowCanvasNode = p.nodeType === 'generation'
-      ? { id: genNodeId(p.outputKind!), type: 'generation', kind: p.outputKind!, x: position.x, y: position.y }
-      : { id: matNodeId(p.materialKind!), type: 'material', materialKind: p.materialKind!, x: position.x, y: position.y }
+    let persisted: WorkflowCanvasNode
+    if (p.nodeType === 'generation') {
+      persisted = { id: genNodeId(p.outputKind!), type: 'generation', kind: p.outputKind!, x: position.x, y: position.y }
+    } else if (p.nodeType === 'material') {
+      persisted = { id: matNodeId(p.materialKind!), type: 'material', materialKind: p.materialKind!, x: position.x, y: position.y }
+    } else {
+      persisted = newInputNode(p.nodeType as InputNodeType, position.x, position.y)   // note/webpage/file:可多份
+    }
     setNodes(nds => {
       if (nds.some(n => n.id === persisted.id)) return nds
       return [...nds, toRFNodes([persisted], stageFlow)[0]]
@@ -298,6 +308,22 @@ function CanvasInner() {
       .catch(() => setPendingRun(prev => { const n = new Set(prev); n.delete(kind); return n }))
   }, [id, refetchLatest])
 
+  // 自定义输入节点:更新内容 + 上传文件
+  const updateNodeData = useCallback((nodeId: string, patch: Record<string, any>) => {
+    setNodes(nds => nds.map(n => (n.id === nodeId ? { ...n, data: { ...n.data, ...patch } } : n)))
+    setDirty(true)
+  }, [setNodes])
+
+  const uploadFile = useCallback((nodeId: string, file: File) => {
+    updateNodeData(nodeId, { filename: file.name, status: 'uploading' })
+    uploadDocument(file, { project_id: id })
+      .then(res => {
+        const doc: any = res.data
+        updateNodeData(nodeId, { docId: doc.id, filename: doc.filename || file.name, status: doc.conversion_status || 'pending' })
+      })
+      .catch(() => updateNodeData(nodeId, { status: 'failed' }))
+  }, [updateNodeData, id])
+
   const actions = useMemo<CanvasActions>(() => {
     const statusOf = (kind: OutputKind): NodeStatus => {
       const slot = (latestByKind as any)?.[kind]
@@ -320,8 +346,8 @@ function CanvasInner() {
       nav(`/console/projects/${id}${uiSuffix ? `?${uiSuffix}` : ''}`)
     }
     const countOf = (m: string) => (m === 'docs' ? (docs?.length ?? null) : null)
-    return { statusOf, failedTraceOf, onRun, onOpenGeneration, onOpenMaterial, countOf }
-  }, [latestByKind, pendingRun, stageFlow, docs, id, nav, sp, onRun])
+    return { statusOf, failedTraceOf, onRun, onOpenGeneration, onOpenMaterial, countOf, updateNodeData, uploadFile }
+  }, [latestByKind, pendingRun, stageFlow, docs, id, nav, sp, onRun, updateNodeData, uploadFile])
 
   const onRunAll = useCallback(() => {
     const genKinds = nodes.filter(n => n.type === 'generation').map(n => (n.data as any).kind as OutputKind)

@@ -1067,10 +1067,11 @@ export const saveStakeholderGraph = (projectId: string, payload: { nodes: Stakeh
 
 export interface WorkflowCanvasNode {
   id: string
-  type: 'generation' | 'material'
+  type: 'generation' | 'material' | 'note' | 'webpage' | 'file'
   kind?: OutputKind | null          // generation 节点对应的 OutputKind
   materialKind?: string | null      // material 节点:docs/meetings/brief/research
   label?: string | null             // 可选,前端一般运行时从 stage-flow 派生
+  data?: Record<string, any> | null // 自定义输入内容:note→{text}、webpage→{url}、file→{docId,filename}
   x: number
   y: number
 }

@@ -47,6 +47,8 @@ const MATERIAL_SEED_EDGES: { material: MaterialKind; to: OutputKind }[] = []
 export const genNodeId = (kind: OutputKind) => `gen_${kind}`
 export const matNodeId = (m: MaterialKind | string) => `mat_${m}`
 export const edgeId = (source: string, target: string) => `e_${source}_${target}`
+// 自定义输入节点可多份 → 用随机实例 id(不依赖 crypto.randomUUID,老 webkit 没有)
+export const newId = (prefix = 'n') => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 
 // ── 从 stage-flow 派生有序的生成 kind 列表 ───────────────────────────────────
 export interface KindSpec {
@@ -181,12 +183,35 @@ export interface MatNodeData extends Record<string, unknown> {
   label: string
 }
 
+// ── 自定义输入节点(可多份,用 newId 生成实例 id)────────────────────────────
+export type InputNodeType = 'note' | 'webpage' | 'file'
+export interface NoteNodeData extends Record<string, unknown> { text: string }
+export interface WebpageNodeData extends Record<string, unknown> { url: string; title?: string }
+export interface FileNodeData extends Record<string, unknown> { docId?: string; filename?: string; status?: string }
+
+export const INPUT_NODE_DEFS: { type: InputNodeType; label: string }[] = [
+  { type: 'note',    label: '手写备注' },
+  { type: 'webpage', label: '网页' },
+  { type: 'file',    label: '文件' },
+]
+const INPUT_TYPES = new Set<string>(['note', 'webpage', 'file'])
+
+/** 新建一个自定义输入节点(持久化形状) */
+export function newInputNode(type: InputNodeType, x: number, y: number): WorkflowCanvasNode {
+  const data = type === 'note' ? { text: '' } : type === 'webpage' ? { url: '' } : {}
+  return { id: newId(type), type, x, y, data }
+}
+
 export function toRFNodes(
   persisted: WorkflowCanvasNode[],
   stageFlow: StageFlowDto | undefined,
 ): Node[] {
   const specByKind = new Map(flattenKinds(stageFlow).map(k => [k.kind, k]))
   return persisted.map(n => {
+    if (INPUT_TYPES.has(n.type)) {
+      // 自定义输入:data 直接透传(text/url/docId/filename)
+      return { id: n.id, type: n.type, position: { x: n.x, y: n.y }, data: { ...(n.data || {}) } }
+    }
     if (n.type === 'material') {
       const bucket = MATERIAL_BUCKETS.find(b => b.materialKind === n.materialKind)
       const data: MatNodeData = {
@@ -219,8 +244,16 @@ export function toRFEdges(persisted: WorkflowCanvasEdge[]): Edge[] {
 /** RF Node[] → 持久化扁平形状;剥掉 data 里的派生/状态信息,只留布局必需字段。 */
 export function fromRFNodes(nodes: Node[]): WorkflowCanvasNode[] {
   return nodes.map(n => {
-    const d = (n.data || {}) as Partial<GenNodeData & MatNodeData>
-    const base = { id: n.id, type: (n.type as 'generation' | 'material'), x: n.position.x, y: n.position.y }
+    const d = (n.data || {}) as Record<string, any>
+    const base = { id: n.id, type: (n.type as WorkflowCanvasNode['type']), x: n.position.x, y: n.position.y }
+    if (INPUT_TYPES.has(n.type as string)) {
+      // 只存内容字段,丢掉派生/瞬时(如 file 的 status 也一并存,便于回显)
+      const data: Record<string, any> = {}
+      for (const k of ['text', 'url', 'title', 'docId', 'filename', 'status']) {
+        if (d[k] !== undefined) data[k] = d[k]
+      }
+      return { ...base, data }
+    }
     if (n.type === 'material') {
       return { ...base, materialKind: (d.materialKind as string) ?? null }
     }

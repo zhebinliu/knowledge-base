@@ -7,18 +7,18 @@
 import { useMemo } from 'react'
 import {
   FileText, Lightbulb, ClipboardList, Bot, Sparkles, Search,
-  Files, Contact, X, Plus, Check,
+  Files, Contact, X, Plus, Check, StickyNote, Globe, Paperclip,
 } from 'lucide-react'
 import {
-  flattenKinds, MATERIAL_BUCKETS, genNodeId, matNodeId,
-  type MaterialKind,
+  flattenKinds, MATERIAL_BUCKETS, genNodeId, matNodeId, INPUT_NODE_DEFS,
+  type MaterialKind, type InputNodeType,
 } from './canvasModel'
 import type { StageFlowDto, OutputKind } from '../../../api/client'
 
 export const DND_MIME = 'application/kb-canvas-node'
 
 export interface PalettePayload {
-  nodeType: 'generation' | 'material'
+  nodeType: 'generation' | 'material' | InputNodeType
   outputKind?: OutputKind
   materialKind?: MaterialKind
   label: string
@@ -29,6 +29,9 @@ const STAGE_ICONS: Record<string, typeof FileText> = {
 }
 const MAT_ICONS: Record<string, typeof Files> = {
   docs: Files, meetings: Contact, brief: ClipboardList, research: Search,
+}
+const INPUT_ICONS: Record<InputNodeType, typeof Files> = {
+  note: StickyNote, webpage: Globe, file: Paperclip,
 }
 
 interface Props {
@@ -99,6 +102,23 @@ export default function NodePalette({ stageFlow, presentIds, onAdd, onLocate, on
             {present
               ? <Check size={12} style={{ color: 'var(--cv-text-3)' }} />
               : <Plus size={12} style={{ color: 'var(--cv-text-3)' }} />}
+          </div>
+        )
+      })}
+
+      {/* 自定义输入(可多份) */}
+      <div style={{ fontSize: 10.5, color: 'var(--cv-text-3)', margin: '12px 0 6px', letterSpacing: 1 }}>自定义输入</div>
+      {INPUT_NODE_DEFS.map(def => {
+        const Icon = INPUT_ICONS[def.type]
+        const p: PalettePayload = { nodeType: def.type, label: def.label }
+        return (
+          <div key={def.type} draggable
+            onDragStart={(e) => drag(e, p)}
+            onClick={() => onAdd(p)}
+            style={itemStyle(false)} title="拖拽或点击添加(可添加多个)">
+            <Icon size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+            <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{def.label}</span>
+            <Plus size={12} style={{ color: 'var(--cv-text-3)' }} />
           </div>
         )
       })}
