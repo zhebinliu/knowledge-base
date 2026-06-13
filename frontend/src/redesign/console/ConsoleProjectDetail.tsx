@@ -348,6 +348,7 @@ export default function NewConsoleProjectDetail() {
             onEdit={() => setEditing(v => !v)}
             editing={editing}
             onBack={() => nav('/console/projects')}
+            onOpenCanvas={() => nav(`/console/projects/${project.id}/canvas${searchParams.get('ui') === 'new' ? '?ui=new' : ''}`)}
             actions={(project.my_role === 'owner' || user?.is_admin) ? (
               <DeleteProjectControl
                 project={{ id: project.id, name: project.name, document_count: project.document_count }}
@@ -1168,7 +1169,7 @@ function BlueprintDesignWorkspace({
 // ──────────────────────────────────────────────────────────────────────────
 function CompactInsightHeader({
   project, industryLabel, stages, activeStageKey, setActiveStageKey, stageStatus,
-  onOpenCollab, onOpenStakes, onOpenMeetings, onNewMeeting, onEdit, editing, onBack, actions,
+  onOpenCollab, onOpenStakes, onOpenMeetings, onNewMeeting, onEdit, editing, onBack, onOpenCanvas, actions,
 }: {
   project: Project
   industryLabel: (val: string | null) => string | null
@@ -1183,6 +1184,7 @@ function CompactInsightHeader({
   onEdit: () => void
   editing: boolean
   onBack: () => void
+  onOpenCanvas: () => void
   actions?: React.ReactNode
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -1363,6 +1365,14 @@ function CompactInsightHeader({
             <Plus size={11} />
           </button>
         </div>
+        <button
+          onClick={onOpenCanvas}
+          className="rd-btn"
+          style={{ padding: '5px 10px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+          title="项目画布 — 把交付物和资料摆成节点,自由编排、任意顺序运行"
+        >
+          <Workflow size={11} />画布
+        </button>
         <button
           onClick={onEdit}
           className={editing ? 'rd-btn rd-btn-primary' : 'rd-btn'}
