@@ -35,10 +35,13 @@ import GenerationNode from './GenerationNode'
 import MaterialNode from './MaterialNode'
 import NodePalette, { DND_MIME, type PalettePayload } from './NodePalette'
 import CanvasToolbar from './CanvasToolbar'
+import OrthEdge from './OrthEdge'
+// elkLayout 动态 import(elk.bundled.js ~1.4MB)—— 仅「整理布局」点击时才下载,画布页保持轻量
 import { CanvasActionsContext, type CanvasActions, type NodeStatus } from './canvasContext'
 
-// nodeTypes 必须模块级稳定引用(否则 React Flow 每次渲染重建节点报警)
+// nodeTypes/edgeTypes 必须模块级稳定引用(否则 React Flow 每次渲染重建报警)
 const nodeTypes = { generation: GenerationNode, material: MaterialNode }
+const edgeTypes = { orth: OrthEdge }
 
 // ── 自研分层布局(longest-path):无第三方依赖,左→右 DAG ─────────────────────
 function layeredLayout(nodes: Node[], edges: Edge[]): Node[] {
@@ -152,8 +155,14 @@ function CanvasInner() {
   // ── dirty 追踪:位置/增删才算改动,选中/测量不算 ──────────────────────────────
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
     onNodesChange(changes)
-    if (changes.some(c => c.type === 'position' || c.type === 'remove' || c.type === 'add')) setDirty(true)
-  }, [onNodesChange])
+    if (changes.some(c => c.type === 'position' || c.type === 'remove' || c.type === 'add')) {
+      setDirty(true)
+      // 节点移动后,elk 算出的正交路由点会错位 → 清掉,连线回退到 smoothstep(贴合新位置)
+      setEdges(eds => eds.some(e => (e.data as any)?.points?.length)
+        ? eds.map(e => (e.data as any)?.points?.length ? { ...e, data: { ...e.data, points: undefined } } : e)
+        : eds)
+    }
+  }, [onNodesChange, setEdges])
   const handleEdgesChange = useCallback((changes: EdgeChange[]) => {
     onEdgesChange(changes)
     if (changes.some(c => c.type === 'remove' || c.type === 'add')) setDirty(true)
@@ -209,10 +218,19 @@ function CanvasInner() {
   }, [addNodeFromPayload, screenToFlowPosition])
 
   // ── 工具栏动作 ───────────────────────────────────────────────────────────────
-  const onAutoLayout = useCallback(() => {
-    setNodes(nds => layeredLayout(nds, edges))
-    setDirty(true)
-  }, [setNodes, edges])
+  const onAutoLayout = useCallback(async () => {
+    try {
+      const { elkLayout } = await import('./elkLayout')   // 按需加载 elk
+      const laid = await elkLayout(nodes, edges)   // elk 分层 + 正交路由(连线绕开节点)
+      setNodes(laid.nodes)
+      setEdges(laid.edges)
+      setDirty(true)
+      setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 60)
+    } catch {
+      setNodes(nds => layeredLayout(nds, edges))   // 兜底:自研分层布局
+      setDirty(true)
+    }
+  }, [nodes, edges, setNodes, setEdges, fitView])
 
   const onDeleteSelected = useCallback(() => {
     const selNodes = new Set(nodes.filter(n => n.selected).map(n => n.id))
@@ -388,11 +406,12 @@ function CanvasInner() {
               onConnect={onConnect}
               onReconnect={onReconnect}
               nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
               deleteKeyCode={['Delete', 'Backspace']}
               minZoom={0.2}
               fitView
               style={{ position: 'absolute', inset: 0 }}
-              defaultEdgeOptions={{ type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' } }}
+              defaultEdgeOptions={{ type: 'orth', markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' } }}
             >
               <Background gap={18} size={1} />
               <Controls showInteractive={false} />

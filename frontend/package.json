@@ -19,6 +19,7 @@
     "@xyflow/react": "^12.11.0",
     "axios": "^1.7.3",
     "clsx": "^2.1.1",
+    "elkjs": "^0.11.1",
     "liquid-glass-react": "^1.1.1",
     "lucide-react": "^0.414.0",
     "mermaid": "^11.15.0",
