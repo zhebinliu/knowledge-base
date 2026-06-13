@@ -52,7 +52,9 @@ export default function NodePalette({ stageFlow, presentIds, onAdd, onLocate, on
   }, [stageFlow])
 
   const drag = (e: React.DragEvent, p: PalettePayload) => {
-    e.dataTransfer.setData(DND_MIME, JSON.stringify(p))
+    const json = JSON.stringify(p)
+    e.dataTransfer.setData(DND_MIME, json)
+    e.dataTransfer.setData('text/plain', json)   // 兜底:个别浏览器自定义 MIME 取不到
     e.dataTransfer.effectAllowed = 'move'
   }
 

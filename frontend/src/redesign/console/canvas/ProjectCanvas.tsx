@@ -182,8 +182,8 @@ function CanvasInner() {
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
-    const raw = e.dataTransfer.getData(DND_MIME)
-    if (!raw) return
+    const raw = e.dataTransfer.getData(DND_MIME) || e.dataTransfer.getData('text/plain')
+    if (!raw || raw[0] !== '{') return
     try {
       const p: PalettePayload = JSON.parse(raw)
       addNodeFromPayload(p, screenToFlowPosition({ x: e.clientX, y: e.clientY }))

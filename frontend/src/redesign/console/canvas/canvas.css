@@ -51,6 +51,11 @@
 .kb-canvas .react-flow,
 .kb-canvas .react-flow__renderer { background: var(--cv-bg); }
 
+/* 图标 <svg>/<img> 默认可被原生拖拽,会抢走节点库条目的 HTML5 拖拽 →
+ * 关掉它们的拖拽源,使拖拽始终从条目 div 发起,才能稳定拖到画布 */
+.kb-canvas svg,
+.kb-canvas img { -webkit-user-drag: none; user-drag: none; }
+
 .kb-canvas .react-flow__background { background: transparent; }
 .kb-canvas .react-flow__background-pattern { color: var(--cv-dot); }
 
