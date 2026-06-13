@@ -24,7 +24,7 @@ import {
   CheckCircle2, Loader2, Lock, Download, ExternalLink,
   Save, X, Wand2, AlertCircle, AlertTriangle, Pencil, Home, Files, Search,
   Bot, ShieldAlert, ChevronDown, ChevronRight, ChevronLeft, Users, Eye, RotateCw, Plus, Contact,
-  Upload,
+  Upload, Workflow,
 } from 'lucide-react'
 
 // 11 个子组件全部走 Liquid Glass 新版(redesign 目录下)
@@ -149,7 +149,19 @@ export default function NewConsoleProjectDetail() {
 
   const [docsOpen, setDocsOpen] = useState(false)
   const [briefDrawer, setBriefDrawer] = useState<{ kind: OutputKind; label: string } | null>(null)
-  const [selectedSubKind, setSelectedSubKind] = useState<OutputKind | null>(null)
+  // ?sub= 深链:项目画布双击生成节点进来时,直接定位到具体子 kind(缺省为 null,无行为变化)
+  const [selectedSubKind, setSelectedSubKind] = useState<OutputKind | null>(() => (searchParams.get('sub') as OutputKind) || null)
+
+  // ?sub= 消费一次即从 URL 抹掉,避免与用户手动切换子 kind 打架
+  useEffect(() => {
+    const urlSub = searchParams.get('sub')
+    if (!urlSub) return
+    setSelectedSubKind(urlSub as OutputKind)
+    const next = new URLSearchParams(searchParams)
+    next.delete('sub')
+    setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
   const [centerView, setCenterView] = useState<CenterView>({ type: 'preparation' })
   const [rightOpen, setRightOpen] = useState(false)
   const [highlightedRef, setHighlightedRef] = useState<string | null>(null)
@@ -459,6 +471,14 @@ export default function NewConsoleProjectDetail() {
               {pendingTodos > 10 ? '9+' : pendingTodos}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => nav(`/console/projects/${project.id}/canvas${searchParams.get('ui') === 'new' ? '?ui=new' : ''}`)}
+          className="rd-btn"
+          style={{ padding: '6px 10px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+          title="项目画布 — 把交付物和资料摆成节点,自由编排、任意顺序运行"
+        >
+          <Workflow size={13} />画布
         </button>
         <button
           onClick={() => setEditing(v => !v)}

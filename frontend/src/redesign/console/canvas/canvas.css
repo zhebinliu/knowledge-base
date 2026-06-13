@@ -1,0 +1,80 @@
+/* 项目画布 — React Flow 暗色主题覆写(对齐 redesign Liquid Glass) */
+
+.kb-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+/* 背景点阵 */
+.kb-canvas .react-flow__background {
+  background: transparent;
+}
+.kb-canvas .react-flow__background-pattern {
+  color: rgba(255, 255, 255, 0.06);
+}
+
+/* 连线 */
+.kb-canvas .react-flow__edge-path {
+  stroke: var(--rd-line, rgba(255, 255, 255, 0.22));
+  stroke-width: 1.5;
+}
+.kb-canvas .react-flow__edge.selected .react-flow__edge-path,
+.kb-canvas .react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--rd-accent, #38bdf8);
+}
+.kb-canvas .react-flow__arrowhead {
+  fill: var(--rd-line, rgba(255, 255, 255, 0.22));
+}
+.kb-canvas .react-flow__edge-text {
+  fill: var(--rd-text-2, #b8c0d0);
+  font-size: 10px;
+}
+.kb-canvas .react-flow__edge-textbg {
+  fill: rgba(12, 16, 28, 0.85);
+}
+/* 连线拖拽中的预览 */
+.kb-canvas .react-flow__connection-path {
+  stroke: var(--rd-accent, #38bdf8);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+
+/* 控制条 */
+.kb-canvas .react-flow__controls {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.kb-canvas .react-flow__controls-button {
+  background: rgba(18, 22, 38, 0.85);
+  border-bottom: 1px solid var(--rd-line, rgba(255, 255, 255, 0.08));
+  color: var(--rd-text, #e8ecf5);
+}
+.kb-canvas .react-flow__controls-button:hover {
+  background: rgba(40, 48, 70, 0.9);
+}
+.kb-canvas .react-flow__controls-button svg {
+  fill: var(--rd-text-2, #b8c0d0);
+}
+
+/* 小地图 */
+.kb-canvas .react-flow__minimap {
+  background: rgba(12, 16, 28, 0.7);
+  border: 1px solid var(--rd-line, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
+}
+
+/* 选区 */
+.kb-canvas .react-flow__nodesselection-rect,
+.kb-canvas .react-flow__selection {
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid var(--rd-accent, #38bdf8);
+}
+
+/* 署名水印淡化 */
+.kb-canvas .react-flow__attribution {
+  background: transparent;
+}
+.kb-canvas .react-flow__attribution a {
+  color: var(--rd-text-3, #6b7280);
+}

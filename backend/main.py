@@ -26,7 +26,7 @@ _ENC[_dt] = _utc_iso_datetime
 _ENC[_date] = lambda d: d.isoformat()  # 日期本来就无时区,保持
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, research, admin_invite_codes, admin_bundle_memories, project_stakeholders, smart_advice, template
+from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, workflow_canvas, research, admin_invite_codes, admin_bundle_memories, project_stakeholders, smart_advice, template
 from services.auth import get_current_user
 from services.rate_limit import limiter
 from services.vector_store import vector_store
@@ -199,6 +199,7 @@ app.include_router(doc_checklist.router, prefix="/api/doc-checklist", tags=["doc
 app.include_router(virtual_artifacts.router, prefix="/api/virtual", tags=["virtual-artifacts"])
 app.include_router(web_suggest.router, prefix="/api/web-suggest", tags=["web-suggest"])
 app.include_router(stakeholder_graph.router, prefix="/api/stakeholder-graph", tags=["stakeholder-graph"])
+app.include_router(workflow_canvas.router, prefix="/api/workflow-canvas", tags=["workflow-canvas"])
 app.include_router(research.router, prefix="/api/research", tags=["research"])
 app.include_router(project_stakeholders.router, prefix="/api/projects/{project_id}/stakeholders", tags=["project-stakeholders"])
 app.include_router(smart_advice.router, prefix="/api", tags=["smart-advice"])

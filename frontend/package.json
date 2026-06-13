@@ -16,6 +16,7 @@
     "@tiptap/extension-table-row": "^3.22.5",
     "@tiptap/react": "^3.22.5",
     "@tiptap/starter-kit": "^3.22.5",
+    "@xyflow/react": "^12.11.0",
     "axios": "^1.7.3",
     "clsx": "^2.1.1",
     "liquid-glass-react": "^1.1.1",

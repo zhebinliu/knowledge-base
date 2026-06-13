@@ -1062,6 +1062,38 @@ export const getStakeholderGraph = (projectId: string) =>
 export const saveStakeholderGraph = (projectId: string, payload: { nodes: StakeholderNode[]; edges: StakeholderEdge[] }) =>
   api.put<StakeholderGraph>(`/stakeholder-graph/${projectId}`, payload).then(r => r.data)
 
+// ── 项目画布(workflow canvas)— 节点式编排视图持久化 ──────────────────────────
+// 只存布局(节点类型/kind/坐标/连线);节点实时状态由前端从 latest-by-kind 合并,不入库。
+
+export interface WorkflowCanvasNode {
+  id: string
+  type: 'generation' | 'material'
+  kind?: OutputKind | null          // generation 节点对应的 OutputKind
+  materialKind?: string | null      // material 节点:docs/meetings/brief/research
+  label?: string | null             // 可选,前端一般运行时从 stage-flow 派生
+  x: number
+  y: number
+}
+
+export interface WorkflowCanvasEdge {
+  id: string
+  source: string
+  target: string
+  label?: string | null
+}
+
+export interface WorkflowCanvas {
+  nodes: WorkflowCanvasNode[]
+  edges: WorkflowCanvasEdge[]
+  updated_at?: string | null
+}
+
+export const getWorkflowCanvas = (projectId: string) =>
+  api.get<WorkflowCanvas>(`/workflow-canvas/${projectId}`).then(r => r.data)
+
+export const saveWorkflowCanvas = (projectId: string, payload: { nodes: WorkflowCanvasNode[]; edges: WorkflowCanvasEdge[] }) =>
+  api.put<WorkflowCanvas>(`/workflow-canvas/${projectId}`, payload).then(r => r.data)
+
 // (uploadDocument 已在文档管理章节定义,见 line ~206)
 
 // ── Stage Flow (项目阶段流程动态配置) ──────────────────────────────────────

@@ -3,6 +3,8 @@ import { lazy, Suspense } from 'react'
 
 // /demo-ppt — 高层汇报 PPT(独立 chunk, 首次访问才下载)
 const DemoPPT = lazy(() => import('./pages/DemoPPT'))
+// 项目画布(节点式编排,React Flow)— 独立 chunk,把重型库移出主包
+const ProjectCanvas = lazy(() => import('./redesign/console/canvas/ProjectCanvas'))
 // /redesign — 设计原型(深色 Liquid Glass)
 import RedesignShell  from './redesign/RedesignShell'
 import RDConsoleHome  from './redesign/pages/ConsoleHome'
@@ -138,6 +140,14 @@ export default function App() {
           <Route path="projects"     element={IS_NEW_UI ? <NewConsoleProjects />    : <ConsoleProjects />} />
           <Route path="projects/:id" element={IS_NEW_UI ? <NewConsoleProjectDetail /> : <ConsoleProjectDetail />} />
           <Route path="projects/:id/todos" element={IS_NEW_UI ? <NewProjectTodos /> : <ProjectTodosPage />} />
+          {/* 项目画布 — 仅新前端(深色 Liquid Glass)启用,旧浅色界面随整体切换再带过去 */}
+          {IS_NEW_UI && (
+            <Route path="projects/:id/canvas" element={
+              <Suspense fallback={<div style={{ flex: 1 }} />}>
+                <ProjectCanvas />
+              </Suspense>
+            } />
+          )}
           <Route path="meeting"      element={IS_NEW_UI ? <NewConsoleMeeting />     : <ConsoleMeeting />} />
           <Route path="meeting/new"  element={IS_NEW_UI ? <NewConsoleMeetingNew />  : <ConsoleMeetingNew />} />
           <Route path="meeting/templates" element={<NewTemplateManager variant={IS_NEW_UI ? 'redesign' : 'legacy'} />} />
