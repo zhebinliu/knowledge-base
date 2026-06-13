@@ -97,6 +97,9 @@ function CanvasInner() {
   const [dirty, setDirty] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(true)
   const [pendingRun, setPendingRun] = useState<Set<OutputKind>>(new Set())
+  // 最新 nodes/edges 的 ref —— 供「运行前先存画布」用,避免闭包拿到旧值
+  const nodesRef = useRef(nodes); nodesRef.current = nodes
+  const edgesRef = useRef(edges); edgesRef.current = edges
 
   // ── 查询 ─────────────────────────────────────────────────────────────────
   const { data: project } = useQuery({ queryKey: ['project', id], queryFn: () => getProject(id!), enabled: !!id })
@@ -301,12 +304,21 @@ function CanvasInner() {
   }, [setNodes, fitView])
 
   // ── 节点状态 + 动作(经 context 透传给自定义节点)─────────────────────────────
-  const onRun = useCallback((kind: OutputKind) => {
+  const onRun = useCallback(async (kind: OutputKind) => {
     setPendingRun(prev => new Set(prev).add(kind))
-    generateOutput({ kind, project_id: id! })
-      .then(() => refetchLatest())
-      .catch(() => setPendingRun(prev => { const n = new Set(prev); n.delete(kind); return n }))
-  }, [id, refetchLatest])
+    try {
+      // 先存画布 —— 后端生成时按"连到本节点的输入"取素材,必须读到最新连线
+      const saved = await saveWorkflowCanvas(id!, {
+        nodes: fromRFNodes(nodesRef.current), edges: fromRFEdges(edgesRef.current),
+      })
+      qc.setQueryData(['workflow-canvas', id], saved)
+      setDirty(false)
+      await generateOutput({ kind, project_id: id! })
+      refetchLatest()
+    } catch {
+      setPendingRun(prev => { const n = new Set(prev); n.delete(kind); return n })
+    }
+  }, [id, qc, refetchLatest])
 
   // 自定义输入节点:更新内容 + 上传文件
   const updateNodeData = useCallback((nodeId: string, patch: Record<string, any>) => {

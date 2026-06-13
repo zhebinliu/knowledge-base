@@ -42,6 +42,10 @@ DOC_TYPE_LABELS = {
     "presales_solution":    "售前解决方案",
     "presales_survey":      "售前调研问卷",
     "extra_reference":      "附加参考",
+    # 项目画布自定义输入(用户连到生成节点的素材)
+    "canvas_note":          "画布备注",
+    "canvas_webpage":       "画布网页",
+    "canvas_file":          "画布文件",
 }
 
 

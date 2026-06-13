@@ -364,6 +364,91 @@ def _subsection_matches_audience(target_roles: list[str], target_audience: str) 
     return target_audience in mapped
 
 
+async def _fetch_webpage_text(url: str) -> str:
+    """抓取网页正文(best-effort):http(s)、超时、粗略 HTML→文本、限长。失败返回空串。"""
+    import re as _re
+    if not _re.match(r"^https?://", url, _re.I):
+        return ""
+    try:
+        host = url.split("/")[2].split(":")[0].lower()
+    except Exception:
+        return ""
+    # 简单防 SSRF:拒绝明显内网/环回
+    if host == "localhost" or host.startswith(("127.", "10.", "192.168.", "169.254.", "0.")):
+        return ""
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as c:
+            r = await c.get(url, headers={"User-Agent": "Mozilla/5.0 (kb-system canvas)"})
+        html = r.text or ""
+        text = _re.sub(r"(?is)<(script|style|noscript)[^>]*>.*?</\1>", " ", html)
+        text = _re.sub(r"(?s)<[^>]+>", " ", text)
+        text = _re.sub(r"\s+", " ", text).strip()
+        return text[:20000]
+    except Exception as e:
+        logger.warning("canvas_webpage_fetch_failed", url=url[:120], err=str(e)[:200])
+        return ""
+
+
+async def _load_canvas_connected_docs(project_id: str, kind: str) -> list[tuple[str, dict]]:
+    """从 workflow_canvas 读「连到 gen_<kind> 生成节点」的自定义输入(备注/网页/文件),
+    合成成文档(D 类源),实现"连线即喂进生成"。返回 [(doc_type_bucket, doc_dict), ...]。"""
+    if not project_id:
+        return []
+    async with async_session_maker() as s:
+        row = (await s.execute(
+            select(ProjectBrief).where(
+                ProjectBrief.project_id == project_id,
+                ProjectBrief.output_kind == "workflow_canvas",
+            )
+        )).scalar_one_or_none()
+    if not row or not row.fields:
+        return []
+    nodes = {n.get("id"): n for n in (row.fields.get("nodes") or [])}
+    edges = row.fields.get("edges") or []
+    target_id = f"gen_{kind}"
+    upstream_ids = [e.get("source") for e in edges if e.get("target") == target_id]
+
+    out: list[tuple[str, dict]] = []
+    for sid in upstream_ids:
+        n = nodes.get(sid)
+        if not n:
+            continue
+        ntype = n.get("type")
+        data = n.get("data") or {}
+        if ntype == "note":
+            text = (data.get("text") or "").strip()
+            if text:
+                out.append(("canvas_note", {
+                    "doc_id": f"canvas-note:{sid}", "filename": "画布备注",
+                    "summary": text[:300], "markdown": text,
+                }))
+        elif ntype == "webpage":
+            url = (data.get("url") or "").strip()
+            if url:
+                content = await _fetch_webpage_text(url)
+                out.append(("canvas_webpage", {
+                    "doc_id": f"canvas-web:{sid}", "filename": url[:120],
+                    "summary": (content[:300] or url), "markdown": (content or url),
+                }))
+        elif ntype == "file":
+            doc_id = data.get("docId")
+            if doc_id:
+                from models.document import Document
+                async with async_session_maker() as s:
+                    d = (await s.execute(
+                        select(Document.id, Document.filename, Document.doc_type,
+                               Document.summary, Document.markdown_content)
+                        .where(Document.id == doc_id)
+                    )).first()
+                if d and (d.markdown_content or "").strip():
+                    out.append((d.doc_type or "canvas_file", {
+                        "doc_id": d.id, "filename": d.filename or "画布文件",
+                        "summary": (d.summary or "")[:300], "markdown": d.markdown_content or "",
+                    }))
+    return out
+
+
 async def _load_ctx(bundle_id: str, project_id: str, kind: str) -> dict:
     """读 bundle / project / brief / conversation / agent_config。
 
@@ -456,6 +541,17 @@ async def _load_ctx(bundle_id: str, project_id: str, kind: str) -> dict:
             "summary": user_q_md[:300],
             "markdown": user_q_md,
         })
+
+    # v3.3 新增:项目画布上「连到本生成节点」的自定义输入(备注/网页/文件)
+    # — 合成成文档塞进 docs_by_type(D 类源),实现"画布连线即喂进生成"。
+    # 文件类按 doc_id 去重(已上传的文件本就在项目文档里,避免重复注入)。
+    if project_id:
+        existing_ids = {d.get("doc_id") for lst in docs_by_type.values() for d in lst}
+        for bucket, doc in await _load_canvas_connected_docs(project_id, kind):
+            if doc["doc_id"] in existing_ids:
+                continue
+            docs_by_type.setdefault(bucket, []).append(doc)
+            existing_ids.add(doc["doc_id"])
 
     # v3.2 新增:加载上游 stage 的最新 valid bundle 作为 P 类源素材
     # — 让"前一阶段产物自动喂给后一阶段",打破各 stage 独立生成的孤岛
