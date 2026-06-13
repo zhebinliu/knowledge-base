@@ -308,30 +308,35 @@ function CanvasInner() {
 
   const hasSelection = nodes.some(n => n.selected) || edges.some(e => e.selected)
   const uiQuery = sp.get('ui') === 'new' ? '?ui=new' : ''
+  // 主题:新 UI(uat / ?ui=new)深色;prod 旧浅色界面用浅色
+  const isDark = typeof window !== 'undefined' && (window.location.hostname === 'uat.tokenwave.cloud' || sp.get('ui') === 'new')
 
   if (canvasLoading || !stageFlow) {
     return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--rd-text-3, #94a3b8)', fontSize: 13 }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 13 }}>
         <Loader2 size={15} className="animate-spin" style={{ marginRight: 6 }} />加载项目画布…
       </div>
     )
   }
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <div
+      className={`kb-canvas${isDark ? '' : ' kb-canvas-light'}`}
+      style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: 'var(--cv-bg)' }}
+    >
       {/* 顶栏:返回 + 标题 */}
       <div style={{
         flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-        borderBottom: '1px solid var(--rd-line, rgba(255,255,255,0.08))',
+        borderBottom: '1px solid var(--cv-line)', background: 'var(--cv-toolbar-bg)',
       }}>
         <button onClick={() => nav(`/console/projects/${id}${uiQuery}`)} title="返回项目"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', fontSize: 12, borderRadius: 9, border: '1px solid var(--rd-line, rgba(255,255,255,0.12))', background: 'rgba(255,255,255,0.05)', color: 'var(--rd-text, #e8ecf5)', cursor: 'pointer' }}>
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', fontSize: 12, borderRadius: 9, border: '1px solid var(--cv-line)', background: 'var(--cv-chip-bg)', color: 'var(--cv-text)', cursor: 'pointer' }}>
           <ArrowLeft size={13} />返回项目
         </button>
-        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--rd-text, #e8ecf5)' }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--cv-text)' }}>
           {project?.name || '项目'} · 项目画布
         </span>
-        <span style={{ fontSize: 11, color: 'var(--rd-text-3, #94a3b8)' }}>
+        <span style={{ fontSize: 11, color: 'var(--cv-text-3)' }}>
           从左侧「节点库」拖入交付物 · 双击节点进工作区 · 工具栏「全部添加」一键铺满
         </span>
       </div>
@@ -363,7 +368,8 @@ function CanvasInner() {
           />
         )}
 
-        <div ref={wrapRef} className="kb-canvas" style={{ flex: 1, minWidth: 0 }} onDrop={onDrop} onDragOver={onDragOver}>
+        {/* 内层不带 kb-canvas 类(否则会重置主题变量);RF 样式覆写靠 root.kb-canvas 祖先选择器生效 */}
+        <div ref={wrapRef} style={{ flex: 1, minWidth: 0, height: '100%' }} onDrop={onDrop} onDragOver={onDragOver}>
           <CanvasActionsContext.Provider value={actions}>
             <ReactFlow
               nodes={nodes}
@@ -375,11 +381,11 @@ function CanvasInner() {
               deleteKeyCode={['Delete', 'Backspace']}
               minZoom={0.2}
               fitView
-              defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed, color: 'rgba(255,255,255,0.3)' } }}
+              defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' } }}
             >
               <Background gap={18} size={1} />
               <Controls showInteractive={false} />
-              <MiniMap pannable zoomable nodeColor={(n) => (n.type === 'material' ? '#34D399' : '#38BDF8')} maskColor="rgba(0,0,0,0.45)" />
+              <MiniMap pannable zoomable nodeColor={(n) => (n.type === 'material' ? '#34D399' : '#38BDF8')} maskColor={isDark ? 'rgba(0,0,0,0.45)' : 'rgba(226,232,240,0.65)'} />
             </ReactFlow>
           </CanvasActionsContext.Provider>
         </div>

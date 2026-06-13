@@ -1,8 +1,8 @@
 /**
  * MaterialNode — 资料节点(输入桶):项目资料 / 会议纪要 / 项目 Brief / 网络调研
  *  - 只有右侧 source 连接桩(资料喂给生成节点)
- *  - 角标显示计数(如文档数);双击打开对应抽屉
- *  - 无「运行」动作
+ *  - 角标显示计数(如文档数);双击打开对应抽屉;无「运行」
+ *  - 颜色走 .kb-canvas 上的 --cv-* 变量,深/浅色自适应
  */
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { Files, Contact, ClipboardList, Search } from 'lucide-react'
@@ -28,21 +28,18 @@ export default function MaterialNode({ data, selected }: NodeProps) {
         borderRadius: 14,
         padding: '10px 12px',
         display: 'flex', alignItems: 'center', gap: 9,
-        background: 'rgba(26,44,42,0.96)',
-        border: `1px solid ${selected ? '#34D399' : 'rgba(255,255,255,0.18)'}`,
-        boxShadow: selected
-          ? '0 0 0 1px #34D399, 0 8px 28px rgba(0,0,0,0.4)'
-          : '0 6px 20px rgba(0,0,0,0.32)',
-        backdropFilter: 'blur(10px)',
-        color: 'var(--rd-text, #e8ecf5)',
+        background: 'var(--cv-node-bg)',
+        border: `1px solid ${selected ? 'var(--cv-mat)' : 'var(--cv-border)'}`,
+        boxShadow: selected ? `0 0 0 1px var(--cv-mat), ${'var(--cv-shadow-sel)'}` : 'var(--cv-shadow)',
+        color: 'var(--cv-text)',
         cursor: 'grab',
       }}
     >
-      <Handle type="source" position={Position.Right} style={{ background: '#34D399', width: 8, height: 8, border: 'none' }} />
+      <Handle type="source" position={Position.Right} style={{ background: 'var(--cv-mat)', width: 8, height: 8, border: 'none' }} />
       <span style={{
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         width: 28, height: 28, borderRadius: 9, flexShrink: 0,
-        background: 'rgba(52,211,153,0.14)', color: '#34D399',
+        background: 'var(--cv-mat-soft)', color: 'var(--cv-mat)',
       }}>
         <Icon size={16} />
       </span>
@@ -50,7 +47,7 @@ export default function MaterialNode({ data, selected }: NodeProps) {
         <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {d.label}
         </div>
-        <div style={{ fontSize: 10, color: 'var(--rd-text-3, #94a3b8)', marginTop: 1 }}>
+        <div style={{ fontSize: 10, color: 'var(--cv-text-3)', marginTop: 1 }}>
           {count != null ? `${count} 项` : '输入素材'}
         </div>
       </div>

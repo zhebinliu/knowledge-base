@@ -1,80 +1,89 @@
-/* 项目画布 — React Flow 暗色主题覆写(对齐 redesign Liquid Glass) */
+/* 项目画布 — React Flow 主题(深色 = 新 UI;浅色 = prod 旧界面)
+ * 所有颜色集中到 .kb-canvas 上的 --cv-* 变量,组件内联样式只引用变量。
+ * 默认深色;加 .kb-canvas-light 切浅色。 */
 
 .kb-canvas {
   width: 100%;
   height: 100%;
+  /* ── 深色(默认,新 UI)── */
+  --cv-bg: #0b1224;
+  --cv-dot: rgba(255, 255, 255, 0.06);
+  --cv-text: #e8ecf5;
+  --cv-text-2: #b8c0d0;
+  --cv-text-3: #94a3b8;
+  --cv-accent: #38bdf8;
+  --cv-accent-soft: rgba(56, 189, 248, 0.16);
+  --cv-mat: #34d399;
+  --cv-mat-soft: rgba(52, 211, 153, 0.14);
+  --cv-node-bg: rgba(34, 42, 66, 0.96);
+  --cv-border: rgba(255, 255, 255, 0.18);
+  --cv-shadow: 0 6px 20px rgba(0, 0, 0, 0.32);
+  --cv-shadow-sel: 0 8px 28px rgba(0, 0, 0, 0.4);
+  --cv-panel-bg: rgba(12, 16, 28, 0.55);
+  --cv-toolbar-bg: rgba(255, 255, 255, 0.04);
+  --cv-chip-bg: rgba(255, 255, 255, 0.06);
+  --cv-line: rgba(255, 255, 255, 0.12);
+  --cv-edge: rgba(255, 255, 255, 0.3);
 }
 
-/* 背景点阵 */
-.kb-canvas .react-flow__background {
-  background: transparent;
+/* ── 浅色(prod 旧界面)── */
+.kb-canvas.kb-canvas-light {
+  --cv-bg: #f1f5f9;
+  --cv-dot: rgba(15, 23, 42, 0.10);
+  --cv-text: #0f172a;
+  --cv-text-2: #475569;
+  --cv-text-3: #94a3b8;
+  --cv-accent: #2563eb;
+  --cv-accent-soft: rgba(37, 99, 235, 0.10);
+  --cv-mat: #059669;
+  --cv-mat-soft: rgba(5, 150, 105, 0.10);
+  --cv-node-bg: #ffffff;
+  --cv-border: #e2e8f0;
+  --cv-shadow: 0 4px 14px rgba(15, 23, 42, 0.10);
+  --cv-shadow-sel: 0 6px 22px rgba(37, 99, 235, 0.20);
+  --cv-panel-bg: #f8fafc;
+  --cv-toolbar-bg: #ffffff;
+  --cv-chip-bg: #f1f5f9;
+  --cv-line: #e2e8f0;
+  --cv-edge: #94a3b8;
 }
-.kb-canvas .react-flow__background-pattern {
-  color: rgba(255, 255, 255, 0.06);
-}
+
+.kb-canvas .react-flow,
+.kb-canvas .react-flow__renderer { background: var(--cv-bg); }
+
+.kb-canvas .react-flow__background { background: transparent; }
+.kb-canvas .react-flow__background-pattern { color: var(--cv-dot); }
 
 /* 连线 */
-.kb-canvas .react-flow__edge-path {
-  stroke: var(--rd-line, rgba(255, 255, 255, 0.22));
-  stroke-width: 1.5;
-}
+.kb-canvas .react-flow__edge-path { stroke: var(--cv-edge); stroke-width: 1.5; }
 .kb-canvas .react-flow__edge.selected .react-flow__edge-path,
-.kb-canvas .react-flow__edge:hover .react-flow__edge-path {
-  stroke: var(--rd-accent, #38bdf8);
-}
-.kb-canvas .react-flow__arrowhead {
-  fill: var(--rd-line, rgba(255, 255, 255, 0.22));
-}
-.kb-canvas .react-flow__edge-text {
-  fill: var(--rd-text-2, #b8c0d0);
-  font-size: 10px;
-}
-.kb-canvas .react-flow__edge-textbg {
-  fill: rgba(12, 16, 28, 0.85);
-}
-/* 连线拖拽中的预览 */
+.kb-canvas .react-flow__edge:hover .react-flow__edge-path { stroke: var(--cv-accent); }
+.kb-canvas .react-flow__arrowhead { fill: var(--cv-edge); }
+.kb-canvas .react-flow__edge-text { fill: var(--cv-text-2); font-size: 10px; }
+.kb-canvas .react-flow__edge-textbg { fill: var(--cv-toolbar-bg); }
 .kb-canvas .react-flow__connection-path {
-  stroke: var(--rd-accent, #38bdf8);
-  stroke-width: 1.5;
-  stroke-dasharray: 4 3;
+  stroke: var(--cv-accent); stroke-width: 1.5; stroke-dasharray: 4 3;
 }
 
 /* 控制条 */
-.kb-canvas .react-flow__controls {
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
-  border-radius: 10px;
-  overflow: hidden;
-}
+.kb-canvas .react-flow__controls { box-shadow: var(--cv-shadow); border-radius: 10px; overflow: hidden; }
 .kb-canvas .react-flow__controls-button {
-  background: rgba(18, 22, 38, 0.85);
-  border-bottom: 1px solid var(--rd-line, rgba(255, 255, 255, 0.08));
-  color: var(--rd-text, #e8ecf5);
+  background: var(--cv-node-bg); border-bottom: 1px solid var(--cv-line); color: var(--cv-text);
 }
-.kb-canvas .react-flow__controls-button:hover {
-  background: rgba(40, 48, 70, 0.9);
-}
-.kb-canvas .react-flow__controls-button svg {
-  fill: var(--rd-text-2, #b8c0d0);
-}
+.kb-canvas .react-flow__controls-button:hover { filter: brightness(1.15); }
+.kb-canvas .react-flow__controls-button svg { fill: var(--cv-text-2); }
 
 /* 小地图 */
 .kb-canvas .react-flow__minimap {
-  background: rgba(12, 16, 28, 0.7);
-  border: 1px solid var(--rd-line, rgba(255, 255, 255, 0.08));
-  border-radius: 10px;
+  background: var(--cv-panel-bg); border: 1px solid var(--cv-line); border-radius: 10px;
 }
 
 /* 选区 */
 .kb-canvas .react-flow__nodesselection-rect,
 .kb-canvas .react-flow__selection {
-  background: rgba(56, 189, 248, 0.08);
-  border: 1px solid var(--rd-accent, #38bdf8);
+  background: var(--cv-accent-soft); border: 1px solid var(--cv-accent);
 }
 
 /* 署名水印淡化 */
-.kb-canvas .react-flow__attribution {
-  background: transparent;
-}
-.kb-canvas .react-flow__attribution a {
-  color: var(--rd-text-3, #6b7280);
-}
+.kb-canvas .react-flow__attribution { background: transparent; }
+.kb-canvas .react-flow__attribution a { color: var(--cv-text-3); }

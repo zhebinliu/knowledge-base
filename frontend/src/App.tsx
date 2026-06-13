@@ -140,14 +140,12 @@ export default function App() {
           <Route path="projects"     element={IS_NEW_UI ? <NewConsoleProjects />    : <ConsoleProjects />} />
           <Route path="projects/:id" element={IS_NEW_UI ? <NewConsoleProjectDetail /> : <ConsoleProjectDetail />} />
           <Route path="projects/:id/todos" element={IS_NEW_UI ? <NewProjectTodos /> : <ProjectTodosPage />} />
-          {/* 项目画布 — 仅新前端(深色 Liquid Glass)启用,旧浅色界面随整体切换再带过去 */}
-          {IS_NEW_UI && (
-            <Route path="projects/:id/canvas" element={
-              <Suspense fallback={<div style={{ flex: 1 }} />}>
-                <ProjectCanvas />
-              </Suspense>
-            } />
-          )}
+          {/* 项目画布 — 新旧 UI 都注册;画布组件按 host/?ui 自适应深/浅色主题 */}
+          <Route path="projects/:id/canvas" element={
+            <Suspense fallback={<div style={{ flex: 1 }} />}>
+              <ProjectCanvas />
+            </Suspense>
+          } />
           <Route path="meeting"      element={IS_NEW_UI ? <NewConsoleMeeting />     : <ConsoleMeeting />} />
           <Route path="meeting/new"  element={IS_NEW_UI ? <NewConsoleMeetingNew />  : <ConsoleMeetingNew />} />
           <Route path="meeting/templates" element={<NewTemplateManager variant={IS_NEW_UI ? 'redesign' : 'legacy'} />} />

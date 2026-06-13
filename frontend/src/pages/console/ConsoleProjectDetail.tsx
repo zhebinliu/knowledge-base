@@ -6,7 +6,7 @@ import {
   CheckCircle2, Loader2, Lock, Download, ExternalLink, RotateCw,
   Save, X, Wand2, AlertCircle, AlertTriangle, Pencil, Home, Files, Search,
   Bot, ShieldAlert, ChevronDown, ChevronRight, Users, Eye, Plus, Contact,
-  Upload, Share2, Copy, Check,
+  Upload, Share2, Copy, Check, Workflow,
 } from 'lucide-react'
 import CollaboratorsModal from '../../components/console/CollaboratorsModal'
 import BundleOverrideModal from '../../components/console/BundleOverrideModal'
@@ -419,6 +419,13 @@ export default function ConsoleProjectDetail() {
               {pendingTodos > 10 ? '9+' : pendingTodos}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => nav(`/console/projects/${id}/canvas`)}
+          className="shrink-0 flex items-center gap-1.5 px-2.5 h-8 text-xs rounded-lg border border-line text-ink-secondary hover:bg-canvas transition-colors"
+          title="项目画布 — 把交付物和资料摆成节点,自由编排、任意顺序运行"
+        >
+          <Workflow size={13} /> 画布
         </button>
         <button
           onClick={() => setEditing(v => !v)}
