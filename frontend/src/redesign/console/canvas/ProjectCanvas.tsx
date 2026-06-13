@@ -368,8 +368,10 @@ function CanvasInner() {
           />
         )}
 
-        {/* 内层不带 kb-canvas 类(否则会重置主题变量);RF 样式覆写靠 root.kb-canvas 祖先选择器生效 */}
-        <div ref={wrapRef} style={{ flex: 1, minWidth: 0, height: '100%' }} onDrop={onDrop} onDragOver={onDragOver}>
+        {/* 内层:position:relative + 占满行高(flex 拉伸),ReactFlow 绝对定位铺满 —
+            不用 height:100% 百分比(在 flex 链里会解析成 0 导致画布零高、节点被裁切看不见)。
+            不带 kb-canvas 类(否则会重置主题变量);RF 样式覆写靠 root.kb-canvas 祖先选择器生效。 */}
+        <div ref={wrapRef} style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative' }} onDrop={onDrop} onDragOver={onDragOver}>
           <CanvasActionsContext.Provider value={actions}>
             <ReactFlow
               nodes={nodes}
@@ -381,6 +383,7 @@ function CanvasInner() {
               deleteKeyCode={['Delete', 'Backspace']}
               minZoom={0.2}
               fitView
+              style={{ position: 'absolute', inset: 0 }}
               defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' } }}
             >
               <Background gap={18} size={1} />
