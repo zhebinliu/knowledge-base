@@ -6,7 +6,7 @@
 import { useMemo } from 'react'
 import {
   FileText, Lightbulb, ClipboardList, Bot, Sparkles, Search,
-  Files, Contact, X, Plus,
+  Files, Contact, X, Plus, Check,
 } from 'lucide-react'
 import {
   flattenKinds, MATERIAL_BUCKETS, genNodeId, matNodeId,
@@ -34,10 +34,11 @@ interface Props {
   stageFlow: StageFlowDto | undefined
   presentIds: Set<string>
   onAdd: (p: PalettePayload) => void
+  onLocate: (nodeId: string) => void
   onClose: () => void
 }
 
-export default function NodePalette({ stageFlow, presentIds, onAdd, onClose }: Props) {
+export default function NodePalette({ stageFlow, presentIds, onAdd, onLocate, onClose }: Props) {
   // 按阶段分组
   const groups = useMemo(() => {
     const kinds = flattenKinds(stageFlow)
@@ -55,14 +56,15 @@ export default function NodePalette({ stageFlow, presentIds, onAdd, onClose }: P
     e.dataTransfer.effectAllowed = 'move'
   }
 
-  const itemStyle = (disabled: boolean): React.CSSProperties => ({
+  // present(已在画布):仍可读、可点击定位;未添加:可拖拽 / 点击添加
+  const itemStyle = (present: boolean): React.CSSProperties => ({
     display: 'flex', alignItems: 'center', gap: 8,
     padding: '7px 9px', marginBottom: 5, borderRadius: 9,
     border: '1px solid var(--rd-line, rgba(255,255,255,0.08))',
-    background: disabled ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)',
-    color: disabled ? 'var(--rd-text-3, #94a3b8)' : 'var(--rd-text, #e8ecf5)',
-    fontSize: 12.5, cursor: disabled ? 'not-allowed' : 'grab',
-    opacity: disabled ? 0.5 : 1, userSelect: 'none',
+    background: present ? 'rgba(56,189,248,0.07)' : 'rgba(255,255,255,0.06)',
+    color: present ? 'var(--rd-text-2, #b8c0d0)' : 'var(--rd-text, #e8ecf5)',
+    fontSize: 12.5, cursor: present ? 'pointer' : 'grab',
+    userSelect: 'none',
   })
 
   return (
@@ -83,17 +85,20 @@ export default function NodePalette({ stageFlow, presentIds, onAdd, onClose }: P
       {/* 资料桶 */}
       <div style={{ fontSize: 10.5, color: 'var(--rd-text-3, #94a3b8)', margin: '6px 0 6px', letterSpacing: 1 }}>资料</div>
       {MATERIAL_BUCKETS.map(b => {
-        const disabled = presentIds.has(matNodeId(b.materialKind))
+        const nid = matNodeId(b.materialKind)
+        const present = presentIds.has(nid)
         const Icon = MAT_ICONS[b.materialKind] || Files
         const p: PalettePayload = { nodeType: 'material', materialKind: b.materialKind, label: b.label }
         return (
-          <div key={b.materialKind} draggable={!disabled}
-            onDragStart={(e) => !disabled && drag(e, p)}
-            onClick={() => !disabled && onAdd(p)}
-            style={itemStyle(disabled)} title={disabled ? '已在画布' : '拖拽或点击添加'}>
+          <div key={b.materialKind} draggable={!present}
+            onDragStart={(e) => !present && drag(e, p)}
+            onClick={() => present ? onLocate(nid) : onAdd(p)}
+            style={itemStyle(present)} title={present ? '已在画布 · 点击定位' : '拖拽或点击添加'}>
             <Icon size={14} style={{ color: '#34D399', flexShrink: 0 }} />
             <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.label}</span>
-            {!disabled && <Plus size={12} style={{ color: 'var(--rd-text-3, #94a3b8)' }} />}
+            {present
+              ? <Check size={12} style={{ color: 'var(--rd-text-3, #94a3b8)' }} />
+              : <Plus size={12} style={{ color: 'var(--rd-text-3, #94a3b8)' }} />}
           </div>
         )
       })}
@@ -107,18 +112,21 @@ export default function NodePalette({ stageFlow, presentIds, onAdd, onClose }: P
               <StageIcon size={11} />{g.stageLabel}
             </div>
             {g.items.map(k => {
-              const disabled = presentIds.has(genNodeId(k.kind))
+              const nid = genNodeId(k.kind)
+              const present = presentIds.has(nid)
               const p: PalettePayload = { nodeType: 'generation', outputKind: k.kind, label: k.label }
               return (
-                <div key={k.kind} draggable={!disabled}
-                  onDragStart={(e) => !disabled && drag(e, p)}
-                  onClick={() => !disabled && onAdd(p)}
-                  style={itemStyle(disabled)} title={disabled ? '已在画布' : '拖拽或点击添加'}>
+                <div key={k.kind} draggable={!present}
+                  onDragStart={(e) => !present && drag(e, p)}
+                  onClick={() => present ? onLocate(nid) : onAdd(p)}
+                  style={itemStyle(present)} title={present ? '已在画布 · 点击定位' : '拖拽或点击添加'}>
                   <StageIcon size={14} style={{ color: 'var(--rd-accent, #38BDF8)', flexShrink: 0 }} />
                   <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {k.label}{k.beta && <span style={{ marginLeft: 4, fontSize: 9 }}>Beta</span>}
                   </span>
-                  {!disabled && <Plus size={12} style={{ color: 'var(--rd-text-3, #94a3b8)' }} />}
+                  {present
+                    ? <Check size={12} style={{ color: 'var(--rd-text-3, #94a3b8)' }} />
+                    : <Plus size={12} style={{ color: 'var(--rd-text-3, #94a3b8)' }} />}
                 </div>
               )
             })}

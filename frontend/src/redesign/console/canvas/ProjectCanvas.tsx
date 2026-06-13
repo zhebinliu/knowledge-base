@@ -29,7 +29,7 @@ import {
 } from '../../../api/client'
 import {
   buildSeedGraph, toRFNodes, toRFEdges, fromRFNodes, fromRFEdges,
-  kindToStageKey, genNodeId, matNodeId, edgeId,
+  kindToStageKey, genNodeId, matNodeId, edgeId, flattenKinds, SEED_DEPENDENCY_EDGES,
 } from './canvasModel'
 import GenerationNode from './GenerationNode'
 import MaterialNode from './MaterialNode'
@@ -82,6 +82,7 @@ function CanvasInner() {
   const qc = useQueryClient()
   const { screenToFlowPosition, fitView } = useReactFlow()
   const wrapRef = useRef<HTMLDivElement>(null)
+  const seededRef = useRef(false)   // 只初始化一次,避免轮询/保存回填时冲掉未保存编辑
 
   const [nodes, setNodes, onNodesChange] = useNodesState([] as Node[])
   const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[])
@@ -114,17 +115,26 @@ function CanvasInner() {
     },
   })
 
-  // ── 初始化:服务端有则用,空则前端种子图(种子只在用户首次保存时落库)───────────
+  // ── 初始化(只一次):服务端有则用,空则种子图(资料桶 + 已有产物节点)──────────
   useEffect(() => {
-    if (!canvasData || !stageFlow) return
-    const persisted = (canvasData.nodes?.length || canvasData.edges?.length)
-      ? { nodes: canvasData.nodes, edges: canvasData.edges }
-      : buildSeedGraph(stageFlow)
-    setNodes(toRFNodes(persisted.nodes as WorkflowCanvasNode[], stageFlow))
-    setEdges(toRFEdges(persisted.edges as any))
+    if (!canvasData || !stageFlow || seededRef.current) return
+    const hasContent = canvasData.nodes?.length || canvasData.edges?.length
+    if (hasContent) {
+      setNodes(toRFNodes(canvasData.nodes as WorkflowCanvasNode[], stageFlow))
+      setEdges(toRFEdges(canvasData.edges as any))
+      setDirty(false)
+      seededRef.current = true
+      return
+    }
+    // 空画布 → 等首个 latest-by-kind 到位再种(以便把已有产物的节点种上)
+    if (latestByKind === undefined) return
+    const seed = buildSeedGraph(stageFlow, latestByKind)
+    setNodes(toRFNodes(seed.nodes, stageFlow))
+    setEdges(toRFEdges(seed.edges))
     setDirty(false)
+    seededRef.current = true
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasData, stageFlow])
+  }, [canvasData, stageFlow, latestByKind])
 
   // ── pending(乐观 inflight)清理:轮询拿到 inflight/done 后撤掉 ────────────────
   useEffect(() => {
@@ -215,13 +225,45 @@ function CanvasInner() {
 
   const onRevert = useCallback(() => {
     if (!canvasData || !stageFlow) return
-    const persisted = (canvasData.nodes?.length || canvasData.edges?.length)
+    const hasContent = canvasData.nodes?.length || canvasData.edges?.length
+    const persisted = hasContent
       ? { nodes: canvasData.nodes, edges: canvasData.edges }
-      : buildSeedGraph(stageFlow)
+      : buildSeedGraph(stageFlow, latestByKind)
     setNodes(toRFNodes(persisted.nodes as WorkflowCanvasNode[], stageFlow))
     setEdges(toRFEdges(persisted.edges as any))
     setDirty(false)
-  }, [canvasData, stageFlow, setNodes, setEdges])
+  }, [canvasData, stageFlow, latestByKind, setNodes, setEdges])
+
+  // 全部添加:把所有缺失的生成节点 + 依赖边铺上,再自动布局(一键得到完整流程总览)
+  const onAddAll = useCallback(() => {
+    const presentIds = new Set(nodes.map(n => n.id))
+    const toAdd = flattenKinds(stageFlow)
+      .filter(k => !presentIds.has(genNodeId(k.kind)))
+      .map(k => ({ id: genNodeId(k.kind), type: 'generation' as const, kind: k.kind, x: 0, y: 0 }))
+    if (!toAdd.length) return
+    const newNodes = [...nodes, ...toRFNodes(toAdd, stageFlow)]
+    const allIds = new Set(newNodes.map(n => n.id))
+    const extraEdges: Edge[] = []
+    const push = (s: string, t: string) => {
+      const eid = edgeId(s, t)
+      if (allIds.has(s) && allIds.has(t) && !edges.some(e => e.id === eid) && !extraEdges.some(e => e.id === eid)) {
+        extraEdges.push({ id: eid, source: s, target: t })
+      }
+    }
+    for (const [src, tgts] of Object.entries(SEED_DEPENDENCY_EDGES)) {
+      for (const t of tgts || []) push(genNodeId(src as OutputKind), genNodeId(t))
+    }
+    const newEdges = [...edges, ...extraEdges]
+    setNodes(layeredLayout(newNodes, newEdges))
+    setEdges(newEdges)
+    setDirty(true)
+  }, [nodes, edges, stageFlow, setNodes, setEdges])
+
+  // 节点库点击「已添加」项 → 选中并居中定位到该节点
+  const onLocate = useCallback((nodeId: string) => {
+    setNodes(nds => nds.map(n => ({ ...n, selected: n.id === nodeId })))
+    fitView({ nodes: [{ id: nodeId }], duration: 400, maxZoom: 1.2 })
+  }, [setNodes, fitView])
 
   // ── 节点状态 + 动作(经 context 透传给自定义节点)─────────────────────────────
   const onRun = useCallback((kind: OutputKind) => {
@@ -290,7 +332,7 @@ function CanvasInner() {
           {project?.name || '项目'} · 项目画布
         </span>
         <span style={{ fontSize: 11, color: 'var(--rd-text-3, #94a3b8)' }}>
-          自由编排 · 双击节点进入工作区
+          从左侧「节点库」拖入交付物 · 双击节点进工作区 · 工具栏「全部添加」一键铺满
         </span>
       </div>
 
@@ -301,6 +343,7 @@ function CanvasInner() {
         nodeCount={nodes.length}
         edgeCount={edges.length}
         onTogglePalette={() => setPaletteOpen(o => !o)}
+        onAddAll={onAddAll}
         onAutoLayout={onAutoLayout}
         onRunAll={onRunAll}
         onDeleteSelected={onDeleteSelected}
@@ -315,6 +358,7 @@ function CanvasInner() {
             stageFlow={stageFlow}
             presentIds={new Set(nodes.map(n => n.id))}
             onAdd={onPaletteAdd}
+            onLocate={onLocate}
             onClose={() => setPaletteOpen(false)}
           />
         )}

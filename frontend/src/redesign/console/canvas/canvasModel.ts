@@ -13,7 +13,7 @@
 import type { Node, Edge } from '@xyflow/react'
 import type {
   StageFlowDto, OutputKind,
-  WorkflowCanvasNode, WorkflowCanvasEdge,
+  WorkflowCanvasNode, WorkflowCanvasEdge, LatestByKind,
 } from '../../../api/client'
 
 // ── 资料桶(输入节点)────────────────────────────────────────────────────────
@@ -104,17 +104,29 @@ const GEN_COL_STEP = 280
 const GEN_Y0 = 60
 const GEN_ROW_STEP = 130
 
-/** 空项目种子图:资料桶左列 + 生成节点按阶段左→右铺开 + 依赖边 */
-export function buildSeedGraph(stageFlow: StageFlowDto | undefined): {
-  nodes: WorkflowCanvasNode[]
-  edges: WorkflowCanvasEdge[]
-} {
+/** 某 kind 是否已有产物(done/inflight/failed 任一) */
+function hasBundle(latestByKind: LatestByKind | undefined, kind: OutputKind): boolean {
+  const slot = latestByKind?.[kind]
+  return !!(slot && (slot.done || slot.inflight || slot.failed))
+}
+
+/**
+ * 种子图:资料桶(输入)始终铺在左列;生成节点**只放已有产物的 kind**
+ * (done/inflight/failed),其余留在「节点库」里供用户拖拽自由组合。
+ * 全新项目 → 只有 4 个资料桶,画布是空白起点,节点库满是可拖拽的交付物节点。
+ */
+export function buildSeedGraph(
+  stageFlow: StageFlowDto | undefined,
+  latestByKind?: LatestByKind,
+): { nodes: WorkflowCanvasNode[]; edges: WorkflowCanvasEdge[] } {
   const kinds = flattenKinds(stageFlow)
-  const presentKinds = new Set(kinds.map(k => k.kind))
+  // 只种已有产物的生成节点
+  const seedKinds = kinds.filter(k => hasBundle(latestByKind, k.kind))
+  const presentKinds = new Set(seedKinds.map(k => k.kind))
 
   const nodes: WorkflowCanvasNode[] = []
 
-  // 资料桶
+  // 资料桶(始终)
   MATERIAL_BUCKETS.forEach((b, i) => {
     nodes.push({
       id: matNodeId(b.materialKind),
@@ -126,8 +138,8 @@ export function buildSeedGraph(stageFlow: StageFlowDto | undefined): {
     })
   })
 
-  // 生成节点
-  kinds.forEach(k => {
+  // 生成节点(仅已有产物)
+  seedKinds.forEach(k => {
     nodes.push({
       id: genNodeId(k.kind),
       type: 'generation',

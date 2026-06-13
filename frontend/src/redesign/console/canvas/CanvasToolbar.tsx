@@ -3,7 +3,7 @@
  *  节点库 / 整理布局 / 一键全跑 / 删除选中 / 适应画布 / 还原 / 保存(+未保存指示)
  */
 import {
-  PanelLeft, LayoutGrid, Play, Trash2, Maximize2, Save, RotateCcw, Loader2,
+  PanelLeft, LayoutGrid, Play, Trash2, Maximize2, Save, RotateCcw, Loader2, ListPlus,
 } from 'lucide-react'
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
   nodeCount: number
   edgeCount: number
   onTogglePalette: () => void
+  onAddAll: () => void
   onAutoLayout: () => void
   onRunAll: () => void
   onDeleteSelected: () => void
@@ -39,6 +40,7 @@ export default function CanvasToolbar(p: Props) {
       background: 'rgba(255,255,255,0.04)',
     }}>
       <button style={btn} onClick={p.onTogglePalette} title="节点库"><PanelLeft size={13} />节点库</button>
+      <button style={btn} onClick={p.onAddAll} title="把所有交付物节点一次性铺到画布(完整流程总览)"><ListPlus size={13} />全部添加</button>
       <button style={btn} onClick={p.onAutoLayout} title="自动排布"><LayoutGrid size={13} />整理布局</button>
       <button style={btn} onClick={p.onRunAll} title="按依赖顺序运行所有未开始节点"><Play size={13} />一键全跑</button>
       <button

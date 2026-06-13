@@ -28,11 +28,11 @@ export default function MaterialNode({ data, selected }: NodeProps) {
         borderRadius: 14,
         padding: '10px 12px',
         display: 'flex', alignItems: 'center', gap: 9,
-        background: 'rgba(16,28,30,0.72)',
-        border: `1px solid ${selected ? 'var(--rd-accent, #34D399)' : 'var(--rd-line, rgba(255,255,255,0.10))'}`,
+        background: 'rgba(26,44,42,0.96)',
+        border: `1px solid ${selected ? '#34D399' : 'rgba(255,255,255,0.18)'}`,
         boxShadow: selected
-          ? '0 0 0 1px var(--rd-accent, #34D399), 0 8px 28px rgba(0,0,0,0.35)'
-          : '0 6px 20px rgba(0,0,0,0.28)',
+          ? '0 0 0 1px #34D399, 0 8px 28px rgba(0,0,0,0.4)'
+          : '0 6px 20px rgba(0,0,0,0.32)',
         backdropFilter: 'blur(10px)',
         color: 'var(--rd-text, #e8ecf5)',
         cursor: 'grab',

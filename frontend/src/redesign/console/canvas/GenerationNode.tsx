@@ -41,11 +41,11 @@ export default function GenerationNode({ data, selected }: NodeProps) {
         width: 188,
         borderRadius: 14,
         padding: '11px 13px',
-        background: 'rgba(18,22,38,0.72)',
-        border: `1px solid ${selected ? 'var(--rd-accent, #38BDF8)' : 'var(--rd-line, rgba(255,255,255,0.10))'}`,
+        background: 'rgba(34,42,66,0.96)',
+        border: `1px solid ${selected ? 'var(--rd-accent, #38BDF8)' : 'rgba(255,255,255,0.18)'}`,
         boxShadow: selected
-          ? '0 0 0 1px var(--rd-accent, #38BDF8), 0 8px 28px rgba(0,0,0,0.35)'
-          : '0 6px 20px rgba(0,0,0,0.28)',
+          ? '0 0 0 1px var(--rd-accent, #38BDF8), 0 8px 28px rgba(0,0,0,0.4)'
+          : '0 6px 20px rgba(0,0,0,0.32)',
         backdropFilter: 'blur(10px)',
         color: 'var(--rd-text, #e8ecf5)',
         cursor: 'grab',
