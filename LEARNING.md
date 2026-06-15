@@ -755,6 +755,31 @@ CI 也兜不住这类:`deploy-meeting.yml` 只做前端 tsc 自检,后端 Docker
 backend 模型/迁移问题要到服务器 startup 或运行时才暴露。submodule 改后端模型后,主仓迁移
 一定要手动跟上。
 
+### 12.8 ⚠️ 同名文件存在于 frontend/ 和 meeting/frontend/ 两份时,**meeting 副本覆盖、且赢**(2026-06-15 实录)
+
+`frontend/Dockerfile` 和 `deploy-*.yml` 的 overlay 是**后写覆盖**:
+```dockerfile
+COPY frontend/ /app/          # 主仓副本先落
+COPY meeting/frontend/ /app/  # meeting 副本后落,同路径直接覆盖
+```
+```yaml
+# frontend-check job 同理
+cp -r meeting/frontend/. frontend/
+```
+所以**凡是 `frontend/src/...X.tsx` 和 `meeting/frontend/src/...X.tsx` 同时存在的文件,运行时跑的是 meeting 那份**,不是主仓那份。
+
+踩坑实录:改 `frontend/src/pages/console/ConsoleMeetingDetail.tsx`(会议详情页收起按钮),
+本地 `tsc` 过、commit/push、prod deploy **三次全 success**,但线上 bundle 始终是老代码 ——
+因为构建时 `meeting/frontend/src/pages/console/ConsoleMeetingDetail.tsx`(老版)把我的改动覆盖了。
+`/console/meeting/:id` 这个经典 UI 页**真正渲染的是 meeting 副本**。
+
+判定踩坑的最快信号:Vite 给 bundle 按内容 hash 命名,**改了源码但线上 `index-XXXX.js` 文件名没变 = 构建没吃到你的改动**(`docker exec <fe容器> ls /usr/share/nginx/html/assets`)。
+
+**此后做法**:
+- 改会议相关、或任何疑似两份都有的前端文件,先 `diff frontend/src/.../X.tsx meeting/frontend/src/.../X.tsx`,改完**两份一起改 / `cp` 同步**再提交。两份在编辑前通常 byte 同一(同步镜像)。
+- 想知道一个路由跑哪份:看 `frontend/Dockerfile` overlay 顺序,**后 COPY 的赢**。
+- 验证是否真上线:不要只看 deploy run success,grep 线上 bundle 里你新加的 className / title 字符串(`docker exec <fe> grep -c '你的新串' /usr/share/nginx/html/assets/index-*.js`)。
+
 ---
 
 ### 12. MiniMax 图像 API 不是 OpenAI 风格(2026-06-06)
