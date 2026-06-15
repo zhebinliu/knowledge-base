@@ -2855,7 +2855,7 @@ export default function ConsoleMeetingDetail() {
             {topView === 'split' && (
               <div className="grid grid-cols-1 lg:grid-cols-5" style={{ minHeight: 480 }}>
                 {/* 左侧面板: 纪要 / 需求清单 / 干系人 */}
-                <div className={`${rightPanelOpen ? 'lg:col-span-3 border-r border-line' : 'lg:col-span-5'}`}>
+                <div className={`relative ${rightPanelOpen ? 'lg:col-span-3 border-r border-line' : 'lg:col-span-5'}`}>
                   {/* 左侧 Tab 栏 */}
                   <div className="flex border-b border-line bg-slate-50/30 items-center">
                     <div className="flex flex-1 min-w-0 overflow-x-auto">
@@ -2877,16 +2877,6 @@ export default function ConsoleMeetingDetail() {
                         )
                       })}
                     </div>
-                    {!rightPanelOpen && (
-                      <button
-                        type="button"
-                        onClick={() => setRightPanelOpen(true)}
-                        className="shrink-0 px-3 py-2.5 text-sm text-blue-600 hover:bg-blue-50/80 inline-flex items-center gap-1 border-l border-line whitespace-nowrap"
-                        title="展开转写面板"
-                      >
-                        <ChevronLeft size={14} /> 转写
-                      </button>
-                    )}
                   </div>
                   {/* 左侧内容 */}
                   <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 360px)' }}>
@@ -2896,11 +2886,31 @@ export default function ConsoleMeetingDetail() {
                     {leftTab === 'stakeholders'   && <StakeholdersTab meeting={meeting} />}
                     {leftTab === 'illustrations' && <IllustrationsTab meeting={meeting} />}
                   </div>
+                  {/* 展开手柄 — 转写面板收起后,贴在右边缘,点一下重新展开 */}
+                  {!rightPanelOpen && (
+                    <button
+                      type="button"
+                      onClick={() => setRightPanelOpen(true)}
+                      title="展开转写面板"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center w-5 h-16 rounded-full border border-line bg-white text-ink-muted shadow-sm hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                    >
+                      <ChevronLeft size={15} />
+                    </button>
+                  )}
                 </div>
 
                 {/* 右侧面板: 原文 / AI润色(可收起) */}
                 {rightPanelOpen && (
-                  <div className="lg:col-span-2">
+                  <div className="lg:col-span-2 relative">
+                    {/* 收起手柄 — 贴在两栏分割线上,点一下折叠转写面板 */}
+                    <button
+                      type="button"
+                      onClick={() => setRightPanelOpen(false)}
+                      title="收起转写面板"
+                      className="absolute left-0 top-1/2 -translate-y-1/2 lg:-translate-x-1/2 z-20 flex items-center justify-center w-5 h-16 rounded-full border border-line bg-white text-ink-muted shadow-sm hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                    >
+                      <ChevronRight size={15} />
+                    </button>
                     {/* 右侧 Tab 栏 */}
                     <div className="flex border-b border-line bg-slate-50/30 items-center">
                       <div className="flex flex-1 min-w-0">
@@ -2922,14 +2932,6 @@ export default function ConsoleMeetingDetail() {
                           )
                         })}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setRightPanelOpen(false)}
-                        className="shrink-0 px-3 py-2.5 text-sm text-ink-muted hover:text-ink hover:bg-canvas/40 inline-flex items-center gap-1 border-l border-line whitespace-nowrap"
-                        title="收起转写面板"
-                      >
-                        收起 <ChevronRight size={14} />
-                      </button>
                     </div>
                     {/* 右侧内容 */}
                     <div className="p-4 overflow-y-auto bg-canvas/30" style={{ maxHeight: 'calc(100vh - 360px)' }}>
