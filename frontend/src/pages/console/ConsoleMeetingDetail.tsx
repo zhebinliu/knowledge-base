@@ -2881,10 +2881,10 @@ export default function ConsoleMeetingDetail() {
                       <button
                         type="button"
                         onClick={() => setRightPanelOpen(true)}
-                        className="shrink-0 px-3 py-2.5 text-sm text-blue-600 hover:bg-blue-50/80 inline-flex items-center gap-1 border-l border-line whitespace-nowrap"
+                        className="shrink-0 my-1.5 mr-2.5 px-2.5 py-1 rounded-md text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200/70 inline-flex items-center gap-1 whitespace-nowrap transition-colors"
                         title="展开转写面板"
                       >
-                        <ChevronLeft size={14} /> 转写
+                        <ChevronLeft size={13} /> 转写
                       </button>
                     )}
                   </div>
@@ -2925,10 +2925,10 @@ export default function ConsoleMeetingDetail() {
                       <button
                         type="button"
                         onClick={() => setRightPanelOpen(false)}
-                        className="shrink-0 px-3 py-2.5 text-sm text-ink-muted hover:text-ink hover:bg-canvas/40 inline-flex items-center gap-1 border-l border-line whitespace-nowrap"
+                        className="shrink-0 my-1.5 mr-2.5 px-2.5 py-1 rounded-md text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200/70 inline-flex items-center gap-1 whitespace-nowrap transition-colors"
                         title="收起转写面板"
                       >
-                        收起 <ChevronRight size={14} />
+                        收起 <ChevronRight size={13} />
                       </button>
                     </div>
                     {/* 右侧内容 */}
