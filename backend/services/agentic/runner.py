@@ -545,9 +545,13 @@ async def _load_ctx(bundle_id: str, project_id: str, kind: str) -> dict:
     # v3.3 新增:项目画布上「连到本生成节点」的自定义输入(备注/网页/文件)
     # — 合成成文档塞进 docs_by_type(D 类源),实现"画布连线即喂进生成"。
     # 文件类按 doc_id 去重(已上传的文件本就在项目文档里,避免重复注入)。
+    # 同时单独存一份 canvas_inputs:有些下游生成器(research_plan/test_plan/
+    # acceptance_report/implementation_plan)不渲染 docs_by_type,要靠它显式注入。
+    canvas_inputs: list[tuple[str, dict]] = []
     if project_id:
+        canvas_inputs = await _load_canvas_connected_docs(project_id, kind)
         existing_ids = {d.get("doc_id") for lst in docs_by_type.values() for d in lst}
-        for bucket, doc in await _load_canvas_connected_docs(project_id, kind):
+        for bucket, doc in canvas_inputs:
             if doc["doc_id"] in existing_ids:
                 continue
             docs_by_type.setdefault(bucket, []).append(doc)
@@ -574,7 +578,29 @@ async def _load_ctx(bundle_id: str, project_id: str, kind: str) -> dict:
         "docs_by_type": docs_by_type,
         # v3.2 新增:上游 stage 的 valid bundle 列表(P 类源)
         "prior_bundles": prior_bundles,
+        # v3.3 新增:画布连到本节点的自定义输入(备注/网页/文件),
+        # 供不渲染 docs_by_type 的下游生成器显式注入
+        "canvas_inputs": canvas_inputs,
     }
+
+
+def _format_canvas_inputs_block(canvas_inputs: list[tuple[str, dict]]) -> str:
+    """把"画布连到本节点"的素材(备注/网页/文件)渲染成 prompt 块 ——
+    给不读 docs_by_type 的下游生成器(research_plan/test_plan/acceptance_report/
+    implementation_plan)显式注入,确保画布连线对它们也生效。"""
+    if not canvas_inputs:
+        return ""
+    from models.project import DOC_TYPE_LABELS
+    lines = ["### 用户在项目画布上连到本节点的补充素材(请务必结合下列内容生成):"]
+    has = False
+    for bucket, doc in canvas_inputs:
+        content = (doc.get("markdown") or "").strip()
+        if not content:
+            continue
+        has = True
+        label = DOC_TYPE_LABELS.get(bucket, bucket)
+        lines.append(f"\n**[{label}] {doc.get('filename', '')}**\n{content[:8000]}")
+    return "\n".join(lines) if has else ""
 
 
 async def _mark(bundle_id: str, status: str, **kwargs):
@@ -2724,6 +2750,10 @@ async def generate_research_plan(bundle_id: str, project_id: str):
             owner_name=owner_name,
         )
         # 历史修订经验注入 system prompt 顶部(2026-06-09)
+        # v3.3: 画布连到本节点的素材显式注入(本生成器不渲染 docs_by_type)
+        _cb = _format_canvas_inputs_block(ctx.get("canvas_inputs") or [])
+        if _cb:
+            user_prompt = user_prompt + "\n\n" + _cb
         from services.revision_learning import fetch_revision_memories_block
         _memories_block = await fetch_revision_memories_block("research_plan")
         _system_with_memories = (_memories_block + SYSTEM_PROMPT) if _memories_block else SYSTEM_PROMPT
@@ -3109,6 +3139,10 @@ async def generate_test_plan(bundle_id: str, project_id: str):
             industry_pack_block=format_industry_pack(pack),
         )
 
+        # v3.3: 画布连到本节点的素材显式注入(本生成器不渲染 docs_by_type)
+        _cb = _format_canvas_inputs_block(ctx.get("canvas_inputs") or [])
+        if _cb:
+            user_prompt = user_prompt + "\n\n" + _cb
         from services.revision_learning import fetch_revision_memories_block
         _memories_block = await fetch_revision_memories_block("test_plan")
         _system_with_memories = (_memories_block + SYSTEM_PROMPT) if _memories_block else SYSTEM_PROMPT
@@ -3221,6 +3255,10 @@ async def generate_acceptance_report(bundle_id: str, project_id: str):
             industry_pack_block=format_industry_pack(pack),
         )
 
+        # v3.3: 画布连到本节点的素材显式注入(本生成器不渲染 docs_by_type)
+        _cb = _format_canvas_inputs_block(ctx.get("canvas_inputs") or [])
+        if _cb:
+            user_prompt = user_prompt + "\n\n" + _cb
         from services.revision_learning import fetch_revision_memories_block
         _memories_block = await fetch_revision_memories_block("acceptance_report")
         _system_with_memories = (_memories_block + SYSTEM_PROMPT) if _memories_block else SYSTEM_PROMPT
@@ -3346,6 +3384,10 @@ async def generate_implementation_plan(bundle_id: str, project_id: str):
             industry_pack_block=format_industry_pack(pack),
         )
 
+        # v3.3: 画布连到本节点的素材显式注入(本生成器不渲染 docs_by_type)
+        _cb = _format_canvas_inputs_block(ctx.get("canvas_inputs") or [])
+        if _cb:
+            user_prompt = user_prompt + "\n\n" + _cb
         from services.revision_learning import fetch_revision_memories_block
         _memories_block = await fetch_revision_memories_block("implementation_plan")
         _system_with_memories = (_memories_block + SYSTEM_PROMPT) if _memories_block else SYSTEM_PROMPT
