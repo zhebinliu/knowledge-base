@@ -20,11 +20,15 @@
 - [x] A4 `converter_agent._refine_markdown_with_llm`:timeout 180→60、retry_backoffs=[](best-effort,
       失败即回退草稿,绝不 ALONE 吃满 celery soft_time_limit=900)
 - [x] A5 `convert_task`:convert 返回后加 doc 级空 markdown 兜底 → ConversionError,绝不 completed 入库空文档
-- [x] B1 三个改动文件 import + 单测 `_is_bad_conversion_output` 各分支
-- [ ] B2 部署(GitHub Actions deploy-prod)
-- [ ] C1 DB `routing_rules / doc_markdown_convert` 复位 primary=minimax-m2.5(确认是否被改成 m3)
-- [ ] C2 重跑 doc 614c187b,确认转出非空 markdown + 切片 + 向量
-- [ ] C3 (可选)用 /opt/aihub-tap/logs/tap.jsonl 复盘 614c187b 真实 finish_reason/usage
+- [x] B1 py_compile 3 文件 + 单测 `_is_bad_conversion_output` 各分支(本地 3.9)
+- [x] B2 部署 PROD(run 27403233393 success 34s)+ prod 容器 import/逻辑 smoke 通过,
+      backend / celery_worker healthy
+- [x] C1 排查发现:convert **primary 已是 minimax-m2.5**(主已正常),但 fallback 仍是 minimax-m3。
+      已改 `doc_markdown_convert` → `{"primary":"minimax-m2.5","fallback":"mimo-v2-pro"}`(主备都非推理)。
+      refine 的 m3 fallback 保留(refine 失败=回退草稿,非破坏性;timeout 已在代码收紧)。
+- [x] C2 doc 614c187b **已是健康态**(completed,markdown 18071 字,34 切片 / 34 向量)——
+      事故后已随 primary 切回 m2.5 重转过,无需再处理。
+- [~] C3 跳过:doc 已确认健康、根因已明(m3 推理模型烧光 max_tokens),无需再翻 tap 日志。
 
 ### 边界
 - 不改 convert 正常重试预算(只把空响应变成"快速 fallback");不动其它 task 的路由 / 模型。
