@@ -247,8 +247,13 @@ export default function ConsoleMeetingNew() {
                           style={{ background: PRIO_COLOR[a.priority] || PRIO_COLOR.medium }} />
                         <div className="flex-1 min-w-0">
                           <div className="text-[13px] text-ink font-medium leading-snug">{a.title}</div>
+                          {a.recommendation && (
+                            <div className="text-[12px] text-ink-secondary mt-1 leading-snug">
+                              <span className="text-brand font-semibold">💡 建议:</span>{a.recommendation}
+                            </div>
+                          )}
                           {a.question && (
-                            <div className="text-[12px] text-ink-secondary mt-1 leading-snug">💬 {a.question}</div>
+                            <div className="text-[12px] text-ink-muted mt-1 leading-snug">💬 这样确认:{a.question}</div>
                           )}
                           {a.rationale && (
                             <div className="text-[11px] text-ink-muted mt-1 leading-snug">{a.rationale}</div>

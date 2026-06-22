@@ -279,6 +279,8 @@ async def startup():
             "CREATE INDEX IF NOT EXISTS idx_chunks_citation ON chunks(citation_count DESC, last_cited_at DESC)",
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS summary TEXT",
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS faq JSON",
+            # 会议 Co-pilot:我方建议方案列(2026-06-22,create_all 不会给已存在的表加列)
+            "ALTER TABLE meeting_live_advice ADD COLUMN IF NOT EXISTS recommendation TEXT",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS api_enabled BOOLEAN NOT NULL DEFAULT FALSE",
             "UPDATE users SET api_enabled = TRUE WHERE is_admin = TRUE",
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS convert_duration_s DOUBLE PRECISION",

@@ -2390,6 +2390,7 @@ export interface LiveAdviceItem {
   category: LiveAdviceCategory
   category_label: string
   title: string
+  recommendation: string | null
   question: string | null
   rationale: string | null
   source_quote: string | null

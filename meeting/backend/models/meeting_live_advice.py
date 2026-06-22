@@ -21,7 +21,8 @@ class MeetingLiveAdvice(Base):
     # clarification(需明确) / ambiguity(歧义) / gap(未涉及但影响方案) / industry(行业专属)
     category: Mapped[str] = mapped_column(String(20), nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)            # 一句话建议/要点
-    question: Mapped[str | None] = mapped_column(Text, nullable=True)   # 建议追问的具体问法
+    question: Mapped[str | None] = mapped_column(Text, nullable=True)   # 引导客户确认的问法
+    recommendation: Mapped[str | None] = mapped_column(Text, nullable=True)  # 我方建议方案(让客户在此基础上确认/微调)
     rationale: Mapped[str | None] = mapped_column(Text, nullable=True)  # 为什么重要 / 影响哪部分方案
     source_quote: Mapped[str | None] = mapped_column(Text, nullable=True)   # 转写出处片段
     source_ts: Mapped[float | None] = mapped_column(Float, nullable=True)   # 出处秒数(前端 [MM:SS] 跳转)
