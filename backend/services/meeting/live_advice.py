@@ -75,10 +75,15 @@ def _project_context(project: Project | None) -> str:
 
 
 def _ts_to_seconds(s) -> float | None:
+    """转写时间戳 → 秒。兼容 [MM:SS](录音)和 HH:MM:SS(上传的妙记类文本)。"""
     if not s:
         return None
-    m = re.match(r"\s*(\d+):(\d+)", str(s))
-    return float(m.group(1)) * 60 + float(m.group(2)) if m else None
+    m = re.match(r"\s*(\d+):(\d+)(?::(\d+))?", str(s))
+    if not m:
+        return None
+    if m.group(3) is not None:  # HH:MM:SS
+        return float(m.group(1)) * 3600 + float(m.group(2)) * 60 + float(m.group(3))
+    return float(m.group(1)) * 60 + float(m.group(2))  # MM:SS
 
 
 def _bigrams(s: str) -> set:

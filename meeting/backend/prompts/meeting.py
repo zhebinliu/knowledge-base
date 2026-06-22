@@ -513,7 +513,7 @@ LIVE_ADVICE_USER = """## 项目上下文
       "question": "引导客户确认的问法:先抛我方建议、再请客户确认或补充(可直接念出口)",
       "rationale": "为什么重要 / 影响方案的哪一部分",
       "source_quote": "转写里相关的原话片段(没有就空串)",
-      "source_ts": "MM:SS 出处时间戳(没有就空串)",
+      "source_ts": "出处时间戳:照抄转写里该处的时间戳(MM:SS 或 HH:MM:SS),没有就空串",
       "ltc_module": "相关 LTC 模块 key 如 M02_opportunity(没有就空串)",
       "priority": "high | medium | low"
     }}

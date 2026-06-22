@@ -151,8 +151,6 @@ const ADVICE_CATS: { key: LiveAdviceCategory; label: string; color: string }[] =
   { key: 'industry',      label: '行业专属问题', color: '#7c3aed' },
 ]
 const ADVICE_PRIO: Record<string, string> = { high: '#dc2626', medium: '#d97706', low: '#9ca3af' }
-const fmtAdviceTs = (sec: number | null) =>
-  sec == null ? '' : `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}`
 
 export function AdviceTab({ meeting }: { meeting: Meeting }) {
   const qc = useQueryClient()
@@ -174,7 +172,7 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
             <Sparkles size={16} className="text-brand" /> 会议 Co-pilot 建议
           </h2>
           <p className="text-[11px] text-ink-muted mt-0.5">
-            基于会议内容 + 项目行业 / LTC 给的调研建议:先给我方方案,再引导客户确认。
+            按会议时间顺序排列,与右侧转写对应;点时间戳可跳到录音对应位置(语音会议)。先给我方方案,再引导客户确认。
           </p>
         </div>
         <button
@@ -195,42 +193,31 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
           还没有建议。点右上「生成建议」,让 Co-pilot 基于本次会议内容分析一轮。
         </div>
       ) : (
-        <div className="space-y-4">
-          {ADVICE_CATS.map((c) => {
-            const items = advice.filter((a) => a.category === c.key)
-            if (!items.length) return null
+        <div className="space-y-2">
+          {[...advice].sort((a, b) => (a.source_ts ?? 1e9) - (b.source_ts ?? 1e9)).map((a) => {
+            const cat = ADVICE_CATS.find((c) => c.key === a.category)
+            const color = cat?.color || '#6b7280'
             return (
-              <div key={c.key}>
-                <div className="text-xs font-semibold mb-2" style={{ color: c.color }}>
-                  {c.label}({items.length})
+              <div key={a.id} className="rounded-lg border border-line bg-white px-3 py-2.5">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  {a.source_ts != null && <TimestampBadge seconds={a.source_ts} />}
+                  <span className="text-[11px] px-1.5 py-0.5 rounded font-medium" style={{ color, background: color + '1a' }}>
+                    {cat?.label || a.category_label}
+                  </span>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: ADVICE_PRIO[a.priority] || ADVICE_PRIO.medium }} />
                 </div>
-                <div className="space-y-2">
-                  {items.map((a) => (
-                    <div key={a.id} className="rounded-lg border border-line bg-white px-3 py-2.5">
-                      <div className="flex items-start gap-2">
-                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0"
-                          style={{ background: ADVICE_PRIO[a.priority] || ADVICE_PRIO.medium }} />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm text-ink font-medium leading-snug">{a.title}</div>
-                          {a.recommendation && (
-                            <div className="text-[13px] text-ink-secondary mt-1 leading-snug whitespace-pre-wrap">
-                              <span className="text-brand font-semibold">💡 建议:</span>{a.recommendation}
-                            </div>
-                          )}
-                          {a.question && (
-                            <div className="text-[13px] text-ink-muted mt-1 leading-snug">💬 这样确认:{a.question}</div>
-                          )}
-                          {a.rationale && (
-                            <div className="text-[12px] text-ink-muted mt-1 leading-snug">{a.rationale}</div>
-                          )}
-                          {a.source_ts != null && (
-                            <span className="text-[11px] text-ink-muted mt-1 inline-block font-mono">[{fmtAdviceTs(a.source_ts)}]</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <div className="text-sm text-ink font-medium leading-snug">{a.title}</div>
+                {a.recommendation && (
+                  <div className="text-[13px] text-ink-secondary mt-1 leading-snug whitespace-pre-wrap">
+                    <span className="text-brand font-semibold">💡 建议:</span>{a.recommendation}
+                  </div>
+                )}
+                {a.question && (
+                  <div className="text-[13px] text-ink-muted mt-1 leading-snug">💬 这样确认:{a.question}</div>
+                )}
+                {a.source_quote && (
+                  <div className="text-[12px] text-ink-muted mt-1 leading-snug border-l-2 border-line pl-2 italic">「{a.source_quote}」</div>
+                )}
               </div>
             )
           })}
