@@ -1,4 +1,4 @@
-"""会议音频 ASR 客户端 — xiaomi mimo-v2-omni 切片并发版(2026-05-12)。
+"""会议音频 ASR 客户端 — xiaomi mimo-v2.5-asr 切片并发版(2026-05-12;2026-06-22 由 mimo-v2-omni 切专用 ASR 模型)。
 
 设计同 meeting-ai 原项目:
 1. 收完整音频(mp3/m4a/wav 等) → pydub/ffmpeg 转 16kHz 16bit mono PCM
@@ -29,11 +29,13 @@ logger = structlog.get_logger()
 
 
 _XIAOMI_API_BASE = "https://token-plan-cn.xiaomimimo.com/v1"
-_DEFAULT_MODEL = "mimo-v2-omni"
-_DEFAULT_PROMPT = (
-    "你是一个会议记录员。请精确地将这段会议语音转写为文本,保持原始口吻。"
-    "只输出转写后的文本内容,不要有任何开场白或解释。"
-)
+# 2026-06-22:从通用全模态 mimo-v2-omni 切到专用 ASR 模型 mimo-v2.5-asr。
+# 专用 ASR 又快又省(单片 ~9x 更少 token,不烧 reasoning token),转写质量等同。
+# 它的请求格式跟 omni 不同(已实测):
+#   1. input_audio.data 必须是 data URL(data:audio/wav;base64,...),裸 base64 报 400
+#   2. content 里不能带 text 部分,提示词由网关侧注入,带了报
+#      "ASR request must not include text parts"
+_DEFAULT_MODEL = "mimo-v2.5-asr"
 
 # 20 秒一片(meeting-ai 实测对 mimo-v2-omni 又快又稳的粒度)
 CHUNK_SECONDS = 20
@@ -66,14 +68,15 @@ async def _transcribe_pcm_chunk(
     """单片 PCM → xiaomi 转写,返回文本。失败返回空字符串(不中断整体)。"""
     wav = pcm_to_wav(pcm)
     b64 = base64.b64encode(wav).decode("ascii")
+    data_url = f"data:audio/wav;base64,{b64}"
     payload = {
         "model": _DEFAULT_MODEL,
+        # mimo-v2.5-asr:content 仅放 input_audio(data URL),不带 text part(提示词由网关注入)
         "messages": [
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": _DEFAULT_PROMPT},
-                    {"type": "input_audio", "input_audio": {"data": b64, "format": "wav"}},
+                    {"type": "input_audio", "input_audio": {"data": data_url, "format": "wav"}},
                 ],
             }
         ],
