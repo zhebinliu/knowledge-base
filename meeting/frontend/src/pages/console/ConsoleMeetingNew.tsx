@@ -45,27 +45,32 @@ export default function ConsoleMeetingNew() {
   const [liveTranscript, setLiveTranscript] = useState('')
   const [finalizing, setFinalizing] = useState(false)
   const liveMeetingIdRef = useRef<number | null>(null)
-  // 分段上传串行链:段长 10s >> 上传 ~3s,串行即可保证 raw_transcript 顺序、不丢段
-  const uploadChainRef = useRef<Promise<void>>(Promise.resolve())
+  // 分段「并行」上传:单段 ASR 延迟不稳(实测 4-25s),串行会越拖越后、长会永远追不上;
+  // 改并行 + 按 seq 落位排序 —— 哪段先转完先显示,顺序仍正确。
+  const segTextRef = useRef<Record<number, string>>({})
+  const pendingRef = useRef<Promise<void>[]>([])
 
   const live = useLiveRecorder({
     segmentMs: SEGMENT_MS,
     onSegment: (blob, seq, startMs) => {
       const id = liveMeetingIdRef.current
       if (!id) return
-      uploadChainRef.current = uploadChainRef.current.then(async () => {
-        try {
-          const r = await uploadAudioChunk(id, blob, seq, startMs)
-          if (r.text) setLiveTranscript(t => t + (t ? '\n' : '') + r.text)
-        } catch { /* 单段失败忽略,不中断录音 */ }
-      })
+      const p = uploadAudioChunk(id, blob, seq, startMs)
+        .then((r) => {
+          segTextRef.current[seq] = r.text || ''
+          const merged = Object.keys(segTextRef.current).map(Number).sort((a, b) => a - b)
+            .map((k) => segTextRef.current[k]).filter(Boolean).join('\n')
+          setLiveTranscript(merged)
+        })
+        .catch(() => { /* 单段失败忽略,不中断录音 */ })
+      pendingRef.current.push(p)
     },
     // 最后一段录完(stop 触发)后收尾:等所有分段上传完 → finalize → 跳详情页
     onStopped: () => {
       const id = liveMeetingIdRef.current
       if (!id) { setFinalizing(false); return }
       setFinalizing(true)
-      uploadChainRef.current
+      Promise.allSettled(pendingRef.current)
         .then(() => finalizeRecording(id))
         .then((r) => {
           if (r.status === 'failed') {
@@ -99,7 +104,8 @@ export default function ConsoleMeetingNew() {
     try {
       const r = await createRecordingMeeting({ title: title || undefined, project_id: projectId || null })
       liveMeetingIdRef.current = r.meeting_id
-      uploadChainRef.current = Promise.resolve()
+      segTextRef.current = {}
+      pendingRef.current = []
       live.start()
     } catch (e: any) {
       setError(e?.message || '无法开始录音')
@@ -247,7 +253,7 @@ export default function ConsoleMeetingNew() {
                   {finalizing
                     ? '录音结束,正在收尾并生成纪要…'
                     : live.recording
-                      ? '正在录音…转写稿每 10 秒左右更新一段,讲完点停止即生成纪要'
+                      ? '正在录音…第一段转写约 15-30 秒后出现(后端逐段识别),之后边录边出。讲完点停止生成纪要'
                       : '点麦克风开始录音。边录边转写,转写稿会在下方实时显示(多人会议由后端 ASR 处理)'}
                 </p>
               </div>
@@ -257,10 +263,10 @@ export default function ConsoleMeetingNew() {
             {(liveTranscript || live.recording) && (
               <div className="mt-3">
                 <div className="text-[11px] text-ink-muted mb-1 flex items-center gap-1.5">
-                  实时转写{live.recording && <span className="text-brand">· 滞后约 10 秒</span>}
+                  实时转写{live.recording && <span className="text-brand">· 逐段识别中</span>}
                 </div>
                 <div className="rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink-secondary leading-relaxed max-h-56 overflow-y-auto whitespace-pre-wrap">
-                  {liveTranscript || <span className="text-ink-muted">等待第一段转写…</span>}
+                  {liveTranscript || <span className="text-ink-muted">正在识别第一段…(约 15-30 秒)</span>}
                 </div>
               </div>
             )}

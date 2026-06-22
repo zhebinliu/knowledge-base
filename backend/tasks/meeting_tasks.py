@@ -256,6 +256,18 @@ async def _finalize_recording_async(meeting_id: int):
     except Exception as e:
         logger.warning("finalize_concat_failed", meeting_id=meeting_id, error=str(e)[:160])
 
+    # 并行上传可能让 raw_transcript 行按「到达」而非「时间」顺序排,按 [MM:SS] 重排,保证纪要输入有序
+    import re as _re
+    async with async_session_maker() as session:
+        m = await session.get(Meeting, meeting_id)
+        if m and m.raw_transcript and "\n" in m.raw_transcript:
+            def _ts_key(ln: str) -> int:
+                mt = _re.match(r"\s*\[(\d+):(\d+)\]", ln)
+                return int(mt.group(1)) * 60 + int(mt.group(2)) if mt else 0
+            lines = [ln for ln in m.raw_transcript.split("\n") if ln.strip()]
+            m.raw_transcript = "\n".join(sorted(lines, key=_ts_key))
+            await session.commit()
+
     # 跑后续 AI pipeline(读已累积的 raw_transcript)
     await _process_meeting_async(meeting_id)
 
