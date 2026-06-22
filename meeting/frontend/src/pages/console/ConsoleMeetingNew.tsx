@@ -27,8 +27,9 @@ import { useLiveRecorder } from '../../hooks/useLiveRecorder'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 const MAX_FILE_SIZE_MB = 500
-const SEGMENT_MS = 10000       // 半实时段长:10s
-const ADVICE_INTERVAL_MS = 75000  // 自动给建议间隔
+const SEGMENT_MS = 10000        // 半实时段长:10s
+const ADVICE_NEW_CHARS = 100    // 转写新增超过这么多字就自动分析一次(内容驱动)
+const ADVICE_MIN_GAP_MS = 18000 // 两次自动分析最小间隔(LLM ~10s,留点余量)
 type Mode = 'upload' | 'record' | 'text'
 
 const ADVICE_CATS: { key: LiveAdviceCategory; label: string; color: string }[] = [
@@ -69,11 +70,16 @@ export default function ConsoleMeetingNew() {
   const [adviceLoading, setAdviceLoading] = useState(false)
   const [autoAdvice, setAutoAdvice] = useState(true)
   const adviceBusyRef = useRef(false)
+  const liveLenRef = useRef(0)        // 当前转写长度(内容驱动触发用)
+  const lastAdviceLenRef = useRef(0)  // 上次分析时的转写长度
+  const lastAdviceAtRef = useRef(0)   // 上次分析时间戳
 
   const refreshAdvice = useCallback(async () => {
     const id = liveMeetingIdRef.current
     if (!id || adviceBusyRef.current) return
     adviceBusyRef.current = true
+    lastAdviceAtRef.current = Date.now()
+    lastAdviceLenRef.current = liveLenRef.current
     setAdviceLoading(true)
     try {
       const r = await runLiveAdvice(id)
@@ -94,6 +100,7 @@ export default function ConsoleMeetingNew() {
           segTextRef.current[seq] = r.text || ''
           const merged = Object.keys(segTextRef.current).map(Number).sort((a, b) => a - b)
             .map((k) => segTextRef.current[k]).filter(Boolean).join('\n')
+          liveLenRef.current = merged.length
           setLiveTranscript(merged)
         })
         .catch(() => { /* 单段失败忽略,不中断录音 */ })
@@ -120,12 +127,15 @@ export default function ConsoleMeetingNew() {
     onError: (msg) => setError(msg),
   })
 
-  // 录音中自动每 75s 跑一轮建议
+  // 内容驱动:转写每新增一定量(且距上次≥最小间隔)就自动分析一次——识别到问题尽快提出,
+  // 不再固定时钟轮询。说得多就分析得勤,冷场就不空跑。
   useEffect(() => {
-    if (!live.recording || !autoAdvice) return
-    const t = setInterval(() => { refreshAdvice() }, ADVICE_INTERVAL_MS)
-    return () => clearInterval(t)
-  }, [live.recording, autoAdvice, refreshAdvice])
+    if (!live.recording || !autoAdvice || adviceBusyRef.current) return
+    if (liveTranscript.length - lastAdviceLenRef.current >= ADVICE_NEW_CHARS
+        && Date.now() - lastAdviceAtRef.current >= ADVICE_MIN_GAP_MS) {
+      refreshAdvice()
+    }
+  }, [liveTranscript, live.recording, autoAdvice, refreshAdvice])
 
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
 
@@ -148,6 +158,9 @@ export default function ConsoleMeetingNew() {
       liveMeetingIdRef.current = r.meeting_id
       segTextRef.current = {}
       pendingRef.current = []
+      liveLenRef.current = 0
+      lastAdviceLenRef.current = 0
+      lastAdviceAtRef.current = 0
       live.start()
     } catch (e: any) {
       setError(e?.message || '无法开始录音')
@@ -213,7 +226,7 @@ export default function ConsoleMeetingNew() {
       {advice.length === 0 ? (
         <p className="text-xs text-ink-muted py-10 text-center leading-relaxed">
           {started
-            ? '点「给建议」或等自动分析…\n副驾会提示该追问、有歧义、可能遗漏、以及行业专属的点'
+            ? '边录边自动分析…副驾会随对话推进\n提示该追问、有歧义、可能遗漏、以及行业专属的点'
             : '开始录音后,这里会基于现场内容\n实时给出调研建议'}
         </p>
       ) : (

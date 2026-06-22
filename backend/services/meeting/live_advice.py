@@ -81,6 +81,23 @@ def _ts_to_seconds(s) -> float | None:
     return float(m.group(1)) * 60 + float(m.group(2)) if m else None
 
 
+def _bigrams(s: str) -> set:
+    s = re.sub(r"[\s\W_]+", "", s or "")
+    return {s[i:i + 2] for i in range(len(s) - 1)} if len(s) >= 2 else ({s} if s else set())
+
+
+def _too_similar(title: str, others: list[str], thresh: float = 0.55) -> bool:
+    """字符 bigram Jaccard 近似去重——挡住措辞不同的近似重复建议(频繁触发时尤其需要)。"""
+    tb = _bigrams(title)
+    if not tb:
+        return False
+    for o in others:
+        ob = _bigrams(o)
+        if ob and len(tb & ob) / len(tb | ob) >= thresh:
+            return True
+    return False
+
+
 _CAT_LABEL = {"clarification": "需明确", "ambiguity": "歧义", "gap": "遗漏", "industry": "行业"}
 
 
@@ -163,7 +180,10 @@ async def generate_live_advice(meeting_id: int) -> dict:
     new_items = parsed.get("new_advice") or []
     resolved_ids = parsed.get("resolved_ids") or []
     run_seq = max_run + 1
-    existing_titles = {(a.category, (a.title or "").strip()) for a in existing}
+    # 按 category 收已有标题,新增时做精确 + 近似去重
+    existing_by_cat: dict[str, list[str]] = {}
+    for a in existing:
+        existing_by_cat.setdefault(a.category, []).append((a.title or "").strip())
     valid_ids = {a.id for a in existing}
 
     async with async_session_maker() as session:
@@ -185,9 +205,12 @@ async def generate_live_advice(meeting_id: int) -> dict:
                 continue
             cat = (raw.get("category") or "").strip()
             title = (raw.get("title") or "").strip()
-            if cat not in _CATEGORIES or not title or (cat, title) in existing_titles:
+            if cat not in _CATEGORIES or not title:
                 continue
-            existing_titles.add((cat, title))
+            cat_titles = existing_by_cat.setdefault(cat, [])
+            if title in cat_titles or _too_similar(title, cat_titles):
+                continue
+            cat_titles.append(title)
             prio = (raw.get("priority") or "medium").strip().lower()
             session.add(MeetingLiveAdvice(
                 meeting_id=meeting_id, category=cat, title=title[:2000],
