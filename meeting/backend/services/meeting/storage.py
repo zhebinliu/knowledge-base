@@ -100,6 +100,25 @@ def download_audio(object_key: str) -> bytes:
         resp.release_conn()
 
 
+# ── 半实时录音分段(边录边传,2026-06-22) ──────────────────────────────────
+# 段对象 key 用固定 zero-padded seq(不带时间戳前缀),方便 finalize 按 seq 顺序拼接。
+
+def put_segment(meeting_id: int, seq: int, content: bytes, content_type: str = "audio/webm") -> str:
+    """存一个录音分段。key 形如 `4/seg/0003.webm`(seq 补零保证字典序=时间序)。"""
+    ensure_bucket()
+    mc = _client()
+    key = f"{meeting_id}/seg/{seq:04d}.webm"
+    mc.put_object(_bucket_name(), key, io.BytesIO(content), len(content), content_type=content_type)
+    return key
+
+
+def list_segments(meeting_id: int) -> list[str]:
+    """列出某会议的所有录音分段 object_key,按 seq 升序。"""
+    mc = _client()
+    prefix = f"{meeting_id}/seg/"
+    return sorted(o.object_name for o in mc.list_objects(_bucket_name(), prefix=prefix, recursive=True))
+
+
 def delete_audio(object_key: Optional[str]):
     """删除音频(可选,会议删除时调用)。失败仅日志不抛。"""
     if not object_key:

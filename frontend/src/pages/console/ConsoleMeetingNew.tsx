@@ -1,25 +1,29 @@
 /**
- * ConsoleMeetingNew — 新建会议(2026-05-11)
+ * ConsoleMeetingNew — 新建会议(2026-05-11;2026-06-22 record 升级为半实时边录边传)
  *
  * 提供三种入口:
- *  - upload:上传音频文件 → MinIO → xiaomi ASR → AI pipeline
- *  - record:浏览器端实时录音 + 实时转写(Web Speech API)→ 文本走 AI pipeline
+ *  - upload:上传整段音频文件 → MinIO → xiaomi ASR → AI pipeline
+ *  - record:半实时录音(每 10s 一段独立 webm 边录边传 → 服务端即时转写 → 实时显示)→ 停止跑 AI pipeline
  *  - text:粘贴/输入文本 → 直接走 AI pipeline(跳 ASR)
  */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Upload, Type, ChevronLeft, Loader2, Mic, Square } from 'lucide-react'
 import {
   uploadMeetingAudio,
   createMeetingFromText,
+  createRecordingMeeting,
+  uploadAudioChunk,
+  finalizeRecording,
   listProjects,
   type Project,
 } from '../../api/client'
-import { useMediaRecorder } from '../../hooks/useMediaRecorder'
+import { useLiveRecorder } from '../../hooks/useLiveRecorder'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 const MAX_FILE_SIZE_MB = 500
+const SEGMENT_MS = 10000  // 半实时段长:10s(转写稿滞后约一段)
 type Mode = 'upload' | 'record' | 'text'
 
 const fmtDuration = (s: number) =>
@@ -35,11 +39,47 @@ export default function ConsoleMeetingNew() {
   const [file, setFile] = useState<File | null>(null)
   const [fileSizeError, setFileSizeError] = useState<string | null>(null)
   const [transcript, setTranscript] = useState('')
-  const [recordedFile, setRecordedFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // 浏览器录音:停止后产出音频 File,走和「上传录音」同一条 uploadMeetingAudio → 后端 ASR 管线
-  const recorder = useMediaRecorder({ onComplete: (f) => setRecordedFile(f) })
+  // 半实时录音状态
+  const [liveTranscript, setLiveTranscript] = useState('')
+  const [finalizing, setFinalizing] = useState(false)
+  const liveMeetingIdRef = useRef<number | null>(null)
+  // 分段上传串行链:段长 10s >> 上传 ~3s,串行即可保证 raw_transcript 顺序、不丢段
+  const uploadChainRef = useRef<Promise<void>>(Promise.resolve())
+
+  const live = useLiveRecorder({
+    segmentMs: SEGMENT_MS,
+    onSegment: (blob, seq, startMs) => {
+      const id = liveMeetingIdRef.current
+      if (!id) return
+      uploadChainRef.current = uploadChainRef.current.then(async () => {
+        try {
+          const r = await uploadAudioChunk(id, blob, seq, startMs)
+          if (r.text) setLiveTranscript(t => t + (t ? '\n' : '') + r.text)
+        } catch { /* 单段失败忽略,不中断录音 */ }
+      })
+    },
+    // 最后一段录完(stop 触发)后收尾:等所有分段上传完 → finalize → 跳详情页
+    onStopped: () => {
+      const id = liveMeetingIdRef.current
+      if (!id) { setFinalizing(false); return }
+      setFinalizing(true)
+      uploadChainRef.current
+        .then(() => finalizeRecording(id))
+        .then((r) => {
+          if (r.status === 'failed') {
+            setError('没有识别到语音内容,请重试')
+            setFinalizing(false)
+            liveMeetingIdRef.current = null
+          } else {
+            nav(`/console/meeting/${id}${projectId ? `?from_project=${projectId}` : ''}`)
+          }
+        })
+        .catch((e) => { setError(e?.message || '收尾失败'); setFinalizing(false) })
+    },
+    onError: (msg) => setError(msg),
+  })
 
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
 
@@ -52,14 +92,24 @@ export default function ConsoleMeetingNew() {
     setFile(f)
   }
 
+  // 开始半实时录音:先建一个 recording 会议,再启动分段录音
+  const startRecord = async () => {
+    setError(null)
+    setLiveTranscript('')
+    try {
+      const r = await createRecordingMeeting({ title: title || undefined, project_id: projectId || null })
+      liveMeetingIdRef.current = r.meeting_id
+      uploadChainRef.current = Promise.resolve()
+      live.start()
+    } catch (e: any) {
+      setError(e?.message || '无法开始录音')
+    }
+  }
+
   const uploadMut = useMutation({
     mutationFn: () => {
-      const f = mode === 'record' ? recordedFile : file
-      if (!f) throw new Error(mode === 'record' ? '请先录音' : '请选择音频文件')
-      return uploadMeetingAudio(f, {
-        title: title || f.name,
-        project_id: projectId || null,
-      })
+      if (!file) throw new Error('请选择音频文件')
+      return uploadMeetingAudio(file, { title: title || file.name, project_id: projectId || null })
     },
     onSuccess: (res) => nav(`/console/meeting/${res.meeting_id}${projectId ? `?from_project=${projectId}` : ''}`),
     onError: (e: Error) => setError(e?.message || '上传失败'),
@@ -79,6 +129,7 @@ export default function ConsoleMeetingNew() {
   })
 
   const submitting = uploadMut.isPending || textMut.isPending
+  const recordBusy = live.recording || finalizing
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8">
@@ -103,8 +154,9 @@ export default function ConsoleMeetingNew() {
         ]).map(t => (
           <button
             key={t.v}
-            onClick={() => { if (recorder.recording) recorder.stop(); setMode(t.v); setError(null) }}
-            className={`px-4 py-2.5 text-sm font-medium flex items-center gap-2 border-b-2 -mb-px ${
+            disabled={recordBusy}
+            onClick={() => { if (recordBusy) return; setMode(t.v); setError(null) }}
+            className={`px-4 py-2.5 text-sm font-medium flex items-center gap-2 border-b-2 -mb-px disabled:opacity-40 ${
               mode === t.v
                 ? 'border-brand text-brand'
                 : 'border-transparent text-ink-muted hover:text-ink'
@@ -122,8 +174,9 @@ export default function ConsoleMeetingNew() {
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            disabled={recordBusy}
             placeholder={mode === 'upload' ? '默认使用音频文件名' : '默认按时间生成'}
-            className="w-full px-3 py-2 rounded-lg border border-line text-sm focus:outline-none focus:border-brand"
+            className="w-full px-3 py-2 rounded-lg border border-line text-sm focus:outline-none focus:border-brand disabled:bg-canvas"
           />
         </div>
 
@@ -133,7 +186,8 @@ export default function ConsoleMeetingNew() {
           <select
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-line text-sm bg-white focus:outline-none focus:border-brand"
+            disabled={recordBusy}
+            className="w-full px-3 py-2 rounded-lg border border-line text-sm bg-white focus:outline-none focus:border-brand disabled:bg-canvas"
           >
             <option value="">(不关联,后续也可在详情页修改)</option>
             {(projects || []).map((p: Project) => (
@@ -166,8 +220,8 @@ export default function ConsoleMeetingNew() {
           </div>
         ) : mode === 'record' ? (
           <div>
-            <label className="block text-sm font-medium text-ink mb-1.5">录音(支持多人会议)</label>
-            {!recorder.supported ? (
+            <label className="block text-sm font-medium text-ink mb-1.5">半实时录音(边录边转写,支持多人会议)</label>
+            {!live.supported ? (
               <div className="rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-sm px-3 py-2.5 leading-relaxed">
                 当前浏览器不支持录音。请使用 Chrome / Edge 桌面浏览器,或改用「上传录音」。
               </div>
@@ -175,40 +229,45 @@ export default function ConsoleMeetingNew() {
               <div className="rounded-lg border border-dashed border-line bg-canvas/40 px-5 py-6 flex flex-col items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => { if (recorder.recording) { recorder.stop() } else { setRecordedFile(null); recorder.start() } }}
-                  title={recorder.recording ? '停止录音' : '开始录音'}
-                  className={`w-16 h-16 rounded-full flex items-center justify-center text-white transition-all ${
-                    recorder.recording ? 'bg-red-500 ring-4 ring-red-100' : 'shadow-md hover:shadow-lg'
+                  disabled={finalizing}
+                  onClick={() => { if (live.recording) { live.stop() } else { startRecord() } }}
+                  title={live.recording ? '停止录音' : '开始录音'}
+                  className={`w-16 h-16 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-50 ${
+                    live.recording ? 'bg-red-500 ring-4 ring-red-100' : 'shadow-md hover:shadow-lg'
                   }`}
-                  style={recorder.recording ? undefined : { background: BRAND_GRAD }}
+                  style={live.recording ? undefined : { background: BRAND_GRAD }}
                 >
-                  {recorder.recording ? <Square size={22} /> : <Mic size={24} />}
+                  {finalizing ? <Loader2 size={24} className="animate-spin" /> : live.recording ? <Square size={22} /> : <Mic size={24} />}
                 </button>
                 <div className="font-mono text-xl font-bold text-ink flex items-center gap-2">
-                  {recorder.recording && <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
-                  {fmtDuration(recorder.seconds)}
+                  {live.recording && <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
+                  {fmtDuration(live.seconds)}
                 </div>
                 <p className="text-xs text-ink-muted text-center max-w-lg">
-                  {recorder.recording
-                    ? '正在录音…讲完点停止'
-                    : recordedFile
-                      ? `已录制 ${fmtDuration(recorder.seconds)} · 点下方「上传并转写」提交`
-                      : '点麦克风开始录音。录完上传后端 ASR 转写(支持多人会议)'}
+                  {finalizing
+                    ? '录音结束,正在收尾并生成纪要…'
+                    : live.recording
+                      ? '正在录音…转写稿每 10 秒左右更新一段,讲完点停止即生成纪要'
+                      : '点麦克风开始录音。边录边转写,转写稿会在下方实时显示(多人会议由后端 ASR 处理)'}
                 </p>
-                {recordedFile && !recorder.recording && (
-                  <button
-                    type="button"
-                    onClick={() => { setRecordedFile(null); recorder.start() }}
-                    className="text-xs px-3 py-1 rounded-md border border-line text-ink-secondary hover:bg-canvas"
-                  >
-                    重新录制
-                  </button>
-                )}
               </div>
             )}
-            {recorder.error && <p className="text-[11px] text-rose-600 mt-2">{recorder.error}</p>}
+
+            {/* 实时转写稿 */}
+            {(liveTranscript || live.recording) && (
+              <div className="mt-3">
+                <div className="text-[11px] text-ink-muted mb-1 flex items-center gap-1.5">
+                  实时转写{live.recording && <span className="text-brand">· 滞后约 10 秒</span>}
+                </div>
+                <div className="rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink-secondary leading-relaxed max-h-56 overflow-y-auto whitespace-pre-wrap">
+                  {liveTranscript || <span className="text-ink-muted">等待第一段转写…</span>}
+                </div>
+              </div>
+            )}
+
+            {live.error && <p className="text-[11px] text-rose-600 mt-2">{live.error}</p>}
             <p className="text-[11px] text-ink-muted mt-2">
-              录音不离开本次会话,停止后才上传;转写由后端 xiaomi ASR 完成(几十秒到几分钟),完成后自动跑 AI 流水线。
+              每 10 秒上传一段做转写(边录边传),停止后自动拼接整段音频供回放并跑 AI 流水线。
             </p>
           </div>
         ) : (
@@ -236,28 +295,29 @@ export default function ConsoleMeetingNew() {
         <div className="flex justify-end gap-3 pt-2">
           <button
             onClick={() => nav(projectId ? `/console/projects/${projectId}` : '/console/meeting')}
-            disabled={submitting}
+            disabled={submitting || recordBusy}
             className="px-4 py-2 rounded-lg border border-line text-sm text-ink hover:bg-canvas disabled:opacity-50"
           >
             取消
           </button>
-          <button
-            onClick={() => {
-              setError(null)
-              if (mode === 'text') textMut.mutate()
-              else uploadMut.mutate()
-            }}
-            disabled={submitting || recorder.recording || (
-              mode === 'text' ? !transcript.trim()
-              : mode === 'record' ? !recordedFile
-              : (!file || !!fileSizeError)
-            )}
-            className="px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-50 inline-flex items-center gap-2"
-            style={{ background: BRAND_GRAD }}
-          >
-            {submitting && <Loader2 size={14} className="animate-spin" />}
-            {mode === 'text' ? '提交并生成' : '上传并转写'}
-          </button>
+          {mode !== 'record' && (
+            <button
+              onClick={() => {
+                setError(null)
+                if (mode === 'text') textMut.mutate()
+                else uploadMut.mutate()
+              }}
+              disabled={submitting || (
+                mode === 'text' ? !transcript.trim()
+                : (!file || !!fileSizeError)
+              )}
+              className="px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-50 inline-flex items-center gap-2"
+              style={{ background: BRAND_GRAD }}
+            >
+              {submitting && <Loader2 size={14} className="animate-spin" />}
+              {mode === 'text' ? '提交并生成' : '上传并转写'}
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -119,16 +119,6 @@ async def _process_meeting_async(meeting_id: int):
         await session.commit()
         logger.info("meeting_processed", meeting_id=meeting_id, status=m.status)
 
-        # 自动同步待办到项目看板(会议完成后)
-        if m.status == "completed" and m.project_id:
-            try:
-                from api.project_todos import sync_todos_for_meeting
-                imported = await sync_todos_for_meeting(meeting_id, session)
-                if imported:
-                    logger.info("auto_sync_todos", meeting_id=meeting_id, imported=imported)
-            except Exception as e:
-                logger.warning("auto_sync_todos_failed", meeting_id=meeting_id, error=str(e)[:200])
-
 
 @celery_app.task(name="process_meeting", bind=True, max_retries=1, soft_time_limit=1500, time_limit=1800)
 def process_meeting(self, meeting_id: int):
@@ -229,3 +219,48 @@ async def _transcribe_meeting_async(meeting_id: int):
 def transcribe_meeting(self, meeting_id: int):
     """ASR 转写 + 自动触发后续 AI pipeline。"""
     _run(_transcribe_meeting_async(meeting_id))
+
+
+# ── 半实时录音 finalize(边录边传,2026-06-22 Block D) ──────────────────────
+
+async def _finalize_recording_async(meeting_id: int):
+    """半实时录音停止后:把各段音频拼成整段 wav 供回放(失败不阻断)→ 跑 AI pipeline。
+
+    转写稿在录音过程中已由 audio-chunk 端点逐段累积进 raw_transcript,这里不再 ASR,
+    只补一个可回放的整段音频,然后复用 _process_meeting_async 跑润色 / 纪要 / 需求等。
+    """
+    from models import async_session_maker
+    from models.meeting import Meeting
+    from services.meeting.storage import list_segments, download_audio, upload_audio
+    from services.meeting.audio_utils import convert_to_pcm, pcm_to_wav
+
+    # 拼接各段 → 整段 wav(纯为回放;失败只是没回放音频,不影响纪要)
+    try:
+        seg_keys = list_segments(meeting_id)
+        if seg_keys:
+            pcm_all = bytearray()
+            for k in seg_keys:
+                try:
+                    pcm_all += convert_to_pcm(download_audio(k), source_format="webm")
+                except Exception as e:
+                    logger.warning("finalize_seg_decode_failed", meeting_id=meeting_id, key=k, error=str(e)[:120])
+            if pcm_all:
+                wav = pcm_to_wav(bytes(pcm_all))
+                key = upload_audio(meeting_id, "录音.wav", wav, content_type="audio/wav")
+                async with async_session_maker() as session:
+                    m = await session.get(Meeting, meeting_id)
+                    if m:
+                        m.audio_object_key = key
+                        await session.commit()
+                logger.info("finalize_audio_concat_done", meeting_id=meeting_id, segs=len(seg_keys), wav_bytes=len(wav))
+    except Exception as e:
+        logger.warning("finalize_concat_failed", meeting_id=meeting_id, error=str(e)[:160])
+
+    # 跑后续 AI pipeline(读已累积的 raw_transcript)
+    await _process_meeting_async(meeting_id)
+
+
+@celery_app.task(name="finalize_recording_meeting", bind=True, max_retries=1, soft_time_limit=1500, time_limit=1800)
+def finalize_recording_meeting(self, meeting_id: int):
+    """半实时录音收尾:拼接整段音频 + 跑 AI pipeline。"""
+    _run(_finalize_recording_async(meeting_id))

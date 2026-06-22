@@ -1,5 +1,40 @@
 # 任务跟踪
 
+## 半实时录音(边录边传,Block D 落地)(2026-06-22)— 用户 /goal
+
+> 原 meeting-ai 整合时 Block D「WebSocket 实时录音」延期(见下文 2026-05-11 计划),
+> 用户现在提出「边录边上传」诉求 → 落地为**分段独立录音 + 服务端逐段 ASR**(非 WS,非逐字)。
+> 段长 10s(单流 6 req/min、~780 tok/min,远低于 100 RPM / 10K TPM)。
+
+### 关键技术点
+- MediaRecorder `start(timeslice)` 后续分片无 webm 头不可独立解码 → 每段开新 MediaRecorder
+  (start→定时 stop→完整 webm→上传),边界丢几十 ms。
+- 分段按 wall-clock 顺序到达 + 前端串行上传 → 直接累加 raw_transcript,无并发 race。
+- ASR 用专用 `mimo-v2.5-asr`(2026-06-22 刚从 mimo-v2-omni 切换)。
+
+### 子任务
+- [x] 后端 asr.py `transcribe_segment()`(单段→纯文本,剥段内时间戳)
+- [x] 后端 storage.py `put_segment` / `list_segments`(key `{id}/seg/{seq:04d}.webm`)
+- [x] 后端 meeting_tasks.py `finalize_recording_meeting`(拼整段 wav 回放 + 跑 pipeline)
+- [x] 后端 meeting.py 3 端点:`POST /recording` / `POST /{id}/audio-chunk` / `POST /{id}/finalize`
+- [x] 前端 hook `useLiveRecorder.ts`(分段循环录音 + onSegment/onStopped 回调)
+- [x] 前端 client.ts `createRecordingMeeting` / `uploadAudioChunk` / `finalizeRecording`
+- [x] 前端 ConsoleMeetingNew record 模式升级:边录边显示实时转写,停止自动 finalize
+- [x] 两份 overlay 副本同步(backend/ ↔ meeting/backend/,frontend/ ↔ meeting/frontend/)
+- [x] py_compile(8 文件)+ tsc(0 错)通过
+- [ ] deploy-prod + 端到端:真浏览器录一两分钟,转写实时增长 / finalize 后纪要生成
+
+### 边界
+- 只动生产 console(`pages/console`);redesign 不动。
+- 不破坏 `/upload` 整段上传 / `/from-text` 路径。
+- 无新表(复用 raw_transcript + MinIO 分段),无 alembic。
+- 现有批量路径 concurrency=8 撞 RPM/TPM 的隐患**单独修**(降并发 / 令牌桶),不在本任务。
+
+### 已知后续
+- audio-chunk 端点内 pydub 转 PCM 是同步阻塞(~100ms/段),低并发可忽略;高并发再 executor 化。
+
+---
+
 ## 修复 convert 转写管线把空文档当成功入库的 bug(2026-06-12)
 
 > 现象:锐达仪表合同.pdf(doc_id 614c187b-5ea5-410d-9279-39122a72a12a)convert 被配成推理模型

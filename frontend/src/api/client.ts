@@ -2353,6 +2353,36 @@ export const processMeeting = async (id: number): Promise<{ status: string; meet
   return data
 }
 
+// ── 半实时录音(边录边传,2026-06-22) ──────────────────────────────────────
+export const createRecordingMeeting = async (
+  body: { title?: string; project_id?: string | null } = {},
+): Promise<{ meeting_id: number; status: string }> => {
+  const { data } = await api.post('/meeting/recording', body)
+  return data
+}
+
+/** 上传一个录音分段,服务端即时转写,同步返回该段文本。 */
+export const uploadAudioChunk = async (
+  meetingId: number, blob: Blob, seq: number, startMs: number,
+): Promise<{ seq: number; text: string; done_chunks: number }> => {
+  const fd = new FormData()
+  fd.append('file', blob, `seg-${seq}.webm`)
+  fd.append('seq', String(seq))
+  fd.append('start_ms', String(startMs))
+  const { data } = await api.post(`/meeting/${meetingId}/audio-chunk`, fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+
+/** 录音停止收尾:拼整段音频 + 跑 AI pipeline。 */
+export const finalizeRecording = async (
+  meetingId: number,
+): Promise<{ meeting_id: number; status: string; reason?: string }> => {
+  const { data } = await api.post(`/meeting/${meetingId}/finalize`)
+  return data
+}
+
 export const runMeetingAction = async (id: number, action: MeetingAction, body?: Record<string, unknown>): Promise<unknown> => {
   const { data } = await api.post(`/meeting/${id}/actions/${action}`, body)
   return data

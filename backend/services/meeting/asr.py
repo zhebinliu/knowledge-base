@@ -170,3 +170,17 @@ async def transcribe_audio(
     full_text = "\n".join(timestamped)
     logger.info("xiaomi_asr_done", total_chunks=total, full_chars=len(full_text))
     return full_text
+
+
+async def transcribe_segment(audio_bytes: bytes, filename: str = "") -> str:
+    """半实时「边录边传」:对单个录音分段(独立可解码 webm)转写,返回**纯文本**(无 [MM:SS] 前缀)。
+
+    10s 段通常就 1 片;调用方(audio-chunk 端点)按 start_ms 自己拼会议级时间戳。
+    复用 transcribe_audio 的切片并发,再剥掉它给每片加的段内相对时间戳。
+    """
+    import re as _re
+    if not audio_bytes:
+        return ""
+    text = await transcribe_audio(audio_bytes, filename=filename, on_chunk=None)
+    # transcribe_audio 给每片加了 [MM:SS](相对段内,半实时场景无意义)→ 剥掉只留文本
+    return _re.sub(r"\[\d{2}:\d{2}\]\s*", "", text).strip()

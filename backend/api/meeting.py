@@ -750,6 +750,109 @@ async def upload_audio_meeting(
     return {"meeting_id": m.id, "status": "accepted", "object_key": object_key}
 
 
+# ── 半实时录音:边录边传(2026-06-22 Block D,段长由前端控制,默认 10s) ──────────
+# 流程:前端 POST /recording 建会 → 每段独立 webm POST /{id}/audio-chunk(即时转写,
+#       同步返回该段文本,前端拼到实时稿)→ 停止 POST /{id}/finalize(拼整段音频 + 跑 pipeline)。
+# 单条录音的分段按 wall-clock 顺序到达(每段 ~10s),不并发,故直接累加 raw_transcript 无 race。
+
+@router.post("/recording", status_code=201)
+async def create_recording_meeting(
+    body: MeetingCreate,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """新建一个空的录音会议(半实时边录边传用),返回 meeting_id。"""
+    pid = await _validate_project_link(session, body.project_id, user)
+    m = Meeting(
+        title=body.title or "录音会议",
+        owner_id=user.id,
+        project_id=pid,
+        status="recording",
+        asr_engine="xiaomi",
+        total_chunks=0,
+        done_chunks=0,
+        raw_transcript="",
+    )
+    session.add(m)
+    await session.commit()
+    await session.refresh(m)
+    logger.info("meeting_recording_created", meeting_id=m.id, user=user.username)
+    return {"meeting_id": m.id, "status": m.status}
+
+
+@router.post("/{meeting_id}/audio-chunk", status_code=200)
+async def upload_audio_chunk(
+    meeting_id: int,
+    file: UploadFile = File(...),
+    seq: int = Form(...),
+    start_ms: int = Form(0),
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """半实时:上传一个录音分段(独立可解码 webm),即时转写并追加到 raw_transcript。
+    同步返回这一段的转写文本,前端直接拼到实时稿,无需轮询。单段失败只丢这一段、不中断录音。
+    """
+    from services.meeting.storage import put_segment
+    from services.meeting.asr import transcribe_segment
+
+    m = await _load_meeting_owned(meeting_id, session, user)
+    content = await file.read()
+    if not content:
+        return {"seq": seq, "text": "", "done_chunks": m.done_chunks or 0}
+
+    # 1. 存这一段(finalize 时拼成整段音频供回放;失败不阻断转写)
+    try:
+        put_segment(meeting_id, seq, content, content_type=file.content_type or "audio/webm")
+    except Exception as e:
+        logger.warning("audio_chunk_minio_failed", meeting_id=meeting_id, seq=seq, error=str(e)[:160])
+
+    # 2. 转写这一段
+    try:
+        text = await transcribe_segment(content, filename=file.filename or f"seg-{seq}.webm")
+    except Exception as e:
+        logger.exception("audio_chunk_asr_failed", meeting_id=meeting_id, seq=seq, error=str(e)[:160])
+        text = ""
+
+    # 3. 加会议级 [MM:SS] 时间戳前缀(按 start_ms)+ 顺序累加到 raw_transcript
+    line = ""
+    if text:
+        secs = max(0, int(start_ms) // 1000)
+        mm, ss = divmod(secs, 60)
+        line = f"[{mm:02d}:{ss:02d}] {text}"
+    m.total_chunks = (m.total_chunks or 0) + 1
+    m.done_chunks = (m.done_chunks or 0) + 1
+    if line:
+        m.raw_transcript = ((m.raw_transcript or "") + ("\n" if m.raw_transcript else "") + line)
+    await session.commit()
+    return {"seq": seq, "text": text, "done_chunks": m.done_chunks}
+
+
+@router.post("/{meeting_id}/finalize", status_code=202)
+async def finalize_recording(
+    meeting_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """半实时录音停止:收尾。空转写 → failed;否则 status=processing 并派发
+    finalize_recording_meeting(拼整段音频 + 跑 AI pipeline)。"""
+    from services._time import utcnow_naive
+
+    m = await _load_meeting_owned(meeting_id, session, user)
+    m.end_time = utcnow_naive()
+    if not (m.raw_transcript or "").strip():
+        m.status = "failed"
+        await session.commit()
+        logger.warning("meeting_finalize_empty_transcript", meeting_id=meeting_id)
+        return {"meeting_id": meeting_id, "status": "failed", "reason": "empty_transcript"}
+    m.status = "processing"
+    await session.commit()
+
+    from tasks.meeting_tasks import finalize_recording_meeting as _task
+    _task.delay(meeting_id)
+    logger.info("meeting_finalize_dispatched", meeting_id=meeting_id, user=user.username)
+    return {"meeting_id": meeting_id, "status": "processing"}
+
+
 # ── AI Pipeline 触发(Block B) ──────────────────────────────────────────
 
 @router.post("/{meeting_id}/process", status_code=202)
