@@ -16,7 +16,7 @@ import {
   ChevronLeft, Loader2, RefreshCw, Trash2, FolderKanban, CheckCircle2, AlertCircle, Mic,
   FileText, ListChecks, Users, Settings as SettingsIcon, Info, ExternalLink, Save,
   Download, Pencil, X, Check, Clock, Share2, GitBranch, ChevronRight, Palette,
-  Maximize2, Copy,
+  Maximize2, Copy, Sparkles,
 } from 'lucide-react'
 import {
   getMeeting, deleteMeeting, processMeeting, patchMeeting, linkMeetingProject,
@@ -32,6 +32,8 @@ import {
   type Meeting, type MeetingStatus, type MeetingMinutes, type MeetingRequirement,
   type StakeholderItem, type FeishuUrlCheckResult,
   type MeetingIllustration,
+  getLiveAdvice, runLiveAdvice,
+  type LiveAdviceItem, type LiveAdviceCategory,
 } from '../../api/client'
 import { getMeetingAudioUrl } from '../../api/meeting-ext'
 import AudioPlayer, { type AudioPlayerHandle } from '../../components/AudioPlayer'
@@ -45,7 +47,7 @@ import { MermaidBlock } from '../../components/markdown/ReportMarkdown'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 type TopView = 'overview' | 'split' | 'actions'
-type LeftTab = 'minutes' | 'requirements' | 'process_flows' | 'stakeholders' | 'illustrations'
+type LeftTab = 'minutes' | 'advice' | 'requirements' | 'process_flows' | 'stakeholders' | 'illustrations'
 type RightTab = 'transcript' | 'polished'
 
 // ── 时间戳跳转 Context ────────────────────────────────────────────────────
@@ -129,6 +131,7 @@ const TOP_VIEWS: Array<{ key: TopView; label: string; Icon: typeof Info }> = [
 
 const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: typeof Info }> = [
   { key: 'minutes',       label: '纪要',     Icon: ListChecks },
+  { key: 'advice',        label: 'Co-pilot 建议', Icon: Sparkles },
   { key: 'requirements',  label: '需求清单', Icon: ListChecks },
   { key: 'process_flows', label: '业务流程', Icon: GitBranch },
   { key: 'stakeholders',  label: '干系人',   Icon: Users },
@@ -139,6 +142,103 @@ const RIGHT_TABS: Array<{ key: RightTab; label: string; Icon: typeof Info }> = [
   { key: 'transcript', label: '原文',   Icon: FileText },
   { key: 'polished',   label: 'AI润色', Icon: FileText },
 ]
+
+// ── 会议 Co-pilot 建议(会后复盘:展示调研建议,先给方案再引导客户确认) ──────────
+const ADVICE_CATS: { key: LiveAdviceCategory; label: string; color: string }[] = [
+  { key: 'clarification', label: '需进一步明确', color: '#2563eb' },
+  { key: 'ambiguity',     label: '歧义点',       color: '#d97706' },
+  { key: 'gap',           label: '可能遗漏(影响方案)', color: '#dc2626' },
+  { key: 'industry',      label: '行业专属问题', color: '#7c3aed' },
+]
+const ADVICE_PRIO: Record<string, string> = { high: '#dc2626', medium: '#d97706', low: '#9ca3af' }
+const fmtAdviceTs = (sec: number | null) =>
+  sec == null ? '' : `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}`
+
+export function AdviceTab({ meeting }: { meeting: Meeting }) {
+  const qc = useQueryClient()
+  const { data, isLoading } = useQuery({
+    queryKey: ['meeting-advice', meeting.id],
+    queryFn: () => getLiveAdvice(meeting.id),
+  })
+  const advice: LiveAdviceItem[] = data?.advice || []
+  const genMut = useMutation({
+    mutationFn: () => runLiveAdvice(meeting.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-advice', meeting.id] }),
+  })
+
+  return (
+    <div className="p-4">
+      <div className="flex items-start justify-between mb-3 gap-3">
+        <div>
+          <h2 className="text-base font-bold text-ink flex items-center gap-1.5">
+            <Sparkles size={16} className="text-brand" /> 会议 Co-pilot 建议
+          </h2>
+          <p className="text-[11px] text-ink-muted mt-0.5">
+            基于会议内容 + 项目行业 / LTC 给的调研建议:先给我方方案,再引导客户确认。
+          </p>
+        </div>
+        <button
+          onClick={() => genMut.mutate()}
+          disabled={genMut.isPending}
+          className="text-xs px-3 py-1.5 rounded-md text-white inline-flex items-center gap-1 disabled:opacity-50 shrink-0"
+          style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}
+        >
+          {genMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+          {advice.length ? '重新分析' : '生成建议'}
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="text-sm text-ink-muted py-10 text-center">加载中…</div>
+      ) : advice.length === 0 ? (
+        <div className="text-sm text-ink-muted py-12 text-center leading-relaxed">
+          还没有建议。点右上「生成建议」,让 Co-pilot 基于本次会议内容分析一轮。
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {ADVICE_CATS.map((c) => {
+            const items = advice.filter((a) => a.category === c.key)
+            if (!items.length) return null
+            return (
+              <div key={c.key}>
+                <div className="text-xs font-semibold mb-2" style={{ color: c.color }}>
+                  {c.label}({items.length})
+                </div>
+                <div className="space-y-2">
+                  {items.map((a) => (
+                    <div key={a.id} className="rounded-lg border border-line bg-white px-3 py-2.5">
+                      <div className="flex items-start gap-2">
+                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0"
+                          style={{ background: ADVICE_PRIO[a.priority] || ADVICE_PRIO.medium }} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-ink font-medium leading-snug">{a.title}</div>
+                          {a.recommendation && (
+                            <div className="text-[13px] text-ink-secondary mt-1 leading-snug">
+                              <span className="text-brand font-semibold">💡 建议:</span>{a.recommendation}
+                            </div>
+                          )}
+                          {a.question && (
+                            <div className="text-[13px] text-ink-muted mt-1 leading-snug">💬 这样确认:{a.question}</div>
+                          )}
+                          {a.rationale && (
+                            <div className="text-[12px] text-ink-muted mt-1 leading-snug">{a.rationale}</div>
+                          )}
+                          {a.source_ts != null && (
+                            <span className="text-[11px] text-ink-muted mt-1 inline-block font-mono">[{fmtAdviceTs(a.source_ts)}]</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function StatusBadge({ status }: { status: MeetingStatus }) {
   const cfg = {
@@ -2881,6 +2981,7 @@ export default function ConsoleMeetingDetail() {
                   {/* 左侧内容 */}
                   <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 360px)' }}>
                     {leftTab === 'minutes'       && <MinutesTab meeting={meeting} />}
+                    {leftTab === 'advice'        && <AdviceTab meeting={meeting} />}
                     {leftTab === 'requirements'  && <RequirementsTab meeting={meeting} />}
                     {leftTab === 'process_flows' && <ProcessFlowsTab meeting={meeting} />}
                     {leftTab === 'stakeholders'   && <StakeholdersTab meeting={meeting} />}
