@@ -160,6 +160,8 @@ ROUTING_RULES = {
     "meeting_illustrations_extract":{"primary": "minimax-m2.7",      "fallback": "glm-5"},
     # 纪要模板演化:基于历史样本归纳模板,元分析任务
     "meeting_template_evolve":     {"primary": "minimax-m2.7",      "fallback": "glm-5"},
+    # 现场调研实时副驾:边录边给 4 类调研建议(需推理 + 行业知识,~10s 预算)
+    "meeting_live_advice":         {"primary": "minimax-m2.7",      "fallback": "glm-5"},
 
     # ── 文档 (Document) ─────────────────────────────────────────────────────
     # 原始文本 → markdown:分段转写,吞吐量大

@@ -2383,6 +2383,45 @@ export const finalizeRecording = async (
   return data
 }
 
+// ── 现场调研实时副驾(2026-06-22) ──────────────────────────────────────────
+export type LiveAdviceCategory = 'clarification' | 'ambiguity' | 'gap' | 'industry'
+export interface LiveAdviceItem {
+  id: number
+  category: LiveAdviceCategory
+  category_label: string
+  title: string
+  question: string | null
+  rationale: string | null
+  source_quote: string | null
+  source_ts: number | null
+  ltc_module: string | null
+  priority: 'high' | 'medium' | 'low'
+  status: string
+}
+export interface LiveAdviceResponse {
+  advice: LiveAdviceItem[]
+  count: number
+  model?: string
+  added?: number
+  resolved?: number
+  error?: string
+  note?: string
+}
+/** 跑一轮实时调研建议分析(~10s),返回当前 open 建议。 */
+export const runLiveAdvice = async (meetingId: number): Promise<LiveAdviceResponse> => {
+  const { data } = await api.post(`/meeting/${meetingId}/live-advice`)
+  return data
+}
+/** 只读当前建议(不跑 LLM)。 */
+export const getLiveAdvice = async (meetingId: number): Promise<LiveAdviceResponse> => {
+  const { data } = await api.get(`/meeting/${meetingId}/live-advice`)
+  return data
+}
+export const dismissLiveAdvice = async (meetingId: number, adviceId: number): Promise<{ ok: boolean }> => {
+  const { data } = await api.post(`/meeting/${meetingId}/live-advice/${adviceId}/dismiss`)
+  return data
+}
+
 export const runMeetingAction = async (id: number, action: MeetingAction, body?: Record<string, unknown>): Promise<unknown> => {
   const { data } = await api.post(`/meeting/${id}/actions/${action}`, body)
   return data

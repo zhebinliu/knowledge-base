@@ -1,5 +1,36 @@
 # 任务跟踪
 
+## 现场调研「实时副驾」— 边录边给调研建议(完整版/第二步)(2026-06-22)— 用户 /goal
+
+> 在半实时录音之上加分析层:截至目前转写 + 项目(行业/客户/模块)+ LTC 覆盖基准(+调研大纲)
+> + 已给建议 → LLM 出 4 类建议 → 侧栏实时展示 → 增量去重 + 澄清闭环 + 自动定时刷新。
+
+### 4 类建议
+1. clarification 需进一步明确 / 2. ambiguity 歧义点 / 3. gap 未涉及但影响方案 / 4. industry 行业专属问题
+
+### 关键设计
+- gap 基准 = LTC 字典(`ltc_dictionary.ALL_LTC_MODULES`,按 `project.modules` 裁剪,喂 standard_nodes + common_pain_points)+ 可选最新 survey bundle。
+- 增量去重:每轮把 open 建议(带 DB id)喂回,LLM 只产新增 + 返回 resolved_ids;面板把已澄清的收起。
+- 触发:手动「给建议」按钮 + 录音中自动每 ~75s。
+- 异步独立端点,失败不影响录音主链路。模型:新 task `meeting_live_advice`(minimax-m2.7 / glm-5)。
+
+### 子任务
+- [ ] 后端 models/meeting_live_advice.py(新表,两副本 + main.py 注册 create_all)
+- [ ] 后端 prompts/meeting.py LIVE_ADVICE_SYSTEM/USER
+- [ ] 后端 services/meeting/live_advice.py(_coverage_baseline + generate_live_advice 去重/澄清)
+- [ ] 后端 model_router 加 meeting_live_advice task
+- [ ] 后端 api/meeting.py:POST /{id}/live-advice(跑)+ GET(取)+ POST /{id}/live-advice/{aid}/dismiss
+- [ ] 前端 client.ts:runLiveAdvice/getLiveAdvice/dismissAdvice + 类型
+- [ ] 前端 ConsoleMeetingNew record 模式:右侧「调研副驾」面板(4 区 + 卡片 + 时间戳)+ 给建议按钮 + 自动刷新
+- [ ] py_compile + tsc;deploy-prod;端到端
+
+### 边界
+- 只动 console record 模式;不破坏录音/转写/纪要主链路。
+- 新表用 create_all(无 alembic);两份 overlay 副本同步。
+- 行业建议先纯 LLM(project.industry),industry pack 题库后续再上。
+
+---
+
 ## 半实时录音(边录边传,Block D 落地)(2026-06-22)— 用户 /goal
 
 > 原 meeting-ai 整合时 Block D「WebSocket 实时录音」延期(见下文 2026-05-11 计划),

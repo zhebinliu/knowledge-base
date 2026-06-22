@@ -853,6 +853,47 @@ async def finalize_recording(
     return {"meeting_id": meeting_id, "status": "processing"}
 
 
+# ── 现场调研实时副驾(2026-06-22) ──────────────────────────────────────────
+
+@router.post("/{meeting_id}/live-advice", status_code=200)
+async def run_live_advice(
+    meeting_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """跑一轮实时调研建议分析(基于截至目前转写),返回当前 open 建议(4 类)。"""
+    await _load_meeting_owned(meeting_id, session, user)
+    from services.meeting.live_advice import generate_live_advice
+    return await generate_live_advice(meeting_id)
+
+
+@router.get("/{meeting_id}/live-advice", status_code=200)
+async def get_live_advice_endpoint(
+    meeting_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """只读当前 open 建议(不跑 LLM,前端轮询用)。"""
+    await _load_meeting_owned(meeting_id, session, user)
+    from services.meeting.live_advice import get_live_advice
+    return await get_live_advice(meeting_id)
+
+
+@router.post("/{meeting_id}/live-advice/{advice_id}/dismiss", status_code=200)
+async def dismiss_live_advice(
+    meeting_id: int,
+    advice_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """顾问手动忽略一条建议。"""
+    await _load_meeting_owned(meeting_id, session, user)
+    from services.meeting.live_advice import dismiss_advice
+    if not await dismiss_advice(meeting_id, advice_id):
+        raise HTTPException(404, "建议不存在")
+    return {"ok": True}
+
+
 # ── AI Pipeline 触发(Block B) ──────────────────────────────────────────
 
 @router.post("/{meeting_id}/process", status_code=202)

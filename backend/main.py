@@ -236,6 +236,7 @@ async def startup():
     from models.project_collaborator import ProjectCollaborator  # noqa: F401
     from models.meeting import Meeting, Requirement  # noqa: F401  会议纪要(2026-05-11 接入)
     from models.meeting_share import MeetingShare  # noqa: F401  会议纪要分享(2026-05-27 接入)
+    from models.meeting_live_advice import MeetingLiveAdvice  # noqa: F401  现场调研实时副驾建议(2026-06-22,create_all 建 meeting_live_advice 表)
     from models.template import MeetingTemplate  # noqa: F401  会议纪要模板演化(2026-05-21 接入,create_all 建 meeting_templates 表)
     from models.markup_template import MarkupTemplate  # noqa: F401  会议纪要版面模板(2026-05-28 接入)
     from models.project_stakeholder import ProjectStakeholder  # noqa: F401  项目级干系人资产(2026-05-12)

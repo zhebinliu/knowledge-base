@@ -1,33 +1,48 @@
 /**
- * ConsoleMeetingNew — 新建会议(2026-05-11;2026-06-22 record 升级为半实时边录边传)
+ * ConsoleMeetingNew — 新建会议(2026-05-11;2026-06-22 record 升级为半实时边录边传 + 调研副驾)
  *
  * 提供三种入口:
  *  - upload:上传整段音频文件 → MinIO → xiaomi ASR → AI pipeline
- *  - record:半实时录音(每 10s 一段独立 webm 边录边传 → 服务端即时转写 → 实时显示)→ 停止跑 AI pipeline
+ *  - record:半实时录音(每 10s 一段边录边传 → 即时转写 → 实时显示)+ 右侧「调研副驾」实时建议 → 停止跑 pipeline
  *  - text:粘贴/输入文本 → 直接走 AI pipeline(跳 ASR)
  */
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Upload, Type, ChevronLeft, Loader2, Mic, Square } from 'lucide-react'
+import { Upload, Type, ChevronLeft, Loader2, Mic, Square, Sparkles, X } from 'lucide-react'
 import {
   uploadMeetingAudio,
   createMeetingFromText,
   createRecordingMeeting,
   uploadAudioChunk,
   finalizeRecording,
+  runLiveAdvice,
+  dismissLiveAdvice,
   listProjects,
   type Project,
+  type LiveAdviceItem,
+  type LiveAdviceCategory,
 } from '../../api/client'
 import { useLiveRecorder } from '../../hooks/useLiveRecorder'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 const MAX_FILE_SIZE_MB = 500
-const SEGMENT_MS = 10000  // 半实时段长:10s(转写稿滞后约一段)
+const SEGMENT_MS = 10000       // 半实时段长:10s
+const ADVICE_INTERVAL_MS = 75000  // 自动给建议间隔
 type Mode = 'upload' | 'record' | 'text'
+
+const ADVICE_CATS: { key: LiveAdviceCategory; label: string; color: string }[] = [
+  { key: 'clarification', label: '需进一步明确', color: '#2563eb' },
+  { key: 'ambiguity', label: '歧义点', color: '#d97706' },
+  { key: 'gap', label: '可能遗漏(影响方案)', color: '#dc2626' },
+  { key: 'industry', label: '行业专属问题', color: '#7c3aed' },
+]
+const PRIO_COLOR: Record<string, string> = { high: '#dc2626', medium: '#d97706', low: '#9ca3af' }
 
 const fmtDuration = (s: number) =>
   `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+const fmtTs = (sec: number | null) =>
+  sec == null ? '' : `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}`
 
 export default function ConsoleMeetingNew() {
   const nav = useNavigate()
@@ -45,10 +60,29 @@ export default function ConsoleMeetingNew() {
   const [liveTranscript, setLiveTranscript] = useState('')
   const [finalizing, setFinalizing] = useState(false)
   const liveMeetingIdRef = useRef<number | null>(null)
-  // 分段「并行」上传:单段 ASR 延迟不稳(实测 4-25s),串行会越拖越后、长会永远追不上;
-  // 改并行 + 按 seq 落位排序 —— 哪段先转完先显示,顺序仍正确。
+  // 分段「并行」上传:单段 ASR 延迟不稳(实测 4-25s),串行会越拖越后;并行 + 按 seq 落位排序。
   const segTextRef = useRef<Record<number, string>>({})
   const pendingRef = useRef<Promise<void>[]>([])
+
+  // 调研副驾
+  const [advice, setAdvice] = useState<LiveAdviceItem[]>([])
+  const [adviceLoading, setAdviceLoading] = useState(false)
+  const [autoAdvice, setAutoAdvice] = useState(true)
+  const adviceBusyRef = useRef(false)
+
+  const refreshAdvice = useCallback(async () => {
+    const id = liveMeetingIdRef.current
+    if (!id || adviceBusyRef.current) return
+    adviceBusyRef.current = true
+    setAdviceLoading(true)
+    try {
+      const r = await runLiveAdvice(id)
+      if (Array.isArray(r.advice)) setAdvice(r.advice)
+    } catch { /* ignore */ } finally {
+      adviceBusyRef.current = false
+      setAdviceLoading(false)
+    }
+  }, [])
 
   const live = useLiveRecorder({
     segmentMs: SEGMENT_MS,
@@ -86,6 +120,13 @@ export default function ConsoleMeetingNew() {
     onError: (msg) => setError(msg),
   })
 
+  // 录音中自动每 75s 跑一轮建议
+  useEffect(() => {
+    if (!live.recording || !autoAdvice) return
+    const t = setInterval(() => { refreshAdvice() }, ADVICE_INTERVAL_MS)
+    return () => clearInterval(t)
+  }, [live.recording, autoAdvice, refreshAdvice])
+
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
 
   const handleFileChange = (f: File | null) => {
@@ -101,6 +142,7 @@ export default function ConsoleMeetingNew() {
   const startRecord = async () => {
     setError(null)
     setLiveTranscript('')
+    setAdvice([])
     try {
       const r = await createRecordingMeeting({ title: title || undefined, project_id: projectId || null })
       liveMeetingIdRef.current = r.meeting_id
@@ -110,6 +152,12 @@ export default function ConsoleMeetingNew() {
     } catch (e: any) {
       setError(e?.message || '无法开始录音')
     }
+  }
+
+  const onDismissAdvice = async (aid: number) => {
+    const id = liveMeetingIdRef.current
+    setAdvice((prev) => prev.filter((a) => a.id !== aid))
+    if (id) { try { await dismissLiveAdvice(id, aid) } catch { /* ignore */ } }
   }
 
   const uploadMut = useMutation({
@@ -136,9 +184,142 @@ export default function ConsoleMeetingNew() {
 
   const submitting = uploadMut.isPending || textMut.isPending
   const recordBusy = live.recording || finalizing
+  const started = liveMeetingIdRef.current != null
+
+  // ── 调研副驾面板 ──────────────────────────────────────────────────────────
+  const advicePanel = (
+    <div className="rounded-lg border border-line bg-canvas/30 p-4 flex flex-col">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-sm font-semibold text-ink flex items-center gap-1.5">
+          <Sparkles size={15} className="text-brand" /> 调研副驾
+        </div>
+        <div className="flex items-center gap-2.5">
+          <label className="text-[11px] text-ink-muted flex items-center gap-1 cursor-pointer">
+            <input type="checkbox" checked={autoAdvice} onChange={(e) => setAutoAdvice(e.target.checked)} />
+            自动
+          </label>
+          <button
+            type="button"
+            onClick={refreshAdvice}
+            disabled={adviceLoading || !started}
+            className="text-xs px-2.5 py-1 rounded-md text-white inline-flex items-center gap-1 disabled:opacity-50"
+            style={{ background: BRAND_GRAD }}
+          >
+            {adviceLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} 给建议
+          </button>
+        </div>
+      </div>
+
+      {advice.length === 0 ? (
+        <p className="text-xs text-ink-muted py-10 text-center leading-relaxed">
+          {started
+            ? '点「给建议」或等自动分析…\n副驾会提示该追问、有歧义、可能遗漏、以及行业专属的点'
+            : '开始录音后,这里会基于现场内容\n实时给出调研建议'}
+        </p>
+      ) : (
+        <div className="space-y-3 overflow-y-auto pr-1" style={{ maxHeight: '30rem' }}>
+          {ADVICE_CATS.map((c) => {
+            const items = advice.filter((a) => a.category === c.key)
+            if (!items.length) return null
+            return (
+              <div key={c.key}>
+                <div className="text-[11px] font-semibold mb-1.5" style={{ color: c.color }}>
+                  {c.label}({items.length})
+                </div>
+                <div className="space-y-1.5">
+                  {items.map((a) => (
+                    <div key={a.id} className="rounded-md border border-line bg-white px-2.5 py-2 group">
+                      <div className="flex items-start gap-1.5">
+                        <span className="mt-1 w-1.5 h-1.5 rounded-full shrink-0"
+                          style={{ background: PRIO_COLOR[a.priority] || PRIO_COLOR.medium }} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[13px] text-ink font-medium leading-snug">{a.title}</div>
+                          {a.question && (
+                            <div className="text-[12px] text-ink-secondary mt-1 leading-snug">💬 {a.question}</div>
+                          )}
+                          {a.rationale && (
+                            <div className="text-[11px] text-ink-muted mt-1 leading-snug">{a.rationale}</div>
+                          )}
+                          {a.source_ts != null && (
+                            <span className="text-[10px] text-ink-muted mt-1 inline-block font-mono">[{fmtTs(a.source_ts)}]</span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onDismissAdvice(a.id)}
+                          title="忽略"
+                          className="opacity-0 group-hover:opacity-100 text-ink-muted hover:text-ink shrink-0"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+
+  // ── 录音器 + 实时转写(record 模式左栏) ───────────────────────────────────
+  const recorderBlock = (
+    <div>
+      <label className="block text-sm font-medium text-ink mb-1.5">半实时录音(边录边转写,支持多人会议)</label>
+      {!live.supported ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-sm px-3 py-2.5 leading-relaxed">
+          当前浏览器不支持录音。请使用 Chrome / Edge 桌面浏览器,或改用「上传录音」。
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-line bg-canvas/40 px-5 py-6 flex flex-col items-center gap-3">
+          <button
+            type="button"
+            disabled={finalizing}
+            onClick={() => { if (live.recording) { live.stop() } else { startRecord() } }}
+            title={live.recording ? '停止录音' : '开始录音'}
+            className={`w-16 h-16 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-50 ${
+              live.recording ? 'bg-red-500 ring-4 ring-red-100' : 'shadow-md hover:shadow-lg'
+            }`}
+            style={live.recording ? undefined : { background: BRAND_GRAD }}
+          >
+            {finalizing ? <Loader2 size={24} className="animate-spin" /> : live.recording ? <Square size={22} /> : <Mic size={24} />}
+          </button>
+          <div className="font-mono text-xl font-bold text-ink flex items-center gap-2">
+            {live.recording && <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
+            {fmtDuration(live.seconds)}
+          </div>
+          <p className="text-xs text-ink-muted text-center max-w-lg">
+            {finalizing
+              ? '录音结束,正在收尾并生成纪要…'
+              : live.recording
+                ? '正在录音…第一段转写约 15-30 秒后出现,之后边录边出。讲完点停止生成纪要'
+                : '点麦克风开始录音。边录边转写,右侧副驾会实时给调研建议'}
+          </p>
+        </div>
+      )}
+
+      {(liveTranscript || live.recording) && (
+        <div className="mt-3">
+          <div className="text-[11px] text-ink-muted mb-1 flex items-center gap-1.5">
+            实时转写{live.recording && <span className="text-brand">· 逐段识别中</span>}
+          </div>
+          <div className="rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink-secondary leading-relaxed overflow-y-auto whitespace-pre-wrap" style={{ maxHeight: '14rem' }}>
+            {liveTranscript || <span className="text-ink-muted">正在识别第一段…(约 15-30 秒)</span>}
+          </div>
+        </div>
+      )}
+
+      {live.error && <p className="text-[11px] text-rose-600 mt-2">{live.error}</p>}
+      <p className="text-[11px] text-ink-muted mt-2">
+        每 10 秒上传一段做转写,停止后自动拼接整段音频供回放并跑 AI 流水线。
+      </p>
+    </div>
+  )
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8">
+    <div className={`mx-auto px-6 py-8 ${mode === 'record' ? 'max-w-5xl' : 'max-w-3xl'}`}>
       <button
         onClick={() => nav(projectId ? `/console/projects/${projectId}` : '/console/meeting')}
         className="inline-flex items-center gap-1 text-ink-muted hover:text-ink text-sm mb-4"
@@ -203,7 +384,9 @@ export default function ConsoleMeetingNew() {
             ))}
           </select>
           <p className="text-[11px] text-ink-muted mt-1">
-            关联项目后,纪要可一键同步到 KB,干系人可叠加到项目的干系人图谱里。
+            {mode === 'record'
+              ? '关联项目后,调研副驾会结合该项目的行业 / 客户 / LTC 模块给更准的建议。'
+              : '关联项目后,纪要可一键同步到 KB,干系人可叠加到项目的干系人图谱里。'}
           </p>
         </div>
 
@@ -225,56 +408,9 @@ export default function ConsoleMeetingNew() {
             </p>
           </div>
         ) : mode === 'record' ? (
-          <div>
-            <label className="block text-sm font-medium text-ink mb-1.5">半实时录音(边录边转写,支持多人会议)</label>
-            {!live.supported ? (
-              <div className="rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-sm px-3 py-2.5 leading-relaxed">
-                当前浏览器不支持录音。请使用 Chrome / Edge 桌面浏览器,或改用「上传录音」。
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-line bg-canvas/40 px-5 py-6 flex flex-col items-center gap-3">
-                <button
-                  type="button"
-                  disabled={finalizing}
-                  onClick={() => { if (live.recording) { live.stop() } else { startRecord() } }}
-                  title={live.recording ? '停止录音' : '开始录音'}
-                  className={`w-16 h-16 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-50 ${
-                    live.recording ? 'bg-red-500 ring-4 ring-red-100' : 'shadow-md hover:shadow-lg'
-                  }`}
-                  style={live.recording ? undefined : { background: BRAND_GRAD }}
-                >
-                  {finalizing ? <Loader2 size={24} className="animate-spin" /> : live.recording ? <Square size={22} /> : <Mic size={24} />}
-                </button>
-                <div className="font-mono text-xl font-bold text-ink flex items-center gap-2">
-                  {live.recording && <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
-                  {fmtDuration(live.seconds)}
-                </div>
-                <p className="text-xs text-ink-muted text-center max-w-lg">
-                  {finalizing
-                    ? '录音结束,正在收尾并生成纪要…'
-                    : live.recording
-                      ? '正在录音…第一段转写约 15-30 秒后出现(后端逐段识别),之后边录边出。讲完点停止生成纪要'
-                      : '点麦克风开始录音。边录边转写,转写稿会在下方实时显示(多人会议由后端 ASR 处理)'}
-                </p>
-              </div>
-            )}
-
-            {/* 实时转写稿 */}
-            {(liveTranscript || live.recording) && (
-              <div className="mt-3">
-                <div className="text-[11px] text-ink-muted mb-1 flex items-center gap-1.5">
-                  实时转写{live.recording && <span className="text-brand">· 逐段识别中</span>}
-                </div>
-                <div className="rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink-secondary leading-relaxed max-h-56 overflow-y-auto whitespace-pre-wrap">
-                  {liveTranscript || <span className="text-ink-muted">正在识别第一段…(约 15-30 秒)</span>}
-                </div>
-              </div>
-            )}
-
-            {live.error && <p className="text-[11px] text-rose-600 mt-2">{live.error}</p>}
-            <p className="text-[11px] text-ink-muted mt-2">
-              每 10 秒上传一段做转写(边录边传),停止后自动拼接整段音频供回放并跑 AI 流水线。
-            </p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+            {recorderBlock}
+            {advicePanel}
           </div>
         ) : (
           <div>
