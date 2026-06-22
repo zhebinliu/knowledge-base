@@ -1754,8 +1754,8 @@ docker-compose.yml: backend / celery_worker / frontend / frontend-uat 的 build 
 
 ## 清单
 - [x] 改 backend/services/meeting/asr.py
-- [ ] 改 meeting/backend/services/meeting/asr.py(同步)
+- [x] 改 meeting/backend/services/meeting/asr.py(同步)
 - [x] py_compile 两份(+ 虚拟时钟仿真:最坏 60s 窗口 33 req / 8778 tok,均 ≤ 硬限)
-- [ ] commit + push,等 origin/main 稳定
-- [ ] deploy-prod,核对 image tag = 新 SHA
-- [ ] 端到端验证(看日志限流生效 / 不再 429)
+- [x] commit + push(469eb5d,rebase 过他人 nginx 提交 f1e0b99 后推稳)
+- [x] deploy-prod 成功,image tag = sha-469eb5d(容器对齐校验通过,Healthy)
+- [x] 端到端验证:backend + celery_worker 容器均跑 sha-469eb5d,asr.py 含 _DualTokenBucket,segment 路径 rate_limit=False
