@@ -4,7 +4,7 @@
 1. 收完整音频(mp3/m4a/wav 等) → pydub/ffmpeg 转 16kHz 16bit mono PCM
 2. 切 20 秒一片(640 000 字节/片)
 3. 每片 PCM 封 WAV → base64 → 调 xiaomi `input_audio` chat.completions
-4. asyncio.Semaphore 控制并发 8 路
+4. asyncio.Semaphore 控制并发 8 路 + 双维度令牌桶限流(RPM/TPM),稳定落在小米账号限速内
 5. 每片完成回调,把 (index, text) 写回 callback,调用方按 index 拼接
    并增量写 meeting.raw_transcript / done_chunks,前端轮询展示流式进度
 
@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import os
+import time
 import structlog
 from typing import Awaitable, Callable, Optional
 
@@ -47,6 +48,78 @@ DEFAULT_CONCURRENCY = 8
 
 # 单片 timeout 90s(xiaomi 单片正常 5-15s,留 6x 富余)
 _PER_CHUNK_TIMEOUT = 90.0
+
+# ── 限流(令牌桶)──────────────────────────────────────────────────────────
+# 小米账号硬限速:RPM 100 / TPM 10K。长会(30min=90 片)若任 Semaphore(8) 直接打,
+# 一旦撞 429 会 fail-fast(单请求 <1s 返回)反复占满 8 个槽 → 20-30s 内打出几百次请求
+# → 全片 429 → 空转写 → failed(meeting 29,2026-06-18)。故每片请求前过一道令牌桶。
+#
+# 实测单片(20s)token ≈ audio 130 + prompt 21 + 出 ~110 ≈ 255~290(2.3s 基准:audio15+prompt21+出12)。
+# → TPM 才是真正瓶颈(10000/286 ≈ 35 片/分),RPM 100 反而宽松。
+#
+# 目标取硬限的 80% 留余量(网关计费窗口 / 时钟抖动 / 估算误差):RPM 80 / TPM 8000。
+# 桶容量(突发额度)取小,保证任意 60s 窗口最坏 = 容量 + 速率×60 仍 ≤ 硬限:
+#   req: 8 + 80 = 88 ≤ 100;tok: 900 + 8000 = 8900 ≤ 10000。
+_HARD_RPM = 100
+_HARD_TPM = 10000
+_SAFE_RPM = 80
+_SAFE_TPM = 8000
+_BURST_REQ = 8        # req 桶容量(= 并发数,允许的瞬时请求突发)
+_BURST_TOK = 900      # tok 桶容量(≈ 3 个满片,必须 ≥ 单片估算 token 否则永远放行不了)
+
+# token 估算系数:audio≈6.5/s + 出≈5.5/s ≈ 12/s,prompt 固定 21,再 +5 兜底(宁可高估=更稳)
+_TOK_PER_SEC = 12.0
+_TOK_FIXED = 21 + 5
+
+
+def _estimate_chunk_tokens(chunk_bytes: int) -> float:
+    """按 PCM 字节数(→时长)估算单片请求总 token(audio+prompt+预期输出),供 TPM 限流用。
+
+    PCM 为 16kHz/16bit/mono → 每秒 REQUIRED_SAMPLE_RATE*2 字节。高估比低估安全。
+    """
+    duration_sec = chunk_bytes / (REQUIRED_SAMPLE_RATE * 2)
+    return duration_sec * _TOK_PER_SEC + _TOK_FIXED
+
+
+class _DualTokenBucket:
+    """双维度令牌桶:同时按「每分钟请求数(RPM)」「每分钟 token 数(TPM)」限流,二者取严。
+
+    每片请求前 `await acquire(est_tokens)`,两个桶都够才放行,否则 sleep 到够。
+    桶随时间线性补充(rate=上限/60 个/秒),起始装满 burst 容量。
+
+    为何按调用新建、不做模块级全局单例:
+    每个 Celery 转写任务都用 `asyncio.new_event_loop()` 跑(见 tasks/meeting_tasks._run),
+    模块级 `asyncio.Lock` 会绑死在首个 loop 上,换任务即报 "bound to a different event loop"。
+    且 Celery 默认 prefork 多进程,全局单例也无法跨进程协调。故限流器随 `transcribe_audio`
+    每次调用新建,作用域 = 一次整段转写 —— 正好覆盖「单场长会突发」这个真实失败场景。
+    """
+
+    def __init__(self, rpm: float, tpm: float, burst_req: float, burst_tok: float):
+        self._rate_req = rpm / 60.0
+        self._rate_tok = tpm / 60.0
+        self._cap_req = float(burst_req)
+        self._cap_tok = float(burst_tok)
+        self._req = float(burst_req)   # 起始装满突发额度
+        self._tok = float(burst_tok)
+        self._ts = time.monotonic()
+        self._lock = asyncio.Lock()
+
+    async def acquire(self, est_tokens: float) -> None:
+        need = min(float(est_tokens), self._cap_tok)  # 封顶:单片估算不可能超桶容量,否则死锁
+        async with self._lock:                        # 串行化放行,严格按节奏一次放一个
+            while True:
+                now = time.monotonic()
+                dt = now - self._ts
+                self._ts = now
+                self._req = min(self._cap_req, self._req + dt * self._rate_req)
+                self._tok = min(self._cap_tok, self._tok + dt * self._rate_tok)
+                if self._req >= 1.0 and self._tok >= need:
+                    self._req -= 1.0
+                    self._tok -= need
+                    return
+                wait_r = (1.0 - self._req) / self._rate_req if self._req < 1.0 else 0.0
+                wait_t = (need - self._tok) / self._rate_tok if self._tok < need else 0.0
+                await asyncio.sleep(max(wait_r, wait_t, 0.05))
 
 
 def _format_from_filename(filename: str) -> str:
@@ -114,6 +187,7 @@ async def transcribe_audio(
     filename: str = "",
     on_chunk: Optional[OnChunkResult] = None,
     concurrency: int = DEFAULT_CONCURRENCY,
+    rate_limit: bool = True,
 ) -> str:
     """对整段音频做切片并发转写,边出边回调,返回拼接后的全文。
 
@@ -121,6 +195,8 @@ async def transcribe_audio(
     - filename: 用于推断格式(扩展名)
     - on_chunk: 每片完成时调用 `await on_chunk(index, text)`,调用方可借此
       增量更新 DB(`meeting.raw_transcript / done_chunks`,前端轮询展示进度)
+    - rate_limit: 是否对每片请求过令牌桶限流(默认 True,防长会突发撞 RPM/TPM 上限)。
+      半实时「边录边传」每段就 1 片、天然限速,由 `transcribe_segment` 传 False 关掉。
     - 返回值:所有片段按顺序拼接的全文
     """
     if not audio_bytes:
@@ -146,9 +222,16 @@ async def transcribe_audio(
     # 3. 并发转写,结果按 index 落位
     parts: list[str] = [""] * total
     sem = asyncio.Semaphore(concurrency)
+    # 令牌桶按调用新建(见 _DualTokenBucket 注释,不能做模块级全局)。
+    # 限流器才是真正的 governor:它把请求节奏压到 ~TPM/单片 ≈ 35 片/分,semaphore 只兜并发上限。
+    limiter = _DualTokenBucket(_SAFE_RPM, _SAFE_TPM, _BURST_REQ, _BURST_TOK) if rate_limit else None
 
     async with httpx.AsyncClient(timeout=httpx.Timeout(_PER_CHUNK_TIMEOUT)) as client:
         async def _run_chunk(i: int, c: bytes) -> None:
+            # 先过限流(在 semaphore 之前 acquire,解耦速率与并发;放行后再占并发槽真正发请求)。
+            # 即便请求 fail-fast(429),节奏仍被限流器卡住,不会反复占满 semaphore 形成请求风暴。
+            if limiter is not None:
+                await limiter.acquire(_estimate_chunk_tokens(len(c)))
             async with sem:
                 text = await _transcribe_pcm_chunk(client, api_key, c, i, total)
                 parts[i] = text
@@ -181,6 +264,7 @@ async def transcribe_segment(audio_bytes: bytes, filename: str = "") -> str:
     import re as _re
     if not audio_bytes:
         return ""
-    text = await transcribe_audio(audio_bytes, filename=filename, on_chunk=None)
+    # rate_limit=False:半实时每段就 1 片、天然限速,不走批量限流(也避免给它的事件循环新建限流器)
+    text = await transcribe_audio(audio_bytes, filename=filename, on_chunk=None, rate_limit=False)
     # transcribe_audio 给每片加了 [MM:SS](相对段内,半实时场景无意义)→ 剥掉只留文本
     return _re.sub(r"\[\d{2}:\d{2}\]\s*", "", text).strip()

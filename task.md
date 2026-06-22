@@ -1726,3 +1726,36 @@ docker-compose.yml: backend / celery_worker / frontend / frontend-uat 的 build 
 - 不读 research_response
 - meeting 只摘 minutes,不喂 transcript
 - critic / challenger 不改
+
+---
+
+# Task(2026-06-22): 会议「整段上传」转写批量路径加限流(RPM 100 / TPM 10K)
+
+## 背景
+- `services/meeting/asr.py::transcribe_audio` 用 `asyncio.Semaphore(8)` 并发打 xiaomi `mimo-v2.5-asr`。
+- 小米账号硬限速 RPM 100 / TPM 10K。长会(30min=90 片)+ 429 fail-fast 会在 20-30s 内
+  把 8 个 semaphore 槽反复打满 → 几百次请求 → 全片 429 → 空转写 → failed(meeting 29,2026-06-18)。
+- 单片(20s)token 实测推算 ≈ audio 130 + prompt 21 + 出 ~110 ≈ 255~290 token。
+  → TPM 是真正瓶颈(10000/286 ≈ 35 片/分),RPM 100 反而宽松。
+
+## 方案
+- `transcribe_audio` 内新建「每次调用一个」双维度令牌桶 `_DualTokenBucket`(RPM + TPM 双维取严)。
+  - 不能用模块级全局:每个 Celery 转写任务都 `asyncio.new_event_loop()`(见 meeting_tasks._run),
+    模块级 asyncio.Lock 会绑死首个 loop,换 loop 即报 "bound to a different event loop"。
+  - 作用域 = 一次整段转写,正好覆盖长会突发场景。
+- 每片请求前 `await limiter.acquire(est_tokens)`,在 semaphore 之前 acquire(解耦速率与并发)。
+- 安全余量:目标 RPM 80 / TPM 8000(硬限 80%);桶容量小(req 8 / tok 900),保证
+  任意 60s 窗口最坏 = 容量 + 速率×60 ≤ 硬限(req 88≤100;tok 8900≤10000)。
+- 半实时「边录边传」(`transcribe_segment`)显式 `rate_limit=False`,不动它。
+
+## 边界
+- 只改 `services/meeting/asr.py`(backend/ + meeting/backend/ 两份同步)。
+- 不改 DEFAULT_CONCURRENCY(限流器才是真正 governor);不动 audio-chunk 端点;不加新依赖。
+
+## 清单
+- [x] 改 backend/services/meeting/asr.py
+- [ ] 改 meeting/backend/services/meeting/asr.py(同步)
+- [x] py_compile 两份(+ 虚拟时钟仿真:最坏 60s 窗口 33 req / 8778 tok,均 ≤ 硬限)
+- [ ] commit + push,等 origin/main 稳定
+- [ ] deploy-prod,核对 image tag = 新 SHA
+- [ ] 端到端验证(看日志限流生效 / 不再 429)
