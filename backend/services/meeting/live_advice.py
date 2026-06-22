@@ -165,7 +165,7 @@ async def generate_live_advice(meeting_id: int) -> dict:
     try:
         content, model = await model_router.chat_with_routing(
             task="meeting_live_advice", messages=messages,
-            temperature=0.3, max_tokens=4000,
+            temperature=0.3, max_tokens=8000,  # 方案要列出具体规则,输出较长
             response_format={"type": "json_object"},
         )
     except Exception as e:

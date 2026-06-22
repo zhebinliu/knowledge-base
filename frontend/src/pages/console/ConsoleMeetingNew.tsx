@@ -248,7 +248,7 @@ export default function ConsoleMeetingNew() {
                         <div className="flex-1 min-w-0">
                           <div className="text-[13px] text-ink font-medium leading-snug">{a.title}</div>
                           {a.recommendation && (
-                            <div className="text-[12px] text-ink-secondary mt-1 leading-snug">
+                            <div className="text-[12px] text-ink-secondary mt-1 leading-snug whitespace-pre-wrap">
                               <span className="text-brand font-semibold">💡 建议:</span>{a.recommendation}
                             </div>
                           )}
