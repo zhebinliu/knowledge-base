@@ -654,6 +654,18 @@ OpenAI 兼容接口下,reasoning 模型的 `response.choices[0].message.content`
 - **综合分** = 静态 40% + LLM 60%(LLM 权重高,因为它能识别内容质量,但静态分能兜底)
 - DB 设计:`quality_reports.mode` (static|llm|both) + `static_payload` + `llm_payload` 两个 JSONB 字段独立存,UI 用 tab 切看
 
+### 11.9 批量切片 ASR 光有 Semaphore(8) 还不够,要叠双维度令牌桶限流(2026-06-22)
+
+承接 11.1:`Semaphore(8)` 只兜**并发**(同时在飞几个),不兜**速率**(每分钟打几次)。小米账号硬限 **RPM 100 / TPM 10K**。长会(30 min = 90 片)一旦撞 429,单请求 <1s fail-fast 返回 → 立刻释放 semaphore 槽 → 马上又发 → 正反馈风暴:20–30s 内打出几百次请求 → 全片 429 → 空转写 → `failed`(meeting 29,2026-06-18)。
+
+修法:`transcribe_audio` 内加 `_DualTokenBucket`,每片请求前 `await acquire(est_tokens)`,按 RPM + TPM 双维取严。两个关键坑:
+
+1. **TPM 才是真瓶颈,不是 RPM**。切到专用 `mimo-v2.5-asr` 后单片(20 s)≈ 266 token(audio≈6.5/s + 出≈5.5/s + prompt 21)。RPM 100 配 266 token/片 = 26.6K TPM,远超 10K。所以限流后有效速率 ≈ **35 片/分**(TPM 卡死),30 min 会议要 ~3 min 转完(比原 ~110s 慢,但稳)。目标取硬限 80%(RPM 80 / TPM 8000)留余量,桶容量取小(req 8 / tok 900)保证任意 60s 窗口最坏 = 容量 + 速率×60 仍 ≤ 硬限。
+
+2. **限流器不能做模块级全局单例**。每个 Celery 转写任务都用 `asyncio.new_event_loop()` 跑(`tasks/meeting_tasks._run`),模块级 `asyncio.Lock` 会绑死首个 loop,换任务即报 `bound to a different event loop`;且 Celery prefork 多进程也无法跨进程协调。故限流器随 `transcribe_audio` **每次调用新建**,作用域 = 一次整段转写,正好覆盖「单场长会突发」。**这条对 meeting 流水线里任何从 Celery task 触发的 async 代码都成立 —— 别在这条路径上放模块级 asyncio 单例。**
+
+半实时「边录边传」(`transcribe_segment`,audio-chunk 端点每 10s 一段)天然限速(1 段 1 片),显式传 `rate_limit=False` 关掉限流,不受影响。代码:`services/meeting/asr.py`(backend/ + meeting/backend/ 两份 overlay 同步)。
+
 ---
 
 ## 12. Meeting 模块抽 git submodule(2026-05-19)
