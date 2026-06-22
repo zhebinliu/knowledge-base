@@ -1,9 +1,9 @@
 /**
- * ConsoleMeetingNew — 新建会议(2026-05-11;2026-06-22 record 升级为半实时边录边传 + 调研副驾)
+ * ConsoleMeetingNew — 新建会议(2026-05-11;2026-06-22 record 升级为半实时边录边传 + 会议 Co-pilot)
  *
  * 提供三种入口:
  *  - upload:上传整段音频文件 → MinIO → xiaomi ASR → AI pipeline
- *  - record:半实时录音(每 10s 一段边录边传 → 即时转写 → 实时显示)+ 右侧「调研副驾」实时建议 → 停止跑 pipeline
+ *  - record:半实时录音(每 10s 一段边录边传 → 即时转写 → 实时显示)+ 右侧「会议 Co-pilot」实时建议 → 停止跑 pipeline
  *  - text:粘贴/输入文本 → 直接走 AI pipeline(跳 ASR)
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -65,7 +65,7 @@ export default function ConsoleMeetingNew() {
   const segTextRef = useRef<Record<number, string>>({})
   const pendingRef = useRef<Promise<void>[]>([])
 
-  // 调研副驾
+  // 会议 Co-pilot
   const [advice, setAdvice] = useState<LiveAdviceItem[]>([])
   const [adviceLoading, setAdviceLoading] = useState(false)
   const [autoAdvice, setAutoAdvice] = useState(true)
@@ -199,12 +199,12 @@ export default function ConsoleMeetingNew() {
   const recordBusy = live.recording || finalizing
   const started = liveMeetingIdRef.current != null
 
-  // ── 调研副驾面板 ──────────────────────────────────────────────────────────
+  // ── 会议 Co-pilot面板 ──────────────────────────────────────────────────────────
   const advicePanel = (
     <div className="rounded-lg border border-line bg-canvas/30 p-4 flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <div className="text-sm font-semibold text-ink flex items-center gap-1.5">
-          <Sparkles size={15} className="text-brand" /> 调研副驾
+          <Sparkles size={15} className="text-brand" /> 会议 Co-pilot
         </div>
         <div className="flex items-center gap-2.5">
           <label className="text-[11px] text-ink-muted flex items-center gap-1 cursor-pointer">
@@ -226,7 +226,7 @@ export default function ConsoleMeetingNew() {
       {advice.length === 0 ? (
         <p className="text-xs text-ink-muted py-10 text-center leading-relaxed">
           {started
-            ? '边录边自动分析…副驾会随对话推进\n提示该追问、有歧义、可能遗漏、以及行业专属的点'
+            ? '边录边自动分析…Co-pilot 会随对话推进\n提示该追问、有歧义、可能遗漏、以及行业专属的点'
             : '开始录音后,这里会基于现场内容\n实时给出调研建议'}
         </p>
       ) : (
@@ -308,7 +308,7 @@ export default function ConsoleMeetingNew() {
               ? '录音结束,正在收尾并生成纪要…'
               : live.recording
                 ? '正在录音…第一段转写约 15-30 秒后出现,之后边录边出。讲完点停止生成纪要'
-                : '点麦克风开始录音。边录边转写,右侧副驾会实时给调研建议'}
+                : '点麦克风开始录音。边录边转写,右侧 Co-pilot 会实时给调研建议'}
           </p>
         </div>
       )}
@@ -398,7 +398,7 @@ export default function ConsoleMeetingNew() {
           </select>
           <p className="text-[11px] text-ink-muted mt-1">
             {mode === 'record'
-              ? '关联项目后,调研副驾会结合该项目的行业 / 客户 / LTC 模块给更准的建议。'
+              ? '关联项目后,会议 Co-pilot 会结合该项目的行业 / 客户 / LTC 模块给更准的建议。'
               : '关联项目后,纪要可一键同步到 KB,干系人可叠加到项目的干系人图谱里。'}
           </p>
         </div>
