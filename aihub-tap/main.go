@@ -1,39 +1,62 @@
-// aihub-tap: 透明记录代理
+// aihub-tap: 透明记录代理 + 管理查询 API
 //
-// [client] → nginx (kb-system-frontend-1) → aihub-tap:8080 → new-api:3000
+// 链路:
+//   [client] → nginx → aihub-tap:8080
+//                         ├─ /v1/*           → tee proxy → new-api:3000(写 tap.jsonl)
+//                         ├─ /aihub-admin/*  → 直连 new-api-postgres 跑 SQL,X-Admin-Key 鉴权
+//                         └─ 其它            → 透传 new-api:3000(不记录)
 //
-// 抓取 /v1/* 路径下的请求体 + 响应体(包含 SSE 流式响应),写入
-// /logs/tap.jsonl。Streaming 模式下用 tee 模式,客户端实时收到 chunk
-// 的同时本地累积 buffer,不破坏流。
+// tap 部分: 抓 /v1/* 请求体+响应体(含 SSE 流) 写 /logs/tap.jsonl。
 //
-// 不抓: /api/* (admin panel 接口) / 静态文件 — 没意义
+// admin 部分(需要 NEW_API_POSTGRES_DSN + AIHUB_ADMIN_KEY 两个 env):
+//   GET /aihub-admin/balances                — 列全部用户余额(quota+token 汇总)
+//   GET /aihub-admin/consumption?...         — 时段消耗(model/user/token/group_by 过滤)
 //
-// 日志格式: 每行一个 JSON object,字段:
-//   ts, method, path, client_ip, ua, status, duration_ms, req_body, resp_body
-//
-// 注意: req_body 和 resp_body 是字符串,流式响应的 resp_body 是完整 SSE 文本流
-// (data: {...}\n\n 拼接),由查询者后处理还原。
+// 实现细节:
+//   - quotaPerUnit = 500000:new-api 内部 quota 单位换算成 USD
+//   - 时区默认 Asia/Shanghai(时间参数解析 + bucket 显示)
+//   - postgres 用 pgxpool,失败不影响 /v1/* tap 主路径
 
 package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const upstream = "http://new-api:3000"
+const (
+	upstream     = "http://new-api:3000"
+	quotaPerUnit = 500000.0 // 500K quota = $1 USD,new-api 默认值,对应 /api/status quota_per_unit
+)
 
 var (
-	logFile *os.File
-	logMu   sync.Mutex
+	logFile  *os.File
+	logMu    sync.Mutex
+	adminKey string
+	pgPool   *pgxpool.Pool
+	shTZ     = mustTZ("Asia/Shanghai")
 )
+
+func mustTZ(name string) *time.Location {
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+}
 
 func main() {
 	if err := os.MkdirAll("/logs", 0755); err != nil {
@@ -45,31 +68,274 @@ func main() {
 	}
 	logFile = f
 
+	adminKey = os.Getenv("AIHUB_ADMIN_KEY")
+	if adminKey == "" {
+		log.Println("[warn] AIHUB_ADMIN_KEY unset — /aihub-admin/* 永远返回 403")
+	}
+	if dsn := os.Getenv("NEW_API_POSTGRES_DSN"); dsn != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		pool, err := pgxpool.New(ctx, dsn)
+		if err != nil {
+			log.Printf("[warn] postgres connect failed: %v", err)
+		} else if err := pool.Ping(ctx); err != nil {
+			log.Printf("[warn] postgres ping failed: %v", err)
+		} else {
+			pgPool = pool
+			log.Println("connected to new-api-postgres for admin queries")
+		}
+	} else {
+		log.Println("[warn] NEW_API_POSTGRES_DSN unset — admin queries disabled")
+	}
+
 	log.Println("aihub-tap :8080 → " + upstream)
 	srv := &http.Server{
 		Addr:              ":8080",
-		Handler:           http.HandlerFunc(handler),
+		Handler:           http.HandlerFunc(routeHandler),
 		ReadHeaderTimeout: 30 * time.Second,
 		// 不设 ReadTimeout / WriteTimeout:SSE 流可能持续很久
 	}
 	log.Fatal(srv.ListenAndServe())
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
+func routeHandler(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/aihub-admin/") {
+		adminRouter(w, r)
+		return
+	}
+	tapHandler(w, r)
+}
+
+// ─── admin handlers ─────────────────────────────────────────────────────────
+
+func adminRouter(w http.ResponseWriter, r *http.Request) {
+	if adminKey == "" || r.Header.Get("X-Admin-Key") != adminKey {
+		writeJSON(w, http.StatusForbidden, map[string]any{"error": "forbidden"})
+		return
+	}
+	if pgPool == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "db not connected"})
+		return
+	}
+	switch r.URL.Path {
+	case "/aihub-admin/balances":
+		handleBalances(w, r)
+	case "/aihub-admin/consumption":
+		handleConsumption(w, r)
+	default:
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "not found", "supported": []string{"/aihub-admin/balances", "/aihub-admin/consumption"}})
+	}
+}
+
+func handleBalances(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	rows, err := pgPool.Query(ctx, `
+		SELECT u.id, u.username, u.role, u."group", u.quota, u.used_quota,
+		       COALESCE(u.email, '') AS email, u.status,
+		       (SELECT COUNT(*) FROM tokens t WHERE t.user_id = u.id AND t.deleted_at IS NULL) AS token_count,
+		       (SELECT COALESCE(SUM(t.used_quota), 0) FROM tokens t WHERE t.user_id = u.id AND t.deleted_at IS NULL) AS tokens_used_total
+		FROM users u
+		ORDER BY u.id
+	`)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+	users := make([]map[string]any, 0)
+	for rows.Next() {
+		var id, role, status, tokenCount int64
+		var username, group, email string
+		var quota, usedQuota, tokensUsedTotal int64
+		if err := rows.Scan(&id, &username, &role, &group, &quota, &usedQuota, &email, &status, &tokenCount, &tokensUsedTotal); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+			return
+		}
+		users = append(users, map[string]any{
+			"id":              id,
+			"username":        username,
+			"role":            role,
+			"group":           group,
+			"email":           email,
+			"status":          status,
+			"remaining_usd":   round4(float64(quota) / quotaPerUnit),
+			"used_usd":        round4(float64(usedQuota) / quotaPerUnit),
+			"token_count":     tokenCount,
+			"tokens_used_usd": round4(float64(tokensUsedTotal) / quotaPerUnit),
+			"_raw": map[string]int64{
+				"remaining_quota": quota,
+				"used_quota":      usedQuota,
+			},
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"count": len(users),
+		"users": users,
+	})
+}
+
+func handleConsumption(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+
+	startTs, err := parseTimeParam(q.Get("start"), time.Now().Add(-24*time.Hour))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid start: " + err.Error()})
+		return
+	}
+	endTs, err := parseTimeParam(q.Get("end"), time.Now())
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid end: " + err.Error()})
+		return
+	}
+
+	groupBy := q.Get("group_by")
+	if groupBy == "" {
+		groupBy = "day"
+	}
+	var truncUnit string
+	switch groupBy {
+	case "hour":
+		truncUnit = "hour"
+	case "day":
+		truncUnit = "day"
+	case "month":
+		truncUnit = "month"
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "group_by must be one of: hour | day | month"})
+		return
+	}
+
+	where := []string{"created_at >= $1", "created_at <= $2"}
+	args := []any{startTs.Unix(), endTs.Unix()}
+	if v := q.Get("model"); v != "" {
+		where = append(where, fmt.Sprintf("model_name = $%d", len(args)+1))
+		args = append(args, v)
+	}
+	if v := q.Get("user"); v != "" {
+		where = append(where, fmt.Sprintf("username = $%d", len(args)+1))
+		args = append(args, v)
+	}
+	if v := q.Get("token"); v != "" {
+		where = append(where, fmt.Sprintf("token_name = $%d", len(args)+1))
+		args = append(args, v)
+	}
+
+	sql := fmt.Sprintf(`
+		SELECT
+		  date_trunc('%s', to_timestamp(created_at) AT TIME ZONE 'Asia/Shanghai') AS bucket,
+		  username, token_name, model_name,
+		  COUNT(*) AS calls,
+		  COALESCE(SUM(prompt_tokens), 0) AS prompt_total,
+		  COALESCE(SUM(completion_tokens), 0) AS completion_total,
+		  COALESCE(SUM(quota), 0) AS quota_total
+		FROM logs
+		WHERE %s
+		GROUP BY bucket, username, token_name, model_name
+		ORDER BY bucket, username, token_name, model_name
+	`, truncUnit, strings.Join(where, " AND "))
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	rows, err := pgPool.Query(ctx, sql, args...)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	results := make([]map[string]any, 0)
+	var sumCalls, sumPrompt, sumCompletion, sumQuota int64
+	for rows.Next() {
+		var bucket time.Time
+		var username, tokenName, modelName string
+		var calls, promptTotal, completionTotal, quotaTotal int64
+		if err := rows.Scan(&bucket, &username, &tokenName, &modelName, &calls, &promptTotal, &completionTotal, &quotaTotal); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+			return
+		}
+		// SQL date_trunc(... AT TIME ZONE 'Asia/Shanghai') 返回的是无时区 timestamp,
+		// pgx scan 默认按 UTC,但实际值已经是北京时间 → 用同字面值在 shTZ 时区重构
+		bucketCST := time.Date(bucket.Year(), bucket.Month(), bucket.Day(),
+			bucket.Hour(), bucket.Minute(), bucket.Second(), 0, shTZ)
+		results = append(results, map[string]any{
+			"bucket":       bucketCST.Format(time.RFC3339),
+			"username":     username,
+			"token":        tokenName,
+			"model":        modelName,
+			"calls":        calls,
+			"prompt":       promptTotal,
+			"completion":   completionTotal,
+			"tokens_total": promptTotal + completionTotal,
+			"quota":        quotaTotal,
+			"usd":          round4(float64(quotaTotal) / quotaPerUnit),
+		})
+		sumCalls += calls
+		sumPrompt += promptTotal
+		sumCompletion += completionTotal
+		sumQuota += quotaTotal
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"start":    startTs.In(shTZ).Format(time.RFC3339),
+		"end":      endTs.In(shTZ).Format(time.RFC3339),
+		"group_by": groupBy,
+		"summary": map[string]any{
+			"total_calls":      sumCalls,
+			"total_prompt":     sumPrompt,
+			"total_completion": sumCompletion,
+			"total_quota":      sumQuota,
+			"total_usd":        round4(float64(sumQuota) / quotaPerUnit),
+		},
+		"rows": results,
+	})
+}
+
+func parseTimeParam(s string, def time.Time) (time.Time, error) {
+	if s == "" {
+		return def, nil
+	}
+	if ts, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return time.Unix(ts, 0), nil
+	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	if t, err := time.ParseInLocation("2006-01-02 15:04:05", s, shTZ); err == nil {
+		return t, nil
+	}
+	if t, err := time.ParseInLocation("2006-01-02", s, shTZ); err == nil {
+		return t, nil
+	}
+	return time.Time{}, errors.New("支持格式: unix 秒 / RFC3339 / YYYY-MM-DD [HH:MM:SS]")
+}
+
+func round4(f float64) float64 {
+	return float64(int64(f*10000+0.5)) / 10000
+}
+
+func writeJSON(w http.ResponseWriter, code int, data any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(code)
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(data)
+}
+
+// ─── tap handler(原 /v1/* 透明代理 + 写 jsonl) ─────────────────────────────
+
+func tapHandler(w http.ResponseWriter, r *http.Request) {
 	started := time.Now()
 
-	// 1. 读完请求体
 	reqBody, _ := io.ReadAll(r.Body)
 	r.Body.Close()
 
-	// 2. 构造转发请求
 	pr, err := http.NewRequestWithContext(r.Context(), r.Method, upstream+r.RequestURI, bytes.NewReader(reqBody))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	for k, vv := range r.Header {
-		// hop-by-hop header 不转发
 		if strings.EqualFold(k, "Connection") || strings.EqualFold(k, "Upgrade") {
 			continue
 		}
@@ -78,7 +344,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 3. 发到 new-api(不设 Timeout,SSE 可能 5+ 分钟)
 	resp, err := http.DefaultClient.Do(pr)
 	if err != nil {
 		http.Error(w, "tap upstream: "+err.Error(), http.StatusBadGateway)
@@ -86,7 +351,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	// 4. 转发响应头
 	for k, vv := range resp.Header {
 		for _, v := range vv {
 			w.Header().Add(k, v)
@@ -94,8 +358,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(resp.StatusCode)
 
-	// 5. Tee body: 同时写客户端 + 本地 buffer。
-	// SSE 关键: 每读一个 chunk 立即 Flush,客户端就能实时收到
 	var respBuf bytes.Buffer
 	flusher, _ := w.(http.Flusher)
 	buf := make([]byte, 8192)
@@ -104,7 +366,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		if n > 0 {
 			chunk := buf[:n]
 			if _, werr := w.Write(chunk); werr != nil {
-				// 客户端断了,但我们还是把上游剩余 buffer 完
 				break
 			}
 			respBuf.Write(chunk)
@@ -117,7 +378,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 6. 写日志(只记 /v1/*,admin/static 不记)
 	if !strings.HasPrefix(r.URL.Path, "/v1/") {
 		return
 	}

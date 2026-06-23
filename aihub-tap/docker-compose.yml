@@ -1,8 +1,9 @@
-# aihub-tap — 透明记录代理
+# aihub-tap — 透明记录代理 + 管理查询 API
 #
 # 部署: cd /opt/aihub-tap && sudo docker compose up -d
-# 改代码: 改完 main.go 后 docker compose restart aihub-tap(go run 会重编)
+# 改代码: scp main.go,然后 docker compose restart aihub-tap (go run 会重编译,~3 秒)
 # 日志: tail -f /opt/aihub-tap/logs/tap.jsonl
+# 凭证: /opt/aihub-tap/.env (.env.example 见仓库)
 
 services:
   aihub-tap:
@@ -12,15 +13,22 @@ services:
     working_dir: /app
     volumes:
       - ./main.go:/app/main.go:ro
+      - ./go.mod:/app/go.mod:ro
       - ./logs:/logs
+    env_file:
+      - .env
     environment:
       - GOPROXY=https://goproxy.cn,direct
       - GOCACHE=/tmp/gocache
+      # 没有 go.sum:GOSUMDB=off 跳过 checksum 验证(只适合内部服务,不发布给第三方)
+      - GOSUMDB=off
+      - GOFLAGS=-mod=mod
     networks:
       - kb-system_default
+      # 接 new-api 的内部网络是为了直连 new-api-postgres(admin 接口查 users/logs)
+      - new-api_new-api-internal
     command: ["go", "run", "main.go"]
     healthcheck:
-      # 没有 wget 在 alpine,用 nc(默认有)
       test: ["CMD-SHELL", "nc -z localhost 8080 || exit 1"]
       interval: 30s
       timeout: 5s
@@ -28,4 +36,6 @@ services:
 
 networks:
   kb-system_default:
+    external: true
+  new-api_new-api-internal:
     external: true

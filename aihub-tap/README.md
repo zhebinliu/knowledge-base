@@ -9,13 +9,13 @@ aihub.tokenwave.cloud 的透明记录 + 离线分析代理。坐在 nginx 和 ne
 [客户端]
   ↓ HTTPS
 [kb-system-frontend-1 nginx]
-  ↓ HTTP /v1/*  (nginx.prod.conf aihub 块 location ~ ^/v1/)
-[aihub-tap:8080]   ← Go tee proxy (main.go)
-  ↓ HTTP
-[new-api:3000]
-  ↓
-[Anthropic / 火山方舟 / DeepSeek / ...]
+  ├─ /v1/*           → aihub-tap:8080 → new-api:3000  (tee proxy + 写 tap.jsonl)
+  ├─ /aihub-admin/*  → aihub-tap:8080(X-Admin-Key) → new-api-postgres:5432  (admin 查询)
+  └─ 其它            → new-api:3000  (admin 后台 / 静态资源)
 ```
+
+aihub-tap 加入 2 个 docker network:`kb-system_default`(frontend nginx 反代用) +
+`new-api_new-api-internal`(直连 new-api-postgres 用)。
 
 非 `/v1/*` 的路径(admin 后台 /api/*、静态资源)走 nginx 的另一个 location 直连 new-api,
 **不进 tap**,见 [../frontend/nginx.prod.conf](../frontend/nginx.prod.conf)。
@@ -37,6 +37,140 @@ scp -i ~/.ssh/id_rsa_github_deploy main.go liu@34.67.136.67:/opt/aihub-tap/
 # 服务器重启容器(go run 会重编译,~3 秒)
 ssh -i ~/.ssh/id_rsa_github_deploy liu@34.67.136.67 "cd /opt/aihub-tap && sudo docker compose restart aihub-tap"
 ```
+
+---
+
+# 🛠 Admin Query API
+
+管理员视角查全部用户余额 + 时段消耗明细。鉴权 `X-Admin-Key` header,key 存
+`/opt/aihub-tap/.env` 的 `AIHUB_ADMIN_KEY`。
+
+## 接口 1:列全部用户余额
+
+```bash
+curl -H "X-Admin-Key: <secret>" https://aihub.tokenwave.cloud/aihub-admin/balances
+```
+
+返回:
+
+```json
+{
+  "count": 10,
+  "users": [
+    {
+      "id": 2, "username": "tingya", "role": 10, "group": "default",
+      "email": "", "status": 1,
+      "remaining_usd": 7.83, "used_usd": 113.16,
+      "token_count": 10, "tokens_used_usd": 113.17,
+      "_raw": { "remaining_quota": 3914574, "used_quota": 56578405 }
+    }
+  ]
+}
+```
+
+- `*_usd` = quota / 500000(new-api 默认换算)
+- `_raw` = 原始 quota 单位,需要精确计算用
+- `token_count` / `tokens_used_usd` 是该用户名下所有令牌的汇总
+
+## 接口 2:时段内消耗明细
+
+```bash
+curl -H "X-Admin-Key: <secret>" \
+  "https://aihub.tokenwave.cloud/aihub-admin/consumption?start=2026-06-16&end=2026-06-23&group_by=day"
+```
+
+参数:
+
+| 参数 | 必填 | 默认 | 说明 |
+|---|---|---|---|
+| `start` | ❌ | 24h 前 | unix 秒 / RFC3339 / `YYYY-MM-DD` / `YYYY-MM-DD HH:MM:SS`(默认北京时间) |
+| `end` | ❌ | 当前时间 | 同上 |
+| `group_by` | ❌ | `day` | `hour` / `day` / `month` |
+| `model` | ❌ | | 过滤模型名,精确匹配 |
+| `user` | ❌ | | 过滤 username,精确匹配 |
+| `token` | ❌ | | 过滤 token_name,精确匹配 |
+
+返回:
+
+```json
+{
+  "start": "2026-06-16T00:00:00+08:00",
+  "end": "2026-06-23T00:00:00+08:00",
+  "group_by": "day",
+  "summary": {
+    "total_calls": 678,
+    "total_prompt": 10350731,
+    "total_completion": 1420805,
+    "total_quota": 20471627,
+    "total_usd": 40.94
+  },
+  "rows": [
+    {
+      "bucket": "2026-06-16T00:00:00+08:00",
+      "username": "tingya", "token": "claude", "model": "claude-sonnet-4-6",
+      "calls": 9, "prompt": 280000, "completion": 12500, "tokens_total": 292500,
+      "quota": 1128650, "usd": 2.26
+    }
+  ]
+}
+```
+
+## 鉴权 / 错误码
+
+| HTTP | 含义 |
+|---|---|
+| 200 | 成功 |
+| 400 | 参数格式错(如 group_by 不是 hour/day/month) |
+| 403 | 没带 X-Admin-Key 或 key 错 |
+| 404 | 路径不对(不是 /aihub-admin/balances 也不是 /consumption) |
+| 500 | SQL 错误,日志看 `docker logs aihub-tap` |
+| 503 | postgres 没连上 |
+
+## 凭证管理
+
+`/opt/aihub-tap/.env`(权限 600,只 root 可读):
+
+```
+AIHUB_ADMIN_KEY=<40 字符随机串>
+NEW_API_POSTGRES_DSN=postgres://newapi:<password>@new-api-postgres:5432/newapi
+```
+
+模板见 [.env.example](.env.example)。**.env 在 .gitignore 里,不入 git**。
+
+旋转 admin key 步骤:
+
+```bash
+# 1. 本地生成新 key
+openssl rand -base64 32 | tr -d '/+=' | cut -c1-40
+
+# 2. 服务器更新 .env
+sudo sed -i 's/^AIHUB_ADMIN_KEY=.*/AIHUB_ADMIN_KEY=新KEY/' /opt/aihub-tap/.env
+
+# 3. 重启容器(env_file 在启动时读)
+cd /opt/aihub-tap && sudo docker compose restart aihub-tap
+```
+
+## 调用模板(Python)
+
+```python
+import httpx
+
+BASE = "https://aihub.tokenwave.cloud/aihub-admin"
+HEAD = {"X-Admin-Key": "<secret>"}
+
+def list_balances():
+    return httpx.get(f"{BASE}/balances", headers=HEAD, timeout=10).json()
+
+def usage(start: str, end: str, **filters):
+    params = {"start": start, "end": end, "group_by": "day", **filters}
+    return httpx.get(f"{BASE}/consumption", headers=HEAD, params=params, timeout=30).json()
+
+# 用法
+print(list_balances()["users"][:3])
+print(usage("2026-06-16", "2026-06-23", model="claude-sonnet-4-6"))
+```
+
+---
 
 ## 日志输出
 
