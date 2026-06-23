@@ -73,6 +73,7 @@ export default function ConsoleMeetingNew() {
   const liveLenRef = useRef(0)        // 当前转写长度(内容驱动触发用)
   const lastAdviceLenRef = useRef(0)  // 上次分析时的转写长度
   const lastAdviceAtRef = useRef(0)   // 上次分析时间戳
+  const transcriptScrollRef = useRef<HTMLDivElement>(null)  // 沉浸式转写区自动滚到底
 
   const refreshAdvice = useCallback(async () => {
     const id = liveMeetingIdRef.current
@@ -136,6 +137,12 @@ export default function ConsoleMeetingNew() {
       refreshAdvice()
     }
   }, [liveTranscript, live.recording, autoAdvice, refreshAdvice])
+
+  // 沉浸式录制:转写更新时自动滚到底
+  useEffect(() => {
+    const el = transcriptScrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [liveTranscript])
 
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
 
@@ -335,6 +342,48 @@ export default function ConsoleMeetingNew() {
       </p>
     </div>
   )
+
+  // ── 沉浸式录制:录音中隐去所有 chrome,左转写 / 右 Co-pilot ────────────────────
+  if (recordBusy) {
+    return (
+      <div className="fixed inset-0 z-50 bg-canvas flex flex-col">
+        {/* 顶栏:状态 + 计时 + 停止 */}
+        <div className="flex items-center justify-between px-6 py-3 border-b border-line bg-white shrink-0">
+          <div className="flex items-center gap-2.5 text-sm font-medium text-ink min-w-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+            <span className="shrink-0">{finalizing ? '正在收尾,生成纪要…' : '录音中'}</span>
+            <span className="font-mono text-ink-secondary shrink-0">{fmtDuration(live.seconds)}</span>
+            {title && <span className="text-ink-muted truncate">· {title}</span>}
+          </div>
+          <button
+            type="button"
+            onClick={() => { if (live.recording) live.stop() }}
+            disabled={finalizing}
+            className="px-4 py-1.5 rounded-lg text-white text-sm font-medium inline-flex items-center gap-1.5 disabled:opacity-60 bg-red-500 hover:bg-red-600 shrink-0"
+          >
+            {finalizing ? <Loader2 size={15} className="animate-spin" /> : <Square size={15} />}
+            {finalizing ? '生成中' : '停止并生成纪要'}
+          </button>
+        </div>
+
+        {/* 主体:左实时转写 / 右 Co-pilot */}
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] overflow-hidden">
+          <div ref={transcriptScrollRef} className="overflow-y-auto px-6 py-5 lg:border-r border-line">
+            <div className="text-[11px] text-ink-muted mb-3 flex items-center gap-1.5">
+              实时转写 <span className="text-brand">· 逐段识别中</span>
+            </div>
+            <div className="text-[15px] leading-relaxed whitespace-pre-wrap text-ink-secondary max-w-2xl">
+              {liveTranscript || <span className="text-ink-muted">正在识别第一段…(约 15-30 秒)</span>}
+            </div>
+            {live.error && <p className="text-[12px] text-rose-600 mt-3">{live.error}</p>}
+          </div>
+          <div className="overflow-y-auto p-4 bg-canvas/20">
+            {advicePanel}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={`mx-auto px-6 py-8 ${mode === 'record' ? 'max-w-5xl' : 'max-w-3xl'}`}>
