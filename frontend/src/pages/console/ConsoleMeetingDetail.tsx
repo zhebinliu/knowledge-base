@@ -185,9 +185,22 @@ function parseTxSegments(raw: string): TxSeg[] {
   return segs.filter((s) => s.text || s.ts != null)
 }
 
+// 时间戳秒 → MM:SS(超 1 小时显示 H:MM:SS),跳转条标签用
+const fmtClock = (s: number) => {
+  const t = Math.max(0, Math.floor(s))
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60
+  const mm = String(m).padStart(2, '0'), ss = String(sec).padStart(2, '0')
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
+}
+
 export function AdviceTab({ meeting }: { meeting: Meeting }) {
   const qc = useQueryClient()
   const [showDone, setShowDone] = useState(false)
+  const [activeAdvice, setActiveAdvice] = useState<number | null>(null)
+  const leftColRef = useRef<HTMLDivElement | null>(null)
+  const rightColRef = useRef<HTMLDivElement | null>(null)
+  const cardRefs = useRef<Record<number, HTMLDivElement | null>>({})
+  const segRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const { data, isLoading } = useQuery({
     queryKey: ['meeting-advice', meeting.id],
     queryFn: () => getLiveAdvice(meeting.id, true),
@@ -207,28 +220,44 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-advice', meeting.id] }),
   })
 
-  // 转写分段 + 建议按 source_ts 落到对应段(详情页时间轴对齐:source_ts ∈ [本段起始, 下段起始) 归本段)
+  // 转写分段 + 建议落段:advice.id → 出处段下标(点建议时左栏定位用)
   const segs = useMemo(() => parseTxSegments(meeting.raw_transcript || ''), [meeting.raw_transcript])
   const hasTimeline = segs.some((s) => s.ts != null)
-  const adviceBySeg: Record<number, LiveAdviceItem[]> = {}
-  const unlocated: LiveAdviceItem[] = []
+  const adviceToSeg: Record<number, number> = {}
   if (hasTimeline) {
     for (const a of advice) {
-      if (a.source_ts == null) { unlocated.push(a); continue }
+      if (a.source_ts == null) continue
       let idx = -1
       for (let i = 0; i < segs.length; i++) {
         if (segs[i].ts != null && (segs[i].ts as number) <= (a.source_ts as number)) idx = i
       }
-      if (idx === -1) unlocated.push(a)
-      else { (adviceBySeg[idx] = adviceBySeg[idx] || []).push(a) }
+      if (idx >= 0) adviceToSeg[a.id] = idx
     }
+  }
+  const adviceSegs = new Set(Object.values(adviceToSeg))
+  const sortedAdvice = [...advice].sort((a, b) => (a.source_ts ?? 1e9) - (b.source_ts ?? 1e9))
+  const activeSeg = activeAdvice != null && adviceToSeg[activeAdvice] != null ? adviceToSeg[activeAdvice] : -1
+
+  // 点建议:右栏滚到卡片 + 左栏滚到出处段(容器内手动居中滚,不影响外层),两边各自高亮
+  const scrollInto = (container: HTMLDivElement | null, el: HTMLDivElement | null) => {
+    if (!container || !el) return
+    const top = el.offsetTop - container.clientHeight / 2 + el.clientHeight / 2
+    container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+  }
+  const jumpTo = (a: LiveAdviceItem) => {
+    setActiveAdvice(a.id)
+    scrollInto(rightColRef.current, cardRefs.current[a.id])
+    const si = adviceToSeg[a.id]
+    if (si != null) scrollInto(leftColRef.current, segRefs.current[si])
   }
 
   const renderCard = (a: LiveAdviceItem) => {
     const cat = ADVICE_CATS.find((c) => c.key === a.category)
     const color = cat?.color || '#6b7280'
+    const on = activeAdvice === a.id
     return (
-      <div key={a.id} className="rounded-lg border border-line bg-white px-3 py-2.5 group">
+      <div key={a.id} ref={(el) => { cardRefs.current[a.id] = el }}
+        className={`rounded-lg border bg-white px-3 py-2.5 group transition-shadow ${on ? 'border-brand ring-2 ring-brand/30' : 'border-line'}`}>
         <div className="flex items-start justify-between gap-2 mb-1">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
             {a.source_ts != null && <TimestampBadge seconds={a.source_ts} />}
@@ -268,7 +297,7 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
             <Sparkles size={16} className="text-brand" /> 会议 Co-pilot 建议
           </h2>
           <p className="text-[11px] text-ink-muted mt-0.5">
-            左侧转写按时间分段,右侧建议落到对应段;✓完成 归入成果、✕删除 丢弃。点时间戳可跳录音(语音会议)。
+            点上方时间戳标签跳到对应建议(同时定位左侧转写出处);✓完成 归入成果、✕删除 丢弃。
           </p>
         </div>
         <button
@@ -290,33 +319,58 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
         </div>
       ) : (
         <>
-          {advice.length === 0 ? (
-            <div className="text-[13px] text-ink-muted py-4 text-center">未决建议已全部处理 ✓</div>
-          ) : hasTimeline ? (
-            // 左右两栏:左该段转写([MM:SS] 可跳转)/ 右 source_ts 落在该段的建议,同行对齐
-            <div className="border border-line rounded-lg overflow-hidden">
-              {segs.map((seg, i) => (
-                <div key={i} className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] border-b border-line last:border-b-0">
-                  <div className="px-3 py-2.5 lg:border-r border-line">
-                    {seg.ts != null && <div className="mb-1"><TimestampBadge seconds={seg.ts} /></div>}
-                    <div className="text-[13px] text-ink-secondary leading-relaxed whitespace-pre-wrap">{seg.text}</div>
-                  </div>
-                  <div className="px-3 py-2.5 bg-canvas/20 space-y-2">
-                    {(adviceBySeg[i] || []).map(renderCard)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {[...advice].sort((a, b) => (a.source_ts ?? 1e9) - (b.source_ts ?? 1e9)).map(renderCard)}
+          {/* 快速定位:每条建议一个时间戳标签,点击两边都跳 */}
+          {advice.length > 0 && hasTimeline && (
+            <div className="flex flex-wrap items-center gap-1.5 mb-3 pb-3 border-b border-line">
+              <span className="text-[11px] text-ink-muted font-medium mr-0.5">快速定位 ({sortedAdvice.length}):</span>
+              {sortedAdvice.map((a) => {
+                const cat = ADVICE_CATS.find((c) => c.key === a.category)
+                const color = cat?.color || '#6b7280'
+                const on = activeAdvice === a.id
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => jumpTo(a)}
+                    className="text-[11px] px-2 py-0.5 rounded-full border transition-colors"
+                    style={{ color, borderColor: on ? color : color + '66', background: on ? color + '26' : color + '12', fontWeight: on ? 600 : 400 }}
+                  >
+                    {a.source_ts != null ? fmtClock(a.source_ts) + ' ' : ''}{cat?.label || a.category_label}
+                  </button>
+                )
+              })}
             </div>
           )}
 
-          {hasTimeline && unlocated.length > 0 && (
-            <div className="mt-3">
-              <div className="text-[11px] text-ink-muted mb-1.5">未定位到具体时间</div>
-              <div className="space-y-2">{unlocated.map(renderCard)}</div>
+          {advice.length === 0 ? (
+            <div className="text-[13px] text-ink-muted py-4 text-center">未决建议已全部处理 ✓</div>
+          ) : hasTimeline ? (
+            // 去格线两栏:左转写顺读 / 右建议卡悬浮,中间一条竖分隔,各自独立滚动
+            <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_1fr]">
+              <div ref={leftColRef} className="relative overflow-y-auto pr-3" style={{ maxHeight: '58vh' }}>
+                {segs.map((seg, i) => (
+                  <div
+                    key={i}
+                    ref={(el) => { segRefs.current[i] = el }}
+                    className={`flex gap-2 px-1.5 py-1 rounded-md transition-colors ${activeSeg === i ? 'bg-brand/10' : ''}`}
+                  >
+                    {seg.ts != null && (
+                      <span className="shrink-0 mt-0.5 flex items-center gap-1">
+                        <TimestampBadge seconds={seg.ts} />
+                        {adviceSegs.has(i) && <span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" title="此处有建议" />}
+                      </span>
+                    )}
+                    <span className="text-[13px] text-ink-secondary leading-relaxed whitespace-pre-wrap flex-1 min-w-0">{seg.text}</span>
+                  </div>
+                ))}
+              </div>
+              <div ref={rightColRef} className="relative overflow-y-auto pl-3 lg:border-l border-line space-y-2.5" style={{ maxHeight: '58vh' }}>
+                {sortedAdvice.map(renderCard)}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {sortedAdvice.map(renderCard)}
             </div>
           )}
 
