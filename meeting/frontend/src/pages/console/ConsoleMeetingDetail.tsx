@@ -281,18 +281,24 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
           {advice.length === 0 ? (
             <div className="text-[13px] text-ink-muted py-4 text-center">未决建议已全部处理 ✓</div>
           ) : hasTimeline ? (
-            <div className="border border-line rounded-lg overflow-hidden">
-              {segs.map((seg, i) => (
-                <div key={i} className="grid grid-cols-1 lg:grid-cols-[1fr_1.15fr] border-b border-line last:border-b-0">
-                  <div className="px-3 py-2.5 lg:border-r border-line">
-                    {seg.ts != null && <div className="mb-1"><TimestampBadge seconds={seg.ts} /></div>}
-                    <div className="text-[13px] text-ink-secondary leading-relaxed whitespace-pre-wrap">{seg.text}</div>
+            // 批注式:转写整行顺读,建议卡内嵌在对应段正下方(品牌色左边线),不留空列
+            <div className="space-y-0.5">
+              {segs.map((seg, i) => {
+                const items = adviceBySeg[i] || []
+                return (
+                  <div key={i}>
+                    <div className="flex gap-2 py-1">
+                      {seg.ts != null && <span className="shrink-0 mt-0.5"><TimestampBadge seconds={seg.ts} /></span>}
+                      <span className="text-[13px] text-ink-secondary leading-relaxed whitespace-pre-wrap">{seg.text}</span>
+                    </div>
+                    {items.length > 0 && (
+                      <div className="ml-12 mb-2 mt-1 space-y-2 border-l-2 border-brand/40 pl-3">
+                        {items.map(renderCard)}
+                      </div>
+                    )}
                   </div>
-                  <div className="px-3 py-2.5 bg-canvas/20 space-y-2">
-                    {(adviceBySeg[i] || []).map(renderCard)}
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <div className="space-y-2">
@@ -3053,7 +3059,7 @@ export default function ConsoleMeetingDetail() {
             {topView === 'split' && (
               <div className="grid grid-cols-1 lg:grid-cols-5" style={{ minHeight: 480 }}>
                 {/* 左侧面板: 纪要 / 需求清单 / 干系人 */}
-                <div className={`relative ${rightPanelOpen ? 'lg:col-span-3 border-r border-line' : 'lg:col-span-5'}`}>
+                <div className={`relative ${rightPanelOpen && leftTab !== 'advice' ? 'lg:col-span-3 border-r border-line' : 'lg:col-span-5'}`}>
                   {/* 左侧 Tab 栏 */}
                   <div className="flex border-b border-line bg-slate-50/30 items-center">
                     <div className="flex flex-1 min-w-0 overflow-x-auto">
@@ -3085,8 +3091,8 @@ export default function ConsoleMeetingDetail() {
                     {leftTab === 'stakeholders'   && <StakeholdersTab meeting={meeting} />}
                     {leftTab === 'illustrations' && <IllustrationsTab meeting={meeting} />}
                   </div>
-                  {/* 展开手柄 — 转写面板收起后,贴在右边缘,点一下重新展开 */}
-                  {!rightPanelOpen && (
+                  {/* 展开手柄 — 转写面板收起后,贴在右边缘,点一下重新展开(建议 tab 下转写已内嵌,不显示)*/}
+                  {!rightPanelOpen && leftTab !== 'advice' && (
                     <button
                       type="button"
                       onClick={() => setRightPanelOpen(true)}
@@ -3098,8 +3104,8 @@ export default function ConsoleMeetingDetail() {
                   )}
                 </div>
 
-                {/* 右侧面板: 原文 / AI润色(可收起) */}
-                {rightPanelOpen && (
+                {/* 右侧面板: 原文 / AI润色(可收起;建议 tab 下转写已内嵌于时间轴,隐藏避免重复)*/}
+                {rightPanelOpen && leftTab !== 'advice' && (
                   <div className="lg:col-span-2 relative">
                     {/* 收起手柄 — 贴在两栏分割线上,点一下折叠转写面板 */}
                     <button
