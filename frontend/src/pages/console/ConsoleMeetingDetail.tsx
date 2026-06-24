@@ -9,7 +9,7 @@
  *  - stakeholders: 干系人列表 + 关系列表(reactflow 后续接入)
  *  - actions: 同步 KB / 飞书导出 / 多维表同步 / 单点 actions
  */
-import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react'
+import { useState, useEffect, useMemo, useRef, createContext, useContext, Fragment } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
@@ -197,8 +197,7 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
   const qc = useQueryClient()
   const [showDone, setShowDone] = useState(false)
   const [activeAdvice, setActiveAdvice] = useState<number | null>(null)
-  const leftColRef = useRef<HTMLDivElement | null>(null)
-  const rightColRef = useRef<HTMLDivElement | null>(null)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const segRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const { data, isLoading } = useQuery({
@@ -224,31 +223,29 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
   const segs = useMemo(() => parseTxSegments(meeting.raw_transcript || ''), [meeting.raw_transcript])
   const hasTimeline = segs.some((s) => s.ts != null)
   const adviceToSeg: Record<number, number> = {}
+  const adviceBySeg: Record<number, LiveAdviceItem[]> = {}
+  const unlocated: LiveAdviceItem[] = []
   if (hasTimeline) {
     for (const a of advice) {
-      if (a.source_ts == null) continue
+      if (a.source_ts == null) { unlocated.push(a); continue }
       let idx = -1
       for (let i = 0; i < segs.length; i++) {
         if (segs[i].ts != null && (segs[i].ts as number) <= (a.source_ts as number)) idx = i
       }
-      if (idx >= 0) adviceToSeg[a.id] = idx
+      if (idx >= 0) { adviceToSeg[a.id] = idx; (adviceBySeg[idx] = adviceBySeg[idx] || []).push(a) }
+      else unlocated.push(a)
     }
   }
   const adviceSegs = new Set(Object.values(adviceToSeg))
   const sortedAdvice = [...advice].sort((a, b) => (a.source_ts ?? 1e9) - (b.source_ts ?? 1e9))
   const activeSeg = activeAdvice != null && adviceToSeg[activeAdvice] != null ? adviceToSeg[activeAdvice] : -1
 
-  // 点建议:右栏滚到卡片 + 左栏滚到出处段(容器内手动居中滚,不影响外层),两边各自高亮
-  const scrollInto = (container: HTMLDivElement | null, el: HTMLDivElement | null) => {
-    if (!container || !el) return
-    const top = el.offsetTop - container.clientHeight / 2 + el.clientHeight / 2
-    container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
-  }
+  // 点建议:整块(转写+建议一起)滚到该建议所在行并居中,行内两侧一起高亮
   const jumpTo = (a: LiveAdviceItem) => {
     setActiveAdvice(a.id)
-    scrollInto(rightColRef.current, cardRefs.current[a.id])
-    const si = adviceToSeg[a.id]
-    if (si != null) scrollInto(leftColRef.current, segRefs.current[si])
+    const c = scrollRef.current
+    const el = cardRefs.current[a.id] || (adviceToSeg[a.id] != null ? segRefs.current[adviceToSeg[a.id]] : null)
+    if (c && el) c.scrollTo({ top: Math.max(0, el.offsetTop - c.clientHeight / 2 + el.clientHeight / 2), behavior: 'smooth' })
   }
 
   const renderCard = (a: LiveAdviceItem) => {
@@ -345,28 +342,38 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
           {advice.length === 0 ? (
             <div className="text-[13px] text-ink-muted py-4 text-center">未决建议已全部处理 ✓</div>
           ) : hasTimeline ? (
-            // 去格线两栏:左转写顺读 / 右建议卡悬浮,中间一条竖分隔,各自独立滚动
-            <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_1fr]">
-              <div ref={leftColRef} className="relative overflow-y-auto pr-3" style={{ maxHeight: '58vh' }}>
+            // 同一滚动容器,每段一行(左转写/右该段建议)行内对齐 → 左右一起滚动;
+            // 无横向格线,仅一条连续竖分隔。空段右侧留白,有建议的行整行高亮。
+            <div ref={scrollRef} className="relative overflow-y-auto" style={{ maxHeight: '60vh' }}>
+              <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_1fr]">
                 {segs.map((seg, i) => (
-                  <div
-                    key={i}
-                    ref={(el) => { segRefs.current[i] = el }}
-                    className={`flex gap-2 px-1.5 py-1 rounded-md transition-colors ${activeSeg === i ? 'bg-brand/10' : ''}`}
-                  >
-                    {seg.ts != null && (
-                      <span className="shrink-0 mt-0.5 flex items-center gap-1">
-                        <TimestampBadge seconds={seg.ts} />
-                        {adviceSegs.has(i) && <span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" title="此处有建议" />}
-                      </span>
-                    )}
-                    <span className="text-[13px] text-ink-secondary leading-relaxed whitespace-pre-wrap flex-1 min-w-0">{seg.text}</span>
-                  </div>
+                  <Fragment key={i}>
+                    <div
+                      ref={(el) => { segRefs.current[i] = el }}
+                      className={`px-2 py-1.5 rounded-l-md transition-colors ${activeSeg === i ? 'bg-brand/10' : ''}`}
+                    >
+                      <div className="flex gap-2">
+                        {seg.ts != null && (
+                          <span className="shrink-0 mt-0.5 flex items-center gap-1">
+                            <TimestampBadge seconds={seg.ts} />
+                            {adviceSegs.has(i) && <span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" title="此处有建议" />}
+                          </span>
+                        )}
+                        <span className="text-[13px] text-ink-secondary leading-relaxed whitespace-pre-wrap flex-1 min-w-0">{seg.text}</span>
+                      </div>
+                    </div>
+                    <div className={`px-3 py-1.5 lg:border-l border-line space-y-2 transition-colors ${activeSeg === i ? 'bg-brand/5' : ''}`}>
+                      {(adviceBySeg[i] || []).map(renderCard)}
+                    </div>
+                  </Fragment>
                 ))}
               </div>
-              <div ref={rightColRef} className="relative overflow-y-auto pl-3 lg:border-l border-line space-y-2.5" style={{ maxHeight: '58vh' }}>
-                {sortedAdvice.map(renderCard)}
-              </div>
+              {unlocated.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-line">
+                  <div className="text-[11px] text-ink-muted mb-1.5 px-2">未定位到具体时间</div>
+                  <div className="space-y-2.5 px-2">{unlocated.map(renderCard)}</div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-2.5">
