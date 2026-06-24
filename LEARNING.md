@@ -666,6 +666,19 @@ OpenAI 兼容接口下,reasoning 模型的 `response.choices[0].message.content`
 
 半实时「边录边传」(`transcribe_segment`,audio-chunk 端点每 10s 一段)天然限速(1 段 1 片),显式传 `rate_limit=False` 关掉限流,不受影响。代码:`services/meeting/asr.py`(backend/ + meeting/backend/ 两份 overlay 同步)。
 
+### 11.10 会议各 JSON 抽取阶段的 max_tokens 必须统一,且 chat_with_routing 不带 validator 会静默吞截断(2026-06-24)
+
+症状:meeting 42「需求清单」「业务流程」点生成无内容、**不报错**;纪要正常。
+
+真因两层叠加:
+1. `extract_requirements` / `extract_process_flows` 用 `max_tokens=8000`,而 `generate_minutes` 2026-06-03 已因长会议截断把同字段 8000→16000,这两个**漏改**。长会议它们的 JSON 输出超 8000 → 截断(finish_reason='length')。底层模型与 minutes 相同(均 MiniMax-M2.5,见 `model_router` 两个别名指同一 model_id),所以**不是模型问题,纯粹是 max_tokens 不一致**。
+2. `chat_with_routing` **不传 validator 时只在「抛异常」才回退**(见函数 docstring),截断是 HTTP 200 → 被当成功返回 → `_safe_json_loads` 解析失败 → 静默落空列表。再加 `meeting_tasks` 的 status 只在 `"minutes" in stage_errors` 才标 failed(req/flow 失败仍 completed)→ 用户看到「完成」但内容空、零报错。
+
+做法:
+- 给会议任何 JSON 抽取调用配 `max_tokens` 时,**四个阶段(polish/minutes/requirements/process_flows)一起看齐**,别只改一个。
+- 输出可能被截断的 JSON 抽取,`chat_with_routing` **传 `validator`**(复用既有 `ModelOutputError` 机制):截断 / 坏 JSON → 回退 fallback,主备都失败 → 抛错,调用方(action 端点 catch → 503,经 axios 拦截器弹 toast;pipeline 走 gather → stage_errors)暴露为可见错误,而不是静默空结果。
+- 改动落 `services/meeting/pipeline.py` + `api/meeting.py`,**backend/ + meeting/backend/ 两份 overlay 同步**。
+
 ---
 
 ## 12. Meeting 模块抽 git submodule(2026-05-19)
