@@ -206,10 +206,12 @@ export default function ConsoleMeetingNew() {
   const recordBusy = live.recording || finalizing
   const started = liveMeetingIdRef.current != null
 
-  // ── 会议 Co-pilot面板 ──────────────────────────────────────────────────────────
-  const advicePanel = (
-    <div className="rounded-lg border border-line bg-canvas/30 p-4 flex flex-col">
-      <div className="flex items-center justify-between mb-3">
+  // ── 会议 Co-pilot 面板 ──────────────────────────────────────────────────────────
+  // immersive=true:沉浸式录制右栏,撑满整列高度、内部滚动,与左侧实时转写等高对应;
+  // immersive=false:record 模式表单内的自然高度卡片。
+  const renderAdvicePanel = (immersive: boolean) => (
+    <div className={`rounded-lg border border-line bg-canvas/30 p-4 flex flex-col ${immersive ? 'h-full min-h-0' : ''}`}>
+      <div className="flex items-center justify-between mb-3 shrink-0">
         <div className="text-sm font-semibold text-ink flex items-center gap-1.5">
           <Sparkles size={15} className="text-brand" /> 会议 Co-pilot
         </div>
@@ -231,13 +233,16 @@ export default function ConsoleMeetingNew() {
       </div>
 
       {advice.length === 0 ? (
-        <p className="text-xs text-ink-muted py-10 text-center leading-relaxed">
+        <p className={`text-xs text-ink-muted text-center leading-relaxed ${immersive ? 'flex-1 flex items-center justify-center' : 'py-10'}`}>
           {started
             ? '边录边自动分析…Co-pilot 会随对话推进\n提示该追问、有歧义、可能遗漏、以及行业专属的点'
             : '开始录音后,这里会基于现场内容\n实时给出调研建议'}
         </p>
       ) : (
-        <div className="space-y-3 overflow-y-auto pr-1" style={{ maxHeight: '30rem' }}>
+        <div
+          className={`space-y-3 overflow-y-auto pr-1 ${immersive ? 'flex-1 min-h-0' : ''}`}
+          style={immersive ? undefined : { maxHeight: '30rem' }}
+        >
           {ADVICE_CATS.map((c) => {
             const items = advice.filter((a) => a.category === c.key)
             if (!items.length) return null
@@ -377,8 +382,8 @@ export default function ConsoleMeetingNew() {
             </div>
             {live.error && <p className="text-[12px] text-rose-600 mt-3">{live.error}</p>}
           </div>
-          <div className="overflow-y-auto p-4 bg-canvas/20">
-            {advicePanel}
+          <div className="p-4 overflow-hidden">
+            {renderAdvicePanel(true)}
           </div>
         </div>
       </div>
@@ -477,7 +482,7 @@ export default function ConsoleMeetingNew() {
         ) : mode === 'record' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
             {recorderBlock}
-            {advicePanel}
+            {renderAdvicePanel(false)}
           </div>
         ) : (
           <div>
