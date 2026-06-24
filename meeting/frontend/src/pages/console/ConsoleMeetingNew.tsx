@@ -226,46 +226,40 @@ export default function ConsoleMeetingNew() {
   // 单条建议卡:沉浸式时间轴与内联面板共用。
   // showCat:显示分类标签(timeline 无分组表头,靠标签区分类别);
   // showTs:显示 [MM:SS](内联面板用;timeline 靠所在行表达时间,不重复)。
+  // 与详情页(会议纪要)的建议卡样式保持一致:分类色块 chip + 优先级点 + 标题 + 建议/确认/原话
   const renderAdviceCard = (a: LiveAdviceItem, opts: { showCat?: boolean; showTs?: boolean } = {}) => {
     const cat = CAT_BY_KEY[a.category]
     return (
-      <div key={a.id} className="rounded-md border border-line bg-white px-2.5 py-2 group">
-        <div className="flex items-start gap-1.5">
-          <span className="mt-1 w-1.5 h-1.5 rounded-full shrink-0"
-            style={{ background: PRIO_COLOR[a.priority] || PRIO_COLOR.medium }} />
-          <div className="flex-1 min-w-0">
-            <div className="text-[13px] text-ink font-medium leading-snug">
-              {opts.showCat && cat && (
-                <span className="text-[10px] font-semibold mr-1.5 align-middle" style={{ color: cat.color }}>{cat.label}</span>
-              )}
-              {a.title}
-            </div>
-            {a.recommendation && (
-              <div className="text-[12px] text-ink-secondary mt-1 leading-snug whitespace-pre-wrap">
-                <span className="text-brand font-semibold">💡 建议:</span>{a.recommendation}
-              </div>
-            )}
-            {a.question && (
-              <div className="text-[12px] text-ink-muted mt-1 leading-snug">💬 这样确认:{a.question}</div>
-            )}
-            {a.rationale && (
-              <div className="text-[11px] text-ink-muted mt-1 leading-snug">{a.rationale}</div>
-            )}
+      <div key={a.id} className="rounded-lg border border-line bg-white px-3 py-2.5 group">
+        <div className="flex items-start justify-between gap-2 mb-1">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
             {opts.showTs && a.source_ts != null && (
-              <span className="text-[10px] text-ink-muted mt-1 inline-block font-mono">[{fmtTs(a.source_ts)}]</span>
+              <span className="text-[11px] font-mono text-ink-muted bg-canvas px-1.5 py-0.5 rounded">[{fmtTs(a.source_ts)}]</span>
             )}
+            {cat && (
+              <span className="text-[11px] px-1.5 py-0.5 rounded font-medium" style={{ color: cat.color, background: cat.color + '1a' }}>{cat.label}</span>
+            )}
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: PRIO_COLOR[a.priority] || PRIO_COLOR.medium }} />
           </div>
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 shrink-0">
             <button type="button" onClick={() => onResolveAdvice(a.id)} title="完成(标记已处理)"
-              className="p-0.5 rounded text-ink-muted hover:text-emerald-600 hover:bg-emerald-50">
-              <Check size={13} />
-            </button>
+              className="p-0.5 rounded text-ink-muted hover:text-emerald-600 hover:bg-emerald-50"><Check size={14} /></button>
             <button type="button" onClick={() => onDismissAdvice(a.id)} title="删除"
-              className="p-0.5 rounded text-ink-muted hover:text-rose-600 hover:bg-rose-50">
-              <X size={13} />
-            </button>
+              className="p-0.5 rounded text-ink-muted hover:text-rose-600 hover:bg-rose-50"><X size={14} /></button>
           </div>
         </div>
+        <div className="text-sm text-ink font-medium leading-snug">{a.title}</div>
+        {a.recommendation && (
+          <div className="text-[13px] text-ink-secondary mt-1 leading-snug whitespace-pre-wrap">
+            <span className="text-brand font-semibold">💡 建议:</span>{a.recommendation}
+          </div>
+        )}
+        {a.question && (
+          <div className="text-[13px] text-ink-muted mt-1 leading-snug">💬 这样确认:{a.question}</div>
+        )}
+        {a.source_quote && (
+          <div className="text-[12px] text-ink-muted mt-1 leading-snug border-l-2 border-line pl-2 italic">「{a.source_quote}」</div>
+        )}
       </div>
     )
   }
