@@ -103,6 +103,25 @@ def _too_similar(title: str, others: list[str], thresh: float = 0.55) -> bool:
     return False
 
 
+def _norm(s: str) -> str:
+    """归一化:去空白/标点/下划线 + 小写,用于 source_quote 与转写做出处比对。"""
+    return re.sub(r"[\s\W_]+", "", s or "").lower()
+
+
+def _quote_grounded(quote: str, norm_transcript: str) -> bool:
+    """source_quote 按 prompt 约定应是转写原话。归一化后:整段命中、或任一 8 字连续片段
+    命中,即视为有据(容忍 ASR 轻微差异);完全对不上 → 判为模型编造的出处 → 丢弃该建议。"""
+    q = _norm(quote)
+    if len(q) < 6:
+        return True  # 引用过短(或本就没引用)不据此判
+    if q in norm_transcript:
+        return True
+    for i in range(0, len(q) - 8 + 1, 4):
+        if q[i:i + 8] in norm_transcript:
+            return True
+    return False
+
+
 _CAT_LABEL = {"clarification": "需明确", "ambiguity": "歧义", "gap": "遗漏", "industry": "行业"}
 
 
@@ -146,6 +165,7 @@ async def _set_status(meeting_id: int, advice_id: int, status: str) -> bool:
         if not row or row.meeting_id != meeting_id:
             return False
         row.status = status
+        row.resolved_by_user = True   # 人工判定(✓完成/✕删除),区别于 LLM 自动 resolved
         row.resolved_at = utcnow_naive()
         await session.commit()
     return True
@@ -222,14 +242,21 @@ async def generate_live_advice(meeting_id: int) -> dict:
                 if row and row.status == "open":
                     row.status = "resolved"
                     row.resolved_at = utcnow_naive()
-        # 插入新增(去重:同 category+title 跳过)
+        # 插入新增(去重:同 category+title 跳过;反幻觉:声称的原话出处查无此句则丢弃)
         added = 0
+        dropped_ungrounded = 0
+        norm_transcript = _norm(transcript)
         for raw in new_items:
             if not isinstance(raw, dict):
                 continue
             cat = (raw.get("category") or "").strip()
             title = (raw.get("title") or "").strip()
             if cat not in _CATEGORIES or not title:
+                continue
+            # 反幻觉:声称了 source_quote 出处,却在转写里查无此句 → 判为编造,丢弃整条
+            quote = (raw.get("source_quote") or "").strip()
+            if quote and not _quote_grounded(quote, norm_transcript):
+                dropped_ungrounded += 1
                 continue
             cat_titles = existing_by_cat.setdefault(cat, [])
             if title in cat_titles or _too_similar(title, cat_titles):
@@ -241,7 +268,7 @@ async def generate_live_advice(meeting_id: int) -> dict:
                 recommendation=(raw.get("recommendation") or "").strip() or None,
                 question=(raw.get("question") or "").strip() or None,
                 rationale=(raw.get("rationale") or "").strip() or None,
-                source_quote=(raw.get("source_quote") or "").strip() or None,
+                source_quote=quote or None,
                 source_ts=_ts_to_seconds(raw.get("source_ts")),
                 ltc_module=(raw.get("ltc_module") or "").strip()[:40] or None,
                 priority=prio if prio in _PRIORITIES else "medium",
@@ -252,6 +279,7 @@ async def generate_live_advice(meeting_id: int) -> dict:
         items = await _open_advice(session, meeting_id)
 
     logger.info("live_advice_done", meeting_id=meeting_id, model=model,
-                added=added, resolved=len(resolved_ids), open_total=len(items), run_seq=run_seq)
+                added=added, dropped_ungrounded=dropped_ungrounded,
+                resolved=len(resolved_ids), open_total=len(items), run_seq=run_seq)
     return {"advice": _serialize(items), "count": len(items), "model": model,
-            "added": added, "resolved": len(resolved_ids)}
+            "added": added, "dropped_ungrounded": dropped_ungrounded, "resolved": len(resolved_ids)}

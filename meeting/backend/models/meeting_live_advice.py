@@ -4,7 +4,7 @@
 按条入库(支持跨轮去重 + 澄清闭环):open → resolved / dismissed。
 """
 from datetime import datetime
-from sqlalchemy import String, Text, Integer, Float, ForeignKey, DateTime
+from sqlalchemy import String, Text, Integer, Float, ForeignKey, DateTime, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 from models import Base
 from services._time import utcnow_naive as _utcnow
@@ -31,6 +31,8 @@ class MeetingLiveAdvice(Base):
 
     # open(待处理) / resolved(已被后续对话澄清) / dismissed(顾问手动忽略)
     status: Mapped[str] = mapped_column(String(12), nullable=False, default="open", index=True)
+    # 人工 完成/删除 时置 True,区别于 LLM 自动 resolved —— 作为精确率 eval 的干净信号
+    resolved_by_user: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     run_seq: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 第几轮分析产出
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
