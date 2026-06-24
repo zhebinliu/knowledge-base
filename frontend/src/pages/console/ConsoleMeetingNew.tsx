@@ -39,6 +39,11 @@ const ADVICE_CATS: { key: LiveAdviceCategory; label: string; color: string }[] =
   { key: 'industry', label: '行业专属问题', color: '#7c3aed' },
 ]
 const PRIO_COLOR: Record<string, string> = { high: '#dc2626', medium: '#d97706', low: '#9ca3af' }
+// 分类 key → {label,color} 快查(timeline 单卡显示分类标签用,无分组表头)
+const CAT_BY_KEY: Record<string, { key: LiveAdviceCategory; label: string; color: string }> =
+  Object.fromEntries(ADVICE_CATS.map((c) => [c.key, c]))
+// 实时转写分段:seq 顺序 + 各段起始毫秒(复原 [MM:SS],把建议按 source_ts 落到对应段)+ 该段文本
+type LiveSeg = { seq: number; startMs: number; text: string }
 
 const fmtDuration = (s: number) =>
   `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
@@ -58,11 +63,12 @@ export default function ConsoleMeetingNew() {
   const [error, setError] = useState<string | null>(null)
 
   // 半实时录音状态
-  const [liveTranscript, setLiveTranscript] = useState('')
+  const [liveTranscript, setLiveTranscript] = useState('')      // 拼接整稿(内联录音器 + 触发判断用)
+  const [liveSegments, setLiveSegments] = useState<LiveSeg[]>([]) // 分段(沉浸式时间轴按段渲染 + 落位建议)
   const [finalizing, setFinalizing] = useState(false)
   const liveMeetingIdRef = useRef<number | null>(null)
   // 分段「并行」上传:单段 ASR 延迟不稳(实测 4-25s),串行会越拖越后;并行 + 按 seq 落位排序。
-  const segTextRef = useRef<Record<number, string>>({})
+  const segMapRef = useRef<Record<number, { text: string; startMs: number }>>({})
   const pendingRef = useRef<Promise<void>[]>([])
 
   // 会议 Co-pilot
@@ -98,11 +104,13 @@ export default function ConsoleMeetingNew() {
       if (!id) return
       const p = uploadAudioChunk(id, blob, seq, startMs)
         .then((r) => {
-          segTextRef.current[seq] = r.text || ''
-          const merged = Object.keys(segTextRef.current).map(Number).sort((a, b) => a - b)
-            .map((k) => segTextRef.current[k]).filter(Boolean).join('\n')
+          segMapRef.current[seq] = { text: r.text || '', startMs }
+          const segs: LiveSeg[] = Object.keys(segMapRef.current).map(Number).sort((a, b) => a - b)
+            .map((k) => ({ seq: k, ...segMapRef.current[k] }))
+          const merged = segs.map((s) => s.text).filter(Boolean).join('\n')
           liveLenRef.current = merged.length
           setLiveTranscript(merged)
+          setLiveSegments(segs)
         })
         .catch(() => { /* 单段失败忽略,不中断录音 */ })
       pendingRef.current.push(p)
@@ -159,11 +167,12 @@ export default function ConsoleMeetingNew() {
   const startRecord = async () => {
     setError(null)
     setLiveTranscript('')
+    setLiveSegments([])
     setAdvice([])
     try {
       const r = await createRecordingMeeting({ title: title || undefined, project_id: projectId || null })
       liveMeetingIdRef.current = r.meeting_id
-      segTextRef.current = {}
+      segMapRef.current = {}
       pendingRef.current = []
       liveLenRef.current = 0
       lastAdviceLenRef.current = 0
@@ -206,12 +215,55 @@ export default function ConsoleMeetingNew() {
   const recordBusy = live.recording || finalizing
   const started = liveMeetingIdRef.current != null
 
-  // ── 会议 Co-pilot 面板 ──────────────────────────────────────────────────────────
-  // immersive=true:沉浸式录制右栏,撑满整列高度、内部滚动,与左侧实时转写等高对应;
-  // immersive=false:record 模式表单内的自然高度卡片。
-  const renderAdvicePanel = (immersive: boolean) => (
-    <div className={`rounded-lg border border-line bg-canvas/30 p-4 flex flex-col ${immersive ? 'h-full min-h-0' : ''}`}>
-      <div className="flex items-center justify-between mb-3 shrink-0">
+  // 单条建议卡:沉浸式时间轴与内联面板共用。
+  // showCat:显示分类标签(timeline 无分组表头,靠标签区分类别);
+  // showTs:显示 [MM:SS](内联面板用;timeline 靠所在行表达时间,不重复)。
+  const renderAdviceCard = (a: LiveAdviceItem, opts: { showCat?: boolean; showTs?: boolean } = {}) => {
+    const cat = CAT_BY_KEY[a.category]
+    return (
+      <div key={a.id} className="rounded-md border border-line bg-white px-2.5 py-2 group">
+        <div className="flex items-start gap-1.5">
+          <span className="mt-1 w-1.5 h-1.5 rounded-full shrink-0"
+            style={{ background: PRIO_COLOR[a.priority] || PRIO_COLOR.medium }} />
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] text-ink font-medium leading-snug">
+              {opts.showCat && cat && (
+                <span className="text-[10px] font-semibold mr-1.5 align-middle" style={{ color: cat.color }}>{cat.label}</span>
+              )}
+              {a.title}
+            </div>
+            {a.recommendation && (
+              <div className="text-[12px] text-ink-secondary mt-1 leading-snug whitespace-pre-wrap">
+                <span className="text-brand font-semibold">💡 建议:</span>{a.recommendation}
+              </div>
+            )}
+            {a.question && (
+              <div className="text-[12px] text-ink-muted mt-1 leading-snug">💬 这样确认:{a.question}</div>
+            )}
+            {a.rationale && (
+              <div className="text-[11px] text-ink-muted mt-1 leading-snug">{a.rationale}</div>
+            )}
+            {opts.showTs && a.source_ts != null && (
+              <span className="text-[10px] text-ink-muted mt-1 inline-block font-mono">[{fmtTs(a.source_ts)}]</span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => onDismissAdvice(a.id)}
+            title="忽略"
+            className="opacity-0 group-hover:opacity-100 text-ink-muted hover:text-ink shrink-0"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── 会议 Co-pilot 面板(record 模式录音开始前的内联占位,按分类分组)─────────────
+  const renderAdvicePanel = () => (
+    <div className="rounded-lg border border-line bg-canvas/30 p-4 flex flex-col">
+      <div className="flex items-center justify-between mb-3">
         <div className="text-sm font-semibold text-ink flex items-center gap-1.5">
           <Sparkles size={15} className="text-brand" /> 会议 Co-pilot
         </div>
@@ -233,16 +285,13 @@ export default function ConsoleMeetingNew() {
       </div>
 
       {advice.length === 0 ? (
-        <p className={`text-xs text-ink-muted text-center leading-relaxed ${immersive ? 'flex-1 flex items-center justify-center' : 'py-10'}`}>
+        <p className="text-xs text-ink-muted py-10 text-center leading-relaxed">
           {started
             ? '边录边自动分析…Co-pilot 会随对话推进\n提示该追问、有歧义、可能遗漏、以及行业专属的点'
             : '开始录音后,这里会基于现场内容\n实时给出调研建议'}
         </p>
       ) : (
-        <div
-          className={`space-y-3 overflow-y-auto pr-1 ${immersive ? 'flex-1 min-h-0' : ''}`}
-          style={immersive ? undefined : { maxHeight: '30rem' }}
-        >
+        <div className="space-y-3 overflow-y-auto pr-1" style={{ maxHeight: '30rem' }}>
           {ADVICE_CATS.map((c) => {
             const items = advice.filter((a) => a.category === c.key)
             if (!items.length) return null
@@ -252,39 +301,7 @@ export default function ConsoleMeetingNew() {
                   {c.label}({items.length})
                 </div>
                 <div className="space-y-1.5">
-                  {items.map((a) => (
-                    <div key={a.id} className="rounded-md border border-line bg-white px-2.5 py-2 group">
-                      <div className="flex items-start gap-1.5">
-                        <span className="mt-1 w-1.5 h-1.5 rounded-full shrink-0"
-                          style={{ background: PRIO_COLOR[a.priority] || PRIO_COLOR.medium }} />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[13px] text-ink font-medium leading-snug">{a.title}</div>
-                          {a.recommendation && (
-                            <div className="text-[12px] text-ink-secondary mt-1 leading-snug whitespace-pre-wrap">
-                              <span className="text-brand font-semibold">💡 建议:</span>{a.recommendation}
-                            </div>
-                          )}
-                          {a.question && (
-                            <div className="text-[12px] text-ink-muted mt-1 leading-snug">💬 这样确认:{a.question}</div>
-                          )}
-                          {a.rationale && (
-                            <div className="text-[11px] text-ink-muted mt-1 leading-snug">{a.rationale}</div>
-                          )}
-                          {a.source_ts != null && (
-                            <span className="text-[10px] text-ink-muted mt-1 inline-block font-mono">[{fmtTs(a.source_ts)}]</span>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => onDismissAdvice(a.id)}
-                          title="忽略"
-                          className="opacity-0 group-hover:opacity-100 text-ink-muted hover:text-ink shrink-0"
-                        >
-                          <X size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                  {items.map((a) => renderAdviceCard(a, { showTs: true }))}
                 </div>
               </div>
             )
@@ -348,8 +365,25 @@ export default function ConsoleMeetingNew() {
     </div>
   )
 
-  // ── 沉浸式录制:录音中隐去所有 chrome,左转写 / 右 Co-pilot ────────────────────
+  // ── 沉浸式录制:录音中隐去所有 chrome,左转写 / 右 Co-pilot 按时间轴行严格一一对应 ──
   if (recordBusy) {
+    // 建议按 source_ts(秒)落到对应转写段:落在 [本段起始, 下段起始) 的归本段;
+    // 无 source_ts(LLM 偶尔不给)的挂到最后一段(最新),保证可见、贴近当前进度。
+    const adviceBySeg: Record<number, LiveAdviceItem[]> = {}
+    if (liveSegments.length) {
+      const startSecs = liveSegments.map((s) => Math.floor(s.startMs / 1000))
+      for (const a of advice) {
+        let idx = liveSegments.length - 1
+        if (a.source_ts != null) {
+          idx = 0
+          for (let i = 0; i < startSecs.length; i++) if (startSecs[i] <= (a.source_ts as number)) idx = i
+        }
+        if (!adviceBySeg[idx]) adviceBySeg[idx] = []
+        adviceBySeg[idx].push(a)
+      }
+    }
+    const COLS = 'grid grid-cols-1 lg:grid-cols-[1.1fr_1fr]'
+
     return (
       <div className="fixed inset-0 z-50 bg-canvas flex flex-col">
         {/* 顶栏:状态 + 计时 + 停止 */}
@@ -371,20 +405,60 @@ export default function ConsoleMeetingNew() {
           </button>
         </div>
 
-        {/* 主体:左实时转写 / 右 Co-pilot */}
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] overflow-hidden">
-          <div ref={transcriptScrollRef} className="overflow-y-auto px-6 py-5 lg:border-r border-line">
-            <div className="text-[11px] text-ink-muted mb-3 flex items-center gap-1.5">
+        {/* 主体:时间轴 —— 每段一行,左 [MM:SS]+转写 / 右 锚定到该段的建议,同行一一对应 */}
+        <div ref={transcriptScrollRef} className="flex-1 overflow-y-auto">
+          {/* sticky 表头:左标题 / 右 Co-pilot 控件 */}
+          <div className={`${COLS} sticky top-0 z-10 bg-canvas/95 backdrop-blur border-b border-line`}>
+            <div className="px-6 py-2.5 text-[11px] text-ink-muted flex items-center gap-1.5 lg:border-r border-line">
               实时转写 <span className="text-brand">· 逐段识别中</span>
             </div>
-            <div className="text-[15px] leading-relaxed whitespace-pre-wrap text-ink-secondary max-w-2xl">
-              {liveTranscript || <span className="text-ink-muted">正在识别第一段…(约 15-30 秒)</span>}
+            <div className="px-4 py-2 flex items-center justify-between gap-2">
+              <span className="text-[12px] font-semibold text-ink flex items-center gap-1.5 min-w-0">
+                <Sparkles size={14} className="text-brand shrink-0" /> 会议 Co-pilot
+                {adviceLoading && <Loader2 size={12} className="animate-spin text-ink-muted shrink-0" />}
+              </span>
+              <span className="flex items-center gap-2.5 shrink-0">
+                <label className="text-[11px] text-ink-muted flex items-center gap-1 cursor-pointer">
+                  <input type="checkbox" checked={autoAdvice} onChange={(e) => setAutoAdvice(e.target.checked)} /> 自动
+                </label>
+                <button
+                  type="button"
+                  onClick={refreshAdvice}
+                  disabled={adviceLoading || !started}
+                  className="text-xs px-2.5 py-1 rounded-md text-white inline-flex items-center gap-1 disabled:opacity-50"
+                  style={{ background: BRAND_GRAD }}
+                >
+                  {adviceLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} 给建议
+                </button>
+              </span>
             </div>
-            {live.error && <p className="text-[12px] text-rose-600 mt-3">{live.error}</p>}
           </div>
-          <div className="p-4 overflow-hidden">
-            {renderAdvicePanel(true)}
-          </div>
+
+          {/* 时间轴行 */}
+          {liveSegments.length === 0 ? (
+            <div className="px-6 py-16 text-center text-sm text-ink-muted">正在识别第一段…(约 15-30 秒)</div>
+          ) : (
+            liveSegments.map((seg, i) => (
+              <div key={seg.seq} className={`${COLS} border-b border-line`}>
+                {/* 左:时间戳 + 该段转写 */}
+                <div className="px-6 py-3 lg:border-r border-line">
+                  <span className="text-[11px] font-mono text-ink-muted mr-2 align-top">[{fmtDuration(Math.floor(seg.startMs / 1000))}]</span>
+                  <span className="text-[15px] leading-relaxed text-ink-secondary whitespace-pre-wrap">{seg.text}</span>
+                </div>
+                {/* 右:锚定到该段的建议(空段留白,与左段对齐) */}
+                <div className="px-4 py-3 space-y-1.5">
+                  {(adviceBySeg[i] || []).map((a) => renderAdviceCard(a, { showCat: true }))}
+                </div>
+              </div>
+            ))
+          )}
+
+          {advice.length === 0 && liveSegments.length > 0 && (
+            <div className="px-6 py-3 text-[11px] text-ink-muted">
+              边录边自动分析…Co-pilot 会随对话推进,提示该追问 / 有歧义 / 可能遗漏 / 行业专属的点。
+            </div>
+          )}
+          {live.error && <p className="px-6 py-3 text-[12px] text-rose-600">{live.error}</p>}
         </div>
       </div>
     )
@@ -482,7 +556,7 @@ export default function ConsoleMeetingNew() {
         ) : mode === 'record' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
             {recorderBlock}
-            {renderAdvicePanel(false)}
+            {renderAdvicePanel()}
           </div>
         ) : (
           <div>
