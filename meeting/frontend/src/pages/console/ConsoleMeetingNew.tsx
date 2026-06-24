@@ -449,14 +449,15 @@ export default function ConsoleMeetingNew() {
             <div className="px-6 py-16 text-center text-sm text-ink-muted">正在识别第一段…(约 15-30 秒)</div>
           ) : (
             liveSegments.map((seg, i) => (
-              <div key={seg.seq} className={`${COLS} border-b border-line`}>
+              // 无横向格线:转写顺读,仅一条连续竖分隔(同详情页),不做成表格
+              <div key={seg.seq} className={COLS}>
                 {/* 左:时间戳 + 该段转写 */}
-                <div className="px-6 py-3 lg:border-r border-line">
+                <div className="px-6 py-2 lg:border-r border-line">
                   <span className="text-[11px] font-mono text-ink-muted mr-2 align-top">[{fmtDuration(Math.floor(seg.startMs / 1000))}]</span>
                   <span className="text-[15px] leading-relaxed text-ink-secondary whitespace-pre-wrap">{seg.text}</span>
                 </div>
                 {/* 右:锚定到该段的建议(空段留白,与左段对齐) */}
-                <div className="px-4 py-3 space-y-1.5">
+                <div className="px-4 py-2 space-y-1.5">
                   {(adviceBySeg[i] || []).map((a) => renderAdviceCard(a, { showCat: true }))}
                 </div>
               </div>
