@@ -32,7 +32,7 @@ import {
   type Meeting, type MeetingStatus, type MeetingMinutes, type MeetingRequirement,
   type StakeholderItem, type FeishuUrlCheckResult,
   type MeetingIllustration,
-  getLiveAdvice, runLiveAdvice,
+  getLiveAdvice, runLiveAdvice, resolveLiveAdvice, dismissLiveAdvice,
   type LiveAdviceItem, type LiveAdviceCategory,
 } from '../../api/client'
 import { getMeetingAudioUrl } from '../../api/meeting-ext'
@@ -152,17 +152,101 @@ const ADVICE_CATS: { key: LiveAdviceCategory; label: string; color: string }[] =
 ]
 const ADVICE_PRIO: Record<string, string> = { high: '#dc2626', medium: '#d97706', low: '#9ca3af' }
 
+// 转写分段:把带 [MM:SS] / [HH:MM:SS] 前缀的转写按行拆成段(录音类会议每段一行),
+// 无时间戳的续行并入上一段。返回各段起始秒数(可空)+ 文本,供建议按 source_ts 落段对齐。
+type TxSeg = { ts: number | null; text: string }
+const TS_LINE = /^\s*\[?(\d{1,2}):(\d{2})(?::(\d{2}))?\]?\s*/
+function parseTxSegments(raw: string): TxSeg[] {
+  const segs: TxSeg[] = []
+  for (const line of (raw || '').split('\n')) {
+    if (!line.trim()) continue
+    const m = line.match(TS_LINE)
+    if (m) {
+      const ts = m[3] != null ? +m[1] * 3600 + +m[2] * 60 + +m[3] : +m[1] * 60 + +m[2]
+      segs.push({ ts, text: line.slice(m[0].length).trim() })
+    } else if (segs.length) {
+      segs[segs.length - 1].text += '\n' + line.trim()
+    } else {
+      segs.push({ ts: null, text: line.trim() })
+    }
+  }
+  return segs
+}
+
 export function AdviceTab({ meeting }: { meeting: Meeting }) {
   const qc = useQueryClient()
+  const [showDone, setShowDone] = useState(false)
   const { data, isLoading } = useQuery({
     queryKey: ['meeting-advice', meeting.id],
-    queryFn: () => getLiveAdvice(meeting.id),
+    queryFn: () => getLiveAdvice(meeting.id, true),
   })
   const advice: LiveAdviceItem[] = data?.advice || []
+  const resolved: LiveAdviceItem[] = data?.resolved_advice || []
   const genMut = useMutation({
     mutationFn: () => runLiveAdvice(meeting.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-advice', meeting.id] }),
   })
+  const resolveMut = useMutation({
+    mutationFn: (aid: number) => resolveLiveAdvice(meeting.id, aid),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-advice', meeting.id] }),
+  })
+  const dismissMut = useMutation({
+    mutationFn: (aid: number) => dismissLiveAdvice(meeting.id, aid),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-advice', meeting.id] }),
+  })
+
+  // 转写分段 + 建议按 source_ts 落到对应段(详情页时间轴对齐:source_ts ∈ [本段起始, 下段起始) 归本段)
+  const segs = useMemo(() => parseTxSegments(meeting.raw_transcript || ''), [meeting.raw_transcript])
+  const hasTimeline = segs.some((s) => s.ts != null)
+  const adviceBySeg: Record<number, LiveAdviceItem[]> = {}
+  const unlocated: LiveAdviceItem[] = []
+  if (hasTimeline) {
+    for (const a of advice) {
+      if (a.source_ts == null) { unlocated.push(a); continue }
+      let idx = -1
+      for (let i = 0; i < segs.length; i++) {
+        if (segs[i].ts != null && (segs[i].ts as number) <= (a.source_ts as number)) idx = i
+      }
+      if (idx === -1) unlocated.push(a)
+      else { (adviceBySeg[idx] = adviceBySeg[idx] || []).push(a) }
+    }
+  }
+
+  const renderCard = (a: LiveAdviceItem) => {
+    const cat = ADVICE_CATS.find((c) => c.key === a.category)
+    const color = cat?.color || '#6b7280'
+    return (
+      <div key={a.id} className="rounded-lg border border-line bg-white px-3 py-2.5 group">
+        <div className="flex items-start justify-between gap-2 mb-1">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            {a.source_ts != null && <TimestampBadge seconds={a.source_ts} />}
+            <span className="text-[11px] px-1.5 py-0.5 rounded font-medium" style={{ color, background: color + '1a' }}>
+              {cat?.label || a.category_label}
+            </span>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: ADVICE_PRIO[a.priority] || ADVICE_PRIO.medium }} />
+          </div>
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 shrink-0">
+            <button type="button" onClick={() => resolveMut.mutate(a.id)} title="完成(标记已处理)"
+              className="p-0.5 rounded text-ink-muted hover:text-emerald-600 hover:bg-emerald-50"><Check size={14} /></button>
+            <button type="button" onClick={() => dismissMut.mutate(a.id)} title="删除"
+              className="p-0.5 rounded text-ink-muted hover:text-rose-600 hover:bg-rose-50"><X size={14} /></button>
+          </div>
+        </div>
+        <div className="text-sm text-ink font-medium leading-snug">{a.title}</div>
+        {a.recommendation && (
+          <div className="text-[13px] text-ink-secondary mt-1 leading-snug whitespace-pre-wrap">
+            <span className="text-brand font-semibold">💡 建议:</span>{a.recommendation}
+          </div>
+        )}
+        {a.question && (
+          <div className="text-[13px] text-ink-muted mt-1 leading-snug">💬 这样确认:{a.question}</div>
+        )}
+        {a.source_quote && (
+          <div className="text-[12px] text-ink-muted mt-1 leading-snug border-l-2 border-line pl-2 italic">「{a.source_quote}」</div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="p-4">
@@ -172,7 +256,7 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
             <Sparkles size={16} className="text-brand" /> 会议 Co-pilot 建议
           </h2>
           <p className="text-[11px] text-ink-muted mt-0.5">
-            按会议时间顺序排列,与右侧转写对应;点时间戳可跳到录音对应位置(语音会议)。先给我方方案,再引导客户确认。
+            左侧转写按时间分段,右侧建议落到对应段;✓完成 归入成果、✕删除 丢弃。点时间戳可跳录音(语音会议)。
           </p>
         </div>
         <button
@@ -188,40 +272,67 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
 
       {isLoading ? (
         <div className="text-sm text-ink-muted py-10 text-center">加载中…</div>
-      ) : advice.length === 0 ? (
+      ) : advice.length === 0 && resolved.length === 0 ? (
         <div className="text-sm text-ink-muted py-12 text-center leading-relaxed">
           还没有建议。点右上「生成建议」,让 Co-pilot 基于本次会议内容分析一轮。
         </div>
       ) : (
-        <div className="space-y-2">
-          {[...advice].sort((a, b) => (a.source_ts ?? 1e9) - (b.source_ts ?? 1e9)).map((a) => {
-            const cat = ADVICE_CATS.find((c) => c.key === a.category)
-            const color = cat?.color || '#6b7280'
-            return (
-              <div key={a.id} className="rounded-lg border border-line bg-white px-3 py-2.5">
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  {a.source_ts != null && <TimestampBadge seconds={a.source_ts} />}
-                  <span className="text-[11px] px-1.5 py-0.5 rounded font-medium" style={{ color, background: color + '1a' }}>
-                    {cat?.label || a.category_label}
-                  </span>
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: ADVICE_PRIO[a.priority] || ADVICE_PRIO.medium }} />
-                </div>
-                <div className="text-sm text-ink font-medium leading-snug">{a.title}</div>
-                {a.recommendation && (
-                  <div className="text-[13px] text-ink-secondary mt-1 leading-snug whitespace-pre-wrap">
-                    <span className="text-brand font-semibold">💡 建议:</span>{a.recommendation}
+        <>
+          {advice.length === 0 ? (
+            <div className="text-[13px] text-ink-muted py-4 text-center">未决建议已全部处理 ✓</div>
+          ) : hasTimeline ? (
+            <div className="border border-line rounded-lg overflow-hidden">
+              {segs.map((seg, i) => (
+                <div key={i} className="grid grid-cols-1 lg:grid-cols-[1fr_1.15fr] border-b border-line last:border-b-0">
+                  <div className="px-3 py-2.5 lg:border-r border-line">
+                    {seg.ts != null && <div className="mb-1"><TimestampBadge seconds={seg.ts} /></div>}
+                    <div className="text-[13px] text-ink-secondary leading-relaxed whitespace-pre-wrap">{seg.text}</div>
                   </div>
-                )}
-                {a.question && (
-                  <div className="text-[13px] text-ink-muted mt-1 leading-snug">💬 这样确认:{a.question}</div>
-                )}
-                {a.source_quote && (
-                  <div className="text-[12px] text-ink-muted mt-1 leading-snug border-l-2 border-line pl-2 italic">「{a.source_quote}」</div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+                  <div className="px-3 py-2.5 bg-canvas/20 space-y-2">
+                    {(adviceBySeg[i] || []).map(renderCard)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {[...advice].sort((a, b) => (a.source_ts ?? 1e9) - (b.source_ts ?? 1e9)).map(renderCard)}
+            </div>
+          )}
+
+          {hasTimeline && unlocated.length > 0 && (
+            <div className="mt-3">
+              <div className="text-[11px] text-ink-muted mb-1.5">未定位到具体时间</div>
+              <div className="space-y-2">{unlocated.map(renderCard)}</div>
+            </div>
+          )}
+
+          {resolved.length > 0 && (
+            <div className="mt-4 border-t border-line pt-3">
+              <button
+                type="button"
+                onClick={() => setShowDone((s) => !s)}
+                className="text-[12px] text-ink-secondary inline-flex items-center gap-1.5 hover:text-ink"
+              >
+                <CheckCircle2 size={14} className="text-emerald-600" /> 已完成 ({resolved.length})
+                <ChevronRight size={13} className={`transition-transform ${showDone ? 'rotate-90' : ''}`} />
+              </button>
+              {showDone && (
+                <div className="space-y-1.5 mt-2">
+                  {resolved.map((a) => (
+                    <div key={a.id} className="rounded-lg border border-line bg-canvas/30 px-3 py-2 flex items-start gap-2">
+                      <CheckCircle2 size={14} className="text-emerald-600 mt-0.5 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13px] text-ink-muted leading-snug">{a.title}</div>
+                        {a.source_ts != null && <div className="mt-1"><TimestampBadge seconds={a.source_ts} /></div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   )

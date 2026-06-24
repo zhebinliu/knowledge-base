@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Upload, Type, ChevronLeft, Loader2, Mic, Square, Sparkles, X } from 'lucide-react'
+import { Upload, Type, ChevronLeft, Loader2, Mic, Square, Sparkles, X, Check } from 'lucide-react'
 import {
   uploadMeetingAudio,
   createMeetingFromText,
@@ -18,6 +18,7 @@ import {
   finalizeRecording,
   runLiveAdvice,
   dismissLiveAdvice,
+  resolveLiveAdvice,
   listProjects,
   type Project,
   type LiveAdviceItem,
@@ -189,6 +190,13 @@ export default function ConsoleMeetingNew() {
     if (id) { try { await dismissLiveAdvice(id, aid) } catch { /* ignore */ } }
   }
 
+  // 完成:标记为已完成(成果)→ 从未决面板移除,详情页归入「已完成」
+  const onResolveAdvice = async (aid: number) => {
+    const id = liveMeetingIdRef.current
+    setAdvice((prev) => prev.filter((a) => a.id !== aid))
+    if (id) { try { await resolveLiveAdvice(id, aid) } catch { /* ignore */ } }
+  }
+
   const uploadMut = useMutation({
     mutationFn: () => {
       if (!file) throw new Error('请选择音频文件')
@@ -247,14 +255,16 @@ export default function ConsoleMeetingNew() {
               <span className="text-[10px] text-ink-muted mt-1 inline-block font-mono">[{fmtTs(a.source_ts)}]</span>
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => onDismissAdvice(a.id)}
-            title="忽略"
-            className="opacity-0 group-hover:opacity-100 text-ink-muted hover:text-ink shrink-0"
-          >
-            <X size={13} />
-          </button>
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 shrink-0">
+            <button type="button" onClick={() => onResolveAdvice(a.id)} title="完成(标记已处理)"
+              className="p-0.5 rounded text-ink-muted hover:text-emerald-600 hover:bg-emerald-50">
+              <Check size={13} />
+            </button>
+            <button type="button" onClick={() => onDismissAdvice(a.id)} title="删除"
+              className="p-0.5 rounded text-ink-muted hover:text-rose-600 hover:bg-rose-50">
+              <X size={13} />
+            </button>
+          </div>
         </div>
       </div>
     )

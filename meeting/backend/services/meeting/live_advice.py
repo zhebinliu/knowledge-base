@@ -124,22 +124,41 @@ async def _open_advice(session, meeting_id: int) -> list[MeetingLiveAdvice]:
     return list(rows)
 
 
-async def get_live_advice(meeting_id: int) -> dict:
-    """只读:返回当前 open 建议,不跑 LLM(前端轮询用)。"""
+async def get_live_advice(meeting_id: int, include_resolved: bool = False) -> dict:
+    """只读:返回当前 open 建议,不跑 LLM(前端轮询用)。
+    include_resolved=True 时附带 resolved_advice(已完成成果清单,详情页复盘用)。"""
     async with async_session_maker() as session:
         items = await _open_advice(session, meeting_id)
-    return {"advice": _serialize(items), "count": len(items)}
+        out = {"advice": _serialize(items), "count": len(items)}
+        if include_resolved:
+            rows = (await session.execute(
+                select(MeetingLiveAdvice)
+                .where(MeetingLiveAdvice.meeting_id == meeting_id, MeetingLiveAdvice.status == "resolved")
+                .order_by(MeetingLiveAdvice.source_ts, MeetingLiveAdvice.id)  # PG 默认 NULLS LAST
+            )).scalars().all()
+            out["resolved_advice"] = _serialize(list(rows))
+    return out
 
 
-async def dismiss_advice(meeting_id: int, advice_id: int) -> bool:
+async def _set_status(meeting_id: int, advice_id: int, status: str) -> bool:
     async with async_session_maker() as session:
         row = await session.get(MeetingLiveAdvice, advice_id)
         if not row or row.meeting_id != meeting_id:
             return False
-        row.status = "dismissed"
+        row.status = status
         row.resolved_at = utcnow_naive()
         await session.commit()
     return True
+
+
+async def dismiss_advice(meeting_id: int, advice_id: int) -> bool:
+    """顾问手动删除(忽略)一条建议。"""
+    return await _set_status(meeting_id, advice_id, "dismissed")
+
+
+async def resolve_advice(meeting_id: int, advice_id: int) -> bool:
+    """顾问手动标记一条建议为已完成(成果);与 LLM 自动 resolved 同状态。"""
+    return await _set_status(meeting_id, advice_id, "resolved")
 
 
 async def generate_live_advice(meeting_id: int) -> dict:
