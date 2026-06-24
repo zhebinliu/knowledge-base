@@ -152,25 +152,37 @@ const ADVICE_CATS: { key: LiveAdviceCategory; label: string; color: string }[] =
 ]
 const ADVICE_PRIO: Record<string, string> = { high: '#dc2626', medium: '#d97706', low: '#9ca3af' }
 
-// 转写分段:把带 [MM:SS] / [HH:MM:SS] 前缀的转写按行拆成段(录音类会议每段一行),
-// 无时间戳的续行并入上一段。返回各段起始秒数(可空)+ 文本,供建议按 source_ts 落段对齐。
+// 转写分段:把转写按时间戳拆成段,供建议按 source_ts 落段对齐。兼容两种格式:
+//  1) 录音边录边传:行首 [MM:SS]/[HH:MM:SS] + 同行正文;
+//  2) 妙记/飞书上传:「说话人 N HH:MM:SS」/「@张三 HH:MM:SS」表头行 + 正文在后续行。
+// 无时间戳的行并入上一段(多行发言、前导的录音主题/时间等)。
 type TxSeg = { ts: number | null; text: string }
-const TS_LINE = /^\s*\[?(\d{1,2}):(\d{2})(?::(\d{2}))?\]?\s*/
+const TS_AT_START = /^\s*\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]\s*(.*)$/
+const SPEAKER_HEADER = /^\s*(?:说话人\s*\d+|@\S{1,20}|\S{1,16})?\s*(\d{1,2}):(\d{2}):(\d{2})\s*$/
 function parseTxSegments(raw: string): TxSeg[] {
   const segs: TxSeg[] = []
-  for (const line of (raw || '').split('\n')) {
-    if (!line.trim()) continue
-    const m = line.match(TS_LINE)
-    if (m) {
-      const ts = m[3] != null ? +m[1] * 3600 + +m[2] * 60 + +m[3] : +m[1] * 60 + +m[2]
-      segs.push({ ts, text: line.slice(m[0].length).trim() })
-    } else if (segs.length) {
-      segs[segs.length - 1].text += '\n' + line.trim()
+  for (const rawLine of (raw || '').split('\n')) {
+    const line = rawLine.trim()
+    if (!line) continue
+    const mStart = line.match(TS_AT_START)
+    if (mStart) {
+      const ts = mStart[3] != null ? +mStart[1] * 3600 + +mStart[2] * 60 + +mStart[3] : +mStart[1] * 60 + +mStart[2]
+      segs.push({ ts, text: (mStart[4] || '').trim() })
+      continue
+    }
+    const mHead = line.match(SPEAKER_HEADER)
+    if (mHead) {
+      segs.push({ ts: +mHead[1] * 3600 + +mHead[2] * 60 + +mHead[3], text: '' })
+      continue
+    }
+    if (segs.length) {
+      const last = segs[segs.length - 1]
+      last.text += (last.text ? '\n' : '') + line
     } else {
-      segs.push({ ts: null, text: line.trim() })
+      segs.push({ ts: null, text: line })
     }
   }
-  return segs
+  return segs.filter((s) => s.text || s.ts != null)
 }
 
 export function AdviceTab({ meeting }: { meeting: Meeting }) {
@@ -281,24 +293,19 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
           {advice.length === 0 ? (
             <div className="text-[13px] text-ink-muted py-4 text-center">未决建议已全部处理 ✓</div>
           ) : hasTimeline ? (
-            // 批注式:转写整行顺读,建议卡内嵌在对应段正下方(品牌色左边线),不留空列
-            <div className="space-y-0.5">
-              {segs.map((seg, i) => {
-                const items = adviceBySeg[i] || []
-                return (
-                  <div key={i}>
-                    <div className="flex gap-2 py-1">
-                      {seg.ts != null && <span className="shrink-0 mt-0.5"><TimestampBadge seconds={seg.ts} /></span>}
-                      <span className="text-[13px] text-ink-secondary leading-relaxed whitespace-pre-wrap">{seg.text}</span>
-                    </div>
-                    {items.length > 0 && (
-                      <div className="ml-12 mb-2 mt-1 space-y-2 border-l-2 border-brand/40 pl-3">
-                        {items.map(renderCard)}
-                      </div>
-                    )}
+            // 左右两栏:左该段转写([MM:SS] 可跳转)/ 右 source_ts 落在该段的建议,同行对齐
+            <div className="border border-line rounded-lg overflow-hidden">
+              {segs.map((seg, i) => (
+                <div key={i} className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] border-b border-line last:border-b-0">
+                  <div className="px-3 py-2.5 lg:border-r border-line">
+                    {seg.ts != null && <div className="mb-1"><TimestampBadge seconds={seg.ts} /></div>}
+                    <div className="text-[13px] text-ink-secondary leading-relaxed whitespace-pre-wrap">{seg.text}</div>
                   </div>
-                )
-              })}
+                  <div className="px-3 py-2.5 bg-canvas/20 space-y-2">
+                    {(adviceBySeg[i] || []).map(renderCard)}
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="space-y-2">
