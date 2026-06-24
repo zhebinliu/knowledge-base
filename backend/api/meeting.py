@@ -1034,11 +1034,17 @@ async def action_extract_requirements(
 ):
     """仅提取需求(覆盖式重建)。"""
     from services.meeting import extract_requirements
+    from services.model_router import ModelOutputError
     m = await _load_meeting_owned(meeting_id, session, user)
     text = m.polished_transcript or m.raw_transcript
     if not text:
         raise HTTPException(400, "无可用 transcript")
-    raw_reqs = await extract_requirements(text)
+    try:
+        raw_reqs = await extract_requirements(text)
+    except ModelOutputError as e:
+        # 主备模型输出均被截断 / 无法解析 → 暴露为可见错误(前端 axios 拦截器统一弹 toast),
+        # 不再静默落空需求清单(此前用户表现:点「重新提取」无反应、列表仍空)。
+        raise HTTPException(503, "需求抽取失败:AI 输出被截断或无法解析,已自动重试主备模型仍未成功,请稍后重试") from e
     # 覆盖式重建
     await session.execute(sql_delete(Requirement).where(Requirement.meeting_id == meeting_id))
     out: list[dict] = []
@@ -1090,11 +1096,16 @@ async def action_extract_process_flows(
 ):
     """仅识别业务流程并生成 Mermaid 流程图(覆盖式)。"""
     from services.meeting import extract_process_flows
+    from services.model_router import ModelOutputError
     m = await _load_meeting_owned(meeting_id, session, user)
     text = m.polished_transcript or m.raw_transcript
     if not text:
         raise HTTPException(400, "无可用 transcript")
-    flows = await extract_process_flows(text)
+    try:
+        flows = await extract_process_flows(text)
+    except ModelOutputError as e:
+        # 同 action_extract_requirements:截断 / 坏 JSON 抛错可见,不再静默落空流程图。
+        raise HTTPException(503, "业务流程识别失败:AI 输出被截断或无法解析,已自动重试主备模型仍未成功,请稍后重试") from e
     m.process_flows = flows
     await session.commit()
     return {"process_flows": flows}

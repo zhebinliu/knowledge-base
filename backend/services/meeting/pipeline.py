@@ -47,6 +47,21 @@ def _safe_json_loads(text: str, default: Any) -> Any:
     return result
 
 
+def _json_output_valid(content: str, finish_reason: str | None) -> bool:
+    """chat_with_routing 校验器:拒绝「被截断」或「无法解析为 JSON」的输出。
+
+    背景:会议各 JSON 抽取阶段此前不带 validator,主模型一旦把输出截断
+    (finish_reason='length'),HTTP 200 仍被当成功返回,再经 _safe_json_loads
+    解析失败 → 静默落空列表(用户表现:能点「生成」但内容全空、且不报错)。
+    带上本校验后:截断 / 坏 JSON → 回退 fallback(mimo-v2-pro,1M 上下文);
+    主备都过不了 → chat_with_routing 抛 ModelOutputError,由调用方暴露为可见错误。
+    """
+    from services.llm_json import loads_lenient
+    if finish_reason == "length":
+        return False
+    return loads_lenient(content, _PARSE_FAIL) is not _PARSE_FAIL
+
+
 # ── 阶段 1:润色 ─────────────────────────────────────────────────────────
 
 async def polish_transcript(raw_transcript: str) -> str:
@@ -147,11 +162,15 @@ async def extract_requirements(transcript: str) -> list[dict]:
         {"role": "system", "content": REQUIREMENT_SYSTEM},
         {"role": "user", "content": REQUIREMENT_USER.format(transcript=transcript)},
     ]
+    # max_tokens 8000→16000 + validator:长会议需求清单 JSON 易超 8000 被截断,
+    # 此前无 validator → 截断输出被当成功 → 解析失败落空列表、不报错(同 generate_minutes
+    # 2026-06-03 的修复)。validator 让截断/坏 JSON 触发回退,主备都失败则抛错可见。
     content, model = await model_router.chat_with_routing(
         task="meeting_requirements_extract",
         messages=messages,
+        validator=_json_output_valid,
         temperature=0.2,
-        max_tokens=8000,
+        max_tokens=16000,
         response_format={"type": "json_object"},
     )
     result = _safe_json_loads(content, {"requirements": []})
@@ -231,11 +250,14 @@ async def extract_process_flows(transcript: str) -> dict:
         {"role": "system", "content": PROCESS_FLOW_SYSTEM},
         {"role": "user", "content": PROCESS_FLOW_USER.format(transcript=transcript)},
     ]
+    # max_tokens 8000→16000 + validator:多张 Mermaid 流程图的 JSON 易超 8000 被截断,
+    # 同 extract_requirements。截断/坏 JSON 触发回退,主备都失败则抛错可见(不再静默落空)。
     content, model = await model_router.chat_with_routing(
         task="meeting_process_flows_extract",
         messages=messages,
+        validator=_json_output_valid,
         temperature=0.2,
-        max_tokens=8000,
+        max_tokens=16000,
         response_format={"type": "json_object"},
     )
     result = _safe_json_loads(content, dict(_EMPTY_PROCESS_FLOWS))
