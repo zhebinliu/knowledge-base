@@ -191,31 +191,31 @@ def _bundle_dto(b: CuratedBundle) -> dict:
     }
 
 
-@router.post("/generate", status_code=202)
-async def generate_output(
-    body: GenerateRequest,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-):
-    if body.kind not in KIND_TO_TASK:
+async def enqueue_generation(
+    *, user: User, project_id: str, kind: str, session: AsyncSession
+) -> CuratedBundle:
+    """创建 pending bundle + fire 对应 Celery 生成任务,返回 bundle。
+
+    HTTP `POST /generate` 与 MCP `generate_output` 工具共用此函数,避免
+    KIND_TO_TASK → task 映射在两处重复硬编码(§6.8 漂移源)。
+    **调用方负责 write 权限校验**(本函数不校权限)。
+    """
+    if kind not in KIND_TO_TASK:
         raise HTTPException(400, f"Invalid kind. Must be one of: {list(KIND_TO_TASK)}")
 
-    from services.project_acl import assert_project_access
-    await assert_project_access(current_user, body.project_id, "write")
-
     from models.project import Project
-    proj = await session.get(Project, body.project_id)
+    proj = await session.get(Project, project_id)
     if not proj:
         raise HTTPException(404, "Project not found")
 
-    title = f"{KIND_TITLES[body.kind]} · {proj.name}"
+    title = f"{KIND_TITLES[kind]} · {proj.name}"
     bundle = CuratedBundle(
-        kind=body.kind,
-        project_id=body.project_id,
+        kind=kind,
+        project_id=project_id,
         title=title,
         status="pending",
-        created_by=current_user.id,
-        created_by_name=current_user.username,
+        created_by=user.id,
+        created_by_name=user.username,
         extra={"trace_id": _current_trace_id()},
     )
     session.add(bundle)
@@ -245,9 +245,21 @@ async def generate_output(
         "implementation_plan": generate_implementation_plan,
         "test_plan": generate_test_plan,
         "acceptance_report": generate_acceptance_report,
-    }[body.kind]
-    task_fn.delay(bundle.id, body.project_id)
+    }[kind]
+    task_fn.delay(bundle.id, project_id)
+    return bundle
 
+
+@router.post("/generate", status_code=202)
+async def generate_output(
+    body: GenerateRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    await assert_project_access(current_user, body.project_id, "write")
+    bundle = await enqueue_generation(
+        user=current_user, project_id=body.project_id, kind=body.kind, session=session
+    )
     return _bundle_dto(bundle)
 
 

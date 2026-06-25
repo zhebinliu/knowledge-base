@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select, func as sa_func
 
 from agents.kb_agent import answer_question
+from api.outputs import KIND_TITLES  # 单一 kind 来源,避免 §6.8 第 4 处漂移
 from config import settings
 from models import async_session_maker
 from models.project import Project
@@ -131,8 +132,8 @@ TOOLS = [
     {
         "name": "get_project_status",
         "description": (
-            "拿单个项目的全景快照：基本信息、文档清单概况、各阶段(insight/survey_outline/survey/"
-            "kickoff_pptx/kickoff_html)的产物状态(已生成 / 进行中 / 未开始)。\n"
+            "拿单个项目的全景快照：基本信息、文档数、LTC 全链路各产物状态"
+            "(洞察 / 调研 / 方案设计 / 实施 / 测试 / 验收,已生成 / 进行中 / 未开始)。\n"
             "适用场景：AI 助手要回答\"这个项目现在到哪一步了\" / \"有哪些已生成的报告\" 时先调这个。"
         ),
         "inputSchema": {
@@ -161,8 +162,8 @@ TOOLS = [
                 },
                 "kind": {
                     "type": "string",
-                    "description": "可选：按产物类型过滤",
-                    "enum": ["insight", "survey_outline", "survey", "kickoff_pptx", "kickoff_html"],
+                    "description": "可选：按产物类型过滤(覆盖洞察 / 调研 / 方案设计 / 实施 / 测试 / 验收全链路)",
+                    "enum": list(KIND_TITLES),
                 },
                 "status": {
                     "type": "string",
@@ -230,6 +231,106 @@ TOOLS = [
             "required": ["project", "kind"],
         },
     },
+    {
+        "name": "get_document",
+        "description": (
+            "【读】拿单份文档的提取后全文(markdown)。\n"
+            "先用 list_documents 拿到 doc_id 再调这个。适用:AI 要读 SOW / 合同 / 方案 / "
+            "交接单等原文做分析。注意正文可能很长(数千~数万字)。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "doc_id": {"type": "string", "description": "文档 ID(从 list_documents 拿到)"},
+            },
+            "required": ["doc_id"],
+        },
+    },
+    {
+        "name": "list_meetings",
+        "description": (
+            "【读】列出项目下的会议(ID / 标题 / 状态 / 时间)。\n"
+            "适用:AI 要看这个项目开过哪些会、哪些已出纪要。配合 get_meeting 拿详情。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {"type": "string", "description": "项目 ID 或名称"},
+            },
+            "required": ["project"],
+        },
+    },
+    {
+        "name": "get_meeting",
+        "description": (
+            "【读】拿单个会议的完整资料:纪要(摘要/议题/决议/待办)、需求清单、业务流程、"
+            "干系人图谱。默认不含逐字转写(很长),需要时传 include_transcript=true。\n"
+            "先用 list_meetings 拿到 meeting_id。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "meeting_id": {"type": "integer", "description": "会议 ID(从 list_meetings 拿到)"},
+                "include_transcript": {
+                    "type": "boolean",
+                    "description": "是否附带润色后的逐字转写(默认 false,转写可能很长)",
+                    "default": False,
+                },
+            },
+            "required": ["meeting_id"],
+        },
+    },
+    {
+        "name": "get_smart_advice",
+        "description": (
+            "【读】拿项目的智能建议(综合 brief / 产物 / 文档由 LLM 生成的下一步动作 + 风险)。\n"
+            "只读已缓存结果,不触发新生成;若从未生成会提示去 Web 工作台触发。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {"type": "string", "description": "项目 ID 或名称"},
+            },
+            "required": ["project"],
+        },
+    },
+    {
+        "name": "generate_output",
+        "description": (
+            "【写】触发生成某个产物(异步,立即返回 bundle_id,稍后用 get_output 取结果)。\n"
+            "需要对该项目有写权限。kind 见枚举(洞察 / 调研 / 方案设计 / 实施 / 测试 / 验收全链路)。\n"
+            "典型:list_projects → generate_output(project, kind) → 轮询 get_output(bundle_id)。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {"type": "string", "description": "项目 ID 或名称"},
+                "kind": {
+                    "type": "string",
+                    "description": "要生成的产物类型",
+                    "enum": list(KIND_TITLES),
+                },
+            },
+            "required": ["project", "kind"],
+        },
+    },
+    {
+        "name": "create_meeting_from_text",
+        "description": (
+            "【写】把一段会议文本(纪要/转写/笔记)直接建成会议并自动跑 AI pipeline"
+            "(润色 → 纪要 / 需求 / 业务流程 / 干系人)。异步,立即返回 meeting_id。\n"
+            "若传 project 则关联到该项目(需对该项目有写权限);不传则只挂在自己名下。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "transcript": {"type": "string", "description": "会议文本内容(必填)"},
+                "title": {"type": "string", "description": "会议标题(可选,默认「文本导入会议」)"},
+                "project": {"type": "string", "description": "可选:关联项目 ID 或名称(需写权限)"},
+            },
+            "required": ["transcript"],
+        },
+    },
 ]
 
 
@@ -263,11 +364,13 @@ async def _resolve_project(ref: str) -> Project | None:
         return None
 
 
-async def _resolve_project_for(user: User, ref: str) -> Project | None:
+async def _resolve_project_for(user: User, ref: str, level: str = "read") -> Project | None:
     """带权限校验的 resolve。无权访问的项目返回 None(等同于不存在,避免侧信道枚举)。
 
     2026-05-12 新增:此前 MCP tool handler 直接调 _resolve_project,任何 API key 用户
     可读他人项目;现在统一走这个 helper,admin 仍可访问全部。
+    2026-06-25:加 level 参数。写/动作类工具(generate_output 等)传 "write",
+    只读工具仍默认 "read"(LEARNING §10.1:写操作必须校 write,不能复用 read)。
     """
     proj = await _resolve_project(ref)
     if not proj:
@@ -275,7 +378,7 @@ async def _resolve_project_for(user: User, ref: str) -> Project | None:
     if getattr(user, "is_admin", False):
         return proj
     try:
-        await assert_project_access(user, proj.id, "read")
+        await assert_project_access(user, proj.id, level)
         return proj
     except HTTPException:
         return None
@@ -413,11 +516,9 @@ async def _handle_get_project_status(arguments: dict, user: User) -> str:
         return f"❌ 未找到项目「{project_ref}」或无权访问。可先调 list_projects 查可用项目。"
 
     from models.curated_bundle import CuratedBundle
-    KINDS = ["insight", "survey_outline", "survey", "kickoff_pptx", "kickoff_html"]
-    KIND_LABELS = {
-        "insight": "项目洞察", "survey_outline": "调研大纲", "survey": "调研问卷",
-        "kickoff_pptx": "启动会·PPT", "kickoff_html": "启动会·HTML",
-    }
+    # 全 13 个 kind 直接取自 outputs.KIND_TITLES,新增 kind 自动纳入(不再手抄漏更新)
+    KINDS = list(KIND_TITLES)
+    KIND_LABELS = dict(KIND_TITLES)
 
     async with async_session_maker() as session:
         # 文档数
@@ -621,6 +722,244 @@ async def _handle_get_brief(arguments: dict, user: User) -> str:
     return "\n".join(lines)
 
 
+# ── 只读:文档全文 / 会议 / 智能建议 ───────────────────────────────────────────
+
+async def _handle_get_document(arguments: dict, user: User) -> str:
+    doc_id = arguments["doc_id"]
+    async with async_session_maker() as session:
+        doc = await session.get(Document, doc_id)
+    if not doc:
+        return f"❌ 未找到文档 ID `{doc_id}`。"
+    # 文档是原始素材,权限从严:无项目归属的文档仅 admin 可读
+    if not user.is_admin:
+        if not doc.project_id:
+            return f"❌ 未找到文档 ID `{doc_id}` 或无权访问。"
+        try:
+            await assert_project_access(user, doc.project_id, "read")
+        except HTTPException:
+            return f"❌ 未找到文档 ID `{doc_id}` 或无权访问。"
+
+    md = doc.markdown_content or ""
+    lines = [f"# {doc.filename}\n"]
+    lines.append(f"- **类型**: {doc.doc_type or '—'}")
+    lines.append(f"- **状态**: {doc.conversion_status}")
+    lines.append(f"- **doc_id**: `{doc.id}`")
+    lines.append("\n---\n")
+    lines.append(md if md else "_(文档尚无提取后的 markdown,可能仍在处理中)_")
+    return "\n".join(lines)
+
+
+async def _handle_list_meetings(arguments: dict, user: User) -> str:
+    project_ref = arguments["project"]
+    proj = await _resolve_project_for(user, project_ref)
+    if not proj:
+        return f"❌ 未找到项目「{project_ref}」或无权访问。"
+
+    from models.meeting import Meeting
+    async with async_session_maker() as session:
+        rows = (await session.execute(
+            select(Meeting).where(Meeting.project_id == proj.id).order_by(Meeting.created_at.desc())
+        )).scalars().all()
+
+    if not rows:
+        return f"项目「{proj.name}」暂无会议。"
+
+    lines = [f"项目「{proj.name}」共 **{len(rows)}** 场会议:\n"]
+    for m in rows:
+        ts = m.created_at.strftime("%Y-%m-%d %H:%M") if m.created_at else "—"
+        lines.append(f"- **{m.title or '(未命名)'}** · 状态: {m.status} · {ts} · `meeting_id={m.id}`")
+    return "\n".join(lines)
+
+
+def _render_minutes(minutes: dict) -> list[str]:
+    """把纪要 dict 渲染成 markdown 行(只渲染非空字段)。"""
+    out: list[str] = []
+    summary = (minutes.get("summary") or "").strip()
+    if summary:
+        out.append(f"### 摘要\n{summary}")
+    for key, label in (("key_points", "关键议题"), ("decisions", "决议"),
+                       ("action_items", "待办"), ("unresolved", "未决问题")):
+        items = minutes.get(key) or []
+        if not items:
+            continue
+        out.append(f"### {label}")
+        for it in items:
+            if isinstance(it, dict):
+                txt = it.get("content") or it.get("text") or it.get("title") or ""
+                owner = it.get("owner")
+                txt = f"{txt}（负责人: {owner}）" if owner else txt
+            else:
+                txt = str(it)
+            if txt.strip():
+                out.append(f"- {txt.strip()}")
+    return out
+
+
+async def _handle_get_meeting(arguments: dict, user: User) -> str:
+    meeting_id = int(arguments["meeting_id"])
+    include_tx = bool(arguments.get("include_transcript", False))
+
+    from api.meeting import _load_meeting_owned
+    from models.meeting import Requirement
+    async with async_session_maker() as session:
+        try:
+            m = await _load_meeting_owned(meeting_id, session, user)
+        except HTTPException:
+            return f"❌ 未找到会议 `{meeting_id}` 或无权访问。"
+        reqs = (await session.execute(
+            select(Requirement).where(Requirement.meeting_id == meeting_id).order_by(Requirement.id)
+        )).scalars().all()
+        title = m.title or "(未命名会议)"
+        status = m.status
+        minutes = m.edited_minutes or m.meeting_minutes or {}
+        flows = (m.process_flows or {}).get("flows", []) if isinstance(m.process_flows, dict) else []
+        smap = m.stakeholder_map or {}
+        polished = m.polished_transcript or m.raw_transcript or ""
+
+    lines = [f"# 会议:{title}\n", f"- **状态**: {status} · `meeting_id={meeting_id}`"]
+
+    if isinstance(minutes, dict) and minutes:
+        rendered = _render_minutes(minutes)
+        if rendered:
+            lines.append("\n## 纪要\n")
+            lines.extend(rendered)
+
+    if reqs:
+        lines.append(f"\n## 需求清单({len(reqs)} 条)\n")
+        for r in reqs:
+            mod = f"[{r.module}] " if r.module else ""
+            lines.append(f"- **{r.req_id}** {mod}{r.description} · 优先级 {r.priority} · {r.status}")
+
+    if flows:
+        lines.append(f"\n## 业务流程({len(flows)} 个)\n")
+        for f in flows:
+            if not isinstance(f, dict):
+                continue
+            lines.append(f"### {f.get('title') or f.get('flow_id') or '流程'}")
+            if f.get("summary"):
+                lines.append(f.get("summary"))
+            if f.get("mermaid"):
+                lines.append(f"```mermaid\n{f['mermaid']}\n```")
+
+    sh = smap.get("stakeholders", []) if isinstance(smap, dict) else []
+    if sh:
+        lines.append(f"\n## 干系人({len(sh)} 人)\n")
+        for s in sh:
+            if not isinstance(s, dict):
+                continue
+            name = s.get("name") or "(未命名)"
+            role = s.get("role") or ""
+            org = s.get("organization") or ""
+            meta = " · ".join(x for x in (role, org) if x)
+            lines.append(f"- **{name}**" + (f" · {meta}" if meta else ""))
+
+    if include_tx and polished:
+        lines.append("\n## 转写(润色后)\n")
+        lines.append(polished)
+
+    if len(lines) <= 2:
+        lines.append("\n_(该会议尚无纪要 / 需求 / 流程 / 干系人,可能仍在处理或处理失败)_")
+    return "\n".join(lines)
+
+
+async def _handle_get_smart_advice(arguments: dict, user: User) -> str:
+    project_ref = arguments["project"]
+    proj = await _resolve_project_for(user, project_ref)
+    if not proj:
+        return f"❌ 未找到项目「{project_ref}」或无权访问。"
+
+    from services.smart_advice import get_advice_only
+    advice = await get_advice_only(proj.id)
+    if not advice:
+        return f"项目「{proj.name}」尚未生成智能建议。可在 Web 工作台触发生成。"
+
+    lines = [f"# {proj.name} · 智能建议\n"]
+    if advice.get("is_stale"):
+        lines.append("> ⚠️ 当前建议已标记为过时(项目数据有更新),建议在 Web 工作台刷新。\n")
+    if advice.get("generated_at"):
+        lines.append(f"- 生成时间: {advice['generated_at']}")
+    if advice.get("advice_md"):
+        lines.append("\n## 建议\n" + advice["advice_md"])
+    if advice.get("next_steps"):
+        lines.append("\n## 下一步\n" + "\n".join(f"- {s}" for s in advice["next_steps"]))
+    if advice.get("risks"):
+        lines.append("\n## 风险\n" + "\n".join(f"- {r}" for r in advice["risks"]))
+    return "\n".join(lines)
+
+
+# ── 写 / 动作:触发生成 / 建会议 ───────────────────────────────────────────────
+
+async def _handle_generate_output(arguments: dict, user: User) -> str:
+    project_ref = arguments["project"]
+    kind = arguments["kind"]
+    if kind not in KIND_TITLES:
+        return f"❌ 不支持的产物类型「{kind}」。可选: {', '.join(KIND_TITLES)}"
+    # 生成是写操作 → 校 write 权限
+    proj = await _resolve_project_for(user, project_ref, level="write")
+    if not proj:
+        return f"❌ 未找到项目「{project_ref}」或无写权限(生成产物需要写权限)。"
+
+    from api.outputs import enqueue_generation
+    async with async_session_maker() as session:
+        try:
+            bundle = await enqueue_generation(
+                user=user, project_id=proj.id, kind=kind, session=session
+            )
+        except HTTPException as e:
+            return f"❌ 触发生成失败: {getattr(e, 'detail', str(e))}"
+
+    return (
+        f"✅ 已触发生成「{KIND_TITLES[kind]}」(项目「{proj.name}」)。\n"
+        f"- bundle_id: `{bundle.id}` · 状态: {bundle.status}\n"
+        f"生成是异步的(约 2-5 分钟),稍后用 get_output(bundle_id) 取结果,"
+        f"或 list_outputs(project) 看状态。"
+    )
+
+
+async def _handle_create_meeting_from_text(arguments: dict, user: User) -> str:
+    transcript = (arguments.get("transcript") or "").strip()
+    if not transcript:
+        return "❌ transcript(会议文本)不能为空。"
+    title = (arguments.get("title") or "文本导入会议").strip()
+    project_ref = arguments.get("project") or None
+
+    project_id: str | None = None
+    proj_name = ""
+    if project_ref:
+        # 关联到项目 = 会触发读该项目数据的 pipeline → 校 write 权限(同 HTTP /from-text)
+        proj = await _resolve_project_for(user, project_ref, level="write")
+        if not proj:
+            return f"❌ 未找到项目「{project_ref}」或无写权限(关联项目需要写权限)。"
+        project_id = proj.id
+        proj_name = proj.name
+
+    from models.meeting import Meeting
+    async with async_session_maker() as session:
+        m = Meeting(
+            title=title,
+            owner_id=user.id,
+            project_id=project_id,
+            raw_transcript=transcript,
+            status="processing",
+            asr_engine="text",
+        )
+        session.add(m)
+        await session.commit()
+        await session.refresh(m)
+        mid = m.id
+
+    from tasks.meeting_tasks import process_meeting as _task
+    _task.delay(mid)
+
+    extra = f",已关联项目「{proj_name}」" if proj_name else "(未关联项目)"
+    return (
+        f"✅ 已创建会议「{title}」{extra}并触发 AI 处理。\n"
+        f"- meeting_id: `{mid}`\n"
+        f"处理是异步的(润色 → 纪要 / 需求 / 业务流程 / 干系人),"
+        f"稍后用 get_meeting(meeting_id) 取结果。"
+    )
+
+
 # ── JSON-RPC helpers ──────────────────────────────────────────────────────────
 
 def _ok(req_id, result):
@@ -733,28 +1072,40 @@ async def mcp_endpoint(request: Request):
             "capabilities":    {"tools": {}},
             "serverInfo":      SERVER_INFO,
             "instructions": (
-                "纷享销客 CRM 实施知识库 MCP 服务器。\n"
+                "纷享销客 CRM 实施知识库 MCP 服务器。所有 tool 严格按当前用户的项目权限隔离,"
+                "只能读 / 写自己 owned 或被分享的项目(admin 例外)。\n"
                 "\n"
-                "## 知识 / 检索类(全只读)\n"
+                "## 知识 / 检索(读)\n"
                 "• ask_kb              — 提问获取 RAG 答案(默认通用模式)\n"
                 "• ask_kb (persona=pm) — 项目 PM 视角回答,带状态/下一步/风险结构化分析\n"
                 "• search_kb           — 检索原始知识切片(可 project 过滤)\n"
                 "\n"
-                "## 项目 / 产物类(全只读)\n"
+                "## 项目 / 产物(读)\n"
                 "• list_projects       — 列项目清单(ID / 名称 / 客户 / 行业 / 文档数)\n"
-                "• get_project_status  — 单个项目全景(基本信息 + 各 stage 产物状态 + 挑战结果)\n"
-                "• list_outputs        — 项目产物清单(insight / survey / kickoff PPT 等)\n"
+                "• get_project_status  — 单个项目全景(LTC 全链路产物状态 + 挑战结果)\n"
+                "• list_outputs        — 项目产物清单(全 13 kind:洞察/调研/方案/实施/测试/验收)\n"
                 "• get_output          — 拿单个产物的 markdown 全文 + 元数据\n"
-                "• list_documents      — 项目文档清单(filename / 类型 / 处理状态)\n"
                 "• get_brief           — 项目 brief 字段(已抽取 + 已编辑的关键信息)\n"
+                "• get_smart_advice    — 项目智能建议(下一步动作 + 风险,只读缓存)\n"
+                "\n"
+                "## 文档 / 会议(读)\n"
+                "• list_documents      — 项目文档清单(filename / 类型 / 处理状态)\n"
+                "• get_document        — 单份文档提取后全文(markdown)\n"
+                "• list_meetings       — 项目会议清单\n"
+                "• get_meeting         — 单个会议全资料(纪要 / 需求 / 业务流程 / 干系人 / 可选转写)\n"
+                "\n"
+                "## 写 / 动作(需对项目有写权限)\n"
+                "• generate_output           — 触发生成某 kind 产物(异步,返回 bundle_id)\n"
+                "• create_meeting_from_text  — 把会议文本建成会议并自动跑 AI pipeline\n"
                 "\n"
                 "## 典型流程\n"
                 "- 通用问答:直接 ask_kb\n"
                 "- PM 模式:list_projects → ask_kb(persona=pm, project=XX)\n"
                 "- 项目分析:get_project_status → list_outputs → get_output(bundle_id)\n"
-                "- 文档摸底:list_documents → search_kb(project=XX)\n"
+                "- 读项目资料:list_documents → get_document(doc_id);list_meetings → get_meeting(meeting_id)\n"
+                "- 生成产物:list_projects → generate_output(project, kind) → 轮询 get_output(bundle_id)\n"
                 "\n"
-                "所有 tool 均为只读,不会修改项目数据。触发产物生成等写操作请在 Web 工作台进行。"
+                "写操作会真正修改 / 新增项目数据并消耗 LLM 配额,调用前确认是用户意图。"
             ),
         })
 
@@ -793,6 +1144,18 @@ async def mcp_endpoint(request: Request):
                 text = await _handle_list_documents(arguments, acting_user)
             elif tool_name == "get_brief":
                 text = await _handle_get_brief(arguments, acting_user)
+            elif tool_name == "get_document":
+                text = await _handle_get_document(arguments, acting_user)
+            elif tool_name == "list_meetings":
+                text = await _handle_list_meetings(arguments, acting_user)
+            elif tool_name == "get_meeting":
+                text = await _handle_get_meeting(arguments, acting_user)
+            elif tool_name == "get_smart_advice":
+                text = await _handle_get_smart_advice(arguments, acting_user)
+            elif tool_name == "generate_output":
+                text = await _handle_generate_output(arguments, acting_user)
+            elif tool_name == "create_meeting_from_text":
+                text = await _handle_create_meeting_from_text(arguments, acting_user)
             else:
                 return _err(req_id, -32602, f"未知工具: {tool_name}")
 

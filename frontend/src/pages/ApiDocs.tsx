@@ -656,9 +656,11 @@ print(r.json()["answer"])`} />
           </div>
 
           {/* Tools */}
-          <h3 className="text-sm font-semibold text-ink mb-3">可用工具(全只读 — 8 个)</h3>
+          <h3 className="text-sm font-semibold text-ink mb-3">可用工具(14 个:12 读 + 2 写)</h3>
           <p className="text-xs text-ink-secondary mb-3">
-            所有 tool 均为只读,不会修改项目数据。触发产物生成等写操作请在 Web 工作台进行。
+            所有 tool 严格按当前用户的项目权限隔离 —— 只能访问自己 owned / 被分享的项目(admin 例外)。
+            读工具不改数据;写工具(generate_output / create_meeting_from_text)会新增数据并消耗 LLM 配额,
+            需对项目有写权限。
           </p>
 
           <h4 className="text-xs font-semibold text-ink-muted uppercase tracking-widest mt-4 mb-2">知识 / 检索类</h4>
@@ -696,7 +698,7 @@ print(r.json()["answer"])`} />
           />
           <McpTool
             name="get_project_status"
-            desc="单个项目全景快照:基本信息 + 文档数 + 各阶段(insight/survey/kickoff)产物状态 + 挑战循环结果"
+            desc="单个项目全景快照:基本信息 + 文档数 + LTC 全链路(洞察/调研/方案设计/实施/测试/验收)产物状态 + 挑战循环结果"
             params={[
               { n: 'project', t: 'string', req: true, d: '项目 ID 或名称' },
             ]}
@@ -707,7 +709,7 @@ print(r.json()["answer"])`} />
             desc="列项目下所有产物(curated_bundles)。返回 ID / kind / 状态 / 标题 / 创建时间"
             params={[
               { n: 'project', t: 'string', req: true,  d: '项目 ID 或名称' },
-              { n: 'kind',    t: 'string', req: false, d: 'insight / survey_outline / survey / kickoff_pptx / kickoff_html' },
+              { n: 'kind',    t: 'string', req: false, d: '全 13 kind:insight / survey_outline / survey / research_plan / research_report / blueprint_design / object_field_layout / process_setup / implementation_plan / test_plan / acceptance_report / kickoff_pptx / kickoff_html' },
               { n: 'status',  t: 'string', req: false, d: 'done / pending / generating / failed' },
             ]}
             example={{ project: '特变新能源', kind: 'insight', status: 'done' }}
@@ -736,6 +738,62 @@ print(r.json()["answer"])`} />
               { n: 'kind',    t: 'string', req: true, d: 'insight / survey_outline / survey / kickoff_pptx' },
             ]}
             example={{ project: '特变新能源', kind: 'insight' }}
+          />
+          <McpTool
+            name="get_smart_advice"
+            desc="拿项目智能建议(综合 brief / 产物 / 文档由 LLM 生成的下一步动作 + 风险)。只读缓存,不触发新生成"
+            params={[
+              { n: 'project', t: 'string', req: true, d: '项目 ID 或名称' },
+            ]}
+            example={{ project: '特变新能源' }}
+          />
+
+          <h4 className="text-xs font-semibold text-ink-muted uppercase tracking-widest mt-6 mb-2">文档 / 会议类</h4>
+          <McpTool
+            name="get_document"
+            desc="拿单份文档的提取后全文(markdown)。先用 list_documents 拿 doc_id。正文可能很长"
+            params={[
+              { n: 'doc_id', t: 'string', req: true, d: '文档 ID(从 list_documents 拿到)' },
+            ]}
+            example={{ doc_id: '7b2e...' }}
+          />
+          <McpTool
+            name="list_meetings"
+            desc="列项目下的会议(ID / 标题 / 状态 / 时间)"
+            params={[
+              { n: 'project', t: 'string', req: true, d: '项目 ID 或名称' },
+            ]}
+            example={{ project: '特变新能源' }}
+          />
+          <McpTool
+            name="get_meeting"
+            desc="拿单个会议全资料:纪要 + 需求清单 + 业务流程 + 干系人。默认不含逐字转写"
+            params={[
+              { n: 'meeting_id',         t: 'integer', req: true,  d: '会议 ID(从 list_meetings 拿到)' },
+              { n: 'include_transcript', t: 'boolean', req: false, d: '是否附带润色后转写(默认 false,转写很长)' },
+            ]}
+            example={{ meeting_id: 42 }}
+          />
+
+          <h4 className="text-xs font-semibold text-ink-muted uppercase tracking-widest mt-6 mb-2">写 / 动作类(需写权限)</h4>
+          <McpTool
+            name="generate_output"
+            desc="触发生成某个产物(异步,立即返回 bundle_id,稍后用 get_output 取结果)。需对项目有写权限"
+            params={[
+              { n: 'project', t: 'string', req: true, d: '项目 ID 或名称' },
+              { n: 'kind',    t: 'string', req: true, d: '要生成的产物类型(同 list_outputs 的 13 kind)' },
+            ]}
+            example={{ project: '特变新能源', kind: 'insight' }}
+          />
+          <McpTool
+            name="create_meeting_from_text"
+            desc="把会议文本建成会议并自动跑 AI pipeline(润色 → 纪要 / 需求 / 业务流程 / 干系人)。异步返回 meeting_id"
+            params={[
+              { n: 'transcript', t: 'string', req: true,  d: '会议文本内容' },
+              { n: 'title',      t: 'string', req: false, d: '会议标题(默认「文本导入会议」)' },
+              { n: 'project',    t: 'string', req: false, d: '可选:关联项目(需写权限)' },
+            ]}
+            example={{ transcript: '今天的需求评审会...', title: '需求评审', project: '特变新能源' }}
           />
 
           {/* Claude Desktop */}
