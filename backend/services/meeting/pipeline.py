@@ -139,6 +139,7 @@ async def generate_minutes(
         messages=messages,
         temperature=0.2,
         max_tokens=16000,
+        validator=_json_output_valid,  # 空/截断/坏 JSON → 自动回退备用模型;主备都失败 → 抛错 → 会议标 failed(可重生),不再静默落空
         response_format={"type": "json_object"},
     )
     result = _safe_json_loads(content, dict(_EMPTY_MINUTES))
@@ -336,6 +337,7 @@ async def extract_stakeholders(
         messages=messages,
         temperature=0.2,
         max_tokens=8000,
+        validator=_json_output_valid,  # 同纪要:空/坏 JSON 自动回退,主备都失败抛错(干系人非阻断,仅记 stage_errors)
         response_format={"type": "json_object"},
     )
     result = _safe_json_loads(content, dict(_EMPTY_STAKEHOLDERS))
