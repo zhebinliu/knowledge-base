@@ -9,6 +9,9 @@ import { deriveStageBadges, type DerivedBadge } from '../../lib/stageBadges'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
+// 卡片阶段徽章最多展示这么多,多出来的折成「+N」,保证卡片高度整齐
+const MAX_STAGE_BADGES = 4
+
 function StageBadge({ badge }: { badge: DerivedBadge }) {
   const { label, color, icon: Icon, status } = badge
   const done = status === 'done', inflight = status === 'inflight'
@@ -100,11 +103,15 @@ export default function ConsoleProjects() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map(p => (
-            <div key={p.id} className="relative group">
+          {filtered.map(p => {
+            const allBadges = deriveStageBadges(p.id, bundles)
+            const shown = allBadges.slice(0, MAX_STAGE_BADGES)
+            const extra = allBadges.length - shown.length
+            return (
+            <div key={p.id} className="relative group h-full">
             <button
               onClick={() => nav(`/console/projects/${p.id}`)}
-              className="w-full group text-left rounded-2xl border border-line bg-white hover:shadow-md hover:border-orange-200 transition-all p-5 flex flex-col gap-3.5"
+              className="w-full h-full group text-left rounded-2xl border border-line bg-white hover:shadow-md hover:border-orange-200 transition-all p-5 flex flex-col gap-3.5"
             >
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm" style={{ background: BRAND_GRAD }}>
@@ -120,19 +127,25 @@ export default function ConsoleProjects() {
               </div>
 
               <div className="flex flex-wrap gap-1.5">
-                {deriveStageBadges(p.id, bundles).map(badge => (
+                {shown.map(badge => (
                   <StageBadge key={badge.kind} badge={badge} />
                 ))}
+                {extra > 0 && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] text-ink-muted bg-canvas border border-line">
+                    +{extra}
+                  </span>
+                )}
               </div>
 
-              <div className="pt-3 border-t border-line text-[11px] text-ink-muted flex items-center justify-between">
+              <div className="mt-auto pt-3 border-t border-line text-[11px] text-ink-muted flex items-center justify-between">
                 <span className="inline-flex items-center gap-1"><Files size={11} />{p.document_count} 份</span>
                 <span className="inline-flex items-center gap-1"><Calendar size={11} />{p.kickoff_date || '未填立项'}</span>
               </div>
             </button>
             <DeleteProjectControl project={p} variant="card" />
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
