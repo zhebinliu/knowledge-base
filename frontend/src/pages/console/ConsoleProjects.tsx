@@ -1,34 +1,27 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { FolderKanban, Search, FileText, ClipboardList, Lightbulb, CheckCircle2, Circle, Loader2, Building2, Calendar, Files, Plus } from 'lucide-react'
-import { listProjects, listStageSummary, getProjectMeta, type Project, type StageStatusRow } from '../../api/client'
+import { FolderKanban, Search, CheckCircle2, Circle, Loader2, Building2, Calendar, Files, Plus } from 'lucide-react'
+import { listProjects, listStageSummary, getProjectMeta, type StageStatusRow } from '../../api/client'
 import ProjectFormModal from '../../components/ProjectFormModal'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
+import { deriveStageBadges, type DerivedBadge } from '../../lib/stageBadges'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
-// 2026-06-03:启动会 PPT 并入项目洞察阶段,列表卡 badge 仅保留两个核心阶段
-const STAGES = [
-  { kind: 'insight',       label: '项目洞察', icon: Lightbulb,     color: '#7C3AED' },
-  { kind: 'survey',        label: '需求调研', icon: ClipboardList, color: '#2563EB' },
-] as const
-
-function StageBadge({ project, kind, label, color, Icon, bundles }: {
-  project: Project; kind: string; label: string; color: string; Icon: typeof FileText; bundles: StageStatusRow[]
-}) {
-  const has = bundles.find(b => b.project_id === project.id && b.kind === kind && b.status === 'done')
-  const inflight = bundles.find(b => b.project_id === project.id && b.kind === kind && (b.status === 'pending' || b.status === 'generating'))
+function StageBadge({ badge }: { badge: DerivedBadge }) {
+  const { label, color, icon: Icon, status } = badge
+  const done = status === 'done', inflight = status === 'inflight'
   return (
     <div
       className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border ${
-        has ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-            : inflight ? 'bg-blue-50 border-blue-200 text-blue-700'
-            : 'bg-gray-50 border-line text-ink-muted'
+        done ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+             : inflight ? 'bg-blue-50 border-blue-200 text-blue-700'
+             : 'bg-gray-50 border-line text-ink-muted'
       }`}
-      title={`${label}：${has ? '已生成' : inflight ? '生成中' : '未开始'}`}
+      title={`${label}：${done ? '已生成' : inflight ? '生成中' : '未开始'}`}
     >
-      {has ? <CheckCircle2 size={10} /> : inflight ? <Loader2 size={10} className="animate-spin" /> : <Circle size={10} />}
+      {done ? <CheckCircle2 size={10} /> : inflight ? <Loader2 size={10} className="animate-spin" /> : <Circle size={10} />}
       <Icon size={10} style={{ color }} />
       {label}
     </div>
@@ -127,16 +120,8 @@ export default function ConsoleProjects() {
               </div>
 
               <div className="flex flex-wrap gap-1.5">
-                {STAGES.map(s => (
-                  <StageBadge
-                    key={s.kind}
-                    project={p}
-                    kind={s.kind}
-                    label={s.label}
-                    color={s.color}
-                    Icon={s.icon}
-                    bundles={bundles}
-                  />
+                {deriveStageBadges(p.id, bundles).map(badge => (
+                  <StageBadge key={badge.kind} badge={badge} />
                 ))}
               </div>
 

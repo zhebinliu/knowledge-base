@@ -12,33 +12,25 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Search, FileText, ClipboardList, Lightbulb,
-  CheckCircle2, Circle, Loader2, Building2, Calendar, Files, Plus, FolderKanban,
+  Search, CheckCircle2, Circle, Loader2, Building2, Calendar, Files, Plus, FolderKanban,
 } from 'lucide-react'
-import { listProjects, listStageSummary, getProjectMeta, type Project, type StageStatusRow } from '../../api/client'
+import { listProjects, listStageSummary, getProjectMeta, type StageStatusRow } from '../../api/client'
 import ProjectFormModal from '../../components/ProjectFormModal'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
 import GlowCard from '../components/GlowCard'
+import { deriveStageBadges, type DerivedBadge } from '../../lib/stageBadges'
 
-// 2026-06-03:启动会 PPT 并入项目洞察阶段,列表卡 badge 仅保留两个核心阶段
-const STAGES = [
-  { kind: 'insight',       label: '项目洞察', icon: Lightbulb,     color: '#A78BFA' },
-  { kind: 'survey',        label: '需求调研', icon: ClipboardList, color: '#2563EB' },
-] as const
-
-function StageBadge({ project, kind, label, color, Icon, bundles }: {
-  project: Project; kind: string; label: string; color: string; Icon: typeof FileText; bundles: StageStatusRow[]
-}) {
-  const has = bundles.find(b => b.project_id === project.id && b.kind === kind && b.status === 'done')
-  const inflight = bundles.find(b => b.project_id === project.id && b.kind === kind && (b.status === 'pending' || b.status === 'generating'))
-  const cls = has ? 'is-green' : inflight ? 'is-blue' : 'is-gray'
+function StageBadge({ badge }: { badge: DerivedBadge }) {
+  const { label, color, icon: Icon, status } = badge
+  const done = status === 'done', inflight = status === 'inflight'
+  const cls = done ? 'is-green' : inflight ? 'is-blue' : 'is-gray'
   return (
     <span
       className={`rd-badge ${cls}`}
-      title={`${label}:${has ? '已生成' : inflight ? '生成中' : '未开始'}`}
+      title={`${label}:${done ? '已生成' : inflight ? '生成中' : '未开始'}`}
       style={{ gap: 5 }}
     >
-      {has ? <CheckCircle2 size={9} /> : inflight ? <Loader2 size={9} className="animate-spin" /> : <Circle size={9} />}
+      {done ? <CheckCircle2 size={9} /> : inflight ? <Loader2 size={9} className="animate-spin" /> : <Circle size={9} />}
       <Icon size={9} style={{ color }} />
       {label}
     </span>
@@ -190,18 +182,10 @@ export default function NewConsoleProjects() {
                 </div>
               </div>
 
-              {/* Stage badges */}
+              {/* Stage badges — 生成了啥就显示啥(deriveStageBadges) */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-                {STAGES.map(s => (
-                  <StageBadge
-                    key={s.kind}
-                    project={p}
-                    kind={s.kind}
-                    label={s.label}
-                    color={s.color}
-                    Icon={s.icon}
-                    bundles={bundles}
-                  />
+                {deriveStageBadges(p.id, bundles).map(badge => (
+                  <StageBadge key={badge.kind} badge={badge} />
                 ))}
               </div>
 
