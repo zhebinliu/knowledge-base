@@ -22,4 +22,8 @@
 - [ ] T4 py_compile + 部署 + 验证(看日志修复计数 / 会议页流程图恢复)。
 
 ## 进展
-- T0 调研完成(见上)。范围限会议 process_flows(用户说「会议里」);design 文档的 stateDiagram 暂不纳入,同套 util 后续可复用。
+- T0 调研完成。范围限会议 process_flows;design 文档 stateDiagram 暂不纳入,util 后续可复用。
+- [x] T1/T1b/T2/T3/T4 全部完成。
+- [x] 踩坑:backend overlay clobber —— meeting_tasks.py / pipeline.py 有 meeting/backend 副本,COPY meeting/backend/ /app/ 覆盖,只改 backend/ 那份不上线。两份已同步(commit ce6acc2)。
+- [x] 部署 ce6acc2,prod 手动跑一次:scanned=28 fixed=9 repaired=26 split=4;再跑 fixed=0(幂等);beat 已注册 sweep_meeting_mermaid(每小时)。
+- 完成。
