@@ -203,43 +203,14 @@ _EMPTY_PROCESS_FLOWS = {"flows": [], "version": 1}
 
 
 def _normalize_mermaid(raw: str) -> str:
-    """去掉 LLM 可能包裹的围栏,确保以 flowchart/graph 开头。
+    """去围栏 + 修保留字节点 id + 修菱形括号错配。
 
-    2026-06-06:额外修复 Mermaid 保留字冲突——LLM 经常把 `end` 用作节点 ID
-    (如 `end([结束])` / `f --> end`),但 `end` 在 Mermaid 语法里是保留关键字
-    (subgraph 终止符),导致 Parse error。替换为 `node_end`。
-    同理处理其他可能冲突的保留字(subgraph / click / style / classDef / class)。
+    生成期归一化:统一委托给 `services.meeting.mermaid_repair.repair_mermaid`
+    (跟定期巡检任务共用同一套确定性修复逻辑,避免两处漂移)。
+    保留字修复(end→node_end 等)+ 菱形括号错配(`{文字]`→`{文字}`)都在那里。
     """
-    import re as _re
-    text = (raw or "").strip()
-    if text.startswith("```"):
-        lines = text.split("\n")
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-    if text.lower().startswith("mermaid"):
-        text = text.split("\n", 1)[-1].strip()
-
-    # 修复 Mermaid 保留字用作节点 ID 的问题:
-    # 匹配行首或空白后的保留字 ID(后跟括号/方括号/花括号,或行中被引用如 `--> end`)
-    _RESERVED = {"end", "subgraph", "click", "style", "classDef", "class", "direction"}
-    for word in _RESERVED:
-        safe = f"node_{word}"
-        # 场景 1:节点定义 — `end([结束])` / `end[步骤]` / `end{判断?}`
-        text = _re.sub(
-            rf'(?<!\w){_re.escape(word)}(\d*)([\(\[\{{])',
-            rf'{safe}\1\2',
-            text,
-        )
-        # 场景 2:连线引用 — `f --> end` / `f -->|是| end`
-        text = _re.sub(
-            rf'(-->|--)\s*(?:\|[^\|]*\|)?\s*{_re.escape(word)}(?=\s*$)',
-            rf'\1 {safe}',
-            text,
-        )
-    return text
+    from services.meeting.mermaid_repair import repair_mermaid
+    return repair_mermaid(raw)
 
 
 async def extract_process_flows(transcript: str) -> dict:

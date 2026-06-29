@@ -276,3 +276,52 @@ async def _finalize_recording_async(meeting_id: int):
 def finalize_recording_meeting(self, meeting_id: int):
     """半实时录音收尾:拼接整段音频 + 跑 AI pipeline。"""
     _run(_finalize_recording_async(meeting_id))
+
+
+# ── 流程图 mermaid 定期巡检 + 修复 ──────────────────────────────────────────
+async def _sweep_meeting_mermaid_async(limit: int | None = None) -> dict:
+    """扫描所有有 process_flows 的会议,确定性修复坏 mermaid(保留字/菱形括号/多图拆分)。
+
+    幂等:已修好的再跑不产生改动。纯字符串变换,不调 LLM。
+    """
+    from models import async_session_maker
+    from models.meeting import Meeting
+    from services.meeting.mermaid_repair import repair_process_flows
+    from sqlalchemy import select
+    from sqlalchemy.orm.attributes import flag_modified
+
+    scanned = fixed_meetings = repaired = split = 0
+    async with async_session_maker() as session:
+        stmt = select(Meeting).where(Meeting.process_flows.isnot(None))
+        if limit:
+            stmt = stmt.limit(limit)
+        meetings = (await session.execute(stmt)).scalars().all()
+        for m in meetings:
+            scanned += 1
+            pf = m.process_flows
+            if not pf:
+                continue
+            new_pf, st = repair_process_flows(pf)
+            if st["changed"]:
+                m.process_flows = new_pf
+                flag_modified(m, "process_flows")  # JSON 列:确保 ORM 标脏
+                fixed_meetings += 1
+                repaired += st["repaired"]
+                split += st["split"]
+                logger.info(
+                    "meeting_mermaid_repaired",
+                    meeting_id=m.id, repaired=st["repaired"], split=st["split"],
+                    flows_before=st["flows_before"], flows_after=st["flows_after"],
+                )
+        if fixed_meetings:
+            await session.commit()
+
+    result = {"scanned": scanned, "fixed_meetings": fixed_meetings, "repaired": repaired, "split": split}
+    logger.info("sweep_meeting_mermaid_done", **result)
+    return result
+
+
+@celery_app.task(name="sweep_meeting_mermaid", bind=True, max_retries=1, soft_time_limit=600, time_limit=900)
+def sweep_meeting_mermaid(self):
+    """定期巡检:修复会议流程图里渲染失败的 mermaid(beat 每小时触发,见 convert_task.beat_schedule)。"""
+    return _run(_sweep_meeting_mermaid_async())
