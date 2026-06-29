@@ -248,17 +248,19 @@ export default function ConsoleMeetingNew() {
               className="p-0.5 rounded text-ink-muted hover:text-rose-600 hover:bg-rose-50"><X size={14} /></button>
           </div>
         </div>
-        <div className="text-sm text-ink font-medium leading-snug">{a.title}</div>
-        {a.recommendation && (
-          <div className="text-[13px] text-ink-secondary mt-1 leading-snug whitespace-pre-wrap">
-            <span className="text-brand font-semibold">💡 建议:</span>{a.recommendation}
+        <div className="text-[12px] text-ink-muted leading-snug">{a.title}</div>
+        {a.question && (
+          <div className="text-sm text-ink font-medium leading-snug rounded-md bg-brand/5 border-l-2 border-brand px-2 py-1.5 mt-1">
+            <span className="text-brand">💬 这样确认:</span>{a.question}
           </div>
         )}
-        {a.question && (
-          <div className="text-[13px] text-ink-muted mt-1 leading-snug">💬 这样确认:{a.question}</div>
+        {a.recommendation && (
+          <div className="text-[12px] text-ink-secondary mt-1.5 leading-snug whitespace-pre-wrap">
+            <span className="text-ink-muted font-medium">💡 建议:</span>{a.recommendation}
+          </div>
         )}
         {a.source_quote && (
-          <div className="text-[12px] text-ink-muted mt-1 leading-snug border-l-2 border-line pl-2 italic">「{a.source_quote}」</div>
+          <div className="text-[12px] text-ink-muted mt-1.5 leading-snug border-l-2 border-line pl-2 italic">「{a.source_quote}」</div>
         )}
       </div>
     )
