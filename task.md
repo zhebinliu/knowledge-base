@@ -1,43 +1,29 @@
-# Task: 增强 MCP — 开放全站「读取项目资料 + 写/动作」能力(2026-06-25)
+# 任务:可视化拖拽流程图编辑器(B 方案)
 
-## 背景
-用户要把全站能力开放成 MCP,让用户读取自己项目的资料。现有 `backend/api/mcp.py` 已有 8 个只读工具 + 完整 per-user 项目隔离(地基好)。
-- 范围决策:**只读补全 + 写/动作**(用户 2026-06-25 确认)
-- 鉴权决策:**维持管理员授权**(api_enabled 仍由 admin 开,不改策略)
+目标:方案设计阶段文档里的 ```mermaid flowchart 块,支持 React Flow 可视化拖拽编辑(加/删节点、连线、改 label),保存时序列化回 mermaid 写回 markdown(PUT /content),不破坏现有 mermaid-in-markdown 数据模型与下游/引用。
 
-## 关键约束 / 复用点
-- 只动 `backend/api/mcp.py` + `backend/api/outputs.py`(两者都是主后端单副本,**非 overlay**,不用双改)
-- 新工具**复用现有逻辑**,不重复硬编码:
-  - kind 列表 ← `from api.outputs import KIND_TITLES`(根治 §6.8 第 4 处漂移)
-  - 生成触发 ← 抽 `enqueue_generation()` 共享给 HTTP 端点 + MCP
-  - 会议 DTO / ACL ← `from api.meeting import _meeting_dto, _requirement_dto, _load_meeting_owned`
-  - 智能建议 ← `from services.smart_advice import get_advice_only`(只读,不触发 LLM)
-- 写工具必须校 **write** 权限(LEARNING §10.1),不是 read
-- 后端改动 → 部署走 `deploy-prod`(UAT 共享后端)
+复用资产:`@xyflow/react` v12 已在依赖里(ProjectCanvas 用着)、`elkLayout.ts`(ELK 布局)、`OrthEdge`(正交连线)、后端 `PUT /content` 已支持 design 三 kind。
 
-## Block 1 — 修复 stale kind 同步(只读)
-- [x] mcp.py 顶部 `from api.outputs import KIND_TITLES`
-- [x] `get_project_status` 的 KINDS / KIND_LABELS 改为 KIND_TITLES 全 13 个
-- [x] `list_outputs` 的 `kind` 枚举改为 `list(KIND_TITLES)`
+## 边界
+- 只支持 mermaid `flowchart`/`graph` 类型;sequence/gantt/其他不接(检测到只给源码编辑)。
+- 一个文档可能多个 mermaid 块 —— 编辑器针对**单个块**操作,精确替换回原 fence。
+- 不追求 mermaid 全语法无损;支持子集(节点+形状+方向+连线+label+subgraph 尽量),其余降级保留原文。
 
-## Block 2 — 新增只读工具
-- [x] `get_document(doc_id)` — 文档全文 markdown(ACL: doc.project_id → read)
-- [x] `list_meetings(project)` — 项目下会议清单(id/title/status/时间)
-- [x] `get_meeting(meeting_id, include_transcript=false)` — 纪要+需求+业务流程+干系人(可选转写)
-- [x] `get_smart_advice(project)` — 项目智能建议(只读 cache,不触发生成)
+## 清单
+- [ ] T0 可行性 spike:从本项目 design 文档取真实 mermaid 块,验证 parse→{nodes,edges}→serialize→mermaid round-trip(不做 UI)。round-trip 不过关则回报、调整边界。
+- [ ] T1 mermaidFlow.ts:parse(mermaid)→{nodes,edges,direction};serialize(...)→mermaid。纯函数 + 单测。
+- [ ] T2 FlowEditor.tsx:React Flow 画布(拖拽/增删节点连线/改 label/方向)+ ELK 自动布局 + 保存回调。
+- [ ] T3 接入读视图:ReportMarkdown 的 MermaidBlock 每张图加「可视化编辑」入口 → 开 FlowEditor → 存回替换该 fence → PUT /content。
+- [ ] T4 tsc + 本地构建 + 部署 + 端到端验证(改图→存→读视图重渲染)。
 
-## Block 3 — 新增写/动作工具(校 write 权限)
-- [x] outputs.py 抽 `async def enqueue_generation(*, user, project_id, kind, session) -> CuratedBundle`,原 HTTP 端点改为调用它
-- [x] `generate_output(project, kind)` — 触发任意 13 kind 生成
-- [x] `create_meeting_from_text(transcript, title?, project?)` — 建会议 + 自动 process
-
-## Block 4 — server 元数据 / 鉴权收尾
-- [x] `_resolve_project_for(user, ref, level="read")` 加 level 参数,写工具传 "write"
-- [x] TOOLS 描述加「【读】/【写】」前缀
-- [x] `initialize` instructions 重写:分读/写两组 + 写需 write 权限
-- [x] tools/call dispatch 接上全部新 handler
-
-## 验收
-- [x] `python -m py_compile backend/api/mcp.py backend/api/outputs.py` 通过
-- [x] ApiDocs 公开页同步全部 14 工具(读/写分组),frontend tsc 仅报无关缺包错(@xyflow/elkjs)
-- [ ] 部署 deploy-prod 后,MCP key 调 tools/list 看到全部工具;generate_output 能触发生成(待部署验证)
+## 进展
+- 选定 B 方案(用户 2026-06-29)。
+- [x] T0 done:真实数据 28 块 mermaid,**27 是 stateDiagram-v2、1 是 flowchart**。parse→serialize→parse round-trip **27/27 通过、0 失败**。
+  - 重大结论:目标图表是**状态机(stateDiagram-v2)**,不是 flowchart。语法极干净:305/333 行是 `from --> to: label`,无 state 别名/note/fork/direction。
+  - 编辑器主攻 stateDiagram-v2;flowchart 暂走源码编辑。
+- [x] T1 flow/stateDiagram.ts — parse/serialize(start/end 映射版 round-trip 27/27 再验证通过)。
+- [x] T1b flow/replaceMermaidBlock.ts — 按归一化源码定位并替换 md 里的图块。
+- [x] T2 flow/StateFlowEditor.tsx — React Flow 编辑器(拖拽/增删/连线/改 label/ELK 自动布局/保存序列化回 mermaid)。
+- [x] T3 接入:flow/mermaidEditContext.ts + ReportMarkdown.MermaidBlock 悬浮「可视化编辑」按钮(仅 stateDiagram + 有 Provider 时);BlueprintDesignWorkspace 注入 Provider + 编辑器 modal + 存回 PUT /content。
+- [x] T4a tsc 通过、vite build 通过。
+- [ ] T4b 部署 + 端到端验证(改图→存→读视图重渲染)。

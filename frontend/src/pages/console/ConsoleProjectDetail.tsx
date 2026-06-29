@@ -18,7 +18,7 @@ import SmartAdviceBanner, { smartAdviceQueryKey } from '../../components/console
 import {
   getProject, updateProject, generateCustomerProfile, generateOutput,
   listProjectDocuments, getDocumentMarkdown, updateDocumentMarkdown, listOutputs, listLatestByKind, downloadOutputUrl, viewOutputUrl,
-  getOutput,
+  getOutput, saveOutputContent,
   getBundleShare, createBundleShare, revokeBundleShare, fullShareUrl, PUBLIC_SHAREABLE_KINDS,
   getProjectMeta, TOKEN_STORAGE_KEY,
   getStageFlow, getProjectTodos,
@@ -30,6 +30,9 @@ import BriefDrawer from '../../components/BriefDrawer'
 import MarkdownView from '../../components/MarkdownView'
 import CitedReportView from '../../components/console/CitedReportView'
 import MarkdownEditor from '../../components/console/MarkdownEditor'
+import StateFlowEditor from '../../components/console/flow/StateFlowEditor'
+import { MermaidEditContext } from '../../components/console/flow/mermaidEditContext'
+import { replaceMermaidBlock } from '../../components/console/flow/replaceMermaidBlock'
 import IndustryCascadePicker from '../../components/IndustryCascadePicker'
 import AgenticGapFiller from '../../components/AgenticGapFiller'
 import DocChecklist from '../../components/console/DocChecklist'
@@ -983,6 +986,8 @@ function BlueprintDesignWorkspace({
   const [error, setError] = useState<string | null>(null)
   const [overrideModalOpen, setOverrideModalOpen] = useState(false)
   const [editing, setEditing] = useState(false)  // 在线编辑态 — 整区切 MarkdownEditor
+  const [flowEditSrc, setFlowEditSrc] = useState<string | null>(null)  // 可视化流程图编辑:当前在编辑的 mermaid 块源码
+  const [flowEditErr, setFlowEditErr] = useState<string | null>(null)
   const qc = useQueryClient()
   const genMut = useMutation({
     mutationFn: () => generateOutput({ kind, project_id: projectId }),
@@ -1192,11 +1197,37 @@ function BlueprintDesignWorkspace({
         </button>
       </div>
       {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
+      {flowEditErr && <p className="text-xs text-red-600 mb-3">{flowEditErr}</p>}
       <div className="flex-1 min-h-0 overflow-auto">
         {md
-          ? <CitedReportView content={md} provenance={provenance} onCitationClick={handleCitationClick} />
+          ? (
+            <MermaidEditContext.Provider value={{ requestEdit: (code) => { setFlowEditErr(null); setFlowEditSrc(code) } }}>
+              <CitedReportView content={md} provenance={provenance} onCitationClick={handleCitationClick} />
+            </MermaidEditContext.Provider>
+          )
           : <p className="text-xs text-gray-400">报告内容为空 — 试一下「重新生成」?</p>}
       </div>
+
+      {/* 可视化流程图编辑器 — 保存后把新 mermaid 替换回原图块,PUT /content 覆盖 */}
+      {flowEditSrc && activeBundle?.id && (
+        <StateFlowEditor
+          source={flowEditSrc}
+          title={`可视化编辑流程图 · ${displayName}`}
+          onClose={() => setFlowEditSrc(null)}
+          onSave={async (newMermaid) => {
+            const next = replaceMermaidBlock(md, flowEditSrc, newMermaid)
+            if (next == null) {
+              setFlowEditErr('没能在文档里定位到这张图(可能内容已变),请刷新后重试')
+              setFlowEditSrc(null)
+              return
+            }
+            await saveOutputContent(activeBundle.id, next)
+            qc.invalidateQueries({ queryKey: ['output-detail', activeBundle.id] })
+            onRefetch()
+            setFlowEditSrc(null)
+          }}
+        />
+      )}
 
       {/* 人工修订上传 Modal — 上传 .md / .docx / 粘贴文本覆盖 content_md */}
       {canOverride && activeBundle?.id && (

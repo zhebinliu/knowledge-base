@@ -17,7 +17,10 @@ import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import mermaid from 'mermaid'
 import elkLayouts from '@mermaid-js/layout-elk'
+import { Pencil } from 'lucide-react'
 import { type ProvenanceEntry } from '../../api/client'
+import { useMermaidEdit } from '../console/flow/mermaidEditContext'
+import { isStateDiagram } from '../console/flow/stateDiagram'
 
 // mermaid 全局初始化(模块级,只跑一次):
 // - ELK 布局引擎(替代默认 dagre)— 折线连接质量明显更高,密集分叉/汇聚不绕路、不穿节点,接近 Lucid。
@@ -159,6 +162,7 @@ export function MermaidBlock({ code }: { code: string }) {
   const [svg, setSvg] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
   const [lightboxOpen, setLightboxOpen] = useState(false)
+  const mermaidEdit = useMermaidEdit()
 
   const cleaned = code
     .split('\n')
@@ -212,6 +216,8 @@ export function MermaidBlock({ code }: { code: string }) {
     )
   }
   if (!svg) return <pre className="text-xs text-gray-400 bg-gray-50 p-3 rounded my-3">渲染图表中…</pre>
+  // 仅在有 Provider(可编辑工作区)且图是 stateDiagram-v2 时,露出「可视化编辑」入口
+  const canVisualEdit = !!mermaidEdit && isStateDiagram(cleaned)
   return (
     <>
       <div
@@ -219,8 +225,18 @@ export function MermaidBlock({ code }: { code: string }) {
         style={{ boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.04)' }}
         onClick={() => setLightboxOpen(true)}
         title="点击查看大图(滚轮缩放 / 拖拽移动 / ESC 关闭)"
-        dangerouslySetInnerHTML={{ __html: svg }}
-      />
+      >
+        {canVisualEdit && (
+          <button
+            onClick={(e) => { e.stopPropagation(); mermaidEdit!.requestEdit(cleaned) }}
+            className="absolute top-2 right-2 z-10 inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md border border-orange-200 bg-white/90 text-orange-700 hover:bg-orange-50 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+            title="可视化拖拽编辑这张流程图"
+          >
+            <Pencil size={11} /> 可视化编辑
+          </button>
+        )}
+        <div dangerouslySetInnerHTML={{ __html: svg }} />
+      </div>
       {lightboxOpen && (
         <MermaidLightbox svg={svg} onClose={() => setLightboxOpen(false)} />
       )}
