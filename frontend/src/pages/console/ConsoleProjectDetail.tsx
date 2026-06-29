@@ -982,6 +982,8 @@ function BlueprintDesignWorkspace({
 }) {
   const [error, setError] = useState<string | null>(null)
   const [overrideModalOpen, setOverrideModalOpen] = useState(false)
+  const [editing, setEditing] = useState(false)  // 在线编辑态 — 整区切 MarkdownEditor
+  const qc = useQueryClient()
   const genMut = useMutation({
     mutationFn: () => generateOutput({ kind, project_id: projectId }),
     onSuccess: () => { onRefetch(); setError(null) },
@@ -1128,6 +1130,25 @@ function BlueprintDesignWorkspace({
     )
   }
 
+  // 在线编辑态 — 整区切到 MarkdownEditor(Tiptap),保存走 PUT /content 覆盖式
+  if (editing && md && activeBundle) {
+    return (
+      <div className="flex-1 min-h-0 flex flex-col bg-white overflow-hidden">
+        <MarkdownEditor
+          bundle={activeBundle}
+          initialContent={md}
+          onClose={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false)
+            // MarkdownEditor 默认只 invalidate ['output', id];本工作区读的是 ['output-detail', id],要手动刷
+            qc.invalidateQueries({ queryKey: ['output-detail', activeBundle.id] })
+            onRefetch()
+          }}
+        />
+      </div>
+    )
+  }
+
   // 完成 — 跟项目洞察一致用 CitedReportView 渲染(带引用 chips)
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-white px-8 pt-5 pb-8 overflow-hidden">
@@ -1140,10 +1161,20 @@ function BlueprintDesignWorkspace({
             <CheckCircle2 size={10} /> 已生成
           </span>
         )}
+        {isDone && !!md && (
+          <button
+            onClick={() => setEditing(true)}
+            className="ml-auto inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs border border-gray-200 text-gray-600 hover:text-orange-600 hover:border-orange-200 transition-colors"
+            title="在线编辑这份交付物 markdown(所见即所得,覆盖式保存)"
+          >
+            <Pencil size={12} />
+            在线编辑
+          </button>
+        )}
         {canOverride && isDone && (
           <button
             onClick={() => setOverrideModalOpen(true)}
-            className="ml-auto inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs border border-gray-200 text-gray-600 hover:text-orange-600 hover:border-orange-200 transition-colors"
+            className={`${isDone && !!md ? '' : 'ml-auto'} inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs border border-gray-200 text-gray-600 hover:text-orange-600 hover:border-orange-200 transition-colors`}
             title="上传你修订后的版本(.md / .docx / 粘贴),覆盖当前内容。下游产物再生成时自动以修订版作为依据。"
           >
             <Upload size={12} />
@@ -1153,7 +1184,7 @@ function BlueprintDesignWorkspace({
         <button
           onClick={() => genMut.mutate()}
           disabled={genMut.isPending}
-          className={`${canOverride && isDone ? '' : 'ml-auto'} inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs border border-gray-200 text-gray-600 hover:text-orange-600 hover:border-orange-200 transition-colors disabled:opacity-50`}
+          className={`${(isDone && !!md) || (canOverride && isDone) ? '' : 'ml-auto'} inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs border border-gray-200 text-gray-600 hover:text-orange-600 hover:border-orange-200 transition-colors disabled:opacity-50`}
           title="基于最新资料重新生成"
         >
           {genMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <RotateCw size={12} />}
