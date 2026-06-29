@@ -106,12 +106,13 @@ def _docx_zip_fallback(content: bytes) -> str:
                 cur.append(elem.text)
         if cur:
             paras.append("".join(cur).strip())
-        return "\n".join(p for p in paras if p)
+        # 段落之间用空行分隔 —— markdown/GFM 单换行会被吃成空格,必须 \n\n 才成段
+        return "\n\n".join(p for p in paras if p)
     except ET.ParseError:
         # XML 也炸了 — 用正则硬抽 <w:t>...</w:t>
         text = xml_bytes.decode("utf-8", errors="replace")
         chunks = re.findall(r'<w:t[^>]*>([^<]*)</w:t>', text)
-        return "\n".join(c for c in chunks if c.strip())
+        return "\n\n".join(c for c in chunks if c.strip())
 
 
 def extract_text_from_docx(content: bytes) -> str:
@@ -149,6 +150,118 @@ def extract_text_from_docx(content: bytes) -> str:
             logger.warning("docx_zip_fallback_also_failed", err=str(fb_err)[:120])
         # 兜底也失败 → 抛原异常,让 task retry / 用户看错误
         raise
+
+
+def _md_escape_cell(text: str) -> str:
+    """GFM 表格单元格转义:竖线 → \\|,换行 → 空格(单元格内不能有真换行)。"""
+    return (text or "").replace("\\", "\\\\").replace("|", "\\|").replace("\n", " ").strip()
+
+
+def _docx_heading_level(style_name: str) -> int | None:
+    """从段落 style 名推断标题级别;非标题返回 None。
+
+    覆盖英文 "Heading 1" / "Title" 和中文 WPS/Office 的 "标题 1" / "标题"。
+    """
+    s = (style_name or "").strip()
+    if not s:
+        return None
+    if s in ("Title", "标题"):
+        return 1
+    m = re.match(r"^(?:Heading|标题)\s*(\d+)$", s)
+    if m:
+        return min(int(m.group(1)), 6)
+    return None
+
+
+def docx_to_markdown(content: bytes) -> str:
+    """结构化 docx → Markdown(确定性,不走 LLM)。
+
+    跟 `extract_text_from_docx`(拍平纯文本)不同,本函数按文档**正文顺序**遍历
+    段落与表格,产出可直接渲染的 markdown:
+      - 标题样式(Heading N / 标题 N / Title)→ `#` … `######`
+      - 列表样式(List Bullet / List Number / 含 "List")→ `- ` / `1. `
+      - 普通段落 → 用空行分隔(否则 GFM 把单换行吃成空格,挤成一坨)
+      - 表格 → 标准 GFM 表(首行表头 + `---` 分隔行,单元格转义竖线/换行)
+
+    用于"上传修订版"(markdown-override)路径:用户传的 .docx 直接当 bundle.content_md
+    存,不再像旧实现那样拍成单换行纯文本导致排版崩坏。
+
+    解析失败(WPS/Pages 异常 manifest 等)→ fallback 到 zip 直读(段落已 \\n\\n 分隔)。
+    """
+    from docx import Document
+    from docx.document import Document as _DocClass
+    from docx.oxml.table import CT_Tbl
+    from docx.oxml.text.paragraph import CT_P
+    from docx.table import Table, _Cell
+    from docx.text.paragraph import Paragraph
+
+    def _iter_block_items(parent):
+        """按正文顺序产出 Paragraph / Table(python-docx 默认把两者拆成两个列表)。"""
+        if isinstance(parent, _DocClass):
+            parent_elm = parent.element.body
+        elif isinstance(parent, _Cell):
+            parent_elm = parent._tc
+        else:
+            return
+        for child in parent_elm.iterchildren():
+            if isinstance(child, CT_P):
+                yield Paragraph(child, parent)
+            elif isinstance(child, CT_Tbl):
+                yield Table(child, parent)
+
+    def _table_to_md(table) -> str:
+        rows = []
+        for row in table.rows:
+            rows.append([_md_escape_cell(c.text) for c in row.cells])
+        if not rows:
+            return ""
+        ncol = max(len(r) for r in rows)
+        rows = [r + [""] * (ncol - len(r)) for r in rows]
+        header = rows[0]
+        # 表头全空时补占位,保证是合法 GFM 表
+        if not any(h.strip() for h in header):
+            header = [f"列{i+1}" for i in range(ncol)]
+        lines = [
+            "| " + " | ".join(header) + " |",
+            "| " + " | ".join(["---"] * ncol) + " |",
+        ]
+        for r in rows[1:]:
+            lines.append("| " + " | ".join(r) + " |")
+        return "\n".join(lines)
+
+    try:
+        doc = Document(io.BytesIO(content))
+    except Exception as e:
+        logger.warning("docx_md_strict_parse_failed_fallback", err=str(e)[:120], exc_type=type(e).__name__)
+        return _docx_zip_fallback(content)
+
+    blocks: list[str] = []
+    for item in _iter_block_items(doc):
+        if isinstance(item, Table):
+            tbl = _table_to_md(item)
+            if tbl:
+                blocks.append(tbl)
+            continue
+        # Paragraph
+        text = item.text.strip()
+        if not text:
+            continue
+        style = getattr(getattr(item, "style", None), "name", "") or ""
+        level = _docx_heading_level(style)
+        if level:
+            blocks.append("#" * level + " " + text)
+            continue
+        low = style.lower()
+        if "bullet" in low:
+            blocks.append("- " + text)
+        elif "number" in low:
+            blocks.append("1. " + text)
+        elif "list" in low:
+            blocks.append("- " + text)
+        else:
+            blocks.append(text)
+
+    return "\n\n".join(blocks).strip()
 
 
 def extract_text_from_pdf(content: bytes) -> str:

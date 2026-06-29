@@ -1178,8 +1178,8 @@ async def override_bundle_markdown(
     - **multipart/form-data**:`file` 字段,接 .md / .markdown / .txt(UTF-8)/ .docx
     - **application/json**:`{"content_md": "..."}` 粘贴文本
 
-    .docx 走 `extract_text_from_docx`(跟 KB 文档上传同一套),保留段落 + 表格纯文本;
-    不做格式 / 图片 / mermaid 还原 — 用户若要保留这些,应该直接传 .md。
+    .docx 走 `docx_to_markdown`(结构化转换,确定性不走 LLM):标题样式→`#`、段落空行
+    分隔、列表→`-`/`1.`、表格→标准 GFM 表。不做图片 / mermaid 还原 —— 要保留这些直接传 .md。
 
     权限:created_by 或 admin 或 project write 权限。
     白名单 kind:`research_report` / `blueprint_design` / `object_field_layout` / `process_setup`。
@@ -1227,10 +1227,12 @@ async def override_bundle_markdown(
                 raise HTTPException(400, f"文件不是 UTF-8 编码:{e}")
             source = source_label or "upload-md"
         elif filename.endswith(".docx"):
-            # 复用 KB 文档上传同一套 docx → 纯文本(段落 + 表格)
+            # 结构化 docx → markdown(标题/段落空行/GFM 表),确定性不走 LLM。
+            # 不用旧的 extract_text_from_docx(拍平单换行纯文本)—— 那个会被 GFM
+            # 把单换行吃成空格、散落的 `|` 当垃圾,排版崩成一坨。
             try:
-                from agents.converter_agent import extract_text_from_docx
-                md = extract_text_from_docx(raw)
+                from agents.converter_agent import docx_to_markdown
+                md = docx_to_markdown(raw)
             except Exception as e:
                 logger.warning("override_docx_parse_failed", bundle_id=bundle_id, error=str(e)[:200])
                 raise HTTPException(400, f"无法解析 docx 文件:{str(e)[:120]}")
