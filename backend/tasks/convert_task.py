@@ -56,6 +56,10 @@ celery_app.conf.beat_schedule = {
         "task": "recover_stale_bundles",
         "schedule": 300.0,  # 每 5 分钟:卡死的 bundle 自动重启(超上限才标 failed)
     },
+    "sweep-meeting-mermaid": {
+        "task": "sweep_meeting_mermaid",
+        "schedule": 3600.0,  # 每小时:确定性修复会议流程图里渲染失败的 mermaid(幂等)
+    },
 }
 
 
