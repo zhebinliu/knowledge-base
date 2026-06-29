@@ -277,9 +277,10 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
           </div>
         )}
         {a.recommendation && (
-          <div className="text-[12px] text-ink-secondary mt-1.5 leading-snug whitespace-pre-wrap">
-            <span className="text-ink-muted font-medium">💡 建议:</span>{a.recommendation}
-          </div>
+          <details className="mt-1.5">
+            <summary className="text-[12px] text-ink-muted font-medium cursor-pointer hover:text-ink select-none marker:text-ink-muted">💡 建议</summary>
+            <div className="text-[12px] text-ink-secondary mt-1 leading-snug whitespace-pre-wrap">{a.recommendation}</div>
+          </details>
         )}
         {a.source_quote && (
           <div className="text-[12px] text-ink-muted mt-1.5 leading-snug border-l-2 border-line pl-2 italic">「{a.source_quote}」</div>
