@@ -104,6 +104,35 @@ def _meeting_dto(m: Meeting, project_name: Optional[str] = None) -> dict:
     }
 
 
+# 列表用轻量 DTO:去掉重字段(illustrations 内嵌 base64 图单条可达 MB 级、转写/流程/干系人图)。
+# 保留 meeting_minutes —— 项目会议抽屉要用它的 action_items 数量。配合 list 查询 defer 这些列。
+def _meeting_list_dto(m: Meeting, project_name: Optional[str] = None) -> dict:
+    return {
+        "id": m.id,
+        "title": m.title,
+        "owner_id": m.owner_id,
+        "project_id": m.project_id,
+        "project_name": project_name,
+        "start_time": m.start_time,
+        "end_time": m.end_time,
+        "created_at": m.created_at,
+        "meeting_minutes": m.meeting_minutes,
+        "status": m.status,
+        "asr_engine": m.asr_engine,
+        "total_chunks": m.total_chunks,
+        "done_chunks": m.done_chunks,
+        "audio_object_key": m.audio_object_key,
+        "feishu_url": m.feishu_url,
+        "bitable_app_token": m.bitable_app_token,
+        "kb_doc_id": m.kb_doc_id,
+        "kb_url": m.kb_url,
+        "kb_synced_at": m.kb_synced_at,
+        "stakeholder_kb_doc_id": m.stakeholder_kb_doc_id,
+        "stakeholder_kb_url": m.stakeholder_kb_url,
+        "stakeholder_kb_synced_at": m.stakeholder_kb_synced_at,
+    }
+
+
 def _requirement_dto(r: Requirement) -> dict:
     return {
         "id": r.id,
@@ -242,7 +271,13 @@ async def list_meetings(
     可选过滤:?project_id=<id> 只返回挂在该项目下的会议(配合项目详情页用)。
     非 admin 用户传无权访问的 project_id 时,会被现有可见性过滤掉,返回空数组。
     """
-    stmt = select(Meeting).order_by(Meeting.created_at.desc())
+    from sqlalchemy.orm import defer
+    # 列表不需要重字段(illustrations 可内嵌 base64 图,单条几 MB)→ defer 掉,既不从 DB 加载也不下发
+    stmt = select(Meeting).options(
+        defer(Meeting.raw_transcript), defer(Meeting.polished_transcript),
+        defer(Meeting.illustrations), defer(Meeting.edited_minutes),
+        defer(Meeting.process_flows), defer(Meeting.stakeholder_map),
+    ).order_by(Meeting.created_at.desc())
     if project_id:
         stmt = stmt.where(Meeting.project_id == project_id)
     if not user.is_admin:
@@ -278,7 +313,7 @@ async def list_meetings(
         )).all()
         project_names = {p.id: p.name for p in projects}
 
-    return [_meeting_dto(m, project_names.get(m.project_id)) for m in rows]
+    return [_meeting_list_dto(m, project_names.get(m.project_id)) for m in rows]
 
 
 @router.get("/illustration-styles")
