@@ -411,14 +411,8 @@ export default function ConsoleMeetingNew() {
             {title && <span className="text-ink-muted truncate">· {title}</span>}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setBoardOpen((o) => !o)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium inline-flex items-center gap-1.5 border transition-colors ${boardOpen ? 'border-brand text-brand bg-brand/5' : 'border-line text-ink-secondary hover:bg-canvas'}`}
-            >
-              <ClipboardList size={15} /> 会议看板{boardCount ? ` (${boardCount})` : ''}
-              {adviceLoading && <Loader2 size={12} className="animate-spin" />}
-            </button>
+            {/* 会议看板开关由「右缘把手」承担(下方 boardOpen=false 时显示),
+                顶部不再放重复按钮 —— 抽屉式 UX 用边缘把手更清爽。 */}
             <button
               type="button"
               onClick={() => { if (live.recording) live.stop() }}
@@ -513,7 +507,7 @@ export default function ConsoleMeetingNew() {
             </div>
           </div>
 
-          {/* 收起时:右缘把手,点开看板 */}
+          {/* 收起时:右缘把手,点开看板(顶栏不再放重复按钮,这是唯一开看板入口) */}
           {!boardOpen && (
             <button
               type="button"
@@ -521,6 +515,7 @@ export default function ConsoleMeetingNew() {
               className="absolute right-0 top-6 z-10 inline-flex items-center gap-1 pl-2 pr-3 py-2 rounded-l-lg bg-white border border-r-0 border-line shadow-md text-[12px] font-medium text-ink-secondary hover:text-brand"
             >
               <ChevronLeft size={14} /> 看板{boardCount ? ` ${boardCount}` : ''}
+              {adviceLoading && <Loader2 size={11} className="animate-spin" />}
             </button>
           )}
         </div>
