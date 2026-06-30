@@ -2411,7 +2411,7 @@ export const finalizeRecording = async (
 }
 
 // ── 现场调研实时副驾(2026-06-22) ──────────────────────────────────────────
-export type LiveAdviceCategory = 'clarification' | 'ambiguity' | 'gap' | 'industry'
+export type LiveAdviceCategory = 'clarification' | 'ambiguity' | 'gap' | 'industry' | 'consensus'
 export interface LiveAdviceItem {
   id: number
   category: LiveAdviceCategory
@@ -2425,11 +2425,14 @@ export interface LiveAdviceItem {
   ltc_module: string | null
   priority: 'high' | 'medium' | 'low'
   status: string
+  from_meeting_id?: number             // carryover 项:来源会议
+  from_meeting_title?: string | null
 }
 export interface LiveAdviceResponse {
   advice: LiveAdviceItem[]
   count: number
   resolved_advice?: LiveAdviceItem[]   // include_resolved 时返回(详情页已完成成果区)
+  carryover?: LiveAdviceItem[]         // 同项目其它会议遗留的「待定」项(本次带出来问)
   model?: string
   added?: number
   resolved?: number
@@ -2456,6 +2459,11 @@ export const dismissLiveAdvice = async (meetingId: number, adviceId: number): Pr
 /** 标记一条建议为已完成(成果)→ resolved。 */
 export const resolveLiveAdvice = async (meetingId: number, adviceId: number): Promise<{ ok: boolean }> => {
   const { data } = await api.post(`/meeting/${meetingId}/live-advice/${adviceId}/resolve`)
+  return data
+}
+/** 标记一条建议为「待定」→ pending(下次同项目调研自动带出)。 */
+export const pendLiveAdvice = async (meetingId: number, adviceId: number): Promise<{ ok: boolean }> => {
+  const { data } = await api.post(`/meeting/${meetingId}/live-advice/${adviceId}/pend`)
   return data
 }
 

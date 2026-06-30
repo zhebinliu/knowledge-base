@@ -24,7 +24,7 @@ from prompts.meeting import LIVE_ADVICE_SYSTEM, LIVE_ADVICE_USER
 
 logger = structlog.get_logger()
 
-_CATEGORIES = {"clarification", "ambiguity", "gap", "industry"}
+_CATEGORIES = {"clarification", "ambiguity", "gap", "industry", "consensus"}
 _PRIORITIES = {"high", "medium", "low"}
 _PARSE_FAIL = object()
 _MIN_TRANSCRIPT_CHARS = 40   # 转写太短没意义
@@ -122,7 +122,7 @@ def _quote_grounded(quote: str, norm_transcript: str) -> bool:
     return False
 
 
-_CAT_LABEL = {"clarification": "需明确", "ambiguity": "歧义", "gap": "遗漏", "industry": "行业"}
+_CAT_LABEL = {"clarification": "需明确", "ambiguity": "歧义", "gap": "遗漏", "industry": "行业", "consensus": "共识"}
 
 
 def _serialize(items: list[MeetingLiveAdvice]) -> list[dict]:
@@ -147,6 +147,7 @@ async def get_live_advice(meeting_id: int, include_resolved: bool = False) -> di
     """只读:返回当前 open 建议,不跑 LLM(前端轮询用)。
     include_resolved=True 时附带 resolved_advice(已完成成果清单,详情页复盘用)。"""
     async with async_session_maker() as session:
+        meeting = await session.get(Meeting, meeting_id)
         items = await _open_advice(session, meeting_id)
         out = {"advice": _serialize(items), "count": len(items)}
         if include_resolved:
@@ -156,6 +157,7 @@ async def get_live_advice(meeting_id: int, include_resolved: bool = False) -> di
                 .order_by(MeetingLiveAdvice.source_ts, MeetingLiveAdvice.id)  # PG 默认 NULLS LAST
             )).scalars().all()
             out["resolved_advice"] = _serialize(list(rows))
+        out["carryover"] = await _carryover_pending(session, meeting_id, meeting.project_id if meeting else None)
     return out
 
 
@@ -181,6 +183,41 @@ async def resolve_advice(meeting_id: int, advice_id: int) -> bool:
     return await _set_status(meeting_id, advice_id, "resolved")
 
 
+async def pend_advice(meeting_id: int, advice_id: int) -> bool:
+    """顾问把一条建议标为「待定」—— 存着,下次同项目调研自动带出来问。"""
+    async with async_session_maker() as session:
+        row = await session.get(MeetingLiveAdvice, advice_id)
+        if not row or row.meeting_id != meeting_id:
+            return False
+        row.status = "pending"
+        row.resolved_by_user = True
+        await session.commit()
+    return True
+
+
+async def _carryover_pending(session, meeting_id: int, project_id) -> list[dict]:
+    """同项目【其它】会议遗留的「待定」项 —— 本次调研带出来继续问。附来源会议标题。"""
+    if not project_id:
+        return []
+    rows = (await session.execute(
+        select(MeetingLiveAdvice, Meeting.title)
+        .join(Meeting, MeetingLiveAdvice.meeting_id == Meeting.id)
+        .where(
+            Meeting.project_id == project_id,
+            MeetingLiveAdvice.meeting_id != meeting_id,
+            MeetingLiveAdvice.status == "pending",
+        )
+        .order_by(MeetingLiveAdvice.id)
+    )).all()
+    out = []
+    for adv, mtitle in rows:
+        d = _serialize([adv])[0]
+        d["from_meeting_id"] = adv.meeting_id
+        d["from_meeting_title"] = mtitle
+        out.append(d)
+    return out
+
+
 async def generate_live_advice(meeting_id: int) -> dict:
     """跑一轮分析:出新增建议 + 标记已澄清,返回当前所有 open 建议。"""
     async with async_session_maker() as session:
@@ -188,12 +225,14 @@ async def generate_live_advice(meeting_id: int) -> dict:
         if not meeting:
             return {"advice": [], "count": 0, "error": "meeting_not_found"}
         transcript = (meeting.raw_transcript or "").strip()
-        project = await session.get(Project, meeting.project_id) if meeting.project_id else None
+        project_id = meeting.project_id
+        project = await session.get(Project, project_id) if project_id else None
         existing = await _open_advice(session, meeting_id)
         max_run = max((a.run_seq for a in existing), default=0)
+        carryover = await _carryover_pending(session, meeting_id, project_id)
 
     if len(transcript) < _MIN_TRANSCRIPT_CHARS:
-        return {"advice": _serialize(existing), "count": len(existing), "note": "transcript_too_short"}
+        return {"advice": _serialize(existing), "count": len(existing), "carryover": carryover, "note": "transcript_too_short"}
 
     existing_brief = "\n".join(f"[{a.id}] ({a.category}) {a.title}" for a in existing) or "(暂无)"
 
@@ -209,17 +248,17 @@ async def generate_live_advice(meeting_id: int) -> dict:
     try:
         content, model = await model_router.chat_with_routing(
             task="meeting_live_advice", messages=messages,
-            temperature=0.3, max_tokens=8000,  # 方案要列出具体规则,输出较长
+            temperature=0.3, max_tokens=16000,  # 方案要列出具体规则,输出较长
             response_format={"type": "json_object"},
         )
     except Exception as e:
         logger.exception("live_advice_llm_failed", meeting_id=meeting_id, error=str(e)[:200])
-        return {"advice": _serialize(existing), "count": len(existing), "error": "llm_failed"}
+        return {"advice": _serialize(existing), "count": len(existing), "carryover": carryover, "error": "llm_failed"}
 
     parsed = loads_lenient(content, _PARSE_FAIL)
     if parsed is _PARSE_FAIL or not isinstance(parsed, dict):
         logger.warning("live_advice_parse_failed", meeting_id=meeting_id, raw=(content or "")[:200])
-        return {"advice": _serialize(existing), "count": len(existing), "error": "parse_failed"}
+        return {"advice": _serialize(existing), "count": len(existing), "carryover": carryover, "error": "parse_failed"}
 
     new_items = parsed.get("new_advice") or []
     resolved_ids = parsed.get("resolved_ids") or []
@@ -281,5 +320,5 @@ async def generate_live_advice(meeting_id: int) -> dict:
     logger.info("live_advice_done", meeting_id=meeting_id, model=model,
                 added=added, dropped_ungrounded=dropped_ungrounded,
                 resolved=len(resolved_ids), open_total=len(items), run_seq=run_seq)
-    return {"advice": _serialize(items), "count": len(items), "model": model,
+    return {"advice": _serialize(items), "count": len(items), "model": model, "carryover": carryover,
             "added": added, "dropped_ungrounded": dropped_ungrounded, "resolved": len(resolved_ids)}

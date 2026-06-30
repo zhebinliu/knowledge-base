@@ -1025,6 +1025,21 @@ async def resolve_live_advice(
     return {"ok": True}
 
 
+@router.post("/{meeting_id}/live-advice/{advice_id}/pend", status_code=200)
+async def pend_live_advice(
+    meeting_id: int,
+    advice_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """顾问把一条建议标为「待定」—— 存着,下次同项目调研自动带出来问。"""
+    await _load_meeting_owned(meeting_id, session, user)
+    from services.meeting.live_advice import pend_advice
+    if not await pend_advice(meeting_id, advice_id):
+        raise HTTPException(404, "建议不存在")
+    return {"ok": True}
+
+
 # ── AI Pipeline 触发(Block B) ──────────────────────────────────────────
 
 @router.post("/{meeting_id}/process", status_code=202)

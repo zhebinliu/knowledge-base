@@ -32,7 +32,7 @@ import {
   type Meeting, type MeetingStatus, type MeetingMinutes, type MeetingRequirement,
   type StakeholderItem, type FeishuUrlCheckResult,
   type MeetingIllustration,
-  getLiveAdvice, runLiveAdvice, resolveLiveAdvice, dismissLiveAdvice,
+  getLiveAdvice, runLiveAdvice, resolveLiveAdvice, dismissLiveAdvice, pendLiveAdvice,
   type LiveAdviceItem, type LiveAdviceCategory,
 } from '../../api/client'
 import { getMeetingAudioUrl } from '../../api/meeting-ext'
@@ -149,6 +149,7 @@ const ADVICE_CATS: { key: LiveAdviceCategory; label: string; color: string }[] =
   { key: 'ambiguity',     label: '歧义点',       color: '#d97706' },
   { key: 'gap',           label: '可能遗漏(影响方案)', color: '#dc2626' },
   { key: 'industry',      label: '行业专属问题', color: '#7c3aed' },
+  { key: 'consensus',     label: '已达成共识',   color: '#059669' },
 ]
 const ADVICE_PRIO: Record<string, string> = { high: '#dc2626', medium: '#d97706', low: '#9ca3af' }
 
@@ -218,6 +219,7 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
   })
   const advice: LiveAdviceItem[] = data?.advice || []
   const resolved: LiveAdviceItem[] = data?.resolved_advice || []
+  const carryover: LiveAdviceItem[] = data?.carryover || []
   const genMut = useMutation({
     mutationFn: () => runLiveAdvice(meeting.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-advice', meeting.id] }),
@@ -228,6 +230,10 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
   })
   const dismissMut = useMutation({
     mutationFn: (aid: number) => dismissLiveAdvice(meeting.id, aid),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-advice', meeting.id] }),
+  })
+  const pendMut = useMutation({
+    mutationFn: (aid: number) => pendLiveAdvice(meeting.id, aid),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-advice', meeting.id] }),
   })
 
@@ -278,6 +284,8 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 shrink-0">
             <button type="button" onClick={() => resolveMut.mutate(a.id)} title="完成(标记已处理)"
               className="p-0.5 rounded text-ink-muted hover:text-emerald-600 hover:bg-emerald-50"><Check size={14} /></button>
+            <button type="button" onClick={() => pendMut.mutate(a.id)} title="待定(存着下次调研再问)"
+              className="p-0.5 rounded text-ink-muted hover:text-amber-600 hover:bg-amber-50"><Clock size={14} /></button>
             <button type="button" onClick={() => dismissMut.mutate(a.id)} title="删除"
               className="p-0.5 rounded text-ink-muted hover:text-rose-600 hover:bg-rose-50"><X size={14} /></button>
           </div>
@@ -322,6 +330,23 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
           {advice.length ? '重新分析' : '生成建议'}
         </button>
       </div>
+
+      {carryover.length > 0 && (
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2">
+          <div className="text-[12px] font-semibold text-amber-700 mb-1.5 flex items-center gap-1">
+            <Clock size={13} /> 上次调研待定 · 本次记得问({carryover.length})
+          </div>
+          <div className="space-y-1">
+            {carryover.map((a) => (
+              <div key={a.id} className="text-[12px] text-ink-secondary leading-snug">
+                • {a.title}
+                {a.question && <span className="text-ink-muted">　{a.question}</span>}
+                {a.from_meeting_title && <span className="text-ink-muted/70 text-[11px]">(来自:{a.from_meeting_title})</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="text-sm text-ink-muted py-10 text-center">加载中…</div>
