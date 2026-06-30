@@ -33,6 +33,7 @@ export default function UsersTab() {
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [editingModules, setEditingModules] = useState<AuthUser | null>(null)
+  const [editingName, setEditingName] = useState<AuthUser | null>(null)
 
   const { data: users, isLoading } = useQuery({
     queryKey: ['users'],
@@ -128,7 +129,16 @@ export default function UsersTab() {
                       <span className="ml-1 text-[10px] bg-orange-100 text-orange-700 px-1 py-0.5 rounded">我</span>
                     )}
                   </td>
-                  <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{u.full_name || '—'}</td>
+                  <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">
+                    <span>{u.full_name || '—'}</span>
+                    <button
+                      title="修改显示名"
+                      onClick={() => setEditingName(u)}
+                      className="ml-1 p-0.5 text-gray-400 hover:text-orange-500 transition-colors align-middle"
+                    >
+                      <Pencil size={11} />
+                    </button>
+                  </td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     {u.is_admin ? (
                       <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
@@ -264,6 +274,17 @@ export default function UsersTab() {
           onSaved={() => {
             qc.invalidateQueries({ queryKey: ['users'] })
             setEditingModules(null)
+          }}
+        />
+      )}
+
+      {editingName && (
+        <EditNameModal
+          user={editingName}
+          onClose={() => setEditingName(null)}
+          onSaved={() => {
+            qc.invalidateQueries({ queryKey: ['users'] })
+            setEditingName(null)
           }}
         />
       )}
@@ -460,6 +481,65 @@ function EditModulesModal({
             ))}
           </div>
         )}
+
+        {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg">取消</button>
+          <button onClick={handleSave} disabled={loading}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm text-white rounded-lg disabled:opacity-50"
+            style={gradientStyle}>
+            {loading && <Loader size={13} className="animate-spin" />}
+            保存
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── 修改显示名弹窗 ────────────────────────────────────────────────────────────
+
+function EditNameModal({
+  user, onClose, onSaved,
+}: {
+  user: AuthUser; onClose: () => void; onSaved: () => void
+}) {
+  const [name, setName] = useState(user.full_name ?? '')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSave = async () => {
+    setLoading(true); setError('')
+    try {
+      await updateUser(user.id, { full_name: name.trim() })
+      onSaved()
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setError(msg || '保存失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">修改显示名</h3>
+            <p className="text-xs text-gray-500">账号:{user.username}</p>
+          </div>
+          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X size={16} /></button>
+        </div>
+
+        <Field label="显示名(系统内默认展示)">
+          <input value={name} onChange={e => setName(e.target.value)} autoFocus
+            onKeyDown={e => { if (e.key === 'Enter' && !loading) handleSave() }}
+            placeholder="例:刘哲斌"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-orange-400" />
+        </Field>
+        <p className="mt-2 text-xs text-gray-500">留空将回退展示账号名 <span className="font-mono">{user.username}</span></p>
 
         {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
 

@@ -2720,7 +2720,7 @@ async def generate_research_plan(bundle_id: str, project_id: str):
             async with async_session_maker() as s:
                 u = await s.get(User, proj.created_by)
                 if u:
-                    owner_name = u.username
+                    owner_name = u.full_name or u.username
         project_name = (proj.name if proj else "本项目") or "本项目"
         customer = (proj.customer if proj else "") or ""
         industry = ctx.get("industry")

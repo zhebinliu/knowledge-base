@@ -280,12 +280,12 @@ async def _apply_meeting_visibility(stmt, session: AsyncSession, user: User):
 
 
 async def _owner_names(session: AsyncSession, owner_ids) -> dict:
-    """owner_id → 用户名,一次查全。"""
+    """owner_id → 显示名(优先 full_name,空则回退 username),一次查全。"""
     ids = {o for o in owner_ids if o}
     if not ids:
         return {}
-    rows = (await session.execute(select(User.id, User.username).where(User.id.in_(ids)))).all()
-    return {r[0]: r[1] for r in rows}
+    rows = (await session.execute(select(User.id, User.full_name, User.username).where(User.id.in_(ids)))).all()
+    return {r[0]: (r[1] or r[2]) for r in rows}
 
 
 async def _project_names(session: AsyncSession, project_ids) -> dict:

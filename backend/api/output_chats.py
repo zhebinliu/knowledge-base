@@ -253,7 +253,7 @@ async def finalize_and_generate(
         status="pending",
         extra={"conversation_id": conv.id, "industry": conv.industry},
         created_by=current_user.id,
-        created_by_name=current_user.username,
+        created_by_name=current_user.full_name or current_user.username,
     )
     session.add(bundle)
     await session.flush()
