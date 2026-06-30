@@ -2053,6 +2053,7 @@ export interface Meeting {
   id: number
   title: string
   owner_id: string
+  owner_name?: string | null
   project_id: string | null
   project_name: string | null
   start_time: string
@@ -2090,6 +2091,32 @@ export const listMeetings = async (opts?: { project_id?: string }): Promise<Meet
   const { data } = await api.get<Meeting[]>('/meeting', {
     params: opts?.project_id ? { project_id: opts.project_id } : undefined,
   })
+  return data
+}
+
+export interface MeetingUploader { id: string; name: string }
+export interface MeetingListPage {
+  items: Meeting[]
+  total: number
+  page: number
+  page_size: number
+  uploaders: MeetingUploader[]
+}
+export interface MeetingListParams {
+  page?: number
+  page_size?: number
+  project_id?: string
+  status?: string
+  q?: string
+  owner_id?: string
+  date_from?: string
+  date_to?: string
+}
+/** 分页 + 多条件筛选的会议列表(列表页用)。 */
+export const listMeetingsPage = async (params: MeetingListParams = {}): Promise<MeetingListPage> => {
+  const clean: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') clean[k] = v
+  const { data } = await api.get<MeetingListPage>('/meeting/page', { params: clean })
   return data
 }
 
