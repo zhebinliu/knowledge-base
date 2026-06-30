@@ -270,6 +270,7 @@ class ModelRouter:
         retry_backoffs: list[int] | None = None,  # 可重试错误(429/5xx/网络)的退避秒数;
                                                    # 默认 [5,10,20](3 次);传 [] 关闭重试(best-effort 调用)
         return_meta: bool = False,                # True 时返回 (content, model_name, finish_reason) 三元组
+        extra_payload: dict | None = None,        # 任意透传字段(如 thinking={"type":"disabled"} 给 GLM/Claude 关思考)
         _log_task: str | None = None,             # 仅供 logging 用,不进 payload
         _log_caller: str | None = None,
     ) -> tuple:
@@ -291,6 +292,8 @@ class ModelRouter:
             payload["max_tokens"] = max_tokens
         if response_format:
             payload["response_format"] = response_format
+        if extra_payload:
+            payload.update(extra_payload)
 
         # 退避策略(2026-05-12 改进):
         #   - 429 / 5xx / 网络超时 / 连接错误 都退避重试,直到退避列表用尽

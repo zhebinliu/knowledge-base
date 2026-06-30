@@ -64,23 +64,75 @@ def _json_output_valid(content: str, finish_reason: str | None) -> bool:
 
 # ── 阶段 1:润色 ─────────────────────────────────────────────────────────
 
-async def polish_transcript(raw_transcript: str) -> str:
-    """对 ASR 原始转写做语言润色。返回纯文本。"""
-    if not raw_transcript or not raw_transcript.strip():
-        return ""
+# 长稿(>_POLISH_CHUNK_THRESHOLD 字符)按 [MM:SS] 行边界切成 ~_POLISH_CHUNK_CHARS 字符
+# 的块、并行润色。规避两个痛点:① 单次 25k+ 字符输出顶 max_tokens 截断;② 推理模型
+# 全局思考时把 [101:33] 压缩成 [55:08]。每块约 8000 字符输入 / 6000 字符输出,远在
+# 任何模型的 output cap 之下。失败块用原文兜底,保住时间戳和内容。
+_POLISH_CHUNK_THRESHOLD = 12000
+_POLISH_CHUNK_CHARS = 8000
 
+
+def _split_by_lines(raw: str, target_chars: int) -> list[str]:
+    """按换行边界切分;每块尽量接近 target_chars,但不打破行(行通常以 [MM:SS] 起头)。"""
+    lines = raw.split("\n")
+    chunks: list[str] = []
+    cur: list[str] = []
+    cur_len = 0
+    for ln in lines:
+        ln_len = len(ln) + 1
+        if cur and cur_len + ln_len > target_chars:
+            chunks.append("\n".join(cur))
+            cur, cur_len = [ln], ln_len
+        else:
+            cur.append(ln)
+            cur_len += ln_len
+    if cur:
+        chunks.append("\n".join(cur))
+    return chunks
+
+
+async def _polish_one(text: str) -> str:
+    """单次润色调用。GLM-5.x 默认开思考(会重排时间戳),显式 thinking=disabled 关掉。"""
     messages = [
         {"role": "system", "content": POLISH_SYSTEM},
-        {"role": "user", "content": POLISH_USER.format(raw_transcript=raw_transcript)},
+        {"role": "user", "content": POLISH_USER.format(raw_transcript=text)},
     ]
-    content, model = await model_router.chat_with_routing(
+    content, _model = await model_router.chat_with_routing(
         task="meeting_transcript_polish",
         messages=messages,
         temperature=0.2,
-        max_tokens=32000,  # 2026-06-30:长会议(100min+)润色顶满 16k 导致末段全丢,提到 32k
+        max_tokens=16000,  # 分块后单块输出约 6000 字符 ≈ 4000 tokens,留足余量
+        extra_payload={"thinking": {"type": "disabled"}},
     )
-    logger.info("polish_done", model=model, in_chars=len(raw_transcript), out_chars=len(content))
-    return content.strip()
+    return (content or "").strip()
+
+
+async def polish_transcript(raw_transcript: str) -> str:
+    """对 ASR 原始转写做语言润色。返回纯文本。长稿自动分块并行。"""
+    if not raw_transcript or not raw_transcript.strip():
+        return ""
+
+    if len(raw_transcript) <= _POLISH_CHUNK_THRESHOLD:
+        out = await _polish_one(raw_transcript)
+        logger.info("polish_done", in_chars=len(raw_transcript), out_chars=len(out), chunks=1, failed_chunks=0)
+        return out
+
+    chunks = _split_by_lines(raw_transcript, _POLISH_CHUNK_CHARS)
+    results = await asyncio.gather(*[_polish_one(c) for c in chunks], return_exceptions=True)
+
+    parts: list[str] = []
+    failed = 0
+    for i, (orig, r) in enumerate(zip(chunks, results)):
+        if isinstance(r, BaseException) or not r:
+            err = str(r)[:160] if isinstance(r, BaseException) else "empty"
+            logger.warning("polish_chunk_failed", idx=i, error=err)
+            parts.append(orig)  # 失败用原文,保住时间戳和内容
+            failed += 1
+        else:
+            parts.append(r)
+    out = "\n".join(parts)
+    logger.info("polish_done", in_chars=len(raw_transcript), out_chars=len(out), chunks=len(chunks), failed_chunks=failed)
+    return out
 
 
 # ── 阶段 2:纪要 ─────────────────────────────────────────────────────────
