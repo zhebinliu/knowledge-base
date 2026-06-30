@@ -67,6 +67,7 @@ export default function ConsoleMeetingNew() {
   const [liveTranscript, setLiveTranscript] = useState('')      // 拼接整稿(内联录音器 + 触发判断用)
   const [liveSegments, setLiveSegments] = useState<LiveSeg[]>([]) // 分段(沉浸式时间轴按段渲染 + 落位建议)
   const [finalizing, setFinalizing] = useState(false)
+  const [starting, setStarting] = useState(false)  // 点录音→建会议期间置灰,防重复点
   const liveMeetingIdRef = useRef<number | null>(null)
   // 分段「并行」上传:单段 ASR 延迟不稳(实测 4-25s),串行会越拖越后;并行 + 按 seq 落位排序。
   const segMapRef = useRef<Record<number, { text: string; startMs: number }>>({})
@@ -166,10 +167,12 @@ export default function ConsoleMeetingNew() {
 
   // 开始半实时录音:先建一个 recording 会议,再启动分段录音
   const startRecord = async () => {
+    if (starting) return
     setError(null)
     setLiveTranscript('')
     setLiveSegments([])
     setAdvice([])
+    setStarting(true)
     try {
       const r = await createRecordingMeeting({ title: title || undefined, project_id: projectId || null })
       liveMeetingIdRef.current = r.meeting_id
@@ -181,6 +184,8 @@ export default function ConsoleMeetingNew() {
       live.start()
     } catch (e: any) {
       setError(e?.message || '无法开始录音')
+    } finally {
+      setStarting(false)
     }
   }
 
@@ -330,7 +335,7 @@ export default function ConsoleMeetingNew() {
         <div className="rounded-lg border border-dashed border-line bg-canvas/40 px-5 py-6 flex flex-col items-center gap-3">
           <button
             type="button"
-            disabled={finalizing}
+            disabled={finalizing || starting}
             onClick={() => { if (live.recording) { live.stop() } else { startRecord() } }}
             title={live.recording ? '停止录音' : '开始录音'}
             className={`w-16 h-16 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-50 ${
@@ -338,18 +343,20 @@ export default function ConsoleMeetingNew() {
             }`}
             style={live.recording ? undefined : { background: BRAND_GRAD }}
           >
-            {finalizing ? <Loader2 size={24} className="animate-spin" /> : live.recording ? <Square size={22} /> : <Mic size={24} />}
+            {(finalizing || starting) ? <Loader2 size={24} className="animate-spin" /> : live.recording ? <Square size={22} /> : <Mic size={24} />}
           </button>
           <div className="font-mono text-xl font-bold text-ink flex items-center gap-2">
             {live.recording && <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
             {fmtDuration(live.seconds)}
           </div>
           <p className="text-xs text-ink-muted text-center max-w-lg">
-            {finalizing
-              ? '录音结束,正在收尾并生成纪要…'
-              : live.recording
-                ? '正在录音…第一段转写约 15-30 秒后出现,之后边录边出。讲完点停止生成纪要'
-                : '点麦克风开始录音。边录边转写,右侧 Co-pilot 会实时给调研建议'}
+            {starting
+              ? '正在启动会议…'
+              : finalizing
+                ? '录音结束,正在收尾并生成纪要…'
+                : live.recording
+                  ? '正在录音…第一段转写约 15-30 秒后出现,之后边录边出。讲完点停止生成纪要'
+                  : '点麦克风开始录音。边录边转写,右侧 Co-pilot 会实时给调研建议'}
           </p>
         </div>
       )}
