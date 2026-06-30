@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Upload, Type, ChevronLeft, Loader2, Mic, Square, Sparkles, X, Check, Clock, ClipboardList } from 'lucide-react'
+import { Upload, Type, ChevronLeft, ChevronRight, Loader2, Mic, Square, Sparkles, X, Check, Clock, ClipboardList, FileText, PenLine } from 'lucide-react'
 import {
   uploadMeetingAudio,
   createMeetingFromText,
@@ -20,10 +20,14 @@ import {
   dismissLiveAdvice,
   resolveLiveAdvice,
   pendLiveAdvice,
+  runLiveMinutes,
+  saveMeetingMemo,
+  runMeetingAction,
   listProjects,
   type Project,
   type LiveAdviceItem,
   type LiveAdviceCategory,
+  type LiveMinutes,
 } from '../../api/client'
 import { useLiveRecorder } from '../../hooks/useLiveRecorder'
 
@@ -82,6 +86,15 @@ export default function ConsoleMeetingNew() {
   const [carryover, setCarryover] = useState<LiveAdviceItem[]>([])  // 同项目上次待定项,本场带出来问
   const [boardOpen, setBoardOpen] = useState(false)  // 实时会议看板:录音中默认向右收起
   const adviceBusyRef = useRef(false)
+
+  // 会议三栏:议程 / 备忘 / 实时纪要(2026-06-30)
+  const [agenda, setAgenda] = useState('')
+  const [memo, setMemo] = useState('')
+  const [liveMinutes, setLiveMinutes] = useState<LiveMinutes | null>(null)
+  const [liveMinutesLoading, setLiveMinutesLoading] = useState(false)
+  const [middleColumnOpen, setMiddleColumnOpen] = useState(true)  // 中间栏默认打开
+  const liveMinutesBusyRef = useRef(false)
+  const memoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const liveLenRef = useRef(0)        // 当前转写长度(内容驱动触发用)
   const lastAdviceLenRef = useRef(0)  // 上次分析时的转写长度
   const lastAdviceAtRef = useRef(0)   // 上次分析时间戳
@@ -127,7 +140,9 @@ export default function ConsoleMeetingNew() {
       const id = liveMeetingIdRef.current
       if (!id) { setFinalizing(false); return }
       setFinalizing(true)
-      Promise.allSettled(pendingRef.current)
+      // 保存备忘 + 等待所有分段上传完成 → finalize
+      const saveMemo = memo.trim() ? saveMeetingMemo(id, memo).catch(() => {}) : Promise.resolve()
+      Promise.allSettled([...pendingRef.current, saveMemo])
         .then(() => finalizeRecording(id))
         .then((r) => {
           if (r.status === 'failed') {
@@ -135,6 +150,8 @@ export default function ConsoleMeetingNew() {
             setFinalizing(false)
             liveMeetingIdRef.current = null
           } else {
+            // 异步生成最终纪要(不阻塞跳转)
+            runMeetingAction(id, 'generate-summary').catch(() => {})
             nav(`/console/meeting/${id}${projectId ? `?from_project=${projectId}` : ''}`)
           }
         })
@@ -152,6 +169,42 @@ export default function ConsoleMeetingNew() {
       refreshAdvice()
     }
   }, [liveTranscript, live.recording, autoAdvice, refreshAdvice])
+
+  // 内容驱动:实时纪要提取(与 advice 共用触发条件,独立调用)
+  const refreshLiveMinutes = useCallback(async () => {
+    const id = liveMeetingIdRef.current
+    if (!id || liveMinutesBusyRef.current) return
+    liveMinutesBusyRef.current = true
+    setLiveMinutesLoading(true)
+    try {
+      const r = await runLiveMinutes(id)
+      if (r.live_minutes) setLiveMinutes(r.live_minutes)
+    } catch { /* ignore */ } finally {
+      liveMinutesBusyRef.current = false
+      setLiveMinutesLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!live.recording || liveMinutesBusyRef.current) return
+    if (liveTranscript.length - lastAdviceLenRef.current >= ADVICE_NEW_CHARS
+        && Date.now() - lastAdviceAtRef.current >= ADVICE_MIN_GAP_MS) {
+      refreshLiveMinutes()
+    }
+  }, [liveTranscript, live.recording, refreshLiveMinutes])
+
+  // memo 自动保存:每 5 秒 debounce
+  useEffect(() => {
+    if (!live.recording) return
+    if (memoSaveTimerRef.current) clearTimeout(memoSaveTimerRef.current)
+    memoSaveTimerRef.current = setTimeout(() => {
+      const id = liveMeetingIdRef.current
+      if (id && memo.trim()) {
+        saveMeetingMemo(id, memo).catch(() => {})
+      }
+    }, 5000)
+    return () => { if (memoSaveTimerRef.current) clearTimeout(memoSaveTimerRef.current) }
+  }, [memo, live.recording])
 
   // 沉浸式录制:转写更新时自动滚到底
   useEffect(() => {
@@ -179,13 +232,15 @@ export default function ConsoleMeetingNew() {
     setAdvice([])
     setStarting(true)
     try {
-      const r = await createRecordingMeeting({ title: title || undefined, project_id: projectId || null })
+      const r = await createRecordingMeeting({ title: title || undefined, project_id: projectId || null, agenda: agenda.trim() || undefined })
       liveMeetingIdRef.current = r.meeting_id
       segMapRef.current = {}
       pendingRef.current = []
       liveLenRef.current = 0
       lastAdviceLenRef.current = 0
       lastAdviceAtRef.current = 0
+      setMemo('')
+      setLiveMinutes(null)
       live.start()
     } catch (e: any) {
       setError(e?.message || '无法开始录音')
@@ -393,7 +448,7 @@ export default function ConsoleMeetingNew() {
     </div>
   )
 
-  // ── 沉浸式录制:录音中隐去所有 chrome,左转写 / 右 Co-pilot 按时间轴行严格一一对应 ──
+  // ── 沉浸式录制:录音中隐去所有 chrome,三栏:转写 | 议程/备忘/纪要 | 看板 ──
   if (recordBusy) {
     const consensusItems = advice.filter((a) => a.category === 'consensus')
     const suggestItems = [...advice.filter((a) => a.category !== 'consensus')]
@@ -402,7 +457,7 @@ export default function ConsoleMeetingNew() {
 
     return (
       <div className="fixed inset-0 z-50 bg-canvas flex flex-col">
-        {/* 顶栏:状态 + 计时 + 看板开关 + 停止 */}
+        {/* 顶栏:状态 + 计时 + 中间栏/看板开关 + 停止 */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-line bg-white shrink-0">
           <div className="flex items-center gap-2.5 text-sm font-medium text-ink min-w-0">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
@@ -411,8 +466,15 @@ export default function ConsoleMeetingNew() {
             {title && <span className="text-ink-muted truncate">· {title}</span>}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {/* 会议看板开关由「右缘把手」承担(下方 boardOpen=false 时显示),
-                顶部不再放重复按钮 —— 抽屉式 UX 用边缘把手更清爽。 */}
+            {/* 中间栏开关 */}
+            <button
+              type="button"
+              onClick={() => setMiddleColumnOpen((v) => !v)}
+              className={`text-xs px-2 py-1 rounded border text-ink-muted hover:text-ink ${middleColumnOpen ? 'bg-brand/5 border-brand/20' : ''}`}
+              title={middleColumnOpen ? '收起议程栏' : '展开议程栏'}
+            >
+              <FileText size={13} className="inline mr-0.5" /> 议程栏
+            </button>
             <button
               type="button"
               onClick={() => { if (live.recording) live.stop() }}
@@ -425,16 +487,17 @@ export default function ConsoleMeetingNew() {
           </div>
         </div>
 
-        {/* 主体:实时转写(全宽)+ 右侧可收起的会议看板 */}
-        <div className="relative flex-1 overflow-hidden">
-          <div ref={transcriptScrollRef} className="h-full overflow-y-auto px-6 py-4">
+        {/* 主体:三栏 — 转写 | 议程/备忘/纪要 | 看板(滑出) */}
+        <div className="relative flex flex-1 overflow-hidden">
+          {/* 左栏:实时转写 */}
+          <div ref={transcriptScrollRef} className="flex-1 min-w-[300px] overflow-y-auto px-6 py-4">
             <div className="text-[11px] text-ink-muted mb-3 flex items-center gap-1.5">
               实时转写 <span className="text-brand">· 逐段识别中</span>
             </div>
             {liveSegments.length === 0 ? (
               <div className="py-16 text-center text-sm text-ink-muted">正在识别第一段…(约 15-30 秒)</div>
             ) : (
-              <div className="space-y-1.5 max-w-3xl">
+              <div className="space-y-1.5">
                 {liveSegments.map((seg) => (
                   <div key={seg.seq} className="leading-relaxed">
                     <span className="text-[11px] font-mono text-ink-muted mr-2 align-top">[{fmtDuration(Math.floor(seg.startMs / 1000))}]</span>
@@ -446,8 +509,83 @@ export default function ConsoleMeetingNew() {
             {live.error && <p className="py-3 text-[12px] text-rose-600">{live.error}</p>}
           </div>
 
-          {/* 会议看板:默认向右收起,点击滑入(共识 + 建议,现场和客户对齐) */}
-          <div className={`absolute inset-y-0 right-0 w-[440px] max-w-[88vw] bg-canvas border-l border-line shadow-2xl flex flex-col transition-transform duration-300 ease-out ${boardOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+          {/* 中栏:议程 + 备忘 + 实时纪要 */}
+          <div className={`shrink-0 border-l border-line bg-canvas/50 flex flex-col transition-all duration-300 ease-out overflow-hidden ${middleColumnOpen ? 'w-[360px]' : 'w-0 border-l-0'}`}>
+            {/* 议程(固定顶) */}
+            <div className="shrink-0 px-3 py-2.5 border-b border-line bg-white">
+              <div className="text-[11px] font-semibold text-ink-muted mb-1 flex items-center gap-1">
+                <FileText size={12} /> 会议议程
+              </div>
+              <div className="text-[12px] text-ink-secondary leading-relaxed max-h-[80px] overflow-y-auto whitespace-pre-wrap">
+                {agenda || <span className="text-ink-muted italic">未设置议程</span>}
+              </div>
+            </div>
+
+            {/* 滚动区:备忘 + 实时纪要 */}
+            <div className="flex-1 overflow-y-auto">
+              {/* 备忘 */}
+              <div className="px-3 py-2.5 border-b border-line">
+                <div className="text-[11px] font-semibold text-ink-muted mb-1 flex items-center gap-1">
+                  <PenLine size={12} /> 会议备忘
+                </div>
+                <textarea
+                  value={memo}
+                  onChange={(e) => setMemo(e.target.value)}
+                  placeholder="记录会议要点、想法、待办…"
+                  rows={5}
+                  className="w-full px-2.5 py-2 rounded-md border border-line text-[12px] resize-y focus:outline-none focus:border-brand bg-white leading-relaxed"
+                />
+              </div>
+
+              {/* 实时会议纪要 */}
+              <div className="px-3 py-2.5">
+                <div className="text-[11px] font-semibold text-ink-muted mb-2 flex items-center gap-1.5">
+                  <Sparkles size={12} className="text-brand" /> 实时会议纪要
+                  {liveMinutesLoading && <Loader2 size={11} className="animate-spin text-brand" />}
+                </div>
+                {liveMinutes ? (
+                  <div className="space-y-2.5 text-[12px] leading-relaxed">
+                    <div>
+                      <div className="font-semibold text-emerald-700 text-[11px] mb-0.5 flex items-center gap-1">
+                        <span className="w-1 h-1 rounded-full bg-emerald-500" /> 会议共识
+                      </div>
+                      <div className="text-ink-secondary whitespace-pre-wrap pl-3">{liveMinutes.meeting_consensus || '暂无'}</div>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-amber-700 text-[11px] mb-0.5 flex items-center gap-1">
+                        <span className="w-1 h-1 rounded-full bg-amber-500" /> 会议争议点
+                      </div>
+                      <div className="text-ink-secondary whitespace-pre-wrap pl-3">{liveMinutes.meeting_disputes || '暂无'}</div>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-blue-700 text-[11px] mb-0.5 flex items-center gap-1">
+                        <span className="w-1 h-1 rounded-full bg-blue-500" /> 会议代办
+                      </div>
+                      <div className="text-ink-secondary whitespace-pre-wrap pl-3">{liveMinutes.meeting_todos || '暂无'}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-ink-muted py-6 text-center leading-relaxed">
+                    随录音推进自动生成…
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 收起时:中栏把手(左缘) */}
+          {!middleColumnOpen && (
+            <button
+              type="button"
+              onClick={() => setMiddleColumnOpen(true)}
+              className="absolute left-0 top-6 z-10 inline-flex items-center gap-1 pl-2 pr-3 py-2 rounded-r-lg bg-white border border-l-0 border-line shadow-md text-[12px] font-medium text-ink-secondary hover:text-brand"
+            >
+              <ChevronRight size={14} /> 议程
+            </button>
+          )}
+
+          {/* 右栏:会议看板(滑出) */}
+          <div className={`absolute inset-y-0 right-0 w-[440px] max-w-[88vw] bg-canvas border-l border-line shadow-2xl flex flex-col transition-transform duration-300 ease-out z-10 ${boardOpen ? 'translate-x-0' : 'translate-x-full'}`}>
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-line bg-white shrink-0">
               <span className="text-sm font-semibold text-ink flex items-center gap-1.5">
                 <ClipboardList size={15} className="text-brand" /> 会议看板
@@ -507,7 +645,7 @@ export default function ConsoleMeetingNew() {
             </div>
           </div>
 
-          {/* 收起时:右缘把手,点开看板(顶栏不再放重复按钮,这是唯一开看板入口) */}
+          {/* 收起时:右缘把手,点开看板 */}
           {!boardOpen && (
             <button
               type="button"
@@ -613,9 +751,23 @@ export default function ConsoleMeetingNew() {
             </p>
           </div>
         ) : mode === 'record' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
-            {recorderBlock}
-            {renderAdvicePanel()}
+          <div className="space-y-4">
+            {/* 会议议程(可选) */}
+            <div>
+              <label className="block text-sm font-medium text-ink mb-1.5">会议议程(可选)</label>
+              <textarea
+                value={agenda}
+                onChange={(e) => setAgenda(e.target.value)}
+                disabled={recordBusy}
+                placeholder="输入本次会议议程,开始录音后将只读展示…"
+                rows={3}
+                className="w-full px-3 py-2 rounded-lg border border-line text-sm focus:outline-none focus:border-brand disabled:bg-canvas resize-y"
+              />
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+              {recorderBlock}
+              {renderAdvicePanel()}
+            </div>
           </div>
         ) : (
           <div>
