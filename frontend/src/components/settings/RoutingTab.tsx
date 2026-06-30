@@ -26,12 +26,15 @@ const TASK_GROUPS: GroupDef[] = [
     desc: '上传录音 / 输入文本之后的整个会议加工流水线',
     defaultOpen: false,
     tasks: [
-      { task: 'meeting_transcript_polish',    label: '会议转写润色',         hint: '把语音识别出来的口语化文字整理成规整段落' },
-      { task: 'meeting_minutes_extract',      label: '会议纪要生成',         hint: '从转写抽出摘要 / 议题 / 决议 / 待办,结构化输出' },
-      { task: 'meeting_requirements_extract', label: '会议需求提取',         hint: '识别本次会议提出的需求条目(P0-P3 + 模块)' },
-      { task: 'meeting_stakeholders_extract', label: '会议干系人识别',       hint: '从会议内容中识别人物 / 角色 / 组织关系' },
-      { task: 'meeting_qa_answer',            label: '会议内容问答',         hint: '用户在会议详情页里向 AI 提问,基于本次会议作答' },
-      { task: 'meeting_template_evolve',      label: '会议纪要模板演化',     hint: '基于历史编辑过的纪要,优化纪要模板偏好' },
+      { task: 'meeting_transcript_polish',     label: '会议转写润色',         hint: '把语音识别出来的口语化文字整理成规整段落(长稿自动分块并行)' },
+      { task: 'meeting_live_advice',           label: '现场调研实时副驾',     hint: '会议进行中根据转写流持续输出 4-5 类建议(澄清/歧义/遗漏/行业/共识)' },
+      { task: 'meeting_minutes_extract',       label: '会议纪要生成',         hint: '从转写抽出摘要 / 议题 / 决议 / 待办,结构化输出' },
+      { task: 'meeting_requirements_extract',  label: '会议需求提取',         hint: '识别本次会议提出的需求条目(P0-P3 + 模块)' },
+      { task: 'meeting_process_flows_extract', label: '会议业务流程提取',     hint: '从纪要识别 As-Is / To-Be 流程,生成 mermaid 流程图' },
+      { task: 'meeting_stakeholders_extract',  label: '会议干系人识别',       hint: '从会议内容中识别人物 / 角色 / 组织关系' },
+      { task: 'meeting_illustrations_extract', label: '会议解释图生成',       hint: '从纪要提取关键概念,生成 mermaid 解释图(架构 / 关系 / 时序)' },
+      { task: 'meeting_qa_answer',             label: '会议内容问答',         hint: '用户在会议详情页里向 AI 提问,基于本次会议作答' },
+      { task: 'meeting_template_evolve',       label: '会议纪要模板演化',     hint: '基于历史编辑过的纪要,优化纪要模板偏好' },
     ],
   },
   {
@@ -69,6 +72,8 @@ const TASK_GROUPS: GroupDef[] = [
     tasks: [
       { task: 'project_audience_profile', label: '客户画像生成',           hint: '根据行业 / 客户名 / 已有资料,生成一段客户画像' },
       { task: 'output_doc_generate',      label: '输出中心通用文档生成',    hint: '洞察 / 调研问卷 / 方案 / 报告等长文档生成' },
+      { task: 'kickoff_pptx_codegen',     label: '启动会 PPT 代码生成',     hint: '基于项目资料生成可直接执行的 python-pptx 代码 → PPT' },
+      { task: 'revision_learning',        label: '产物编辑学习',           hint: '用户编辑过的产物里抽规律,沉淀偏好喂回下次生成' },
     ],
   },
   {
