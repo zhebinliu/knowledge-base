@@ -1,19 +1,23 @@
 /**
- * ConsoleMeeting — 会议纪要列表(meeting-ai 整合后,2026-05-11)
+ * ConsoleMeeting — 会议纪要列表(meeting-ai 整合后,2026-05-11;2026-06-30 加分页 + 多条件筛选 + 创建人列)
  *
- * 替代原 iframe 嵌入。展示当前用户的会议列表 + 新建入口 + 状态徽标 + 删除。
- * 状态机:recording / processing / completed / failed
- * 自动刷新:存在 processing 状态时 8s 轮询一次。
+ * 走分页接口 /meeting/page:项目 / 状态 / 标题 / 上传人 / 时间段筛选 + 翻页。
+ * 状态机:recording / processing / completed / failed;存在 processing/recording 时 8s 轮询。
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
-  Mic, Plus, Trash2, FolderKanban, CheckCircle2, Loader2, AlertCircle, Clock, Search, LayoutTemplate,
+  Mic, Plus, Trash2, FolderKanban, CheckCircle2, Loader2, AlertCircle, Clock, Search,
+  LayoutTemplate, ChevronLeft, ChevronRight, User as UserIcon, X,
 } from 'lucide-react'
-import { listMeetings, deleteMeeting, type Meeting, type MeetingStatus } from '../../api/client'
+import {
+  listMeetingsPage, deleteMeeting, listProjects,
+  type Meeting, type MeetingStatus, type Project,
+} from '../../api/client'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
+const PAGE_SIZE = 20
 
 const STATUS_LABEL: Record<MeetingStatus, string> = {
   recording: '录制中',
@@ -44,41 +48,56 @@ function formatTime(iso: string | null | undefined) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+const selCls = 'text-sm border border-line rounded-md px-2 py-1.5 bg-white focus:outline-none focus:border-orange-300 text-ink'
+
 export default function ConsoleMeeting() {
   const nav = useNavigate()
   const qc = useQueryClient()
-  const [keyword, setKeyword] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'' | MeetingStatus>('')
+  const [page, setPage] = useState(1)
+  const [qInput, setQInput] = useState('')
+  const [q, setQ] = useState('')
+  const [projectId, setProjectId] = useState('')
+  const [status, setStatus] = useState('')
+  const [ownerId, setOwnerId] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
-  const { data: meetings, isLoading } = useQuery({
-    queryKey: ['meetings'],
-    queryFn: () => listMeetings(),
+  // 标题搜索防抖 300ms,改动即回到第 1 页
+  useEffect(() => {
+    const t = setTimeout(() => { setQ(qInput); setPage(1) }, 300)
+    return () => clearTimeout(t)
+  }, [qInput])
+
+  const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['meetings-page', page, q, projectId, status, ownerId, dateFrom, dateTo],
+    queryFn: () => listMeetingsPage({
+      page, page_size: PAGE_SIZE,
+      q, project_id: projectId, status, owner_id: ownerId, date_from: dateFrom, date_to: dateTo,
+    }),
+    placeholderData: (prev) => prev,  // 翻页/筛选时保留上一页内容,过渡更顺
     refetchInterval: (qq) => {
-      const items = (qq.state.data ?? []) as Meeting[]
+      const items = qq.state.data?.items ?? []
       return items.some(m => m.status === 'processing' || m.status === 'recording') ? 8000 : false
     },
   })
 
-  const filtered = (meetings || []).filter(m => {
-    if (statusFilter && m.status !== statusFilter) return false
-    if (keyword.trim()) {
-      const k = keyword.trim().toLowerCase()
-      const hay = `${m.title || ''} ${m.project_name || ''}`.toLowerCase()
-      if (!hay.includes(k)) return false
-    }
-    return true
-  })
+  const items = data?.items ?? []
+  const total = data?.total ?? 0
+  const uploaders = data?.uploaders ?? []
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const hasFilter = !!(q || projectId || status || ownerId || dateFrom || dateTo)
 
-  const statusCounts = (meetings || []).reduce<Record<string, number>>((acc, m) => {
-    acc[m.status] = (acc[m.status] || 0) + 1
-    return acc
-  }, {})
+  const onFilter = (setter: (v: string) => void) => (v: string) => { setter(v); setPage(1) }
+  const resetFilters = () => {
+    setQInput(''); setQ(''); setProjectId(''); setStatus(''); setOwnerId(''); setDateFrom(''); setDateTo(''); setPage(1)
+  }
 
   const delMutation = useMutation({
     mutationFn: (id: number) => deleteMeeting(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['meetings'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['meetings-page'] }),
   })
-
   const handleDelete = (m: Meeting) => {
     if (!window.confirm(`确认删除「${m.title}」?该操作不可撤销。`)) return
     delMutation.mutate(m.id)
@@ -95,63 +114,69 @@ export default function ConsoleMeeting() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-        <button
-          onClick={() => nav('/console/meeting/new')}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium shadow-sm hover:opacity-90"
-          style={{ background: BRAND_GRAD }}
-        >
-          <Plus size={16} /> 新建会议
-        </button>
-        <button
-          onClick={() => nav('/console/meeting/templates')}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-line bg-white hover:bg-slate-50 text-ink-secondary transition-colors"
-        >
-          <LayoutTemplate size={16} /> 模板管理
-        </button>
+          <button
+            onClick={() => nav('/console/meeting/new')}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium shadow-sm hover:opacity-90"
+            style={{ background: BRAND_GRAD }}
+          >
+            <Plus size={16} /> 新建会议
+          </button>
+          <button
+            onClick={() => nav('/console/meeting/templates')}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-line bg-white hover:bg-slate-50 text-ink-secondary transition-colors"
+          >
+            <LayoutTemplate size={16} /> 模板管理
+          </button>
         </div>
       </div>
 
-      {/* Search + filter bar */}
-      {meetings && meetings.length > 0 && (
-        <div className="flex items-center gap-2 mb-3 flex-wrap">
-          <div className="relative flex-1 min-w-[200px] max-w-md">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted" />
-            <input
-              value={keyword}
-              onChange={e => setKeyword(e.target.value)}
-              placeholder="搜标题 / 项目名"
-              className="w-full text-sm border border-line rounded-md pl-7 pr-3 py-1.5 bg-white focus:outline-none focus:border-orange-300"
-            />
-          </div>
-          <div className="flex gap-1">
-            {(['', 'processing', 'completed', 'failed', 'recording'] as const).map(s => {
-              const count = s === '' ? (meetings.length) : (statusCounts[s] || 0)
-              if (s !== '' && count === 0) return null
-              return (
-                <button
-                  key={s || 'all'}
-                  onClick={() => setStatusFilter(s)}
-                  className={`px-2.5 py-1.5 rounded-md text-[12px] font-medium border transition-colors ${
-                    statusFilter === s
-                      ? 'border-orange-300 text-orange-700 bg-orange-50'
-                      : 'border-line text-ink-muted hover:text-ink bg-white hover:bg-canvas/60'
-                  }`}
-                >
-                  {s === '' ? '全部' : STATUS_LABEL[s as MeetingStatus]}
-                  <span className="ml-1 tabular-nums text-ink-muted">{count}</span>
-                </button>
-              )
-            })}
-          </div>
+      {/* 筛选条 */}
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted" />
+          <input
+            value={qInput}
+            onChange={e => setQInput(e.target.value)}
+            placeholder="搜标题"
+            className="w-full text-sm border border-line rounded-md pl-7 pr-3 py-1.5 bg-white focus:outline-none focus:border-orange-300"
+          />
         </div>
-      )}
+        <select value={projectId} onChange={e => onFilter(setProjectId)(e.target.value)} className={selCls}>
+          <option value="">全部项目</option>
+          {(projects || []).map((p: Project) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+        <select value={status} onChange={e => onFilter(setStatus)(e.target.value)} className={selCls}>
+          <option value="">全部状态</option>
+          {(['completed', 'processing', 'recording', 'failed'] as MeetingStatus[]).map(s => (
+            <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+          ))}
+        </select>
+        <select value={ownerId} onChange={e => onFilter(setOwnerId)(e.target.value)} className={selCls}>
+          <option value="">全部上传人</option>
+          {uploaders.map(u => (
+            <option key={u.id} value={u.id}>{u.name}</option>
+          ))}
+        </select>
+        <div className="flex items-center gap-1 text-[12px] text-ink-muted">
+          <input type="date" value={dateFrom} onChange={e => onFilter(setDateFrom)(e.target.value)} className={selCls} title="开始日期" />
+          <span>—</span>
+          <input type="date" value={dateTo} onChange={e => onFilter(setDateTo)(e.target.value)} className={selCls} title="结束日期" />
+        </div>
+        {hasFilter && (
+          <button onClick={resetFilters} className="inline-flex items-center gap-1 text-[12px] text-ink-muted hover:text-ink px-2 py-1.5 rounded-md hover:bg-canvas">
+            <X size={13} /> 清除筛选
+          </button>
+        )}
+      </div>
 
       {/* List */}
       {isLoading ? (
         <div className="text-center py-16 text-ink-muted">
           <Loader2 size={20} className="animate-spin inline mr-2" /> 加载中…
         </div>
-      ) : !meetings || meetings.length === 0 ? (
+      ) : total === 0 && !hasFilter ? (
         <div className="rounded-2xl border border-line bg-canvas-elevated p-12 text-center">
           <Mic size={32} className="mx-auto text-ink-muted mb-3" />
           <p className="text-ink font-medium mb-1">还没有会议记录</p>
@@ -165,61 +190,92 @@ export default function ConsoleMeeting() {
           </button>
         </div>
       ) : (
-        <div className="rounded-2xl border border-line bg-canvas-elevated overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-canvas border-b border-line text-ink-muted">
-              <tr>
-                <th className="text-left px-4 py-2.5 font-medium">标题</th>
-                <th className="text-left px-4 py-2.5 font-medium">关联项目</th>
-                <th className="text-left px-4 py-2.5 font-medium">状态</th>
-                <th className="text-left px-4 py-2.5 font-medium">创建时间</th>
-                <th className="text-right px-4 py-2.5 font-medium">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 && (
+        <>
+          <div className="rounded-2xl border border-line bg-canvas-elevated overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-canvas border-b border-line text-ink-muted">
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-[12px] text-ink-muted">
-                    没有匹配「{keyword || statusFilter}」的会议
-                  </td>
+                  <th className="text-left px-4 py-2.5 font-medium">标题</th>
+                  <th className="text-left px-4 py-2.5 font-medium">关联项目</th>
+                  <th className="text-left px-4 py-2.5 font-medium">创建人</th>
+                  <th className="text-left px-4 py-2.5 font-medium">状态</th>
+                  <th className="text-left px-4 py-2.5 font-medium">创建时间</th>
+                  <th className="text-right px-4 py-2.5 font-medium">操作</th>
                 </tr>
-              )}
-              {filtered.map(m => (
-                <tr key={m.id} className="border-b border-line last:border-0 hover:bg-canvas/50">
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => nav(`/console/meeting/${m.id}`)}
-                      className="text-ink hover:text-brand font-medium text-left"
-                    >
-                      {m.title || '(未命名)'}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 text-ink-secondary">
-                    {m.project_name ? (
+              </thead>
+              <tbody>
+                {items.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-[12px] text-ink-muted">
+                      没有匹配筛选条件的会议
+                    </td>
+                  </tr>
+                )}
+                {items.map(m => (
+                  <tr key={m.id} className="border-b border-line last:border-0 hover:bg-canvas/50">
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => nav(`/console/meeting/${m.id}`)}
+                        className="text-ink hover:text-brand font-medium text-left"
+                      >
+                        {m.title || '(未命名)'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-ink-secondary">
+                      {m.project_name ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <FolderKanban size={13} className="text-ink-muted" />
+                          {m.project_name}
+                        </span>
+                      ) : (
+                        <span className="text-ink-muted text-[12px]">未关联</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-ink-secondary text-[12px]">
                       <span className="inline-flex items-center gap-1.5">
-                        <FolderKanban size={13} className="text-ink-muted" />
-                        {m.project_name}
+                        <UserIcon size={12} className="text-ink-muted" />
+                        {m.owner_name || '—'}
                       </span>
-                    ) : (
-                      <span className="text-ink-muted text-[12px]">未关联</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3"><StatusBadge status={m.status} /></td>
-                  <td className="px-4 py-3 text-ink-muted text-[12px]">{formatTime(m.created_at)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => handleDelete(m)}
-                      className="text-ink-muted hover:text-rose-600 p-1"
-                      title="删除"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                    </td>
+                    <td className="px-4 py-3"><StatusBadge status={m.status} /></td>
+                    <td className="px-4 py-3 text-ink-muted text-[12px]">{formatTime(m.created_at)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => handleDelete(m)}
+                        className="text-ink-muted hover:text-rose-600 p-1"
+                        title="删除"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 分页 */}
+          <div className="flex items-center justify-between mt-3 text-[12px] text-ink-muted">
+            <span>共 {total} 条{hasFilter ? '(已筛选)' : ''}</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="inline-flex items-center gap-0.5 px-2 py-1 rounded-md border border-line bg-white disabled:opacity-40 hover:bg-canvas"
+              >
+                <ChevronLeft size={14} /> 上一页
+              </button>
+              <span className="tabular-nums">第 {page} / {totalPages} 页</span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="inline-flex items-center gap-0.5 px-2 py-1 rounded-md border border-line bg-white disabled:opacity-40 hover:bg-canvas"
+              >
+                下一页 <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

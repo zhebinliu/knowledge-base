@@ -106,11 +106,12 @@ def _meeting_dto(m: Meeting, project_name: Optional[str] = None) -> dict:
 
 # 列表用轻量 DTO:去掉重字段(illustrations 内嵌 base64 图单条可达 MB 级、转写/流程/干系人图)。
 # 保留 meeting_minutes —— 项目会议抽屉要用它的 action_items 数量。配合 list 查询 defer 这些列。
-def _meeting_list_dto(m: Meeting, project_name: Optional[str] = None) -> dict:
+def _meeting_list_dto(m: Meeting, project_name: Optional[str] = None, owner_name: Optional[str] = None) -> dict:
     return {
         "id": m.id,
         "title": m.title,
         "owner_id": m.owner_id,
+        "owner_name": owner_name,
         "project_id": m.project_id,
         "project_name": project_name,
         "start_time": m.start_time,
@@ -255,6 +256,46 @@ async def create_from_text(
     return _meeting_dto(m)
 
 
+async def _apply_meeting_visibility(stmt, session: AsyncSession, user: User):
+    """给 Meeting 查询加可见性过滤(admin 看全部;否则 owner / 项目协作者 / 被分享)。"""
+    if user.is_admin:
+        return stmt
+    from sqlalchemy import or_ as sa_or
+    owned_pids = (await session.execute(
+        select(Project.id).where(Project.created_by == user.id)
+    )).scalars().all()
+    coll_pids = (await session.execute(
+        select(ProjectCollaborator.project_id).where(ProjectCollaborator.user_id == user.id)
+    )).scalars().all()
+    accessible_pids = list(set(owned_pids) | set(coll_pids))
+    shared_mids = (await session.execute(
+        select(MeetingShare.meeting_id).where(MeetingShare.user_id == user.id)
+    )).scalars().all()
+    conds = [Meeting.owner_id == user.id]
+    if accessible_pids:
+        conds.append(Meeting.project_id.in_(accessible_pids))
+    if shared_mids:
+        conds.append(Meeting.id.in_(shared_mids))
+    return stmt.where(sa_or(*conds))
+
+
+async def _owner_names(session: AsyncSession, owner_ids) -> dict:
+    """owner_id → 用户名,一次查全。"""
+    ids = {o for o in owner_ids if o}
+    if not ids:
+        return {}
+    rows = (await session.execute(select(User.id, User.username).where(User.id.in_(ids)))).all()
+    return {r[0]: r[1] for r in rows}
+
+
+async def _project_names(session: AsyncSession, project_ids) -> dict:
+    ids = {p for p in project_ids if p}
+    if not ids:
+        return {}
+    rows = (await session.execute(select(Project.id, Project.name).where(Project.id.in_(ids)))).all()
+    return {r[0]: r[1] for r in rows}
+
+
 @router.get("")
 async def list_meetings(
     project_id: Optional[str] = None,
@@ -280,40 +321,79 @@ async def list_meetings(
     ).order_by(Meeting.created_at.desc())
     if project_id:
         stmt = stmt.where(Meeting.project_id == project_id)
-    if not user.is_admin:
-        from sqlalchemy import or_ as sa_or
-        # 项目协作者口子:owned projects + collaborator projects
-        owned_pids = (await session.execute(
-            select(Project.id).where(Project.created_by == user.id)
-        )).scalars().all()
-        coll_pids = (await session.execute(
-            select(ProjectCollaborator.project_id).where(
-                ProjectCollaborator.user_id == user.id
-            )
-        )).scalars().all()
-        accessible_pids = list(set(owned_pids) | set(coll_pids))
-        # 显式分享口子
-        shared_mids = (await session.execute(
-            select(MeetingShare.meeting_id).where(MeetingShare.user_id == user.id)
-        )).scalars().all()
-        conds = [Meeting.owner_id == user.id]
-        if accessible_pids:
-            conds.append(Meeting.project_id.in_(accessible_pids))
-        if shared_mids:
-            conds.append(Meeting.id.in_(shared_mids))
-        stmt = stmt.where(sa_or(*conds))
+    stmt = await _apply_meeting_visibility(stmt, session, user)
+    rows = (await session.scalars(stmt)).all()
+    project_names = await _project_names(session, [m.project_id for m in rows])
+    owner_names = await _owner_names(session, [m.owner_id for m in rows])
+    return [_meeting_list_dto(m, project_names.get(m.project_id), owner_names.get(m.owner_id)) for m in rows]
+
+
+@router.get("/page")
+async def list_meetings_page(
+    page: int = 1,
+    page_size: int = 20,
+    project_id: Optional[str] = None,
+    status: Optional[str] = None,
+    q: Optional[str] = None,
+    owner_id: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """分页 + 多条件筛选的会议列表(列表页用)。返回 {items,total,page,page_size,uploaders}。
+    筛选:project_id / status / q(标题模糊)/ owner_id(上传人)/ date_from~date_to(按 created_at,含当天)。
+    """
+    from sqlalchemy.orm import defer
+    from sqlalchemy import func as sa_func
+    from datetime import datetime, timedelta
+
+    page = max(1, page)
+    page_size = min(100, max(1, page_size))
+
+    base = select(Meeting)
+    if project_id:
+        base = base.where(Meeting.project_id == project_id)
+    if status:
+        base = base.where(Meeting.status == status)
+    if q and q.strip():
+        base = base.where(Meeting.title.ilike(f"%{q.strip()}%"))
+    if owner_id:
+        base = base.where(Meeting.owner_id == owner_id)
+    try:
+        if date_from:
+            base = base.where(Meeting.created_at >= datetime.fromisoformat(date_from))
+        if date_to:
+            base = base.where(Meeting.created_at < datetime.fromisoformat(date_to) + timedelta(days=1))
+    except ValueError:
+        pass  # 日期格式不对就忽略
+    base = await _apply_meeting_visibility(base, session, user)
+
+    total = (await session.execute(
+        select(sa_func.count()).select_from(base.subquery())
+    )).scalar_one()
+
+    stmt = base.options(
+        defer(Meeting.raw_transcript), defer(Meeting.polished_transcript),
+        defer(Meeting.illustrations), defer(Meeting.edited_minutes),
+        defer(Meeting.process_flows), defer(Meeting.stakeholder_map),
+    ).order_by(Meeting.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
     rows = (await session.scalars(stmt)).all()
 
-    # 一次性查所有相关 project 的名字
-    project_ids = {m.project_id for m in rows if m.project_id}
-    project_names: dict[str, str] = {}
-    if project_ids:
-        projects = (await session.scalars(
-            select(Project).where(Project.id.in_(project_ids))
-        )).all()
-        project_names = {p.id: p.name for p in projects}
+    project_names = await _project_names(session, [m.project_id for m in rows])
+    owner_names = await _owner_names(session, [m.owner_id for m in rows])
+    items = [_meeting_list_dto(m, project_names.get(m.project_id), owner_names.get(m.owner_id)) for m in rows]
 
-    return [_meeting_list_dto(m, project_names.get(m.project_id)) for m in rows]
+    # 上传人筛选项:当前用户可见会议里的去重 owner(忽略其它筛选,保证下拉始终完整)
+    vis = await _apply_meeting_visibility(select(Meeting.owner_id).distinct(), session, user)
+    all_owner_ids = (await session.execute(vis)).scalars().all()
+    up_names = await _owner_names(session, all_owner_ids)
+    uploaders = sorted(
+        [{"id": oid, "name": up_names.get(oid) or oid} for oid in set(all_owner_ids) if oid],
+        key=lambda x: x["name"] or "",
+    )
+
+    return {"items": items, "total": total, "page": page, "page_size": page_size, "uploaders": uploaders}
 
 
 @router.get("/illustration-styles")
