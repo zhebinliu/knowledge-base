@@ -396,18 +396,27 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
                   className="absolute top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand/30 z-10"
                   style={{ left: `calc(${leftPct}% - 3px)` }} />
               </div>
-              {/* 右:竖向时间轴 —— 每条建议一个小点(颜色=类型,hover 看时间/类型,点击跳转) */}
+              {/* 右:竖向时间轴 —— 每条建议一个胶囊药丸,内含时间戳;颜色=类型,hover 看类型名,点击跳转 */}
               {sortedAdvice.length > 0 && (
-                <div className="flex flex-col items-center gap-1.5 overflow-y-auto py-1 shrink-0 w-4" style={{ maxHeight: '60vh' }}>
+                <div className="flex flex-col items-end gap-1 overflow-y-auto py-1 shrink-0" style={{ maxHeight: '60vh', minWidth: 56 }}>
                   {sortedAdvice.map((a) => {
                     const cat = ADVICE_CATS.find((c) => c.key === a.category)
                     const color = cat?.color || '#6b7280'
                     const on = activeAdvice === a.id
+                    const timeText = a.source_ts != null ? fmtClock(a.source_ts) : '—:—'
                     return (
                       <button key={a.id} type="button" onClick={() => jumpTo(a)}
-                        title={`${a.source_ts != null ? fmtClock(a.source_ts) + ' · ' : ''}${cat?.label || a.category_label}`}
-                        className="rounded-full transition-transform shrink-0 hover:scale-150"
-                        style={{ width: on ? 10 : 7, height: on ? 10 : 7, background: color, boxShadow: on ? `0 0 0 3px ${color}40` : 'none' }} />
+                        title={`${timeText} · ${cat?.label || a.category_label}`}
+                        className="rounded-full transition-all shrink-0 font-mono text-[10px] leading-none px-2 py-1 border whitespace-nowrap hover:brightness-95"
+                        style={{
+                          background: `${color}1a`,
+                          borderColor: `${color}80`,
+                          color,
+                          fontWeight: on ? 700 : 500,
+                          boxShadow: on ? `0 0 0 2px ${color}33` : undefined,
+                        }}>
+                        {timeText}
+                      </button>
                     )
                   })}
                 </div>
@@ -3125,7 +3134,7 @@ export default function ConsoleMeetingDetail() {
         <div className="mt-4 bg-white border border-line rounded-xl shadow-sm overflow-hidden">
           {/* 顶部视图切换: 分栏 / 概览 / 操作 */}
           <div className="border-b border-line bg-slate-50/40">
-            <div className="flex overflow-x-auto">
+            <div className="flex overflow-x-auto overflow-y-hidden">
               {TOP_VIEWS.map(v => {
                 const Icon = v.Icon
                 const active = topView === v.key
@@ -3168,7 +3177,7 @@ export default function ConsoleMeetingDetail() {
                 <div className={`relative ${rightPanelOpen && leftTab !== 'advice' ? 'lg:col-span-3 border-r border-line' : 'lg:col-span-5'}`}>
                   {/* 左侧 Tab 栏 */}
                   <div className="flex border-b border-line bg-slate-50/30 items-center">
-                    <div className="flex flex-1 min-w-0 overflow-x-auto">
+                    <div className="flex flex-1 min-w-0 overflow-x-auto overflow-y-hidden">
                       {LEFT_TABS.map(t => {
                         const Icon = t.Icon
                         const active = leftTab === t.key
