@@ -660,3 +660,33 @@
   float: left;
   height: 0;
 }
+
+/* 隐式滚动条 —— 默认完全透明,鼠标悬停容器时才显示拇指。
+   用法:`<div className="scrollbar-hover-only overflow-y-auto">`
+   避免长列表/侧栏右边总是占着一条永不消失的灰条。 */
+.scrollbar-hover-only {
+  scrollbar-width: thin;            /* Firefox */
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.2s ease;
+}
+.scrollbar-hover-only:hover {
+  scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+}
+.scrollbar-hover-only::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-hover-only::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-hover-only::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+.scrollbar-hover-only:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+.scrollbar-hover-only::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+}

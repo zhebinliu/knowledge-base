@@ -402,7 +402,7 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
               </div>
               {/* 右:竖向时间轴 —— 默认彩色圆点,hover 时左侧弹出胶囊显示「时间 · 类型」 */}
               {sortedAdvice.length > 0 && (
-                <div className="flex flex-col items-center gap-1.5 overflow-y-auto py-1 shrink-0 w-4" style={{ maxHeight: '60vh' }}>
+                <div className="flex flex-col items-center gap-1.5 overflow-y-auto scrollbar-hover-only py-1 shrink-0 w-4" style={{ maxHeight: '60vh' }}>
                   {sortedAdvice.map((a) => {
                     const cat = ADVICE_CATS.find((c) => c.key === a.category)
                     const color = cat?.color || '#6b7280'
