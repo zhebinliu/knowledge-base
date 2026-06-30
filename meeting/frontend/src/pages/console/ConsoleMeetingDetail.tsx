@@ -464,18 +464,25 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
         const timeText = a.source_ts != null ? fmtClock(a.source_ts) : '—:—'
         return (
           <div
-            className="fixed z-50 rounded-full font-mono text-[11px] leading-none px-2.5 py-1 border whitespace-nowrap pointer-events-none shadow-md"
+            className="fixed z-50 rounded-xl border pointer-events-none shadow-lg overflow-hidden"
             style={{
-              right: window.innerWidth - hoveredTimelineRect.left + 8,
+              right: window.innerWidth - hoveredTimelineRect.left + 10,
               top: hoveredTimelineRect.top + hoveredTimelineRect.height / 2,
               transform: 'translateY(-50%)',
-              background: `${color}1a`,
+              maxWidth: 340,
+              background: 'rgba(255,255,255,0.95)',
               borderColor: `${color}80`,
-              color,
-              backdropFilter: 'blur(6px)',
+              backdropFilter: 'blur(8px)',
             }}
           >
-            {timeText} · {cat?.label || a.category_label}
+            <div className="px-3 pt-2 pb-1.5 flex items-center gap-1.5 font-mono text-[10px]" style={{ color }}>
+              <span className="rounded-full px-1.5 py-0.5" style={{ background: `${color}1a` }}>{timeText}</span>
+              <span>·</span>
+              <span className="font-sans">{cat?.label || a.category_label}</span>
+            </div>
+            <div className="px-3 pb-2 text-[12.5px] leading-snug text-ink font-medium">
+              {a.title}
+            </div>
           </div>
         )
       })()}
