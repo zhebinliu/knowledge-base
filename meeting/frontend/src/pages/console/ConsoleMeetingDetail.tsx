@@ -198,6 +198,10 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
   const qc = useQueryClient()
   const [showDone, setShowDone] = useState(false)
   const [activeAdvice, setActiveAdvice] = useState<number | null>(null)
+  // 时间轴 hover 弹胶囊用:记 dot 元素的 rect → fixed 定位的胶囊跟着它显示在左侧,
+  // 用 fixed 是为了跳出外层 overflow-y-auto 的裁剪
+  const [hoveredTimelineId, setHoveredTimelineId] = useState<number | null>(null)
+  const [hoveredTimelineRect, setHoveredTimelineRect] = useState<DOMRect | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const segRefs = useRef<Record<number, HTMLDivElement | null>>({})
@@ -396,27 +400,22 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
                   className="absolute top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand/30 z-10"
                   style={{ left: `calc(${leftPct}% - 3px)` }} />
               </div>
-              {/* 右:竖向时间轴 —— 每条建议一个胶囊药丸,内含时间戳;颜色=类型,hover 看类型名,点击跳转 */}
+              {/* 右:竖向时间轴 —— 默认彩色圆点,hover 时左侧弹出胶囊显示「时间 · 类型」 */}
               {sortedAdvice.length > 0 && (
-                <div className="flex flex-col items-end gap-1 overflow-y-auto py-1 shrink-0" style={{ maxHeight: '60vh', minWidth: 56 }}>
+                <div className="flex flex-col items-center gap-1.5 overflow-y-auto py-1 shrink-0 w-4" style={{ maxHeight: '60vh' }}>
                   {sortedAdvice.map((a) => {
                     const cat = ADVICE_CATS.find((c) => c.key === a.category)
                     const color = cat?.color || '#6b7280'
                     const on = activeAdvice === a.id
-                    const timeText = a.source_ts != null ? fmtClock(a.source_ts) : '—:—'
                     return (
                       <button key={a.id} type="button" onClick={() => jumpTo(a)}
-                        title={`${timeText} · ${cat?.label || a.category_label}`}
-                        className="rounded-full transition-all shrink-0 font-mono text-[10px] leading-none px-2 py-1 border whitespace-nowrap hover:brightness-95"
-                        style={{
-                          background: `${color}1a`,
-                          borderColor: `${color}80`,
-                          color,
-                          fontWeight: on ? 700 : 500,
-                          boxShadow: on ? `0 0 0 2px ${color}33` : undefined,
-                        }}>
-                        {timeText}
-                      </button>
+                        onMouseEnter={(e) => {
+                          setHoveredTimelineId(a.id)
+                          setHoveredTimelineRect(e.currentTarget.getBoundingClientRect())
+                        }}
+                        onMouseLeave={() => { setHoveredTimelineId(null); setHoveredTimelineRect(null) }}
+                        className="rounded-full transition-transform shrink-0 hover:scale-150"
+                        style={{ width: on ? 10 : 7, height: on ? 10 : 7, background: color, boxShadow: on ? `0 0 0 3px ${color}40` : 'none' }} />
                     )
                   })}
                 </div>
@@ -455,6 +454,31 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
           )}
         </>
       )}
+
+      {/* hover 时间轴圆点弹出的胶囊:fixed 跳出外层 overflow-y-auto 的裁剪 */}
+      {hoveredTimelineId !== null && hoveredTimelineRect && (() => {
+        const a = sortedAdvice.find(x => x.id === hoveredTimelineId)
+        if (!a) return null
+        const cat = ADVICE_CATS.find((c) => c.key === a.category)
+        const color = cat?.color || '#6b7280'
+        const timeText = a.source_ts != null ? fmtClock(a.source_ts) : '—:—'
+        return (
+          <div
+            className="fixed z-50 rounded-full font-mono text-[11px] leading-none px-2.5 py-1 border whitespace-nowrap pointer-events-none shadow-md"
+            style={{
+              right: window.innerWidth - hoveredTimelineRect.left + 8,
+              top: hoveredTimelineRect.top + hoveredTimelineRect.height / 2,
+              transform: 'translateY(-50%)',
+              background: `${color}1a`,
+              borderColor: `${color}80`,
+              color,
+              backdropFilter: 'blur(6px)',
+            }}
+          >
+            {timeText} · {cat?.label || a.category_label}
+          </div>
+        )
+      })()}
     </div>
   )
 }
