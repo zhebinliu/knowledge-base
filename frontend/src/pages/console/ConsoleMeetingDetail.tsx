@@ -200,6 +200,18 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const segRefs = useRef<Record<number, HTMLDivElement | null>>({})
+  const [leftPct, setLeftPct] = useState(52)  // 转写/建议分栏左侧占比,中缝可拖
+  const onSplitDrag = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const move = (ev: MouseEvent) => {
+      const rect = scrollRef.current?.getBoundingClientRect()
+      if (!rect || !rect.width) return
+      setLeftPct(Math.min(75, Math.max(25, ((ev.clientX - rect.left) / rect.width) * 100)))
+    }
+    const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up) }
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up)
+  }
   const { data, isLoading } = useQuery({
     queryKey: ['meeting-advice', meeting.id],
     queryFn: () => getLiveAdvice(meeting.id, true),
@@ -297,7 +309,7 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
             <Sparkles size={16} className="text-brand" /> 会议 Co-pilot 建议
           </h2>
           <p className="text-[11px] text-ink-muted mt-0.5">
-            点上方时间戳标签跳到对应建议(同时定位左侧转写出处);✓完成 归入成果、✕删除 丢弃。
+            右侧竖轴每点一条建议(颜色=类型,悬停看时间/类型,点击跳转);中缝可拖动调宽窄;✓完成、✕删除。
           </p>
         </div>
         <button
@@ -319,62 +331,60 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
         </div>
       ) : (
         <>
-          {/* 快速定位:每条建议一个时间戳标签,点击两边都跳 */}
-          {advice.length > 0 && hasTimeline && (
-            <div className="flex flex-wrap items-center gap-1.5 mb-3 pb-3 border-b border-line">
-              <span className="text-[11px] text-ink-muted font-medium mr-0.5">快速定位 ({sortedAdvice.length}):</span>
-              {sortedAdvice.map((a) => {
-                const cat = ADVICE_CATS.find((c) => c.key === a.category)
-                const color = cat?.color || '#6b7280'
-                const on = activeAdvice === a.id
-                return (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => jumpTo(a)}
-                    className="text-[11px] px-2 py-0.5 rounded-full border transition-colors"
-                    style={{ color, borderColor: on ? color : color + '66', background: on ? color + '26' : color + '12', fontWeight: on ? 600 : 400 }}
-                  >
-                    {a.source_ts != null ? fmtClock(a.source_ts) + ' ' : ''}{cat?.label || a.category_label}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-
           {advice.length === 0 ? (
             <div className="text-[13px] text-ink-muted py-4 text-center">未决建议已全部处理 ✓</div>
           ) : hasTimeline ? (
-            // 同一滚动容器,每段一行(左转写/右该段建议)行内对齐 → 左右一起滚动;
-            // 无横向格线,仅一条连续竖分隔。空段右侧留白,有建议的行整行高亮。
-            <div ref={scrollRef} className="relative overflow-y-auto" style={{ maxHeight: '60vh' }}>
-              <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_1fr]">
-                {segs.map((seg, i) => (
-                  <Fragment key={i}>
-                    <div
-                      ref={(el) => { segRefs.current[i] = el }}
-                      className={`px-2 py-1.5 rounded-l-md transition-colors ${activeSeg === i ? 'bg-brand/10' : ''}`}
-                    >
-                      <div className="flex gap-2">
-                        {seg.ts != null && (
-                          <span className="shrink-0 mt-0.5 flex items-center gap-1">
-                            <TimestampBadge seconds={seg.ts} />
-                            {adviceSegs.has(i) && <span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" title="此处有建议" />}
-                          </span>
-                        )}
-                        <span className="text-[13px] text-ink-secondary leading-relaxed whitespace-pre-wrap flex-1 min-w-0">{seg.text}</span>
+            <div className="flex gap-1.5">
+              {/* 左:转写/建议分栏(中缝可拖动改宽窄,每段行内对齐一起滚动) */}
+              <div ref={scrollRef} className="relative overflow-y-auto flex-1 min-w-0" style={{ maxHeight: '60vh' }}>
+                <div className="grid" style={{ gridTemplateColumns: `${leftPct}% ${100 - leftPct}%` }}>
+                  {segs.map((seg, i) => (
+                    <Fragment key={i}>
+                      <div
+                        ref={(el) => { segRefs.current[i] = el }}
+                        className={`px-2 py-1.5 rounded-l-md transition-colors ${activeSeg === i ? 'bg-brand/10' : ''}`}
+                      >
+                        <div className="flex gap-2">
+                          {seg.ts != null && (
+                            <span className="shrink-0 mt-0.5 flex items-center gap-1">
+                              <TimestampBadge seconds={seg.ts} />
+                              {adviceSegs.has(i) && <span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" title="此处有建议" />}
+                            </span>
+                          )}
+                          <span className="text-[13px] text-ink-secondary leading-relaxed whitespace-pre-wrap flex-1 min-w-0">{seg.text}</span>
+                        </div>
                       </div>
-                    </div>
-                    <div className={`px-3 py-1.5 lg:border-l border-line space-y-2 transition-colors ${activeSeg === i ? 'bg-brand/5' : ''}`}>
-                      {(adviceBySeg[i] || []).map(renderCard)}
-                    </div>
-                  </Fragment>
-                ))}
+                      <div className={`px-3 py-1.5 border-l border-line space-y-2 transition-colors ${activeSeg === i ? 'bg-brand/5' : ''}`}>
+                        {(adviceBySeg[i] || []).map(renderCard)}
+                      </div>
+                    </Fragment>
+                  ))}
+                </div>
+                {unlocated.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-line">
+                    <div className="text-[11px] text-ink-muted mb-1.5 px-2">未定位到具体时间</div>
+                    <div className="space-y-2.5 px-2">{unlocated.map(renderCard)}</div>
+                  </div>
+                )}
+                {/* 拖动中缝 */}
+                <div onMouseDown={onSplitDrag} title="拖动调整左右宽度"
+                  className="absolute top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand/30 z-10"
+                  style={{ left: `calc(${leftPct}% - 3px)` }} />
               </div>
-              {unlocated.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-line">
-                  <div className="text-[11px] text-ink-muted mb-1.5 px-2">未定位到具体时间</div>
-                  <div className="space-y-2.5 px-2">{unlocated.map(renderCard)}</div>
+              {/* 右:竖向时间轴 —— 每条建议一个小点(颜色=类型,hover 看时间/类型,点击跳转) */}
+              {sortedAdvice.length > 0 && (
+                <div className="flex flex-col items-center gap-1.5 overflow-y-auto py-1 shrink-0 w-4" style={{ maxHeight: '60vh' }}>
+                  {sortedAdvice.map((a) => {
+                    const cat = ADVICE_CATS.find((c) => c.key === a.category)
+                    const color = cat?.color || '#6b7280'
+                    const on = activeAdvice === a.id
+                    return (
+                      <button key={a.id} type="button" onClick={() => jumpTo(a)}
+                        title={`${a.source_ts != null ? fmtClock(a.source_ts) + ' · ' : ''}${cat?.label || a.category_label}`}
+                        className="rounded-full transition-transform shrink-0 hover:scale-150"
+                        style={{ width: on ? 10 : 7, height: on ? 10 : 7, background: color, boxShadow: on ? `0 0 0 3px ${color}40` : 'none' }} />
+                    )
+                  })}
                 </div>
               )}
             </div>
