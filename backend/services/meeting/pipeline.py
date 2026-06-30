@@ -77,7 +77,7 @@ async def polish_transcript(raw_transcript: str) -> str:
         task="meeting_transcript_polish",
         messages=messages,
         temperature=0.2,
-        max_tokens=16000,
+        max_tokens=32000,  # 2026-06-30:长会议(100min+)润色顶满 16k 导致末段全丢,提到 32k
     )
     logger.info("polish_done", model=model, in_chars=len(raw_transcript), out_chars=len(content))
     return content.strip()
