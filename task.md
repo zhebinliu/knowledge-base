@@ -19,6 +19,29 @@
 
 ---
 
+# 任务:会议工作台全局浅色主题(2026-07-01)
+
+目标:放弃独立会议工作台深色网格/玻璃背景,全局切回浅色工作台,优先保证表格、表单、弹窗、会议列表的可读性。
+
+## 边界
+- 只改独立拆分目录 `/Users/zhebin/Documents/纷享销客/AI项目/meeting-kb-extracted` 和远端 `/opt/meeting-kb`。
+- 保留会议工作台产品名、橙色品牌点缀、底部 Dock 和顶部品牌栏。
+- 移除深色 HUD 网格、深色化老组件的强制翻色效果。
+
+## 清单
+- [x] L1 将 redesign 全局 token 切换为浅色背景/深色文字。
+- [x] L2 将 LiquidGlass 组件切换为浅底模式。
+- [x] L3 用浅色覆盖规则恢复老组件的白底、浅灰底、深色文字和普通输入框。
+- [x] L4 禁用 `.rd-root::after` / `.rd-shell::after` 网格背景。
+- [x] L5 本地构建、远端部署并截图验证。
+
+## 部署结果
+- 已部署版本:`global-light-theme-no-grid`。
+- 验证:`/health` 返回 `ok`;`frontend/backend/celery_worker` 容器正常。
+- 截图检查会议列表和设置页用户弹窗:全局背景为浅色,网格层关闭,控制台无 error。
+
+---
+
 # 任务:会议工作台设置页与 Dock 瘦身(2026-07-01)
 
 目标:独立会议工作台的设置页和后台外壳仍残留旧 KB/交付系统入口,收敛为会议产品需要的管理项。
@@ -292,10 +315,20 @@
 - 群/bot 可通过 env 覆盖,不硬编码在代码里。
 
 ## 清单
-- [ ] W1 摸清 Project / Document / ProjectTodo / Meeting model 字段。
-- [ ] W2 docker-compose 加 aihub 日志挂载。
-- [ ] W3 backend/services/daily_report/collector.py(3 个采集函数)。
-- [ ] W4 backend/services/daily_report/formatter.py(拼纯文本)。
-- [ ] W5 backend/tasks/daily_report_task.py + 挂 beat crontab。
-- [ ] W6 admin `POST /api/admin/daily-report/{preview,send-now}` 端点。
-- [ ] W7 部署 → preview 校验 → send-now 到群 → 隔天验 9 点。
+- [x] W1 摸清 Project / Document / ProjectTodo / Meeting model 字段。
+- [x] W2 docker-compose 加 aihub 日志挂载(scp 覆盖 + recreate celery_worker)。
+- [x] W3 backend/services/daily_report/collector.py(3 个采集函数)。
+- [x] W4 backend/services/daily_report/formatter.py(拼纯文本)。
+- [x] W5 backend/tasks/daily_report_task.py + 挂 beat crontab(hour=9, minute=0)。
+- [x] W6 admin `POST /api/admin/daily-report/{preview,send-now}` 端点。
+- [x] W7 部署 + preview + send-now 到群通过。
+
+## 部署结果
+- 部署 sha:bf7eb43,PROD celery_worker + backend 已切到新镜像;/aihub-logs 只读挂载生效。
+- Celery beat 已注册 send-daily-report,crontab=0 9 * * *,timezone=Asia/Shanghai,enable_utc=False。
+- 首次校验 2026-07-01 10:47 手动 send-now 推送 2026-06-30 报告成功(message_id=382064460,970 字符),qixin_messages 落库一条 direction=out 记录。
+- 明早 9:00 由 beat 自动触发。
+
+## 踩坑
+- 会议 meeting_minutes.decisions[] 元素结构是 dict `{content, owner, start_seconds, end_seconds}`,不是字符串。第一版 formatter 直接 `str(d)` 把 dict repr 打进消息里,已修(bf7eb43)。
+- docker-compose.yml 是非镜像文件,GitHub Actions 只更新镜像不同步 compose;新增 volume 后要 scp 覆盖 + `docker compose up -d celery_worker` recreate。命中 memory 里 [[project_server_worktree_stale]]。
