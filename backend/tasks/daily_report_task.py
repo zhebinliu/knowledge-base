@@ -29,11 +29,14 @@ def _config() -> dict:
 
 
 async def _build_report_text(day: date, aihub_log_path: str) -> str:
-    """采集 → 拼文本。不做发送,方便 preview 端点复用。"""
-    # 延迟 import:避免模块加载期就拉 SQLAlchemy 依赖,让 celery 启动更快
+    """采集 → 拼文本。不做发送,方便 preview 端点复用。
+
+    AI Hub 首选走 new-api DB(有真实用户 + 费用);连不上时 fallback 到 tap.jsonl。
+    """
     from models import async_session_maker
     from services.daily_report.collector import (
         collect_aihub_stats,
+        collect_aihub_stats_from_db,
         collect_meeting_summaries,
         collect_workbench_stats,
     )
@@ -43,8 +46,13 @@ async def _build_report_text(day: date, aihub_log_path: str) -> str:
         workbench = await collect_workbench_stats(session, day)
         meetings = await collect_meeting_summaries(session, day)
 
-    # aihub 是同步 IO,不用 session
-    aihub = collect_aihub_stats(aihub_log_path, day)
+    aihub = await collect_aihub_stats_from_db(day)
+    if aihub.get("error"):
+        # DB 拿不到 → 回退到 tap.jsonl(降级,无 user/费用)
+        aihub_fallback = collect_aihub_stats(aihub_log_path, day)
+        if aihub_fallback.get("total_calls", 0) > 0:
+            aihub_fallback["error"] = f"DB 不可用({aihub['error']})→ 走 tap.jsonl 降级"
+            aihub = aihub_fallback
 
     return format_daily_report(day.isoformat(), workbench, meetings, aihub)
 

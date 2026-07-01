@@ -127,12 +127,20 @@ services:
     environment:
       <<: *tz_env
       PYTHONPATH: /app
+      # new-api(AI Hub) 数据库连接 — 每日报告用,不走应用 API 直连 DB
+      # 密码由 .env 里 AIHUB_DB_PASSWORD 供;host 走 external network 里的容器名
+      AIHUB_DB_HOST: new-api-postgres
+      AIHUB_DB_PORT: "5432"
+      AIHUB_DB_USER: newapi
+      AIHUB_DB_NAME: newapi
     depends_on:
       - postgres
       - redis
-    volumes:
-      # aihub-tap 日志:每日报告聚合 AI Hub 昨日调用量/token/异常时读取(只读)
-      - /opt/aihub-tap/logs:/aihub-logs:ro
+    networks:
+      # 默认 kb-system 网络仍连(kb-system_default,连 postgres/redis/qdrant/minio)
+      - default
+      # new-api 网络 external 引入,让 celery 能直连 new-api-postgres:5432
+      - newapi_ext
     command: celery -A tasks worker --beat --loglevel=info --concurrency=2
     restart: unless-stopped
     dns_opt:
@@ -271,6 +279,13 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+networks:
+  # 引用 new-api compose 起的内部网络,让 celery_worker 能直连 new-api-postgres
+  # 服务器上实际名字是 new-api_new-api-internal(由 /opt/new-api compose 创建)
+  newapi_ext:
+    external: true
+    name: new-api_new-api-internal
 
 volumes:
   postgres_data:

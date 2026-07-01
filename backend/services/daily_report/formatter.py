@@ -66,37 +66,60 @@ def format_aihub_section(stats: dict) -> str:
         return "🤖 AI Hub\n  (昨日无调用记录)"
 
     tok = stats["total_tokens"]
+    cost = stats.get("cost", {})
     lines = [
         "🤖 AI Hub",
-        f"  调用 {_fmt_num(total_calls)} 次 · Token 总计 {_fmt_tokens(tok['total'])} "
-        f"(prompt {_fmt_tokens(tok['prompt'])} + completion {_fmt_tokens(tok['completion'])})",
+        f"  调用 {_fmt_num(total_calls)} 次 · Token {_fmt_tokens(tok['total'])} "
+        f"(入 {_fmt_tokens(tok['prompt'])} / 出 {_fmt_tokens(tok['completion'])})",
     ]
 
-    # 模型 TOP
-    if stats["by_model"]:
+    # 费用(仅 quota>0 时显示,否则算免费组不打扰)
+    if cost.get("quota", 0) > 0:
+        lines.append(
+            f"  消费 ≈ ${cost.get('usd', 0):.2f} / ¥{cost.get('cny', 0):.2f}"
+            f"  (quota {_fmt_num(cost.get('quota', 0))})"
+        )
+
+    # 按用户 — 真实用户名
+    if stats.get("by_user"):
+        lines.append("  按用户:")
+        for r in stats["by_user"][:5]:
+            quota_hint = ""
+            if r.get("quota", 0) > 0:
+                usd = r["quota"] / 500_000
+                quota_hint = f" · ¥{usd * 7.2:.2f}"
+            lines.append(
+                f"    · {r['username']}  {_fmt_num(r['calls'])} 次 / {_fmt_tokens(r['tokens'])}{quota_hint}"
+            )
+
+    # 按模型
+    if stats.get("by_model"):
         lines.append("  按模型:")
         for r in stats["by_model"][:5]:
             lines.append(
-                f"    · {r['model']}  {_fmt_num(r['calls'])} 次 / {_fmt_tokens(r['tokens'])} tokens"
+                f"    · {r['model']}  {_fmt_num(r['calls'])} 次 / {_fmt_tokens(r['tokens'])}"
             )
 
-    # 异常
-    err = stats["errors"]
-    if err["count"]:
-        top_paths = " ".join(f"{p['path']}×{p['count']}" for p in err["top_paths"])
-        lines.append(f"  ⚠️ 异常 {err['count']} 次  {top_paths}")
+    # 按 API key(哪个 project 用得多)
+    if stats.get("by_token"):
+        key_hint = " · ".join(
+            f"{r['token_name']}[{r['username']}]×{r['calls']}"
+            for r in stats["by_token"][:3]
+        )
+        lines.append(f"  按 API key:{key_hint}")
 
     # 慢调用
     if stats.get("slow_calls_count"):
         lines.append(f"  🐢 慢调用(>30s) {stats['slow_calls_count']} 次")
 
-    # TOP IP / UA(用户维度降级方案)
-    if stats["top_ips"]:
-        ips = " · ".join(f"{r['ip']}({r['calls']})" for r in stats["top_ips"][:3])
-        lines.append(f"  TOP IP:{ips}")
-    if stats["top_ua"]:
-        uas = " · ".join(f"{r['ua']}({r['calls']})" for r in stats["top_ua"][:3])
-        lines.append(f"  TOP UA:{uas}")
+    # 错误(带 1 条样例便于快速定位)
+    err = stats.get("errors", {})
+    if err.get("count"):
+        line = f"  ⚠️ 错误 {err['count']} 次"
+        if err.get("samples"):
+            s = err["samples"][0]
+            line += f"  最近:{s.get('username','?')}/{s.get('model','?')} — {(s.get('content') or '')[:60]}"
+        lines.append(line)
 
     return "\n".join(lines)
 

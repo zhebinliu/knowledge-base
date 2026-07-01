@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -17,6 +18,12 @@ from models.document import Document
 from models.meeting import Meeting
 from models.project import Project
 from models.project_todo import ProjectTodo
+
+
+# new-api 的 quota 内部单位:500000 quota == $1(new-api 硬编码默认)
+# 用户实际充值 ¥,展示时用 USDExchangeRate(options 表)折算,当前值 7.2
+AIHUB_QUOTA_PER_USD = 500_000
+AIHUB_USD_TO_CNY = 7.2
 
 
 BEIJING_TZ = timezone(timedelta(hours=8))
@@ -166,7 +173,169 @@ async def collect_meeting_summaries(
 
 
 # ============================================================
-# AI Hub (tap.jsonl)
+# AI Hub (new-api DB — 首选)
+# ============================================================
+
+
+async def collect_aihub_stats_from_db(day: date) -> dict:
+    """从 new-api-postgres 的 logs 表聚合当天(北京)调用情况。
+
+    需要环境变量:AIHUB_DB_HOST / _PORT / _USER / _PASSWORD / _NAME。
+    表结构见 new-api schema:type=2 消费日志,type=5 错误日志。
+    """
+    try:
+        import asyncpg  # noqa: WPS433
+    except ImportError:
+        return _empty_aihub(day, error="asyncpg 未安装,无法直连 new-api DB")
+
+    host = os.getenv("AIHUB_DB_HOST", "new-api-postgres")
+    port = int(os.getenv("AIHUB_DB_PORT", "5432"))
+    user = os.getenv("AIHUB_DB_USER", "newapi")
+    password = os.getenv("AIHUB_DB_PASSWORD", "")
+    dbname = os.getenv("AIHUB_DB_NAME", "newapi")
+    if not password:
+        return _empty_aihub(day, error="AIHUB_DB_PASSWORD 未配置")
+
+    utc_start = (datetime.combine(day, datetime.min.time(), BEIJING_TZ)
+                 .astimezone(timezone.utc))
+    utc_end = utc_start + timedelta(days=1)
+    ts_start = int(utc_start.timestamp())
+    ts_end = int(utc_end.timestamp())
+
+    try:
+        conn = await asyncpg.connect(
+            host=host, port=port, user=user, password=password, database=dbname,
+            timeout=10.0,
+        )
+    except Exception as e:
+        return _empty_aihub(day, error=f"连不上 new-api DB: {e}")
+
+    try:
+        # 总量 + tokens + quota(type=2 消费日志)
+        totals = await conn.fetchrow("""
+            SELECT
+              COUNT(*)::bigint AS calls,
+              COALESCE(SUM(prompt_tokens),0)::bigint AS prompt,
+              COALESCE(SUM(completion_tokens),0)::bigint AS completion,
+              COALESCE(SUM(quota),0)::bigint AS quota_sum,
+              COUNT(*) FILTER (WHERE use_time > 30)::bigint AS slow,
+              COUNT(*) FILTER (WHERE is_stream)::bigint AS stream_calls
+            FROM logs
+            WHERE type = 2 AND created_at >= $1 AND created_at < $2
+        """, ts_start, ts_end)
+
+        # 按模型
+        by_model = await conn.fetch("""
+            SELECT model_name, COUNT(*)::bigint AS calls,
+                   COALESCE(SUM(prompt_tokens+completion_tokens),0)::bigint AS tokens,
+                   COALESCE(SUM(quota),0)::bigint AS quota_sum
+            FROM logs
+            WHERE type = 2 AND created_at >= $1 AND created_at < $2
+            GROUP BY model_name
+            ORDER BY calls DESC
+            LIMIT 8
+        """, ts_start, ts_end)
+
+        # 按用户
+        by_user = await conn.fetch("""
+            SELECT username, COUNT(*)::bigint AS calls,
+                   COALESCE(SUM(prompt_tokens+completion_tokens),0)::bigint AS tokens,
+                   COALESCE(SUM(quota),0)::bigint AS quota_sum
+            FROM logs
+            WHERE type = 2 AND created_at >= $1 AND created_at < $2
+            GROUP BY username
+            ORDER BY calls DESC
+            LIMIT 5
+        """, ts_start, ts_end)
+
+        # 按 API key(token_name)
+        by_token = await conn.fetch("""
+            SELECT token_name, username, COUNT(*)::bigint AS calls
+            FROM logs
+            WHERE type = 2 AND created_at >= $1 AND created_at < $2
+              AND COALESCE(token_name,'') <> ''
+            GROUP BY token_name, username
+            ORDER BY calls DESC
+            LIMIT 5
+        """, ts_start, ts_end)
+
+        # 错误(type=5)
+        errors = await conn.fetchrow("""
+            SELECT COUNT(*)::bigint AS n FROM logs
+            WHERE type = 5 AND created_at >= $1 AND created_at < $2
+        """, ts_start, ts_end)
+        error_samples = await conn.fetch("""
+            SELECT username, model_name, substring(content, 1, 100) AS content
+            FROM logs
+            WHERE type = 5 AND created_at >= $1 AND created_at < $2
+            ORDER BY id DESC
+            LIMIT 3
+        """, ts_start, ts_end)
+    finally:
+        await conn.close()
+
+    total_tokens = int(totals["prompt"] + totals["completion"])
+    quota_sum = int(totals["quota_sum"])
+    cost_usd = quota_sum / AIHUB_QUOTA_PER_USD
+    cost_cny = cost_usd * AIHUB_USD_TO_CNY
+
+    return {
+        "day": day.isoformat(),
+        "total_calls": int(totals["calls"]),
+        "total_tokens": {
+            "prompt": int(totals["prompt"]),
+            "completion": int(totals["completion"]),
+            "total": total_tokens,
+        },
+        "cost": {
+            "quota": quota_sum,
+            "usd": round(cost_usd, 3),
+            "cny": round(cost_cny, 2),
+        },
+        "stream_calls": int(totals["stream_calls"]),
+        "slow_calls_count": int(totals["slow"]),
+        "by_model": [
+            {
+                "model": r["model_name"] or "(unknown)",
+                "calls": int(r["calls"]),
+                "tokens": int(r["tokens"]),
+                "quota": int(r["quota_sum"]),
+            }
+            for r in by_model
+        ],
+        "by_user": [
+            {
+                "username": r["username"] or "(anonymous)",
+                "calls": int(r["calls"]),
+                "tokens": int(r["tokens"]),
+                "quota": int(r["quota_sum"]),
+            }
+            for r in by_user
+        ],
+        "by_token": [
+            {
+                "token_name": r["token_name"],
+                "username": r["username"],
+                "calls": int(r["calls"]),
+            }
+            for r in by_token
+        ],
+        "errors": {
+            "count": int(errors["n"]),
+            "samples": [
+                {
+                    "username": r["username"],
+                    "model": r["model_name"],
+                    "content": r["content"],
+                }
+                for r in error_samples
+            ],
+        },
+    }
+
+
+# ============================================================
+# AI Hub (tap.jsonl) — 备用:new-api DB 拿不到时的 fallback
 # ============================================================
 
 
@@ -295,11 +464,13 @@ def _empty_aihub(day: date, error: str | None = None) -> dict:
         "day": day.isoformat(),
         "total_calls": 0,
         "total_tokens": {"prompt": 0, "completion": 0, "total": 0},
-        "by_model": [],
-        "errors": {"count": 0, "top_paths": []},
-        "top_ips": [],
-        "top_ua": [],
+        "cost": {"quota": 0, "usd": 0.0, "cny": 0.0},
+        "stream_calls": 0,
         "slow_calls_count": 0,
+        "by_model": [],
+        "by_user": [],
+        "by_token": [],
+        "errors": {"count": 0, "samples": []},
     }
     if error:
         out["error"] = error
