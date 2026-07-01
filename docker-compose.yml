@@ -130,6 +130,9 @@ services:
     depends_on:
       - postgres
       - redis
+    volumes:
+      # aihub-tap 日志:每日报告聚合 AI Hub 昨日调用量/token/异常时读取(只读)
+      - /opt/aihub-tap/logs:/aihub-logs:ro
     command: celery -A tasks worker --beat --loglevel=info --concurrency=2
     restart: unless-stopped
     dns_opt:

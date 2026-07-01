@@ -1,3 +1,237 @@
+# 任务:独立会议纪要产品本地创建并部署到 sharewb.cloud(2026-06-30)
+
+# 任务:会议功能全量冒烟测试(2026-07-01)
+
+目标:设置页和导航瘦身后,验证会议工作台核心功能仍可用,并区分 UI / 接口问题与外部模型、ASR、飞书凭证依赖问题。
+
+## 边界
+- 只在独立部署 `http://159.75.232.168` 上测试。
+- 测试数据使用明显前缀 `Codex 冒烟测试` 并在结束时清理。
+- 不改用户密码、不暴露密钥。
+- 对需要外部服务的功能只做可达性和错误归因验证,不强行伪造密钥。
+
+## 清单
+- [ ] T1 准备测试 token 和测试项目/会议数据。
+- [ ] T2 验证会议 CRUD、列表、详情、项目关联、纪要/需求/干系人/流程编辑。
+- [ ] T3 验证模板、导出、分享、实时建议、会议问答、AI 动作的可达性与依赖状态。
+- [ ] T4 验证前端会议列表、详情、新建、模板、项目夹页面可打开无白屏。
+- [ ] T5 清理测试数据并汇总结果。
+
+---
+
+# 任务:会议工作台设置页与 Dock 瘦身(2026-07-01)
+
+目标:独立会议工作台的设置页和后台外壳仍残留旧 KB/交付系统入口,收敛为会议产品需要的管理项。
+
+## 边界
+- 只改独立拆分目录 `/Users/zhebin/Documents/纷享销客/AI项目/meeting-kb-extracted` 和远端 `/opt/meeting-kb`。
+- 保留管理员配置模型、路由、API Key、用户管理。
+- 个人设置只保留飞书配置;隐藏 ShareDev / 企信。
+- 后端能力暂不删除,仅从独立产品 UI / 路由入口隐藏。
+
+## 清单
+- [x] D1 收敛系统设置 tab 和个人设置内容。
+- [x] D2 收敛设置页所在后台外壳 Dock / 侧边栏入口。
+- [x] D3 本地构建验证。
+- [x] D4 同步远端、重建前端并验证。
+
+## 部署结果
+- 系统设置页收敛为 4 个 tab:模型管理、路由与参数、API 密钥、用户管理。
+- 旧版设置页同步去掉「嵌入与重排」「调用日志」入口,避免新旧 UI 不一致。
+- 个人设置只保留飞书配置,隐藏 ShareDev PaaS 和企信 Bot。
+- 设置页所在后台外壳的 Dock / 侧边栏收敛为会议、项目夹、个人设置、系统设置,去掉知识库、问答、审核、挑战、系统配置、邀请码、修订学习记忆库等旧入口。
+- `/system-config`、`/bundle-memories` 重定向到 `/settings`;`/invite-codes` 重定向到 `/settings?tab=users`。
+- 本地构建通过:`frontend npm run build`。
+- 已同步远端并重建 `frontend` 容器。
+- 验证:`http://159.75.232.168/version.json` 返回 `settings-dock-slim`,`/health` 返回 `ok`,`frontend` 容器 healthy。
+
+---
+
+# 任务:会议工作台路由规则瘦身(2026-07-01)
+
+目标:独立会议工作台已经去掉知识库问答、工作台首页和完整文档生产,将大模型路由规则同步收敛到会议处理 + 项目资料处理两类。
+
+## 边界
+- 只改独立拆分目录 `/Users/zhebin/Documents/纷享销客/AI项目/meeting-kb-extracted` 和远端 `/opt/meeting-kb`。
+- 保留会议生成、转写润色、需求/流程/干系人/解释图、会议内问答、模板演化。
+- 保留项目资料上传后仍需的文档转写、OCR、切片分类、摘要/类型/金额识别等后台加工规则。
+- 移除知识库问答、输出中心、挑战练习等独立产品不再展示的路由规则。
+
+## 清单
+- [x] S1 梳理前后端实际使用的 routing task。
+- [x] S2 简化设置页路由分组。
+- [x] S3 简化后端默认路由和默认任务参数。
+- [x] S4 本地构建 / 后端语法验证。
+- [x] S5 同步远端、清理旧 task_params、重启并验证。
+
+## 部署结果
+- 设置页「路由规则 / 任务参数」已收敛为两组:
+  - 会议处理:转写润色、实时建议、纪要、需求、流程、干系人、解释图、会议问答、模板演化。
+  - 项目资料处理:资料转写、复核、切片分类、低置信复审、摘要/FAQ、类型识别、金额识别、OCR。
+- 后端 `ROUTING_RULES` 和 `DEFAULT_TASK_PARAMS` 同步收敛到 17 项,未知 task 的兜底路由改为 `minimax-m2.7 → glm-5`。
+- 远端数据库已删除 9 条旧 `task_params`:知识库问答、输出中心、挑战练习、客户画像相关参数。
+- 远端数据库已写入 17 条简化后的 `routing_rules`,当前按现有模型配置统一为 `MiniMax-M3 → GLM-5.2`。
+- 本地验证通过:`frontend npm run build`;`python3 -m py_compile backend/services/model_router.py backend/services/config_service.py`。
+- 已同步并重建远端 `/opt/meeting-kb` 的 `frontend/backend/celery_worker`。
+- 验证:`http://159.75.232.168/version.json` 返回 `simplified-routing`,`/health` 返回 `ok`,容器 healthy,远端配置计数 `routing_rules=17/task_params=17`。
+
+---
+
+# 任务:会议工作台视觉与入口再收敛(2026-07-01)
+
+目标:去掉新版橙色扫描线和企信入口,修复用户菜单浅色面板文字颜色,并给管理员保留清晰的大模型/路由配置入口。
+
+## 边界
+- 只改独立拆分目录 `/Users/zhebin/Documents/纷享销客/AI项目/meeting-kb-extracted` 和远端 `/opt/meeting-kb`。
+- 不删除后端企信/API/模型配置能力,仅移除独立会议产品前端入口。
+- 大模型和路由仍使用既有系统设置页。
+
+## 清单
+- [x] V1 移除新版会议工作台扫描线。
+- [x] V2 移除企信抽屉入口。
+- [x] V3 修复用户菜单颜色并增加「模型与路由」管理员入口。
+- [x] V4 本地构建验证。
+- [x] V5 同步远端、重启前端并验证。
+
+## 部署结果
+- 新版会议工作台主布局已移除橙色扫描线。
+- 已移除会议产品与旧后台壳中的企信抽屉挂载入口。
+- 用户菜单改为浅色面板固定深色文字,修复截图里文字发白的问题。
+- 管理员头像菜单新增「模型与路由」「用户管理」直达入口:
+  - 模型与路由:`/settings?tab=models`
+  - 用户管理:`/settings?tab=users`
+- 本地构建通过:`frontend npm run build`。
+- 已同步并重建远端 `/opt/meeting-kb` 的 `frontend` 容器。
+- 验证:`http://159.75.232.168/version.json` 返回 `no-scan-no-qixin-menu-settings`,`/health` 返回 `ok`,`frontend` 容器 healthy。
+
+---
+
+# 任务:会议工作台入口继续瘦身(2026-07-01)
+
+目标:去掉独立会议工作台里的问答功能入口和工作台首页,登录后直接进入会议列表。
+
+## 边界
+- 只改独立拆分目录 `/Users/zhebin/Documents/纷享销客/AI项目/meeting-kb-extracted` 和远端 `/opt/meeting-kb`。
+- 后端 QA 接口先不删,前端路由与导航隐藏/重定向即可。
+- 保留会议、模板、项目夹、项目详情等当前核心路径。
+
+## 清单
+- [x] E1 梳理当前 console 路由和导航入口。
+- [x] E2 去掉工作台首页与问答入口,默认跳转会议列表。
+- [x] E3 本地构建验证。
+- [x] E4 同步远端、重启前端并验证。
+
+## 部署结果
+- 已去掉会议工作台导航中的首页和问答入口,只保留「会议」「项目夹」。
+- `/console`、`/console/qa`、`/qa` 前端路由均指向会议列表。
+- 本地构建通过:`frontend npm run build`。
+- 已同步并重建远端 `/opt/meeting-kb` 的 `frontend` 容器。
+- 验证:`http://159.75.232.168/version.json` 返回 `meeting-projects-only-no-qa`,`/health` 返回 `ok`,`frontend` 容器 healthy。
+
+---
+
+# 任务:会议工作台项目管理瘦身(2026-07-01)
+
+目标:把独立会议工作台里的项目管理从完整文档生产/实施交付工作台,收敛成“项目用于汇聚会议 + 上传相关文档”的轻量项目夹。
+
+## 边界
+- 只改独立拆分目录 `/Users/zhebin/Documents/纷享销客/AI项目/meeting-kb-extracted` 和远端 `/opt/meeting-kb`。
+- 后端复杂能力先保留,前端入口和项目详情先隐藏文档生产、调研、蓝图、实施等完整交付能力。
+- 保留项目列表、新建/编辑项目、项目关联会议、项目相关文档上传/查看。
+
+## 清单
+- [x] P1 梳理当前项目列表和项目详情页面结构,确认会议/文档可复用接口。
+- [x] P2 改项目列表/首页文案,把“项目管理”表达成“项目夹/会议项目”。
+- [x] P3 改项目详情为轻量视图:会议汇总 + 相关文档,隐藏完整文档生产入口。
+- [x] P4 本地构建验证。
+- [x] P5 同步远端、重启前端并验证。
+
+## 部署结果
+- 本地构建通过:`frontend npm run build`。
+- 已同步并重建远端 `/opt/meeting-kb` 的 `frontend` 容器。
+- 验证:`http://159.75.232.168/version.json` 返回 `project-folder-lite`,`/health` 返回 `ok`,`frontend` 容器 healthy。
+- DNS 注意:`sharewb.cloud` 和 `www.sharewb.cloud` 当前仍解析到 `47.93.236.38`,还没指向新服务器 `159.75.232.168`。
+
+---
+
+# 任务:独立会议纪要产品本地创建并部署到 sharewb.cloud(2026-06-30)
+
+目标:把会议纪要能力轻量独立出来,本地新建目录保存代码,不接 git,直接部署到 `159.75.232.168` 服务器 80 端口。
+
+> 纠偏:该轻量重写版不符合“从 KB System / kb-knowledge 现有会议纪要拆出”的要求,已停止远端容器,仅保留目录备查。当前有效部署见下方“纠偏为从 KB System 拆出现有会议纪要模块”。
+
+## 边界
+- 不复用 KB System 的项目工作台 / 知识库 / Qdrant / Celery / MinIO 复杂链路。
+- 保留轻量「项目」概念:会议可归集到一个项目下,项目仅作为聚合和筛选。
+- 前后端都要部署,服务入口为 `http://sharewb.cloud/` 和服务器 80 端口。
+- 暂时不用 git;远端目录独立放置,不影响 `/root/fx-data` 旧项目。
+
+- [x] D1 创建本地独立目录和轻量后端(FastAPI + SQLite + 文件上传)。
+- [x] D2 创建前端(React/Vite)并完成会议列表 / 新建 / 详情 / 项目聚合。
+- [x] D3 本地构建和后端导入检查。
+- [x] D4 同步到服务器 `/opt/meeting-minutes` 并写 Docker Compose/nginx。
+- [x] D5 启动 80 端口并验证公网访问。
+
+## 部署结果
+- 本地目录:`/Users/zhebin/Documents/纷享销客/AI项目/meeting-minutes-standalone`
+- 远端目录:`/opt/meeting-minutes`
+- 容器:`meeting-minutes`,已停止,80 端口已交给 KB 会议纪要拆分版。
+- 公网 IP 访问:`http://159.75.232.168/` 正常;`/api/health` 正常。
+- 冒烟测试:创建会议 → 生成纪要 → 删除测试会议通过。
+- DNS 注意:`sharewb.cloud` 和 `www.sharewb.cloud` 当前解析到 `47.93.236.38`,不是新服务器 `159.75.232.168`,域名访问仍是旧站 403;需要 DNS 控制台改 A 记录。
+
+---
+
+# 任务:纠偏为从 KB System 拆出现有会议纪要模块(2026-06-30)
+
+目标:废弃上一版轻量重写实现,改为基于 KB System 现有会议纪要代码抽取并部署,尽量保留既有功能。
+
+## 边界
+- 不能重写会议纪要核心功能;必须复用 `meeting/` overlay 与现有 `backend/api/meeting.py`、`services/meeting/*`、`tasks/meeting_tasks.py`、前端会议页面。
+- 项目 / KB 交集可以暂时弱化,但会议本身的上传 / 转写 / 生成 / 编辑 / 模板 / 导出 / Co-pilot / 分享能力要保留。
+- 替换掉刚才部署在 80 端口的轻量版。
+
+## 清单
+- [x] R1 停掉轻量重写版服务,保留目录备查。
+- [x] R2 梳理现有会议模块运行依赖并确定独立部署最小 compose。
+- [x] R3 创建基于 KB System 代码的独立本地目录。
+- [x] R4 配置独立入口和会议优先前端。
+- [x] R5 同步远端构建启动并验证。
+
+## 部署结果
+- 本地目录:`/Users/zhebin/Documents/纷享销客/AI项目/meeting-kb-extracted`
+- 远端目录:`/opt/meeting-kb`
+- 运行方式:Docker Compose,包含 `frontend/backend/celery_worker/postgres/qdrant/redis/minio`。
+- 前端入口:`/` 默认进入 `/console/meeting`;保留原 KB 会议纪要前后端能力和 `meeting/` overlay。
+- 构建调整:后端去掉独立会议部署暂不需要的 LibreOffice 大包,保留 `ffmpeg` 和中文字体;前端改为本地构建 dist 后在远端 nginx 镜像中直接使用,避免小服务器 OOM。
+- 验证:`http://159.75.232.168/`、`/console/meeting`、`/health` 均正常;后端 healthy,Celery ready。
+- DNS 注意:`sharewb.cloud` 和 `www.sharewb.cloud` 当前仍解析到 `47.93.236.38`,不是 `159.75.232.168`;域名访问仍是旧站 403,需要把 A 记录改到新服务器。
+
+---
+
+# 任务:会议纪要功能独立产品化分析(2026-06-30)
+
+目标:评估从工作台中抽出会议纪要功能,升级 UI 和可用性,并部署到新服务器的可行方案。
+
+## 边界
+- 只做现状梳理和实施路线分析,不直接改业务代码。
+- 覆盖产品定位 / 技术拆分 / 数据模型 / UI 升级 / 部署迁移 / 风险和里程碑。
+- 保留现有 KB System 会议模块稳定性,不影响线上 `kb.liii.in`。
+
+## 清单
+- [x] A1 梳理会议模块当前后端、前端、任务、模型、存储依赖。
+- [x] A2 分析独立产品的拆分方式:轻量独立入口、同仓新应用、独立仓/独立服务。
+- [x] A3 提出 UI 和可用性升级方向。
+- [x] A4 设计新服务器部署方案、域名、数据迁移和发布流程。
+- [x] A5 汇总推荐路线、阶段计划、风险和验收标准。
+
+## 关键发现
+- 会议模块当前通过 `meeting/` overlay 注入宿主仓,运行时依赖 `users/projects/project_collaborators/model_router/celery/minio/feishu_crypto` 等宿主能力。
+- 产品能力已不止“纪要”:包含上传/半实时录音、ASR、纪要、需求、流程、干系人、解释图、Co-pilot 建议、模板导出、飞书/多维表同步、会议问答和分享。
+- 独立产品化推荐先做“同仓独立产品实例”验证,再拆独立仓;直接硬拆会被项目权限、模型路由、配置和 overlay 双份文件拖住。
+
+---
+
 # 任务:会议 Co-pilot / 实时录音 UX 一批(2026-06-30)
 
 - [x] R5 新建会议点录音按钮后置灰 + 显示「正在启动会议」防重复点(starting state)
@@ -41,3 +275,27 @@
 - [x] 踩坑:backend overlay clobber —— meeting_tasks.py / pipeline.py 有 meeting/backend 副本,COPY meeting/backend/ /app/ 覆盖,只改 backend/ 那份不上线。两份已同步(commit ce6acc2)。
 - [x] 部署 ce6acc2,prod 手动跑一次:scanned=28 fixed=9 repaired=26 split=4;再跑 fixed=0(幂等);beat 已注册 sweep_meeting_mermaid(每小时)。
 - 完成。
+
+---
+
+# 任务:每日工作台报告推送到企信群(2026-07-01)
+
+目标:每天早 9 点自动推送 KB 工作台 + 会议昨日纪要 + AI Hub 昨日概况到群 `0:fs:d7de819b547d41d08e066bb3676f36a8:`。
+
+## 边界
+- 通道:复用本仓 `send_message_for_user(bot_user, chat_id, text)`,不走 sharecrm CLI。
+- Bot:`4eec5298-7f82-48ec-b731-adff610314ee`(@实施工作台,已在群里)。
+- 定时:`backend/tasks/convert_task.py:50` beat_schedule 加 crontab(hour=9, minute=0)。
+- AI Hub 日志:docker-compose 挂 `/opt/aihub-tap/logs:/aihub-logs:ro` 到 celery_worker。
+- 降级:tap.jsonl 无 user_id → TOP N 用 client_ip + UA;无定价表 → 只报 token 数不报 ¥。
+- 全局视角报告,不做 per-user 版本(下期)。
+- 群/bot 可通过 env 覆盖,不硬编码在代码里。
+
+## 清单
+- [ ] W1 摸清 Project / Document / ProjectTodo / Meeting model 字段。
+- [ ] W2 docker-compose 加 aihub 日志挂载。
+- [ ] W3 backend/services/daily_report/collector.py(3 个采集函数)。
+- [ ] W4 backend/services/daily_report/formatter.py(拼纯文本)。
+- [ ] W5 backend/tasks/daily_report_task.py + 挂 beat crontab。
+- [ ] W6 admin `POST /api/admin/daily-report/{preview,send-now}` 端点。
+- [ ] W7 部署 → preview 校验 → send-now 到群 → 隔天验 9 点。

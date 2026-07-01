@@ -26,7 +26,7 @@ _ENC[_dt] = _utc_iso_datetime
 _ENC[_date] = lambda d: d.isoformat()  # 日期本来就无时区,保持
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, workflow_canvas, research, admin_invite_codes, admin_bundle_memories, project_stakeholders, smart_advice, template
+from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, workflow_canvas, research, admin_invite_codes, admin_bundle_memories, project_stakeholders, smart_advice, template, admin_daily_report
 from services.auth import get_current_user
 from services.rate_limit import limiter
 from services.vector_store import vector_store
@@ -170,6 +170,7 @@ app.include_router(agent_settings.router, prefix="/api/settings", tags=["setting
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(admin_invite_codes.router, prefix="/api/admin", tags=["admin"])
 app.include_router(admin_bundle_memories.router, prefix="/api/admin", tags=["admin"])
+app.include_router(admin_daily_report.router, prefix="/api/admin/daily-report", tags=["admin"])
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(mcp.router,   prefix="/api/mcp",   tags=["mcp"])

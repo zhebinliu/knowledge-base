@@ -1,6 +1,7 @@
 from tasks.convert_task import celery_app as app
 from tasks import output_tasks  # noqa: F401 — register output generation tasks with Celery
 from tasks import meeting_tasks  # noqa: F401 — register meeting AI pipeline tasks
+from tasks import daily_report_task  # noqa: F401 — register 每日工作台报告 task
 
 # 2026-05-12:Celery worker 启动时统一注册所有 SQLAlchemy model 元数据。
 # 不全量注册会导致跨表 ForeignKey 解析失败 —— 例如 meetings.project_id → projects.id

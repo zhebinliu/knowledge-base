@@ -47,6 +47,12 @@ def reset_db_pool_to_nullpool(**kwargs):
     )
 celery_app.conf.task_serializer = "json"
 celery_app.conf.result_expires = 3600
+# 让 crontab 按北京时间解释(默认 UTC)。秒级 schedule 不受影响。
+celery_app.conf.timezone = "Asia/Shanghai"
+celery_app.conf.enable_utc = False
+
+from celery.schedules import crontab as _crontab
+
 celery_app.conf.beat_schedule = {
     "check-challenge-schedules": {
         "task": "run_scheduled_challenges",
@@ -59,6 +65,10 @@ celery_app.conf.beat_schedule = {
     "sweep-meeting-mermaid": {
         "task": "sweep_meeting_mermaid",
         "schedule": 3600.0,  # 每小时:确定性修复会议流程图里渲染失败的 mermaid(幂等)
+    },
+    "send-daily-report": {
+        "task": "send_daily_report",
+        "schedule": _crontab(hour=9, minute=0),  # 每天北京 9:00 推企信群
     },
 }
 
