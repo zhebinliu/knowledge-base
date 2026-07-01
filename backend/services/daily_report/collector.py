@@ -138,13 +138,27 @@ async def collect_meeting_summaries(
         minutes = m.meeting_minutes or {}
         edited = m.edited_minutes or {}  # 用户编辑过的优先
         summary = (edited.get("summary") or minutes.get("summary") or "").strip()
-        decisions = edited.get("decisions") or minutes.get("decisions") or []
+        decisions_raw = edited.get("decisions") or minutes.get("decisions") or []
         actions = edited.get("action_items") or minutes.get("action_items") or []
+
+        # decisions 元素通常是 dict {content, owner, start_seconds, end_seconds},
+        # 也可能是历史遗留的纯字符串 —— 都归一化成 str
+        decisions: list[str] = []
+        for d in decisions_raw[:3]:
+            if isinstance(d, dict):
+                content = str(d.get("content") or "").strip()
+                owner = str(d.get("owner") or "").strip()
+                text = f"{content}({owner})" if owner else content
+            else:
+                text = str(d).strip()
+            if text:
+                decisions.append(text[:120])
+
         out.append({
             "id": m.id,
             "title": m.title or "未命名会议",
             "summary": summary[:200],
-            "decisions": [str(d)[:120] for d in decisions[:3]],
+            "decisions": decisions,
             "action_items_count": len(actions),
             "project_id": m.project_id,
         })
