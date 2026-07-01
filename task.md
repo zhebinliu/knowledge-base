@@ -329,6 +329,14 @@
 - 首次校验 2026-07-01 10:47 手动 send-now 推送 2026-06-30 报告成功(message_id=382064460,970 字符),qixin_messages 落库一条 direction=out 记录。
 - 明早 9:00 由 beat 自动触发。
 
+## 升级 W8:AI Hub 走 new-api DB(2026-07-01)
+- 之前 tap.jsonl 只有 client_ip/UA,TOP N"用户"是降级版。切到 new-api-postgres.logs 表后拿到真实 user_id / username / token_name / prompt_tokens / completion_tokens / quota。
+- 费用:quota / 500000 = $,再乘 USDExchangeRate(options 表 = 7.2)得 ¥。免费组(quota=0)不展示。
+- 网络:celery_worker external 引入 new-api_new-api-internal,通过 DNS 直连 new-api-postgres:5432。密码放 /opt/kb-system/.env 里 AIHUB_DB_PASSWORD。
+- 保底:new-api DB 拿不到时 fallback 到 tap.jsonl。
+- 部署 sha:2808cc8;2026-07-01 11:04 send-now 推群成功(message_id=382067955,1051 字符,含 5 个真实用户 + 3 个 API key 分布 + 错误 sample)。
+
 ## 踩坑
 - 会议 meeting_minutes.decisions[] 元素结构是 dict `{content, owner, start_seconds, end_seconds}`,不是字符串。第一版 formatter 直接 `str(d)` 把 dict repr 打进消息里,已修(bf7eb43)。
-- docker-compose.yml 是非镜像文件,GitHub Actions 只更新镜像不同步 compose;新增 volume 后要 scp 覆盖 + `docker compose up -d celery_worker` recreate。命中 memory 里 [[project_server_worktree_stale]]。
+- docker-compose.yml 是非镜像文件,GitHub Actions 只更新镜像不同步 compose;新增 volume/network 后要 scp 覆盖 + `docker compose up -d celery_worker` recreate。命中 memory 里 [[project_server_worktree_stale]]。
+- 主导思路误判:一开始把 tap.jsonl 当唯一数据源,实际 new-api 自己有完整 DB(user/quota/token 全在),白花了半程精力在正则解析 SSE 流。教训:上下游都有存储时先看结构化的那个。
