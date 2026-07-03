@@ -194,6 +194,9 @@ app.include_router(markup_template_router, prefix="/api/markup-templates", tags=
 app.include_router(output_chats.router, prefix="/api/output-chats", tags=["output-chats"])
 from api.public_share import router as public_share_router  # 2026-06-12:交付物免登录只读公开分享
 app.include_router(public_share_router, prefix="/api/public", tags=["public-share"])
+from api.changelog import public_router as changelog_public_router, admin_router as changelog_admin_router  # 2026-07-03:平台更新日志
+app.include_router(changelog_public_router, prefix="/api/public", tags=["public-changelog"])
+app.include_router(changelog_admin_router, prefix="/api/admin", tags=["admin-changelog"])
 app.include_router(briefs.router, prefix="/api/briefs", tags=["briefs"])
 app.include_router(stage_flow.router, prefix="/api/settings", tags=["stage-flow"])
 app.include_router(doc_checklist.router, prefix="/api/doc-checklist", tags=["doc-checklist"])
@@ -246,6 +249,7 @@ async def startup():
     from models.bundle_revision_memory import BundleRevisionMemory  # noqa: F401  修订版学习记忆(2026-06-08)
     from models.project_todo import ProjectTodo  # noqa: F401  项目待办看板(2026-06-08)
     from models.bundle_share import BundleShare  # noqa: F401  交付物公开分享(2026-06-12,create_all 建 bundle_shares 表)
+    from models.changelog_entry import ChangelogEntry  # noqa: F401  平台更新日志(2026-07-03,create_all 建 changelog_entries 表)
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
