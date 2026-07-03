@@ -44,10 +44,16 @@ const (
 
 var (
 	logFile  *os.File
+	logDate  string // 当前 log 文件对应的日期(Asia/Shanghai YYYY-MM-DD),用于日切
 	logMu    sync.Mutex
 	adminKey string
 	pgPool   *pgxpool.Pool
 	shTZ     = mustTZ("Asia/Shanghai")
+)
+
+const (
+	tapLogDir     = "/logs"
+	tapLogRetain  = 3 // 保留最近 N 天,超过删掉
 )
 
 func mustTZ(name string) *time.Location {
@@ -59,14 +65,13 @@ func mustTZ(name string) *time.Location {
 }
 
 func main() {
-	if err := os.MkdirAll("/logs", 0755); err != nil {
+	if err := os.MkdirAll(tapLogDir, 0755); err != nil {
 		log.Fatal(err)
 	}
-	f, err := os.OpenFile("/logs/tap.jsonl", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
+	// 首次打开当天 log 文件(日切在 writeTapLog 里做)
+	if err := openTodayLogFile(); err != nil {
 		log.Fatal(err)
 	}
-	logFile = f
 
 	adminKey = os.Getenv("AIHUB_ADMIN_KEY")
 	if adminKey == "" {
@@ -393,8 +398,82 @@ func tapHandler(w http.ResponseWriter, r *http.Request) {
 		"resp_body":   respBuf.String(),
 	}
 	line, _ := json.Marshal(rec)
+	writeTapLog(line)
+}
+
+// ─── log rotation ──────────────────────────────────────────────────────────
+// 日切策略: 按 Asia/Shanghai 时区当天生成 tap-YYYY-MM-DD.jsonl,超过 tapLogRetain
+// 天数的老文件自动清理。避免 tap.jsonl 无限增长撑爆磁盘(2026-07-02 教训)。
+
+func todayInSH() string {
+	return time.Now().In(shTZ).Format("2006-01-02")
+}
+
+func openTodayLogFile() error {
 	logMu.Lock()
+	defer logMu.Unlock()
+	today := todayInSH()
+	path := fmt.Sprintf("%s/tap-%s.jsonl", tapLogDir, today)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	if logFile != nil {
+		logFile.Close()
+	}
+	logFile = f
+	logDate = today
+	return nil
+}
+
+func writeTapLog(line []byte) {
+	logMu.Lock()
+	// 日切检测:如果日期变了,关旧文件开新文件
+	if today := todayInSH(); today != logDate {
+		if logFile != nil {
+			logFile.Close()
+		}
+		path := fmt.Sprintf("%s/tap-%s.jsonl", tapLogDir, today)
+		f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Printf("[warn] rotate tap log to %s failed: %v", path, err)
+			logMu.Unlock()
+			return
+		}
+		logFile = f
+		logDate = today
+		log.Printf("tap log rotated → %s", path)
+		// 异步清理老文件(不阻塞写路径)
+		go cleanupOldTapLogs()
+	}
 	logFile.Write(line)
 	logFile.Write([]byte{'\n'})
 	logMu.Unlock()
+}
+
+func cleanupOldTapLogs() {
+	entries, err := os.ReadDir(tapLogDir)
+	if err != nil {
+		return
+	}
+	cutoff := time.Now().Add(-time.Duration(tapLogRetain+1) * 24 * time.Hour)
+	for _, e := range entries {
+		name := e.Name()
+		// 只清 tap-YYYY-MM-DD.jsonl 格式,legacy tap.jsonl 保留
+		if !strings.HasPrefix(name, "tap-") || !strings.HasSuffix(name, ".jsonl") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if info.ModTime().Before(cutoff) {
+			path := tapLogDir + "/" + name
+			if err := os.Remove(path); err != nil {
+				log.Printf("[warn] cleanup %s failed: %v", path, err)
+			} else {
+				log.Printf("cleaned old tap log: %s", path)
+			}
+		}
+	}
 }

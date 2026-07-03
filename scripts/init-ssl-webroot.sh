@@ -13,7 +13,7 @@ set -euo pipefail
 
 DOMAIN="${DOMAIN:?需指定:DOMAIN=uat.tokenwave.cloud $0}"
 EMAIL="${EMAIL:-liu@zheb.in}"
-EXPECTED_IP="${EXPECTED_IP:-34.67.136.67}"
+EXPECTED_IP="${EXPECTED_IP:-34.42.241.99}"
 
 echo "==> [1/4] 检查 DNS 是否解析到 $EXPECTED_IP"
 if ! command -v dig >/dev/null 2>&1; then

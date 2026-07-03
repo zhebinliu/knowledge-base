@@ -1125,3 +1125,68 @@ docker run --rm --entrypoint sh ghcr.io/zhebinliu/knowledge-base-frontend-prod:s
 - 复测:在线 enqueue → `html_generated size=36654`,bundle `done`,无 fallback/reject 日志(说明 primary 拿到 32k 预算后一次成功)。
 
 **通用教训**:跟 memory `project_kb_model_routing_db` 的"convert 用 m3 转空"同一族。**给推理模型派"大输出"任务时,max_tokens 必须显式给足**——别传 None 指望"不设上限",代理会偷偷塞 4096,reasoning 模型先把它 think 光,你拿到的是空。判空要落在 LLM 调用层(validator/降级),别只在业务校验层抛错——那时 fallback 已经错过了。
+
+---
+
+### 18. GCP VM 磁盘 99% → 全服务假死 → 强制重启换 IP(2026-07-02)
+
+【现象】用户反馈 aihub 打不开。curl HTTPS timeout(TCP 三口能连但 TLS/HTTP 无响应),
+SSH 报 `Connection timed out during banner exchange`——**TCP 层活但应用层全无响应**。
+经典的"活死人"状态,只能从 GCP Console **强制重启**。重启后外部 IP 从
+`34.67.136.67` 变到 `34.42.241.99`(GCP ephemeral IP 特性,重启就换)。
+
+【根因】`/opt/data` 磁盘 **99% 满,只剩 213MB**。构成:
+
+- **老 GHCR SHA 镜像堆积 ~25GB**:CI/CD 每次部署 push 一个 sha-xxxxx tag,几天累计
+  `ghcr.io/zhebinliu/knowledge-base-backend:sha-*` 就 11 个 × 2.26GB = 25GB
+- **tap.jsonl 增长 1.7GB**:aihub-tap 从 2026-06-11 起单文件追加,无 rotation
+- **tokenwave-api 僵尸容器** 2 个月 restarting 一直占镜像
+
+结果:docker overlayfs 无法写 → 容器 IO 挂起 → dockerd 卡住 → sshd/nginx 应用层写不了
+临时文件也 hung → 网络内核层还活着但应用无响应。
+
+【处置】
+
+1. GCP Console 强制 reset VM
+2. 从新 IP `34.42.241.99` SSH 上去清:
+   ```bash
+   IN_USE=sha-$(sudo docker inspect kb-system-backend-1 -f '{{.Config.Image}}' | grep -oP 'sha-[a-z0-9]+')
+   sudo docker images 'ghcr.io/zhebinliu/knowledge-base-*' --format '{{.Repository}}:{{.Tag}}' \
+     | grep -v "$IN_USE" | sudo xargs -r docker rmi
+   ```
+   一次清 5.4GB。
+3. `truncate -s 0` tap.jsonl(需要 restart aihub-tap 释放 fd 才真回收 inode)
+4. `docker rm tokenwave-api` 清僵尸
+
+【长期防复发】
+
+- **tap.jsonl 日切保留 3 天**:aihub-tap `main.go` 加 `openTodayLogFile()` + 日切时
+  异步 `cleanupOldTapLogs()`,文件名 `tap-YYYY-MM-DD.jsonl`。见
+  [aihub-tap/main.go](aihub-tap/main.go)。同步改
+  [aihub-tap/analyze-rewrite.py](aihub-tap/analyze-rewrite.py) glob 多文件。
+- **磁盘告警**:`disk-alert.py` 从 new-api-postgres options 表读 SMTP 配置(不复用
+  凭证),阈值 85%,cooldown 12h。cron `5,20,35,50 * * * *` 每 15 分钟检查。
+  见 [aihub-tap/disk-alert.py](aihub-tap/disk-alert.py)。
+- **老镜像自动清理**:暂未做,风险是可能误删仍需回滚的 SHA。当前手动。
+- **GCP 静态 IP**(**待办,用户需去 Console 操作**):现在还是 ephemeral,下次重启还会
+  换 IP。绑定 static IP 免费(前提是一直被 attached 的),路径:GCP Console → VPC
+  network → External IP addresses → 34.42.241.99 → 类型改 STATIC。
+
+【伴随的 IP 迁移】换 IP 后要同步的:
+
+- GitHub Actions `DEPLOY_HOST` secret → gh CLI 直接改
+- 仓库里所有硬编码引用(CLAUDE.md / PROJECT_OVERVIEW.md / aihub-tap/README.md /
+  scripts/*)——用 sed 全局替换,**LEARNING.md 里的历史事件描述不动**
+- 客户端(如王建的 WorkBuddy CLI 走 Clash 代理)可能缓存了老 IP 的 TCP 连接 / TLS
+  session,报 BoringSSL `BAD_DECRYPT` 502。让用户 **重启 Clash + 清 DNS 缓存**
+  即可。Chrome 的 TLS session ticket 缓存对新 IP 上的同域名会短暂 mismatch。
+
+【预警信号】以后看到这些立刻查磁盘:
+
+- SSH 连接 `Connection timed out during banner exchange`(sshd 有响应但无法写)
+- HTTPS TLS handshake 卡在 Client hello 后
+- 但 `nc -vz <ip> 22/443/80` 三口都能连(TCP 内核层还活着)
+
+**通用教训**:GCP ephemeral IP + CI/CD 频繁 push image + 单文件 log 无 rotation
+是叠加的定时炸弹。任何一个都是常见配置,叠一起磁盘满到 99% 就是几周的事。docker
+镜像清理 + 日志 rotation + 磁盘告警是 baseline,一开始就该配好。

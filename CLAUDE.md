@@ -17,11 +17,11 @@
 - 备用域名: https://kb.tokenwave.cloud（同一服务器，独立证书）
 - **新前端预览**: https://uat.tokenwave.cloud — 深色 Liquid Glass 重构版,根 `/` 默认 302 到 `/redesign/console`。**同一服务器,独立证书,复用同一份 dist + 后端 + 数据。** 现在 `/redesign/*` 是 mock 数据状态,等逐页接 API 后即"可用的新前端"。
 - **团队看板**: https://kanban.tokenwave.cloud — Plane(开源 Jira/Linear 替代)。独立 compose `/opt/kanban`(源码在本仓 `kanban/`),独立 postgres/redis/rabbitmq/minio,由主 frontend nginx 持证反代到 `plane-proxy:80`,模式同 aihub。
-- 直连 IP: 34.67.136.67（80→301 跳 HTTPS）
+- 直连 IP: 34.42.241.99（80→301 跳 HTTPS）
 
 ## 部署
 
-- 远程服务器: `liu@34.67.136.67` (GCP)，SSH key: `~/.ssh/id_rsa_github_deploy`
+- 远程服务器: `liu@34.42.241.99` (GCP)，SSH key: `~/.ssh/id_rsa_github_deploy`
 - 远程路径: `/opt/kb-system`
 - 运行方式: Docker Compose 拉 **ghcr.io 镜像**(`ghcr.io/zhebinliu/knowledge-base-{backend,frontend-prod,frontend-uat}`)— 服务器 **不在本地编译**
 - HTTPS: Let's Encrypt 证书在主机 `/etc/letsencrypt/live/kb.liii.in/`，挂载进 frontend 容器。续期 cron `17 3 * * * /opt/kb-system/scripts/renew-ssl.sh`

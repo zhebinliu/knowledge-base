@@ -95,19 +95,29 @@ def main():
         'skip_small_split': 0,
     }
 
-    # 读 tap.jsonl
+    # 读 tap 日志:tap-YYYY-MM-DD.jsonl(日切后新格式) + 老 tap.jsonl(legacy)
+    import glob
+    log_files = sorted(glob.glob('/opt/aihub-tap/logs/tap-*.jsonl'))
+    if os.path.exists(args.tap):
+        log_files.append(args.tap)
+    if not log_files:
+        print(f'✘ 没找到任何日志文件在 /opt/aihub-tap/logs/')
+        sys.exit(1)
+
     if args.tail > 0:
-        # 只读最后 N 行
-        with open(args.tap, 'rb') as f:
+        # 只读最新那个文件的尾部
+        latest = log_files[-1]
+        with open(latest, 'rb') as f:
             f.seek(0, 2)
             size = f.tell()
-            # 估算每行 50KB 上限,往回读
             chunk = min(size, args.tail * 80_000)
-            f.seek(size - chunk)
+            f.seek(max(0, size - chunk))
             lines = f.read().decode('utf-8', errors='replace').splitlines()[-args.tail:]
     else:
-        with open(args.tap) as f:
-            lines = f.readlines()
+        lines = []
+        for fp in log_files:
+            with open(fp) as f:
+                lines.extend(f.readlines())
 
     for line in lines:
         try:

@@ -17,7 +17,7 @@ OUT_DIR="${TMPDIR:-/tmp}/aihub-docs-build"
 OUT="$OUT_DIR/index.html"
 
 REMOTE_USER=liu
-REMOTE_HOST=34.67.136.67
+REMOTE_HOST=34.42.241.99
 REMOTE_PATH=/opt/aihub-docs/index.html
 SSH_KEY="$HOME/.ssh/id_rsa_github_deploy"
 
