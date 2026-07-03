@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { BookOpen } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import CaptchaInput, { type CaptchaInputRef } from '../components/auth/CaptchaInput'
@@ -8,13 +8,14 @@ import PasswordStrength, { isPasswordValid } from '../components/auth/PasswordSt
 export default function Register() {
   const { register } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [username, setUsername] = useState('')
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
-  const [inviteCode, setInviteCode] = useState('')
+  const [inviteCode, setInviteCode] = useState(() => (searchParams.get('invite_code') || '').toUpperCase())
   const [captcha, setCaptcha] = useState({ captcha_id: '', captcha_answer: '' })
   const captchaRef = useRef<CaptchaInputRef>(null)
   const [error, setError] = useState<string | null>(null)

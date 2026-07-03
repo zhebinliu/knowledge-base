@@ -8,12 +8,16 @@
  * - 吊销:可立即让 code 失效(已注册的用户不受影响)
  */
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, Copy, X, Loader2, Shield, RefreshCw, Ban, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Plus, Copy, X, Loader2, Shield, RefreshCw, Ban, CheckCircle2, AlertCircle, Link as LinkIcon } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   listInviteCodes, createInviteCode, revokeInviteCode,
   type InviteCode,
 } from '../api/client'
+
+// 邀请链接固定用主域名,方便不管管理员在哪个环境创建都能发一个稳定链接
+const INVITE_LINK_BASE = 'https://kb.tokenwave.cloud/register'
+const buildInviteLink = (code: string) => `${INVITE_LINK_BASE}?invite_code=${encodeURIComponent(code)}`
 
 const STATUS_META: Record<InviteCode['status'], { label: string; color: string; icon: typeof CheckCircle2 }> = {
   active:    { label: '有效',     color: 'bg-emerald-50 text-emerald-700 ring-emerald-200', icon: CheckCircle2 },
@@ -145,7 +149,7 @@ export default function InviteCodesPage() {
 
 
 function Row({ ic, onRevoke, disabled }: { ic: InviteCode; onRevoke: () => void; disabled: boolean }) {
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<'code' | 'link' | null>(null)
   const meta = STATUS_META[ic.status]
   const Icon = meta.icon
   const usage = ic.max_uses === 0 ? `${ic.used_count} / ∞` : `${ic.used_count} / ${ic.max_uses}`
@@ -154,10 +158,11 @@ function Row({ ic, onRevoke, disabled }: { ic: InviteCode; onRevoke: () => void;
     : '永久'
   const created = new Date(ic.created_at).toLocaleString('zh-CN', { dateStyle: 'short', timeStyle: 'short' })
 
-  const copy = () => {
-    navigator.clipboard.writeText(ic.code).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+  const copy = (kind: 'code' | 'link') => {
+    const text = kind === 'code' ? ic.code : buildInviteLink(ic.code)
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(kind)
+      setTimeout(() => setCopied(null), 1500)
     })
   }
 
@@ -166,10 +171,14 @@ function Row({ ic, onRevoke, disabled }: { ic: InviteCode; onRevoke: () => void;
       <td className="px-3 py-2">
         <div className="flex items-center gap-1.5">
           <code className="font-mono text-[12px] tracking-wider bg-slate-100 px-1.5 py-0.5 rounded">{ic.code}</code>
-          <button onClick={copy} className="p-1 text-ink-muted hover:text-orange-600" title="复制">
+          <button onClick={() => copy('code')} className="p-1 text-ink-muted hover:text-orange-600" title="复制邀请码">
             <Copy size={11} />
           </button>
-          {copied && <span className="text-[10px] text-emerald-600">已复制</span>}
+          <button onClick={() => copy('link')} className="p-1 text-ink-muted hover:text-orange-600" title="复制邀请链接">
+            <LinkIcon size={11} />
+          </button>
+          {copied === 'code' && <span className="text-[10px] text-emerald-600">码已复制</span>}
+          {copied === 'link' && <span className="text-[10px] text-emerald-600">链接已复制</span>}
         </div>
       </td>
       <td className="px-3 py-2">
@@ -301,11 +310,13 @@ function CreateModal({
 
 
 function NewCodeModal({ ic, onClose }: { ic: InviteCode; onClose: () => void }) {
-  const [copied, setCopied] = useState(false)
-  const copy = () => {
-    navigator.clipboard.writeText(ic.code).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+  const [copied, setCopied] = useState<'code' | 'link' | null>(null)
+  const inviteLink = buildInviteLink(ic.code)
+  const copy = (kind: 'code' | 'link') => {
+    const text = kind === 'code' ? ic.code : inviteLink
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(kind)
+      setTimeout(() => setCopied(null), 1500)
     })
   }
   return (
@@ -317,15 +328,29 @@ function NewCodeModal({ ic, onClose }: { ic: InviteCode; onClose: () => void }) 
           </h2>
         </div>
         <div className="p-4 space-y-3">
-          <p className="text-xs text-ink-secondary">复制下方邀请码发给目标用户:</p>
-          <div className="bg-slate-50 rounded border border-line p-3 flex items-center justify-between">
-            <code className="font-mono text-base tracking-widest text-ink">{ic.code}</code>
-            <button
-              onClick={copy}
-              className="ml-2 px-2.5 py-1 text-xs rounded bg-orange-600 text-white hover:bg-orange-700 flex items-center gap-1"
-            >
-              <Copy size={11} /> {copied ? '已复制' : '复制'}
-            </button>
+          <div>
+            <p className="text-xs text-ink-secondary mb-1.5">邀请码(手输方式):</p>
+            <div className="bg-slate-50 rounded border border-line p-3 flex items-center justify-between">
+              <code className="font-mono text-base tracking-widest text-ink">{ic.code}</code>
+              <button
+                onClick={() => copy('code')}
+                className="ml-2 px-2.5 py-1 text-xs rounded bg-orange-600 text-white hover:bg-orange-700 flex items-center gap-1"
+              >
+                <Copy size={11} /> {copied === 'code' ? '已复制' : '复制码'}
+              </button>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-ink-secondary mb-1.5">邀请链接(点开自动填码):</p>
+            <div className="bg-slate-50 rounded border border-line p-3 flex items-center justify-between gap-2">
+              <code className="font-mono text-[11px] text-ink-secondary truncate flex-1" title={inviteLink}>{inviteLink}</code>
+              <button
+                onClick={() => copy('link')}
+                className="shrink-0 px-2.5 py-1 text-xs rounded bg-orange-600 text-white hover:bg-orange-700 flex items-center gap-1"
+              >
+                <LinkIcon size={11} /> {copied === 'link' ? '已复制' : '复制链接'}
+              </button>
+            </div>
           </div>
           <div className="text-[11px] text-ink-muted space-y-0.5">
             <div>使用次数:{ic.max_uses === 0 ? '无限' : `${ic.max_uses} 次`}</div>
