@@ -72,6 +72,7 @@ def _to_dto(e: ChangelogEntry, *, include_draft_fields: bool = False) -> dict:
 # 复用 users.mcp_api_key,不新建 api_keys 表。逻辑抄自 api/mcp.py:1007-1024。
 
 async def _authenticate_api_key(
+    request: Request,
     x_api_key: str | None,
     session: AsyncSession,
 ) -> User:
@@ -84,6 +85,11 @@ async def _authenticate_api_key(
         raise HTTPException(401, "无效的 API Key")
     if not user.api_enabled:
         raise HTTPException(403, "该 API Key 未被授权调用(请联系管理员开启 api_enabled)")
+    # 把鉴权结果挂到 request.state,供 main.py log_api_calls middleware 读取,
+    # 让 api_call_logs 表能记录到实际是哪个 key/user 在调用(否则会记成 anonymous)。
+    request.state.user_id = user.id
+    request.state.username = user.username
+    request.state.token_type = "mcp_key"
     return user
 
 
@@ -101,7 +107,7 @@ async def public_list_changelog(
     x_api_key: str | None = Header(None, alias="X-API-Key"),
     session: AsyncSession = Depends(get_session),
 ):
-    caller = await _authenticate_api_key(x_api_key, session)
+    caller = await _authenticate_api_key(request, x_api_key, session)
 
     stmt = select(ChangelogEntry).where(ChangelogEntry.is_published == True)  # noqa: E712
     if category:
@@ -145,7 +151,7 @@ async def public_latest_changelog(
     x_api_key: str | None = Header(None, alias="X-API-Key"),
     session: AsyncSession = Depends(get_session),
 ):
-    await _authenticate_api_key(x_api_key, session)
+    await _authenticate_api_key(request, x_api_key, session)
     stmt = select(ChangelogEntry).where(ChangelogEntry.is_published == True)  # noqa: E712
     if category:
         stmt = stmt.where(ChangelogEntry.category == category)
@@ -164,7 +170,7 @@ async def public_get_changelog(
     x_api_key: str | None = Header(None, alias="X-API-Key"),
     session: AsyncSession = Depends(get_session),
 ):
-    await _authenticate_api_key(x_api_key, session)
+    await _authenticate_api_key(request, x_api_key, session)
     row = await session.get(ChangelogEntry, entry_id)
     if not row or not row.is_published:
         raise HTTPException(404, "条目不存在或未发布")
