@@ -203,6 +203,7 @@ function McpTool({ name, desc, params, example }: {
 const NAV = [
   { id: 'quickstart', label: '快速开始' },
   { id: 'auth',       label: '认证' },
+  { id: 'changelog',  label: '平台更新日志' },
   { id: 'qa',         label: 'QA 问答' },
   { id: 'documents',  label: '文档管理' },
   { id: 'chunks',     label: '知识切片' },
@@ -399,6 +400,75 @@ print(r.json()["answer"])`} />
             method="GET" path="/api/auth/me"
             desc="获取当前登录用户信息"
           />
+        </Section>
+
+        {/* Changelog — 平台更新日志对外只读 API */}
+        <Section id="changelog" title="平台更新日志" icon={FileText}>
+          <p className="text-sm text-ink-secondary mb-4">
+            开放给第三方系统 / 客户站点定期拉取「知识库平台」的功能更新记录。
+            仅返回已发布(<code className="text-[#D96400]">is_published=true</code>)条目。
+            管理员维护走 <code className="text-[#D96400]">/api/admin/changelog</code>(JWT)。
+          </p>
+          <div className="bg-brand-light border border-orange-200 rounded-lg p-4 mb-4">
+            <p className="text-sm text-[#D96400] font-medium mb-1">鉴权方式(与其他端点不同)</p>
+            <p className="text-xs text-ink-secondary leading-relaxed mb-2">
+              使用请求头 <code className="text-[#D96400]">X-API-Key: mcp_xxx</code>,
+              复用平台既有 MCP API Key 体系。管理员在后台为你生成 <code>mcp_</code> 前缀的 key 并开启 <code>api_enabled</code> 后即可调用。
+              限流:每 IP 60 次/分钟。
+            </p>
+            <code className="text-xs text-ink font-mono">X-API-Key: mcp_xxxxxxxxxxxxxxxx</code>
+          </div>
+          <Endpoint
+            method="GET" path="/api/public/changelog"
+            desc="列表接口:按 published_at 倒序返回已发布更新,支持增量拉取"
+            params={[
+              { name: 'category', type: 'string', req: false, desc: 'feature / fix / improvement / breaking / security' },
+              { name: 'tag',      type: 'string', req: false, desc: '按标签精确匹配(单个)' },
+              { name: 'since',    type: 'ISO8601', req: false, desc: '只返回 published_at ≥ since,增量拉取用' },
+              { name: 'limit',    type: 'int',    req: false, desc: '默认 20,最大 100' },
+              { name: 'offset',   type: 'int',    req: false, desc: '偏移量,默认 0' },
+            ]}
+            example={`curl -H "X-API-Key: mcp_xxxxxxxxxxxxxxxx" \\
+  '${BASE}/api/public/changelog?category=feature&since=2026-07-01T00:00:00Z'`}
+            response={`{
+  "items": [
+    {
+      "id": "8f0e7ac2-...",
+      "version": "v1.4.0",
+      "title": "会议纪要支持多段音频合并转写",
+      "content_md": "## 新增\\n- ...",
+      "category": "feature",
+      "tags": ["会议纪要"],
+      "published_at": "2026-07-01T02:00:00+00:00"
+    }
+  ],
+  "total": 42,
+  "limit": 20,
+  "offset": 0,
+  "next_offset": 20
+}`}
+          />
+          <Endpoint
+            method="GET" path="/api/public/changelog/latest"
+            desc="最新一条(常用于官网首页展示最新版本号,无需翻列表)"
+            params={[
+              { name: 'category', type: 'string', req: false, desc: '按分类过滤,如 ?category=feature' },
+            ]}
+            example={`curl -H "X-API-Key: mcp_xxxxxxxxxxxxxxxx" \\
+  ${BASE}/api/public/changelog/latest`}
+          />
+          <Endpoint
+            method="GET" path="/api/public/changelog/{id}"
+            desc="按 id 拉单条完整内容(markdown 全文)"
+            example={`curl -H "X-API-Key: mcp_xxxxxxxxxxxxxxxx" \\
+  ${BASE}/api/public/changelog/8f0e7ac2-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}
+          />
+          <div className="mt-4 text-xs text-ink-muted leading-relaxed">
+            错误码:<code className="text-[#D96400]">401</code> 缺少 / 无效 API Key ·
+            <code className="text-[#D96400] mx-1">403</code> Key 有效但未授权(api_enabled=false)·
+            <code className="text-[#D96400] mx-1">404</code> 条目不存在或未发布 ·
+            <code className="text-[#D96400] mx-1">429</code> 触发限流
+          </div>
         </Section>
 
         {/* QA */}
