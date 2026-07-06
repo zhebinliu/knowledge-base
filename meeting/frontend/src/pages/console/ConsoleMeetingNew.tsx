@@ -393,16 +393,32 @@ export default function ConsoleMeetingNew() {
     </div>
   )
 
-  // ── 沉浸式录制:录音中隐去所有 chrome,左转写 / 右 Co-pilot 按时间轴行严格一一对应 ──
+  // ── 沉浸式录制:录音中隐去所有 chrome。主体 = 左「实时转写」/ 右「会议 Co-pilot 实时建议」按时间轴逐段一一对应;
+  //    「会议看板」抽离为可收起的全局总结(上次待定 + 已达成共识),从右缘把手滑入,不再吞掉实时建议。 ──
   if (recordBusy) {
     const consensusItems = advice.filter((a) => a.category === 'consensus')
-    const suggestItems = [...advice.filter((a) => a.category !== 'consensus')]
-      .sort((a, b) => (a.source_ts ?? 1e9) - (b.source_ts ?? 1e9))
-    const boardCount = advice.length + carryover.length
+    const suggestItems = advice.filter((a) => a.category !== 'consensus')
+    // 建议按 source_ts(秒)落到对应转写段:落在 [本段起始, 下段起始) 的归本段;
+    // 无 source_ts(LLM 偶尔不给)的挂到最后一段(最新),保证可见、贴近当前进度。
+    const adviceBySeg: Record<number, LiveAdviceItem[]> = {}
+    if (liveSegments.length) {
+      const startSecs = liveSegments.map((s) => Math.floor(s.startMs / 1000))
+      for (const a of suggestItems) {
+        let idx = liveSegments.length - 1
+        if (a.source_ts != null) {
+          idx = 0
+          for (let i = 0; i < startSecs.length; i++) if (startSecs[i] <= (a.source_ts as number)) idx = i
+        }
+        if (!adviceBySeg[idx]) adviceBySeg[idx] = []
+        adviceBySeg[idx].push(a)
+      }
+    }
+    const boardCount = consensusItems.length + carryover.length
+    const COLS = 'grid grid-cols-1 lg:grid-cols-[1.1fr_1fr]'
 
     return (
       <div className="fixed inset-0 z-50 bg-canvas flex flex-col">
-        {/* 顶栏:状态 + 计时 + 看板开关 + 停止 */}
+        {/* 顶栏:状态 + 计时 + 停止 */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-line bg-white shrink-0">
           <div className="flex items-center gap-2.5 text-sm font-medium text-ink min-w-0">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
@@ -410,58 +426,84 @@ export default function ConsoleMeetingNew() {
             <span className="font-mono text-ink-secondary shrink-0">{fmtDuration(live.seconds)}</span>
             {title && <span className="text-ink-muted truncate">· {title}</span>}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {/* 会议看板开关由「右缘把手」承担(下方 boardOpen=false 时显示),
-                顶部不再放重复按钮 —— 抽屉式 UX 用边缘把手更清爽。 */}
-            <button
-              type="button"
-              onClick={() => { if (live.recording) live.stop() }}
-              disabled={finalizing}
-              className="px-4 py-1.5 rounded-lg text-white text-sm font-medium inline-flex items-center gap-1.5 disabled:opacity-60 bg-red-500 hover:bg-red-600"
-            >
-              {finalizing ? <Loader2 size={15} className="animate-spin" /> : <Square size={15} />}
-              {finalizing ? '生成中' : '停止并生成纪要'}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => { if (live.recording) live.stop() }}
+            disabled={finalizing}
+            className="px-4 py-1.5 rounded-lg text-white text-sm font-medium inline-flex items-center gap-1.5 disabled:opacity-60 bg-red-500 hover:bg-red-600 shrink-0"
+          >
+            {finalizing ? <Loader2 size={15} className="animate-spin" /> : <Square size={15} />}
+            {finalizing ? '生成中' : '停止并生成纪要'}
+          </button>
         </div>
 
-        {/* 主体:实时转写(全宽)+ 右侧可收起的会议看板 */}
+        {/* 主体:时间轴 —— 每段一行,左 [MM:SS]+转写 / 右 锚定到该段的实时建议,同行一一对应;
+            会议看板(全局总结)以可收起抽屉叠在右侧。 */}
         <div className="relative flex-1 overflow-hidden">
-          <div ref={transcriptScrollRef} className="h-full overflow-y-auto px-6 py-4">
-            <div className="text-[11px] text-ink-muted mb-3 flex items-center gap-1.5">
-              实时转写 <span className="text-brand">· 逐段识别中</span>
+          <div ref={transcriptScrollRef} className="h-full overflow-y-auto">
+            {/* sticky 表头:左标题 / 右 Co-pilot 控件 */}
+            <div className={`${COLS} sticky top-0 z-10 bg-canvas/95 backdrop-blur border-b border-line`}>
+              <div className="px-6 py-2.5 text-[11px] text-ink-muted flex items-center gap-1.5 lg:border-r border-line">
+                实时转写 <span className="text-brand">· 逐段识别中</span>
+              </div>
+              <div className="px-4 py-2 flex items-center justify-between gap-2">
+                <span className="text-[12px] font-semibold text-ink flex items-center gap-1.5 min-w-0">
+                  <Sparkles size={14} className="text-brand shrink-0" /> 会议 Co-pilot · 实时建议
+                  {adviceLoading && <Loader2 size={12} className="animate-spin text-ink-muted shrink-0" />}
+                </span>
+                <span className="flex items-center gap-2.5 shrink-0">
+                  <label className="text-[11px] text-ink-muted flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" checked={autoAdvice} onChange={(e) => setAutoAdvice(e.target.checked)} /> 自动
+                  </label>
+                  <button
+                    type="button"
+                    onClick={refreshAdvice}
+                    disabled={adviceLoading || !started}
+                    className="text-xs px-2.5 py-1 rounded-md text-white inline-flex items-center gap-1 disabled:opacity-50"
+                    style={{ background: BRAND_GRAD }}
+                  >
+                    {adviceLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} 给建议
+                  </button>
+                </span>
+              </div>
             </div>
+
+            {/* 时间轴行 */}
             {liveSegments.length === 0 ? (
-              <div className="py-16 text-center text-sm text-ink-muted">正在识别第一段…(约 15-30 秒)</div>
+              <div className="px-6 py-16 text-center text-sm text-ink-muted">正在识别第一段…(约 15-30 秒)</div>
             ) : (
-              <div className="space-y-1.5 max-w-3xl">
-                {liveSegments.map((seg) => (
-                  <div key={seg.seq} className="leading-relaxed">
+              liveSegments.map((seg, i) => (
+                // 无横向格线:转写顺读,仅一条连续竖分隔(同详情页),不做成表格
+                <div key={seg.seq} className={COLS}>
+                  {/* 左:时间戳 + 该段转写 */}
+                  <div className="px-6 py-2 lg:border-r border-line">
                     <span className="text-[11px] font-mono text-ink-muted mr-2 align-top">[{fmtDuration(Math.floor(seg.startMs / 1000))}]</span>
-                    <span className="text-[15px] text-ink-secondary whitespace-pre-wrap">{seg.text}</span>
+                    <span className="text-[15px] leading-relaxed text-ink-secondary whitespace-pre-wrap">{seg.text}</span>
                   </div>
-                ))}
+                  {/* 右:锚定到该段的实时建议(空段留白,与左段对齐) */}
+                  <div className="px-4 py-2 space-y-1.5">
+                    {(adviceBySeg[i] || []).map((a) => renderAdviceCard(a, { showCat: true }))}
+                  </div>
+                </div>
+              ))
+            )}
+
+            {suggestItems.length === 0 && liveSegments.length > 0 && (
+              <div className="px-6 py-3 text-[11px] text-ink-muted">
+                边录边自动分析…Co-pilot 会随对话推进,提示该追问 / 有歧义 / 可能遗漏 / 行业专属的点。
               </div>
             )}
-            {live.error && <p className="py-3 text-[12px] text-rose-600">{live.error}</p>}
+            {live.error && <p className="px-6 py-3 text-[12px] text-rose-600">{live.error}</p>}
           </div>
 
-          {/* 会议看板:默认向右收起,点击滑入(共识 + 建议,现场和客户对齐) */}
-          <div className={`absolute inset-y-0 right-0 w-[440px] max-w-[88vw] bg-canvas border-l border-line shadow-2xl flex flex-col transition-transform duration-300 ease-out ${boardOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+          {/* 会议看板:全局总结(上次待定 + 已达成共识),默认向右收起,点击滑入。
+              实时建议留在右列时间轴,这里只做「这场对齐到哪了」的全局快照。 */}
+          <div className={`absolute inset-y-0 right-0 w-[400px] max-w-[88vw] bg-canvas border-l border-line shadow-2xl flex flex-col transition-transform duration-300 ease-out ${boardOpen ? 'translate-x-0' : 'translate-x-full'}`}>
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-line bg-white shrink-0">
               <span className="text-sm font-semibold text-ink flex items-center gap-1.5">
-                <ClipboardList size={15} className="text-brand" /> 会议看板
+                <ClipboardList size={15} className="text-brand" /> 会议看板 · 全局总结
               </span>
-              <span className="flex items-center gap-2.5">
-                <label className="text-[11px] text-ink-muted flex items-center gap-1 cursor-pointer">
-                  <input type="checkbox" checked={autoAdvice} onChange={(e) => setAutoAdvice(e.target.checked)} /> 自动
-                </label>
-                <button type="button" onClick={refreshAdvice} disabled={adviceLoading || !started}
-                  className="text-xs px-2.5 py-1 rounded-md text-white inline-flex items-center gap-1 disabled:opacity-50" style={{ background: BRAND_GRAD }}>
-                  {adviceLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} 给建议
-                </button>
-                <button type="button" onClick={() => setBoardOpen(false)} title="收起" className="text-ink-muted hover:text-ink p-0.5"><X size={15} /></button>
-              </span>
+              <button type="button" onClick={() => setBoardOpen(false)} title="收起" className="text-ink-muted hover:text-ink p-0.5"><X size={15} /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-4">
               {carryover.length > 0 && (
@@ -494,28 +536,17 @@ export default function ConsoleMeetingNew() {
                   </div>
                 )}
               </div>
-              <div>
-                <div className="text-[12px] font-semibold text-ink mb-1.5 flex items-center gap-1.5">
-                  <Sparkles size={14} className="text-brand" /> Copilot 建议({suggestItems.length})
-                </div>
-                {suggestItems.length === 0 ? (
-                  <p className="text-[11px] text-ink-muted">边录边自动分析…该追问 / 有歧义 / 可能遗漏 / 行业专属的点会出现在这里。</p>
-                ) : (
-                  <div className="space-y-2">{suggestItems.map((a) => renderAdviceCard(a, { showCat: true, showTs: true }))}</div>
-                )}
-              </div>
             </div>
           </div>
 
-          {/* 收起时:右缘把手,点开看板(顶栏不再放重复按钮,这是唯一开看板入口) */}
+          {/* 收起时:右缘把手,点开看板全局总结(实时建议不在这里,始终在右列时间轴) */}
           {!boardOpen && (
             <button
               type="button"
               onClick={() => setBoardOpen(true)}
-              className="absolute right-0 top-6 z-10 inline-flex items-center gap-1 pl-2 pr-3 py-2 rounded-l-lg bg-white border border-r-0 border-line shadow-md text-[12px] font-medium text-ink-secondary hover:text-brand"
+              className="absolute right-0 top-16 z-10 inline-flex items-center gap-1 pl-2 pr-3 py-2 rounded-l-lg bg-white border border-r-0 border-line shadow-md text-[12px] font-medium text-ink-secondary hover:text-brand"
             >
               <ChevronLeft size={14} /> 看板{boardCount ? ` ${boardCount}` : ''}
-              {adviceLoading && <Loader2 size={11} className="animate-spin" />}
             </button>
           )}
         </div>
