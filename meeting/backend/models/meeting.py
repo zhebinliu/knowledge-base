@@ -68,6 +68,12 @@ class Meeting(Base):
     # 解释图(JSON {illustrations[], version})
     illustrations: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
+    # 会议三栏(2026-06-30):议程/备忘/实时纪要/模板
+    agenda: Mapped[str | None] = mapped_column(Text, nullable=True, default="")
+    memo: Mapped[str | None] = mapped_column(Text, nullable=True, default="")
+    live_minutes: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    live_minutes_template: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     def __repr__(self) -> str:
         return f"<Meeting id={self.id} title={self.title!r} status={self.status!r}>"
 

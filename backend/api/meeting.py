@@ -38,6 +38,7 @@ router = APIRouter()
 class MeetingCreate(BaseModel):
     title: str = Field(default="未命名会议", max_length=256)
     project_id: Optional[str] = None
+    agenda: Optional[str] = Field(default=None, max_length=10000)
 
 
 class MeetingFromText(BaseModel):
@@ -59,6 +60,9 @@ class MeetingPatch(BaseModel):
 
 class ProjectLink(BaseModel):
     project_id: Optional[str] = None  # null 表示解除关联
+
+class MemoUpdate(BaseModel):
+    memo: str = Field(default="", max_length=50000)
 
 
 class StakeholderMapIn(BaseModel):
@@ -101,6 +105,10 @@ def _meeting_dto(m: Meeting, project_name: Optional[str] = None) -> dict:
         "stakeholder_kb_synced_at": m.stakeholder_kb_synced_at,
         "process_flows": m.process_flows,
         "illustrations": m.illustrations,
+        "agenda": m.agenda or "",
+        "memo": m.memo or "",
+        "live_minutes": m.live_minutes,
+        "live_minutes_template": m.live_minutes_template,
     }
 
 
@@ -887,6 +895,7 @@ async def create_recording_meeting(
         total_chunks=0,
         done_chunks=0,
         raw_transcript="",
+        agenda=body.agenda or "",
     )
     session.add(m)
     await session.commit()
@@ -1038,6 +1047,63 @@ async def pend_live_advice(
     if not await pend_advice(meeting_id, advice_id):
         raise HTTPException(404, "建议不存在")
     return {"ok": True}
+
+
+# ── 实时会议纪要提取(2026-06-30) ──────────────────────────────────────────
+
+@router.put("/{meeting_id}/memo", status_code=200)
+async def update_meeting_memo(
+    meeting_id: int,
+    body: MemoUpdate,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """录制中保存用户备忘随笔(auto-save)。"""
+    m = await _load_meeting_owned(meeting_id, session, user)
+    m.memo = body.memo
+    await session.commit()
+    return {"status": "ok"}
+
+
+@router.post("/{meeting_id}/live-minutes", status_code=200)
+async def run_live_minutes(
+    meeting_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """跑一轮实时纪要提取(基于截至目前转写),返回当前 live_minutes。"""
+    await _load_meeting_owned(meeting_id, session, user)
+    from services.meeting.live_minutes import generate_live_minutes
+    return await generate_live_minutes(meeting_id)
+
+
+@router.get("/{meeting_id}/live-minutes", status_code=200)
+async def get_live_minutes_endpoint(
+    meeting_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """只读:返回当前 live_minutes + agenda + memo(不跑 LLM,前端轮询用)。"""
+    await _load_meeting_owned(meeting_id, session, user)
+    from services.meeting.live_minutes import get_live_minutes
+    return await get_live_minutes(meeting_id)
+
+
+@router.post("/{meeting_id}/actions/generate-summary", status_code=200)
+async def action_generate_summary(
+    meeting_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """生成规整会议纪要:结合 agenda + memo + live_minutes + transcript,输出结构化纪要。"""
+    m = await _load_meeting_owned(meeting_id, session, user)
+    from services.meeting.live_minutes import generate_meeting_summary
+    result = await generate_meeting_summary(meeting_id, session)
+    m.meeting_minutes = result.get("meeting_minutes")
+    m.edited_minutes = result.get("meeting_minutes")
+    await session.commit()
+    logger.info("meeting_summary_generated", meeting_id=meeting_id, user=user.username)
+    return {"meeting_minutes": m.meeting_minutes}
 
 
 # ── AI Pipeline 触发(Block B) ──────────────────────────────────────────
