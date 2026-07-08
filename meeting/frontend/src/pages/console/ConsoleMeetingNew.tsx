@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Upload, Type, ChevronLeft, ChevronRight, Loader2, Mic, Square, Sparkles, X, Check, Clock, ClipboardList, FileText, PenLine } from 'lucide-react'
+import { Upload, Type, ChevronLeft, ChevronRight, Loader2, Mic, Square, Sparkles, X, Check, Clock, ClipboardList, FileText, PenLine, ChevronDown, Target } from 'lucide-react'
 import {
   uploadMeetingAudio,
   createMeetingFromText,
@@ -51,6 +51,35 @@ const CAT_BY_KEY: Record<string, { key: LiveAdviceCategory; label: string; color
   Object.fromEntries(ADVICE_CATS.map((c) => [c.key, c]))
 // 实时转写分段:seq 顺序 + 各段起始毫秒(复原 [MM:SS],把建议按 source_ts 落到对应段)+ 该段文本
 type LiveSeg = { seq: number; startMs: number; text: string }
+
+// 目标追踪:命中记录
+type HighlightItem = {
+  id: string              // seq + keyword 唯一标识
+  seq: number             // 对应转录分段序号
+  timeMs: number          // 时间点(毫秒)
+  timeLabel: string       // [MM:SS] 显示用
+  text: string            // 命中的转录文本(截断展示)
+  matchedKeyword: string  // 匹配到的关键词
+  source: 'goal' | 'task' // 来自目标还是任务
+  sourceLabel: string     // 对应的目标/任务原文
+}
+
+// 关键词提取:从自由文本中提取有意义的关键词(用于即时匹配转写内容)
+const STOP_WORDS = new Set([
+  '的', '是', '和', '与', '及', '或', '在', '了', '对', '为', '到', '把', '被',
+  '这个', '那个', '我们', '他们', '你们', '可以', '需要', '应该', '一个', '一些',
+  '什么', '怎么', '如何', '为什么', '时候', '现在', '今天', '明天', '然后', '所以',
+  '因为', '但是', '不过', '如果', '就是', '还是', '已经', '可能', '大概', '觉得',
+  '讨论', '确认', '确定', '看看', '一下', '大家', '会议',
+])
+const KEYWORD_DELIMITERS = /[\n，,、;；。.！!？?（）()【】\[\]""'"'  ]/
+const extractKeywords = (text: string): string[] => {
+  if (!text.trim()) return []
+  return text
+    .split(KEYWORD_DELIMITERS)
+    .map(s => s.trim())
+    .filter(s => s.length >= 2 && !STOP_WORDS.has(s))
+}
 
 const fmtDuration = (s: number) =>
   `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
@@ -99,6 +128,12 @@ export default function ConsoleMeetingNew() {
   const lastAdviceLenRef = useRef(0)  // 上次分析时的转写长度
   const lastAdviceAtRef = useRef(0)   // 上次分析时间戳
   const transcriptScrollRef = useRef<HTMLDivElement>(null)  // 沉浸式转写区自动滚到底
+
+  // 目标追踪(右下角浮动面板):用户填写会议目标/重点任务,转写命中关键词时高亮 + 记录
+  const [meetingGoals, setMeetingGoals] = useState('')            // 会议主要目标
+  const [keyTasks, setKeyTasks] = useState('')                    // 重点任务(每行一个)
+  const [goalTrackerOpen, setGoalTrackerOpen] = useState(true)    // 面板展开/收起
+  const [highlights, setHighlights] = useState<HighlightItem[]>([])  // 命中记录
 
   const refreshAdvice = useCallback(async () => {
     const id = liveMeetingIdRef.current
@@ -212,6 +247,48 @@ export default function ConsoleMeetingNew() {
     if (el) el.scrollTop = el.scrollHeight
   }, [liveTranscript])
 
+  // 目标追踪:转写分段更新时,即时检查是否命中目标/任务关键词 → 高亮 + 记录
+  // 关键词从 meetingGoals / keyTasks 提取,按 (seq, keyword) 去重,新增关键词也会回溯已有序列
+  useEffect(() => {
+    if (!liveSegments.length) return
+    // 构建关键词映射:keyword → {source, label}
+    const goalKWs = extractKeywords(meetingGoals).map(k => ({ keyword: k, source: 'goal' as const, label: meetingGoals }))
+    const taskLines = keyTasks.split('\n').map(l => l.trim()).filter(Boolean)
+    const taskKWMaps: { keyword: string; source: 'task'; label: string }[] = []
+    for (const line of taskLines) {
+      for (const kw of extractKeywords(line)) {
+        taskKWMaps.push({ keyword: kw, source: 'task', label: line })
+      }
+    }
+    const allKWMaps = [...goalKWs, ...taskKWMaps]
+    if (!allKWMaps.length) return
+
+    setHighlights(prev => {
+      const processed = new Set(prev.map(h => h.id))
+      const newItems: HighlightItem[] = []
+      for (const seg of liveSegments) {
+        for (const { keyword, source, label } of allKWMaps) {
+          const id = `${seg.seq}-${keyword}`
+          if (processed.has(id)) continue
+          if (seg.text.includes(keyword)) {
+            processed.add(id)
+            newItems.push({
+              id,
+              seq: seg.seq,
+              timeMs: seg.startMs,
+              timeLabel: fmtDuration(Math.floor(seg.startMs / 1000)),
+              text: seg.text.length > 120 ? seg.text.slice(0, 120) + '…' : seg.text,
+              matchedKeyword: keyword,
+              source,
+              sourceLabel: label.length > 30 ? label.slice(0, 30) + '…' : label,
+            })
+          }
+        }
+      }
+      return newItems.length ? [...prev, ...newItems] : prev
+    })
+  }, [liveSegments, meetingGoals, keyTasks])
+
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
 
   const handleFileChange = (f: File | null) => {
@@ -230,6 +307,7 @@ export default function ConsoleMeetingNew() {
     setLiveTranscript('')
     setLiveSegments([])
     setAdvice([])
+    setHighlights([])
     setStarting(true)
     try {
       const r = await createRecordingMeeting({ title: title || undefined, project_id: projectId || null, agenda: agenda.trim() || undefined })
@@ -498,12 +576,20 @@ export default function ConsoleMeetingNew() {
               <div className="py-16 text-center text-sm text-ink-muted">正在识别第一段…(约 15-30 秒)</div>
             ) : (
               <div className="space-y-1.5">
-                {liveSegments.map((seg) => (
-                  <div key={seg.seq} className="leading-relaxed">
-                    <span className="text-[11px] font-mono text-ink-muted mr-2 align-top">[{fmtDuration(Math.floor(seg.startMs / 1000))}]</span>
-                    <span className="text-[15px] text-ink-secondary whitespace-pre-wrap">{seg.text}</span>
-                  </div>
-                ))}
+                {liveSegments.map((seg) => {
+                  const hit = highlights.find(h => h.seq === seg.seq)
+                  return (
+                    <div key={seg.seq} className={`leading-relaxed rounded-md px-2 py-1 transition-all ${hit ? 'bg-amber-50 border-l-2 border-amber-400' : ''}`}>
+                      <span className="text-[11px] font-mono text-ink-muted mr-2 align-top">[{fmtDuration(Math.floor(seg.startMs / 1000))}]</span>
+                      <span className="text-[15px] text-ink-secondary whitespace-pre-wrap">{seg.text}</span>
+                      {hit && (
+                        <span className="ml-2 inline-flex items-center gap-0.5 text-[10px] text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded align-middle">
+                          🎯 {hit.matchedKeyword}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
             {live.error && <p className="py-3 text-[12px] text-rose-600">{live.error}</p>}
@@ -655,6 +741,83 @@ export default function ConsoleMeetingNew() {
               <ChevronLeft size={14} /> 看板{boardCount ? ` ${boardCount}` : ''}
               {adviceLoading && <Loader2 size={11} className="animate-spin" />}
             </button>
+          )}
+
+          {/* 右下角:目标追踪浮动面板(填写会议目标/重点任务,转写命中时高亮+记录) */}
+          {!boardOpen && (
+            <div className={`absolute bottom-4 right-4 z-20 w-[320px] max-w-[calc(100vw-2rem)] transition-all duration-300 ${goalTrackerOpen ? '' : 'translate-y-[calc(100%-2.5rem)]'}`}>
+              <div className="rounded-xl border border-line bg-white shadow-2xl overflow-hidden">
+                {/* 标题栏:点击折叠/展开 */}
+                <div
+                  onClick={() => setGoalTrackerOpen(v => !v)}
+                  className="flex items-center justify-between px-3 py-2 cursor-pointer bg-gradient-to-r from-amber-50/80 to-transparent border-b border-line"
+                >
+                  <span className="text-sm font-semibold text-ink flex items-center gap-1.5">
+                    <Target size={15} className="text-amber-500" /> 目标追踪
+                    {highlights.length > 0 && (
+                      <span className="text-[11px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">{highlights.length}</span>
+                    )}
+                  </span>
+                  <ChevronDown size={15} className={`text-ink-muted transition-transform ${goalTrackerOpen ? '' : 'rotate-180'}`} />
+                </div>
+
+                {/* 展开内容 */}
+                {goalTrackerOpen && (
+                  <div className="max-h-[380px] overflow-y-auto">
+                    {/* 会议目标输入 */}
+                    <div className="px-3 py-2 border-b border-line">
+                      <label className="text-[11px] font-semibold text-ink-muted">本场会议主要目标？</label>
+                      <textarea
+                        value={meetingGoals}
+                        onChange={(e) => setMeetingGoals(e.target.value)}
+                        placeholder="如：确定数据迁移方案、明确API设计规范…"
+                        rows={2}
+                        className="w-full mt-1 px-2 py-1.5 rounded-md border border-line text-[12px] resize-none focus:outline-none focus:border-amber-400 bg-canvas/30"
+                      />
+                    </div>
+
+                    {/* 重点任务输入 */}
+                    <div className="px-3 py-2 border-b border-line">
+                      <label className="text-[11px] font-semibold text-ink-muted">重点任务是什么？</label>
+                      <textarea
+                        value={keyTasks}
+                        onChange={(e) => setKeyTasks(e.target.value)}
+                        placeholder={'每行一个，如：\nAPI接口设计\n数据迁移方案\n性能测试计划'}
+                        rows={3}
+                        className="w-full mt-1 px-2 py-1.5 rounded-md border border-line text-[12px] resize-none focus:outline-none focus:border-amber-400 bg-canvas/30"
+                      />
+                    </div>
+
+                    {/* 命中记录列表 */}
+                    <div className="px-3 py-2">
+                      <div className="text-[11px] font-semibold text-ink-muted mb-1.5">📍 命中记录</div>
+                      {highlights.length === 0 ? (
+                        <p className="text-[11px] text-ink-muted py-3 text-center leading-relaxed">
+                          {meetingGoals || keyTasks
+                            ? '会议中出现相关内容时\n会在此自动记录'
+                            : '请先填写目标和任务'}
+                        </p>
+                      ) : (
+                        <div className="space-y-1.5 max-h-[160px] overflow-y-auto">
+                          {highlights.map((h) => (
+                            <div key={h.id} className="rounded-md bg-amber-50/60 border border-amber-100 px-2 py-1.5">
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <span className="text-[10px] font-mono text-amber-700 bg-amber-100 px-1 rounded">[{h.timeLabel}]</span>
+                                <span className="text-[10px] text-amber-600">🎯 {h.matchedKeyword}</span>
+                                <span className={`text-[9px] px-1 rounded ${h.source === 'goal' ? 'text-blue-600 bg-blue-50' : 'text-emerald-600 bg-emerald-50'}`}>
+                                  {h.source === 'goal' ? '目标' : '任务'}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-ink-secondary leading-snug line-clamp-2">{h.text}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
       </div>
