@@ -2079,11 +2079,15 @@ export interface Meeting {
   stakeholder_kb_synced_at: string | null
   process_flows: MeetingProcessFlows | null
   illustrations: MeetingIllustrations | null
+  agenda?: string | null
+  memo?: string | null
+  live_minutes?: LiveMinutes | null
+  live_minutes_template?: string | null
   // 详情接口含
   requirements?: MeetingRequirement[]
 }
 
-export type MeetingAction = 'polish' | 'summarize' | 'extract_requirements' | 'extract_process_flows' | 'extract_stakeholders' | 'extract_illustrations'
+export type MeetingAction = 'polish' | 'summarize' | 'extract_requirements' | 'extract_process_flows' | 'extract_stakeholders' | 'extract_illustrations' | 'generate-summary'
 
 // ── CRUD ─────────────────────────────────────────────────────────────────
 
@@ -2382,7 +2386,7 @@ export const processMeeting = async (id: number): Promise<{ status: string; meet
 
 // ── 半实时录音(边录边传,2026-06-22) ──────────────────────────────────────
 export const createRecordingMeeting = async (
-  body: { title?: string; project_id?: string | null } = {},
+  body: { title?: string; project_id?: string | null; agenda?: string } = {},
 ): Promise<{ meeting_id: number; status: string }> => {
   const { data } = await api.post('/meeting/recording', body)
   return data
@@ -2464,6 +2468,41 @@ export const resolveLiveAdvice = async (meetingId: number, adviceId: number): Pr
 /** 标记一条建议为「待定」→ pending(下次同项目调研自动带出)。 */
 export const pendLiveAdvice = async (meetingId: number, adviceId: number): Promise<{ ok: boolean }> => {
   const { data } = await api.post(`/meeting/${meetingId}/live-advice/${adviceId}/pend`)
+  return data
+}
+
+// ── 实时会议纪要提取(2026-06-30) ──────────────────────────────────────────
+
+export interface LiveMinutes {
+  meeting_consensus: string
+  meeting_disputes: string
+  meeting_todos: string
+}
+
+export interface LiveMinutesResponse {
+  live_minutes: LiveMinutes | null
+  model?: string
+  error?: string
+  note?: string
+}
+
+/** 跑一轮实时纪要提取(基于截至目前转写)。 */
+export const runLiveMinutes = async (meetingId: number): Promise<LiveMinutesResponse> => {
+  const { data } = await api.post(`/meeting/${meetingId}/live-minutes`)
+  return data
+}
+
+/** 只读当前 live_minutes + agenda + memo(不跑 LLM)。 */
+export const getLiveMinutes = async (meetingId: number): Promise<{
+  live_minutes: LiveMinutes | null; agenda: string; memo: string
+}> => {
+  const { data } = await api.get(`/meeting/${meetingId}/live-minutes`)
+  return data
+}
+
+/** 录制中保存备忘随笔。 */
+export const saveMeetingMemo = async (meetingId: number, memo: string): Promise<{ status: string }> => {
+  const { data } = await api.put(`/meeting/${meetingId}/memo`, { memo })
   return data
 }
 
