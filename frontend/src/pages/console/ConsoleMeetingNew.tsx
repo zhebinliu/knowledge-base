@@ -637,7 +637,7 @@ export default function ConsoleMeetingNew() {
 
           {/* 会议看板:全局总结(上次待定 + 已达成共识),默认向右收起,点击滑入。
               实时建议留在右列时间轴,这里只做「这场对齐到哪了」的全局快照。 */}
-          <div className={`absolute inset-y-0 right-0 w-[400px] max-w-[88vw] bg-canvas border-l border-line shadow-2xl flex flex-col transition-transform duration-300 ease-out ${boardOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+          <div className={`absolute inset-y-0 right-0 w-[400px] max-w-[88vw] bg-canvas border-l border-line shadow-2xl flex flex-col transition-transform duration-300 ease-out z-20 ${boardOpen ? 'translate-x-0' : 'translate-x-full'}`}>
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-line bg-white shrink-0">
               <span className="text-sm font-semibold text-ink flex items-center gap-1.5">
                 <ClipboardList size={15} className="text-brand" /> 会议看板 · 全局总结
