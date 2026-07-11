@@ -35,7 +35,7 @@ function StatusBadge({ status }: { status: MeetingStatus }) {
   }[status] ?? { cls: 'bg-gray-50 border-line text-ink-muted', Icon: Clock }
   const Icon = cfg.Icon
   return (
-    <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border ${cfg.cls}`}>
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap text-[11px] px-2 py-0.5 rounded-full border ${cfg.cls}`}>
       <Icon size={11} className={status === 'processing' ? 'animate-spin' : ''} />
       {STATUS_LABEL[status] || status}
     </span>
@@ -237,7 +237,7 @@ export default function ConsoleMeeting() {
                         {m.owner_name || '—'}
                       </span>
                     </td>
-                    <td className="px-4 py-3"><StatusBadge status={m.status} /></td>
+                    <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={m.status} /></td>
                     <td className="px-4 py-3 text-ink-muted text-[12px]">{formatTime(m.created_at)}</td>
                     <td className="px-4 py-3 text-right">
                       <button
