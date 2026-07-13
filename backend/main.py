@@ -289,6 +289,8 @@ async def startup():
             # Harness Block6:场景 AI 能力匹配 + 回流提案结构化载荷(2026-07-13)
             "ALTER TABLE standard_scenes ADD COLUMN IF NOT EXISTS ai_capabilities JSONB DEFAULT '[]'::jsonb",
             "ALTER TABLE scene_change_proposals ADD COLUMN IF NOT EXISTS content JSONB DEFAULT '{}'::jsonb",
+            # 命中报告记录依据的文档(2026-07-13)
+            "ALTER TABLE scene_hit_reports ADD COLUMN IF NOT EXISTS sources JSONB DEFAULT '[]'::jsonb",
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS customer_profile TEXT",
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS industry VARCHAR(200)",
             "CREATE INDEX IF NOT EXISTS idx_documents_industry ON documents(industry)",

@@ -101,6 +101,7 @@ class SceneHitReport(Base):
     miss_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     hits: Mapped[list] = mapped_column(JSON, nullable=False, default=list)     # [{domain,code,name}]
     misses: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    sources: Mapped[list] = mapped_column(JSON, nullable=False, default=list)  # 命中依据的文档 [{kind,type,name}]
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     report_md: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)

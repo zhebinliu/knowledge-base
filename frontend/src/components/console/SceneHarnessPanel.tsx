@@ -105,6 +105,19 @@ export default function SceneHarnessPanel({
           </div>
         </div>
         {hit?.summary && <div style={{ fontSize: 11.5, color: c.sub, marginTop: 6 }}>{hit.summary}</div>}
+        {(hit?.sources?.length || 0) > 0 && (
+          <div style={{ fontSize: 11, color: c.sub, marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+            <span>命中依据:</span>
+            {hit!.sources!.map((sc, i) => (
+              <span key={i} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 100,
+                background: c.chipBg, border: `1px solid ${c.bd}`, color: c.ink,
+              }} title={sc.name}>
+                {sc.kind === 'scope' ? '📄' : '📦'} {sc.type}:{sc.name.length > 18 ? sc.name.slice(0, 18) + '…' : sc.name}
+              </span>
+            ))}
+          </div>
+        )}
         {showReport && hit?.report_md && (
           <pre style={{
             marginTop: 8, maxHeight: 300, overflow: 'auto', fontSize: 11.5, lineHeight: 1.6,

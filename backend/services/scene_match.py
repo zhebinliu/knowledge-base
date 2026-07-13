@@ -53,6 +53,7 @@ _KIND_LABELS = {
 _MAX_CHARS_PER_DOC = 6000      # 单份产物截断字符数
 _MAX_TOTAL_CHARS = 40000       # 全部素材总量上限
 _MODEL_TASK = "scene_match"    # model_router 路由 task 名
+_MATCH_CHUNK = 30              # 每批判定的场景数(避免一次判 147 个导致输出截断)
 
 
 # ── 工具:健壮 JSON 解析 ─────────────────────────────────────────────────
@@ -169,7 +170,7 @@ def _build_report_md(
     return "\n".join(lines).strip()
 
 
-def _empty_result(scenes: list[StandardScene], summary: str) -> dict:
+def _empty_result(scenes: list[StandardScene], summary: str, sources: list | None = None) -> dict:
     """无素材 / 无场景等兜底:全部判未命中。"""
     miss = [{"domain": s.domain, "code": s.code, "name": s.name} for s in scenes]
     return {
@@ -178,6 +179,7 @@ def _empty_result(scenes: list[StandardScene], summary: str) -> dict:
         "hit_count": 0,
         "miss_count": len(miss),
         "summary": summary,
+        "sources": sources or [],
         "report_md": _build_report_md([], miss, summary, len(scenes)),
     }
 
@@ -237,10 +239,19 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
     if scope_doc and (scope_doc.markdown_content or "").strip():
         scope_block = f"【项目范围文档 · {scope_label}】\n{scope_doc.markdown_content.strip()[:14000]}"
 
+    # 命中依据的文档清单(透明:让人知道这次判定基于哪些材料)
+    sources: list[dict] = []
+    if scope_doc and scope_block.strip():
+        sources.append({"kind": "scope", "type": scope_label, "name": scope_doc.filename})
+    for b in bundles:
+        if (getattr(b, "content_md", None) or "").strip():
+            sources.append({"kind": "bundle", "type": _KIND_LABELS.get(b.kind, b.kind),
+                            "name": b.title or _KIND_LABELS.get(b.kind, b.kind)})
+
     # 3. 防御:项目无任何素材(范围文档 / 产物正文 / 元信息全空)→ 全 miss
     if not scope_block.strip() and not material_block.strip() and not project_meta.strip():
         logger.info("scene_match_no_material", project_id=project_id)
-        return _empty_result(scenes, "材料不足,无法判定:该项目暂无 SOW / 合同 / 调研 / 洞察 / 蓝图产物,也缺少项目描述。")
+        return _empty_result(scenes, "材料不足,无法判定:该项目暂无 SOW / 合同 / 调研 / 洞察 / 蓝图产物,也缺少项目描述。", sources)
 
     # 场景 code → 场景 dict 的索引(判定回引用)
     scene_index: dict[tuple[str, str], dict] = {}
@@ -250,98 +261,86 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
         scene_index[(s.domain.strip().upper(), s.code.strip().upper())] = item
         code_only_index.setdefault(s.code.strip().upper(), item)  # code 兜底匹配(同 code 跨 domain 少见)
 
-    catalog = _build_scene_catalog(scenes)
+    from services.llm_json import loads_lenient
+    from services.model_router import ModelOutputError
 
-    # 4. 组 prompt,调 LLM,要求严格 JSON
-    system_prompt = (
-        "你是纷享销客 CRM 实施资深顾问,负责判定一个项目的业务范围命中了「标准场景库」中的哪些标准场景。\n"
-        "规则:\n"
-        "1. 只有当项目材料(元信息 / 调研 / 洞察 / 蓝图)明确涉及或强相关某标准场景时,才判为命中(in-scope);材料没提到、无法佐证的一律不命中。\n"
-        "2. 宁缺毋滥:不确定就不命中,不要为了凑数把不相关的场景标命中。\n"
-        "3. 严格输出 JSON,不要任何解释性文字、不要 Markdown 代码围栏。"
-    )
-    user_prompt = f"""【项目上下文】
+    # 4. 分批判定 —— 一次判 147 个场景会让输出超 max_tokens 截断(之前"判定失败"根因),
+    #    改成每批 ≤_MATCH_CHUNK 个场景,同一份材料反复喂,逐批收集命中。
+    material_context = f"""【项目上下文】
 {project_meta or '(无元信息)'}
 
 {scope_block or '【项目范围文档】(无 SOW / 合同)'}
 
 【项目素材(截断)】
-{material_block or '(无素材正文)'}
+{material_block or '(无素材正文)'}"""
+    system_prompt = (
+        "你是纷享销客 CRM 实施资深顾问,判定项目业务范围命中了「标准场景库」中的哪些标准场景。\n"
+        "规则:\n"
+        "1. 只有当项目材料(范围文档 SOW/合同、调研、洞察、蓝图、元信息)明确涉及或强相关某标准场景时,才判命中;材料没提到、无法佐证的一律不命中。\n"
+        "2. 宁缺毋滥:不确定就不命中。\n"
+        "3. 严格输出 JSON,不要解释文字、不要代码围栏。"
+    )
 
-【标准场景库(需逐条判定是否命中)】
-{catalog}
-
-【输出要求 —— 严格 JSON,形如】
-{{
-  "summary": "一句话整体结论(该项目大致覆盖了哪些域 / 未涉及哪些,50-120 字)",
-  "hits": [
-    {{"domain": "所属域(如 LTC)", "code": "命中的场景 code(如 LM-01)"}}
-  ]
-}}
-说明:
-- hits 只列命中的场景;未列出的即视为未命中。
-- domain / code 必须严格照抄上面场景库里的原值,不要臆造。
-- 若无任何命中,hits 返回空数组 []。"""
-
-    from services.llm_json import loads_lenient
-    from services.model_router import ModelOutputError
-
-    parsed: dict | None = None
-    # 重试一次:LLM 偶发截断/空响应不至于直接全 miss(之前"判定失败"的根因)
-    for attempt in (1, 2):
-        try:
-            content, _model = await model_router.chat_with_routing(
-                task=_MODEL_TASK,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=0.2,
-                max_tokens=8000,
-                validator=_json_valid,
-            )
-            parsed = loads_lenient(content or "", None)
-            if isinstance(parsed, dict):
-                break
-        except ModelOutputError as e:
-            logger.warning("scene_match_llm_invalid", project_id=project_id, attempt=attempt, error=str(e)[:200])
-        except Exception as e:  # noqa: BLE001 — LLM / 网络异常统一降级为「判定失败」
-            logger.warning("scene_match_llm_failed", project_id=project_id, attempt=attempt, error=str(e)[:200])
-
-    if not isinstance(parsed, dict):
-        return _empty_result(scenes, "判定失败:模型未返回可解析的结果,已全部按未命中处理,请稍后重试。")
-
-    # 5. 解析 hits → 命中集合(健壮:兼容对象 / 纯字符串 code / "domain/code" 复合串)
-    summary = str(parsed.get("summary") or "").strip()
-    raw_hits = parsed.get("hits")
-    if not isinstance(raw_hits, list):
-        raw_hits = []
+    async def _classify(batch: list) -> dict | None:
+        user = (
+            material_context
+            + "\n\n【待判定的标准场景(只判这一批)】\n" + _build_scene_catalog(batch)
+            + '\n\n【输出 —— 严格 JSON】\n{"hits": [{"domain": "LTC", "code": "LM-01"}]}\n'
+            + "只列命中的场景;domain/code 照抄场景库原值;无命中则 hits 为 []。"
+        )
+        for attempt in (1, 2):
+            try:
+                content, _m = await model_router.chat_with_routing(
+                    task=_MODEL_TASK,
+                    messages=[{"role": "system", "content": system_prompt},
+                              {"role": "user", "content": user}],
+                    temperature=0.2, max_tokens=4000, validator=_json_valid,
+                )
+                parsed = loads_lenient(content or "", None)
+                if isinstance(parsed, dict):
+                    return parsed
+            except (ModelOutputError, Exception) as e:  # noqa: BLE001
+                logger.warning("scene_match_batch_invalid", project_id=project_id,
+                               attempt=attempt, error=str(e)[:150])
+        return None
 
     hit_keys: set[tuple[str, str]] = set()
-    for h in raw_hits:
-        domain_v = code_v = ""
-        if isinstance(h, dict):
-            domain_v = str(h.get("domain") or "").strip()
-            code_v = str(h.get("code") or "").strip()
-        elif isinstance(h, str):
-            token = h.strip()
-            for sep in ("/", "::", "|", "-", " "):
-                if sep in token and sep != "-":
-                    domain_v, _, code_v = token.partition(sep)
-                    break
-            else:
-                code_v = token  # 只给了 code
-        code_u = code_v.strip().upper()
-        domain_u = domain_v.strip().upper()
-        if not code_u:
+    any_ok = False
+    for i in range(0, len(scenes), _MATCH_CHUNK):
+        parsed = await _classify(scenes[i:i + _MATCH_CHUNK])
+        if parsed is None:
             continue
-        if (domain_u, code_u) in scene_index:
-            hit_keys.add((domain_u, code_u))
-        elif code_u in code_only_index:  # domain 对不上时按 code 兜底
-            it = code_only_index[code_u]
-            hit_keys.add((it["domain"].strip().upper(), it["code"].strip().upper()))
+        any_ok = True
+        raw_hits = parsed.get("hits")
+        if not isinstance(raw_hits, list):
+            continue
+        for h in raw_hits:
+            domain_v = code_v = ""
+            if isinstance(h, dict):
+                domain_v = str(h.get("domain") or "").strip()
+                code_v = str(h.get("code") or "").strip()
+            elif isinstance(h, str):
+                token = h.strip()
+                for sep in ("/", "::", "|", " "):
+                    if sep in token:
+                        domain_v, _, code_v = token.partition(sep)
+                        break
+                else:
+                    code_v = token
+            code_u = code_v.strip().upper()
+            domain_u = domain_v.strip().upper()
+            if not code_u:
+                continue
+            if (domain_u, code_u) in scene_index:
+                hit_keys.add((domain_u, code_u))
+            elif code_u in code_only_index:  # domain 对不上时按 code 兜底
+                it = code_only_index[code_u]
+                hit_keys.add((it["domain"].strip().upper(), it["code"].strip().upper()))
 
-    # 6. 组装 hit / miss(以场景库为准,保证顺序稳定、内容可信)
+    if not any_ok:
+        return _empty_result(scenes, "判定失败:模型未返回可解析的结果,请稍后重试。", sources)
+
+    # 5. 组装 hit / miss(以场景库为准,保证顺序稳定、内容可信)
     hit: list[dict] = []
     miss: list[dict] = []
     for s in scenes:
@@ -349,8 +348,8 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
         item = {"domain": s.domain, "code": s.code, "name": s.name}
         (hit if key in hit_keys else miss).append(item)
 
-    if not summary:
-        summary = f"共命中 {len(hit)} 个标准场景,{len(miss)} 个未命中。"
+    hit_domains = sorted({h["domain"] for h in hit})
+    summary = f"共命中 {len(hit)} 个标准场景(覆盖 {'、'.join(hit_domains) or '—'}),{len(miss)} 个未命中。"
 
     return {
         "hit": hit,
@@ -358,5 +357,6 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
         "hit_count": len(hit),
         "miss_count": len(miss),
         "summary": summary,
+        "sources": sources,
         "report_md": _build_report_md(hit, miss, summary, len(scenes)),
     }

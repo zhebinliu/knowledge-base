@@ -95,12 +95,14 @@ export const listRecentSceneChanges = (limit = 100) =>
 
 // ── P3 场景命中 ──────────────────────────────────────────────────────────────
 export interface SceneHit { domain: string; code: string; name: string }
+export interface HitSource { kind: string; type: string; name: string }
 export interface HitReport {
   project_id: string
   hit_count: number
   miss_count: number
   hits: SceneHit[]
   misses: SceneHit[]
+  sources?: HitSource[]        // 命中依据的文档
   summary?: string | null
   report_md?: string | null
   updated_at?: string | null

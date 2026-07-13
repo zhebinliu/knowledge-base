@@ -39,6 +39,7 @@ class HitReportDto(BaseModel):
     miss_count: int
     hits: list
     misses: list
+    sources: list = []          # 命中依据的文档 [{kind,type,name}]
     summary: str | None = None
     report_md: str | None = None
     updated_at: datetime | None = None
@@ -47,8 +48,8 @@ class HitReportDto(BaseModel):
 def _hit_dto(r: SceneHitReport) -> HitReportDto:
     return HitReportDto(
         project_id=r.project_id, hit_count=r.hit_count, miss_count=r.miss_count,
-        hits=r.hits or [], misses=r.misses or [], summary=r.summary,
-        report_md=r.report_md, updated_at=r.updated_at,
+        hits=r.hits or [], misses=r.misses or [], sources=r.sources or [],
+        summary=r.summary, report_md=r.report_md, updated_at=r.updated_at,
     )
 
 
@@ -73,6 +74,7 @@ async def run_scene_match(
     row.miss_count = result.get("miss_count", 0)
     row.hits = result.get("hit", [])
     row.misses = result.get("miss", [])
+    row.sources = result.get("sources", [])   # 命中依据文档
     row.summary = result.get("summary")
     row.report_md = result.get("report_md")
     row.created_by = current_user.username
