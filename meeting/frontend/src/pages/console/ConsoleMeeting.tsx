@@ -9,10 +9,10 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   Mic, Plus, Trash2, FolderKanban, CheckCircle2, Loader2, AlertCircle, Clock, Search,
-  LayoutTemplate, ChevronLeft, ChevronRight, User as UserIcon, X,
+  LayoutTemplate, ChevronLeft, ChevronRight, User as UserIcon, X, Pencil,
 } from 'lucide-react'
 import {
-  listMeetingsPage, deleteMeeting, listProjects,
+  listMeetingsPage, deleteMeeting, patchMeeting, listProjects,
   type Meeting, type MeetingStatus, type Project,
 } from '../../api/client'
 
@@ -101,6 +101,29 @@ export default function ConsoleMeeting() {
   const handleDelete = (m: Meeting) => {
     if (!window.confirm(`确认删除「${m.title}」?该操作不可撤销。`)) return
     delMutation.mutate(m.id)
+  }
+
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+
+  const renameMutation = useMutation({
+    mutationFn: ({ id, title }: { id: number; title: string }) => patchMeeting(id, { title }),
+    onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: ['meetings-page'] })
+      qc.invalidateQueries({ queryKey: ['meeting', id] })
+    },
+  })
+
+  const startRename = (m: Meeting) => {
+    setEditingId(m.id)
+    setEditTitle(m.title || '')
+  }
+
+  const commitRename = (m: Meeting) => {
+    const title = editTitle.trim()
+    setEditingId(null)
+    if (!title || title === (m.title || '')) return
+    renameMutation.mutate({ id: m.id, title })
   }
 
   return (
@@ -214,12 +237,26 @@ export default function ConsoleMeeting() {
                 {items.map(m => (
                   <tr key={m.id} className="border-b border-line last:border-0 hover:bg-canvas/50">
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => nav(`/console/meeting/${m.id}`)}
-                        className="text-ink hover:text-brand font-medium text-left"
-                      >
-                        {m.title || '(未命名)'}
-                      </button>
+                      {editingId === m.id ? (
+                        <input
+                          autoFocus
+                          value={editTitle}
+                          onChange={e => setEditTitle(e.target.value)}
+                          onBlur={() => commitRename(m)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') commitRename(m)
+                            if (e.key === 'Escape') setEditingId(null)
+                          }}
+                          className="w-full max-w-md text-sm border border-orange-300 rounded-md px-2 py-1 bg-white focus:outline-none"
+                        />
+                      ) : (
+                        <button
+                          onClick={() => nav(`/console/meeting/${m.id}`)}
+                          className="text-ink hover:text-brand font-medium text-left"
+                        >
+                          {m.title || '(未命名)'}
+                        </button>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-ink-secondary">
                       {m.project_name ? (
@@ -240,6 +277,13 @@ export default function ConsoleMeeting() {
                     <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={m.status} /></td>
                     <td className="px-4 py-3 text-ink-muted text-[12px]">{formatTime(m.created_at)}</td>
                     <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => startRename(m)}
+                        className="text-ink-muted hover:text-ink p-1"
+                        title="重命名"
+                      >
+                        <Pencil size={14} />
+                      </button>
                       <button
                         onClick={() => handleDelete(m)}
                         className="text-ink-muted hover:text-rose-600 p-1"
