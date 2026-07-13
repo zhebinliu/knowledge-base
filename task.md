@@ -6,13 +6,14 @@
 - 就绪软闸:下游 kind(design/implement/test/acceptance)但上一阶段无 done 交付物 →「依据可能不足」。
 
 ## 清单
-- [ ] S1 outputs.py:`_PREV_STAGE_KINDS` + `_soft_warnings_for`;enqueue 写入 `extra.soft_warnings`;`_bundle_dto` 暴露。
-- [ ] S2 client.ts:CuratedBundle 加 `soft_warnings?`(+ 同步 meeting overlay 副本,避免再踩 client.ts 覆盖坑)。
-- [ ] S3 两套项目详情:生成后按 soft_warnings toast;action 区常驻警告 chip(读 activeBundle.soft_warnings)。软警告只在内部可见,不进对客公开分享页。
-- [ ] S4 py_compile + tsc + build;deploy-uat(overlay 门)通过 → deploy-prod;curl + 锐达实测。
+- [x] S1 outputs.py:`_PREV_STAGE_KINDS` + `_soft_warnings_for`;enqueue 写入 `extra.soft_warnings`;`_bundle_dto` 暴露。
+- [x] S2 client.ts:CuratedBundle 加 `soft_warnings?`(主仓 + meeting overlay 副本同步)。
+- [x] S3 共享组件 `components/console/SoftWarnings.tsx`(SoftWarningChips + toastSoftWarnings),两套项目详情:生成后 toast、action 区常驻黄条。仅内部可见。
+- [x] S4 py_compile + tsc + build 通过;deploy-uat overlay 门通过 → deploy-prod success;锐达实测全绿。
 
 ## 部署结果
-（待补)
+- commit `6ecf439` → deploy-uat(overlay 门)success → deploy-prod run 29225887436 success;`version.json` sha=6ecf439;后端 captcha 200 / gates 401。
+- 锐达实测(只读,无残留):对客 kind→customer_facing;insight→无警告;有上游 done→不报 not_ready;缺上游(test_plan/acceptance_report)→报 not_ready;`_bundle_dto` 正确透出 + 老 bundle 向后兼容返回 []。
 
 ---
 
