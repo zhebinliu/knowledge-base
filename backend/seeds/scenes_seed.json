@@ -1,0 +1,1178 @@
+[
+ {
+  "domain": "ITR",
+  "stage": "DefectHandling",
+  "stage_label": "DefectHandling 不良品处理",
+  "code": "DH-01",
+  "name": "管理用户侧不良品处置",
+  "stage_def": "DefectHandling 阶段聚焦不良品的识别、判定、处理与客户协同，覆盖用户侧、客户侧和在库侧的不同处置场景。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "DefectHandling",
+  "stage_label": "DefectHandling 不良品处理",
+  "code": "DH-02",
+  "name": "管理客户侧不良品处置",
+  "stage_def": "DefectHandling 阶段聚焦不良品的识别、判定、处理与客户协同，覆盖用户侧、客户侧和在库侧的不同处置场景。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "DefectHandling",
+  "stage_label": "DefectHandling 不良品处理",
+  "code": "DH-03",
+  "name": "管理在库不良品处置",
+  "stage_def": "DefectHandling 阶段聚焦不良品的识别、判定、处理与客户协同，覆盖用户侧、客户侧和在库侧的不同处置场景。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "DefectHandling",
+  "stage_label": "DefectHandling 不良品处理",
+  "code": "DH-04",
+  "name": "管理不良品客户协同",
+  "stage_def": "DefectHandling 阶段聚焦不良品的识别、判定、处理与客户协同，覆盖用户侧、客户侧和在库侧的不同处置场景。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "Engineer",
+  "stage_label": "Engineer 工程师",
+  "code": "EN-01",
+  "name": "管理工程师上岗",
+  "stage_def": "Engineer 阶段聚焦服务工程师的上岗、承接、作业与提升，是 ITR 现场和远程服务执行的关键资源对象。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "Engineer",
+  "stage_label": "Engineer 工程师",
+  "code": "EN-02",
+  "name": "管理工程师任务承接",
+  "stage_def": "Engineer 阶段聚焦服务工程师的上岗、承接、作业与提升，是 ITR 现场和远程服务执行的关键资源对象。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "Engineer",
+  "stage_label": "Engineer 工程师",
+  "code": "EN-03",
+  "name": "管理工程师服务作业",
+  "stage_def": "Engineer 阶段聚焦服务工程师的上岗、承接、作业与提升，是 ITR 现场和远程服务执行的关键资源对象。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "Engineer",
+  "stage_label": "Engineer 工程师",
+  "code": "EN-04",
+  "name": "管理工程师能力提升",
+  "stage_def": "Engineer 阶段聚焦服务工程师的上岗、承接、作业与提升，是 ITR 现场和远程服务执行的关键资源对象。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "ServiceProvider",
+  "stage_label": "ServiceProvider 服务商",
+  "code": "SP-01",
+  "name": "管理服务商准入",
+  "stage_def": "ServiceProvider 阶段聚焦第三方服务商的准入、合作、履约与绩效，是 ITR 服务资源网络的重要组成部分。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "ServiceProvider",
+  "stage_label": "ServiceProvider 服务商",
+  "code": "SP-02",
+  "name": "管理服务商合作",
+  "stage_def": "ServiceProvider 阶段聚焦第三方服务商的准入、合作、履约与绩效，是 ITR 服务资源网络的重要组成部分。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "ServiceProvider",
+  "stage_label": "ServiceProvider 服务商",
+  "code": "SP-03",
+  "name": "管理服务商履约",
+  "stage_def": "ServiceProvider 阶段聚焦第三方服务商的准入、合作、履约与绩效，是 ITR 服务资源网络的重要组成部分。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "ServiceProvider",
+  "stage_label": "ServiceProvider 服务商",
+  "code": "SP-04",
+  "name": "管理服务商绩效",
+  "stage_def": "ServiceProvider 阶段聚焦第三方服务商的准入、合作、履约与绩效，是 ITR 服务资源网络的重要组成部分。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "ServiceRequest",
+  "stage_label": "ServiceRequest 服务请求",
+  "code": "SR-01",
+  "name": "管理客户服务诉求受理",
+  "stage_def": "ServiceRequest 阶段聚焦客户提出服务诉求后的统一受理、预判与转入服务执行，是服务问题进入 ITR 的正式入口。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "ServiceRequest",
+  "stage_label": "ServiceRequest 服务请求",
+  "code": "SR-02",
+  "name": "管理客户服务诉求预判",
+  "stage_def": "ServiceRequest 阶段聚焦客户提出服务诉求后的统一受理、预判与转入服务执行，是服务问题进入 ITR 的正式入口。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "ServiceRequest",
+  "stage_label": "ServiceRequest 服务请求",
+  "code": "SR-03",
+  "name": "管理客户服务诉求分类分级",
+  "stage_def": "ServiceRequest 阶段聚焦客户提出服务诉求后的统一受理、预判与转入服务执行，是服务问题进入 ITR 的正式入口。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "ServiceRequest",
+  "stage_label": "ServiceRequest 服务请求",
+  "code": "SR-04",
+  "name": "管理客户服务任务发起",
+  "stage_def": "ServiceRequest 阶段聚焦客户提出服务诉求后的统一受理、预判与转入服务执行，是服务问题进入 ITR 的正式入口。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "ServiceSettlement",
+  "stage_label": "ServiceSettlement 服务结算",
+  "code": "SS-01",
+  "name": "管理服务费用确认",
+  "stage_def": "ServiceSettlement 阶段聚焦服务业务直接相关的费用确认、结算处理与往来闭环，不扩展到泛财务域。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "ServiceSettlement",
+  "stage_label": "ServiceSettlement 服务结算",
+  "code": "SS-02",
+  "name": "管理服务结算",
+  "stage_def": "ServiceSettlement 阶段聚焦服务业务直接相关的费用确认、结算处理与往来闭环，不扩展到泛财务域。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "ServiceSettlement",
+  "stage_label": "ServiceSettlement 服务结算",
+  "code": "SS-03",
+  "name": "管理服务往来",
+  "stage_def": "ServiceSettlement 阶段聚焦服务业务直接相关的费用确认、结算处理与往来闭环，不扩展到泛财务域。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "ServiceSettlement",
+  "stage_label": "ServiceSettlement 服务结算",
+  "code": "SS-04",
+  "name": "管理服务对账核销",
+  "stage_def": "ServiceSettlement 阶段聚焦服务业务直接相关的费用确认、结算处理与往来闭环，不扩展到泛财务域。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "ServiceWorkOrder",
+  "stage_label": "ServiceWorkOrder 服务工单",
+  "code": "SWO-01",
+  "name": "管理服务任务受理",
+  "stage_def": "ServiceWorkOrder 阶段聚焦服务工单的建立、分派、处理、关闭与稽核，是 ITR 执行闭环的核心载体。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "ServiceWorkOrder",
+  "stage_label": "ServiceWorkOrder 服务工单",
+  "code": "SWO-02",
+  "name": "管理服务任务分派",
+  "stage_def": "ServiceWorkOrder 阶段聚焦服务工单的建立、分派、处理、关闭与稽核，是 ITR 执行闭环的核心载体。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "ServiceWorkOrder",
+  "stage_label": "ServiceWorkOrder 服务工单",
+  "code": "SWO-03",
+  "name": "管理服务任务执行",
+  "stage_def": "ServiceWorkOrder 阶段聚焦服务工单的建立、分派、处理、关闭与稽核，是 ITR 执行闭环的核心载体。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "ServiceWorkOrder",
+  "stage_label": "ServiceWorkOrder 服务工单",
+  "code": "SWO-04",
+  "name": "管理服务任务关闭",
+  "stage_def": "ServiceWorkOrder 阶段聚焦服务工单的建立、分派、处理、关闭与稽核，是 ITR 执行闭环的核心载体。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "ServiceWorkOrder",
+  "stage_label": "ServiceWorkOrder 服务工单",
+  "code": "SWO-05",
+  "name": "管理服务任务稽核",
+  "stage_def": "ServiceWorkOrder 阶段聚焦服务工单的建立、分派、处理、关闭与稽核，是 ITR 执行闭环的核心载体。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "SpareParts",
+  "stage_label": "SpareParts 备件",
+  "code": "SPT-01",
+  "name": "管理服务备件计划",
+  "stage_def": "SpareParts 阶段聚焦服务过程中所需备件的计划、供应、发运与回收，是服务履约的重要保障对象。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "SpareParts",
+  "stage_label": "SpareParts 备件",
+  "code": "SPT-02",
+  "name": "管理服务备件供应",
+  "stage_def": "SpareParts 阶段聚焦服务过程中所需备件的计划、供应、发运与回收，是服务履约的重要保障对象。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "SpareParts",
+  "stage_label": "SpareParts 备件",
+  "code": "SPT-03",
+  "name": "管理服务备件发运",
+  "stage_def": "SpareParts 阶段聚焦服务过程中所需备件的计划、供应、发运与回收，是服务履约的重要保障对象。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "SpareParts",
+  "stage_label": "SpareParts 备件",
+  "code": "SPT-04",
+  "name": "管理服务旧件回收",
+  "stage_def": "SpareParts 阶段聚焦服务过程中所需备件的计划、供应、发运与回收，是服务履约的重要保障对象。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "TechnicalSupport",
+  "stage_label": "TechnicalSupport 技术支持",
+  "code": "TS-01",
+  "name": "管理远程技术支援",
+  "stage_def": "TechnicalSupport 阶段聚焦复杂服务问题的技术支援、质量闭环与经验沉淀，是 ITR 中的分析与升级环节。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "TechnicalSupport",
+  "stage_label": "TechnicalSupport 技术支持",
+  "code": "TS-02",
+  "name": "管理现场技术支援",
+  "stage_def": "TechnicalSupport 阶段聚焦复杂服务问题的技术支援、质量闭环与经验沉淀，是 ITR 中的分析与升级环节。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "TechnicalSupport",
+  "stage_label": "TechnicalSupport 技术支持",
+  "code": "TS-03",
+  "name": "管理质量问题闭环",
+  "stage_def": "TechnicalSupport 阶段聚焦复杂服务问题的技术支援、质量闭环与经验沉淀，是 ITR 中的分析与升级环节。"
+ },
+ {
+  "domain": "ITR",
+  "stage": "TechnicalSupport",
+  "stage_label": "TechnicalSupport 技术支持",
+  "code": "TS-04",
+  "name": "管理技术经验沉淀",
+  "stage_def": "TechnicalSupport 阶段聚焦复杂服务问题的技术支援、质量闭环与经验沉淀，是 ITR 中的分析与升级环节。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Bidding",
+  "stage_label": "Bidding 投标管理",
+  "code": "BD-01",
+  "name": "接收招标需求",
+  "stage_def": "Bidding 阶段聚焦投标需求接收、决策、方案编制、评审、提交与结果跟踪。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Bidding",
+  "stage_label": "Bidding 投标管理",
+  "code": "BD-02",
+  "name": "投标决策",
+  "stage_def": "Bidding 阶段聚焦投标需求接收、决策、方案编制、评审、提交与结果跟踪。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Bidding",
+  "stage_label": "Bidding 投标管理",
+  "code": "BD-03",
+  "name": "编制投标方案",
+  "stage_def": "Bidding 阶段聚焦投标需求接收、决策、方案编制、评审、提交与结果跟踪。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Bidding",
+  "stage_label": "Bidding 投标管理",
+  "code": "BD-04",
+  "name": "评审投标方案",
+  "stage_def": "Bidding 阶段聚焦投标需求接收、决策、方案编制、评审、提交与结果跟踪。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Bidding",
+  "stage_label": "Bidding 投标管理",
+  "code": "BD-05",
+  "name": "提交投标文件",
+  "stage_def": "Bidding 阶段聚焦投标需求接收、决策、方案编制、评审、提交与结果跟踪。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Bidding",
+  "stage_label": "Bidding 投标管理",
+  "code": "BD-06",
+  "name": "跟踪投标结果",
+  "stage_def": "Bidding 阶段聚焦投标需求接收、决策、方案编制、评审、提交与结果跟踪。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Contract",
+  "stage_label": "Contract 合同管理",
+  "code": "CT-01",
+  "name": "达成商务协议",
+  "stage_def": "Contract 阶段聚焦商务协议达成、合同条款评审、签署、变更与履行结束。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Contract",
+  "stage_label": "Contract 合同管理",
+  "code": "CT-02",
+  "name": "评审合同条款",
+  "stage_def": "Contract 阶段聚焦商务协议达成、合同条款评审、签署、变更与履行结束。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Contract",
+  "stage_label": "Contract 合同管理",
+  "code": "CT-03",
+  "name": "签署销售合同",
+  "stage_def": "Contract 阶段聚焦商务协议达成、合同条款评审、签署、变更与履行结束。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Contract",
+  "stage_label": "Contract 合同管理",
+  "code": "CT-04",
+  "name": "管理合同变更",
+  "stage_def": "Contract 阶段聚焦商务协议达成、合同条款评审、签署、变更与履行结束。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Contract",
+  "stage_label": "Contract 合同管理",
+  "code": "CT-05",
+  "name": "结束合同履行",
+  "stage_def": "Contract 阶段聚焦商务协议达成、合同条款评审、签署、变更与履行结束。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Forecast",
+  "stage_label": "Forecast 销售预测管理",
+  "code": "FC-01",
+  "name": "收集预测输入",
+  "stage_def": "Forecast 阶段聚焦预测输入收集、预测生成、预测确认、执行跟踪与结果复盘。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Forecast",
+  "stage_label": "Forecast 销售预测管理",
+  "code": "FC-02",
+  "name": "生成销售预测",
+  "stage_def": "Forecast 阶段聚焦预测输入收集、预测生成、预测确认、执行跟踪与结果复盘。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Forecast",
+  "stage_label": "Forecast 销售预测管理",
+  "code": "FC-03",
+  "name": "确认销售预测",
+  "stage_def": "Forecast 阶段聚焦预测输入收集、预测生成、预测确认、执行跟踪与结果复盘。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Forecast",
+  "stage_label": "Forecast 销售预测管理",
+  "code": "FC-04",
+  "name": "跟踪预测执行",
+  "stage_def": "Forecast 阶段聚焦预测输入收集、预测生成、预测确认、执行跟踪与结果复盘。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Forecast",
+  "stage_label": "Forecast 销售预测管理",
+  "code": "FC-05",
+  "name": "复盘预测结果",
+  "stage_def": "Forecast 阶段聚焦预测输入收集、预测生成、预测确认、执行跟踪与结果复盘。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Fulfillment",
+  "stage_label": "Fulfillment 履约管理",
+  "code": "FL-01",
+  "name": "制定交付计划",
+  "stage_def": "Fulfillment 阶段聚焦交付计划、产品交付、验收、回款与履约结束。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Fulfillment",
+  "stage_label": "Fulfillment 履约管理",
+  "code": "FL-02",
+  "name": "执行产品交付",
+  "stage_def": "Fulfillment 阶段聚焦交付计划、产品交付、验收、回款与履约结束。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Fulfillment",
+  "stage_label": "Fulfillment 履约管理",
+  "code": "FL-03",
+  "name": "完成交付验收",
+  "stage_def": "Fulfillment 阶段聚焦交付计划、产品交付、验收、回款与履约结束。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Fulfillment",
+  "stage_label": "Fulfillment 履约管理",
+  "code": "FL-04",
+  "name": "管理销售回款",
+  "stage_def": "Fulfillment 阶段聚焦交付计划、产品交付、验收、回款与履约结束。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Fulfillment",
+  "stage_label": "Fulfillment 履约管理",
+  "code": "FL-05",
+  "name": "结束项目履约",
+  "stage_def": "Fulfillment 阶段聚焦交付计划、产品交付、验收、回款与履约结束。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Lead",
+  "stage_label": "Lead 线索管理",
+  "code": "LM-01",
+  "name": "获取销售线索",
+  "stage_def": "Lead 阶段聚焦销售线索的获取、识别、分配、培育与转化，为后续商机形成提供输入。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Lead",
+  "stage_label": "Lead 线索管理",
+  "code": "LM-02",
+  "name": "识别有效线索",
+  "stage_def": "Lead 阶段聚焦销售线索的获取、识别、分配、培育与转化，为后续商机形成提供输入。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Lead",
+  "stage_label": "Lead 线索管理",
+  "code": "LM-03",
+  "name": "分配销售线索",
+  "stage_def": "Lead 阶段聚焦销售线索的获取、识别、分配、培育与转化，为后续商机形成提供输入。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Lead",
+  "stage_label": "Lead 线索管理",
+  "code": "LM-04",
+  "name": "培育销售线索",
+  "stage_def": "Lead 阶段聚焦销售线索的获取、识别、分配、培育与转化，为后续商机形成提供输入。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Lead",
+  "stage_label": "Lead 线索管理",
+  "code": "LM-05",
+  "name": "转化销售机会",
+  "stage_def": "Lead 阶段聚焦销售线索的获取、识别、分配、培育与转化，为后续商机形成提供输入。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Opportunity",
+  "stage_label": "Opportunity 商机管理",
+  "code": "OM-01",
+  "name": "验证机会点",
+  "stage_def": "Opportunity 阶段聚焦机会验证、客户决策推进、销售评审与商机关闭。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Opportunity",
+  "stage_label": "Opportunity 商机管理",
+  "code": "OM-02",
+  "name": "推进客户决策",
+  "stage_def": "Opportunity 阶段聚焦机会验证、客户决策推进、销售评审与商机关闭。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Opportunity",
+  "stage_label": "Opportunity 商机管理",
+  "code": "OM-03",
+  "name": "销售评审",
+  "stage_def": "Opportunity 阶段聚焦机会验证、客户决策推进、销售评审与商机关闭。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Opportunity",
+  "stage_label": "Opportunity 商机管理",
+  "code": "OM-04",
+  "name": "销售决策",
+  "stage_def": "Opportunity 阶段聚焦机会验证、客户决策推进、销售评审与商机关闭。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Opportunity",
+  "stage_label": "Opportunity 商机管理",
+  "code": "OM-05",
+  "name": "关闭销售机会",
+  "stage_def": "Opportunity 阶段聚焦机会验证、客户决策推进、销售评审与商机关闭。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Order",
+  "stage_label": "Order 订单管理",
+  "code": "OD-01",
+  "name": "接收客户订单",
+  "stage_def": "Order 阶段聚焦客户订单接收、销售订单确认、订单变更和履行关闭。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Order",
+  "stage_label": "Order 订单管理",
+  "code": "OD-02",
+  "name": "确认销售订单",
+  "stage_def": "Order 阶段聚焦客户订单接收、销售订单确认、订单变更和履行关闭。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Order",
+  "stage_label": "Order 订单管理",
+  "code": "OD-03",
+  "name": "管理订单变更",
+  "stage_def": "Order 阶段聚焦客户订单接收、销售订单确认、订单变更和履行关闭。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Order",
+  "stage_label": "Order 订单管理",
+  "code": "OD-04",
+  "name": "结束订单履行",
+  "stage_def": "Order 阶段聚焦客户订单接收、销售订单确认、订单变更和履行关闭。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Quotation",
+  "stage_label": "Quotation 报价管理",
+  "code": "QT-01",
+  "name": "制定销售报价",
+  "stage_def": "Quotation 阶段聚焦报价编制、评审、提交与反馈跟踪。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Quotation",
+  "stage_label": "Quotation 报价管理",
+  "code": "QT-02",
+  "name": "评审销售报价",
+  "stage_def": "Quotation 阶段聚焦报价编制、评审、提交与反馈跟踪。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Quotation",
+  "stage_label": "Quotation 报价管理",
+  "code": "QT-03",
+  "name": "提交销售报价",
+  "stage_def": "Quotation 阶段聚焦报价编制、评审、提交与反馈跟踪。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Quotation",
+  "stage_label": "Quotation 报价管理",
+  "code": "QT-04",
+  "name": "跟踪报价反馈",
+  "stage_def": "Quotation 阶段聚焦报价编制、评审、提交与反馈跟踪。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Target",
+  "stage_label": "Target 销售目标管理",
+  "code": "TG-01",
+  "name": "制定销售目标",
+  "stage_def": "Target 阶段聚焦目标制定、目标分解、目标调整、执行跟踪与达成评估关闭。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Target",
+  "stage_label": "Target 销售目标管理",
+  "code": "TG-02",
+  "name": "分解销售目标",
+  "stage_def": "Target 阶段聚焦目标制定、目标分解、目标调整、执行跟踪与达成评估关闭。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Target",
+  "stage_label": "Target 销售目标管理",
+  "code": "TG-03",
+  "name": "调整销售目标",
+  "stage_def": "Target 阶段聚焦目标制定、目标分解、目标调整、执行跟踪与达成评估关闭。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Target",
+  "stage_label": "Target 销售目标管理",
+  "code": "TG-04",
+  "name": "跟踪目标执行",
+  "stage_def": "Target 阶段聚焦目标制定、目标分解、目标调整、执行跟踪与达成评估关闭。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Target",
+  "stage_label": "Target 销售目标管理",
+  "code": "TG-05",
+  "name": "评估目标达成并关闭",
+  "stage_def": "Target 阶段聚焦目标制定、目标分解、目标调整、执行跟踪与达成评估关闭。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Validation",
+  "stage_label": "Validation 客户验证",
+  "code": "VL-01",
+  "name": "发起客户验证",
+  "stage_def": "Validation 阶段聚焦发起、执行、推进与结束客户验证活动，为方案或产品导入建立证据。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Validation",
+  "stage_label": "Validation 客户验证",
+  "code": "VL-02",
+  "name": "执行产品验证",
+  "stage_def": "Validation 阶段聚焦发起、执行、推进与结束客户验证活动，为方案或产品导入建立证据。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Validation",
+  "stage_label": "Validation 客户验证",
+  "code": "VL-03",
+  "name": "推进产品导入",
+  "stage_def": "Validation 阶段聚焦发起、执行、推进与结束客户验证活动，为方案或产品导入建立证据。"
+ },
+ {
+  "domain": "LTC",
+  "stage": "Validation",
+  "stage_label": "Validation 客户验证",
+  "code": "VL-04",
+  "name": "结束客户验证",
+  "stage_def": "Validation 阶段聚焦发起、执行、推进与结束客户验证活动，为方案或产品导入建立证据。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerCommunication",
+  "stage_label": "CustomerCommunication 客户接触与沟通管理",
+  "code": "CC-01",
+  "name": "管理高层峰会",
+  "stage_def": "CustomerCommunication 阶段聚焦客户高层与组织层面的接触、拜访、活动和正式沟通，用于管理客户关系经营中的关键接触动作。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerCommunication",
+  "stage_label": "CustomerCommunication 客户接触与沟通管理",
+  "code": "CC-02",
+  "name": "管理公司考察",
+  "stage_def": "CustomerCommunication 阶段聚焦客户高层与组织层面的接触、拜访、活动和正式沟通，用于管理客户关系经营中的关键接触动作。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerCommunication",
+  "stage_label": "CustomerCommunication 客户接触与沟通管理",
+  "code": "CC-03",
+  "name": "管理高层拜访",
+  "stage_def": "CustomerCommunication 阶段聚焦客户高层与组织层面的接触、拜访、活动和正式沟通，用于管理客户关系经营中的关键接触动作。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerCommunication",
+  "stage_label": "CustomerCommunication 客户接触与沟通管理",
+  "code": "CC-04",
+  "name": "管理专题活动",
+  "stage_def": "CustomerCommunication 阶段聚焦客户高层与组织层面的接触、拜访、活动和正式沟通，用于管理客户关系经营中的关键接触动作。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerCommunication",
+  "stage_label": "CustomerCommunication 客户接触与沟通管理",
+  "code": "CC-05",
+  "name": "管理高层信函沟通",
+  "stage_def": "CustomerCommunication 阶段聚焦客户高层与组织层面的接触、拜访、活动和正式沟通，用于管理客户关系经营中的关键接触动作。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerInformation",
+  "stage_label": "CustomerInformation 客户信息管理",
+  "code": "CI-01",
+  "name": "管理客户企业信息",
+  "stage_def": "CustomerInformation 阶段聚焦客户基础信息和联系人信息治理，用于保证客户经营所依赖的信息底座完整、准确、可追溯。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerInformation",
+  "stage_label": "CustomerInformation 客户信息管理",
+  "code": "CI-02",
+  "name": "管理联系人",
+  "stage_def": "CustomerInformation 阶段聚焦客户基础信息和联系人信息治理，用于保证客户经营所依赖的信息底座完整、准确、可追溯。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerPolicy",
+  "stage_label": "CustomerPolicy 客户政策管理",
+  "code": "CP-01",
+  "name": "洞察客户",
+  "stage_def": "CustomerPolicy 阶段聚焦客户政策的洞察、分类、制定与执行监督，用于形成客户经营规则的上层治理框架。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerPolicy",
+  "stage_label": "CustomerPolicy 客户政策管理",
+  "code": "CP-02",
+  "name": "分类客户",
+  "stage_def": "CustomerPolicy 阶段聚焦客户政策的洞察、分类、制定与执行监督，用于形成客户经营规则的上层治理框架。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerPolicy",
+  "stage_label": "CustomerPolicy 客户政策管理",
+  "code": "CP-03",
+  "name": "制定客户政策",
+  "stage_def": "CustomerPolicy 阶段聚焦客户政策的洞察、分类、制定与执行监督，用于形成客户经营规则的上层治理框架。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerPolicy",
+  "stage_label": "CustomerPolicy 客户政策管理",
+  "code": "CP-04",
+  "name": "监督与评估客户政策执行",
+  "stage_def": "CustomerPolicy 阶段聚焦客户政策的洞察、分类、制定与执行监督，用于形成客户经营规则的上层治理框架。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerRelationship",
+  "stage_label": "CustomerRelationship 客户关系管理",
+  "code": "CR-01",
+  "name": "管理组织客户关系",
+  "stage_def": "CustomerRelationship 阶段聚焦客户关系的分层经营与关系维护，用于区分组织客户、关键客户和普通客户的差异化关系管理方式。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerRelationship",
+  "stage_label": "CustomerRelationship 客户关系管理",
+  "code": "CR-02",
+  "name": "管理关键客户关系",
+  "stage_def": "CustomerRelationship 阶段聚焦客户关系的分层经营与关系维护，用于区分组织客户、关键客户和普通客户的差异化关系管理方式。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerRelationship",
+  "stage_label": "CustomerRelationship 客户关系管理",
+  "code": "CR-03",
+  "name": "管理普通客户关系",
+  "stage_def": "CustomerRelationship 阶段聚焦客户关系的分层经营与关系维护，用于区分组织客户、关键客户和普通客户的差异化关系管理方式。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerSatisfaction",
+  "stage_label": "CustomerSatisfaction 客户满意度管理",
+  "code": "CS-01",
+  "name": "管理客户群声音",
+  "stage_def": "CustomerSatisfaction 阶段聚焦客户声音、非技术问题、重大投诉和满意度改进闭环，用于管理客户感知与关系稳定性。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerSatisfaction",
+  "stage_label": "CustomerSatisfaction 客户满意度管理",
+  "code": "CS-02",
+  "name": "管理非技术问题",
+  "stage_def": "CustomerSatisfaction 阶段聚焦客户声音、非技术问题、重大投诉和满意度改进闭环，用于管理客户感知与关系稳定性。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerSatisfaction",
+  "stage_label": "CustomerSatisfaction 客户满意度管理",
+  "code": "CS-03",
+  "name": "管理客户重大投诉",
+  "stage_def": "CustomerSatisfaction 阶段聚焦客户声音、非技术问题、重大投诉和满意度改进闭环，用于管理客户感知与关系稳定性。"
+ },
+ {
+  "domain": "MCR",
+  "stage": "CustomerSatisfaction",
+  "stage_label": "CustomerSatisfaction 客户满意度管理",
+  "code": "CS-04",
+  "name": "客户群满意度评估及改进",
+  "stage_def": "CustomerSatisfaction 阶段聚焦客户声音、非技术问题、重大投诉和满意度改进闭环，用于管理客户感知与关系稳定性。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerCompliance",
+  "stage_label": "PartnerCompliance 合作伙伴合规与业务控制",
+  "code": "PC-01",
+  "name": "评估合作关系资格合规性",
+  "stage_def": "PartnerCompliance 阶段聚焦合作伙伴关系运行中的合规与控制底座，用于保障伙伴业务在资格、控制、出口、利润和品牌方面可控。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerCompliance",
+  "stage_label": "PartnerCompliance 合作伙伴合规与业务控制",
+  "code": "PC-02",
+  "name": "管理业务控制",
+  "stage_def": "PartnerCompliance 阶段聚焦合作伙伴关系运行中的合规与控制底座，用于保障伙伴业务在资格、控制、出口、利润和品牌方面可控。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerCompliance",
+  "stage_label": "PartnerCompliance 合作伙伴合规与业务控制",
+  "code": "PC-03",
+  "name": "管理出口合规",
+  "stage_def": "PartnerCompliance 阶段聚焦合作伙伴关系运行中的合规与控制底座，用于保障伙伴业务在资格、控制、出口、利润和品牌方面可控。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerCompliance",
+  "stage_label": "PartnerCompliance 合作伙伴合规与业务控制",
+  "code": "PC-04",
+  "name": "管理利润外泄保护",
+  "stage_def": "PartnerCompliance 阶段聚焦合作伙伴关系运行中的合规与控制底座，用于保障伙伴业务在资格、控制、出口、利润和品牌方面可控。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerCompliance",
+  "stage_label": "PartnerCompliance 合作伙伴合规与业务控制",
+  "code": "PC-05",
+  "name": "管理品牌保护",
+  "stage_def": "PartnerCompliance 阶段聚焦合作伙伴关系运行中的合规与控制底座，用于保障伙伴业务在资格、控制、出口、利润和品牌方面可控。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerGTM",
+  "stage_label": "PartnerGTM 合作伙伴市场进入与业务协同",
+  "code": "PGTM-01",
+  "name": "发布联合解决方案",
+  "stage_def": "PartnerGTM 阶段聚焦合作伙伴与企业联合进入市场、推进销售、交付和支持的全过程，用于承接伙伴侧的市场动作与交易协同动作。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerGTM",
+  "stage_label": "PartnerGTM 合作伙伴市场进入与业务协同",
+  "code": "PGTM-02",
+  "name": "管理合作伙伴名录与查找",
+  "stage_def": "PartnerGTM 阶段聚焦合作伙伴与企业联合进入市场、推进销售、交付和支持的全过程，用于承接伙伴侧的市场动作与交易协同动作。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerGTM",
+  "stage_label": "PartnerGTM 合作伙伴市场进入与业务协同",
+  "code": "PGTM-03",
+  "name": "管理联合市场活动",
+  "stage_def": "PartnerGTM 阶段聚焦合作伙伴与企业联合进入市场、推进销售、交付和支持的全过程，用于承接伙伴侧的市场动作与交易协同动作。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerGTM",
+  "stage_label": "PartnerGTM 合作伙伴市场进入与业务协同",
+  "code": "PGTM-04",
+  "name": "管理市场营销发展基金与联合营销资产",
+  "stage_def": "PartnerGTM 阶段聚焦合作伙伴与企业联合进入市场、推进销售、交付和支持的全过程，用于承接伙伴侧的市场动作与交易协同动作。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerGTM",
+  "stage_label": "PartnerGTM 合作伙伴市场进入与业务协同",
+  "code": "PGTM-05",
+  "name": "管理交易注册与线索",
+  "stage_def": "PartnerGTM 阶段聚焦合作伙伴与企业联合进入市场、推进销售、交付和支持的全过程，用于承接伙伴侧的市场动作与交易协同动作。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerGTM",
+  "stage_label": "PartnerGTM 合作伙伴市场进入与业务协同",
+  "code": "PGTM-06",
+  "name": "管理机会与管道",
+  "stage_def": "PartnerGTM 阶段聚焦合作伙伴与企业联合进入市场、推进销售、交付和支持的全过程，用于承接伙伴侧的市场动作与交易协同动作。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerGTM",
+  "stage_label": "PartnerGTM 合作伙伴市场进入与业务协同",
+  "code": "PGTM-07",
+  "name": "管理配置、价格和报价",
+  "stage_def": "PartnerGTM 阶段聚焦合作伙伴与企业联合进入市场、推进销售、交付和支持的全过程，用于承接伙伴侧的市场动作与交易协同动作。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerGTM",
+  "stage_label": "PartnerGTM 合作伙伴市场进入与业务协同",
+  "code": "PGTM-08",
+  "name": "管理订单与续约",
+  "stage_def": "PartnerGTM 阶段聚焦合作伙伴与企业联合进入市场、推进销售、交付和支持的全过程，用于承接伙伴侧的市场动作与交易协同动作。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerGTM",
+  "stage_label": "PartnerGTM 合作伙伴市场进入与业务协同",
+  "code": "PGTM-09",
+  "name": "管理账单与支付",
+  "stage_def": "PartnerGTM 阶段聚焦合作伙伴与企业联合进入市场、推进销售、交付和支持的全过程，用于承接伙伴侧的市场动作与交易协同动作。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerGTM",
+  "stage_label": "PartnerGTM 合作伙伴市场进入与业务协同",
+  "code": "PGTM-10",
+  "name": "管理实施交付与产品可得性",
+  "stage_def": "PartnerGTM 阶段聚焦合作伙伴与企业联合进入市场、推进销售、交付和支持的全过程，用于承接伙伴侧的市场动作与交易协同动作。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerGTM",
+  "stage_label": "PartnerGTM 合作伙伴市场进入与业务协同",
+  "code": "PGTM-11",
+  "name": "管理库存与渠道库存跟踪",
+  "stage_def": "PartnerGTM 阶段聚焦合作伙伴与企业联合进入市场、推进销售、交付和支持的全过程，用于承接伙伴侧的市场动作与交易协同动作。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerGTM",
+  "stage_label": "PartnerGTM 合作伙伴市场进入与业务协同",
+  "code": "PGTM-12",
+  "name": "管理技术支持与自助服务支持",
+  "stage_def": "PartnerGTM 阶段聚焦合作伙伴与企业联合进入市场、推进销售、交付和支持的全过程，用于承接伙伴侧的市场动作与交易协同动作。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerManagement",
+  "stage_label": "PartnerManagement 合作伙伴管理",
+  "code": "PM-01",
+  "name": "管理合作伙伴身份",
+  "stage_def": "PartnerManagement 阶段聚焦合作伙伴主体的持续治理，用于管理伙伴身份、伙伴信息、合作边界、解决方案、激励结算以及绩效监控。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerManagement",
+  "stage_label": "PartnerManagement 合作伙伴管理",
+  "code": "PM-02",
+  "name": "管理合作伙伴信息",
+  "stage_def": "PartnerManagement 阶段聚焦合作伙伴主体的持续治理，用于管理伙伴身份、伙伴信息、合作边界、解决方案、激励结算以及绩效监控。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerManagement",
+  "stage_label": "PartnerManagement 合作伙伴管理",
+  "code": "PM-03",
+  "name": "管理合同、区域和权限",
+  "stage_def": "PartnerManagement 阶段聚焦合作伙伴主体的持续治理，用于管理伙伴身份、伙伴信息、合作边界、解决方案、激励结算以及绩效监控。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerManagement",
+  "stage_label": "PartnerManagement 合作伙伴管理",
+  "code": "PM-04",
+  "name": "管理合作伙伴解决方案",
+  "stage_def": "PartnerManagement 阶段聚焦合作伙伴主体的持续治理，用于管理伙伴身份、伙伴信息、合作边界、解决方案、激励结算以及绩效监控。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerManagement",
+  "stage_label": "PartnerManagement 合作伙伴管理",
+  "code": "PM-05",
+  "name": "管理激励和结算",
+  "stage_def": "PartnerManagement 阶段聚焦合作伙伴主体的持续治理，用于管理伙伴身份、伙伴信息、合作边界、解决方案、激励结算以及绩效监控。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerManagement",
+  "stage_label": "PartnerManagement 合作伙伴管理",
+  "code": "PM-06",
+  "name": "监控和管理合作伙伴绩效",
+  "stage_def": "PartnerManagement 阶段聚焦合作伙伴主体的持续治理，用于管理伙伴身份、伙伴信息、合作边界、解决方案、激励结算以及绩效监控。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerRecruitmentEnablement",
+  "stage_label": "PartnerRecruitmentEnablement 合作伙伴招募与使能",
+  "code": "PRE-01",
+  "name": "定义目标合作伙伴并招募注册",
+  "stage_def": "PartnerRecruitmentEnablement 阶段聚焦合作伙伴从招募、注册、入伙到培训、认证、联合构建的能力建设过程，用于让伙伴成为可运营、可协同的正式渠道力量。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerRecruitmentEnablement",
+  "stage_label": "PartnerRecruitmentEnablement 合作伙伴招募与使能",
+  "code": "PRE-02",
+  "name": "管理合作伙伴协议与入伙权益",
+  "stage_def": "PartnerRecruitmentEnablement 阶段聚焦合作伙伴从招募、注册、入伙到培训、认证、联合构建的能力建设过程，用于让伙伴成为可运营、可协同的正式渠道力量。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerRecruitmentEnablement",
+  "stage_label": "PartnerRecruitmentEnablement 合作伙伴招募与使能",
+  "code": "PRE-03",
+  "name": "培训合作伙伴",
+  "stage_def": "PartnerRecruitmentEnablement 阶段聚焦合作伙伴从招募、注册、入伙到培训、认证、联合构建的能力建设过程，用于让伙伴成为可运营、可协同的正式渠道力量。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerRecruitmentEnablement",
+  "stage_label": "PartnerRecruitmentEnablement 合作伙伴招募与使能",
+  "code": "PRE-04",
+  "name": "认证合作伙伴",
+  "stage_def": "PartnerRecruitmentEnablement 阶段聚焦合作伙伴从招募、注册、入伙到培训、认证、联合构建的能力建设过程，用于让伙伴成为可运营、可协同的正式渠道力量。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerRecruitmentEnablement",
+  "stage_label": "PartnerRecruitmentEnablement 合作伙伴招募与使能",
+  "code": "PRE-05",
+  "name": "管理合作伙伴知识、社区和沟通内容",
+  "stage_def": "PartnerRecruitmentEnablement 阶段聚焦合作伙伴从招募、注册、入伙到培训、认证、联合构建的能力建设过程，用于让伙伴成为可运营、可协同的正式渠道力量。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerRecruitmentEnablement",
+  "stage_label": "PartnerRecruitmentEnablement 合作伙伴招募与使能",
+  "code": "PRE-06",
+  "name": "联合定义与开发解决方案",
+  "stage_def": "PartnerRecruitmentEnablement 阶段聚焦合作伙伴从招募、注册、入伙到培训、认证、联合构建的能力建设过程，用于让伙伴成为可运营、可协同的正式渠道力量。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerRecruitmentEnablement",
+  "stage_label": "PartnerRecruitmentEnablement 合作伙伴招募与使能",
+  "code": "PRE-07",
+  "name": "管理兼容性测试、非转售与开放实验室支持",
+  "stage_def": "PartnerRecruitmentEnablement 阶段聚焦合作伙伴从招募、注册、入伙到培训、认证、联合构建的能力建设过程，用于让伙伴成为可运营、可协同的正式渠道力量。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerStrategyPlanning",
+  "stage_label": "PartnerStrategyPlanning 合作伙伴战略与计划",
+  "code": "PSP-01",
+  "name": "细分目标客户与伙伴生态",
+  "stage_def": "PartnerStrategyPlanning 阶段聚焦合作伙伴体系的前置规划与长期计划管理，用于明确目标伙伴画像、伙伴战略架构、年度/阶段计划及计划维护机制。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerStrategyPlanning",
+  "stage_label": "PartnerStrategyPlanning 合作伙伴战略与计划",
+  "code": "PSP-02",
+  "name": "设计合作伙伴战略与架构",
+  "stage_def": "PartnerStrategyPlanning 阶段聚焦合作伙伴体系的前置规划与长期计划管理，用于明确目标伙伴画像、伙伴战略架构、年度/阶段计划及计划维护机制。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerStrategyPlanning",
+  "stage_label": "PartnerStrategyPlanning 合作伙伴战略与计划",
+  "code": "PSP-03",
+  "name": "制定合作伙伴计划",
+  "stage_def": "PartnerStrategyPlanning 阶段聚焦合作伙伴体系的前置规划与长期计划管理，用于明确目标伙伴画像、伙伴战略架构、年度/阶段计划及计划维护机制。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerStrategyPlanning",
+  "stage_label": "PartnerStrategyPlanning 合作伙伴战略与计划",
+  "code": "PSP-04",
+  "name": "维护合作伙伴计划",
+  "stage_def": "PartnerStrategyPlanning 阶段聚焦合作伙伴体系的前置规划与长期计划管理，用于明确目标伙伴画像、伙伴战略架构、年度/阶段计划及计划维护机制。"
+ },
+ {
+  "domain": "MPR",
+  "stage": "PartnerStrategyPlanning",
+  "stage_label": "PartnerStrategyPlanning 合作伙伴战略与计划",
+  "code": "PSP-05",
+  "name": "管理合作伙伴会议与论坛",
+  "stage_def": "PartnerStrategyPlanning 阶段聚焦合作伙伴体系的前置规划与长期计划管理，用于明确目标伙伴画像、伙伴战略架构、年度/阶段计划及计划维护机制。"
+ },
+ {
+  "domain": "MTL",
+  "stage": "DemandGeneration",
+  "stage_label": "DemandGeneration 需求生成",
+  "code": "DG-01",
+  "name": "管理营销 program 规划",
+  "stage_def": "DemandGeneration 阶段聚焦营销 program 规划、活动策划执行、客户回应获取与线索生成，是 `MTL` 中最直接产出线索对象的核心环节。"
+ },
+ {
+  "domain": "MTL",
+  "stage": "DemandGeneration",
+  "stage_label": "DemandGeneration 需求生成",
+  "code": "DG-02",
+  "name": "管理营销活动策划与执行",
+  "stage_def": "DemandGeneration 阶段聚焦营销 program 规划、活动策划执行、客户回应获取与线索生成，是 `MTL` 中最直接产出线索对象的核心环节。"
+ },
+ {
+  "domain": "MTL",
+  "stage": "DemandGeneration",
+  "stage_label": "DemandGeneration 需求生成",
+  "code": "DG-03",
+  "name": "管理客户回应与线索生成",
+  "stage_def": "DemandGeneration 阶段聚焦营销 program 规划、活动策划执行、客户回应获取与线索生成，是 `MTL` 中最直接产出线索对象的核心环节。"
+ },
+ {
+  "domain": "MTL",
+  "stage": "DemandGeneration",
+  "stage_label": "DemandGeneration 需求生成",
+  "code": "DG-04",
+  "name": "管理联合创新",
+  "stage_def": "DemandGeneration 阶段聚焦营销 program 规划、活动策划执行、客户回应获取与线索生成，是 `MTL` 中最直接产出线索对象的核心环节。"
+ },
+ {
+  "domain": "MTL",
+  "stage": "DemandGeneration",
+  "stage_label": "DemandGeneration 需求生成",
+  "code": "DG-05",
+  "name": "管理营销效果评估",
+  "stage_def": "DemandGeneration 阶段聚焦营销 program 规划、活动策划执行、客户回应获取与线索生成，是 `MTL` 中最直接产出线索对象的核心环节。"
+ },
+ {
+  "domain": "MTL",
+  "stage": "MarketInsight",
+  "stage_label": "MarketInsight 市场洞察",
+  "code": "MI-01",
+  "name": "管理市场分析",
+  "stage_def": "MarketInsight 阶段聚焦市场与客户的前置分析，用于支撑后续市场策略、营销 program 与需求生成方向。"
+ },
+ {
+  "domain": "MTL",
+  "stage": "MarketInsight",
+  "stage_label": "MarketInsight 市场洞察",
+  "code": "MI-02",
+  "name": "管理客户分析",
+  "stage_def": "MarketInsight 阶段聚焦市场与客户的前置分析，用于支撑后续市场策略、营销 program 与需求生成方向。"
+ },
+ {
+  "domain": "MTL",
+  "stage": "MarketManagement",
+  "stage_label": "MarketManagement 市场管理",
+  "code": "MM-01",
+  "name": "管理细分市场选择与排序",
+  "stage_def": "MarketManagement 阶段聚焦细分市场选择、市场策略落位与细分市场经营结果管理，是营销资源配置的中枢环节。"
+ },
+ {
+  "domain": "MTL",
+  "stage": "MarketManagement",
+  "stage_label": "MarketManagement 市场管理",
+  "code": "MM-02",
+  "name": "管理产品包与解决方案规划支持",
+  "stage_def": "MarketManagement 阶段聚焦细分市场选择、市场策略落位与细分市场经营结果管理，是营销资源配置的中枢环节。"
+ },
+ {
+  "domain": "MTL",
+  "stage": "MarketManagement",
+  "stage_label": "MarketManagement 市场管理",
+  "code": "MM-03",
+  "name": "管理细分市场绩效",
+  "stage_def": "MarketManagement 阶段聚焦细分市场选择、市场策略落位与细分市场经营结果管理，是营销资源配置的中枢环节。"
+ },
+ {
+  "domain": "MTL",
+  "stage": "MarketingQualityManagement",
+  "stage_label": "MarketingQualityManagement 营销质量管理",
+  "code": "MQ-01",
+  "name": "管理营销质量",
+  "stage_def": "MarketingQualityManagement 阶段聚焦营销过程质量、营销执行质量和营销结果质量的持续监控与优化。"
+ },
+ {
+  "domain": "MTL",
+  "stage": "SalesEnablement",
+  "stage_label": "SalesEnablement 销售赋能",
+  "code": "SE-01",
+  "name": "管理销售赋能",
+  "stage_def": "SalesEnablement 阶段聚焦市场向销售侧的能力传递与训练，确保营销策略、内容和方法可以被销售团队有效承接。"
+ },
+ {
+  "domain": "MTL",
+  "stage": "SalesEnablement",
+  "stage_label": "SalesEnablement 销售赋能",
+  "code": "SE-02",
+  "name": "管理销售培训",
+  "stage_def": "SalesEnablement 阶段聚焦市场向销售侧的能力传递与训练，确保营销策略、内容和方法可以被销售团队有效承接。"
+ }
+]

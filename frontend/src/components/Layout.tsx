@@ -3,7 +3,7 @@ import { NavLink, Navigate, Outlet, Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Brain, MessageSquare,
   ClipboardCheck, BookOpen, Settings, Sliders, ChevronDown, LogOut, KeyRound, Shield, Folder,
-  Copy, RefreshCw, Check, Plug, Trash2, AlertCircle, Menu, Sparkles, Search, User,
+  Copy, RefreshCw, Check, Plug, Trash2, AlertCircle, Menu, Sparkles, Search, User, Layers,
 } from 'lucide-react'
 // BookOpen kept for chunks nav icon
 import { useAuth } from '../auth/AuthContext'
@@ -41,6 +41,7 @@ const allNavGroups = [
       { to: '/qa',        label: '智能问答',  icon: MessageSquare },
       { to: '/review',    label: '审核队列',  icon: ClipboardCheck },
       { to: '/challenge', label: '知识挑战',  icon: Brain },
+      { to: '/scenes',    label: '场景库中心', icon: Layers, adminOnly: true },
     ],
   },
   {

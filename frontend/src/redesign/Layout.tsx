@@ -15,7 +15,7 @@ import {
   LayoutDashboard, FileText, Brain, MessageSquare, ClipboardCheck, BookOpen,
   Settings, Sliders, ChevronDown, LogOut, KeyRound, Shield, Folder,
   Copy, RefreshCw, Check, Plug, Trash2, AlertCircle, Sparkles, Search,
-  MoreHorizontal, User,
+  MoreHorizontal, User, Layers,
 } from 'lucide-react'
 import LiquidGlass from 'liquid-glass-react'
 import { useAuth } from '../auth/AuthContext'
@@ -54,6 +54,7 @@ const MORE_NAV = [
   { to: '/system-config', label: '系统配置', icon: Sliders,        module: 'settings', adminOnly: true },
   { to: '/settings',      label: '系统设置', icon: Settings,       module: 'settings', adminOnly: true },
   { to: '/invite-codes',  label: '邀请码',   icon: Shield,         module: 'settings', adminOnly: true },
+  { to: '/scenes',        label: '场景库中心', icon: Layers,        module: 'settings', adminOnly: true },
 ]
 
 const SLOT = {

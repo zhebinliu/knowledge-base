@@ -1,3 +1,25 @@
+# 任务:Harness P3 + P4 — 场景库 / 命中 / PM 角色 / 蓝图回流闭环(2026-07-13)
+
+一整个子系统,分 Block 逐个建→测→部署:
+- **Block 1 场景库基座 + 场景库中心(后台菜单)** ← 命中/回流都依赖
+- Block 2 PM 角色(项目成员角色分类,默认 owner)
+- Block 3 场景命中(LLM 对照标准库,项目详情显示命中/未命中 + 报告)
+- Block 4 蓝图回流闭环(蓝图完成→diff→PM 确认→后台审核 tab→回写场景库 + 变更留痕)
+
+## Block 1 清单
+- [x] B1-1 seed:解析试点包 Core 场景 → `backend/data/scenes_seed.json`(147 条:LTC48/MPR35/ITR33/MCR18/MTL13)。
+- [x] B1-2 model `models/scene.py`:StandardScene + SceneChange(变更历史)。
+- [x] B1-3 `api/scenes.py`:domains/list/get/changes/scene-changes + `seed_scenes_if_empty`(空表首启导入)。
+- [x] B1-4 main.py:启动块 import model + include_router(/api)+ seed 调用。
+- [x] B1-5 前端:`api/scenes.ts`(独立于 client.ts,避 overlay)+ `pages/SceneLibrary.tsx`(场景清单 + 变更历史 tab)+ App 路由 + 两套后台导航(adminOnly)。
+- [x] B1-6 py_compile + tsc + build 通过;overlay 安全(无副本)。
+- [ ] B1-7 deploy-uat 门 → deploy-prod;curl + 后端确认 seed 导入 147 条。
+
+## Block 1 部署结果
+（待补)
+
+---
+
 # 任务:Harness P2 — 软闸(生成时警告 + 产物上持续显示,不阻塞)(2026-07-13)
 
 目标:落地方案 v2 的 P2。软闸不卡控,点生成弹 warning、并把警告随产物持续显示。
