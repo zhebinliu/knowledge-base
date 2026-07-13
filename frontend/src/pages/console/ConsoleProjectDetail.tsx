@@ -9,6 +9,7 @@ import {
   Upload, Share2, Copy, Check, Workflow,
 } from 'lucide-react'
 import CollaboratorsModal from '../../components/console/CollaboratorsModal'
+import GateConfirmBar from '../../components/console/GateConfirmBar'
 import BundleOverrideModal from '../../components/console/BundleOverrideModal'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
 import { useAuth } from '../../auth/AuthContext'
@@ -576,6 +577,8 @@ export default function ConsoleProjectDetail() {
         </div>
       )}
 
+      {/* Harness P1 闸门条:survey→As-Is 确认 / design→To-Be 定稿(其余阶段不显示) */}
+      <GateConfirmBar projectId={id} stageKey={activeStage?.key} variant="light" />
       {/* 当前阶段 action — 与上方阶段栏共享白底 */}
       <div className="flex-shrink-0 px-2 sm:px-3 pt-2 pb-2.5 bg-white border-b border-line flex items-center gap-2">
         <span className="text-[11px] text-ink-muted truncate">

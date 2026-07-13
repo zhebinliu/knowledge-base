@@ -83,6 +83,16 @@ def _current_trace_id() -> str | None:
         return None
 
 
+# ── Harness P1 硬闸(2026-07-13):生成某 kind 前,要求对应闸门已确认 ──────────────
+# As-Is 确认(asis)守方案设计(design);To-Be 定稿(tobe)守项目实施(implement)。
+# 未确认 → 阻塞生成(409),前端提示先去项目里一键确认。
+_GATE_FOR_KIND = {
+    "blueprint_design":    "asis",
+    "object_field_layout": "asis",
+    "process_setup":       "asis",
+    "implementation_plan": "tobe",
+}
+
 KIND_TO_TASK = {
     "kickoff_pptx": "generate_kickoff_pptx",
     "kickoff_html": "generate_kickoff_html",
@@ -207,6 +217,16 @@ async def enqueue_generation(
     proj = await session.get(Project, project_id)
     if not proj:
         raise HTTPException(404, "Project not found")
+
+    # Harness P1 硬闸:生成受闸门保护的 kind 前,要求上游闸门已确认
+    required_gate = _GATE_FOR_KIND.get(kind)
+    if required_gate:
+        from api.project_gates import is_gate_confirmed, GATE_LABELS
+        if not await is_gate_confirmed(session, project_id, required_gate):
+            raise HTTPException(
+                409,
+                f"请先确认「{GATE_LABELS.get(required_gate, required_gate)}」后再生成该产物。",
+            )
 
     title = f"{KIND_TITLES[kind]} · {proj.name}"
     bundle = CuratedBundle(

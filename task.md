@@ -1,3 +1,28 @@
+# 任务:Harness P1 — 项目闸门状态 + As-Is/To-Be 两道硬闸一键确认(2026-07-13)
+
+目标:落地方案 v2 的 P1。给项目加一层「闸门状态」持久层,并对两道硬闸做强制一键确认:
+- As-Is 确认(gate=asis):需求调研(survey)完成 → 才能生成方案设计(design:blueprint_design/object_field_layout/process_setup)。
+- To-Be 定稿(gate=tobe):方案设计(design)完成 → 才能生成项目实施(implement:implementation_plan)。
+硬闸=未确认时**阻塞下游生成**(409),确认成本=一键。
+
+## 关键落点(recon 结论)
+- 真实阶段:insight → survey → design → implement → test → acceptance(无独立 as-is/to-be kind,故用阶段转移闸)。
+- 建表:`Base.metadata.create_all`(无 alembic),新表在 main.py 启动块 import 即自动建,零风险。
+- 硬闸拦截点:`api/outputs.py::enqueue_generation`(HTTP+MCP 唯一咽喉)。
+
+## 清单
+- [x] G1 model `models/project_stage_gate.py`(project_id, gate_key, status, confirmed_by, confirmed_at, note)。
+- [x] G2 `api/project_gates.py`:GET 列表 / POST confirm / POST reopen(read/write ACL)+ `is_gate_confirmed` 供拦截用。
+- [x] G3 main.py:启动块 import 新 model + include_router(prefix /api/projects)。
+- [x] G4 outputs.py::enqueue_generation:`_GATE_FOR_KIND`(design→asis / implement→tobe),未确认 raise 409。
+- [x] G5 前端:共享组件 `components/console/GateConfirmBar.tsx`(两套详情页共用,深浅自适应);survey→As-Is、design→To-Be;client.ts 加 listGates/confirmGate/reopenGate。409 由 client 拦截器自动 toast。
+- [x] G6 py_compile 通过;前端 tsc + build 通过。后端本地无 3.11/docker → 部署后立即 curl 验证后端启动(gates 路由 401=启动成功);rollback SHA=0bc99d8。
+
+## 部署结果
+（待补:直接推 prod,部署后 curl 验证后端 boot)
+
+---
+
 # 任务:管理员放开所有模块(测试)+ 普通用户升级中 + 顶部 banner(2026-07-13)
 
 目标:在「工作台仅保留会议纪要」基础上,让管理员(is_admin)仍可操作所有模块用于测试;普通用户维持升级中;工作台顶部对普通用户加横幅「正在项目管理模块底层升级,敬请期待」。

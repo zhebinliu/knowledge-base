@@ -30,6 +30,7 @@ import {
 // 11 个子组件全部走 Liquid Glass 新版(redesign 目录下)
 import CollaboratorsModal from './CollaboratorsModal'
 import BundleOverrideModal from '../../components/console/BundleOverrideModal'
+import GateConfirmBar from '../../components/console/GateConfirmBar'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
 import { useAuth } from '../../auth/AuthContext'
 import ProjectStakeholdersDrawer from './ProjectStakeholdersDrawer'
@@ -586,6 +587,8 @@ export default function NewConsoleProjectDetail() {
         </div>
       )}
 
+      {/* Harness P1 闸门条:survey→As-Is 确认 / design→To-Be 定稿(其余阶段不显示) */}
+      <GateConfirmBar projectId={id} stageKey={activeStage?.key} variant="dark" />
       {/* ── 当前阶段 action bar ── */}
       <div style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <span style={{ fontSize: 12, color: 'var(--rd-text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

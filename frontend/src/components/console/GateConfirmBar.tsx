@@ -1,0 +1,107 @@
+import { useEffect, useState, useCallback } from 'react'
+import { CheckCircle2, ShieldAlert, Loader2 } from 'lucide-react'
+import { listGates, confirmGate, reopenGate, type ProjectGate } from '../../api/client'
+import { toast } from '../Toaster'
+
+/**
+ * GateConfirmBar — 项目人工确认闸门条(Harness P1)。
+ *
+ * 两套项目详情页(legacy `pages/console/` 与 redesign `redesign/console/`)共用同一组件
+ * (两者到 `../../components/console/` 是同一路径)。variant 控制深/浅色。
+ *
+ * 闸门落位(阶段 → 闸门):
+ *   - survey(需求调研)→ asis(As-Is 事实确认),确认后方可生成方案设计
+ *   - design(方案设计)→ tobe(To-Be 方案定稿),确认后方可生成项目实施
+ * 其他阶段不显示。
+ */
+const STAGE_TO_GATE: Record<string, string> = { survey: 'asis', design: 'tobe' }
+
+export default function GateConfirmBar({
+  projectId, stageKey, variant = 'light',
+}: { projectId?: string; stageKey?: string; variant?: 'light' | 'dark' }) {
+  const gateKey = stageKey ? STAGE_TO_GATE[stageKey] : undefined
+  const [gate, setGate] = useState<ProjectGate | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(async () => {
+    if (!projectId || !gateKey) { setGate(null); return }
+    try {
+      const gates = await listGates(projectId)
+      setGate(gates.find(g => g.key === gateKey) ?? null)
+    } catch { /* 拦截器已 toast */ }
+  }, [projectId, gateKey])
+
+  useEffect(() => { load() }, [load])
+
+  if (!projectId || !gateKey || !gate) return null
+
+  const dark = variant === 'dark'
+  const confirmed = gate.status === 'confirmed'
+
+  const onConfirm = async () => {
+    setBusy(true)
+    try {
+      const g = await confirmGate(projectId, gateKey)
+      setGate(g)
+      toast.success(`已确认「${g.label}」`)
+    } catch { /* 拦截器已 toast */ } finally { setBusy(false) }
+  }
+  const onReopen = async () => {
+    setBusy(true)
+    try { const g = await reopenGate(projectId, gateKey); setGate(g) }
+    catch { /* 拦截器已 toast */ } finally { setBusy(false) }
+  }
+
+  const okC = dark
+    ? { bg: 'rgba(46,160,120,0.14)', bd: 'rgba(80,190,150,0.35)', fg: '#7FD9B6', sub: 'rgba(190,220,208,0.75)' }
+    : { bg: '#EAF6F0', bd: '#BFE2D3', fg: '#1E7A5E', sub: '#4A7A68' }
+  const warnC = dark
+    ? { bg: 'rgba(214,165,72,0.14)', bd: 'rgba(214,165,72,0.35)', fg: '#F0C878', sub: 'rgba(226,220,200,0.75)' }
+    : { bg: '#FBF1DD', bd: '#EBD6A8', fg: '#8A5A10', sub: '#7A6636' }
+  const c = confirmed ? okC : warnC
+
+  return (
+    <div style={{ padding: dark ? '0 20px 8px' : '0 10px 8px' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+        padding: '8px 14px', borderRadius: 10,
+        background: c.bg, border: `1px solid ${c.bd}`,
+      }}>
+        {confirmed ? <CheckCircle2 size={16} color={c.fg} style={{ flexShrink: 0 }} />
+                   : <ShieldAlert size={16} color={c.fg} style={{ flexShrink: 0 }} />}
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 650, color: c.fg }}>
+            {confirmed
+              ? `${gate.label} · 已确认`
+              : `${gate.label} · 待确认`}
+          </div>
+          <div style={{ fontSize: 11.5, color: c.sub, marginTop: 1 }}>
+            {confirmed
+              ? `确认人 ${gate.confirmed_by || '—'}${gate.confirmed_at ? ' · ' + new Date(gate.confirmed_at).toLocaleString('zh-CN') : ''}`
+              : gate.desc}
+          </div>
+        </div>
+        {confirmed ? (
+          <button type="button" onClick={onReopen} disabled={busy}
+            style={{
+              flexShrink: 0, fontSize: 12, padding: '5px 12px', borderRadius: 8, cursor: busy ? 'default' : 'pointer',
+              border: `1px solid ${c.bd}`, background: 'transparent', color: c.sub, fontFamily: 'inherit',
+            }}>
+            {busy ? <Loader2 size={12} className="animate-spin" /> : '撤销确认'}
+          </button>
+        ) : (
+          <button type="button" onClick={onConfirm} disabled={busy}
+            style={{
+              flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6,
+              fontSize: 12.5, fontWeight: 600, padding: '6px 16px', borderRadius: 8, cursor: busy ? 'default' : 'pointer',
+              border: 'none', color: '#fff', fontFamily: 'inherit',
+              background: 'linear-gradient(135deg,#E0A43A,#C07A16)',
+            }}>
+            {busy ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+            一键确认
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}

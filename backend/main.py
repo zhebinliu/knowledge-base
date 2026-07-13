@@ -26,7 +26,7 @@ _ENC[_dt] = _utc_iso_datetime
 _ENC[_date] = lambda d: d.isoformat()  # 日期本来就无时区,保持
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, workflow_canvas, research, admin_invite_codes, admin_bundle_memories, project_stakeholders, smart_advice, template, admin_daily_report
+from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, workflow_canvas, research, admin_invite_codes, admin_bundle_memories, project_stakeholders, smart_advice, template, admin_daily_report, project_gates
 from services.auth import get_current_user
 from services.rate_limit import limiter
 from services.vector_store import vector_store
@@ -206,6 +206,7 @@ app.include_router(stakeholder_graph.router, prefix="/api/stakeholder-graph", ta
 app.include_router(workflow_canvas.router, prefix="/api/workflow-canvas", tags=["workflow-canvas"])
 app.include_router(research.router, prefix="/api/research", tags=["research"])
 app.include_router(project_stakeholders.router, prefix="/api/projects/{project_id}/stakeholders", tags=["project-stakeholders"])
+app.include_router(project_gates.router, prefix="/api/projects", tags=["project-gates"])  # 2026-07-13 Harness P1:项目闸门
 app.include_router(smart_advice.router, prefix="/api", tags=["smart-advice"])
 from api.project_todos import router as project_todos_router  # 项目待办看板(2026-06-08)
 app.include_router(project_todos_router, prefix="/api", tags=["project-todos"])
@@ -250,6 +251,7 @@ async def startup():
     from models.project_todo import ProjectTodo  # noqa: F401  项目待办看板(2026-06-08)
     from models.bundle_share import BundleShare  # noqa: F401  交付物公开分享(2026-06-12,create_all 建 bundle_shares 表)
     from models.changelog_entry import ChangelogEntry  # noqa: F401  平台更新日志(2026-07-03,create_all 建 changelog_entries 表)
+    from models.project_stage_gate import ProjectStageGate  # noqa: F401  Harness 项目闸门(2026-07-13,create_all 建 project_stage_gates 表)
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
