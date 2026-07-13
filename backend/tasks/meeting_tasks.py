@@ -27,6 +27,7 @@ async def _process_meeting_async(meeting_id: int):
     from models import async_session_maker
     from models.meeting import Meeting, Requirement
     from models.template import MeetingTemplate
+    from models.term_correction import TermCorrection
     from services._time import utcnow_naive
     from services.ai.template_evolver import _template_to_dict
     from services.meeting import run_full_pipeline
@@ -62,6 +63,18 @@ async def _process_meeting_async(meeting_id: int):
         except Exception:
             logger.warning("failed_to_load_template", exc_info=True)
 
+        # 读取用户的名词校正清单
+        term_hints = ""
+        try:
+            terms = (await session.execute(
+                select(TermCorrection).where(TermCorrection.user_id == meeting.owner_id)
+            )).scalars().all()
+            if terms:
+                lines = [f"- 「{t.wrong_term}」→ 应为「{t.correct_term}」" for t in terms]
+                term_hints = "## 专属名词校正清单\n以下是用户提供的名词校正对照,润色时必须将左边的错误词替换为右边的正确名称:\n" + "\n".join(lines)
+        except Exception:
+            logger.warning("failed_to_load_term_corrections", exc_info=True)
+
     # 跑 pipeline(脱离 session,避免 LLM 长时间持有连接)
     try:
         # 文字来源(asr_engine="text")跳过润色，直接使用原文进入后续阶段
@@ -72,6 +85,7 @@ async def _process_meeting_async(meeting_id: int):
             kb_docs=None,  # Block E 接 KB 联动后,这里读 project_id 拉 KB 文档
             template_dict=template_dict,
             skip_polish=(meeting.asr_engine == "text"),
+            term_hints=term_hints,
         )
     except Exception as e:
         logger.exception("meeting_pipeline_unhandled", meeting_id=meeting_id, error=str(e)[:200])

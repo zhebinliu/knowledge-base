@@ -91,11 +91,18 @@ def _split_by_lines(raw: str, target_chars: int) -> list[str]:
     return chunks
 
 
-async def _polish_one(text: str) -> str:
-    """单次润色调用。GLM-5.x 默认开思考(会重排时间戳),显式 thinking=disabled 关掉。"""
+async def _polish_one(text: str, term_hints: str = "") -> str:
+    """单次润色调用。GLM-5.x 默认开思考(会重排时间戳),显式 thinking=disabled 关掉。
+    
+    term_hints: 用户的名词校正清单提示词(为空则不注入)。
+    """
+    system = POLISH_SYSTEM
+    user_content = POLISH_USER.format(raw_transcript=text)
+    if term_hints:
+        user_content = term_hints + "\n\n" + user_content
     messages = [
-        {"role": "system", "content": POLISH_SYSTEM},
-        {"role": "user", "content": POLISH_USER.format(raw_transcript=text)},
+        {"role": "system", "content": system},
+        {"role": "user", "content": user_content},
     ]
     content, _model = await model_router.chat_with_routing(
         task="meeting_transcript_polish",
@@ -107,18 +114,23 @@ async def _polish_one(text: str) -> str:
     return (content or "").strip()
 
 
-async def polish_transcript(raw_transcript: str) -> str:
-    """对 ASR 原始转写做语言润色。返回纯文本。长稿自动分块并行。"""
+async def polish_transcript(raw_transcript: str, term_hints: str = "") -> str:
+    """对 ASR 原始转写做语言润色。返回纯文本。长稿自动分块并行。
+    
+    Args:
+        raw_transcript: ASR 原始转写文本。
+        term_hints: 用户的名词校正提示词(为空则不注入)。
+    """
     if not raw_transcript or not raw_transcript.strip():
         return ""
 
     if len(raw_transcript) <= _POLISH_CHUNK_THRESHOLD:
-        out = await _polish_one(raw_transcript)
+        out = await _polish_one(raw_transcript, term_hints)
         logger.info("polish_done", in_chars=len(raw_transcript), out_chars=len(out), chunks=1, failed_chunks=0)
         return out
 
     chunks = _split_by_lines(raw_transcript, _POLISH_CHUNK_CHARS)
-    results = await asyncio.gather(*[_polish_one(c) for c in chunks], return_exceptions=True)
+    results = await asyncio.gather(*[_polish_one(c, term_hints) for c in chunks], return_exceptions=True)
 
     parts: list[str] = []
     failed = 0
@@ -510,6 +522,7 @@ async def run_full_pipeline(
     kb_docs: list[dict] | None = None,
     template_dict: dict | None = None,
     skip_polish: bool = False,
+    term_hints: str = "",
 ) -> dict:
     """串行 + 并行编排:polish → (minutes ∥ requirements ∥ process_flows) → stakeholders。
 
@@ -533,7 +546,7 @@ async def run_full_pipeline(
         polished = raw_transcript
     else:
         try:
-            polished = await polish_transcript(raw_transcript)
+            polished = await polish_transcript(raw_transcript, term_hints)
         except Exception as e:
             logger.exception("polish_failed", error=str(e)[:200])
             polished = raw_transcript  # 失败时直接用原文
