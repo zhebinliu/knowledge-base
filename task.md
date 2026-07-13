@@ -20,10 +20,15 @@
 - [x] B3 场景命中:services/scene_match.py(子代理,LLM 对照 147 库)+ scene_hit_reports 表 + scene_ops 端点;SceneHarnessPanel 命中卡(命中/未命中 + 报告)。
 - [x] B4 蓝图回流:services/scene_reflow.py(子代理,LLM diff)+ scene_change_proposals 表 + scene_ops 全流程(reflow/pm-confirm/approve→回写+留痕/reject/admin队列);SceneHarnessPanel design 阶段回流 + PM 确认;场景库中心「待审核回流」第 3 tab(管理员通过/驳回)。
 - [x] B-verify py_compile + tsc + build 通过;overlay 安全(client.ts 已同步,其余无副本);ProjectRole 重名 → 改 ProjectMemberRole。
-- [ ] B-deploy deploy-uat 门 → deploy-prod;curl + 锐达实测命中/回流。
+- [x] B-deploy deploy-uat 门 → deploy-prod;curl + 锐达实测命中/回流。
 
 ## Block 2/3/4 部署结果
-（待补)
+- commit `417091c` → deploy-uat 门 → deploy-prod run 29229009160 success;version.json sha=417091c;新路由全 401;新表 scene_hit_reports/scene_change_proposals 建好,project_collaborators.project_role 列已加。
+- 锐达实测(真实 LLM,测完清理):
+  - Block2 PM:pm_user_id=owner,owner.is_pm=True。
+  - Block3 命中:61/86(qwen3 默认路由),summary 合理。
+  - Block4 回流:16 提案(9新增/7优化);合成提案 approve → 写 standard_scenes(TEST-P1)+ scene_changes 留痕;清理后库仍 147 条。
+- 备注:scene_match/scene_reflow 任务未在 routing_rules,走 router 默认(qwen3-next-80b),工作正常;如需指定模型可在 agent_configs 补路由。
 
 ## Block 1 部署结果
 - commit `315e66c` → deploy-uat 门通过 → deploy-prod run 29226962953 success;version.json sha=315e66c;scenes 路由 401。
