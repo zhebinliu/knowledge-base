@@ -8,10 +8,12 @@
 - [x] E3 legacy `layouts/ConsoleLayout.tsx`:NAV `disabled`→`gated`(gated && !admin 才置灰);header 顶对普通用户挂 banner(light)。
 - [x] E4 redesign `console/ConsoleLayout.tsx`:同上;main 顶对普通用户挂 banner(dark)。
 - [x] E5 typecheck + build 通过。
-- [ ] E6 推 prod + 线上验证(管理员可进各模块、普通用户升级中 + banner)。
+- [x] E6 推 prod + 线上验证:commit `0bc99d8` → deploy-prod run 29222739665 success;`version.json` sha=`0bc99d8` 已上线。管理员各模块可进 / 普通用户升级中 + banner 留登录后人工核对。
 
 ## 部署结果
-（待补)
+- commit `0bc99d8` → `deploy-prod.yml` run 29222739665 success → `kb.tokenwave.cloud/version.json` sha=`0bc99d8`。
+- 管理员:AdminGate 放行,工作台全模块可用,导航不置灰,无 banner。
+- 普通用户:非会议入口置灰、点击进升级页、工作台顶部显示「项目管理模块底层升级」横幅、登录落地会议纪要。
 
 ---
 
