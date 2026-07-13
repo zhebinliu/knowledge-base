@@ -520,6 +520,9 @@ export function OverviewTab({ meeting }: { meeting: Meeting }) {
   const [projectId, setProjectId] = useState(meeting.project_id || '')
   useEffect(() => { setProjectId(meeting.project_id || '') }, [meeting.project_id])
 
+  const [title, setTitle] = useState(meeting.title || '')
+  useEffect(() => { setTitle(meeting.title || '') }, [meeting.title])
+
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
 
   const linkMut = useMutation({
@@ -527,9 +530,32 @@ export function OverviewTab({ meeting }: { meeting: Meeting }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting', meeting.id] }),
   })
 
+  const titleMut = useMutation({
+    mutationFn: () => patchMeeting(meeting.id, { title: title.trim() }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting', meeting.id] }),
+  })
+
   return (
     <div className="space-y-4 max-w-2xl">
-      <Field label="标题" value={meeting.title} />
+      <Field label="标题">
+        <div className="flex items-center gap-2">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && title.trim() && title.trim() !== meeting.title) titleMut.mutate() }}
+            maxLength={256}
+            placeholder="会议标题"
+            className="flex-1 px-3 py-1.5 rounded-md border border-line text-sm bg-white"
+          />
+          <button
+            onClick={() => titleMut.mutate()}
+            disabled={titleMut.isPending || !title.trim() || title.trim() === (meeting.title || '')}
+            className="px-3 py-1.5 rounded-md text-sm bg-canvas hover:bg-canvas-elevated border border-line text-ink disabled:opacity-50"
+          >
+            {titleMut.isPending ? '保存中…' : '保存'}
+          </button>
+        </div>
+      </Field>
       <Field label="状态">
         <div className="flex items-center gap-2">
           <StatusBadge status={meeting.status} />
