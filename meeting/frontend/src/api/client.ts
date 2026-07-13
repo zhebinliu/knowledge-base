@@ -1134,6 +1134,26 @@ export const resetStageFlow = () =>
 export const getStageFlowMeta = () =>
   api.get<StageFlowMeta>('/settings/stage-flow/meta').then(r => r.data)
 
+// ── 项目闸门(Harness P1 · 人工确认闸门)─────────────────────────────────────
+// 注意:本文件是 meeting overlay 副本,构建时覆盖主仓 frontend/src/api/client.ts,
+// 两份必须同时维护(见 LEARNING「meeting overlay 覆盖坑」)。
+export interface ProjectGate {
+  key: string                    // 'asis' | 'tobe'
+  label: string
+  guards_stage: string           // 该闸门守在哪个下游阶段前
+  desc: string
+  status: 'open' | 'confirmed'
+  confirmed_by?: string | null
+  confirmed_at?: string | null
+  note?: string | null
+}
+export const listGates = (project_id: string) =>
+  api.get<ProjectGate[]>(`/projects/${project_id}/gates`).then(r => r.data)
+export const confirmGate = (project_id: string, gate_key: string, note?: string) =>
+  api.post<ProjectGate>(`/projects/${project_id}/gates/${gate_key}/confirm`, { note }).then(r => r.data)
+export const reopenGate = (project_id: string, gate_key: string) =>
+  api.post<ProjectGate>(`/projects/${project_id}/gates/${gate_key}/reopen`).then(r => r.data)
+
 // ── Output Chats (对话式产出) ───────────────────────────────────────────────
 
 export type OutputKind =
