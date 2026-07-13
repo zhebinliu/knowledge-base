@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   Mic, Plus, Trash2, FolderKanban, CheckCircle2, Loader2, AlertCircle, Clock, Search,
-  LayoutTemplate, ChevronLeft, ChevronRight, User as UserIcon, X, Pencil,
+  LayoutTemplate, ChevronLeft, ChevronRight, User as UserIcon, X, Pencil, SpellCheck,
 } from 'lucide-react'
 import {
   listMeetingsPage, deleteMeeting, patchMeeting, listProjects,
@@ -149,6 +149,12 @@ export default function ConsoleMeeting() {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-line bg-white hover:bg-slate-50 text-ink-secondary transition-colors"
           >
             <LayoutTemplate size={16} /> 模板管理
+          </button>
+          <button
+            onClick={() => nav('/console/meeting/term-corrections')}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-line bg-white hover:bg-slate-50 text-ink-secondary transition-colors"
+          >
+            <SpellCheck size={16} /> 名词校正
           </button>
         </div>
       </div>

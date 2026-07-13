@@ -92,6 +92,7 @@ import ProjectTodosPage from './pages/console/ProjectTodos'
 import ConsoleMeeting from './pages/console/ConsoleMeeting'
 import ConsoleMeetingDetail from './pages/console/ConsoleMeetingDetail'
 import ConsoleMeetingNew from './pages/console/ConsoleMeetingNew'
+import TermCorrectionsPage from './pages/console/TermCorrections'
 
 // 2026-07-13:工作台其余功能对普通用户显示「升级中」,但管理员放行(可操作所有模块做测试)。
 // AdminGate:管理员渲染真实功能;非管理员渲染 fallback(默认升级提示页)。
@@ -158,6 +159,7 @@ export default function App() {
           <Route path="meeting"      element={IS_NEW_UI ? <NewConsoleMeeting />     : <ConsoleMeeting />} />
           <Route path="meeting/new"  element={IS_NEW_UI ? <NewConsoleMeetingNew />  : <ConsoleMeetingNew />} />
           <Route path="meeting/templates" element={<NewTemplateManager variant={IS_NEW_UI ? 'redesign' : 'legacy'} />} />
+          <Route path="meeting/term-corrections" element={<TermCorrectionsPage />} />
           <Route path="meeting/:id"  element={IS_NEW_UI ? <NewConsoleMeetingDetail /> : <ConsoleMeetingDetail />} />
         </Route>
       </Route>

@@ -2544,6 +2544,48 @@ export const getIllustrationStyles = async (): Promise<IllustrationStylesRespons
   return data
 }
 
+// ── 名词校正词典(2026-07-13) ──────────────────────────────────────────
+
+export interface TermCorrection {
+  id: number
+  wrong_term: string
+  correct_term: string
+  note: string | null
+  created_at: string
+  updated_at: string
+}
+
+export const listTermCorrections = async (): Promise<TermCorrection[]> => {
+  const { data } = await api.get<TermCorrection[]>('/term-corrections')
+  return data
+}
+
+export const createTermCorrection = async (body: {
+  wrong_term: string; correct_term: string; note?: string
+}): Promise<TermCorrection> => {
+  const { data } = await api.post<TermCorrection>('/term-corrections', body)
+  return data
+}
+
+export const updateTermCorrection = async (
+  id: number, body: { correct_term?: string; note?: string }
+): Promise<TermCorrection> => {
+  const { data } = await api.put<TermCorrection>(`/term-corrections/${id}`, body)
+  return data
+}
+
+export const deleteTermCorrection = async (id: number): Promise<{ ok: boolean }> => {
+  const { data } = await api.delete(`/term-corrections/${id}`)
+  return data
+}
+
+export const batchImportTermCorrections = async (
+  items: Record<string, unknown>[]
+): Promise<{ created: number; skipped: number }> => {
+  const { data } = await api.post<{ created: number; skipped: number }>('/term-corrections/batch-import', { items })
+  return data
+}
+
 // ── 项目待办看板 ────────────────────────────────────────────────────
 
 export const getProjectTodos = async (

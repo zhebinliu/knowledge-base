@@ -1141,10 +1141,22 @@ async def action_polish(
 ):
     """仅润色 raw_transcript,写回 polished_transcript。"""
     from services.meeting import polish_transcript
+    from models.term_correction import TermCorrection
     m = await _load_meeting_owned(meeting_id, session, user)
     if not m.raw_transcript:
         raise HTTPException(400, "无 raw_transcript")
-    polished = await polish_transcript(m.raw_transcript)
+    # 加载用户的名词校正清单
+    term_hints = ""
+    try:
+        terms = (await session.execute(
+            select(TermCorrection).where(TermCorrection.user_id == user.id)
+        )).scalars().all()
+        if terms:
+            lines = [f"- 「{t.wrong_term}」→ 应为「{t.correct_term}」" for t in terms]
+            term_hints = "## 专属名词校正清单\n以下是用户提供的名词校正对照,润色时必须将左边的错误词替换为右边的正确名称:\n" + "\n".join(lines)
+    except Exception:
+        logger.warning("failed_to_load_term_corrections_for_polish", exc_info=True)
+    polished = await polish_transcript(m.raw_transcript, term_hints)
     m.polished_transcript = polished
     await session.commit()
     return {"polished_transcript": polished}

@@ -26,7 +26,7 @@ _ENC[_dt] = _utc_iso_datetime
 _ENC[_date] = lambda d: d.isoformat()  # 日期本来就无时区,保持
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, workflow_canvas, research, admin_invite_codes, admin_bundle_memories, project_stakeholders, smart_advice, template, admin_daily_report, project_gates, scenes, scene_ops
+from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, workflow_canvas, research, admin_invite_codes, admin_bundle_memories, project_stakeholders, smart_advice, template, admin_daily_report, project_gates, scenes, scene_ops, term_correction
 from services.auth import get_current_user
 from services.rate_limit import limiter
 from services.vector_store import vector_store
@@ -212,6 +212,8 @@ app.include_router(scene_ops.router, prefix="/api", tags=["scene-ops"])  # 2026-
 app.include_router(smart_advice.router, prefix="/api", tags=["smart-advice"])
 from api.project_todos import router as project_todos_router  # 项目待办看板(2026-06-08)
 app.include_router(project_todos_router, prefix="/api", tags=["project-todos"])
+from api.term_correction import router as term_correction_router  # 名词校正词典(2026-07-13)
+app.include_router(term_correction_router, prefix="/api/term-corrections", tags=["term-corrections"])
 
 
 @app.on_event("startup")
@@ -255,6 +257,7 @@ async def startup():
     from models.changelog_entry import ChangelogEntry  # noqa: F401  平台更新日志(2026-07-03,create_all 建 changelog_entries 表)
     from models.project_stage_gate import ProjectStageGate  # noqa: F401  Harness 项目闸门(2026-07-13,create_all 建 project_stage_gates 表)
     from models.scene import StandardScene, SceneChange, SceneHitReport, SceneChangeProposal, AiCapability  # noqa: F401  标准场景库 + 命中 + 回流 + AI能力目录(2026-07-13)
+    from models.term_correction import TermCorrection  # noqa: F401  名词校正词典(2026-07-13,create_all 建 term_corrections 表)
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
