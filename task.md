@@ -13,10 +13,13 @@
 - [x] B1-4 main.py:启动块 import model + include_router(/api)+ seed 调用。
 - [x] B1-5 前端:`api/scenes.ts`(独立于 client.ts,避 overlay)+ `pages/SceneLibrary.tsx`(场景清单 + 变更历史 tab)+ App 路由 + 两套后台导航(adminOnly)。
 - [x] B1-6 py_compile + tsc + build 通过;overlay 安全(无副本)。
-- [ ] B1-7 deploy-uat 门 → deploy-prod;curl + 后端确认 seed 导入 147 条。
+- [x] B1-7 deploy-uat 门 → deploy-prod;curl + 后端确认 seed 导入 147 条。
 
 ## Block 1 部署结果
-（待补)
+- commit `315e66c` → deploy-uat 门通过 → deploy-prod run 29226962953 success;version.json sha=315e66c;scenes 路由 401。
+- DB 验证:standard_scenes 147 条(LTC48/MPR35/ITR33/MCR18/MTL13),seed 首启自动导入成功。
+- 场景库中心:后台导航 adminOnly,场景清单 + 变更历史两 tab。
+- seed 路径坑:`backend/data/` 被 .gitignore(`data/` 规则)→ 挪到 `backend/seeds/` 才提交进镜像。
 
 ---
 
