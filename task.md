@@ -17,7 +17,11 @@
 - [x] D6 `npx tsc --noEmit` 通过、`npm run build` 通过(9.5s)。overlay 坑已核:`meeting/frontend/` 只含会议组件,本次 5 个文件都不被覆盖。→ 待推 prod + 线上验证。
 
 ## 部署结果
-（待补:直接推 prod)
+- commit `da91892` → push main → `deploy-prod.yml` run 29219586835 success(39s)。
+- 线上核验:`kb.tokenwave.cloud/version.json` sha=`da918920…`,新构建已上线(两域名同服务器同 dist)。
+- 未登录访问 `/console/qa` 正确跳登录页,应用壳正常加载,无白屏。
+- overlay 坑已排除:`meeting/frontend/` 只含会议组件,本次 5 个文件不被覆盖。
+- 待人工:登录后核对导航置灰 / 升级页 / 普通用户落地会议纪要。
 
 ---
 
