@@ -55,6 +55,12 @@ export interface AiCapability {
 export const listAiCapabilities = () =>
   api.get<AiCapability[]>('/ai-capabilities').then(r => r.data)
 
+// AI 自动匹配:给场景(可按域)自动匹配 AI 能力并落库
+export const aiMatchScenes = (domain?: string) =>
+  api.post<{ matched_scenes: number; assignments: number; per_domain: Record<string, number> }>(
+    '/scenes/ai-match', null, { params: domain ? { domain } : {} },
+  ).then(r => r.data)
+
 export interface SceneChange {
   id: number
   scene_id?: number | null

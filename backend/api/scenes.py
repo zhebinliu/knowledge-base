@@ -262,3 +262,15 @@ async def list_ai_capabilities(session: AsyncSession = Depends(get_session)):
     return [AiCapabilityDto(
         id=c.id, domain=c.domain, agent=c.agent, skill=c.skill, status=c.status,
         plan_date=c.plan_date, description=c.description, outputs=c.outputs or []) for c in rows]
+
+
+@router.post("/scenes/ai-match", dependencies=[Depends(require_admin)])
+async def ai_match_scenes(
+    domain: str | None = Query(None),
+    session: AsyncSession = Depends(get_session),
+):
+    """AI 自动匹配:给场景(可按域)从 AI 能力目录里推荐并落库匹配。仅管理员。"""
+    from services.scene_ai_match import auto_match_capabilities
+    result = await auto_match_capabilities(session, domain=domain)
+    logger.info("scenes_ai_matched", **{k: v for k, v in result.items() if k != "per_domain"})
+    return result

@@ -3,10 +3,11 @@ import { Layers, Search, History, BookOpen, GitPullRequest, Check, X, Loader2 } 
 import { toast } from '../components/Toaster'
 import SceneEditDrawer from '../components/SceneEditDrawer'
 import {
-  listSceneDomains, listScenes, listRecentSceneChanges,
+  listSceneDomains, listScenes, listRecentSceneChanges, aiMatchScenes,
   adminListProposals, approveProposal, rejectProposal,
   type Scene, type SceneChange, type SceneDomains, type SceneProposal,
 } from '../api/scenes'
+import { Sparkles } from 'lucide-react'
 
 /**
  * 场景库中心 — Harness P3/P4 底座的后台管理页。
@@ -22,7 +23,19 @@ export default function SceneLibrary() {
   const [proposals, setProposals] = useState<SceneProposal[]>([])
   const [busyId, setBusyId] = useState<number | null>(null)
   const [editScene, setEditScene] = useState<Scene | null>(null)
+  const [matching, setMatching] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  const runAiMatch = async () => {
+    if (!confirm(`对${activeDomain ? ` ${activeDomain} 域` : '全部'}场景运行 AI 自动匹配?会写入每个场景的 AI 能力匹配(可再手动改)。`)) return
+    setMatching(true)
+    try {
+      const r = await aiMatchScenes(activeDomain || undefined)
+      toast.success(`AI 匹配完成:${r.matched_scenes} 个场景 / 共 ${r.assignments} 处能力匹配`)
+      const list = await listScenes({ domain: activeDomain || undefined, q: q || undefined })
+      setScenes(list)
+    } catch { /* 拦截器已 toast */ } finally { setMatching(false) }
+  }
 
   useEffect(() => { listSceneDomains().then(setDomains).catch(() => {}) }, [])
 
@@ -98,7 +111,14 @@ export default function SceneLibrary() {
               <DomainChip key={d.domain} label={d.domain} count={d.count}
                 active={activeDomain === d.domain} onClick={() => setActiveDomain(d.domain)} />
             ))}
-            <div className="ml-auto relative">
+            <button onClick={runAiMatch} disabled={matching}
+              className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-white font-medium disabled:opacity-60"
+              style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}
+              title={`对${activeDomain || '全部'}场景自动匹配 AI 能力`}>
+              {matching ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+              AI 自动匹配{activeDomain ? `（${activeDomain}）` : ''}
+            </button>
+            <div className="relative">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted" />
               <input
                 value={q} onChange={e => setQ(e.target.value)}
