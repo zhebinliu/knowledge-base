@@ -16,8 +16,8 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 export default function SceneHarnessPanel({
-  projectId, stageKey, variant = 'light',
-}: { projectId?: string; stageKey?: string; variant?: 'light' | 'dark' }) {
+  projectId, stageKey, variant = 'light', section = 'all',
+}: { projectId?: string; stageKey?: string; variant?: 'light' | 'dark'; section?: 'match' | 'reflow' | 'all' }) {
   const dark = variant === 'dark'
   const [hit, setHit] = useState<HitReport | null>(null)
   const [matching, setMatching] = useState(false)
@@ -27,14 +27,17 @@ export default function SceneHarnessPanel({
   const [busyId, setBusyId] = useState<number | null>(null)
   const isDesign = stageKey === 'design'
 
+  const showMatch = section === 'match' || section === 'all'
+  const showReflow = (section === 'reflow' || section === 'all') && isDesign
+
   const load = useCallback(async () => {
     if (!projectId) return
-    getSceneMatch(projectId).then(setHit).catch(() => {})
-    if (isDesign) listProjectProposals(projectId).then(setProposals).catch(() => {})
-  }, [projectId, isDesign])
+    if (showMatch) getSceneMatch(projectId).then(setHit).catch(() => {})
+    if (showReflow) listProjectProposals(projectId).then(setProposals).catch(() => {})
+  }, [projectId, showMatch, showReflow])
   useEffect(() => { load() }, [load])
 
-  if (!projectId) return null
+  if (!projectId || (!showMatch && !showReflow)) return null
 
   const c = dark
     ? { bg: 'rgba(255,255,255,0.05)', bd: 'rgba(255,255,255,0.12)', ink: '#E7EDF3', sub: 'rgba(200,214,226,0.7)',
@@ -83,6 +86,7 @@ export default function SceneHarnessPanel({
   return (
     <div style={{ padding: dark ? '0 20px 8px' : '0 10px 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
       {/* 场景命中(P3) */}
+      {showMatch && (
       <div style={box}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <Target size={15} color={dark ? '#79C7B3' : '#1E6E5D'} />
@@ -126,9 +130,10 @@ export default function SceneHarnessPanel({
           }}>{hit.report_md}</pre>
         )}
       </div>
+      )}
 
       {/* 蓝图回流(P4,仅方案设计阶段) */}
-      {isDesign && (
+      {showReflow && (
         <div style={box}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <GitPullRequest size={15} color={dark ? '#A695CE' : '#5E4F87'} />

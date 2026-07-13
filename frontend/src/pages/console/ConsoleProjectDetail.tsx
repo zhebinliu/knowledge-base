@@ -552,7 +552,10 @@ export default function ConsoleProjectDetail() {
         </div>
       </div>
 
-      {/* 当 stage 有 subKinds — 显示按钮组(大纲 / 问卷) */}
+      {/* Harness P3:场景命中置顶 */}
+      <SceneHarnessPanel projectId={id} stageKey={activeStage?.key} variant="light" section="match" />
+
+      {/* 当 stage 有 subKinds — 产物按钮组;确认按钮并到本行右侧 */}
       {activeStage.subKinds && (
         <div className="flex-shrink-0 px-3 pt-2 pb-1 bg-white border-b border-line flex items-center gap-1">
           <span className="text-[11px] text-ink-muted mr-1">本阶段产物:</span>
@@ -578,15 +581,15 @@ export default function ConsoleProjectDetail() {
               </button>
             )
           })}
+          {/* Harness 闸门:As-Is/To-Be 一键确认,并到本阶段产物行右侧 */}
+          <span className="ml-auto flex items-center"><GateConfirmBar projectId={id} stageKey={activeStage?.key} variant="light" compact /></span>
         </div>
       )}
 
-      {/* Harness P1 闸门条:survey→As-Is 确认 / design→To-Be 定稿(其余阶段不显示) */}
-      <GateConfirmBar projectId={id} stageKey={activeStage?.key} variant="light" />
       {/* Harness P2 软闸警告:随当前产物持续显示 */}
       <SoftWarningChips bundle={activeBundle} variant="light" />
-      {/* Harness P3/P4:场景命中 + 蓝图回流(design 阶段) */}
-      <SceneHarnessPanel projectId={id} stageKey={activeStage?.key} variant="light" />
+      {/* Harness P4:蓝图回流(design 阶段) */}
+      <SceneHarnessPanel projectId={id} stageKey={activeStage?.key} variant="light" section="reflow" />
       {/* 当前阶段 action — 与上方阶段栏共享白底 */}
       <div className="flex-shrink-0 px-2 sm:px-3 pt-2 pb-2.5 bg-white border-b border-line flex items-center gap-2">
         <span className="text-[11px] text-ink-muted truncate">
