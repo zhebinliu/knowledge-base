@@ -20,10 +20,13 @@ from models import Base
 from services._time import utcnow_naive as _utcnow
 
 
-# 角色常量
+# 角色常量(访问权限)
 ROLE_READ = "read"
 ROLE_READ_WRITE = "read_write"
 VALID_ROLES = (ROLE_READ, ROLE_READ_WRITE)
+
+# 项目角色分类(Harness P3/P4,与访问权限正交):pm=项目经理 / consultant=顾问 / customer=客户
+PROJECT_ROLES = ("pm", "consultant", "customer")
 
 
 class ProjectCollaborator(Base):
@@ -37,6 +40,8 @@ class ProjectCollaborator(Base):
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     role: Mapped[str] = mapped_column(String(20), nullable=False)  # 'read' | 'read_write'
+    # 项目角色分类(pm/consultant/customer),可空;与 role 访问权限正交(2026-07-13 Harness)
+    project_role: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_by: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )  # 谁加的协作者(审计)

@@ -17,9 +17,17 @@ import {
 } from 'lucide-react'
 import {
   listCollaborators, addCollaborator, updateCollaboratorRole, removeCollaborator,
-  searchUsersForCollab, transferProjectOwner,
-  type CollaboratorRole, type ProjectCollaborator, type UserSearchResult,
+  searchUsersForCollab, transferProjectOwner, setCollaboratorProjectRole,
+  type CollaboratorRole, type ProjectCollaborator, type ProjectMemberRole, type UserSearchResult,
 } from '../../api/client'
+
+// 项目角色分类(pm/consultant/customer)下拉选项 —— 与访问权限正交
+const PROJECT_ROLE_OPTIONS: { value: ProjectMemberRole | ''; label: string }[] = [
+  { value: '', label: '未指定' },
+  { value: 'pm', label: '项目经理' },
+  { value: 'consultant', label: '顾问' },
+  { value: 'customer', label: '客户' },
+]
 
 interface Props {
   open: boolean
@@ -98,6 +106,12 @@ export default function CollaboratorsModal({ open, projectId, myRole, onClose }:
     onSuccess: () => qc.invalidateQueries({ queryKey: ['project-collaborators', projectId] }),
   })
 
+  const projectRoleMut = useMutation({
+    mutationFn: (vars: { user_id: string; project_role: ProjectMemberRole | null }) =>
+      setCollaboratorProjectRole(projectId, vars.user_id, vars.project_role),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['project-collaborators', projectId] }),
+  })
+
   const removeMut = useMutation({
     mutationFn: (user_id: string) => removeCollaborator(projectId, user_id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['project-collaborators', projectId] }),
@@ -161,6 +175,11 @@ export default function CollaboratorsModal({ open, projectId, myRole, onClose }:
                     {owner.email || (owner.username && owner.full_name ? owner.username : '')}
                   </div>
                 </div>
+                {owner.is_pm && (
+                  <span className="text-[10.5px] px-1.5 py-0.5 rounded ring-1 bg-blue-50 text-blue-700 ring-blue-200" title="默认项目经理">
+                    项目经理
+                  </span>
+                )}
                 <span className="text-[10.5px] px-1.5 py-0.5 rounded ring-1 bg-amber-50 text-amber-700 ring-amber-200">
                   Owner
                 </span>
@@ -193,12 +212,13 @@ export default function CollaboratorsModal({ open, projectId, myRole, onClose }:
                     coll={c}
                     canManage={canManage}
                     onChangeRole={(role) => updateMut.mutate({ user_id: c.user_id, role })}
+                    onChangeProjectMemberRole={(pr) => projectRoleMut.mutate({ user_id: c.user_id, project_role: pr })}
                     onRemove={() => {
                       if (window.confirm(`确认移除 ${c.username || c.user_id}?`)) {
                         removeMut.mutate(c.user_id)
                       }
                     }}
-                    busy={updateMut.isPending || removeMut.isPending}
+                    busy={updateMut.isPending || removeMut.isPending || projectRoleMut.isPending}
                   />
                 ))}
               </div>
@@ -495,15 +515,17 @@ function TransferOwnerSubModal({
 
 
 function CollaboratorRow({
-  coll, canManage, onChangeRole, onRemove, busy,
+  coll, canManage, onChangeRole, onChangeProjectMemberRole, onRemove, busy,
 }: {
   coll: ProjectCollaborator
   canManage: boolean
   onChangeRole: (role: CollaboratorRole) => void
+  onChangeProjectMemberRole: (pr: ProjectMemberRole | null) => void
   onRemove: () => void
   busy: boolean
 }) {
   const meta = ROLE_BADGE[coll.role]
+  const prLabel = PROJECT_ROLE_OPTIONS.find(o => o.value === (coll.project_role || ''))?.label
   return (
     <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-line hover:bg-slate-50/60">
       <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-ink-secondary text-[11px]">
@@ -515,6 +537,20 @@ function CollaboratorRow({
           {coll.username}{coll.email ? ` · ${coll.email}` : ''}
         </div>
       </div>
+      {/* 项目角色分类(pm/顾问/客户)—— 与访问权限正交 */}
+      {canManage ? (
+        <select
+          value={coll.project_role || ''}
+          onChange={e => onChangeProjectMemberRole((e.target.value || null) as ProjectMemberRole | null)}
+          disabled={busy}
+          title="项目角色分类"
+          className="text-[10.5px] px-1.5 py-0.5 rounded border border-line bg-white text-ink-secondary focus:outline-none focus:border-[#D96400]"
+        >
+          {PROJECT_ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      ) : coll.project_role ? (
+        <span className="text-[10.5px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 ring-1 ring-blue-200">{prLabel}</span>
+      ) : null}
       {canManage ? (
         <RoleSelect value={coll.role} onChange={onChangeRole} compact />
       ) : (

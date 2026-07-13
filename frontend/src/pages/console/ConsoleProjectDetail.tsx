@@ -11,6 +11,7 @@ import {
 import CollaboratorsModal from '../../components/console/CollaboratorsModal'
 import GateConfirmBar from '../../components/console/GateConfirmBar'
 import SoftWarningChips, { toastSoftWarnings } from '../../components/console/SoftWarnings'
+import SceneHarnessPanel from '../../components/console/SceneHarnessPanel'
 import BundleOverrideModal from '../../components/console/BundleOverrideModal'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
 import { useAuth } from '../../auth/AuthContext'
@@ -584,6 +585,8 @@ export default function ConsoleProjectDetail() {
       <GateConfirmBar projectId={id} stageKey={activeStage?.key} variant="light" />
       {/* Harness P2 软闸警告:随当前产物持续显示 */}
       <SoftWarningChips bundle={activeBundle} variant="light" />
+      {/* Harness P3/P4:场景命中 + 蓝图回流(design 阶段) */}
+      <SceneHarnessPanel projectId={id} stageKey={activeStage?.key} variant="light" />
       {/* 当前阶段 action — 与上方阶段栏共享白底 */}
       <div className="flex-shrink-0 px-2 sm:px-3 pt-2 pb-2.5 bg-white border-b border-line flex items-center gap-2">
         <span className="text-[11px] text-ink-muted truncate">

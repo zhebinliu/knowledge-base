@@ -789,7 +789,7 @@ async def insight_checkup(
 # Owner / read_write 协作者 / admin 可加/移除/改角色;read 协作者只能列。
 # 不允许把 owner 自己加为协作者(owner 关系由 Project.created_by 表达)。
 
-from models.project_collaborator import ProjectCollaborator, VALID_ROLES, ROLE_READ_WRITE  # noqa: E402
+from models.project_collaborator import ProjectCollaborator, VALID_ROLES, ROLE_READ_WRITE, PROJECT_ROLES  # noqa: E402
 
 
 class CollaboratorAddBody(BaseModel):
@@ -810,6 +810,7 @@ def _collaborator_dto(c: ProjectCollaborator, u: User | None) -> dict:
         "full_name": u.full_name if u else None,
         "email": u.email if u else None,
         "role": c.role,
+        "project_role": c.project_role,   # Harness:pm/consultant/customer
         "created_by": c.created_by,
         "created_at": c.created_at,
         "updated_at": c.updated_at,
@@ -838,14 +839,21 @@ async def list_collaborators(
         .order_by(ProjectCollaborator.created_at.asc())
     )).all()
 
+    # 有效项目经理:优先取标记为 pm 的协作者,否则默认 owner(Harness P3/P4)
+    pm_collab = next((c for c, _ in rows if c.project_role == "pm"), None)
+    pm_user_id = pm_collab.user_id if pm_collab else project.created_by
+
     return {
         "owner": {
             "user_id": project.created_by,
             "username": owner_user.username if owner_user else None,
             "full_name": owner_user.full_name if owner_user else None,
             "email": owner_user.email if owner_user else None,
+            # owner 默认就是项目经理(除非某协作者被显式指派为 pm)
+            "is_pm": pm_collab is None and bool(project.created_by),
         } if project.created_by else None,
         "collaborators": [_collaborator_dto(c, u) for c, u in rows],
+        "pm_user_id": pm_user_id,
     }
 
 
@@ -918,6 +926,48 @@ async def update_collaborator_role(
     target = await session.get(User, user_id)
     logger.info("collaborator_role_changed", project_id=project_id,
                 user_id=user_id, role=coll.role, by=user.username)
+    return _collaborator_dto(coll, target)
+
+
+class CollaboratorProjectRoleBody(BaseModel):
+    project_role: str | None = None   # pm/consultant/customer/null
+
+
+@router.patch("/{project_id}/collaborators/{user_id}/project-role")
+async def update_collaborator_project_role(
+    project_id: str,
+    user_id: str,
+    body: CollaboratorProjectRoleBody,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_project_access("write")),
+):
+    """设置成员的项目角色分类(pm/consultant/customer)。指派 pm 时清掉其他协作者的 pm(单 PM)。"""
+    if body.project_role is not None and body.project_role not in PROJECT_ROLES:
+        raise HTTPException(400, f"非法项目角色 {body.project_role}")
+    coll = (await session.execute(
+        select(ProjectCollaborator).where(
+            ProjectCollaborator.project_id == project_id,
+            ProjectCollaborator.user_id == user_id,
+        )
+    )).scalar_one_or_none()
+    if not coll:
+        raise HTTPException(404, "协作者不存在")
+    if body.project_role == "pm":
+        others = (await session.execute(
+            select(ProjectCollaborator).where(
+                ProjectCollaborator.project_id == project_id,
+                ProjectCollaborator.project_role == "pm",
+                ProjectCollaborator.user_id != user_id,
+            )
+        )).scalars().all()
+        for o in others:
+            o.project_role = None
+    coll.project_role = body.project_role
+    await session.commit()
+    await session.refresh(coll)
+    target = await session.get(User, user_id)
+    logger.info("collaborator_project_role_changed", project_id=project_id,
+                user_id=user_id, project_role=coll.project_role, by=user.username)
     return _collaborator_dto(coll, target)
 
 

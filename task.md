@@ -15,6 +15,16 @@
 - [x] B1-6 py_compile + tsc + build 通过;overlay 安全(无副本)。
 - [x] B1-7 deploy-uat 门 → deploy-prod;curl + 后端确认 seed 导入 147 条。
 
+## Block 2/3/4 清单(本批一起提交)
+- [x] B2 PM 角色:project_collaborators 加 `project_role` 列(+ ALTER 迁移);projects.py 端点(pm_user_id/owner.is_pm + PATCH project-role);CollaboratorsModal 下拉 + owner「项目经理」徽标。
+- [x] B3 场景命中:services/scene_match.py(子代理,LLM 对照 147 库)+ scene_hit_reports 表 + scene_ops 端点;SceneHarnessPanel 命中卡(命中/未命中 + 报告)。
+- [x] B4 蓝图回流:services/scene_reflow.py(子代理,LLM diff)+ scene_change_proposals 表 + scene_ops 全流程(reflow/pm-confirm/approve→回写+留痕/reject/admin队列);SceneHarnessPanel design 阶段回流 + PM 确认;场景库中心「待审核回流」第 3 tab(管理员通过/驳回)。
+- [x] B-verify py_compile + tsc + build 通过;overlay 安全(client.ts 已同步,其余无副本);ProjectRole 重名 → 改 ProjectMemberRole。
+- [ ] B-deploy deploy-uat 门 → deploy-prod;curl + 锐达实测命中/回流。
+
+## Block 2/3/4 部署结果
+（待补)
+
 ## Block 1 部署结果
 - commit `315e66c` → deploy-uat 门通过 → deploy-prod run 29226962953 success;version.json sha=315e66c;scenes 路由 401。
 - DB 验证:standard_scenes 147 条(LTC48/MPR35/ITR33/MCR18/MTL13),seed 首启自动导入成功。

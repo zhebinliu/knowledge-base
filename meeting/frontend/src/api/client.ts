@@ -695,12 +695,14 @@ export const generateCustomerProfile = (id: string) =>
 // ── 协作者(项目权限) ───────────────────────────────────────────────────────
 
 export type CollaboratorRole = 'read' | 'read_write'
+export type ProjectMemberRole = 'pm' | 'consultant' | 'customer'   // 项目角色分类(与访问 ProjectRole 正交)
 
 export interface ProjectOwner {
   user_id: string | null
   username: string | null
   full_name: string | null
   email: string | null
+  is_pm?: boolean          // owner 默认即项目经理(除非某协作者被指派 pm)
 }
 
 export interface ProjectCollaborator {
@@ -711,6 +713,7 @@ export interface ProjectCollaborator {
   full_name: string | null
   email: string | null
   role: CollaboratorRole
+  project_role?: ProjectMemberRole | null   // Harness:项目角色分类
   created_by: string | null
   created_at: string
   updated_at: string
@@ -724,9 +727,12 @@ export interface UserSearchResult {
 }
 
 export const listCollaborators = (project_id: string) =>
-  api.get<{ owner: ProjectOwner | null; collaborators: ProjectCollaborator[] }>(
+  api.get<{ owner: ProjectOwner | null; collaborators: ProjectCollaborator[]; pm_user_id?: string | null }>(
     `/projects/${project_id}/collaborators`,
   ).then(r => r.data)
+
+export const setCollaboratorProjectRole = (project_id: string, user_id: string, project_role: ProjectMemberRole | null) =>
+  api.patch<ProjectCollaborator>(`/projects/${project_id}/collaborators/${user_id}/project-role`, { project_role }).then(r => r.data)
 
 export const addCollaborator = (project_id: string, user_id: string, role: CollaboratorRole = 'read') =>
   api.post<ProjectCollaborator>(`/projects/${project_id}/collaborators`, { user_id, role }).then(r => r.data)

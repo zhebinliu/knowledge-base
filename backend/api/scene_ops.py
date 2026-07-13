@@ -1,0 +1,310 @@
+"""场景命中(P3)+ 蓝图回流闭环(P4)API。挂 /api。
+
+P3 场景命中:
+- POST /api/projects/{project_id}/scene-match   跑 LLM 命中,存最新报告,返回
+- GET  /api/projects/{project_id}/scene-match   最新命中报告(无则 null)
+
+P4 蓝图回流:
+- POST /api/projects/{project_id}/scene-reflow      跑 LLM 识别优化/新增 → 建提案(pm_pending)
+- GET  /api/projects/{project_id}/scene-proposals   项目下提案列表
+- POST /api/scene-proposals/{id}/pm-confirm          PM 确认(pm_pending→admin_pending)
+- POST /api/scene-proposals/{id}/approve             管理员通过 → 回写 standard_scenes + 留痕
+- POST /api/scene-proposals/{id}/reject              管理员驳回
+- GET  /api/scene-proposals?status=admin_pending     管理员审核队列(后台「场景库更新」页签)
+"""
+from datetime import datetime
+
+import structlog
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from models import get_session
+from models.project import Project
+from models.scene import StandardScene, SceneChange, SceneHitReport, SceneChangeProposal
+from services.auth import get_current_user, require_admin
+from services.project_acl import assert_project_access
+from models.user import User
+
+logger = structlog.get_logger()
+router = APIRouter()
+
+
+# ── P3 场景命中 ──────────────────────────────────────────────────────────────
+
+class HitReportDto(BaseModel):
+    project_id: str
+    hit_count: int
+    miss_count: int
+    hits: list
+    misses: list
+    summary: str | None = None
+    report_md: str | None = None
+    updated_at: datetime | None = None
+
+
+def _hit_dto(r: SceneHitReport) -> HitReportDto:
+    return HitReportDto(
+        project_id=r.project_id, hit_count=r.hit_count, miss_count=r.miss_count,
+        hits=r.hits or [], misses=r.misses or [], summary=r.summary,
+        report_md=r.report_md, updated_at=r.updated_at,
+    )
+
+
+@router.post("/projects/{project_id}/scene-match", response_model=HitReportDto)
+async def run_scene_match(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """对照标准场景库跑一次命中(LLM,同步),存最新报告并返回。"""
+    await assert_project_access(current_user, project_id, "write")
+    from services.scene_match import match_project_scenes
+    result = await match_project_scenes(project_id, session)
+
+    row = (await session.execute(
+        select(SceneHitReport).where(SceneHitReport.project_id == project_id)
+    )).scalar_one_or_none()
+    if row is None:
+        row = SceneHitReport(project_id=project_id)
+        session.add(row)
+    row.hit_count = result.get("hit_count", 0)
+    row.miss_count = result.get("miss_count", 0)
+    row.hits = result.get("hit", [])
+    row.misses = result.get("miss", [])
+    row.summary = result.get("summary")
+    row.report_md = result.get("report_md")
+    row.created_by = current_user.username
+    await session.commit()
+    await session.refresh(row)
+    logger.info("scene_match_done", project_id=project_id,
+                hit=row.hit_count, miss=row.miss_count, by=current_user.username)
+    return _hit_dto(row)
+
+
+@router.get("/projects/{project_id}/scene-match", response_model=HitReportDto | None)
+async def get_scene_match(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    await assert_project_access(current_user, project_id, "read")
+    row = (await session.execute(
+        select(SceneHitReport).where(SceneHitReport.project_id == project_id)
+    )).scalar_one_or_none()
+    return _hit_dto(row) if row else None
+
+
+# ── P4 蓝图回流 ──────────────────────────────────────────────────────────────
+
+class ProposalDto(BaseModel):
+    id: int
+    project_id: str
+    project_name: str | None = None
+    change_type: str
+    domain: str | None = None
+    scene_code: str | None = None
+    name: str
+    summary: str | None = None
+    status: str
+    created_by: str | None = None
+    pm_confirmed_by: str | None = None
+    reviewed_by: str | None = None
+    review_note: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+def _prop_dto(p: SceneChangeProposal) -> ProposalDto:
+    return ProposalDto(
+        id=p.id, project_id=p.project_id, project_name=p.project_name,
+        change_type=p.change_type, domain=p.domain, scene_code=p.scene_code,
+        name=p.name, summary=p.summary, status=p.status, created_by=p.created_by,
+        pm_confirmed_by=p.pm_confirmed_by, reviewed_by=p.reviewed_by,
+        review_note=p.review_note, created_at=p.created_at, updated_at=p.updated_at,
+    )
+
+
+@router.post("/projects/{project_id}/scene-reflow", response_model=list[ProposalDto])
+async def run_scene_reflow(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """蓝图完成:LLM 识别优化/新增场景 → 建提案(pm_pending)。已有未处理提案先清掉重建。"""
+    await assert_project_access(current_user, project_id, "write")
+    proj = await session.get(Project, project_id)
+    if not proj:
+        raise HTTPException(404, "项目不存在")
+
+    from services.scene_reflow import propose_scene_changes
+    proposals = await propose_scene_changes(project_id, session)
+
+    # 清掉该项目仍在流程中的旧提案(pm_pending / admin_pending),避免重复堆积
+    old = (await session.execute(
+        select(SceneChangeProposal).where(
+            SceneChangeProposal.project_id == project_id,
+            SceneChangeProposal.status.in_(["pm_pending", "admin_pending"]),
+        )
+    )).scalars().all()
+    for o in old:
+        await session.delete(o)
+
+    created: list[SceneChangeProposal] = []
+    for p in proposals:
+        row = SceneChangeProposal(
+            project_id=project_id, project_name=proj.name,
+            change_type=p.get("change_type", "optimize"),
+            domain=p.get("domain"), scene_code=p.get("scene_code"),
+            name=p.get("name", ""), summary=p.get("summary"),
+            status="pm_pending", created_by=current_user.username,
+        )
+        session.add(row)
+        created.append(row)
+    await session.commit()
+    for r in created:
+        await session.refresh(r)
+    logger.info("scene_reflow_done", project_id=project_id, n=len(created), by=current_user.username)
+    return [_prop_dto(r) for r in created]
+
+
+@router.get("/projects/{project_id}/scene-proposals", response_model=list[ProposalDto])
+async def list_project_proposals(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    await assert_project_access(current_user, project_id, "read")
+    rows = (await session.execute(
+        select(SceneChangeProposal).where(SceneChangeProposal.project_id == project_id)
+        .order_by(SceneChangeProposal.created_at.desc())
+    )).scalars().all()
+    return [_prop_dto(p) for p in rows]
+
+
+@router.post("/scene-proposals/{proposal_id}/pm-confirm", response_model=ProposalDto)
+async def pm_confirm_proposal(
+    proposal_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """PM 确认(pm_pending → admin_pending)。需项目写权限(owner/读写/admin)。"""
+    p = await session.get(SceneChangeProposal, proposal_id)
+    if not p:
+        raise HTTPException(404, "提案不存在")
+    await assert_project_access(current_user, p.project_id, "write")
+    if p.status != "pm_pending":
+        raise HTTPException(409, f"提案当前状态为 {p.status},不可 PM 确认")
+    p.status = "admin_pending"
+    p.pm_confirmed_by = current_user.username
+    p.pm_confirmed_at = datetime.utcnow()
+    await session.commit()
+    await session.refresh(p)
+    logger.info("proposal_pm_confirmed", id=proposal_id, by=current_user.username)
+    return _prop_dto(p)
+
+
+class ReviewBody(BaseModel):
+    note: str | None = None
+
+
+@router.get("/scene-proposals", response_model=list[ProposalDto], dependencies=[Depends(require_admin)])
+async def admin_list_proposals(
+    status: str = Query("admin_pending"),
+    session: AsyncSession = Depends(get_session),
+):
+    """管理员审核队列(后台「场景库更新」页签)。默认列待审核。"""
+    rows = (await session.execute(
+        select(SceneChangeProposal).where(SceneChangeProposal.status == status)
+        .order_by(SceneChangeProposal.pm_confirmed_at.desc().nullslast(),
+                  SceneChangeProposal.created_at.desc())
+    )).scalars().all()
+    return [_prop_dto(p) for p in rows]
+
+
+@router.post("/scene-proposals/{proposal_id}/approve", response_model=ProposalDto,
+             dependencies=[Depends(require_admin)])
+async def approve_proposal(
+    proposal_id: int,
+    body: ReviewBody | None = None,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """管理员通过 → 回写标准场景库 + 写变更留痕。"""
+    p = await session.get(SceneChangeProposal, proposal_id)
+    if not p:
+        raise HTTPException(404, "提案不存在")
+    if p.status != "admin_pending":
+        raise HTTPException(409, f"提案当前状态为 {p.status},不可审核")
+
+    scene_id: int | None = None
+    if p.change_type == "optimize" and p.scene_code:
+        scene = (await session.execute(
+            select(StandardScene).where(
+                StandardScene.code == p.scene_code,
+                (StandardScene.domain == p.domain) if p.domain else (StandardScene.code == p.scene_code),
+            )
+        )).scalars().first()
+        if scene:
+            note = (p.summary or "").strip()
+            scene.summary = ((scene.summary or "") + f"\n\n【{p.project_name or '项目'}优化】{note}").strip()
+            scene.version = (scene.version or 1) + 1
+            scene.source_project_name = p.project_name
+            scene_id = scene.id
+    else:
+        # 新增场景:生成唯一编码(域-Pxx)
+        code = p.scene_code or f"{(p.domain or 'GEN')}-P{p.id}"
+        exists = (await session.execute(
+            select(StandardScene).where(StandardScene.domain == (p.domain or "GEN"),
+                                        StandardScene.code == code)
+        )).scalars().first()
+        if exists:
+            code = f"{(p.domain or 'GEN')}-P{p.id}"
+        scene = StandardScene(
+            domain=p.domain or "GEN", stage="", code=code, name=p.name,
+            summary=p.summary, source_type="project", source_project_name=p.project_name,
+            status="active",
+        )
+        session.add(scene)
+        await session.flush()
+        scene_id = scene.id
+
+    session.add(SceneChange(
+        scene_id=scene_id, scene_code=p.scene_code or (scene.code if scene_id else ""),
+        domain=p.domain, change_type=p.change_type,
+        project_id=p.project_id, project_name=p.project_name,
+        summary=p.summary, created_by=current_user.username,
+    ))
+    p.status = "approved"
+    p.reviewed_by = current_user.username
+    p.reviewed_at = datetime.utcnow()
+    p.review_note = body.note if body else None
+    await session.commit()
+    await session.refresh(p)
+    logger.info("proposal_approved", id=proposal_id, change_type=p.change_type,
+                scene_id=scene_id, by=current_user.username)
+    return _prop_dto(p)
+
+
+@router.post("/scene-proposals/{proposal_id}/reject", response_model=ProposalDto,
+             dependencies=[Depends(require_admin)])
+async def reject_proposal(
+    proposal_id: int,
+    body: ReviewBody | None = None,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    p = await session.get(SceneChangeProposal, proposal_id)
+    if not p:
+        raise HTTPException(404, "提案不存在")
+    if p.status not in ("admin_pending", "pm_pending"):
+        raise HTTPException(409, f"提案当前状态为 {p.status},不可驳回")
+    p.status = "rejected"
+    p.reviewed_by = current_user.username
+    p.reviewed_at = datetime.utcnow()
+    p.review_note = body.note if body else None
+    await session.commit()
+    await session.refresh(p)
+    logger.info("proposal_rejected", id=proposal_id, by=current_user.username)
+    return _prop_dto(p)

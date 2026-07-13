@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Layers, Search, History, BookOpen } from 'lucide-react'
+import { Layers, Search, History, BookOpen, GitPullRequest, Check, X, Loader2 } from 'lucide-react'
+import { toast } from '../components/Toaster'
 import {
   listSceneDomains, listScenes, listRecentSceneChanges,
-  type Scene, type SceneChange, type SceneDomains,
+  adminListProposals, approveProposal, rejectProposal,
+  type Scene, type SceneChange, type SceneDomains, type SceneProposal,
 } from '../api/scenes'
 
 /**
@@ -10,12 +12,14 @@ import {
  * 预览全部标准 Core 场景(LTC/ITR/MCR/MPR/MTL),查看变更历史(何时/哪个项目/新增或优化)。
  */
 export default function SceneLibrary() {
-  const [tab, setTab] = useState<'scenes' | 'changes'>('scenes')
+  const [tab, setTab] = useState<'scenes' | 'changes' | 'review'>('scenes')
   const [domains, setDomains] = useState<SceneDomains | null>(null)
   const [activeDomain, setActiveDomain] = useState<string>('')
   const [q, setQ] = useState('')
   const [scenes, setScenes] = useState<Scene[]>([])
   const [changes, setChanges] = useState<SceneChange[]>([])
+  const [proposals, setProposals] = useState<SceneProposal[]>([])
+  const [busyId, setBusyId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => { listSceneDomains().then(setDomains).catch(() => {}) }, [])
@@ -35,6 +39,23 @@ export default function SceneLibrary() {
     setLoading(true)
     listRecentSceneChanges().then(setChanges).catch(() => {}).finally(() => setLoading(false))
   }, [tab])
+
+  const loadProposals = () => {
+    setLoading(true)
+    adminListProposals('admin_pending').then(setProposals).catch(() => {}).finally(() => setLoading(false))
+  }
+  useEffect(() => { if (tab === 'review') loadProposals() }, [tab])
+
+  const doApprove = async (id: number) => {
+    setBusyId(id)
+    try { await approveProposal(id); toast.success('已通过并回写场景库'); setProposals(p => p.filter(x => x.id !== id)) }
+    catch { /* 拦截器已 toast */ } finally { setBusyId(null) }
+  }
+  const doReject = async (id: number) => {
+    setBusyId(id)
+    try { await rejectProposal(id); toast.info('已驳回'); setProposals(p => p.filter(x => x.id !== id)) }
+    catch { /* 拦截器已 toast */ } finally { setBusyId(null) }
+  }
 
   const DOMAIN_LABEL: Record<string, string> = {
     LTC: 'LTC 线索到回款', MTL: 'MTL 市场到线索', MCR: 'MCR 客户关系',
@@ -63,6 +84,7 @@ export default function SceneLibrary() {
       <div className="flex items-center gap-1 border-b border-line mt-4 mb-4">
         <TabBtn active={tab === 'scenes'} onClick={() => setTab('scenes')} icon={BookOpen} label="场景清单" />
         <TabBtn active={tab === 'changes'} onClick={() => setTab('changes')} icon={History} label="变更历史" />
+        <TabBtn active={tab === 'review'} onClick={() => setTab('review')} icon={GitPullRequest} label="待审核回流" />
       </div>
 
       {tab === 'scenes' ? (
@@ -121,7 +143,7 @@ export default function SceneLibrary() {
             </table>
           </div>
         </>
-      ) : (
+      ) : tab === 'changes' ? (
         <div className="border border-line rounded-xl overflow-hidden bg-white">
           {loading ? (
             <div className="px-3 py-8 text-center text-ink-muted text-sm">加载中…</div>
@@ -158,6 +180,46 @@ export default function SceneLibrary() {
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
+      ) : (
+        /* 待审核回流(管理员):PM 已确认的场景提案,通过则回写场景库 */
+        <div className="border border-line rounded-xl overflow-hidden bg-white">
+          {loading ? (
+            <div className="px-3 py-8 text-center text-ink-muted text-sm">加载中…</div>
+          ) : proposals.length === 0 ? (
+            <div className="px-3 py-10 text-center text-ink-muted text-sm">
+              暂无待审核回流<br />
+              <span className="text-xs">项目侧「蓝图完成·识别回流」并经 PM 确认后,提案在此等待管理员审核回写。</span>
+            </div>
+          ) : (
+            <div className="divide-y divide-line">
+              {proposals.map(p => (
+                <div key={p.id} className="flex items-center gap-3 px-4 py-3">
+                  <span className={`text-[11px] px-1.5 py-0.5 rounded border ${p.change_type === 'new'
+                    ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                    {p.change_type === 'new' ? '新增' : '优化'}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-ink truncate">
+                      {p.scene_code ? <span className="font-mono text-xs text-ink-secondary mr-1">{p.scene_code}</span> : null}
+                      {p.name}
+                    </div>
+                    <div className="text-[11px] text-ink-muted truncate">
+                      {p.project_name || '—'} · PM {p.pm_confirmed_by || '—'} 确认{p.summary ? ` · ${p.summary}` : ''}
+                    </div>
+                  </div>
+                  <button onClick={() => doApprove(p.id)} disabled={busyId === p.id}
+                    className="flex-shrink-0 inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
+                    {busyId === p.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} 通过回写
+                  </button>
+                  <button onClick={() => doReject(p.id)} disabled={busyId === p.id}
+                    className="flex-shrink-0 inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border border-line text-ink-secondary hover:bg-canvas disabled:opacity-50">
+                    <X size={12} /> 驳回
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}
