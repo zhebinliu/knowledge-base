@@ -20,7 +20,7 @@ from sqlalchemy import select, func
 
 from models import async_session_maker, get_session
 from models.scene import StandardScene, SceneChange
-from services.auth import get_current_user
+from services.auth import get_current_user, require_admin
 from models.user import User
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -59,6 +59,11 @@ class SceneDto(BaseModel):
     code: str
     name: str
     summary: str | None = None
+    description: str | None = None
+    business_rules: str | None = None
+    process: str | None = None
+    recommended_fields: list = []
+    tags: list = []
     source_type: str
     source_project_name: str | None = None
     status: str
@@ -81,7 +86,10 @@ class SceneChangeDto(BaseModel):
 def _scene_dto(x: StandardScene) -> SceneDto:
     return SceneDto(
         id=x.id, domain=x.domain, stage=x.stage, stage_label=x.stage_label,
-        code=x.code, name=x.name, summary=x.summary, source_type=x.source_type,
+        code=x.code, name=x.name, summary=x.summary,
+        description=x.description, business_rules=x.business_rules, process=x.process,
+        recommended_fields=x.recommended_fields or [], tags=x.tags or [],
+        source_type=x.source_type,
         source_project_name=x.source_project_name, status=x.status, version=x.version,
         updated_at=x.updated_at,
     )
@@ -125,6 +133,54 @@ async def get_scene(scene_id: int, session: AsyncSession = Depends(get_session))
     x = await session.get(StandardScene, scene_id)
     if not x:
         raise HTTPException(404, "场景不存在")
+    return _scene_dto(x)
+
+
+class SceneUpdateBody(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    business_rules: str | None = None
+    process: str | None = None
+    recommended_fields: list | None = None   # [{name,type,note,required}]
+    tags: list | None = None                 # ["通用" | "L1/L2/L3/L4"...]
+
+
+_FIELD_LABELS = {
+    "name": "名称", "description": "说明", "business_rules": "业务规则",
+    "process": "流程", "recommended_fields": "推荐字段", "tags": "标签",
+}
+
+
+@router.patch("/scenes/{scene_id}", response_model=SceneDto, dependencies=[Depends(require_admin)])
+async def update_scene(
+    scene_id: int,
+    body: SceneUpdateBody,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """编辑场景内容/标签(仅管理员)。保存写 SceneChange('edit') 留痕并 bump version。"""
+    from sqlalchemy.orm.attributes import flag_modified
+    x = await session.get(StandardScene, scene_id)
+    if not x:
+        raise HTTPException(404, "场景不存在")
+    changed: list[str] = []
+    for field in ("name", "description", "business_rules", "process", "recommended_fields", "tags"):
+        val = getattr(body, field)
+        if val is not None and getattr(x, field) != val:
+            setattr(x, field, val)
+            if field in ("recommended_fields", "tags"):
+                flag_modified(x, field)
+            changed.append(_FIELD_LABELS[field])
+    if not changed:
+        return _scene_dto(x)
+    x.version = (x.version or 1) + 1
+    session.add(SceneChange(
+        scene_id=x.id, scene_code=x.code, domain=x.domain, change_type="edit",
+        summary=f"编辑:{'、'.join(changed)}", created_by=current_user.username,
+    ))
+    await session.commit()
+    await session.refresh(x)
+    logger.info("scene_edited", scene_id=scene_id, fields=changed, by=current_user.username)
     return _scene_dto(x)
 
 

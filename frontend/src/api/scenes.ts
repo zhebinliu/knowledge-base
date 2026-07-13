@@ -1,6 +1,13 @@
 // 标准场景库(场景库中心)API — 独立于 client.ts,避免 meeting overlay 覆盖。
 import { api } from './client'
 
+export interface RecommendedField {
+  name: string
+  type?: string
+  note?: string
+  required?: boolean
+}
+
 export interface Scene {
   id: number
   domain: string
@@ -9,12 +16,28 @@ export interface Scene {
   code: string
   name: string
   summary?: string | null
+  description?: string | null
+  business_rules?: string | null
+  process?: string | null
+  recommended_fields: RecommendedField[]
+  tags: string[]                 // "通用" 或 四级行业路径 "L1/L2/L3/L4"
   source_type: string            // standard | project
   source_project_name?: string | null
   status: string
   version: number
   updated_at: string
 }
+
+export interface SceneUpdate {
+  name?: string
+  description?: string | null
+  business_rules?: string | null
+  process?: string | null
+  recommended_fields?: RecommendedField[]
+  tags?: string[]
+}
+export const updateScene = (id: number, patch: SceneUpdate) =>
+  api.patch<Scene>(`/scenes/${id}`, patch).then(r => r.data)
 
 export interface SceneChange {
   id: number

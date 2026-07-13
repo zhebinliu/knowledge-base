@@ -1,3 +1,20 @@
+# 任务:Harness Block5 — 场景结构化内容 + 标签 + 可编辑 + 修改记录(2026-07-13)
+
+需求:场景内容先留空但搭骨架;标签(通用 / 四级行业,多选,可编辑);说明/业务规则/流程/推荐字段(表格);全部可编辑;保存留修改记录。
+
+## 清单
+- [x] 5-1 StandardScene 加 description/business_rules/process/recommended_fields(JSON)/tags(JSON);main.py ALTER 加列(旧表 create_all 不加列)。
+- [x] 5-2 api/scenes.py:DTO 扩字段 + PATCH /scenes/{id}(仅管理员)写 SceneChange('edit') + bump version。
+- [x] 5-3 前端 api/scenes.ts:Scene 扩字段 + RecommendedField + updateScene;复用 getProjectMeta 拿四级行业树。
+- [x] 5-4 SceneEditDrawer:名称/标签(通用+L1-L4 级联多选)/说明/规则/流程 textarea + 推荐字段可编辑表格(增删改行);场景库中心点行打开、列表显示标签。
+- [x] 5-5 py_compile + tsc + build 通过;未碰 client.ts,overlay 无关。
+- [ ] 5-6 deploy-uat 门 → deploy-prod;curl + 编辑一个场景验证内容/标签持久化 + 变更留痕。
+
+## Block5 部署结果
+（待补)
+
+---
+
 # 任务:Harness P3 + P4 — 场景库 / 命中 / PM 角色 / 蓝图回流闭环(2026-07-13)
 
 一整个子系统,分 Block 逐个建→测→部署:

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Layers, Search, History, BookOpen, GitPullRequest, Check, X, Loader2 } from 'lucide-react'
 import { toast } from '../components/Toaster'
+import SceneEditDrawer from '../components/SceneEditDrawer'
 import {
   listSceneDomains, listScenes, listRecentSceneChanges,
   adminListProposals, approveProposal, rejectProposal,
@@ -20,6 +21,7 @@ export default function SceneLibrary() {
   const [changes, setChanges] = useState<SceneChange[]>([])
   const [proposals, setProposals] = useState<SceneProposal[]>([])
   const [busyId, setBusyId] = useState<number | null>(null)
+  const [editScene, setEditScene] = useState<Scene | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => { listSceneDomains().then(setDomains).catch(() => {}) }, [])
@@ -127,11 +129,21 @@ export default function SceneLibrary() {
                 ) : scenes.length === 0 ? (
                   <tr><td colSpan={5} className="px-3 py-8 text-center text-ink-muted text-sm">无匹配场景</td></tr>
                 ) : scenes.map(s => (
-                  <tr key={s.id} className="border-t border-line hover:bg-canvas/60">
+                  <tr key={s.id} onClick={() => setEditScene(s)} className="border-t border-line hover:bg-canvas/60 cursor-pointer" title="点击编辑">
                     <td className="px-3 py-2"><span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-canvas text-ink-secondary">{s.domain}</span></td>
                     <td className="px-3 py-2 text-ink-secondary text-xs">{s.stage_label || s.stage}</td>
                     <td className="px-3 py-2 font-mono text-xs text-ink-secondary">{s.code}</td>
-                    <td className="px-3 py-2 text-ink">{s.name}</td>
+                    <td className="px-3 py-2 text-ink">
+                      {s.name}
+                      {(s.tags?.length || 0) > 0 && (
+                        <span className="ml-2 inline-flex flex-wrap gap-1 align-middle">
+                          {s.tags.slice(0, 3).map(t => (
+                            <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 ring-1 ring-blue-200">{t === '通用' ? '通用' : t.split('/').filter(Boolean).pop()}</span>
+                          ))}
+                          {s.tags.length > 3 && <span className="text-[10px] text-ink-muted">+{s.tags.length - 3}</span>}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2">
                       {s.source_type === 'project'
                         ? <span className="text-[11px] px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200">项目{s.source_project_name ? `·${s.source_project_name}` : ''}</span>
@@ -223,6 +235,13 @@ export default function SceneLibrary() {
           )}
         </div>
       )}
+
+      {/* 场景编辑抽屉(Block5):点场景行打开 */}
+      <SceneEditDrawer
+        scene={editScene}
+        onClose={() => setEditScene(null)}
+        onSaved={(s) => { setScenes(prev => prev.map(x => x.id === s.id ? s : x)); setEditScene(null) }}
+      />
     </div>
   )
 }

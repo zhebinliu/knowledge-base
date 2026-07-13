@@ -280,6 +280,12 @@ async def startup():
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS industry VARCHAR(200)",
             # Harness P3/P4:项目成员角色分类(2026-07-13,create_all 不给旧表加列)
             "ALTER TABLE project_collaborators ADD COLUMN IF NOT EXISTS project_role VARCHAR(20)",
+            # Harness Block5:标准场景结构化内容 + 标签(2026-07-13,给已建的 standard_scenes 补列)
+            "ALTER TABLE standard_scenes ADD COLUMN IF NOT EXISTS description TEXT",
+            "ALTER TABLE standard_scenes ADD COLUMN IF NOT EXISTS business_rules TEXT",
+            "ALTER TABLE standard_scenes ADD COLUMN IF NOT EXISTS process TEXT",
+            "ALTER TABLE standard_scenes ADD COLUMN IF NOT EXISTS recommended_fields JSONB DEFAULT '[]'::jsonb",
+            "ALTER TABLE standard_scenes ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb",
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS customer_profile TEXT",
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS industry VARCHAR(200)",
             "CREATE INDEX IF NOT EXISTS idx_documents_industry ON documents(industry)",
