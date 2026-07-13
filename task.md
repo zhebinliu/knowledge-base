@@ -9,10 +9,12 @@
 - [x] 6-4 scene_reflow:prompt 扩成结构化输出(说明/业务规则/流程/推荐字段)→ 提案 content;scene_ops approve 落到场景(new 全量、optimize 补空不覆盖)。
 - [x] 6-5 前端:SceneEditDrawer 加「AI 能力匹配」搜索多选(按领域/Agent,带状态徽标);api/scenes.ts 加类型+listAiCapabilities。
 - [x] 6-6 py_compile + tsc + build 通过;未碰 client.ts。
-- [ ] 6-7 deploy-uat 门 → deploy-prod;curl + 验证 96 能力导入 + 场景匹配 AI 能力持久化。
+- [x] 6-7 deploy-uat 门 → deploy-prod;curl + 验证 96 能力导入 + 场景匹配 AI 能力持久化。
 
 ## Block6 部署结果
-（待补)
+- commit `a491a87` → deploy-uat 门 → deploy-prod run 29237154605 success;version.json sha=a491a87;/ai-capabilities 401(已注册)。
+- 实测(测完复原):AI 能力目录 96 条已导入(效率27/客户23/互动16/商机10/联系人7/合同7/开源6);场景 LM-01 匹配能力[1,2]→持久化+留痕「编辑:AI 能力匹配」。
+- 回流遵循格式验证:锐达回流 8 提案 8/8 带结构化 content(说明/业务规则/推荐字段);approve 时 new 全量落、optimize 补空不覆盖。
 
 ---
 
