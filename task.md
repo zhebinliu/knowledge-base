@@ -1,3 +1,13 @@
+# 任务:场景 AI 能力自动匹配 + prod 磁盘满事故处理(2026-07-13)
+
+- 新增 services/scene_ai_match(LLM 按域→≤10 小批→重试→权威覆盖)+ POST /scenes/ai-match + 场景库中心「AI 自动匹配」按钮。commit e1e129f。
+- **prod 事故**:/opt/data 20G 满(旧镜像)→ postgres No space→崩溃回环 → deploy 失败自动回滚。按记忆 project_prod_disk_full_optdata:docker image prune -a -f 清 2.66GB → 重启 pg/backend/frontend → prod 恢复 → 重部署成功。
+- 首版按大域整批(LTC 48)截断失败 → 改小批+重试修复。
+- 匹配结果(prod 落库):29 场景 / 123 关联(ITR10/LTC10/MPR9;MCR0/MTL0)。匹配质量高(线索→线索评分、商机→商机画像/决策链/竞争分析、费用→取价/促销/返利);精度优先、召回偏保守,MCR/MTL 空 + LTC 稀疏可后续调 prompt 放宽。
+- 场景库中心每个匹配场景显示 AI 能力,可手动改;按钮可重跑。
+
+---
+
 # 任务:Harness Block6 — AI 能力目录 + 场景 AI 能力匹配 + 回流遵循结构化格式(2026-07-13)
 
 来源《当前AI能力.xlsx》(96 个 Skill / 20 Agent / 7 领域)。需求:场景加「AI 能力匹配」(作为 AI 优化选择,可编辑多选);以后回流优化/新增场景也遵循 Block5 结构化格式。
