@@ -8,10 +8,12 @@
 - [x] 5-3 前端 api/scenes.ts:Scene 扩字段 + RecommendedField + updateScene;复用 getProjectMeta 拿四级行业树。
 - [x] 5-4 SceneEditDrawer:名称/标签(通用+L1-L4 级联多选)/说明/规则/流程 textarea + 推荐字段可编辑表格(增删改行);场景库中心点行打开、列表显示标签。
 - [x] 5-5 py_compile + tsc + build 通过;未碰 client.ts,overlay 无关。
-- [ ] 5-6 deploy-uat 门 → deploy-prod;curl + 编辑一个场景验证内容/标签持久化 + 变更留痕。
+- [x] 5-6 deploy-uat 门 → deploy-prod;curl + 编辑一个场景验证内容/标签持久化 + 变更留痕。
 
 ## Block5 部署结果
-（待补)
+- commit `7c5515b` → deploy-uat 门 → deploy-prod run 29233956187 success;version.json sha=7c5515b;后端健康。
+- 锐达/LM-01 实测(测完复原):编辑 说明+标签(通用+四级行业路径)+推荐字段表格 → 持久化,version 1→2,SceneChange('edit') 留痕「编辑:说明、推荐字段、标签 by admin」。
+- 骨架就绪、内容留空:147 条现仍空内容/空标签,管理员在场景库中心点行即可编辑。
 
 ---
 
