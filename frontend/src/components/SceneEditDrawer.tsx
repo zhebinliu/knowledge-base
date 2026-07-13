@@ -1,8 +1,14 @@
-import { useEffect, useState } from 'react'
-import { X, Plus, Trash2, Loader2, Tag as TagIcon } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { X, Plus, Trash2, Loader2, Tag as TagIcon, Sparkles, Search } from 'lucide-react'
 import { toast } from './Toaster'
 import { getProjectMeta, type IndustryTree } from '../api/client'
-import { updateScene, type Scene, type RecommendedField } from '../api/scenes'
+import { updateScene, listAiCapabilities, type Scene, type RecommendedField, type AiCapability } from '../api/scenes'
+
+const CAP_STATUS_CLS: Record<string, string> = {
+  '已具备': 'bg-green-50 text-green-700 ring-green-200',
+  '开发中': 'bg-amber-50 text-amber-700 ring-amber-200',
+  '未开发': 'bg-slate-100 text-slate-500 ring-slate-200',
+}
 
 /**
  * SceneEditDrawer — 场景库中心的场景编辑抽屉(Block5)。
@@ -19,18 +25,30 @@ export default function SceneEditDrawer({
   const [rules, setRules] = useState('')
   const [process, setProcess] = useState('')
   const [fields, setFields] = useState<RecommendedField[]>([])
+  const [aiCaps, setAiCaps] = useState<number[]>([])
+  const [allCaps, setAllCaps] = useState<AiCapability[]>([])
+  const [capSearch, setCapSearch] = useState('')
+  const [capOpen, setCapOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   // 行业级联选择
   const [l1, setL1] = useState(''); const [l2, setL2] = useState(''); const [l3, setL3] = useState(''); const [l4, setL4] = useState('')
 
   useEffect(() => { getProjectMeta().then(m => setTree(m.industry_tree || {})).catch(() => {}) }, [])
+  useEffect(() => { listAiCapabilities().then(setAllCaps).catch(() => {}) }, [])
   useEffect(() => {
     if (!scene) return
     setName(scene.name || ''); setTags(scene.tags || [])
     setDescription(scene.description || ''); setRules(scene.business_rules || '')
     setProcess(scene.process || ''); setFields(scene.recommended_fields || [])
-    setL1(''); setL2(''); setL3(''); setL4('')
+    setAiCaps(scene.ai_capabilities || [])
+    setL1(''); setL2(''); setL3(''); setL4(''); setCapSearch(''); setCapOpen(false)
   }, [scene])
+
+  const capById = useMemo(() => Object.fromEntries(allCaps.map(c => [c.id, c])), [allCaps])
+  const capMatches = useMemo(() => {
+    const q = capSearch.trim().toLowerCase()
+    return allCaps.filter(c => !q || `${c.skill}${c.agent}${c.domain}`.toLowerCase().includes(q))
+  }, [allCaps, capSearch])
 
   if (!scene) return null
 
@@ -54,6 +72,7 @@ export default function SceneEditDrawer({
         description, business_rules: rules, process,
         recommended_fields: fields.filter(f => (f.name || '').trim()),
         tags,
+        ai_capabilities: aiCaps,
       })
       toast.success('已保存')
       onSaved(s)
@@ -157,6 +176,54 @@ export default function SceneEditDrawer({
             <button onClick={addField} className="mt-2 inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded border border-line text-ink-secondary hover:bg-canvas">
               <Plus size={12} /> 添加字段
             </button>
+          </Field>
+
+          {/* AI 能力匹配(场景的 AI 优化选择) */}
+          <Field label="AI 能力匹配(纷享已预研能力,作为该场景的 AI 优化选择)">
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {aiCaps.length === 0 && <span className="text-xs text-ink-muted">尚未匹配 AI 能力</span>}
+              {aiCaps.map(id => {
+                const c = capById[id]
+                return (
+                  <span key={id} className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-orange-50 text-[#B45309] ring-1 ring-orange-200">
+                    <Sparkles size={10} />{c ? c.skill : `#${id}`}
+                    {c && <span className={`text-[9px] px-1 rounded ring-1 ${CAP_STATUS_CLS[c.status] || 'bg-slate-100 text-slate-500 ring-slate-200'}`}>{c.status}</span>}
+                    <button onClick={() => setAiCaps(aiCaps.filter(x => x !== id))} className="hover:text-red-600"><X size={10} /></button>
+                  </span>
+                )
+              })}
+            </div>
+            <button onClick={() => setCapOpen(o => !o)} className="text-xs px-2.5 py-1 rounded border border-line text-ink-secondary hover:bg-canvas inline-flex items-center gap-1">
+              <Plus size={12} /> {capOpen ? '收起' : '匹配 AI 能力'}
+            </button>
+            {capOpen && (
+              <div className="mt-2 border border-line rounded-lg overflow-hidden">
+                <div className="relative border-b border-line">
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted" />
+                  <input value={capSearch} onChange={e => setCapSearch(e.target.value)} placeholder="搜索能力 / Agent / 领域"
+                    className="w-full pl-8 pr-3 py-2 text-sm bg-white focus:outline-none" />
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {capMatches.length === 0 && <div className="px-3 py-4 text-center text-xs text-ink-muted">无匹配能力</div>}
+                  {capMatches.map(c => {
+                    const on = aiCaps.includes(c.id)
+                    return (
+                      <button key={c.id} onClick={() => setAiCaps(on ? aiCaps.filter(x => x !== c.id) : [...aiCaps, c.id])}
+                        className={`w-full text-left px-3 py-2 border-t border-line flex items-start gap-2 hover:bg-canvas ${on ? 'bg-orange-50/50' : ''}`}>
+                        <input type="checkbox" readOnly checked={on} className="mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs text-ink flex items-center gap-1.5 flex-wrap">
+                            <span className="font-medium">{c.skill}</span>
+                            <span className={`text-[9px] px-1 py-0.5 rounded ring-1 ${CAP_STATUS_CLS[c.status] || 'bg-slate-100 text-slate-500 ring-slate-200'}`}>{c.status}</span>
+                          </div>
+                          <div className="text-[10.5px] text-ink-muted">{c.domain} · {c.agent}{c.description ? ` · ${c.description.slice(0, 40)}…` : ''}</div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </Field>
 
           <p className="text-[11px] text-ink-muted pt-1">保存后自动记入变更历史(编辑人 / 时间 / 改了哪些字段)。</p>

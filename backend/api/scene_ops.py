@@ -107,6 +107,7 @@ class ProposalDto(BaseModel):
     scene_code: str | None = None
     name: str
     summary: str | None = None
+    content: dict = {}
     status: str
     created_by: str | None = None
     pm_confirmed_by: str | None = None
@@ -120,7 +121,7 @@ def _prop_dto(p: SceneChangeProposal) -> ProposalDto:
     return ProposalDto(
         id=p.id, project_id=p.project_id, project_name=p.project_name,
         change_type=p.change_type, domain=p.domain, scene_code=p.scene_code,
-        name=p.name, summary=p.summary, status=p.status, created_by=p.created_by,
+        name=p.name, summary=p.summary, content=p.content or {}, status=p.status, created_by=p.created_by,
         pm_confirmed_by=p.pm_confirmed_by, reviewed_by=p.reviewed_by,
         review_note=p.review_note, created_at=p.created_at, updated_at=p.updated_at,
     )
@@ -158,6 +159,7 @@ async def run_scene_reflow(
             change_type=p.get("change_type", "optimize"),
             domain=p.get("domain"), scene_code=p.get("scene_code"),
             name=p.get("name", ""), summary=p.get("summary"),
+            content=p.get("content") or {},   # Block6:结构化内容载荷
             status="pm_pending", created_by=current_user.username,
         )
         session.add(row)
@@ -239,6 +241,7 @@ async def approve_proposal(
         raise HTTPException(409, f"提案当前状态为 {p.status},不可审核")
 
     scene_id: int | None = None
+    content = p.content or {}   # Block6 结构化内容:{description,business_rules,process,recommended_fields}
     if p.change_type == "optimize" and p.scene_code:
         scene = (await session.execute(
             select(StandardScene).where(
@@ -249,11 +252,17 @@ async def approve_proposal(
         if scene:
             note = (p.summary or "").strip()
             scene.summary = ((scene.summary or "") + f"\n\n【{p.project_name or '项目'}优化】{note}").strip()
+            # 优化:补空不覆盖(已有内容不动,空字段用回流内容填上)
+            for f in ("description", "business_rules", "process"):
+                if not (getattr(scene, f) or "").strip() and (content.get(f) or "").strip():
+                    setattr(scene, f, content[f])
+            if not (scene.recommended_fields or []) and content.get("recommended_fields"):
+                scene.recommended_fields = content["recommended_fields"]
             scene.version = (scene.version or 1) + 1
             scene.source_project_name = p.project_name
             scene_id = scene.id
     else:
-        # 新增场景:生成唯一编码(域-Pxx)
+        # 新增场景:生成唯一编码(域-Pxx)+ 全量落结构化内容
         code = p.scene_code or f"{(p.domain or 'GEN')}-P{p.id}"
         exists = (await session.execute(
             select(StandardScene).where(StandardScene.domain == (p.domain or "GEN"),
@@ -265,6 +274,10 @@ async def approve_proposal(
             domain=p.domain or "GEN", stage="", code=code, name=p.name,
             summary=p.summary, source_type="project", source_project_name=p.project_name,
             status="active",
+            description=content.get("description") or None,
+            business_rules=content.get("business_rules") or None,
+            process=content.get("process") or None,
+            recommended_fields=content.get("recommended_fields") or [],
         )
         session.add(scene)
         await session.flush()

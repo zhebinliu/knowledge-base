@@ -1,0 +1,1154 @@
+[
+ {
+  "domain": "效率工具",
+  "agent": "周日报 Agent",
+  "skill": "销售团队周日报 Skill",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "为管理者提供团队业绩全景视图及异常诊断",
+  "outputs": [
+   "管理者周报/日报/月报"
+  ],
+  "sort": 0
+ },
+ {
+  "domain": "效率工具",
+  "agent": "周日报 Agent",
+  "skill": "销售人员周日报 Skill",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "自动提炼销售个人本周成效，辅助自我复盘",
+  "outputs": [
+   "销售人员周报/日报/月报"
+  ],
+  "sort": 1
+ },
+ {
+  "domain": "效率工具",
+  "agent": "周日报 Agent",
+  "skill": "报告质检与复核 Skill",
+  "status": "开发中",
+  "plan_date": "46218",
+  "description": "确保报告数据真实性，发现销售录入的逻辑矛盾",
+  "outputs": [
+   "报告真实性评估、数据矛盾点标记、周日报质量评分。"
+  ],
+  "sort": 2
+ },
+ {
+  "domain": "效率工具",
+  "agent": "客户简报Agent",
+  "skill": "标准版客户简报",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "AE 或销售管理者需要向总监、VP、CEO、董事长等高层汇报客户、申请领导陪访、准备客户高层会面或升级关键商机时使用本技能，生成高层陪访简报，重点输出陪访请求理由、商机价值、客户高层决策链、领导可介入点、风险敏感点、陪访目标和会后推进建议",
+  "outputs": [
+   "结论摘要、客户画像、博弈时间线、关系温度、决策链、人力地图、商机全貌、痛点地图、竞品全貌、风险矩阵"
+  ],
+  "sort": 3
+ },
+ {
+  "domain": "效率工具",
+  "agent": "客户简报Agent",
+  "skill": "见客前简报",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "销售人员需要在拜访、会议或出发前生成客户见客简报时使用本技能，尤其适用于“见客前简报”“即将拜访”“准备出发”“/briefing 客户名”，以及需要输出见客就绪度、今日会议目标、风险预警、谈判底线、人力地图和现场提问的问题",
+  "outputs": [
+   "会前结论、今日会议目标、风险预警、见客就绪度、人力地图、现场提问、谈判底线、下一步行动"
+  ],
+  "sort": 4
+ },
+ {
+  "domain": "效率工具",
+  "agent": "客户简报Agent",
+  "skill": "高层陪访简报",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "AE 或销售管理者需要向总监、VP、CEO、董事长等高层汇报客户、申请领导陪访、准备客户高层会面或升级关键商机时使用本技能，生成高层陪访简报，重点输出陪访请求理由、商机价值、客户高层决策链、领导可介入点、风险敏感点、陪访目标和会后推进建议",
+  "outputs": [
+   "领导必读摘要、陪访背景、商机价值、客户高层关系图、领导可介入点、风险与敏感点、陪访目标、会后承接建议"
+  ],
+  "sort": 5
+ },
+ {
+  "domain": "效率工具",
+  "agent": "客户简报Agent",
+  "skill": "团队交接客户简报",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "AE 工作调动、客户转手、团队协作或接手人需要快速继承客户上下文时使用本技能，生成团队交接简报，重点输出交接背景、客户画像、博弈编年、关系温度、关键人地图、待兑现承诺、风险敏感点、竞品历史和接手建议",
+  "outputs": [
+   "接手人必读摘要、交接背景、客户画像、博弈编年、关系温度、关键人地图、承诺台账、风险敏感点、竞品历史、接手建议"
+  ],
+  "sort": 6
+ },
+ {
+  "domain": "开源",
+  "agent": "市场洞察Agent",
+  "skill": "产业链分析skill",
+  "status": "开发中",
+  "plan_date": "46200",
+  "description": "基于我方企业业务、目标行业和目标客户，分析产业链上下游、关联企业和生态关系，主动发现潜在线索和关联拓展机会。”",
+  "outputs": [
+   "1. 业务结论：判断目标行业/客户周边是否存在可开源机会，明确是新增线索、关联拓展、集团拓展还是存量客户延展机会。",
+   "2. 机会对象：输出产业链开源对象清单，包括上下游企业、关联企业、集团/子公司/分支机构、供应商、经销商、生态伙伴等。",
+   "3. CRM匹配结果：标识对象是否已在CRM建档、是否已有联系人、是否已有商机、是否已有历史成交/输单、是否疑似重复。",
+   "4. 机会判断依据：说明机会触发信号、业务匹配理由、关系路径、客户价值和优先级依据。",
+   "5. CRM处理建议：新建线索、关联已有客户、关联已有商机、分派销售/团队、标记重复、补充信息核验。"
+  ],
+  "sort": 7
+ },
+ {
+  "domain": "开源",
+  "agent": "市场洞察Agent",
+  "skill": "产品分析skill",
+  "status": "开发中",
+  "plan_date": "46200",
+  "description": "分析目标客户的产品、服务、解决方案、业务模式、目标客群和收入来源，识别客户当前业务重点、增长方向、经营压力和需求信号。用于判断客户为什么可能需要我方产品/方案，以及从哪个业务场景切入。",
+  "outputs": [
+   "1. 业务结论：判断目标客户的产品、服务和业务结构中是否存在潜在需求信号，明确是否形成存量客户新机会、新商机、增购/交叉销售机会。",
+   "2. 客户业务画像：输出客户产品/服务、目标客群、业务模式、收入来源、销售模式、交付模式和增长方向。",
+   "3. 机会识别结果：识别客户在获客、销售管理、渠道管理、项目交付、售后服务、数据分析、组织协同等方面可能存在的开源机会。",
+   "4. CRM匹配结果：标识客户是否已有档案、联系人、历史商机、合同、已购产品、跟进记录、重复线索或重复商机。",
+   "5. 机会判断依据与CRM处理建议：输出触发信号、匹配理由、机会优先级，并建议新建线索、新建商机、关联已有客户/商机、补充信息核验。"
+  ],
+  "sort": 8
+ },
+ {
+  "domain": "开源",
+  "agent": "市场洞察Agent",
+  "skill": "招投标分析skill",
+  "status": "开发中",
+  "plan_date": "46200",
+  "description": "基于我方业务范围和产品能力，筛选与我方可服务场景相关的公开招投标、采购公告和项目备案信息，识别明确采购需求。不是无差别搜索全部招标项目，而是寻找“我方值得跟、能跟、可能赢”的项目机会。",
+  "outputs": [
+   "1. 业务结论：判断当前是否存在与我方业务匹配、值得进入CRM流程的项目机会，明确哪些项目应新建线索或商机。",
+   "2. 项目机会信息：输出招投标机会清单、采购单位、项目名称、项目摘要、预算金额、采购内容、时间窗口、技术要求。",
+   "3. 业务匹配结果：说明项目与我方目标行业、产品/方案能力、销售关键词、项目金额偏好和服务区域的匹配情况。",
+   "4. CRM匹配结果：标识采购单位是否已有客户、联系人、商机、销售归属、历史投标/中标/输单记录，是否疑似重复。",
+   "5. 机会判断依据与CRM处理建议：输出数据来源、匹配理由、机会优先级，并建议新建线索、新建商机、关联已有客户/商机、分派销售/团队、标记重复、补充信息核验。"
+  ],
+  "sort": 9
+ },
+ {
+  "domain": "开源",
+  "agent": "市场洞察Agent",
+  "skill": "竞对分析skill",
+  "status": "开发中",
+  "plan_date": "46200",
+  "description": "基于我方竞争边界，分析对销售开源有影响的竞品动态、客户案例、中标信息、市场动作和产品策略，用于发现替换机会、竞争风险和历史输单激活机会。不是分析所有竞争对手新闻，而是识别会影响我方客户开发和商机推进的竞品信号。",
+  "outputs": [
+   "1. 业务结论：判断竞品动态是否带来替换机会、历史输单激活机会或当前商机竞争风险，明确哪些客户/商机需要进入开源处理。",
+   "2. 竞品机会对象：输出潜在替换客户、竞品相关客户、历史输单激活对象、存在竞品风险的客户或商机。",
+   "3. 竞品触发信号：说明竞品中标、客户案例、合作动态、产品变化、市场活动、服务风险等外部信号。",
+   "4. CRM匹配结果：标识CRM中是否已有客户、商机、竞品字段、历史输单原因、当前竞争记录、跟进记录，是否疑似重复。",
+   "5. 机会判断依据与CRM处理建议：输出替换/风险/激活判断依据、机会优先级，并建议新建线索、关联已有客户/商机、标记竞品风险、激活历史客户、补充信息核验。"
+  ],
+  "sort": 10
+ },
+ {
+  "domain": "开源",
+  "agent": "线索转化教练Agent",
+  "skill": "线索评分skill",
+  "status": "已具备",
+  "plan_date": "46191",
+  "description": "对线索价值打分（线索7问+3要素）",
+  "outputs": [
+   "真实阶段名称",
+   "评判依据"
+  ],
+  "sort": 11
+ },
+ {
+  "domain": "开源",
+  "agent": "线索转化教练Agent",
+  "skill": "线索画像&建议skill",
+  "status": "已具备",
+  "plan_date": "46191",
+  "description": "给出画像全局诊断+跟进策略+行动建议",
+  "outputs": [
+   "线索概要",
+   "全局诊断结果",
+   "真实阶段",
+   "赢单策略",
+   "行动建议"
+  ],
+  "sort": 12
+ },
+ {
+  "domain": "客户",
+  "agent": "客户管理Agent",
+  "skill": "客户创建skill(通用)",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "",
+  "outputs": [],
+  "sort": 13
+ },
+ {
+  "domain": "客户",
+  "agent": "客户管理Agent",
+  "skill": "客户数据查重cli",
+  "status": "未开发",
+  "plan_date": "46183",
+  "description": "封装客户查重cli",
+  "outputs": [],
+  "sort": 14
+ },
+ {
+  "domain": "客户",
+  "agent": "客户管理Agent",
+  "skill": "分配AllocateAction",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "CLI能力",
+  "outputs": [],
+  "sort": 15
+ },
+ {
+  "domain": "客户",
+  "agent": "客户管理Agent",
+  "skill": "sharecrm data record allocate-action",
+  "status": "未标注",
+  "plan_date": "",
+  "description": "",
+  "outputs": [],
+  "sort": 16
+ },
+ {
+  "domain": "客户",
+  "agent": "客户管理Agent",
+  "skill": "分配AllocateAction",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "CLI能力",
+  "outputs": [],
+  "sort": 17
+ },
+ {
+  "domain": "客户",
+  "agent": "客户管理Agent",
+  "skill": "sharecrm data record allocate-action",
+  "status": "未标注",
+  "plan_date": "",
+  "description": "",
+  "outputs": [],
+  "sort": 18
+ },
+ {
+  "domain": "客户",
+  "agent": "客户管理Agent",
+  "skill": "退回ReturnAction",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "CLI能力",
+  "outputs": [],
+  "sort": 19
+ },
+ {
+  "domain": "客户",
+  "agent": "客户管理Agent",
+  "skill": "sharecrm data record return-action",
+  "status": "未标注",
+  "plan_date": "",
+  "description": "",
+  "outputs": [],
+  "sort": 20
+ },
+ {
+  "domain": "客户",
+  "agent": "客户管理Agent",
+  "skill": "收回TakeBack",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "CLI能力",
+  "outputs": [],
+  "sort": 21
+ },
+ {
+  "domain": "客户",
+  "agent": "客户管理Agent",
+  "skill": "sharecrm data record take-back",
+  "status": "未标注",
+  "plan_date": "",
+  "description": "",
+  "outputs": [],
+  "sort": 22
+ },
+ {
+  "domain": "客户",
+  "agent": "客户管理Agent",
+  "skill": "转移MoveAction",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "CLI能力",
+  "outputs": [],
+  "sort": 23
+ },
+ {
+  "domain": "客户",
+  "agent": "客户管理Agent",
+  "skill": "sharecrm data record move-action",
+  "status": "未标注",
+  "plan_date": "",
+  "description": "",
+  "outputs": [],
+  "sort": 24
+ },
+ {
+  "domain": "客户",
+  "agent": "客户管理Agent",
+  "skill": "移除RemoveAction",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "CLI能力",
+  "outputs": [],
+  "sort": 25
+ },
+ {
+  "domain": "客户",
+  "agent": "客户管理Agent",
+  "skill": "sharecrm data record remove-action",
+  "status": "未标注",
+  "plan_date": "",
+  "description": "",
+  "outputs": [],
+  "sort": 26
+ },
+ {
+  "domain": "客户",
+  "agent": "客户管理Agent",
+  "skill": "领取ChooseAction",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "CLI能力",
+  "outputs": [],
+  "sort": 27
+ },
+ {
+  "domain": "客户",
+  "agent": "客户管理Agent",
+  "skill": "sharecrm data record choose-action",
+  "status": "未标注",
+  "plan_date": "",
+  "description": "",
+  "outputs": [],
+  "sort": 28
+ },
+ {
+  "domain": "客户",
+  "agent": "客户经营教练Agent",
+  "skill": "客户评分skill",
+  "status": "开发中",
+  "plan_date": "46191",
+  "description": "对线索健康度进行评分",
+  "outputs": [
+   "总分、维度分",
+   "评分依据"
+  ],
+  "sort": 29
+ },
+ {
+  "domain": "客户",
+  "agent": "客户经营教练Agent",
+  "skill": "客户画像&建议skill",
+  "status": "开发中",
+  "plan_date": "46191",
+  "description": "给出画像全局诊断+跟进策略+行动建议",
+  "outputs": [
+   "线索概要",
+   "全局诊断结果",
+   "真实阶段",
+   "赢单策略",
+   "行动建议"
+  ],
+  "sort": 30
+ },
+ {
+  "domain": "客户",
+  "agent": "客户情报Agent",
+  "skill": "客户尽调报告skill",
+  "status": "已具备",
+  "plan_date": "46191",
+  "description": "围绕目标客户形成一份完整的客户情报判断，帮助业务角色快速看清这个客户是谁、做什么、当前处于什么状态、有哪些机会和风险、是否值得重点投入。",
+  "outputs": [
+   "一份完整客户情报报告，通常包括：客户概览、主营业务、行业位置、产业链关系、合作历史、风险判断、值得关注的客户侧信号。"
+  ],
+  "sort": 31
+ },
+ {
+  "domain": "客户",
+  "agent": "客户情报Agent",
+  "skill": "客户行业分析skill",
+  "status": "已具备",
+  "plan_date": "46191",
+  "description": "帮助判断目标客户所在行业的发展状态、竞争格局、政策环境和变化趋势，并解释这些外部因素会怎样影响这个客户。",
+  "outputs": [
+   "一份行业分析结果，通常包括：行业现状、发展趋势、政策影响、竞争格局、客户行业位置、行业变化对客户的影响。"
+  ],
+  "sort": 32
+ },
+ {
+  "domain": "客户",
+  "agent": "客户情报Agent",
+  "skill": "客户产业链skill",
+  "status": "已具备",
+  "plan_date": "46191",
+  "description": "帮助看清目标客户在产业链中的位置、上下游关系、渠道和生态结构，理解它依赖谁、服务谁，以及这些关系对客户业务的影响。",
+  "outputs": [
+   "一份产业链分析结果，通常包括：客户链位、上下游结构、渠道与生态关系、关键依赖、相关业务影响。"
+  ],
+  "sort": 33
+ },
+ {
+  "domain": "客户",
+  "agent": "客户情报Agent",
+  "skill": "客户合作历史skill",
+  "status": "已具备",
+  "plan_date": "46191",
+  "description": "帮助看清目标客户过去和谁合作过、合作集中在哪些方向、供应商和竞品格局如何，以及这些历史合作反映出怎样的合作偏好和进入壁垒",
+  "outputs": [
+   "一份合作历史分析，通常包括：合作对象、合作类型、合作内容、供应商关系、竞品占位、内部历史接触、机会或壁垒信号。"
+  ],
+  "sort": 34
+ },
+ {
+  "domain": "客户",
+  "agent": "客户情报Agent",
+  "skill": "注：数据调用工具cli已上线，目前已上线40+个数据类型。6.12将会上线扩大到140+数据类型，详看：https://365.kdocs.cn/l/ccg1yQSoqDqk）",
+  "status": "未标注",
+  "plan_date": "",
+  "description": "",
+  "outputs": [],
+  "sort": 35
+ },
+ {
+  "domain": "商机",
+  "agent": "商机推进Agent",
+  "skill": "商机新建skill（通用）",
+  "status": "已具备",
+  "plan_date": "",
+  "description": "",
+  "outputs": [],
+  "sort": 36
+ },
+ {
+  "domain": "商机",
+  "agent": "商机推进Agent",
+  "skill": "商机查重skill",
+  "status": "未标注",
+  "plan_date": "",
+  "description": "封装商机查重cli",
+  "outputs": [],
+  "sort": 37
+ },
+ {
+  "domain": "商机",
+  "agent": "商机推进Agent",
+  "skill": "商机转换报价单skill",
+  "status": "已具备",
+  "plan_date": "",
+  "description": "要合并成公共的转换skill（川华在做）",
+  "outputs": [],
+  "sort": 38
+ },
+ {
+  "domain": "商机",
+  "agent": "商机推进Agent",
+  "skill": "商机阶段推进skill",
+  "status": "已具备",
+  "plan_date": "",
+  "description": "",
+  "outputs": [],
+  "sort": 39
+ },
+ {
+  "domain": "商机",
+  "agent": "商机赢单教练Agent",
+  "skill": "阶段判断skill（状态机）",
+  "status": "已具备",
+  "plan_date": "46188",
+  "description": "识别对象当前的真实阶段；",
+  "outputs": [
+   "真实阶段",
+   "阶段判断依据",
+   "未达标项",
+   "是否可进入下一阶段"
+  ],
+  "sort": 40
+ },
+ {
+  "domain": "商机",
+  "agent": "商机赢单教练Agent",
+  "skill": "商机评分skill",
+  "status": "已具备",
+  "plan_date": "46188",
+  "description": "对商机进行评分（基于knowhow里的商机诊断清单）",
+  "outputs": [
+   "总分、维度分",
+   "评分依据"
+  ],
+  "sort": 41
+ },
+ {
+  "domain": "商机",
+  "agent": "商机赢单教练Agent",
+  "skill": "商机画像&建议skill",
+  "status": "已具备",
+  "plan_date": "46188",
+  "description": "给出画像全局诊断+跟进策略+行动建议",
+  "outputs": [
+   "线索概要",
+   "全局诊断结果",
+   "真实阶段",
+   "赢单策略",
+   "行动建议"
+  ],
+  "sort": 42
+ },
+ {
+  "domain": "商机",
+  "agent": "商机赢单教练Agent",
+  "skill": "需求洞察skill",
+  "status": "已具备",
+  "plan_date": "46197",
+  "description": "需求挖掘与优先级判断",
+  "outputs": [
+   "需求洞察报告",
+   "调研问卷"
+  ],
+  "sort": 43
+ },
+ {
+  "domain": "商机",
+  "agent": "商机赢单教练Agent",
+  "skill": "决策链诊断skill",
+  "status": "开发中",
+  "plan_date": "46197",
+  "description": "解决谁拍板、谁推动、谁反对、覆盖够不够的问题",
+  "outputs": [
+   "决策链完整度（有谁，缺谁）",
+   "健康度评分",
+   "覆盖缺口"
+  ],
+  "sort": 44
+ },
+ {
+  "domain": "商机",
+  "agent": "商机赢单教练Agent",
+  "skill": "竞争分析skill",
+  "status": "开发中",
+  "plan_date": "46197",
+  "description": "解决竞品是谁、强弱项在哪、我方如何攻防、客户偏向谁不清的问题",
+  "outputs": [
+   "竞争情报报告、五维评分、攻防策略、赢单路径"
+  ],
+  "sort": 45
+ },
+ {
+  "domain": "联系人",
+  "agent": "联系人管理Agent",
+  "skill": "联系人新建skill（通用）",
+  "status": "已具备",
+  "plan_date": "",
+  "description": "",
+  "outputs": [],
+  "sort": 46
+ },
+ {
+  "domain": "联系人",
+  "agent": "联系人管理Agent",
+  "skill": "联系人查重skill ？？",
+  "status": "未开发",
+  "plan_date": "46183",
+  "description": "封装联系人查重cli",
+  "outputs": [],
+  "sort": 47
+ },
+ {
+  "domain": "联系人",
+  "agent": "业务洞察Agent（通用，全对象适配待讨论）",
+  "skill": "评分skill",
+  "status": "未开发",
+  "plan_date": "46191",
+  "description": "对业务数据进行评分（基于knowhow里的商机诊断清单）",
+  "outputs": [
+   "总分、维度分",
+   "评分依据"
+  ],
+  "sort": 48
+ },
+ {
+  "domain": "联系人",
+  "agent": "业务洞察Agent（通用，全对象适配待讨论）",
+  "skill": "画像&建议skill",
+  "status": "未开发",
+  "plan_date": "46191",
+  "description": "给出业务数据画像全局诊断+跟进策略+行动建议",
+  "outputs": [
+   "概要",
+   "全局诊断结果",
+   "真实阶段",
+   "行动建议"
+  ],
+  "sort": 49
+ },
+ {
+  "domain": "联系人",
+  "agent": "业务洞察Agent（通用，全对象适配待讨论）",
+  "skill": "特征萃取skill",
+  "status": "已具备",
+  "plan_date": "46203",
+  "description": "基于行业 know-how，萃取与赢单相关的预设特征",
+  "outputs": [
+   "-赢单相关预设特征命中结果",
+   "- 特征命中依据",
+   "- 特征萃取结果对象"
+  ],
+  "sort": 50
+ },
+ {
+  "domain": "联系人",
+  "agent": "业务洞察Agent（通用，全对象适配待讨论）",
+  "skill": "Knowhow查询",
+  "status": "已具备",
+  "plan_date": "46188",
+  "description": "根据业务场景路由提供对应的 know-how 内容，供上层 skill 调用",
+  "outputs": [
+   "1、路由后的 know-how 查询结果",
+   "2、know-how 全文或片段内容"
+  ],
+  "sort": 51
+ },
+ {
+  "domain": "联系人",
+  "agent": "业务洞察Agent（通用，全对象适配待讨论）",
+  "skill": "数据回填",
+  "status": "开发中",
+  "plan_date": "46197",
+  "description": "从会议原文中提取业务字段候选值和赢单特征，保存到提取结果对象",
+  "outputs": [
+   "提取的信息",
+   "补充到的位置(对象/字段)",
+   "补充方式（新增、更新）"
+  ],
+  "sort": 52
+ },
+ {
+  "domain": "互动协同",
+  "agent": "客户会议Agent",
+  "skill": "会前建议生成skill",
+  "status": "开发中",
+  "plan_date": "46199",
+  "description": "合并客户简报、商机总结、拜访建议与议程生成，输出一份可直接开会的会前包。",
+  "outputs": [
+   "客户简报、商机摘要、提问清单、会议议程、风险提醒"
+  ],
+  "sort": 53
+ },
+ {
+  "domain": "互动协同",
+  "agent": "客户会议Agent",
+  "skill": "会议关键信号捕获skill",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "基于 ASR 原文和会议上下文，实时或准实时标记需求变化、异议、预算、时间线、关键角色态度和竞品信号。",
+  "outputs": [
+   "关键信号卡片、风险提醒、需求变化、角色态度、竞品信号、预算/时间线提示"
+  ],
+  "sort": 54
+ },
+ {
+  "domain": "互动协同",
+  "agent": "客户会议Agent",
+  "skill": "生成会议纪要skill",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "不自建实时转写，直接消费 ASR 服务输出的会议原文，并结合模板完成会中摘要提示和会后结构化纪要。",
+  "outputs": [
+   "结构化纪要、结论摘要、关键原话、会中辅助提示"
+  ],
+  "sort": 55
+ },
+ {
+  "domain": "互动协同",
+  "agent": "客户会议Agent",
+  "skill": "业务洞察skill",
+  "status": "开发中",
+  "plan_date": "46199",
+  "description": "基于会议纪要和客户/商机上下文，识别需求变化、风险点、商机信号、角色态度和会议结论，形成可供销售复盘和后续判断的洞察结果。",
+  "outputs": [
+   "需求标签、风险项、商机信号、角色态度、会议结论、洞察摘要"
+  ],
+  "sort": 56
+ },
+ {
+  "domain": "互动协同",
+  "agent": "客户会议Agent",
+  "skill": "数据回填",
+  "status": "未标注",
+  "plan_date": "46197",
+  "description": "基于会议纪要和客户/商机上下文提取 CRM 所需字段和值，生成可确认的字段映射结果和写回建议。",
+  "outputs": [
+   "CRM回填字段、字段值、写回建议、提取置信度、失败原因"
+  ],
+  "sort": 57
+ },
+ {
+  "domain": "互动协同",
+  "agent": "客户会议Agent",
+  "skill": "k",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "合并待办提取、责任人识别、通知和跟进闭环能力，把会议结论转换成可执行动作。",
+  "outputs": [
+   "待办事项、责任人、截止时间、通知记录、闭环状态"
+  ],
+  "sort": 58
+ },
+ {
+  "domain": "互动协同",
+  "agent": "内部会议Agent",
+  "skill": "画像&建议skill",
+  "status": "开发中",
+  "plan_date": "46191",
+  "description": "在开会过程中实时展示谈及的业务对象记录的业务洞察信息，例如某商机的业务洞察",
+  "outputs": [
+   "洞察标签、业务风险预警提示"
+  ],
+  "sort": 59
+ },
+ {
+  "domain": "互动协同",
+  "agent": "内部会议Agent",
+  "skill": "画像&建议skill",
+  "status": "开发中",
+  "plan_date": "46191",
+  "description": "对会议后的下一步动作给出建议",
+  "outputs": [
+   "会议沟通策略"
+  ],
+  "sort": 60
+ },
+ {
+  "domain": "互动协同",
+  "agent": "内部会议Agent",
+  "skill": "会议关键信号提取skill",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "实时根据会议发言信息，抓取关键有价值的信号，例如待办，任务，风险点",
+  "outputs": [
+   "关键会议信号，例如待办，任务，风险点"
+  ],
+  "sort": 61
+ },
+ {
+  "domain": "互动协同",
+  "agent": "内部会议Agent",
+  "skill": "会议纪要skill",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "依据会议目标，会议类型，将会议内容生成会议摘要",
+  "outputs": [
+   "会议纪要、关键结论"
+  ],
+  "sort": 62
+ },
+ {
+  "domain": "互动协同",
+  "agent": "内部会议Agent",
+  "skill": "业务对象简报skill",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "用于对会议中谈及的具体商机信息进行会议总结",
+  "outputs": [
+   "洞察结论、机会点、风险点"
+  ],
+  "sort": 63
+ },
+ {
+  "domain": "互动协同",
+  "agent": "内部会议Agent",
+  "skill": "待办提取skill",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "会议结束后，AI自动进行会议交流内容提取待办任务",
+  "outputs": [
+   "待办候选、责任人候选"
+  ],
+  "sort": 64
+ },
+ {
+  "domain": "互动协同",
+  "agent": "销售记录Agent",
+  "skill": "销售记录健康度skill",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "围绕销售记录类型和模板，检查记录是否漏问、偏题",
+  "outputs": [
+   "模板项目达成情况"
+  ],
+  "sort": 65
+ },
+ {
+  "domain": "互动协同",
+  "agent": "销售记录Agent",
+  "skill": "待办提取skill",
+  "status": "已具备",
+  "plan_date": "",
+  "description": "记录录制结束后，AI自动进行记录内容提取待办任务",
+  "outputs": [
+   "待办任务"
+  ],
+  "sort": 66
+ },
+ {
+  "domain": "互动协同",
+  "agent": "销售记录Agent",
+  "skill": "数据回填",
+  "status": "未标注",
+  "plan_date": "46183",
+  "description": "针对会议谈及的某个具体业务对象（商机），按模板和特征规则把真实业务数据提取成结构化特征结果",
+  "outputs": [
+   "结构化业务特征键值"
+  ],
+  "sort": 67
+ },
+ {
+  "domain": "互动协同",
+  "agent": "销售记录Agent",
+  "skill": "质检skill",
+  "status": "未标注",
+  "plan_date": "46183",
+  "description": "记录结束后，依据记录类型，进行内容质检",
+  "outputs": [
+   "质检不通过预警、合规修改建议"
+  ],
+  "sort": 68
+ },
+ {
+  "domain": "效率工具",
+  "agent": "产品价格管理Agent",
+  "skill": "BOM维护skill",
+  "status": "开发中",
+  "plan_date": "46218",
+  "description": "产品BOM结构的创建、编辑、层级管理、组件配置、版本管控与全链路同步维护",
+  "outputs": [
+   "BOM ID、BOM结构更新结果、完整产品物料清单、合规校验结果、版本归档信息"
+  ],
+  "sort": 69
+ },
+ {
+  "domain": "效率工具",
+  "agent": "产品价格管理Agent",
+  "skill": "产品属性配置 skill",
+  "status": "开发中",
+  "plan_date": "46218",
+  "description": "统一产品属性全流程配置管理",
+  "outputs": [
+   "属性ID、产品属性绑定结果"
+  ],
+  "sort": 70
+ },
+ {
+  "domain": "效率工具",
+  "agent": "产品价格管理Agent",
+  "skill": "产品属性约束skill",
+  "status": "开发中",
+  "plan_date": "46233",
+  "description": "产品属性的取值约束、联动规则、必填校验、业务场景适配规则的配置与全生命周期管理",
+  "outputs": [
+   "约束规则ID、属性约束配置结果、规则校验结果、业务场景适配清单"
+  ],
+  "sort": 71
+ },
+ {
+  "domain": "效率工具",
+  "agent": "产品价格管理Agent",
+  "skill": "属性联动关系skill",
+  "status": "开发中",
+  "plan_date": "46249",
+  "description": "产品多属性间的联动规则、依赖关系、级联更新规则的配置、校验与全生命周期管理",
+  "outputs": [
+   "联动关系ID、属性联动配置结果、规则校验结果、业务场景适配清单"
+  ],
+  "sort": 72
+ },
+ {
+  "domain": "效率工具",
+  "agent": "产品价格管理Agent",
+  "skill": "产品简介 skill",
+  "status": "开发中",
+  "plan_date": "46249",
+  "description": "产品全维度档案信息快速检索呈现",
+  "outputs": [
+   "产品详情、属性、BOM、规格信息集"
+  ],
+  "sort": 73
+ },
+ {
+  "domain": "效率工具",
+  "agent": "产品价格管理Agent",
+  "skill": "产品推荐 skill",
+  "status": "开发中",
+  "plan_date": "46264",
+  "description": "场景化智能产品匹配与方案推荐",
+  "outputs": [
+   "适配产品清单、产品推荐方案详情"
+  ],
+  "sort": 74
+ },
+ {
+  "domain": "效率工具",
+  "agent": "产品价格管理Agent",
+  "skill": "产品价格维护skill",
+  "status": "开发中",
+  "plan_date": "46280",
+  "description": "产品基准价、销售价、阶梯价、区域价等多维度价格体系的创建、编辑、版本管控与全链路同步维护",
+  "outputs": [
+   "价格ID、产品价格维护结果、完整价格体系档案、合规校验结果、版本归档信息"
+  ],
+  "sort": 75
+ },
+ {
+  "domain": "效率工具",
+  "agent": "产品价格管理Agent",
+  "skill": "促销政策维护skill",
+  "status": "开发中",
+  "plan_date": "46233",
+  "description": "促销活动规则、优惠策略、适用范围、叠加规则、有效期等全维度信息的创建、编辑、审核与全生命周期管理",
+  "outputs": [
+   "促销政策ID、促销政策维护结果、完整促销活动规则档案、合规校验结果、生效状态信息"
+  ],
+  "sort": 76
+ },
+ {
+  "domain": "效率工具",
+  "agent": "产品价格管理Agent",
+  "skill": "产品洞察skill",
+  "status": "开发中",
+  "plan_date": "46264",
+  "description": "产品全维度经营数据的智能分析、趋势洞察、异常预警与决策建议输出，实现产品全生命周期的数字化洞察管理",
+  "outputs": [
+   "产品洞察分析报告、销售表现趋势数据、价格竞争力评估结果、风险预警信息、决策建议清单、可视化洞察看板数据"
+  ],
+  "sort": 77
+ },
+ {
+  "domain": "效率工具",
+  "agent": "智能报价Agent（销售人员）",
+  "skill": "产品属性识别 skill",
+  "status": "开发中",
+  "plan_date": "46200",
+  "description": "产品属性识别配置",
+  "outputs": [
+   "属性 ID、产品属性绑定结果"
+  ],
+  "sort": 78
+ },
+ {
+  "domain": "效率工具",
+  "agent": "智能报价Agent（销售人员）",
+  "skill": "产品 BOM识别 skill",
+  "status": "开发中",
+  "plan_date": "46218",
+  "description": "产品物料清单识别配置",
+  "outputs": [
+   "BOM 结构更新结果、产品物料清单"
+  ],
+  "sort": 79
+ },
+ {
+  "domain": "效率工具",
+  "agent": "智能报价Agent（销售人员）",
+  "skill": "标准取价skill",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "基于产品、客户等信息，获取最优的价格推荐",
+  "outputs": [
+   "最终售价、促销抵扣金额、优惠后总价"
+  ],
+  "sort": 80
+ },
+ {
+  "domain": "效率工具",
+  "agent": "智能报价Agent（销售人员）",
+  "skill": "推荐价格skill",
+  "status": "开发中",
+  "plan_date": "46234",
+  "description": "客户分层、历史成交数据、市场竞品价格多维度智能报价推荐",
+  "outputs": [
+   "推荐报价区间、最优报价方案、报价策略说明、利润测算结果"
+  ],
+  "sort": 81
+ },
+ {
+  "domain": "效率工具",
+  "agent": "智能报价Agent（销售人员）",
+  "skill": "查询促销skill",
+  "status": "开发中",
+  "plan_date": "46200",
+  "description": "订单场景促销活动自动匹配、优惠金额核算、规则合规校验与结果同步",
+  "outputs": [
+   "匹配的促销活动、优惠抵扣金额、优惠后订单实付金额、促销规则校验结果、异常提示"
+  ],
+  "sort": 82
+ },
+ {
+  "domain": "效率工具",
+  "agent": "智能报价Agent（销售人员）",
+  "skill": "查询返利skill",
+  "status": "未开发",
+  "plan_date": "46218",
+  "description": "客户返利规则自动匹配、可使用返利金额核算、订单金额抵扣与返利额度实时扣减",
+  "outputs": [
+   "匹配的返利规则、可使用返利金额、返利抵扣后订单实付金额、返利剩余额度、校验结果与异常提示"
+  ],
+  "sort": 83
+ },
+ {
+  "domain": "效率工具",
+  "agent": "智能报价Agent（销售人员）",
+  "skill": "报价最佳实践沉淀skill",
+  "status": "未开发",
+  "plan_date": "46249",
+  "description": "历史报价数据智能分析，提取赢单最佳实践，沉淀标准化模板、规则与话术，实现报价经验复用",
+  "outputs": [
+   "报价最佳实践方案库、标准化模板、风险规则库、赢单因素分析报告"
+  ],
+  "sort": 84
+ },
+ {
+  "domain": "效率工具",
+  "agent": "报价审批协同Agent",
+  "skill": "审批协同skill",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "报价协同审批",
+  "outputs": [
+   "审批建议及审批结果"
+  ],
+  "sort": 85
+ },
+ {
+  "domain": "效率工具",
+  "agent": "智能下单Agent（销售人员）",
+  "skill": "创建单据skill",
+  "status": "已具备",
+  "plan_date": "46185",
+  "description": "全量数据校验通过后，自动生成正式销售订单",
+  "outputs": [
+   "销售订单号、完整订单全量数据"
+  ],
+  "sort": 86
+ },
+ {
+  "domain": "效率工具",
+  "agent": "智能下单Agent（销售人员）",
+  "skill": "转单skill",
+  "status": "已具备",
+  "plan_date": "46183",
+  "description": "通用转单skill，包含场景：商机转报价、报价转合同、报价转订单、合同转订单，数据一键同步生成响应的单据",
+  "outputs": [
+   "销售订单号、订单创建结果、报价 - 订单关联关系"
+  ],
+  "sort": 87
+ },
+ {
+  "domain": "效率工具",
+  "agent": "智能下单Agent（销售人员）",
+  "skill": "智能预警skill",
+  "status": "未开发",
+  "plan_date": "46264",
+  "description": "形成产品 - 报价 - 销售过程中的 风险，全链路数据洞察闭环，提前规避输单风险",
+  "outputs": [
+   "异常告警信息、风险预警结果"
+  ],
+  "sort": 88
+ },
+ {
+  "domain": "合同管理Agents",
+  "agent": "合同风险Agent",
+  "skill": "审查规则抽取",
+  "status": "已具备",
+  "plan_date": "46218",
+  "description": "对原始审查规则的文字内容或整份规则文档进行语义理解，自动抽取其中的关键要素——包括规则的业务分类、核心内容描述、指导意见、重要程度等标记信息，并将结构化后的规则数据存入系统审查规则库，作为后续自动化风险识别的可消费资产",
+  "outputs": [
+   "结构化审查条目（含：业务分类、规则内容描述、指导意见、重要程度标记），写入审查规则库"
+  ],
+  "sort": 89
+ },
+ {
+  "domain": "合同管理Agents",
+  "agent": "合同风险Agent",
+  "skill": "合同风险识别",
+  "status": "已具备",
+  "plan_date": "46218",
+  "description": "基于用户指定的审查规则集合，对目标合同内容进行逐条检索与语义匹配，自动识别合同中存在问题的内容并将其逐一标记。命中问题时，同步关联规则中的指导意见，并将合同原文中有问题的片段文字一并展示，支撑审查人员快速定位、判断与决策",
+  "outputs": [
+   "风险标记清单（含：命中规则、问题描述、指导意见、合同原文问题片段）"
+  ],
+  "sort": 90
+ },
+ {
+  "domain": "合同管理Agents",
+  "agent": "合同风险Agent",
+  "skill": "规则冲突检测",
+  "status": "未开发",
+  "plan_date": "46218",
+  "description": "作为审查规则库的专用治理工具，读取当前规则组中的全部规则条目，分析各规则描述之间是否存在语义冲突或实质重复。输出冲突/重复规则清单，辅助管理员在规则维护界面进行修改、删除或合并操作，保障规则库的长期质量与可靠性",
+  "outputs": [
+   "冲突/重复规则清单（含：冲突规则对、冲突点描述、建议操作）"
+  ],
+  "sort": 91
+ },
+ {
+  "domain": "合同管理Agents",
+  "agent": "合同风险Agent",
+  "skill": "合同比对",
+  "status": "已具备",
+  "plan_date": "46218",
+  "description": "对两份合同文件进行逐项内容差异比对，自动识别两份文件之间的新增、删除和修改内容。针对每个差异点，通过 AI",
+  "outputs": [
+   "结构化对比报告（含：差异点清单、每项差异的影响分析、改动风险评估）"
+  ],
+  "sort": 92
+ },
+ {
+  "domain": "合同管理Agents",
+  "agent": "合同履约Agent",
+  "skill": "合同解析",
+  "status": "已具备",
+  "plan_date": "46218",
+  "description": "对目标合同内容进行语义理解，自动识别并逐项提取合同中涉及资金、交付、验收、违约及其他类的履约相关内容，将其转化为结构化的履约执行规则，作为后续业务流程推进的输入要素，辅助用户将提取结果入库保存至履约规则库",
+  "outputs": [
+   "结构化履约规则条目，按五大类输出（资金、交付、验收、违约、其他），存入履约规则库"
+  ],
+  "sort": 93
+ },
+ {
+  "domain": "合同管理Agents",
+  "agent": "合同履约Agent",
+  "skill": "应收创建",
+  "status": "已具备",
+  "plan_date": "46218",
+  "description": "根据合同解析阶段拾取的资金相关履约规则，结合合同中的基准信息（如合同签订日期、合同金额、交付或验收日期等），按照履约规则中的收款条件进行时间偏移量计算，推导出每笔应收的发生时间和金额，向用户呈现完整的推算过程作为决策依据，辅助用户快速创建应收单",
+  "outputs": [
+   "应收计划推算结果（含：每笔应收的发生时间、金额、推算逻辑过程），辅助生成的应收单"
+  ],
+  "sort": 94
+ },
+ {
+  "domain": "合同管理Agents",
+  "agent": "合同履约Agent",
+  "skill": "账单打包",
+  "status": "未开发",
+  "plan_date": "46218",
+  "description": "根据预设的账单打包数据源配置，自动提取客户信息、合同信息、订单信息以及客户的消费明细和应付金额，将多源数据聚合组装为一份格式规范的 HTML 消费账单，供用户下载或通过邮件发送给客户",
+  "outputs": [
+   "一份格式规范的 HTML 消费账单文件（可下载或邮件发送）"
+  ],
+  "sort": 95
+ }
+]

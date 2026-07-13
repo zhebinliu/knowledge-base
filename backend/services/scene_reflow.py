@@ -59,14 +59,22 @@ _SYSTEM_PROMPT = """你是纷享销客 CRM 实施方法论专家,负责「蓝图
 - 若对照后确实没有值得回流的变更,返回空数组 []。
 
 输出格式(严格遵守):
-只输出一个 JSON 数组,不要任何解释文字、不要 markdown 代码围栏。数组每项:
+只输出一个 JSON 数组,不要任何解释文字、不要 markdown 代码围栏。数组每项按下面结构化格式给出
+(说明/业务规则/流程/推荐字段 —— 与场景库统一格式,方便审核通过后直接沉淀):
 {
   "change_type": "new" | "optimize",
   "domain": "LTC",              // new 必填(最贴近的域);optimize 可填该场景所在域或 null
   "scene_code": "LM-01" | null, // optimize 必填(指向标准库已有编码);new 填 null(或你建议的新编码)
   "name": "场景名称",           // 简洁,≤ 30 字
-  "summary": "一句到两句话说明:optimize 说清相对标准场景的优化点;new 说清这是标准库没有的新场景及其价值"
+  "summary": "一句到两句话:optimize 说清相对标准场景的优化点;new 说清标准库没有的新场景及价值",
+  "description": "场景说明:这个场景在业务里做什么、解决什么问题(2-4 句)",
+  "business_rules": "关键业务规则,分条列(用换行分隔;没有可留空字符串)",
+  "process": "主要流程步骤,简述(用换行或箭头;没有可留空字符串)",
+  "recommended_fields": [       // 推荐字段(该场景在 CRM 里建议配置的字段);没有则给 []
+    {"name": "字段名", "type": "文本/单选/日期/数字…", "note": "字段说明", "required": true}
+  ]
 }
+description/business_rules/process/recommended_fields 都要基于蓝图正文的真实内容,读不到就留空,别硬编。
 若无变更则输出 []。"""
 
 
@@ -183,12 +191,28 @@ def _normalize_proposals(
             continue
         seen.add(dedup_key)
 
+        # 结构化内容(与场景库统一格式),审核通过后可直接沉淀成场景字段
+        rec_fields = item.get("recommended_fields")
+        if not isinstance(rec_fields, list):
+            rec_fields = []
+        content = {
+            "description": str(item.get("description") or "").strip(),
+            "business_rules": str(item.get("business_rules") or "").strip(),
+            "process": str(item.get("process") or "").strip(),
+            "recommended_fields": [
+                {"name": str(f.get("name") or "").strip(), "type": str(f.get("type") or "").strip(),
+                 "note": str(f.get("note") or "").strip(), "required": bool(f.get("required"))}
+                for f in rec_fields if isinstance(f, dict) and str(f.get("name") or "").strip()
+            ],
+        }
+
         out.append({
             "change_type": change_type,
             "domain": domain,
             "scene_code": scene_code,
             "name": name[:300],
             "summary": summary,
+            "content": content,
         })
         if len(out) >= _MAX_PROPOSALS:
             break

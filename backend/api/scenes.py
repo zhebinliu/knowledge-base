@@ -19,7 +19,7 @@ from datetime import datetime
 from sqlalchemy import select, func
 
 from models import async_session_maker, get_session
-from models.scene import StandardScene, SceneChange
+from models.scene import StandardScene, SceneChange, AiCapability
 from services.auth import get_current_user, require_admin
 from models.user import User
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +28,28 @@ logger = structlog.get_logger()
 router = APIRouter()
 
 _SEED_PATH = os.path.join(os.path.dirname(__file__), "..", "seeds", "scenes_seed.json")
+_AI_SEED_PATH = os.path.join(os.path.dirname(__file__), "..", "seeds", "ai_capabilities_seed.json")
+
+
+async def seed_ai_capabilities_if_empty() -> None:
+    """首启导入纷享 AI 能力目录(仅当 ai_capabilities 为空)。"""
+    async with async_session_maker() as s:
+        n = (await s.execute(select(func.count(AiCapability.id)))).scalar_one()
+        if n > 0:
+            return
+        if not os.path.exists(_AI_SEED_PATH):
+            logger.warning("ai_capabilities_seed_missing", path=_AI_SEED_PATH)
+            return
+        data = json.load(open(_AI_SEED_PATH, encoding="utf-8"))
+        for r in data:
+            s.add(AiCapability(
+                domain=r.get("domain", ""), agent=r.get("agent", ""), skill=r.get("skill", ""),
+                status=r.get("status", ""), plan_date=r.get("plan_date") or None,
+                description=r.get("description"), outputs=r.get("outputs") or [],
+                sort=r.get("sort", 0),
+            ))
+        await s.commit()
+        logger.info("ai_capabilities_seeded", count=len(data))
 
 
 async def seed_scenes_if_empty() -> None:
@@ -64,6 +86,7 @@ class SceneDto(BaseModel):
     process: str | None = None
     recommended_fields: list = []
     tags: list = []
+    ai_capabilities: list = []       # 匹配的 AI 能力 id 列表
     source_type: str
     source_project_name: str | None = None
     status: str
@@ -89,6 +112,7 @@ def _scene_dto(x: StandardScene) -> SceneDto:
         code=x.code, name=x.name, summary=x.summary,
         description=x.description, business_rules=x.business_rules, process=x.process,
         recommended_fields=x.recommended_fields or [], tags=x.tags or [],
+        ai_capabilities=x.ai_capabilities or [],
         source_type=x.source_type,
         source_project_name=x.source_project_name, status=x.status, version=x.version,
         updated_at=x.updated_at,
@@ -143,11 +167,13 @@ class SceneUpdateBody(BaseModel):
     process: str | None = None
     recommended_fields: list | None = None   # [{name,type,note,required}]
     tags: list | None = None                 # ["通用" | "L1/L2/L3/L4"...]
+    ai_capabilities: list | None = None      # [ai_capabilities.id ...]
 
 
 _FIELD_LABELS = {
     "name": "名称", "description": "说明", "business_rules": "业务规则",
     "process": "流程", "recommended_fields": "推荐字段", "tags": "标签",
+    "ai_capabilities": "AI 能力匹配",
 }
 
 
@@ -164,11 +190,11 @@ async def update_scene(
     if not x:
         raise HTTPException(404, "场景不存在")
     changed: list[str] = []
-    for field in ("name", "description", "business_rules", "process", "recommended_fields", "tags"):
+    for field in ("name", "description", "business_rules", "process", "recommended_fields", "tags", "ai_capabilities"):
         val = getattr(body, field)
         if val is not None and getattr(x, field) != val:
             setattr(x, field, val)
-            if field in ("recommended_fields", "tags"):
+            if field in ("recommended_fields", "tags", "ai_capabilities"):
                 flag_modified(x, field)
             changed.append(_FIELD_LABELS[field])
     if not changed:
@@ -211,3 +237,28 @@ async def recent_scene_changes(
         id=c.id, scene_id=c.scene_id, scene_code=c.scene_code, domain=c.domain,
         change_type=c.change_type, project_name=c.project_name, summary=c.summary,
         created_by=c.created_by, created_at=c.created_at) for c in rows]
+
+
+# ── AI 能力目录(场景 AI 能力匹配的可选项底库)────────────────────────────────
+
+class AiCapabilityDto(BaseModel):
+    id: int
+    domain: str
+    agent: str
+    skill: str
+    status: str
+    plan_date: str | None = None
+    description: str | None = None
+    outputs: list = []
+
+
+@router.get("/ai-capabilities", response_model=list[AiCapabilityDto],
+            dependencies=[Depends(get_current_user)])
+async def list_ai_capabilities(session: AsyncSession = Depends(get_session)):
+    """纷享已预研 AI 能力目录(场景 AI 能力匹配用)。"""
+    rows = (await session.execute(
+        select(AiCapability).order_by(AiCapability.sort)
+    )).scalars().all()
+    return [AiCapabilityDto(
+        id=c.id, domain=c.domain, agent=c.agent, skill=c.skill, status=c.status,
+        plan_date=c.plan_date, description=c.description, outputs=c.outputs or []) for c in rows]

@@ -254,7 +254,7 @@ async def startup():
     from models.bundle_share import BundleShare  # noqa: F401  交付物公开分享(2026-06-12,create_all 建 bundle_shares 表)
     from models.changelog_entry import ChangelogEntry  # noqa: F401  平台更新日志(2026-07-03,create_all 建 changelog_entries 表)
     from models.project_stage_gate import ProjectStageGate  # noqa: F401  Harness 项目闸门(2026-07-13,create_all 建 project_stage_gates 表)
-    from models.scene import StandardScene, SceneChange, SceneHitReport, SceneChangeProposal  # noqa: F401  标准场景库 + 命中报告 + 回流提案(2026-07-13)
+    from models.scene import StandardScene, SceneChange, SceneHitReport, SceneChangeProposal, AiCapability  # noqa: F401  标准场景库 + 命中 + 回流 + AI能力目录(2026-07-13)
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -286,6 +286,9 @@ async def startup():
             "ALTER TABLE standard_scenes ADD COLUMN IF NOT EXISTS process TEXT",
             "ALTER TABLE standard_scenes ADD COLUMN IF NOT EXISTS recommended_fields JSONB DEFAULT '[]'::jsonb",
             "ALTER TABLE standard_scenes ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb",
+            # Harness Block6:场景 AI 能力匹配 + 回流提案结构化载荷(2026-07-13)
+            "ALTER TABLE standard_scenes ADD COLUMN IF NOT EXISTS ai_capabilities JSONB DEFAULT '[]'::jsonb",
+            "ALTER TABLE scene_change_proposals ADD COLUMN IF NOT EXISTS content JSONB DEFAULT '{}'::jsonb",
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS customer_profile TEXT",
             "ALTER TABLE documents ADD COLUMN IF NOT EXISTS industry VARCHAR(200)",
             "CREATE INDEX IF NOT EXISTS idx_documents_industry ON documents(industry)",
@@ -404,9 +407,10 @@ async def startup():
     # Seed agent configs from hardcoded defaults (idempotent)
     from services.config_service import config_service
     await config_service.seed_defaults()
-    # Seed 标准场景库(Harness P3/P4 底座,空表才导入 backend/data/scenes_seed.json)
-    from api.scenes import seed_scenes_if_empty
+    # Seed 标准场景库 + AI 能力目录(Harness,空表才导入 backend/seeds/*.json)
+    from api.scenes import seed_scenes_if_empty, seed_ai_capabilities_if_empty
     await seed_scenes_if_empty()
+    await seed_ai_capabilities_if_empty()
     # Seed atomic skills (idempotent — 已存在的 name 不覆盖,保留运营手改)
     from services.agentic.skills_seed import seed_atomic_skills, seed_default_skill_associations
     skill_seed_result = await seed_atomic_skills()

@@ -1,3 +1,21 @@
+# 任务:Harness Block6 — AI 能力目录 + 场景 AI 能力匹配 + 回流遵循结构化格式(2026-07-13)
+
+来源《当前AI能力.xlsx》(96 个 Skill / 20 Agent / 7 领域)。需求:场景加「AI 能力匹配」(作为 AI 优化选择,可编辑多选);以后回流优化/新增场景也遵循 Block5 结构化格式。
+
+## 清单
+- [x] 6-1 seed:解析 Excel(合并单元格前向填充)→ backend/seeds/ai_capabilities_seed.json(96 条)。
+- [x] 6-2 model AiCapability + StandardScene 加 ai_capabilities;SceneChangeProposal 加 content(结构化载荷);main.py import+ALTER+seed。
+- [x] 6-3 api/scenes:GET /ai-capabilities;SceneDto/PATCH 支持 ai_capabilities;seed_ai_capabilities_if_empty。
+- [x] 6-4 scene_reflow:prompt 扩成结构化输出(说明/业务规则/流程/推荐字段)→ 提案 content;scene_ops approve 落到场景(new 全量、optimize 补空不覆盖)。
+- [x] 6-5 前端:SceneEditDrawer 加「AI 能力匹配」搜索多选(按领域/Agent,带状态徽标);api/scenes.ts 加类型+listAiCapabilities。
+- [x] 6-6 py_compile + tsc + build 通过;未碰 client.ts。
+- [ ] 6-7 deploy-uat 门 → deploy-prod;curl + 验证 96 能力导入 + 场景匹配 AI 能力持久化。
+
+## Block6 部署结果
+（待补)
+
+---
+
 # 任务:Harness Block5 — 场景结构化内容 + 标签 + 可编辑 + 修改记录(2026-07-13)
 
 需求:场景内容先留空但搭骨架;标签(通用 / 四级行业,多选,可编辑);说明/业务规则/流程/推荐字段(表格);全部可编辑;保存留修改记录。

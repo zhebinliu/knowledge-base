@@ -21,6 +21,7 @@ export interface Scene {
   process?: string | null
   recommended_fields: RecommendedField[]
   tags: string[]                 // "通用" 或 四级行业路径 "L1/L2/L3/L4"
+  ai_capabilities: number[]      // 匹配的 AI 能力 id(AI 优化选择)
   source_type: string            // standard | project
   source_project_name?: string | null
   status: string
@@ -35,9 +36,24 @@ export interface SceneUpdate {
   process?: string | null
   recommended_fields?: RecommendedField[]
   tags?: string[]
+  ai_capabilities?: number[]
 }
 export const updateScene = (id: number, patch: SceneUpdate) =>
   api.patch<Scene>(`/scenes/${id}`, patch).then(r => r.data)
+
+// 纷享 AI 能力目录(场景 AI 能力匹配的可选项)
+export interface AiCapability {
+  id: number
+  domain: string
+  agent: string
+  skill: string
+  status: string           // 已具备/开发中/未开发
+  plan_date?: string | null
+  description?: string | null
+  outputs: string[]
+}
+export const listAiCapabilities = () =>
+  api.get<AiCapability[]>('/ai-capabilities').then(r => r.data)
 
 export interface SceneChange {
   id: number
