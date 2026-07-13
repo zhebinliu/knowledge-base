@@ -19,7 +19,11 @@
 - [x] G6 py_compile 通过;前端 tsc + build 通过。后端本地无 3.11/docker → 部署后立即 curl 验证后端启动(gates 路由 401=启动成功);rollback SHA=0bc99d8。
 
 ## 部署结果
-（待补:直接推 prod,部署后 curl 验证后端 boot)
+- **踩 overlay 坑**:首次 deploy-prod(d953a7e)在 CI「Frontend tsc+build」失败(overlay 后 client.ts 无 listGates)→ Build/Deploy 跳过,prod 未受影响。修复:同步导出进 `meeting/frontend/src/api/client.ts`(58ee1f9)。
+- deploy-uat(overlay 构建)通过 → deploy-prod run 29224775457 success(含后端,40s)。
+- 后端 boot 验证:`/api/projects/x/gates`=401(app 起 + 路由注册)、`/api/auth/captcha`=200(健康);前端 `version.json` sha=58ee1f9。
+- DB 验证:SSH psql 确认 `project_stage_gates` 表已建(全字段 + uq(project_id,gate_key) + ix_project + FK→projects CASCADE)。
+- 待人工:登录到 survey/design 阶段看闸门条 + 一键确认 + 未确认时生成被 409 拦截 toast。
 
 ---
 
