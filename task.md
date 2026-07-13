@@ -1,3 +1,21 @@
+# 任务:Harness P2 — 软闸(生成时警告 + 产物上持续显示,不阻塞)(2026-07-13)
+
+目标:落地方案 v2 的 P2。软闸不卡控,点生成弹 warning、并把警告随产物持续显示。
+两条规则(后端计算,存 bundle.extra.soft_warnings,不阻塞):
+- 对客提交软闸:kind ∈ 对客白名单(PUBLIC_SHAREABLE_KINDS)→「对外发送前请确认已内部审核」。
+- 就绪软闸:下游 kind(design/implement/test/acceptance)但上一阶段无 done 交付物 →「依据可能不足」。
+
+## 清单
+- [ ] S1 outputs.py:`_PREV_STAGE_KINDS` + `_soft_warnings_for`;enqueue 写入 `extra.soft_warnings`;`_bundle_dto` 暴露。
+- [ ] S2 client.ts:CuratedBundle 加 `soft_warnings?`(+ 同步 meeting overlay 副本,避免再踩 client.ts 覆盖坑)。
+- [ ] S3 两套项目详情:生成后按 soft_warnings toast;action 区常驻警告 chip(读 activeBundle.soft_warnings)。软警告只在内部可见,不进对客公开分享页。
+- [ ] S4 py_compile + tsc + build;deploy-uat(overlay 门)通过 → deploy-prod;curl + 锐达实测。
+
+## 部署结果
+（待补)
+
+---
+
 # 任务:Harness P1 — 项目闸门状态 + As-Is/To-Be 两道硬闸一键确认(2026-07-13)
 
 目标:落地方案 v2 的 P1。给项目加一层「闸门状态」持久层,并对两道硬闸做强制一键确认:

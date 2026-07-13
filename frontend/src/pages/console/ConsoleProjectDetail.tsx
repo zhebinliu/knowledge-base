@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import CollaboratorsModal from '../../components/console/CollaboratorsModal'
 import GateConfirmBar from '../../components/console/GateConfirmBar'
+import SoftWarningChips, { toastSoftWarnings } from '../../components/console/SoftWarnings'
 import BundleOverrideModal from '../../components/console/BundleOverrideModal'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
 import { useAuth } from '../../auth/AuthContext'
@@ -317,7 +318,8 @@ export default function ConsoleProjectDetail() {
     if (!activeStage.active || !activeKind) return
     if (V3_DOC_DRIVEN_KINDS.includes(activeKind)) {
       try {
-        await generateOutput({ kind: activeKind, project_id: id! })
+        const b = await generateOutput({ kind: activeKind, project_id: id! })
+        toastSoftWarnings(b)   // P2 软闸:生成即提示,不阻塞
         refetchOutputs()
       } catch (e) {
         console.error('generateOutput failed', e)
@@ -344,7 +346,8 @@ export default function ConsoleProjectDetail() {
   const handleBriefGenerate = async () => {
     if (!briefDrawer) return
     try {
-      await generateOutput({ kind: briefDrawer.kind, project_id: id! })
+      const b = await generateOutput({ kind: briefDrawer.kind, project_id: id! })
+      toastSoftWarnings(b)   // P2 软闸:生成即提示,不阻塞
       refetchOutputs()
     } catch (e: any) {
       alert(e?.response?.data?.detail || '触发生成失败')
@@ -579,6 +582,8 @@ export default function ConsoleProjectDetail() {
 
       {/* Harness P1 闸门条:survey→As-Is 确认 / design→To-Be 定稿(其余阶段不显示) */}
       <GateConfirmBar projectId={id} stageKey={activeStage?.key} variant="light" />
+      {/* Harness P2 软闸警告:随当前产物持续显示 */}
+      <SoftWarningChips bundle={activeBundle} variant="light" />
       {/* 当前阶段 action — 与上方阶段栏共享白底 */}
       <div className="flex-shrink-0 px-2 sm:px-3 pt-2 pb-2.5 bg-white border-b border-line flex items-center gap-2">
         <span className="text-[11px] text-ink-muted truncate">

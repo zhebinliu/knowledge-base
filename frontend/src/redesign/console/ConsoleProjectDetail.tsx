@@ -31,6 +31,7 @@ import {
 import CollaboratorsModal from './CollaboratorsModal'
 import BundleOverrideModal from '../../components/console/BundleOverrideModal'
 import GateConfirmBar from '../../components/console/GateConfirmBar'
+import SoftWarningChips, { toastSoftWarnings } from '../../components/console/SoftWarnings'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
 import { useAuth } from '../../auth/AuthContext'
 import ProjectStakeholdersDrawer from './ProjectStakeholdersDrawer'
@@ -300,7 +301,7 @@ export default function NewConsoleProjectDetail() {
   const startGeneration = async () => {
     if (!activeStage.active || !activeKind) return
     if (V3_DOC_DRIVEN_KINDS.includes(activeKind)) {
-      try { await generateOutput({ kind: activeKind, project_id: id! }); refetchOutputs() }
+      try { const b = await generateOutput({ kind: activeKind, project_id: id! }); toastSoftWarnings(b); refetchOutputs() }
       catch (e) { console.error('generateOutput failed', e) }
       return
     }
@@ -320,7 +321,7 @@ export default function NewConsoleProjectDetail() {
   }
   const handleBriefGenerate = async () => {
     if (!briefDrawer) return
-    try { await generateOutput({ kind: briefDrawer.kind, project_id: id! }); refetchOutputs() }
+    try { const b = await generateOutput({ kind: briefDrawer.kind, project_id: id! }); toastSoftWarnings(b); refetchOutputs() }
     catch (e: any) { alert(e?.response?.data?.detail || '触发生成失败') }
   }
 
@@ -589,6 +590,8 @@ export default function NewConsoleProjectDetail() {
 
       {/* Harness P1 闸门条:survey→As-Is 确认 / design→To-Be 定稿(其余阶段不显示) */}
       <GateConfirmBar projectId={id} stageKey={activeStage?.key} variant="dark" />
+      {/* Harness P2 软闸警告:随当前产物持续显示 */}
+      <SoftWarningChips bundle={activeBundle} variant="dark" />
       {/* ── 当前阶段 action bar ── */}
       <div style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <span style={{ fontSize: 12, color: 'var(--rd-text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

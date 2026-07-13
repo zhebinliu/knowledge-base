@@ -93,6 +93,44 @@ _GATE_FOR_KIND = {
     "implementation_plan": "tobe",
 }
 
+# ── Harness P2 软闸(2026-07-13):不阻塞生成,只把警告挂到产物上并在生成时提示 ──
+# 下游 kind → 上一阶段的 kinds;上一阶段无 done 交付物则提示「依据可能不足」。
+_PREV_STAGE_KINDS = {
+    "blueprint_design":    {"survey_outline", "research_plan", "survey", "research_report"},
+    "object_field_layout": {"survey_outline", "research_plan", "survey", "research_report"},
+    "process_setup":       {"survey_outline", "research_plan", "survey", "research_report"},
+    "implementation_plan": {"blueprint_design", "object_field_layout", "process_setup"},
+    "test_plan":           {"implementation_plan"},
+    "acceptance_report":   {"test_plan"},
+}
+
+
+async def _soft_warnings_for(kind: str, project_id: str, session: AsyncSession) -> list[dict]:
+    """软闸:返回该次生成要挂到产物上的警告列表(不阻塞)。"""
+    warns: list[dict] = []
+    # 对客提交软闸
+    if kind in PUBLIC_SHAREABLE_KINDS:
+        warns.append({
+            "code": "customer_facing",
+            "message": "对客交付物 · 对外发送前请确认已完成内部审核。",
+        })
+    # 就绪软闸:上一阶段无已完成交付物
+    prev = _PREV_STAGE_KINDS.get(kind)
+    if prev:
+        row = (await session.execute(
+            select(CuratedBundle.id).where(
+                CuratedBundle.project_id == project_id,
+                CuratedBundle.kind.in_(prev),
+                CuratedBundle.status == "done",
+            ).limit(1)
+        )).first()
+        if not row:
+            warns.append({
+                "code": "not_ready",
+                "message": "上一阶段尚无已完成交付物,当前生成可能依据不足。",
+            })
+    return warns
+
 KIND_TO_TASK = {
     "kickoff_pptx": "generate_kickoff_pptx",
     "kickoff_html": "generate_kickoff_html",
@@ -168,6 +206,8 @@ def _bundle_dto(b: CuratedBundle) -> dict:
         # 2026-06-05:trace_id 从触发请求的 X-Request-ID 继承,贯穿 API → bundle → Celery 日志 → 错误提示;
         # 用户看到 failed 时把 trace_id 给后台,grep 一下能拉出全部 log。
         "trace_id": extra.get("trace_id"),
+        # Harness P2 软闸警告(不阻塞,随产物持续显示)
+        "soft_warnings": extra.get("soft_warnings") or [],
         "has_content": bool(b.content_md),
         "has_file": bool(b.file_key),
         "file_ext": file_ext,
@@ -228,6 +268,9 @@ async def enqueue_generation(
                 f"请先确认「{GATE_LABELS.get(required_gate, required_gate)}」后再生成该产物。",
             )
 
+    # Harness P2 软闸:不阻塞,计算警告挂到产物上(生成时前端也据此提示)
+    soft_warnings = await _soft_warnings_for(kind, project_id, session)
+
     title = f"{KIND_TITLES[kind]} · {proj.name}"
     bundle = CuratedBundle(
         kind=kind,
@@ -236,7 +279,7 @@ async def enqueue_generation(
         status="pending",
         created_by=user.id,
         created_by_name=user.username,
-        extra={"trace_id": _current_trace_id()},
+        extra={"trace_id": _current_trace_id(), "soft_warnings": soft_warnings},
     )
     session.add(bundle)
     await session.commit()

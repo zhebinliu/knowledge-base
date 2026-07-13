@@ -1341,6 +1341,8 @@ export interface CuratedBundle {
   /** 2026-06-05 全链路追踪 id:触发请求的 X-Request-ID,贯穿 API → bundle.extra → Celery 日志 → 错误提示。
    *  失败时把这个给后台,grep 日志能拉出该次生成全部上下文。 */
   trace_id?: string | null
+  /** Harness P2 软闸警告(不阻塞,随产物持续显示) */
+  soft_warnings?: { code: string; message: string }[]
   has_content: boolean
   has_file: boolean
   file_ext?: string
