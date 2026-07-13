@@ -21,6 +21,7 @@ import { useAuth } from '../../auth/AuthContext'
 import MeshOrbs from '../components/MeshOrb'
 import GlobalSearchModal from './GlobalSearchModal'
 import QixinDrawer from '../../components/qixin/QixinDrawer'
+import UpgradeBanner from '../../components/UpgradeBanner'
 import '../redesign.css'
 
 type NavItem = {
@@ -28,14 +29,14 @@ type NavItem = {
   label: string
   icon: typeof Home
   end?: boolean
-  disabled?: boolean
+  gated?: boolean   // 升级中:普通用户置灰拦截,管理员放行
 }
 
-// 2026-07-13:对外仅保留会议纪要,其余入口置灰拦截(升级改造中)
+// 2026-07-13:对普通用户仅保留会议纪要,其余入口置灰拦截(升级改造中);管理员放行
 const NAV: NavItem[] = [
-  { to: '/console',          label: '工作台', icon: Home, end: true, disabled: true },
-  { to: '/console/qa',       label: '问答',   icon: MessageSquare, disabled: true },
-  { to: '/console/projects', label: '项目',   icon: FolderKanban,  disabled: true },
+  { to: '/console',          label: '工作台', icon: Home, end: true, gated: true },
+  { to: '/console/qa',       label: '问答',   icon: MessageSquare, gated: true },
+  { to: '/console/projects', label: '项目',   icon: FolderKanban,  gated: true },
   { to: '/console/meeting',  label: '会议',   icon: Mic },
 ]
 
@@ -145,6 +146,14 @@ export default function NewConsoleLayout() {
             flexDirection: 'column',
           }}
         >
+          {/* 升级中横幅:仅普通用户可见,管理员测试时不打扰 */}
+          {!user?.is_admin && (
+            <div style={{ padding: '0 16px 12px' }}>
+              <div style={{ borderRadius: 12, overflow: 'hidden' }}>
+                <UpgradeBanner variant="dark" />
+              </div>
+            </div>
+          )}
           <Outlet />
         </main>
 
@@ -159,7 +168,10 @@ export default function NewConsoleLayout() {
               style={{ position: 'absolute', top: '50%', left: '50%' }}
             >
               <nav className="rd-dock-inner" aria-label="主导航">
-                {NAV.map(({ to, label, icon: Icon, end, disabled }) => (
+                {NAV.map((item) => {
+                  const { to, label, icon: Icon, end } = item
+                  const disabled = !!item.gated && !user?.is_admin
+                  return (
                   <NavLink
                     key={to}
                     to={to}
@@ -173,7 +185,8 @@ export default function NewConsoleLayout() {
                     <Icon size={17} strokeWidth={1.9} />
                     <span>{label}</span>
                   </NavLink>
-                ))}
+                  )
+                })}
               </nav>
             </LiquidGlass>
           </div>

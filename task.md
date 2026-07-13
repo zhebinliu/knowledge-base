@@ -1,3 +1,20 @@
+# 任务:管理员放开所有模块(测试)+ 普通用户升级中 + 顶部 banner(2026-07-13)
+
+目标:在「工作台仅保留会议纪要」基础上,让管理员(is_admin)仍可操作所有模块用于测试;普通用户维持升级中;工作台顶部对普通用户加横幅「正在项目管理模块底层升级,敬请期待」。
+
+## 清单
+- [x] E1 新建 `components/UpgradeBanner.tsx`(light/dark 两 variant)。
+- [x] E2 App.tsx:恢复被删页面 import + `AdminGate` 包装器(管理员真组件 / 普通用户升级页);6 条工作台路由套 AdminGate;/console 首页管理员看真首页、普通用户跳会议。
+- [x] E3 legacy `layouts/ConsoleLayout.tsx`:NAV `disabled`→`gated`(gated && !admin 才置灰);header 顶对普通用户挂 banner(light)。
+- [x] E4 redesign `console/ConsoleLayout.tsx`:同上;main 顶对普通用户挂 banner(dark)。
+- [x] E5 typecheck + build 通过。
+- [ ] E6 推 prod + 线上验证(管理员可进各模块、普通用户升级中 + banner)。
+
+## 部署结果
+（待补)
+
+---
+
 # 任务:工作台仅保留会议纪要,其余功能下线提示「升级改造中」(2026-07-13)
 
 目标:kb-system 主站只对外保留「会议纪要」功能,工作台其余入口(工作台首页 / 知识问答 / 项目管理)与相关页面下线,访问时提示正在升级改造中。知识库后台(/)保留给管理员运维,不下线。

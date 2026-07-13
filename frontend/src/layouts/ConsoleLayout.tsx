@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import GlobalSearchModal from '../redesign/console/GlobalSearchModal'
+import UpgradeBanner from '../components/UpgradeBanner'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
@@ -13,13 +14,13 @@ type NavItem = {
   label: string
   icon: typeof Home
   end?: boolean
-  disabled?: boolean
+  gated?: boolean   // 升级中:普通用户置灰拦截,管理员放行
 }
-// 2026-07-13:对外仅保留会议纪要,其余入口置灰拦截(升级改造中)
+// 2026-07-13:对普通用户仅保留会议纪要,其余入口置灰拦截(升级改造中);管理员放行
 const NAV: NavItem[] = [
-  { to: '/console',          label: '工作台首页', icon: Home,          end: true, disabled: true },
-  { to: '/console/qa',       label: '知识问答',   icon: MessageSquare, disabled: true },
-  { to: '/console/projects', label: '项目管理',   icon: FolderKanban,  disabled: true },
+  { to: '/console',          label: '工作台首页', icon: Home,          end: true, gated: true },
+  { to: '/console/qa',       label: '知识问答',   icon: MessageSquare, gated: true },
+  { to: '/console/projects', label: '项目管理',   icon: FolderKanban,  gated: true },
   { to: '/console/meeting',  label: '会议纪要',   icon: Mic },
 ]
 
@@ -64,6 +65,8 @@ export default function ConsoleLayout() {
     <div className="min-h-screen bg-canvas">
       {/* Top bar */}
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-line">
+        {/* 升级中横幅:仅普通用户可见,管理员测试时不打扰 */}
+        {!user?.is_admin && <UpgradeBanner variant="light" />}
         <div className="w-full px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
           <Link to="/console" className="flex items-center gap-2.5 flex-shrink-0">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: BRAND_GRAD }}>
@@ -76,7 +79,10 @@ export default function ConsoleLayout() {
           </Link>
 
           <nav className="hidden md:flex items-center gap-1">
-            {NAV.map(({ to, label, icon: Icon, end, disabled }) => (
+            {NAV.map((item) => {
+              const { to, label, icon: Icon, end } = item
+              const disabled = !!item.gated && !user?.is_admin
+              return (
               <NavLink
                 key={to}
                 to={to}
@@ -93,7 +99,8 @@ export default function ConsoleLayout() {
                 <Icon size={14} /> {label}
                 {disabled && <span className="ml-0.5 text-[9px] bg-gray-100 text-gray-500 px-1 rounded">升级中</span>}
               </NavLink>
-            ))}
+              )
+            })}
           </nav>
 
           <button
@@ -164,7 +171,10 @@ export default function ConsoleLayout() {
 
         {/* Mobile nav */}
         <nav className="md:hidden flex items-center gap-1 px-4 pb-2 overflow-x-auto">
-          {NAV.map(({ to, label, icon: Icon, end, disabled }) => (
+          {NAV.map((item) => {
+            const { to, label, icon: Icon, end } = item
+            const disabled = !!item.gated && !user?.is_admin
+            return (
             <NavLink
               key={to}
               to={to}
@@ -179,7 +189,8 @@ export default function ConsoleLayout() {
             >
               <Icon size={12} /> {label}
             </NavLink>
-          ))}
+            )
+          })}
         </nav>
       </header>
 
