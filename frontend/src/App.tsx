@@ -3,8 +3,6 @@ import { lazy, Suspense } from 'react'
 
 // /demo-ppt — 高层汇报 PPT(独立 chunk, 首次访问才下载)
 const DemoPPT = lazy(() => import('./pages/DemoPPT'))
-// 项目画布(节点式编排,React Flow)— 独立 chunk,把重型库移出主包
-const ProjectCanvas = lazy(() => import('./redesign/console/canvas/ProjectCanvas'))
 // /redesign — 设计原型(深色 Liquid Glass)
 import RedesignShell  from './redesign/RedesignShell'
 import RDConsoleHome  from './redesign/pages/ConsoleHome'
@@ -27,23 +25,10 @@ import NewBackendSettings       from './redesign/Settings'
 import NewBackendSystemConfig   from './redesign/SystemConfig'
 import NewBackendPersonalSettings from './redesign/PersonalSettings'
 import NewConsoleLayout      from './redesign/console/ConsoleLayout'
-import NewConsoleHome        from './redesign/console/ConsoleHome'
-import NewConsoleProjects       from './redesign/console/ConsoleProjects'
-import NewConsoleProjectDetail  from './redesign/console/ConsoleProjectDetail'
 import NewConsoleMeeting        from './redesign/console/ConsoleMeeting'
 import NewConsoleMeetingNew     from './redesign/console/ConsoleMeetingNew'
 import NewConsoleMeetingDetail  from './redesign/console/ConsoleMeetingDetail'
 import NewTemplateManager      from './redesign/console/TemplateManager'
-import NewProjectTodos          from './redesign/console/ProjectTodos'
-
-// ConsoleQA 在生产中是个薄 wrapper(import QA + 套高度),uat 下用 NewQA 替换
-function NewConsoleQAWrapper() {
-  return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <NewQA />
-    </div>
-  )
-}
 
 // hostname 检测:uat.tokenwave.cloud 或 ?ui=new query 时启用新 UI
 // 本地开发:vite dev 默认 localhost → 老 UI;加 ?ui=new 切到新 UI 调试
@@ -79,12 +64,9 @@ import Register  from './pages/Register'
 import ChangePassword from './pages/ChangePassword'
 import RequireAuth from './auth/RequireAuth'
 import Toaster from './components/Toaster'
-// Console 工作台（对外输出视图）
-import ConsoleHome from './pages/console/ConsoleHome'
-import ConsoleQA from './pages/console/ConsoleQA'
-import ConsoleProjects from './pages/console/ConsoleProjects'
-import ConsoleProjectDetail from './pages/console/ConsoleProjectDetail'
-import ProjectTodosPage from './pages/console/ProjectTodos'
+// 2026-07-13:工作台对外仅保留会议纪要,其余功能下线 → 统一渲染升级提示页
+import UpgradeNotice from './components/UpgradeNotice'
+// Console 工作台（对外输出视图）— 仅保留会议纪要,其余已下线(见下方路由)
 import ConsoleMeeting from './pages/console/ConsoleMeeting'
 import ConsoleMeetingDetail from './pages/console/ConsoleMeetingDetail'
 import ConsoleMeetingNew from './pages/console/ConsoleMeetingNew'
@@ -130,22 +112,19 @@ export default function App() {
       </Route>
 
       {/* Console 工作台：/console/* —— 对外输出视图
-          uat 域名下用新 Liquid Glass Layout + 已迁移的新页;未迁移的页面 fallback
-          回旧实现(还套在旧 ConsoleLayout 里,只是浏览器看到的是混合状态)。
-          kb 域名下完全用旧实现,不受影响。 */}
+          2026-07-13 起对外仅保留「会议纪要」,其余功能下线:
+            - /console 首页重定向到会议纪要(登录默认落地)
+            - 知识问答 / 项目管理 / 项目详情 / 看板 / 画布 一律渲染升级提示页
+            - meeting* 保留原实现,新旧 UI 各走各的
+          知识库后台(/)不在此列,仍留给管理员运维。 */}
       <Route element={<RequireAuth />}>
         <Route path="console" element={IS_NEW_UI ? <NewConsoleLayout /> : <ConsoleLayout />}>
-          <Route index               element={IS_NEW_UI ? <NewConsoleHome />        : <ConsoleHome />} />
-          <Route path="qa"           element={IS_NEW_UI ? <NewConsoleQAWrapper />   : <ConsoleQA />} />
-          <Route path="projects"     element={IS_NEW_UI ? <NewConsoleProjects />    : <ConsoleProjects />} />
-          <Route path="projects/:id" element={IS_NEW_UI ? <NewConsoleProjectDetail /> : <ConsoleProjectDetail />} />
-          <Route path="projects/:id/todos" element={IS_NEW_UI ? <NewProjectTodos /> : <ProjectTodosPage />} />
-          {/* 项目画布 — 新旧 UI 都注册;画布组件按 host/?ui 自适应深/浅色主题 */}
-          <Route path="projects/:id/canvas" element={
-            <Suspense fallback={<div style={{ flex: 1 }} />}>
-              <ProjectCanvas />
-            </Suspense>
-          } />
+          <Route index               element={<Navigate to="/console/meeting" replace />} />
+          <Route path="qa"           element={<UpgradeNotice />} />
+          <Route path="projects"     element={<UpgradeNotice />} />
+          <Route path="projects/:id" element={<UpgradeNotice />} />
+          <Route path="projects/:id/todos" element={<UpgradeNotice />} />
+          <Route path="projects/:id/canvas" element={<UpgradeNotice />} />
           <Route path="meeting"      element={IS_NEW_UI ? <NewConsoleMeeting />     : <ConsoleMeeting />} />
           <Route path="meeting/new"  element={IS_NEW_UI ? <NewConsoleMeetingNew />  : <ConsoleMeetingNew />} />
           <Route path="meeting/templates" element={<NewTemplateManager variant={IS_NEW_UI ? 'redesign' : 'legacy'} />} />

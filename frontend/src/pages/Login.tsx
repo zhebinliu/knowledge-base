@@ -8,7 +8,8 @@ export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
-  // next 由 RequireAuth 带来。若没 next，按角色分流：console_user → /console，admin → /
+  // next 由 RequireAuth 带来。若没 next，按角色分流：console_user → /console/meeting，admin → /
+  // 2026-07-13:工作台对外仅保留会议纪要,普通用户默认直接落到会议纪要
   const next = params.get('next')
 
   const [username, setUsername] = useState('')
@@ -34,7 +35,7 @@ export default function Login() {
       } else if (next) {
         navigate(next, { replace: true })
       } else {
-        const defaultRoute = (u.role === 'admin' || u.is_admin) ? '/' : '/console'
+        const defaultRoute = (u.role === 'admin' || u.is_admin) ? '/' : '/console/meeting'
         navigate(defaultRoute, { replace: true })
       }
     } catch (err: unknown) {

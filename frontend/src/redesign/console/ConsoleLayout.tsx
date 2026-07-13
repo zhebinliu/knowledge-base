@@ -28,12 +28,14 @@ type NavItem = {
   label: string
   icon: typeof Home
   end?: boolean
+  disabled?: boolean
 }
 
+// 2026-07-13:对外仅保留会议纪要,其余入口置灰拦截(升级改造中)
 const NAV: NavItem[] = [
-  { to: '/console',          label: '工作台', icon: Home, end: true },
-  { to: '/console/qa',       label: '问答',   icon: MessageSquare },
-  { to: '/console/projects', label: '项目',   icon: FolderKanban },
+  { to: '/console',          label: '工作台', icon: Home, end: true, disabled: true },
+  { to: '/console/qa',       label: '问答',   icon: MessageSquare, disabled: true },
+  { to: '/console/projects', label: '项目',   icon: FolderKanban,  disabled: true },
   { to: '/console/meeting',  label: '会议',   icon: Mic },
 ]
 
@@ -157,12 +159,16 @@ export default function NewConsoleLayout() {
               style={{ position: 'absolute', top: '50%', left: '50%' }}
             >
               <nav className="rd-dock-inner" aria-label="主导航">
-                {NAV.map(({ to, label, icon: Icon, end }) => (
+                {NAV.map(({ to, label, icon: Icon, end, disabled }) => (
                   <NavLink
                     key={to}
                     to={to}
                     end={end}
-                    className={({ isActive }) => `rd-dock-item${isActive ? ' is-active' : ''}`}
+                    aria-disabled={disabled || undefined}
+                    title={disabled ? '升级改造中' : undefined}
+                    onClick={e => { if (disabled) e.preventDefault() }}
+                    className={({ isActive }) => `rd-dock-item${isActive && !disabled ? ' is-active' : ''}`}
+                    style={disabled ? { opacity: 0.38, cursor: 'not-allowed' } : undefined}
                   >
                     <Icon size={17} strokeWidth={1.9} />
                     <span>{label}</span>

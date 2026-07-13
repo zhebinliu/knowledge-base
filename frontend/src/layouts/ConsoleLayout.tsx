@@ -15,10 +15,11 @@ type NavItem = {
   end?: boolean
   disabled?: boolean
 }
+// 2026-07-13:对外仅保留会议纪要,其余入口置灰拦截(升级改造中)
 const NAV: NavItem[] = [
-  { to: '/console',          label: '工作台首页', icon: Home,          end: true },
-  { to: '/console/qa',       label: '知识问答',   icon: MessageSquare },
-  { to: '/console/projects', label: '项目管理',   icon: FolderKanban },
+  { to: '/console',          label: '工作台首页', icon: Home,          end: true, disabled: true },
+  { to: '/console/qa',       label: '知识问答',   icon: MessageSquare, disabled: true },
+  { to: '/console/projects', label: '项目管理',   icon: FolderKanban,  disabled: true },
   { to: '/console/meeting',  label: '会议纪要',   icon: Mic },
 ]
 
@@ -87,10 +88,10 @@ export default function ConsoleLayout() {
                   isActive ? 'bg-brand-light text-[#D96400] font-medium' :
                   'text-ink-secondary hover:bg-canvas hover:text-ink',
                 ].join(' ')}
-                title={disabled ? '即将上线' : undefined}
+                title={disabled ? '升级改造中' : undefined}
               >
                 <Icon size={14} /> {label}
-                {disabled && <span className="ml-0.5 text-[9px] bg-gray-100 text-gray-500 px-1 rounded">即将上线</span>}
+                {disabled && <span className="ml-0.5 text-[9px] bg-gray-100 text-gray-500 px-1 rounded">升级中</span>}
               </NavLink>
             ))}
           </nav>

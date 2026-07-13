@@ -1,4 +1,67 @@
+# 任务:工作台仅保留会议纪要,其余功能下线提示「升级改造中」(2026-07-13)
+
+目标:kb-system 主站只对外保留「会议纪要」功能,工作台其余入口(工作台首页 / 知识问答 / 项目管理)与相关页面下线,访问时提示正在升级改造中。知识库后台(/)保留给管理员运维,不下线。
+
+## 边界
+- 保留:`/console/meeting*`(会议纪要 4 条路由)、登录/注册、知识库后台 `/`(管理员,靠现有 allowed_modules 模块权限守卫)。
+- 下线(工作台内):`/console` 首页、`/console/qa`、`/console/projects`、`projects/:id`、`projects/:id/todos`、`projects/:id/canvas`。
+- 呈现:保留顶部导航框架,非会议入口置灰 + 标「升级中」+ 拦截点击;直接敲 URL 也显示升级提示页。
+- 公开 demo/设计原型页(/demo /redesign /ds /api /help)无导航入口,保持不动。
+
+## 清单
+- [x] D1 新建 `components/UpgradeNotice.tsx` 升级提示组件(深浅两套 UI 自适应),带「前往会议纪要」入口。
+- [x] D2 App.tsx:`/console` index 重定向到 `/console/meeting`;非会议工作台路由改渲染 UpgradeNotice;meeting 与后台不动。顺手清理已下线页面的死 import。
+- [x] D3 legacy `layouts/ConsoleLayout.tsx`:非会议 3 项 `disabled`,标签文案「即将上线」→「升级中」。
+- [x] D4 redesign `console/ConsoleLayout.tsx`:dock 非会议项加置灰 + 拦截 + 「升级中」。
+- [x] D5 Login.tsx:普通用户默认落地 `/console` → `/console/meeting`。
+- [x] D6 `npx tsc --noEmit` 通过、`npm run build` 通过(9.5s)。overlay 坑已核:`meeting/frontend/` 只含会议组件,本次 5 个文件都不被覆盖。→ 待推 prod + 线上验证。
+
+## 部署结果
+（待补:直接推 prod)
+
+---
+
 # 任务:独立会议纪要产品本地创建并部署到 sharewb.cloud(2026-06-30)
+
+# 任务:sharewb.cloud HTTPS 录音恢复 + 旧会议全量导入(2026-07-01)
+
+# 任务:用户管理弹窗可用性 + 恢复会议 Co-pilot(2026-07-01)
+
+目标:修复浅色化后用户管理弹窗被页面/Dock 裁切的问题,并恢复新建会议实时录音里的会议 Co-pilot 核心能力。
+
+## 清单
+- [x] U1 用户管理新增/编辑/重置密码弹窗改为 portal 到 `document.body`,避免被设置页容器和底部 Dock 裁切。
+- [x] U2 移除浅色主题里危险的 `.fixed.inset-0 > div` 全局染白规则,改为只作用于设置弹窗面板。
+- [x] U3 `/console/meeting/new` 路由切回完整旧版半实时录音页面,恢复会议 Co-pilot / 会议看板。
+- [x] U4 构建、部署、浏览器截图验证。
+
+## 部署结果
+- 已部署版本:`restore-copilot-user-modal-portal`。
+- 验证:用户管理「新增用户」弹窗在 1238x768 视口完整展示,取消/创建按钮可见,不再被 Dock 压住。
+- 验证:新建会议「实时录音」页恢复「会议 Co-pilot」面板和「给建议」入口。
+
+目标:DNS 切到新服务器后,给独立会议工作台启用正式 HTTPS,解决浏览器禁用麦克风导致的录音不可用;同时把旧 KB System 里的历史会议同步到新独立站。
+
+## 边界
+- 新站保留当前 `admin` 管理员账号,旧系统 `admin` 的会议映射到新站 `admin`。
+- 只导入会议工作台需要的数据:相关用户、项目夹、会议、会议需求、会议实时建议、会议分享。
+- 不导入旧完整文档生产/知识库/输出中心数据。
+- 历史解释图 base64 缓存不导入,避免把独立站数据库膨胀;可在会议详情里后续重新生成。
+
+## 清单
+- [x] H1 确认 `sharewb.cloud` A 记录已指向 `159.75.232.168`;`www.sharewb.cloud` 仍在旧 IP。
+- [x] H2 签发 `sharewb.cloud` Let's Encrypt 证书,前端容器开放 443,HTTP 自动跳 HTTPS。
+- [x] H3 修改录音不支持提示,明确 HTTPS 安全上下文原因。
+- [x] H4 从旧 KB System 导出并导入相关用户 8 个、项目夹 7 个、会议 36 场、需求 427 条、实时建议 1108 条。
+- [x] H5 校验会议 owner/project 外键完整,API `/api/meeting` 返回 36 条。
+- [x] H6 尝试迁移 11 个历史音频对象;对象总量 619 MB,跨云链路传输过慢,已停止并清理临时 key/半截包。
+
+## 部署结果
+- 公网入口:`https://sharewb.cloud`。
+- 部署版本:`sharewb-https-recording-import-ready`。
+- HTTPS 验证:HTTP 301 到 HTTPS,`/health` 返回 `ok`,Chrome 下 `isSecureContext=true`,`getUserMedia=true`,`MediaRecorder=true`。
+- 数据结果:新站正式用户 9 个(含现有 admin),项目夹 7 个,会议 36 场,会议需求 427 条,实时建议 1108 条。
+- 音频说明:数据库保留 11 条历史音频引用,但音频对象未迁移;旧源对象存在且总计约 619 MB。后续如需保留历史音频,需要换更快的跨云迁移通道或分批后台传输。
 
 # 任务:会议功能全量冒烟测试(2026-07-01)
 
