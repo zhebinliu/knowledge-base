@@ -36,6 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.project import Project
 from models.scene import StandardScene
 from models.curated_bundle import CuratedBundle
+from models.document import Document
 from services.model_router import model_router
 
 logger = structlog.get_logger()
@@ -215,10 +216,31 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
     material_block = _build_material_block(bundles)
     project_meta = _build_project_meta(project)
 
-    # 3. 防御:项目无任何素材(既无产物正文,元信息也基本为空)→ 全 miss
-    if not material_block.strip() and not project_meta.strip():
+    # 2b. 范围文档:SOW 优先,SOW 缺失时用合同兜底(用户 2026-07-13)
+    #     SOW/合同界定项目范围,是场景命中最直接的依据。
+    scope_doc = (await session.execute(
+        select(Document).where(
+            Document.project_id == project_id, Document.doc_type == "sow",
+            Document.markdown_content.isnot(None),
+        ).limit(1)
+    )).scalars().first()
+    scope_label = "SOW"
+    if scope_doc is None:
+        scope_doc = (await session.execute(
+            select(Document).where(
+                Document.project_id == project_id, Document.doc_type == "contract",
+                Document.markdown_content.isnot(None),
+            ).limit(1)
+        )).scalars().first()
+        scope_label = "合同(项目无 SOW,用合同界定范围)"
+    scope_block = ""
+    if scope_doc and (scope_doc.markdown_content or "").strip():
+        scope_block = f"【项目范围文档 · {scope_label}】\n{scope_doc.markdown_content.strip()[:14000]}"
+
+    # 3. 防御:项目无任何素材(范围文档 / 产物正文 / 元信息全空)→ 全 miss
+    if not scope_block.strip() and not material_block.strip() and not project_meta.strip():
         logger.info("scene_match_no_material", project_id=project_id)
-        return _empty_result(scenes, "材料不足,无法判定:该项目暂无可用的调研 / 洞察 / 蓝图产物,也缺少项目描述。")
+        return _empty_result(scenes, "材料不足,无法判定:该项目暂无 SOW / 合同 / 调研 / 洞察 / 蓝图产物,也缺少项目描述。")
 
     # 场景 code → 场景 dict 的索引(判定回引用)
     scene_index: dict[tuple[str, str], dict] = {}
@@ -240,6 +262,8 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
     )
     user_prompt = f"""【项目上下文】
 {project_meta or '(无元信息)'}
+
+{scope_block or '【项目范围文档】(无 SOW / 合同)'}
 
 【项目素材(截断)】
 {material_block or '(无素材正文)'}
@@ -263,22 +287,26 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
     from services.model_router import ModelOutputError
 
     parsed: dict | None = None
-    try:
-        content, _model = await model_router.chat_with_routing(
-            task=_MODEL_TASK,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.2,
-            max_tokens=8000,
-            validator=_json_valid,
-        )
-        parsed = loads_lenient(content or "", None)
-    except ModelOutputError as e:
-        logger.warning("scene_match_llm_invalid", project_id=project_id, error=str(e)[:200])
-    except Exception as e:  # noqa: BLE001 — LLM / 网络异常统一降级为「判定失败」
-        logger.warning("scene_match_llm_failed", project_id=project_id, error=str(e)[:200])
+    # 重试一次:LLM 偶发截断/空响应不至于直接全 miss(之前"判定失败"的根因)
+    for attempt in (1, 2):
+        try:
+            content, _model = await model_router.chat_with_routing(
+                task=_MODEL_TASK,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.2,
+                max_tokens=8000,
+                validator=_json_valid,
+            )
+            parsed = loads_lenient(content or "", None)
+            if isinstance(parsed, dict):
+                break
+        except ModelOutputError as e:
+            logger.warning("scene_match_llm_invalid", project_id=project_id, attempt=attempt, error=str(e)[:200])
+        except Exception as e:  # noqa: BLE001 — LLM / 网络异常统一降级为「判定失败」
+            logger.warning("scene_match_llm_failed", project_id=project_id, attempt=attempt, error=str(e)[:200])
 
     if not isinstance(parsed, dict):
         return _empty_result(scenes, "判定失败:模型未返回可解析的结果,已全部按未命中处理,请稍后重试。")
