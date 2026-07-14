@@ -14,6 +14,21 @@ import {
 const STATUS_LABEL: Record<string, string> = {
   pm_pending: '待 PM 确认', admin_pending: '待后台审核', approved: '已通过', rejected: '已驳回',
 }
+const DOMAIN_LABEL: Record<string, string> = {
+  LTC: '线索到回款', MTL: '市场到线索', MCR: '客户关系', MPR: '伙伴关系', ITR: '问题到解决',
+}
+const DOMAIN_ORDER = ['LTC', 'MTL', 'MCR', 'MPR', 'ITR']
+
+// 按域分组场景
+function groupByDomain(items: { domain: string; code: string; name: string }[]) {
+  const m: Record<string, { code: string; name: string }[]> = {}
+  for (const it of items) (m[it.domain] ||= []).push({ code: it.code, name: it.name })
+  const keys = Object.keys(m).sort((a, b) => {
+    const ia = DOMAIN_ORDER.indexOf(a), ib = DOMAIN_ORDER.indexOf(b)
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
+  })
+  return keys.map(d => ({ domain: d, scenes: m[d] }))
+}
 
 export default function SceneHarnessPanel({
   projectId, stageKey, variant = 'light', section = 'all',
@@ -115,7 +130,7 @@ export default function SceneHarnessPanel({
             </span>
           ) : <span style={{ fontSize: 12, color: c.sub }}>尚未运行 —— 对照标准场景库判定项目覆盖了哪些场景</span>}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            {hit?.report_md && (
+            {hit && (
               <button type="button" onClick={() => setShowReport(s => !s)}
                 style={{ fontSize: 12, color: c.sub, background: 'transparent', border: `1px solid ${c.bd}`,
                   borderRadius: 8, padding: '5px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -139,12 +154,66 @@ export default function SceneHarnessPanel({
             ))}
           </div>
         )}
-        {showReport && hit?.report_md && (
-          <pre style={{
-            marginTop: 8, maxHeight: 300, overflow: 'auto', fontSize: 11.5, lineHeight: 1.6,
-            whiteSpace: 'pre-wrap', color: c.ink, background: c.chipBg, borderRadius: 8, padding: 10,
-            fontFamily: 'inherit',
-          }}>{hit.report_md}</pre>
+        {showReport && hit && (
+          <div style={{ marginTop: 10, maxHeight: 420, overflow: 'auto', borderRadius: 10,
+            background: c.chipBg, border: `1px solid ${c.bd}`, padding: 12 }}>
+            {/* 覆盖率概览 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>覆盖情况</span>
+              <span style={{ fontSize: 11.5, color: dark ? '#7FD9B6' : '#1E7A5E' }}>
+                命中 <b>{hit.hit_count}</b>
+              </span>
+              <span style={{ fontSize: 11.5, color: c.sub }}>未命中 <b>{hit.miss_count}</b></span>
+              <span style={{ fontSize: 11.5, color: c.sub }}>
+                覆盖率 <b style={{ color: c.ink }}>{Math.round((hit.hit_count / Math.max(1, hit.hit_count + hit.miss_count)) * 100)}%</b>
+              </span>
+            </div>
+
+            {/* 命中场景 —— 按域分组 */}
+            {groupByDomain(hit.hits || []).map(g => (
+              <div key={g.domain} style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 2, background: dark ? '#54BCA1' : '#1E6E5D' }} />
+                  <span style={{ fontSize: 12, fontWeight: 650, color: c.ink }}>{g.domain}</span>
+                  <span style={{ fontSize: 11, color: c.sub }}>{DOMAIN_LABEL[g.domain] || ''} · 命中 {g.scenes.length}</span>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {g.scenes.map(s => (
+                    <span key={s.code} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, padding: '3px 9px', borderRadius: 100,
+                      background: dark ? 'rgba(84,188,161,0.14)' : '#E6F4EE',
+                      border: `1px solid ${dark ? 'rgba(84,188,161,0.3)' : '#BFE2D3'}`,
+                      color: dark ? '#7FD9B6' : '#1E7A5E',
+                    }}>
+                      <CheckCircle2 size={11} />
+                      <span style={{ fontFamily: 'var(--mono, monospace)', opacity: 0.8 }}>{s.code}</span>
+                      {s.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {(hit.hits?.length || 0) === 0 && (
+              <div style={{ fontSize: 11.5, color: c.sub, marginBottom: 12 }}>暂无命中场景。</div>
+            )}
+
+            {/* 未命中 —— 域分布(收敛,不逐条列 100+ 个) */}
+            {(hit.misses?.length || 0) > 0 && (
+              <div style={{ borderTop: `1px dashed ${c.bd}`, paddingTop: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 650, color: c.ink, marginBottom: 6 }}>
+                  未命中 {hit.miss_count} 个 · 域分布
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {groupByDomain(hit.misses || []).map(g => (
+                    <span key={g.domain} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 100,
+                      background: dark ? 'rgba(255,255,255,0.05)' : '#F1F3F5', color: c.sub, border: `1px solid ${c.bd}` }}>
+                      {g.domain} {DOMAIN_LABEL[g.domain] || ''} · {g.scenes.length}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
       )}
