@@ -24,6 +24,7 @@ from models.project import Project
 from models.project_brief import ProjectBrief
 from models.project_smart_advice import SmartAdvice
 from models.curated_bundle import CuratedBundle
+from models.scene import SceneHitReport
 from models.document import Document
 from services._time import utcnow_naive, iso_utc
 from services.model_router import model_router
@@ -199,7 +200,25 @@ async def _gather_context(s: AsyncSession, project_id: str) -> dict[str, Any]:
         for r in docs_res.all()
     ]
 
+    # —— 场景命中(项目对照标准场景库,给 advice 判断范围覆盖用)——
+    hit_row = (await s.execute(
+        select(SceneHitReport).where(SceneHitReport.project_id == project_id)
+    )).scalar_one_or_none()
+    scene_match_ctx = None
+    if hit_row and ((hit_row.hit_count or 0) + (hit_row.miss_count or 0)) > 0:
+        hit_domains = sorted({h.get("domain") for h in (hit_row.hits or [])
+                              if isinstance(h, dict) and h.get("domain")})
+        scene_match_ctx = {
+            "hit_count": hit_row.hit_count,
+            "miss_count": hit_row.miss_count,
+            "hit_domains": hit_domains,
+            "hits": [f"{h.get('code')} {h.get('name')}" for h in (hit_row.hits or [])[:40]
+                     if isinstance(h, dict)],
+            "summary": hit_row.summary,
+        }
+
     return {
+        "scene_match": scene_match_ctx,
         "project": {
             "id": proj.id,
             "name": proj.name,
@@ -326,7 +345,7 @@ def _compute_hash(ctx: dict) -> str:
 # ────────────────────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = """你是 CRM 实施项目的资深咨询顾问 (MBB 风格, 10 年以上经验)。
-你的任务: 综合「项目状态」+「行业包」两个核心维度, 给项目经理 (PM) 「下一步该做什么 + 当前关注的风险」。
+你的任务: 综合「项目状态」+「行业包」+「场景命中」三个核心维度, 给项目经理 (PM) 「下一步该做什么 + 当前关注的风险」。
 
 输出格式严格按 JSON:
 {
@@ -339,6 +358,7 @@ SYSTEM_PROMPT = """你是 CRM 实施项目的资深咨询顾问 (MBB 风格, 10 
 - **project_status.current_stage**: 当前停在哪个阶段, 状态如何 — 建议必须紧贴这个阶段, 不要谈未来阶段
 - **industry_pack.fields**: 行业专属字段(每个有 label + ask), 这是该行业必问 / 必关注的方向, 优先围绕这些给建议和风险
 - **industry_pack.pain_points / typical_cases**: 行业典型痛点 / 标杆案例, 用于推断风险
+- **scene_match**: 项目对照标准场景库的命中情况(hit_count 命中 / miss_count 未命中 / hit_domains 覆盖的业务域 / hits 命中场景清单)。据此判断项目范围覆盖是否完整、聚焦在哪些域、有没有该覆盖却漏掉的关键场景, 并把范围建议 / 覆盖缺口写进 advice 和 risks。若 scene_match 为 null, 说明还没跑场景命中, 可建议 PM 先运行一次
 
 辅助 context (作支撑, 不主导):
 - briefs_kinds / outputs / docs_count: 已有材料情况 — 缺料时建议 PM 先去补

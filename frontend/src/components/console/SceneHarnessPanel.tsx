@@ -88,15 +88,32 @@ export default function SceneHarnessPanel({
       {/* 场景命中(P3) */}
       {showMatch && (
       <div style={box}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <Target size={15} color={dark ? '#79C7B3' : '#1E6E5D'} />
-          <span style={{ fontSize: 13, fontWeight: 650, color: c.ink }}>场景命中</span>
-          {hit ? (
-            <span style={{ display: 'inline-flex', gap: 8 }}>
-              <span style={{ fontSize: 12, color: dark ? '#79C7B3' : '#1E6E5D', fontWeight: 600 }}>命中 {hit.hit_count}</span>
-              <span style={{ fontSize: 12, color: c.sub }}>未命中 {hit.miss_count}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26,
+              borderRadius: 8, background: dark ? 'rgba(84,188,161,0.16)' : '#E3F0EC' }}>
+              <Target size={15} color={dark ? '#79C7B3' : '#1E6E5D'} />
             </span>
-          ) : <span style={{ fontSize: 12, color: c.sub }}>尚未运行</span>}
+            <span style={{ fontSize: 13, fontWeight: 650, color: c.ink }}>场景命中</span>
+          </span>
+          {hit ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 3 }}>
+                <span style={{ fontSize: 18, fontWeight: 750, color: dark ? '#79C7B3' : '#1E6E5D', fontVariantNumeric: 'tabular-nums' }}>{hit.hit_count}</span>
+                <span style={{ fontSize: 11, color: c.sub }}>命中</span>
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 3 }}>
+                <span style={{ fontSize: 15, fontWeight: 650, color: c.sub, fontVariantNumeric: 'tabular-nums' }}>{hit.miss_count}</span>
+                <span style={{ fontSize: 11, color: c.sub }}>未命中</span>
+              </span>
+              {/* 覆盖条 */}
+              <span style={{ width: 90, height: 6, borderRadius: 100, background: dark ? 'rgba(255,255,255,0.1)' : '#EEF1F4', overflow: 'hidden' }}>
+                <span style={{ display: 'block', height: '100%', borderRadius: 100,
+                  width: `${Math.round((hit.hit_count / Math.max(1, hit.hit_count + hit.miss_count)) * 100)}%`,
+                  background: 'linear-gradient(90deg,#1E6E5D,#54BCA1)' }} />
+              </span>
+            </span>
+          ) : <span style={{ fontSize: 12, color: c.sub }}>尚未运行 —— 对照标准场景库判定项目覆盖了哪些场景</span>}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
             {hit?.report_md && (
               <button type="button" onClick={() => setShowReport(s => !s)}
@@ -108,7 +125,7 @@ export default function SceneHarnessPanel({
             {btn(doMatch, matching, hit ? '重新运行' : '运行命中', Target)}
           </div>
         </div>
-        {hit?.summary && <div style={{ fontSize: 11.5, color: c.sub, marginTop: 6 }}>{hit.summary}</div>}
+        {hit?.summary && <div style={{ fontSize: 11.5, color: c.sub, marginTop: 8, lineHeight: 1.6 }}>{hit.summary}</div>}
         {(hit?.sources?.length || 0) > 0 && (
           <div style={{ fontSize: 11, color: c.sub, marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
             <span>命中依据:</span>
@@ -132,16 +149,30 @@ export default function SceneHarnessPanel({
       </div>
       )}
 
-      {/* 蓝图回流(P4,仅方案设计阶段) */}
-      {showReflow && (
+      {/* 蓝图回流(P4,仅方案设计阶段)—— 不占独立框:无提案时只一个轻按钮,有提案才展开 */}
+      {showReflow && proposals.length === 0 && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button type="button" onClick={doReflow} disabled={reflowing}
+            title="识别蓝图里的场景优化/新增,PM 确认后交后台审核回写场景库"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: dark ? '#A695CE' : '#5E4F87',
+              background: 'transparent', border: `1px dashed ${dark ? 'rgba(166,149,206,0.5)' : '#CFC5E5'}`, borderRadius: 8,
+              padding: '4px 12px', cursor: reflowing ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+            {reflowing ? <Loader2 size={12} className="animate-spin" /> : <GitPullRequest size={12} />} 识别蓝图回流场景
+          </button>
+        </div>
+      )}
+      {showReflow && proposals.length > 0 && (
         <div style={box}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-               title="识别蓝图里的场景优化/新增,PM 确认后交后台审核回写场景库">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <GitPullRequest size={14} color={dark ? '#A695CE' : '#5E4F87'} />
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: c.ink }}>蓝图回流</span>
-            <div style={{ marginLeft: 'auto' }}>{btn(doReflow, reflowing, '识别回流', GitPullRequest)}</div>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: c.ink }}>蓝图回流提案 · {proposals.length}</span>
+            <button type="button" onClick={doReflow} disabled={reflowing}
+              style={{ marginLeft: 'auto', fontSize: 11, color: c.sub, background: 'transparent', border: 'none',
+                textDecoration: 'underline', cursor: reflowing ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+              {reflowing ? '识别中…' : '重新识别'}
+            </button>
           </div>
-          {proposals.length > 0 && (
+          {(
             <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
               {proposals.map(p => (
                 <div key={p.id} style={{
