@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Target, GitPullRequest, Loader2, ChevronDown, CheckCircle2 } from 'lucide-react'
+import { Target, GitPullRequest, Loader2, ChevronDown, CheckCircle2, ClipboardList } from 'lucide-react'
 import { toast } from '../Toaster'
 import {
   getSceneMatch, runSceneMatch, listProjectProposals, runSceneReflow, pmConfirmProposal,
   type HitReport, type SceneProposal,
 } from '../../api/scenes'
+import ResearchAgendaDrawer from './ResearchAgendaDrawer'
 
 /**
  * SceneHarnessPanel — Harness P3/P4 项目侧面板(两套项目详情页共用)。
@@ -40,6 +41,7 @@ export default function SceneHarnessPanel({
   const [proposals, setProposals] = useState<SceneProposal[]>([])
   const [reflowing, setReflowing] = useState(false)
   const [busyId, setBusyId] = useState<number | null>(null)
+  const [agendaOpen, setAgendaOpen] = useState(false)
   const isDesign = stageKey === 'design'
 
   const showMatch = section === 'match' || section === 'all'
@@ -130,6 +132,12 @@ export default function SceneHarnessPanel({
             </span>
           ) : <span style={{ fontSize: 12, color: c.sub }}>尚未运行 —— 对照标准场景库判定项目覆盖了哪些场景</span>}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <button type="button" onClick={() => setAgendaOpen(true)}
+              title="按应覆盖场景列出调研议程 + 每个场景该问的关键问题"
+              style={{ fontSize: 12, color: c.sub, background: 'transparent', border: `1px solid ${c.bd}`,
+                borderRadius: 8, padding: '5px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <ClipboardList size={12} /> 调研议程
+            </button>
             {hit && (
               <button type="button" onClick={() => setShowReport(s => !s)}
                 style={{ fontSize: 12, color: c.sub, background: 'transparent', border: `1px solid ${c.bd}`,
@@ -274,6 +282,10 @@ export default function SceneHarnessPanel({
             </div>
           )}
         </div>
+      )}
+
+      {agendaOpen && projectId && (
+        <ResearchAgendaDrawer projectId={projectId} variant={variant} onClose={() => setAgendaOpen(false)} />
       )}
     </div>
   )

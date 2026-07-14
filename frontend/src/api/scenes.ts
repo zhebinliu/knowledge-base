@@ -122,6 +122,39 @@ export const runSceneMatch = (project_id: string) =>
 export const getSceneMatch = (project_id: string) =>
   api.get<HitReport | null>(`/projects/${project_id}/scene-match`).then(r => r.data)
 
+// ── Part2 调研议程 ───────────────────────────────────────────────────────────
+export interface AgendaScene {
+  id: number
+  code: string
+  name: string
+  covered: boolean
+  questions: string[]
+  question_count: number
+}
+export interface AgendaStage {
+  stage: string
+  stage_label: string
+  scenes: AgendaScene[]
+}
+export interface AgendaDomain {
+  domain: string
+  label: string
+  active: boolean
+  scene_count: number
+  covered_count: number
+  stages: AgendaStage[]
+}
+export interface ResearchAgenda {
+  project_id: string
+  has_match: boolean
+  total_scenes: number
+  covered_scenes: number
+  domains: AgendaDomain[]
+}
+export const getResearchAgenda = (project_id: string, domain?: string) =>
+  api.get<ResearchAgenda>(`/projects/${project_id}/research-agenda`, { params: domain ? { domain } : {} })
+    .then(r => r.data)
+
 // ── P4 蓝图回流提案 ─────────────────────────────────────────────────────────
 export interface SceneProposal {
   id: number

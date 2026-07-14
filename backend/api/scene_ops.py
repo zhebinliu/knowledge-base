@@ -98,6 +98,23 @@ async def get_scene_match(
     return _hit_dto(row) if row else None
 
 
+@router.get("/projects/{project_id}/research-agenda")
+async def research_agenda(
+    project_id: str,
+    domain: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """调研议程:应覆盖场景(按域/阶段)+ 每场景关键问题 + 覆盖状态。
+
+    应覆盖 = 命中报告里活跃域的全部场景;传 domain 则只看该域;
+    未跑命中时活跃域为空 → 需传 domain 或前端引导先跑命中。
+    """
+    await assert_project_access(current_user, project_id, "read")
+    from services.scene_agenda import build_project_agenda
+    return await build_project_agenda(project_id, session, domain=domain)
+
+
 # ── P4 蓝图回流 ──────────────────────────────────────────────────────────────
 
 class ProposalDto(BaseModel):
