@@ -378,6 +378,14 @@ jobs:
               [ "$DEPLOY_BE" = "true" ] && sudo docker tag "$BACKEND_IMAGE_FULL"  kb-backend:latest       || true
               [ "$DEPLOY_FE" = "true" ] && sudo docker tag "$FRONTEND_IMAGE_FULL" kb-frontend-prod:latest || true
               sudo rm -f /opt/kb-system/run/.maintenance
+              # backend 容器重建后 IP 会变;前端 nginx 用静态 proxy_pass http://backend:8000,
+              # 只在启动时解析一次 —— 不 reload 就会一直连旧 IP,/api 全 502 导致登录不了。
+              # DEPLOY_FE=true 时前端容器已重建(启动即重新解析),这里 reload 冗余但无害。
+              if [ "$DEPLOY_BE" = "true" ]; then
+                echo "→ backend 已重建,reload 前端 nginx 重新解析 backend upstream"
+                sudo docker exec kb-system-frontend-1 nginx -s reload 2>&1 || true
+                sudo docker exec kb-system-frontend-uat-1 nginx -s reload 2>&1 || true
+              fi
               echo "✅ PROD deployed sha-${SHORT_SHA}(be=$DEPLOY_BE fe=$DEPLOY_FE)"
               # 部署后再清一次(删掉被替换的旧镜像)
               echo "→ 部署后清理旧镜像"
@@ -395,6 +403,11 @@ jobs:
                 sudo BACKEND_IMAGE="${PREV_BE}" FRONTEND_IMAGE="${PREV_FE}" \
                   docker compose up -d --no-deps $UP_SVCS
                 sleep 30
+                # 回滚也重建了 backend → 同样要 reload 前端 nginx 重新解析 upstream
+                if [ "$DEPLOY_BE" = "true" ]; then
+                  sudo docker exec kb-system-frontend-1 nginx -s reload 2>&1 || true
+                  sudo docker exec kb-system-frontend-uat-1 nginx -s reload 2>&1 || true
+                fi
                 sudo rm -f /opt/kb-system/run/.maintenance
               else
                 echo "⚠️  无 .prev-good-sha,跳过回滚"

@@ -121,9 +121,9 @@ async def auto_gen_questions(
                     total_q += len(qs)
         per_domain[dom] = dom_n
         total_scenes += dom_n
+        await session.commit()   # 每域提交,防长跑中断丢全部进度、也让前端可增量看到
         logger.info("scene_questions_domain_done", domain=dom, generated=dom_n, total=len(group))
 
-    await session.commit()
     return {
         "generated_scenes": total_scenes, "questions": total_q,
         "skipped": len(scenes) - len(targets), "per_domain": per_domain,

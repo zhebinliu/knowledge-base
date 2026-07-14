@@ -72,6 +72,9 @@ async def _scene_guidance(session, project_id) -> str:
     try:
         from services.scene_agenda import build_project_agenda, scene_guidance_text
         agenda = await build_project_agenda(project_id, session)
+        # 只在跑过命中、有活跃域时注入;否则 147 个场景没方向,反成噪音
+        if not any(d.get("active") for d in agenda.get("domains", [])):
+            return ""
         return scene_guidance_text(agenda, only_gaps=True, max_scenes=40)
     except Exception as e:  # noqa: BLE001
         logger.warning("scene_guidance_failed", project_id=project_id, error=str(e)[:120])

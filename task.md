@@ -12,9 +12,17 @@
 
 - **Part1 场景「关键调研问题」字段**:StandardScene 加 research_questions;AI 生成草稿 + 编辑抽屉可编辑;场景库批量生成按钮。
 - **Part2 调研议程**:项目 → 应覆盖场景(按域/阶段)+ 每场景关键问题 + 覆盖/缺口状态。✅ 已部署待测
-- **Part3 会议 Copilot 接场景**:会中把项目应覆盖场景 + 关键问题作为定向引导上下文。🔨 进行中
-  - [ ] live_advice.py 注入场景引导(scene_guidance_text);两份副本(main + meeting overlay)一起改
-  - [ ] py_compile + 部署 + 实测
+- **Part3 会议 Copilot 接场景**:会中把项目应覆盖场景 + 关键问题作为定向引导上下文。✅ 已部署 + 实测
+  - [x] live_advice.py 注入场景引导(scene_guidance_text);两份副本(main + meeting overlay)一起改
+  - [x] 只在有活跃域(跑过命中)时注入,否则 147 场景无方向成噪音
+  - [x] 实测锐达:议程 66 场景(LTC48+MCR18)/19 已识别;会议引导输出「[待调研] LTC·BD-01…该问:…」定向问题
+
+## 生产事故 + 根因修复(2026-07-14)
+- **现象**:用户登录不了。根因 = backend-only 部署(Part3)重建了 backend 容器换了 IP(0.6→0.7),
+  但前端 nginx 用静态 `proxy_pass http://backend:8000` 只在启动解析一次 → 一直连旧 IP → /api 全 502。
+- **急救**:`docker exec kb-system-frontend-1 nginx -s reload`(+uat)重新解析,登录立即恢复。
+- **根治**:deploy-prod.yml 成功/回滚两条路径,DEPLOY_BE=true 时 reload 两个前端 nginx。
+- 场景问题已全量生成:147/147 场景 671 问题(glm-5,~17min)。auto_gen_questions 改每域提交防长跑丢进度。
 
 ## Part1 清单
 - [x] P1-1 StandardScene 加 research_questions(JSON)+ ALTER 迁移;DTO/PATCH 支持。
