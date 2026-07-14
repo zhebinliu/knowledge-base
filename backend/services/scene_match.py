@@ -402,32 +402,58 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
                 if k:
                     doc_hit_keys.add(k)
 
-    # 4b. 会议增量:每场独立判定(并发),再按时间从旧到新折叠 —— 检测无序、折叠有序。
-    #     纳入并集、剔除差集,晚会可取消早会的场景;单场聚焦更准(治「松」)、小 prompt 不截断。
+    # 4b. 会议增量:每场判 {纳入,移出},按时间从旧到新折叠(晚会取消早会的场景)。
+    #     稳定化:纪要没变(minutes_hash 命中)就复用已存的单场增量、不重判 —— 既稳又快;
+    #     只有新会议 / 纪要改过的会议才现跑 LLM。检测无序、折叠有序。
     catalog_full = _build_scene_catalog(scenes)
-    deltas: list = []
+
+    from models.meeting_scene import MeetingSceneDelta
+    from services.scene_meeting import minutes_fingerprint, upsert_meeting_delta
+    cached_by_mid: dict[int, MeetingSceneDelta] = {}
+    if meetings:
+        rows = (await session.execute(
+            select(MeetingSceneDelta).where(MeetingSceneDelta.meeting_id.in_([m.id for m in meetings]))
+        )).scalars().all()
+        cached_by_mid = {r.meeting_id: r for r in rows}
+
+    def _scenes_to_keys(scene_dicts) -> set:
+        ks: set = set()
+        for sc in scene_dicts or []:
+            k = (str(sc.get("domain", "")).strip().upper(), str(sc.get("code", "")).strip().upper())
+            if k in scene_index:
+                ks.add(k)
+        return ks
+
+    async def _delta_for(m):
+        row = cached_by_mid.get(m.id)
+        if row and row.minutes_hash and row.minutes_hash == minutes_fingerprint(m):
+            return _scenes_to_keys(row.in_scope), _scenes_to_keys(row.out_of_scope), True, True  # 复用缓存
+        ik, ok_, had = await _detect_meeting_delta(m, catalog_full, scene_index, code_only_index, project_id)
+        return ik, ok_, had, False
+
+    results: list = []
     if meetings:
         import asyncio
         sem = asyncio.Semaphore(6)   # 限并发,别一次打太多 LLM 调用
 
         async def _bounded(m):
             async with sem:
-                return await _detect_meeting_delta(m, catalog_full, scene_index, code_only_index, project_id)
-        deltas = await asyncio.gather(*[_bounded(m) for m in meetings])
+                return await _delta_for(m)
+        results = await asyncio.gather(*[_bounded(m) for m in meetings])
+
     meeting_ok = False
     state = set(doc_hit_keys)
     added_total = removed_total = 0
-    for m, (in_keys, out_keys, had_signal) in zip(meetings, deltas):
+    for m, (in_keys, out_keys, had_signal, from_cache) in zip(meetings, results):
         if had_signal:
             meeting_ok = True
-            # 顺带把本场识别结果落库,供「会议详情」展示涉及场景(闭环③);失败不影响命中
-            try:
-                from services.scene_meeting import upsert_meeting_delta
-                in_sc = [scene_index[k] for k in in_keys if k in scene_index]
-                out_sc = [scene_index[k] for k in out_keys if k in scene_index]
-                await upsert_meeting_delta(session, m, in_sc, out_sc, detected_by="scene_match")
-            except Exception as e:  # noqa: BLE001
-                logger.warning("meeting_delta_persist_fail", meeting_id=m.id, error=str(e)[:120])
+            if not from_cache:  # 只落库新判定的;缓存命中的已在库,不重写
+                try:
+                    in_sc = [scene_index[k] for k in in_keys if k in scene_index]
+                    out_sc = [scene_index[k] for k in out_keys if k in scene_index]
+                    await upsert_meeting_delta(session, m, in_sc, out_sc, detected_by="scene_match")
+                except Exception as e:  # noqa: BLE001
+                    logger.warning("meeting_delta_persist_fail", meeting_id=m.id, error=str(e)[:120])
         if in_keys or out_keys:
             added_total += len(in_keys - state)
             removed_total += len(out_keys & state)
