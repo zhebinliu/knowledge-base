@@ -53,9 +53,8 @@ _KIND_LABELS = {
 }
 _MAX_CHARS_PER_DOC = 6000      # 单份产物截断字符数
 _MAX_TOTAL_CHARS = 40000       # 产物素材总量上限
-_MAX_CHARS_PER_MEETING = 2500  # 单场会议纪要截断字符数(用纯文本渲染,密度高)
-_MAX_MEETING_TOTAL_CHARS = 20000  # 会议纪要总量上限;配合紧凑渲染可容纳 ~8-10 场,总 prompt 控在安全线内
-_MAX_MEETINGS = 14             # 最多取最近 N 场会议
+_MAX_CHARS_PER_MEETING = 3500  # 逐场判增量时,单场会议纪要喂给 LLM 的字符上限
+_MAX_MEETINGS = 30            # 参与折叠的会议上限(按时间全量折叠,一般项目远小于此)
 _MODEL_TASK = "scene_match"    # model_router 路由 task 名
 _MATCH_CHUNK = 30              # 每批判定的场景数(避免一次判 147 个导致输出截断)
 
@@ -144,31 +143,89 @@ def _render_minutes(minutes) -> str:
     return " / ".join(out)
 
 
-def _build_meeting_block(meetings: list[Meeting]) -> tuple[str, list[dict]]:
-    """关联项目的会议:优先取(用户编辑过的)纪要,无纪要则退回转写。真实客户对话最能反映业务范围。
+def _resolve_one(h, scene_index: dict, code_only_index: dict) -> tuple[str, str] | None:
+    """把 LLM 回的一条命中(dict{domain,code} 或 'LTC/LM-01' 字符串)解析成场景库 key。查无 → None。"""
+    domain_v = code_v = ""
+    if isinstance(h, dict):
+        domain_v = str(h.get("domain") or "").strip()
+        code_v = str(h.get("code") or "").strip()
+    elif isinstance(h, str):
+        token = h.strip()
+        for sep in ("/", "::", "|", " "):
+            if sep in token:
+                domain_v, _, code_v = token.partition(sep)
+                break
+        else:
+            code_v = token
+    code_u, domain_u = code_v.strip().upper(), domain_v.strip().upper()
+    if not code_u:
+        return None
+    if (domain_u, code_u) in scene_index:
+        return (domain_u, code_u)
+    if code_u in code_only_index:  # domain 对不上时按 code 兜底
+        it = code_only_index[code_u]
+        return (it["domain"].strip().upper(), it["code"].strip().upper())
+    return None
 
-    返回 (拼接文本, sources 列表)。受单场 4000 字 / 会议总量 16000 字双上限约束。
-    """
-    parts: list[str] = []
-    sources: list[dict] = []
-    total = 0
-    for mt in meetings:
-        body = _render_minutes(mt.edited_minutes or mt.meeting_minutes)
-        if not body.strip():
-            body = (mt.polished_transcript or mt.raw_transcript or "").strip()
-        if not body.strip():
-            continue
-        excerpt = body[:_MAX_CHARS_PER_MEETING]
-        if len(body) > _MAX_CHARS_PER_MEETING:
-            excerpt += f"\n…(余下 {len(body) - _MAX_CHARS_PER_MEETING} 字省略)"
-        title = mt.title or "未命名会议"
-        piece = f"【会议纪要:{title}】\n{excerpt}"
-        if total + len(piece) > _MAX_MEETING_TOTAL_CHARS:
-            break
-        parts.append(piece)
-        total += len(piece)
-        sources.append({"kind": "meeting", "type": "会议纪要", "name": title})
-    return "\n\n".join(parts), sources
+
+def _resolve_codes(lst, scene_index: dict, code_only_index: dict) -> set:
+    out: set = set()
+    if isinstance(lst, list):
+        for h in lst:
+            k = _resolve_one(h, scene_index, code_only_index)
+            if k:
+                out.add(k)
+    return out
+
+
+# 逐场会议判「场景增量」的 system prompt —— 只标本场明确定性的,治「松」;区分纳入/取消,治「时序」
+_MEETING_DELTA_SYSTEM = (
+    "你是纷享销客 CRM 实施资深顾问。下面给你【标准场景库】和【某一场会议的纪要】。\n"
+    "判断这一场会议给项目业务范围带来的【场景增量】,分两类:\n"
+    "- in_scope:本场会议中,客户明确表示【要做 / 已在做 / 确认纳入本次 CRM 项目】的业务,对应命中的标准场景。\n"
+    "- out_of_scope:本场会议中,客户明确表示【不做 / 取消 / 本期不上 / 移出本次范围】的业务,对应要剔除的标准场景。\n"
+    "严格要求:\n"
+    "1. 只标本场会议里【明确讨论并定性】的场景;一带而过、举例、背景介绍、别的项目的事,都不算。\n"
+    "2. 宁缺毋滥:拿不准就 in/out 都不放。绝大多数场景在单场会议里都不该出现。\n"
+    "3. 只能用场景库里给出的 code。\n"
+    "4. 严格输出 JSON,不要解释、不要代码围栏。"
+)
+
+
+async def _detect_meeting_delta(
+    meeting: Meeting, catalog: str, scene_index: dict, code_only_index: dict, project_id: str,
+) -> tuple[set, set, bool]:
+    """单场会议 → (纳入场景 keys, 剔除场景 keys, 是否有信号)。聚焦单场,更准且不截断。"""
+    from services.llm_json import loads_lenient
+    body = _render_minutes(meeting.edited_minutes or meeting.meeting_minutes)
+    if not body.strip():
+        body = (meeting.polished_transcript or meeting.raw_transcript or "").strip()
+    if not body.strip():
+        return set(), set(), False
+    body = body[:_MAX_CHARS_PER_MEETING]
+    user = (
+        "【标准场景库】\n" + catalog
+        + f"\n\n【本场会议纪要 · {meeting.title or '未命名会议'}】\n" + body
+        + '\n\n【输出 — 严格 JSON】\n{"in_scope": ["LM-01"], "out_of_scope": []}\n'
+        "in_scope=本场明确纳入的场景 code;out_of_scope=本场明确取消/不做的场景 code;都用场景库原 code,没有就给空数组。"
+    )
+    for attempt in (1, 2):
+        try:
+            content, _m = await model_router.chat_with_routing(
+                task=_MODEL_TASK,
+                messages=[{"role": "system", "content": _MEETING_DELTA_SYSTEM},
+                          {"role": "user", "content": user}],
+                temperature=0.1, max_tokens=2000, validator=_json_valid,
+            )
+            parsed = loads_lenient(content or "", None)
+            if isinstance(parsed, dict):
+                in_keys = _resolve_codes(parsed.get("in_scope"), scene_index, code_only_index)
+                out_keys = _resolve_codes(parsed.get("out_of_scope"), scene_index, code_only_index)
+                return in_keys, out_keys, True
+        except Exception as e:  # noqa: BLE001
+            logger.warning("scene_meeting_delta_fail", project_id=project_id,
+                           meeting_id=meeting.id, attempt=attempt, error=str(e)[:150])
+    return set(), set(), False
 
 
 def _build_scene_catalog(scenes: list[StandardScene]) -> str:
@@ -278,14 +335,13 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
     material_block = _build_material_block(bundles)
     project_meta = _build_project_meta(project)
 
-    # 关联本项目的会议纪要 —— 真实客户调研对话,是场景命中的一手依据
+    # 关联本项目的会议纪要 —— 按时间从旧到新,逐场判增量后折叠(晚会可取消早会的场景)
     meetings = (await session.execute(
         select(Meeting)
         .where(Meeting.project_id == project_id)
-        .order_by(Meeting.created_at.desc())
+        .order_by(Meeting.created_at.asc())
         .limit(_MAX_MEETINGS)
     )).scalars().all()
-    meeting_block, meeting_sources = _build_meeting_block(meetings)
 
     # 2b. 范围文档:SOW 优先,SOW 缺失时用合同兜底(用户 2026-07-13)
     #     SOW/合同界定项目范围,是场景命中最直接的依据。
@@ -316,11 +372,15 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
         if (getattr(b, "content_md", None) or "").strip():
             sources.append({"kind": "bundle", "type": _KIND_LABELS.get(b.kind, b.kind),
                             "name": b.title or _KIND_LABELS.get(b.kind, b.kind)})
-    sources.extend(meeting_sources)   # 会议纪要也是命中依据
+    # 会议纪要的 sources 在折叠后按「实际贡献了增量的会议」追加(见下)
 
     # 3. 防御:项目无任何素材(范围文档 / 产物正文 / 会议纪要 / 元信息全空)→ 全 miss
+    has_meeting_content = any(
+        (_render_minutes(m.edited_minutes or m.meeting_minutes) or m.polished_transcript or m.raw_transcript or "").strip()
+        for m in meetings
+    )
     if (not scope_block.strip() and not material_block.strip()
-            and not meeting_block.strip() and not project_meta.strip()):
+            and not has_meeting_content and not project_meta.strip()):
         logger.info("scene_match_no_material", project_id=project_id)
         return _empty_result(scenes, "材料不足,无法判定:该项目暂无 SOW / 合同 / 调研 / 洞察 / 蓝图产物 / 会议纪要,也缺少项目描述。", sources)
 
@@ -335,23 +395,20 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
     from services.llm_json import loads_lenient
     from services.model_router import ModelOutputError
 
-    # 4. 分批判定 —— 一次判 147 个场景会让输出超 max_tokens 截断(之前"判定失败"根因),
-    #    改成每批 ≤_MATCH_CHUNK 个场景,同一份材料反复喂,逐批收集命中。
+    # 4. 基线判定(文档:SOW/合同 + 产物)—— 会议不在这里,留到下面按时间逐场折叠。
+    #    一次判 147 个场景会让输出超 max_tokens 截断,改成每批 ≤_MATCH_CHUNK 个场景反复喂材料。
     material_context = f"""【项目上下文】
 {project_meta or '(无元信息)'}
 
 {scope_block or '【项目范围文档】(无 SOW / 合同)'}
 
 【项目素材(截断)】
-{material_block or '(无素材正文)'}
-
-【会议纪要(截断)】
-{meeting_block or '(无会议纪要)'}"""
+{material_block or '(无素材正文)'}"""
     system_prompt = (
         "你是纷享销客 CRM 实施资深顾问,判定项目业务范围命中了「标准场景库」中的哪些标准场景。\n"
         "规则:\n"
-        "1. 只有当项目材料(范围文档 SOW/合同、调研、洞察、蓝图、会议纪要、元信息)明确涉及或强相关某标准场景时,才判命中;材料没提到、无法佐证的一律不命中。\n"
-        "2. 宁缺毋滥:不确定就不命中。\n"
+        "1. 只有当项目材料(范围文档 SOW/合同、调研、洞察、蓝图、元信息)明确涉及或强相关某标准场景时,才判命中;材料没提到、无法佐证的一律不命中。\n"
+        "2. 宁缺毋滥:不确定就不命中;仅背景提及、举例、别项目的事,不算命中。\n"
         "3. 严格输出 JSON,不要解释文字、不要代码围栏。"
     )
 
@@ -378,40 +435,48 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
                                attempt=attempt, error=str(e)[:150])
         return None
 
-    hit_keys: set[tuple[str, str]] = set()
+    # 4a. 文档基线命中(t=0):SOW/合同 + 产物
+    doc_hit_keys: set[tuple[str, str]] = set()
     any_ok = False
-    for i in range(0, len(scenes), _MATCH_CHUNK):
-        parsed = await _classify(scenes[i:i + _MATCH_CHUNK])
-        if parsed is None:
-            continue
-        any_ok = True
-        raw_hits = parsed.get("hits")
-        if not isinstance(raw_hits, list):
-            continue
-        for h in raw_hits:
-            domain_v = code_v = ""
-            if isinstance(h, dict):
-                domain_v = str(h.get("domain") or "").strip()
-                code_v = str(h.get("code") or "").strip()
-            elif isinstance(h, str):
-                token = h.strip()
-                for sep in ("/", "::", "|", " "):
-                    if sep in token:
-                        domain_v, _, code_v = token.partition(sep)
-                        break
-                else:
-                    code_v = token
-            code_u = code_v.strip().upper()
-            domain_u = domain_v.strip().upper()
-            if not code_u:
+    doc_ran = bool(scope_block.strip() or material_block.strip() or project_meta.strip())
+    if doc_ran:
+        for i in range(0, len(scenes), _MATCH_CHUNK):
+            parsed = await _classify(scenes[i:i + _MATCH_CHUNK])
+            if parsed is None:
                 continue
-            if (domain_u, code_u) in scene_index:
-                hit_keys.add((domain_u, code_u))
-            elif code_u in code_only_index:  # domain 对不上时按 code 兜底
-                it = code_only_index[code_u]
-                hit_keys.add((it["domain"].strip().upper(), it["code"].strip().upper()))
+            any_ok = True
+            for h in (parsed.get("hits") or []):
+                k = _resolve_one(h, scene_index, code_only_index)
+                if k:
+                    doc_hit_keys.add(k)
 
-    if not any_ok:
+    # 4b. 会议增量:每场独立判定(并发),再按时间从旧到新折叠 —— 检测无序、折叠有序。
+    #     纳入并集、剔除差集,晚会可取消早会的场景;单场聚焦更准(治「松」)、小 prompt 不截断。
+    catalog_full = _build_scene_catalog(scenes)
+    deltas: list = []
+    if meetings:
+        import asyncio
+        sem = asyncio.Semaphore(6)   # 限并发,别一次打太多 LLM 调用
+
+        async def _bounded(m):
+            async with sem:
+                return await _detect_meeting_delta(m, catalog_full, scene_index, code_only_index, project_id)
+        deltas = await asyncio.gather(*[_bounded(m) for m in meetings])
+    meeting_ok = False
+    state = set(doc_hit_keys)
+    added_total = removed_total = 0
+    for m, (in_keys, out_keys, had_signal) in zip(meetings, deltas):
+        if had_signal:
+            meeting_ok = True
+        if in_keys or out_keys:
+            added_total += len(in_keys - state)
+            removed_total += len(out_keys & state)
+            state |= in_keys
+            state -= out_keys
+            sources.append({"kind": "meeting", "type": "会议纪要", "name": m.title or "未命名会议"})
+    hit_keys = state
+
+    if not any_ok and not meeting_ok:
         return _empty_result(scenes, "判定失败:模型未返回可解析的结果,请稍后重试。", sources)
 
     # 5. 组装 hit / miss(以场景库为准,保证顺序稳定、内容可信)
@@ -423,7 +488,8 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
         (hit if key in hit_keys else miss).append(item)
 
     hit_domains = sorted({h["domain"] for h in hit})
-    summary = f"共命中 {len(hit)} 个标准场景(覆盖 {'、'.join(hit_domains) or '—'}),{len(miss)} 个未命中。"
+    fold_note = f";会议时序折叠 +{added_total}/−{removed_total}" if (added_total or removed_total) else ""
+    summary = f"共命中 {len(hit)} 个标准场景(覆盖 {'、'.join(hit_domains) or '—'}),{len(miss)} 个未命中{fold_note}。"
 
     return {
         "hit": hit,
