@@ -61,6 +61,23 @@ def _coverage_baseline(project: Project | None) -> str:
     return "\n".join(lines)
 
 
+async def _scene_guidance(session, project_id) -> str:
+    """项目应覆盖场景 + 关键调研问题 → gap 检测的定向引导清单(2026-07-14 Part3)。
+
+    跑过场景命中的活跃域场景;标「待调研」的正是会中该追问的缺口。
+    与调研议程(Part2)同源(scene_agenda),失败不影响副驾主流程。
+    """
+    if not project_id:
+        return ""
+    try:
+        from services.scene_agenda import build_project_agenda, scene_guidance_text
+        agenda = await build_project_agenda(project_id, session)
+        return scene_guidance_text(agenda, only_gaps=True, max_scenes=40)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("scene_guidance_failed", project_id=project_id, error=str(e)[:120])
+        return ""
+
+
 def _project_context(project: Project | None) -> str:
     if not project:
         return "(本会议未关联项目,行业/客户上下文缺失——行业类建议请保守)"
@@ -230,17 +247,27 @@ async def generate_live_advice(meeting_id: int) -> dict:
         existing = await _open_advice(session, meeting_id)
         max_run = max((a.run_seq for a in existing), default=0)
         carryover = await _carryover_pending(session, meeting_id, project_id)
+        scene_guidance = await _scene_guidance(session, project_id)   # Part3:场景定向引导
 
     if len(transcript) < _MIN_TRANSCRIPT_CHARS:
         return {"advice": _serialize(existing), "count": len(existing), "carryover": carryover, "note": "transcript_too_short"}
 
     existing_brief = "\n".join(f"[{a.id}] ({a.category}) {a.title}" for a in existing) or "(暂无)"
 
+    # gap 检测基准 = LTC 标准节点 + 本项目应覆盖场景清单(标「待调研」的优先追问)
+    baseline = _coverage_baseline(project)
+    if scene_guidance:
+        baseline += (
+            "\n\n## 标准场景清单(本项目应覆盖 · gap 类优先对照这里找缺口)\n"
+            "标「待调研」= 本场还没聊到、应主动追问的场景;附『该问』的关键问题,可据此提 gap:\n"
+            + scene_guidance
+        )
+
     messages = [
         {"role": "system", "content": LIVE_ADVICE_SYSTEM},
         {"role": "user", "content": LIVE_ADVICE_USER.format(
             project_context=_project_context(project),
-            coverage_baseline=_coverage_baseline(project),
+            coverage_baseline=baseline,
             existing_advice=existing_brief,
             transcript=_bound_transcript(transcript),
         )},

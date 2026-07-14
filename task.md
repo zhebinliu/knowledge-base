@@ -11,8 +11,10 @@
 # 任务:场景驱动调研引导(2026-07-14)—— 三块
 
 - **Part1 场景「关键调研问题」字段**:StandardScene 加 research_questions;AI 生成草稿 + 编辑抽屉可编辑;场景库批量生成按钮。
-- **Part2 调研议程**:项目 → 应覆盖场景(按域/阶段)+ 每场景关键问题 + 覆盖/缺口状态。
-- **Part3 会议 Copilot 接场景**:会中把项目应覆盖场景 + 关键问题作为定向引导上下文。
+- **Part2 调研议程**:项目 → 应覆盖场景(按域/阶段)+ 每场景关键问题 + 覆盖/缺口状态。✅ 已部署待测
+- **Part3 会议 Copilot 接场景**:会中把项目应覆盖场景 + 关键问题作为定向引导上下文。🔨 进行中
+  - [ ] live_advice.py 注入场景引导(scene_guidance_text);两份副本(main + meeting overlay)一起改
+  - [ ] py_compile + 部署 + 实测
 
 ## Part1 清单
 - [x] P1-1 StandardScene 加 research_questions(JSON)+ ALTER 迁移;DTO/PATCH 支持。
