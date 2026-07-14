@@ -17,8 +17,9 @@ import { toast } from '../Toaster'
 const STAGE_TO_GATE: Record<string, string> = { survey: 'asis', design: 'tobe' }
 
 export default function GateConfirmBar({
-  projectId, stageKey, variant = 'light', compact = false,
-}: { projectId?: string; stageKey?: string; variant?: 'light' | 'dark'; compact?: boolean }) {
+  projectId, stageKey, variant = 'light', compact = false, onConfirmed,
+}: { projectId?: string; stageKey?: string; variant?: 'light' | 'dark'; compact?: boolean;
+     onConfirmed?: (gateKey: string) => void }) {
   const gateKey = stageKey ? STAGE_TO_GATE[stageKey] : undefined
   const [gate, setGate] = useState<ProjectGate | null>(null)
   const [busy, setBusy] = useState(false)
@@ -44,6 +45,7 @@ export default function GateConfirmBar({
       const g = await confirmGate(projectId, gateKey)
       setGate(g)
       toast.success(`已确认「${g.label}」`)
+      onConfirmed?.(gateKey)   // 方案定稿(tobe)确认后,让上层触发蓝图回流识别
     } catch { /* 拦截器已 toast */ } finally { setBusy(false) }
   }
   const onReopen = async () => {

@@ -128,6 +128,7 @@ export default function NewConsoleProjectDetail() {
   const qc = useQueryClient()
 
   const [chatMode, setChatMode] = useState<ChatMode>({ type: 'pm' })
+  const [reflowSignal, setReflowSignal] = useState(0)   // 方案定稿确认 → bump → 自动识别蓝图回流
   const [editing, setEditing] = useState(false)
   const [collabOpen, setCollabOpen] = useState(false)
   const [stakesOpen, setStakesOpen] = useState(false)
@@ -593,7 +594,7 @@ export default function NewConsoleProjectDetail() {
           })}
           {/* Harness 闸门:As-Is/To-Be 一键确认,并到本阶段产物行右侧 */}
           <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center' }}>
-            <GateConfirmBar projectId={id} stageKey={activeStage?.key} variant="dark" compact />
+            <GateConfirmBar projectId={id} stageKey={activeStage?.key} variant="dark" compact onConfirmed={k => { if (k === 'tobe') setReflowSignal(s => s + 1) }} />
           </span>
         </div>
       )}
@@ -601,7 +602,7 @@ export default function NewConsoleProjectDetail() {
       {/* Harness P2 软闸警告:随当前产物持续显示 */}
       <SoftWarningChips bundle={activeBundle} variant="dark" />
       {/* Harness P4:蓝图回流(design 阶段) */}
-      <SceneHarnessPanel projectId={id} stageKey={activeStage?.key} variant="dark" section="reflow" />
+      <SceneHarnessPanel projectId={id} stageKey={activeStage?.key} variant="dark" section="reflow" reflowSignal={reflowSignal} />
       {/* ── 当前阶段 action bar ── */}
       <div style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <span style={{ fontSize: 12, color: 'var(--rd-text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

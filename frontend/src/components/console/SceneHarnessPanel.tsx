@@ -32,8 +32,9 @@ function groupByDomain(items: { domain: string; code: string; name: string }[]) 
 }
 
 export default function SceneHarnessPanel({
-  projectId, stageKey, variant = 'light', section = 'all',
-}: { projectId?: string; stageKey?: string; variant?: 'light' | 'dark'; section?: 'match' | 'reflow' | 'all' }) {
+  projectId, stageKey, variant = 'light', section = 'all', reflowSignal = 0,
+}: { projectId?: string; stageKey?: string; variant?: 'light' | 'dark'; section?: 'match' | 'reflow' | 'all';
+     reflowSignal?: number }) {
   const dark = variant === 'dark'
   const [hit, setHit] = useState<HitReport | null>(null)
   const [matching, setMatching] = useState(false)
@@ -72,14 +73,23 @@ export default function SceneHarnessPanel({
       toast.success(`场景命中完成:命中 ${r.hit_count} · 未命中 ${r.miss_count}`)
     } catch { /* 拦截器已 toast */ } finally { setMatching(false) }
   }
-  const doReflow = async () => {
+  const doReflow = useCallback(async (auto = false) => {
+    if (!projectId) return
     setReflowing(true)
+    if (auto) toast.info('已放行实施,正在识别蓝图回流场景…')
     try {
       const rs = await runSceneReflow(projectId)
       setProposals(rs)
-      toast.success(rs.length ? `识别到 ${rs.length} 条场景回流提案,请 PM 确认` : '未识别到需回流的场景变更')
+      if (rs.length) toast.success(`识别到 ${rs.length} 条场景回流提案,请 PM 确认`)
+      else if (!auto) toast.success('未识别到需回流的场景变更')
     } catch { /* 拦截器已 toast */ } finally { setReflowing(false) }
-  }
+  }, [projectId])
+
+  // 方案定稿(tobe 闸门)确认 → 上层 bump reflowSignal → 自动识别回流(跳过初始 0)
+  useEffect(() => {
+    if (reflowSignal > 0 && showReflow) doReflow(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reflowSignal])
   const doPmConfirm = async (id: number) => {
     setBusyId(id)
     try {
@@ -226,16 +236,21 @@ export default function SceneHarnessPanel({
       </div>
       )}
 
-      {/* 蓝图回流(P4,仅方案设计阶段)—— 不占独立框:无提案时只一个轻按钮,有提案才展开 */}
+      {/* 蓝图回流(P4,仅方案设计阶段)—— 定稿时自动识别;无提案时只留一个不起眼的手动兜底链接 */}
       {showReflow && proposals.length === 0 && (
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button type="button" onClick={doReflow} disabled={reflowing}
-            title="识别蓝图里的场景优化/新增,PM 确认后交后台审核回写场景库"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: dark ? '#A695CE' : '#5E4F87',
-              background: 'transparent', border: `1px dashed ${dark ? 'rgba(166,149,206,0.5)' : '#CFC5E5'}`, borderRadius: 8,
-              padding: '4px 12px', cursor: reflowing ? 'default' : 'pointer', fontFamily: 'inherit' }}>
-            {reflowing ? <Loader2 size={12} className="animate-spin" /> : <GitPullRequest size={12} />} 识别蓝图回流场景
-          </button>
+          {reflowing ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: c.sub, fontFamily: 'inherit' }}>
+              <Loader2 size={11} className="animate-spin" /> 正在识别蓝图回流场景…
+            </span>
+          ) : (
+            <button type="button" onClick={() => doReflow()}
+              title="通常在「确认方案定稿」时自动识别;这里可手动补跑一次"
+              style={{ fontSize: 11, color: c.sub, background: 'transparent', border: 'none',
+                textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+              手动识别蓝图回流
+            </button>
+          )}
         </div>
       )}
       {showReflow && proposals.length > 0 && (
@@ -243,7 +258,7 @@ export default function SceneHarnessPanel({
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <GitPullRequest size={14} color={dark ? '#A695CE' : '#5E4F87'} />
             <span style={{ fontSize: 12.5, fontWeight: 600, color: c.ink }}>蓝图回流提案 · {proposals.length}</span>
-            <button type="button" onClick={doReflow} disabled={reflowing}
+            <button type="button" onClick={() => doReflow()} disabled={reflowing}
               style={{ marginLeft: 'auto', fontSize: 11, color: c.sub, background: 'transparent', border: 'none',
                 textDecoration: 'underline', cursor: reflowing ? 'default' : 'pointer', fontFamily: 'inherit' }}>
               {reflowing ? '识别中…' : '重新识别'}

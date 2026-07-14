@@ -123,6 +123,7 @@ export default function ConsoleProjectDetail() {
   const qc = useQueryClient()
 
   const [chatMode, setChatMode] = useState<ChatMode>({ type: 'pm' })
+  const [reflowSignal, setReflowSignal] = useState(0)   // 方案定稿确认 → bump → 自动识别蓝图回流
   const [editing, setEditing] = useState(false)
   const [collabOpen, setCollabOpen] = useState(false)
   const [stakesOpen, setStakesOpen] = useState(false)
@@ -584,14 +585,14 @@ export default function ConsoleProjectDetail() {
             )
           })}
           {/* Harness 闸门:As-Is/To-Be 一键确认,并到本阶段产物行右侧 */}
-          <span className="ml-auto flex items-center"><GateConfirmBar projectId={id} stageKey={activeStage?.key} variant="light" compact /></span>
+          <span className="ml-auto flex items-center"><GateConfirmBar projectId={id} stageKey={activeStage?.key} variant="light" compact onConfirmed={k => { if (k === 'tobe') setReflowSignal(s => s + 1) }} /></span>
         </div>
       )}
 
       {/* Harness P2 软闸警告:随当前产物持续显示 */}
       <SoftWarningChips bundle={activeBundle} variant="light" />
       {/* Harness P4:蓝图回流(design 阶段) */}
-      <SceneHarnessPanel projectId={id} stageKey={activeStage?.key} variant="light" section="reflow" />
+      <SceneHarnessPanel projectId={id} stageKey={activeStage?.key} variant="light" section="reflow" reflowSignal={reflowSignal} />
       {/* 当前阶段 action — 与上方阶段栏共享白底 */}
       <div className="flex-shrink-0 px-2 sm:px-3 pt-2 pb-2.5 bg-white border-b border-line flex items-center gap-2">
         <span className="text-[11px] text-ink-muted truncate">
