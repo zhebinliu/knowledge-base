@@ -309,6 +309,14 @@ jobs:
               sudo docker tag "$FRONTEND_IMAGE_FULL" kb-frontend-prod:latest || true
               sudo rm -f /opt/kb-system/run/.maintenance
               echo "✅ PROD deployed sha-${SHORT_SHA}"
+
+              # ── 自动清理旧镜像(2026-07-14)──────────────────────────────
+              # 历史事故:每次 deploy 攒新 sha 镜像,旧的不清 → /opt/data(20G)满
+              # → postgres 写不了 WAL 崩溃回环。这里部署成功后自动 prune。
+              # 运行中容器引用的镜像永不被删;--until=72h 保留近 3 天镜像供回滚。
+              echo "→ 清理 72h 前的无用镜像(防 /opt/data 满)"
+              sudo docker image prune -af --filter "until=72h" 2>&1 | tail -1 || true
+              df -h /opt/data 2>/dev/null | tail -1 || true
             else
               echo "❌ Health check failed after 120s for sha-${SHORT_SHA}"
               echo "--- backend logs ---"

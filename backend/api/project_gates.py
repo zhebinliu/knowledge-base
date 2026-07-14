@@ -32,15 +32,15 @@ router = APIRouter()
 GATE_DEFS: list[dict] = [
     {
         "key": "asis",
-        "label": "As-Is 事实确认",
+        "label": "调研事实",
         "guards_stage": "design",
-        "desc": "确认需求调研中的业务现状(As-Is)属实后,方可进入方案设计。",
+        "desc": "确认需求调研沉淀的业务现状(As-Is)属实后,方可进入方案设计。",
     },
     {
         "key": "tobe",
-        "label": "To-Be 方案定稿",
+        "label": "方案定稿",
         "guards_stage": "implement",
-        "desc": "确认方案设计(To-Be)已定稿后,方可进入项目实施。",
+        "desc": "确认方案设计产物(蓝图设计 / 对象字段表 / 流程建设表,即目标业务态 To-Be)已定稿后,方可进入项目实施。",
     },
 ]
 GATE_KEYS = {g["key"] for g in GATE_DEFS}
