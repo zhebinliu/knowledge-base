@@ -1,8 +1,8 @@
 """场景命中判定 — 用 LLM 把一个项目对照「标准场景库」逐条判命中 / 未命中。
 
-定位:Harness 场景命中(P3)的核心服务。读标准场景库(表 `standard_scenes`,
-约 147 条 active Core 场景)+ 项目上下文(元信息 + 已生成的调研 / 洞察 / 蓝图产物),
-一次 LLM 大调用把每个标准场景判为 in-scope(命中)或 not(未命中),产出结构化结果 + Markdown 报告。
+定位:Harness 场景命中(P3)的核心服务。读标准场景库(表 `standard_scenes`,约 147 条 active Core 场景)
++ 项目【范围证据】:合同/SOW(界定范围)+ 会议纪要(真实调研),判每个标准场景 in-scope / not。
+不用下游产物(蓝图/洞察/调研报告)—— 那是命中的结果,拿来当依据会循环论证、且过全导致整域误命中。
 
 对外只暴露一个入口:
 
@@ -20,8 +20,9 @@
 
 设计要点:
 - 场景库紧凑喂给 LLM(每条只给 domain / code / name),约 147 条不占多少 token。
-- 项目素材:Project 元信息 + curated_bundles 里 status='done' 且 kind ∈ 白名单的 content_md,
-  每份截断约 6000 字,总量上限约 40000 字。
+- 两段判定:① 文档基线(合同/SOW + 元信息)一次判定得初始命中集(t=0);
+  ② 会议逐场判「场景增量」{in_scope, out_of_scope},并发检测、再按时间从旧到新折叠
+  (并集纳入、差集剔除),晚会可取消早会的场景。单场聚焦更准、小 prompt 不截断。
 - LLM 只回「命中的场景 code 列表」+ 一句 summary(严格 JSON),未列出的即判未命中 ——
   比让模型逐条回 147 个 verdict 更省 token、更抗截断。
 - 解析健壮:复用全后端共享的 services.llm_json.loads_lenient(去围栏 / 注释 / 尾随逗号 / 最长平衡块兜底)。
@@ -35,7 +36,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.project import Project
 from models.scene import StandardScene
-from models.curated_bundle import CuratedBundle
 from models.document import Document
 from models.meeting import Meeting
 from services.model_router import model_router
@@ -43,16 +43,6 @@ from services.model_router import model_router
 logger = structlog.get_logger()
 
 # ── 常量 ────────────────────────────────────────────────────────────────
-# 参与判定的产物类型(项目在这些阶段沉淀的核心材料最能反映业务范围)
-_MATERIAL_KINDS = ("insight", "survey", "research_report", "blueprint_design")
-_KIND_LABELS = {
-    "insight": "项目洞察",
-    "survey": "调研问卷",
-    "research_report": "调研报告",
-    "blueprint_design": "蓝图设计",
-}
-_MAX_CHARS_PER_DOC = 6000      # 单份产物截断字符数
-_MAX_TOTAL_CHARS = 40000       # 产物素材总量上限
 _MAX_CHARS_PER_MEETING = 3500  # 逐场判增量时,单场会议纪要喂给 LLM 的字符上限
 _MAX_MEETINGS = 30            # 参与折叠的会议上限(按时间全量折叠,一般项目远小于此)
 _MODEL_TASK = "scene_match"    # model_router 路由 task 名
@@ -91,31 +81,6 @@ def _build_project_meta(project: Project | None) -> str:
     if (project.customer_profile or "").strip():
         lines.append(f"客户画像:{project.customer_profile.strip()}")
     return "\n".join(lines)
-
-
-def _build_material_block(bundles: list[CuratedBundle]) -> str:
-    """把产物 content_md 按类型截断拼接,受单份 6000 字 / 总量 40000 字双上限约束。"""
-    parts: list[str] = []
-    total = 0
-    for b in bundles:
-        md = (getattr(b, "content_md", None) or "").strip()
-        if not md:
-            continue
-        excerpt = md[:_MAX_CHARS_PER_DOC]
-        if len(md) > _MAX_CHARS_PER_DOC:
-            excerpt += f"\n…(余下 {len(md) - _MAX_CHARS_PER_DOC} 字省略)"
-        label = _KIND_LABELS.get(b.kind, b.kind)
-        title = getattr(b, "title", None) or label
-        piece = f"【{label}:{title}】\n{excerpt}"
-        if total + len(piece) > _MAX_TOTAL_CHARS:
-            # 总量超限:截断当前这份后收尾,不再追加
-            remain = _MAX_TOTAL_CHARS - total
-            if remain > 500:
-                parts.append(piece[:remain] + "\n…(素材总量达上限,后续省略)")
-            break
-        parts.append(piece)
-        total += len(piece)
-    return "\n\n".join(parts)
 
 
 def _minutes_text_leaves(obj, out: list[str], budget: int = 8000) -> None:
@@ -320,21 +285,10 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
         logger.warning("scene_match_no_scenes", project_id=project_id)
         return _empty_result([], "标准场景库为空,无法判定。")
 
-    # 2. 读项目 + 素材(done 且 kind 在白名单的 curated_bundles)
+    # 2. 读项目 —— 命中依据只用「合同/SOW 界定的范围 + 会议调研」,不用下游产物
+    #    (蓝图/洞察/调研报告):那些是命中的【结果】,拿来当依据会循环论证,且蓝图这类过于全面
+    #    会把整个大域的细分场景全判命中(整域误命中)。用户 2026-07-14 决策。
     project = await session.get(Project, project_id)
-    bundles = (await session.execute(
-        select(CuratedBundle)
-        .where(CuratedBundle.project_id == project_id)
-        .where(CuratedBundle.status == "done")
-        .where(CuratedBundle.kind.in_(_MATERIAL_KINDS))
-        .order_by(CuratedBundle.created_at.desc())
-    )).scalars().all()
-    # 同一 kind 可能有多份 done 产物(重新生成过)——只保留每类最新一份(已按 created_at desc 排),
-    # 否则命中依据里「调研报告 / 蓝图设计 / 项目洞察」会重复列,也会把同份材料重复喂给 LLM 浪费 token。
-    seen_kinds: set[str] = set()
-    bundles = [b for b in bundles if not (b.kind in seen_kinds or seen_kinds.add(b.kind))]
-
-    material_block = _build_material_block(bundles)
     project_meta = _build_project_meta(project)
 
     # 关联本项目的会议纪要 —— 按时间从旧到新,逐场判增量后折叠(晚会可取消早会的场景)
@@ -370,21 +324,16 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
     sources: list[dict] = []
     if scope_doc and scope_block.strip():
         sources.append({"kind": "scope", "type": scope_label, "name": scope_doc.filename})
-    for b in bundles:
-        if (getattr(b, "content_md", None) or "").strip():
-            sources.append({"kind": "bundle", "type": _KIND_LABELS.get(b.kind, b.kind),
-                            "name": b.title or _KIND_LABELS.get(b.kind, b.kind)})
     # 会议纪要的 sources 在折叠后按「实际贡献了增量的会议」追加(见下)
 
-    # 3. 防御:项目无任何素材(范围文档 / 产物正文 / 会议纪要 / 元信息全空)→ 全 miss
+    # 3. 防御:项目无任何素材(范围文档 / 会议纪要 / 元信息全空)→ 全 miss
     has_meeting_content = any(
         (_render_minutes(m.edited_minutes or m.meeting_minutes) or m.polished_transcript or m.raw_transcript or "").strip()
         for m in meetings
     )
-    if (not scope_block.strip() and not material_block.strip()
-            and not has_meeting_content and not project_meta.strip()):
+    if (not scope_block.strip() and not has_meeting_content and not project_meta.strip()):
         logger.info("scene_match_no_material", project_id=project_id)
-        return _empty_result(scenes, "材料不足,无法判定:该项目暂无 SOW / 合同 / 调研 / 洞察 / 蓝图产物 / 会议纪要,也缺少项目描述。", sources)
+        return _empty_result(scenes, "材料不足,无法判定:该项目暂无 SOW / 合同 / 会议纪要,也缺少项目描述。", sources)
 
     # 场景 code → 场景 dict 的索引(判定回引用)
     scene_index: dict[tuple[str, str], dict] = {}
@@ -397,20 +346,17 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
     from services.llm_json import loads_lenient
     from services.model_router import ModelOutputError
 
-    # 4. 基线判定(文档:SOW/合同 + 产物)—— 会议不在这里,留到下面按时间逐场折叠。
+    # 4. 基线判定(范围文档:SOW/合同 + 项目元信息)—— 会议不在这里,留到下面按时间逐场折叠。
     #    一次判 147 个场景会让输出超 max_tokens 截断,改成每批 ≤_MATCH_CHUNK 个场景反复喂材料。
     material_context = f"""【项目上下文】
 {project_meta or '(无元信息)'}
 
-{scope_block or '【项目范围文档】(无 SOW / 合同)'}
-
-【项目素材(截断)】
-{material_block or '(无素材正文)'}"""
+{scope_block or '【项目范围文档】(无 SOW / 合同)'}"""
     system_prompt = (
-        "你是纷享销客 CRM 实施资深顾问,判定项目业务范围命中了「标准场景库」中的哪些标准场景。\n"
+        "你是纷享销客 CRM 实施资深顾问,依据【合同/SOW 范围文档 + 项目元信息】判定项目业务范围命中了「标准场景库」中的哪些标准场景。\n"
         "场景库是【细粒度】的:一个大域(如 LTC 线索到回款)下有几十个细分场景,每个对应一个具体业务动作。\n"
         "规则:\n"
-        "1. 逐个场景【独立】判断。命中要求材料里有【针对该细分场景本身】的明确依据(具体业务动作 / 需求 / 流程节点 / 字段),"
+        "1. 逐个场景【独立】判断。命中要求范围文档里有【针对该细分场景本身】的明确依据(具体业务动作 / 需求 / 流程节点 / 字段),"
         "而不是该场景所属的大域被提到。\n"
         "2. 【严禁整域命中】:绝不能因为项目做了某个大域,就把该域下所有细分场景都判命中。"
         "一个项目通常只覆盖某域里的一部分场景。例:客户做标准直销、不走招投标,则招标/投标类场景一律不命中。\n"
@@ -441,10 +387,10 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
                                attempt=attempt, error=str(e)[:150])
         return None
 
-    # 4a. 文档基线命中(t=0):SOW/合同 + 产物
+    # 4a. 文档基线命中(t=0):合同/SOW 范围文档 + 项目元信息
     doc_hit_keys: set[tuple[str, str]] = set()
     any_ok = False
-    doc_ran = bool(scope_block.strip() or material_block.strip() or project_meta.strip())
+    doc_ran = bool(scope_block.strip() or project_meta.strip())
     if doc_ran:
         for i in range(0, len(scenes), _MATCH_CHUNK):
             parsed = await _classify(scenes[i:i + _MATCH_CHUNK])
