@@ -135,11 +135,11 @@ export default function SceneHarnessPanel({
       {/* 蓝图回流(P4,仅方案设计阶段) */}
       {showReflow && (
         <div style={box}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <GitPullRequest size={15} color={dark ? '#A695CE' : '#5E4F87'} />
-            <span style={{ fontSize: 13, fontWeight: 650, color: c.ink }}>蓝图回流 · 场景库</span>
-            <span style={{ fontSize: 11.5, color: c.sub }}>识别蓝图里的场景优化/新增,PM 确认后交后台审核回写</span>
-            <div style={{ marginLeft: 'auto' }}>{btn(doReflow, reflowing, '蓝图完成·识别回流', GitPullRequest)}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+               title="识别蓝图里的场景优化/新增,PM 确认后交后台审核回写场景库">
+            <GitPullRequest size={14} color={dark ? '#A695CE' : '#5E4F87'} />
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: c.ink }}>蓝图回流</span>
+            <div style={{ marginLeft: 'auto' }}>{btn(doReflow, reflowing, '识别回流', GitPullRequest)}</div>
           </div>
           {proposals.length > 0 && (
             <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>

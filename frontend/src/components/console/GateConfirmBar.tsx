@@ -60,32 +60,22 @@ export default function GateConfirmBar({
     : { bg: '#FBF1DD', bd: '#EBD6A8', fg: '#8A5A10', sub: '#7A6636' }
   const c = confirmed ? okC : warnC
 
-  // 紧凑模式:一个 chip + 按钮,放在「本阶段产物」行内
+  // 紧凑模式:极简,一个按钮。放在「本阶段产物」行内
   if (compact) {
-    return (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }} title={gate.desc}>
-        {confirmed ? (
-          <>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: c.fg, fontWeight: 600 }}>
-              <CheckCircle2 size={12} /> {gate.label}·已确认
-            </span>
-            <button type="button" onClick={onReopen} disabled={busy}
-              style={{ fontSize: 11, color: c.sub, background: 'transparent', border: `1px solid ${c.bd}`, borderRadius: 7, padding: '3px 8px', cursor: busy ? 'default' : 'pointer', fontFamily: 'inherit' }}>
-              撤销
-            </button>
-          </>
-        ) : (
-          <>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: c.fg, fontWeight: 600 }}>
-              <ShieldAlert size={12} /> {gate.label}·待确认
-            </span>
-            <button type="button" onClick={onConfirm} disabled={busy}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, fontWeight: 600, padding: '4px 12px', borderRadius: 8, border: 'none', color: '#fff', cursor: busy ? 'default' : 'pointer', background: 'linear-gradient(135deg,#E0A43A,#C07A16)', fontFamily: 'inherit' }}>
-              {busy ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />} 一键确认
-            </button>
-          </>
-        )}
+    const short = (gate.label || '').split(' ')[0] || gate.label   // To-Be / As-Is
+    return confirmed ? (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: c.fg, fontWeight: 600 }} title={gate.desc}>
+        <CheckCircle2 size={13} /> {short} 已确认
+        <button type="button" onClick={onReopen} disabled={busy}
+          style={{ fontSize: 10.5, color: c.sub, background: 'transparent', border: 'none', textDecoration: 'underline', cursor: busy ? 'default' : 'pointer', padding: 0, fontFamily: 'inherit' }}>
+          撤销
+        </button>
       </span>
+    ) : (
+      <button type="button" onClick={onConfirm} disabled={busy} title={gate.desc}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, padding: '4px 12px', borderRadius: 8, border: 'none', color: '#fff', cursor: busy ? 'default' : 'pointer', background: 'linear-gradient(135deg,#E0A43A,#C07A16)', fontFamily: 'inherit' }}>
+        {busy ? <Loader2 size={11} className="animate-spin" /> : <ShieldAlert size={11} />} 确认 {short}
+      </button>
     )
   }
 

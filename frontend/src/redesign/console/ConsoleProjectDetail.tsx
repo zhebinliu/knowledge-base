@@ -501,6 +501,11 @@ export default function NewConsoleProjectDetail() {
         )}
       </div>
 
+      {/* Harness P3:场景命中 — 项目级,和项目简介放一起(不随阶段变) */}
+      <div style={{ padding: '8px 4px 2px', borderBottom: '1px solid rgba(0,0,0,0.25)' }}>
+        <SceneHarnessPanel projectId={id} variant="dark" section="match" />
+      </div>
+
       {/* ── 阶段流程栏 ── */}
       <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(0,0,0,0.25)' }}>
         <div style={{ display: 'flex', alignItems: 'stretch', gap: 6, overflowX: 'auto' }}>
@@ -564,9 +569,6 @@ export default function NewConsoleProjectDetail() {
       </div>
 
       {/* ── subKinds 切换 ── */}
-      {/* Harness P3:场景命中置顶 */}
-      <SceneHarnessPanel projectId={id} stageKey={activeStage?.key} variant="dark" section="match" />
-
       {activeStage.subKinds && (
         <div style={{ padding: '8px 20px', borderBottom: '1px solid rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 12, color: 'var(--rd-text-3)' }}>本阶段产物:</span>

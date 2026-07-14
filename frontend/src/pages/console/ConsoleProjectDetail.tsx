@@ -459,6 +459,11 @@ export default function ConsoleProjectDetail() {
         <SmartAdviceBanner projectId={project.id} />
       </div>
 
+      {/* Harness P3:场景命中 — 项目级,和项目简介放一起(不随阶段变) */}
+      <div className="flex-shrink-0 bg-white border-b border-line pt-2">
+        <SceneHarnessPanel projectId={id} variant="light" section="match" />
+      </div>
+
       {/* 协作者管理弹窗 */}
       <CollaboratorsModal
         open={collabOpen}
@@ -551,9 +556,6 @@ export default function ConsoleProjectDetail() {
           })}
         </div>
       </div>
-
-      {/* Harness P3:场景命中置顶 */}
-      <SceneHarnessPanel projectId={id} stageKey={activeStage?.key} variant="light" section="match" />
 
       {/* 当 stage 有 subKinds — 产物按钮组;确认按钮并到本行右侧 */}
       {activeStage.subKinds && (
