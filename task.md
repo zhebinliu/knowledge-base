@@ -605,9 +605,15 @@
 - [x] `deploy-uat.yml` / `deploy.yml`:paths-ignore 加 edge/**
 - [x] `scripts/renew-ssl.sh`:reload 容器改 kb-system-edge-1,域名列表补 studio
 - [x] 文档:CLAUDE.md / PROJECT_OVERVIEW.md(容器清单+架构图)/ LEARNING.md 新 §13
-- [ ] 上线 cutover:修服务器脏 worktree → push(UAT 自动)→ 预检 edge 镜像(无端口试跑 nginx -t)→ deploy-prod force_all → 全域名验证
+- [x] 上线 cutover:服务器脏 worktree 已 reset(落后 254 commit,git pull 恢复正常)→ 真实证书预检 nginx -t 通过 → deploy-prod force_all 成功(67a3f3b)→ 全域名验证通过(kb 双域名/skillhub/aihub/kanban/studio 健康,uat 302,aihub /v1 经 tap 401 正常)
 
 ## 边界 / 风险
 - 不动 skillhub/aihub/kanban 自身容器与配置,只动入口层
 - cutover 有一次 ~10-20s 全站闪断(frontend 撤端口 → edge 接管),是最后一次
 - edge 回滚:首次部署无 prev edge 镜像,健康失败走人工处理(部署时盯着)
+
+
+## cutover 中的额外发现(2026-07-14)
+- **uat 已下线**(5fd7890,cutover 前 1 小时):首版 edge 配置误从旧缓存把 uat 反代带回,67a3f3b 修正为 302 到生产;Deploy UAT workflow 已被禁用。
+- **证书续期 cron 丢失**(日志止于 6/12,疑似 6/23 服务器事故后未恢复):已重新加回 liu crontab(17 3 * * *)。kb.tokenwave.cloud 手动续期成功(→10/12)并 reload edge。
+- **⚠️ kb.liii.in DNS 指向 34.45.112.217(一个 K8s API server,证书 7/13 签发),不是 KB 服务器 34.42.241.99**:主域名对公网用户实际不可用(TLS 报错 + k8s 403),ACME 续期也因此失败(本机证书 7/16 到期)。需要用户在 DNS 解析商把 kb.liii.in A 记录改回 34.42.241.99;服务器端已把续期配置从 standalone 改为 webroot(兼容 nginx 占 80),DNS 修复后次日 3:17 cron 自动续上。备用域名 kb.tokenwave.cloud 一切正常。
