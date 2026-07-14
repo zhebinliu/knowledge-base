@@ -37,6 +37,7 @@ from models.project import Project
 from models.scene import StandardScene
 from models.curated_bundle import CuratedBundle
 from models.document import Document
+from models.meeting import Meeting
 from services.model_router import model_router
 
 logger = structlog.get_logger()
@@ -51,7 +52,10 @@ _KIND_LABELS = {
     "blueprint_design": "蓝图设计",
 }
 _MAX_CHARS_PER_DOC = 6000      # 单份产物截断字符数
-_MAX_TOTAL_CHARS = 40000       # 全部素材总量上限
+_MAX_TOTAL_CHARS = 40000       # 产物素材总量上限
+_MAX_CHARS_PER_MEETING = 4000  # 单场会议纪要截断字符数
+_MAX_MEETING_TOTAL_CHARS = 16000  # 会议纪要总量上限(独立于产物预算,避免撑爆 prompt)
+_MAX_MEETINGS = 8              # 最多取最近 N 场会议
 _MODEL_TASK = "scene_match"    # model_router 路由 task 名
 _MATCH_CHUNK = 30              # 每批判定的场景数(避免一次判 147 个导致输出截断)
 
@@ -113,6 +117,44 @@ def _build_material_block(bundles: list[CuratedBundle]) -> str:
         parts.append(piece)
         total += len(piece)
     return "\n\n".join(parts)
+
+
+def _render_minutes(minutes) -> str:
+    """会议纪要 JSON → 可读文本;非 dict 返回空串。用 json.dumps 保底(LLM 能直接读结构化)。"""
+    if not isinstance(minutes, dict):
+        return ""
+    import json as _json
+    try:
+        return _json.dumps(minutes, ensure_ascii=False)
+    except Exception:
+        return ""
+
+
+def _build_meeting_block(meetings: list[Meeting]) -> tuple[str, list[dict]]:
+    """关联项目的会议:优先取(用户编辑过的)纪要,无纪要则退回转写。真实客户对话最能反映业务范围。
+
+    返回 (拼接文本, sources 列表)。受单场 4000 字 / 会议总量 16000 字双上限约束。
+    """
+    parts: list[str] = []
+    sources: list[dict] = []
+    total = 0
+    for mt in meetings:
+        body = _render_minutes(mt.edited_minutes or mt.meeting_minutes)
+        if not body.strip():
+            body = (mt.polished_transcript or mt.raw_transcript or "").strip()
+        if not body.strip():
+            continue
+        excerpt = body[:_MAX_CHARS_PER_MEETING]
+        if len(body) > _MAX_CHARS_PER_MEETING:
+            excerpt += f"\n…(余下 {len(body) - _MAX_CHARS_PER_MEETING} 字省略)"
+        title = mt.title or "未命名会议"
+        piece = f"【会议纪要:{title}】\n{excerpt}"
+        if total + len(piece) > _MAX_MEETING_TOTAL_CHARS:
+            break
+        parts.append(piece)
+        total += len(piece)
+        sources.append({"kind": "meeting", "type": "会议纪要", "name": title})
+    return "\n\n".join(parts), sources
 
 
 def _build_scene_catalog(scenes: list[StandardScene]) -> str:
@@ -214,9 +256,22 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
         .where(CuratedBundle.kind.in_(_MATERIAL_KINDS))
         .order_by(CuratedBundle.created_at.desc())
     )).scalars().all()
+    # 同一 kind 可能有多份 done 产物(重新生成过)——只保留每类最新一份(已按 created_at desc 排),
+    # 否则命中依据里「调研报告 / 蓝图设计 / 项目洞察」会重复列,也会把同份材料重复喂给 LLM 浪费 token。
+    seen_kinds: set[str] = set()
+    bundles = [b for b in bundles if not (b.kind in seen_kinds or seen_kinds.add(b.kind))]
 
     material_block = _build_material_block(bundles)
     project_meta = _build_project_meta(project)
+
+    # 关联本项目的会议纪要 —— 真实客户调研对话,是场景命中的一手依据
+    meetings = (await session.execute(
+        select(Meeting)
+        .where(Meeting.project_id == project_id)
+        .order_by(Meeting.created_at.desc())
+        .limit(_MAX_MEETINGS)
+    )).scalars().all()
+    meeting_block, meeting_sources = _build_meeting_block(meetings)
 
     # 2b. 范围文档:SOW 优先,SOW 缺失时用合同兜底(用户 2026-07-13)
     #     SOW/合同界定项目范围,是场景命中最直接的依据。
@@ -247,11 +302,13 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
         if (getattr(b, "content_md", None) or "").strip():
             sources.append({"kind": "bundle", "type": _KIND_LABELS.get(b.kind, b.kind),
                             "name": b.title or _KIND_LABELS.get(b.kind, b.kind)})
+    sources.extend(meeting_sources)   # 会议纪要也是命中依据
 
-    # 3. 防御:项目无任何素材(范围文档 / 产物正文 / 元信息全空)→ 全 miss
-    if not scope_block.strip() and not material_block.strip() and not project_meta.strip():
+    # 3. 防御:项目无任何素材(范围文档 / 产物正文 / 会议纪要 / 元信息全空)→ 全 miss
+    if (not scope_block.strip() and not material_block.strip()
+            and not meeting_block.strip() and not project_meta.strip()):
         logger.info("scene_match_no_material", project_id=project_id)
-        return _empty_result(scenes, "材料不足,无法判定:该项目暂无 SOW / 合同 / 调研 / 洞察 / 蓝图产物,也缺少项目描述。", sources)
+        return _empty_result(scenes, "材料不足,无法判定:该项目暂无 SOW / 合同 / 调研 / 洞察 / 蓝图产物 / 会议纪要,也缺少项目描述。", sources)
 
     # 场景 code → 场景 dict 的索引(判定回引用)
     scene_index: dict[tuple[str, str], dict] = {}
@@ -272,11 +329,14 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
 {scope_block or '【项目范围文档】(无 SOW / 合同)'}
 
 【项目素材(截断)】
-{material_block or '(无素材正文)'}"""
+{material_block or '(无素材正文)'}
+
+【会议纪要(截断)】
+{meeting_block or '(无会议纪要)'}"""
     system_prompt = (
         "你是纷享销客 CRM 实施资深顾问,判定项目业务范围命中了「标准场景库」中的哪些标准场景。\n"
         "规则:\n"
-        "1. 只有当项目材料(范围文档 SOW/合同、调研、洞察、蓝图、元信息)明确涉及或强相关某标准场景时,才判命中;材料没提到、无法佐证的一律不命中。\n"
+        "1. 只有当项目材料(范围文档 SOW/合同、调研、洞察、蓝图、会议纪要、元信息)明确涉及或强相关某标准场景时,才判命中;材料没提到、无法佐证的一律不命中。\n"
         "2. 宁缺毋滥:不确定就不命中。\n"
         "3. 严格输出 JSON,不要解释文字、不要代码围栏。"
     )
