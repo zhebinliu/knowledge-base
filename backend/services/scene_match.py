@@ -53,9 +53,9 @@ _KIND_LABELS = {
 }
 _MAX_CHARS_PER_DOC = 6000      # 单份产物截断字符数
 _MAX_TOTAL_CHARS = 40000       # 产物素材总量上限
-_MAX_CHARS_PER_MEETING = 4000  # 单场会议纪要截断字符数
-_MAX_MEETING_TOTAL_CHARS = 16000  # 会议纪要总量上限(独立于产物预算,避免撑爆 prompt)
-_MAX_MEETINGS = 8              # 最多取最近 N 场会议
+_MAX_CHARS_PER_MEETING = 3500  # 单场会议纪要截断字符数(略降以容纳更多场次,重广度)
+_MAX_MEETING_TOTAL_CHARS = 36000  # 会议纪要总量上限(glm-5 200k 上下文富余;让早期调研会也进得来)
+_MAX_MEETINGS = 14             # 最多取最近 N 场会议(覆盖到早期调研会,场景识别靠广度)
 _MODEL_TASK = "scene_match"    # model_router 路由 task 名
 _MATCH_CHUNK = 30              # 每批判定的场景数(避免一次判 147 个导致输出截断)
 
