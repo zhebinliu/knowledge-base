@@ -12,6 +12,7 @@ import CollaboratorsModal from '../../components/console/CollaboratorsModal'
 import GateConfirmBar from '../../components/console/GateConfirmBar'
 import SoftWarningChips, { toastSoftWarnings } from '../../components/console/SoftWarnings'
 import SceneHarnessPanel from '../../components/console/SceneHarnessPanel'
+import ResearchAgendaDrawer from '../../components/console/ResearchAgendaDrawer'
 import BundleOverrideModal from '../../components/console/BundleOverrideModal'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
 import { useAuth } from '../../auth/AuthContext'
@@ -124,6 +125,7 @@ export default function ConsoleProjectDetail() {
 
   const [chatMode, setChatMode] = useState<ChatMode>({ type: 'pm' })
   const [reflowSignal, setReflowSignal] = useState(0)   // 方案定稿确认 → bump → 自动识别蓝图回流
+  const [agendaOpen, setAgendaOpen] = useState(false)   // 需求调研阶段的调研议程抽屉
   const [editing, setEditing] = useState(false)
   const [collabOpen, setCollabOpen] = useState(false)
   const [stakesOpen, setStakesOpen] = useState(false)
@@ -584,8 +586,17 @@ export default function ConsoleProjectDetail() {
               </button>
             )
           })}
-          {/* Harness 闸门:As-Is/To-Be 一键确认,并到本阶段产物行右侧 */}
-          <span className="ml-auto flex items-center"><GateConfirmBar projectId={id} stageKey={activeStage?.key} variant="light" compact onConfirmed={k => { if (k === 'tobe') setReflowSignal(s => s + 1) }} /></span>
+          {/* 需求调研阶段:调研议程(应覆盖场景 + 每场景该问什么)—— 就近放本阶段工具行 */}
+          <span className="ml-auto flex items-center gap-2">
+            {activeStage?.key === 'survey' && (
+              <button type="button" onClick={() => setAgendaOpen(true)}
+                title="按应覆盖场景列出调研议程 + 每个场景该问的关键问题"
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-[#D96400] bg-orange-50 text-[#D96400] font-semibold hover:bg-orange-100">
+                <ClipboardList size={12} /> 调研议程
+              </button>
+            )}
+            <GateConfirmBar projectId={id} stageKey={activeStage?.key} variant="light" compact onConfirmed={k => { if (k === 'tobe') setReflowSignal(s => s + 1) }} />
+          </span>
         </div>
       )}
 
@@ -593,6 +604,7 @@ export default function ConsoleProjectDetail() {
       <SoftWarningChips bundle={activeBundle} variant="light" />
       {/* Harness P4:蓝图回流(design 阶段) */}
       <SceneHarnessPanel projectId={id} stageKey={activeStage?.key} variant="light" section="reflow" reflowSignal={reflowSignal} />
+      {agendaOpen && id && <ResearchAgendaDrawer projectId={id} variant="light" onClose={() => setAgendaOpen(false)} />}
       {/* 当前阶段 action — 与上方阶段栏共享白底 */}
       <div className="flex-shrink-0 px-2 sm:px-3 pt-2 pb-2.5 bg-white border-b border-line flex items-center gap-2">
         <span className="text-[11px] text-ink-muted truncate">

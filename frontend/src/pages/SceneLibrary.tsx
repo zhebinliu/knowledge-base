@@ -3,11 +3,11 @@ import { Layers, Search, History, BookOpen, GitPullRequest, Check, X, Loader2 } 
 import { toast } from '../components/Toaster'
 import SceneEditDrawer from '../components/SceneEditDrawer'
 import {
-  listSceneDomains, listScenes, listRecentSceneChanges, aiMatchScenes, batchGenSceneQuestions,
+  listSceneDomains, listScenes, listRecentSceneChanges, aiMatchScenes,
   adminListProposals, approveProposal, rejectProposal,
   type Scene, type SceneChange, type SceneDomains, type SceneProposal,
 } from '../api/scenes'
-import { Sparkles, MessageCircleQuestion } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 
 /**
  * 场景库中心 — Harness P3/P4 底座的后台管理页。
@@ -24,7 +24,6 @@ export default function SceneLibrary() {
   const [busyId, setBusyId] = useState<number | null>(null)
   const [editScene, setEditScene] = useState<Scene | null>(null)
   const [matching, setMatching] = useState(false)
-  const [genning, setGenning] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const runAiMatch = async () => {
@@ -36,17 +35,6 @@ export default function SceneLibrary() {
       const list = await listScenes({ domain: activeDomain || undefined, q: q || undefined })
       setScenes(list)
     } catch { /* 拦截器已 toast */ } finally { setMatching(false) }
-  }
-
-  const runGenQuestions = async () => {
-    if (!confirm(`对${activeDomain ? ` ${activeDomain} 域` : '全部'}场景批量 AI 生成「关键调研问题」?只补尚无问题的场景,已有的不覆盖(可进场景手动改)。`)) return
-    setGenning(true)
-    try {
-      const r = await batchGenSceneQuestions(activeDomain || undefined)
-      toast.success(`已生成:${r.generated_scenes} 个场景 / 共 ${r.questions} 个问题${r.skipped ? `(跳过 ${r.skipped} 个已有的)` : ''}`)
-      const list = await listScenes({ domain: activeDomain || undefined, q: q || undefined })
-      setScenes(list)
-    } catch { /* 拦截器已 toast */ } finally { setGenning(false) }
   }
 
   useEffect(() => { listSceneDomains().then(setDomains).catch(() => {}) }, [])
@@ -123,14 +111,8 @@ export default function SceneLibrary() {
               <DomainChip key={d.domain} label={d.domain} count={d.count}
                 active={activeDomain === d.domain} onClick={() => setActiveDomain(d.domain)} />
             ))}
-            <button onClick={runGenQuestions} disabled={genning || matching}
-              className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium border border-[#F3D6B0] bg-brand-light text-[#D96400] disabled:opacity-60"
-              title={`对${activeDomain || '全部'}场景批量生成关键调研问题`}>
-              {genning ? <Loader2 size={13} className="animate-spin" /> : <MessageCircleQuestion size={13} />}
-              AI 生成调研问题{activeDomain ? `（${activeDomain}）` : ''}
-            </button>
-            <button onClick={runAiMatch} disabled={matching || genning}
-              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-white font-medium disabled:opacity-60"
+            <button onClick={runAiMatch} disabled={matching}
+              className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-white font-medium disabled:opacity-60"
               style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}
               title={`对${activeDomain || '全部'}场景自动匹配 AI 能力`}>
               {matching ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
