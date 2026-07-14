@@ -44,6 +44,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import TemplateSelector from '../../components/TemplateSelector'
 import { MermaidBlock } from '../../components/markdown/ReportMarkdown'
+import MeetingScenesPanel from '../../components/console/MeetingScenesPanel'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 type TopView = 'overview' | 'split' | 'actions'
@@ -877,6 +878,9 @@ export function MinutesTab({ meeting }: { meeting: Meeting }) {
           </>
         )}
       </div>
+
+      {/* 本场涉及场景(闭环③):对照标准场景库,本场纳入/移出的场景 */}
+      <MeetingScenesPanel meetingId={meeting.id} variant="light" />
 
       {/* 纪要主体:模板风格的表格化展示 */}
       <div className="border border-line rounded-lg overflow-hidden bg-white shadow-sm">

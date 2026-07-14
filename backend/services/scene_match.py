@@ -420,6 +420,14 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
     for m, (in_keys, out_keys, had_signal) in zip(meetings, deltas):
         if had_signal:
             meeting_ok = True
+            # 顺带把本场识别结果落库,供「会议详情」展示涉及场景(闭环③);失败不影响命中
+            try:
+                from services.scene_meeting import upsert_meeting_delta
+                in_sc = [scene_index[k] for k in in_keys if k in scene_index]
+                out_sc = [scene_index[k] for k in out_keys if k in scene_index]
+                await upsert_meeting_delta(session, m, in_sc, out_sc, detected_by="scene_match")
+            except Exception as e:  # noqa: BLE001
+                logger.warning("meeting_delta_persist_fail", meeting_id=m.id, error=str(e)[:120])
         if in_keys or out_keys:
             added_total += len(in_keys - state)
             removed_total += len(out_keys & state)
