@@ -15,7 +15,7 @@
 
 - 生产域名: https://kb.liii.in（强制 HTTPS）
 - 备用域名: https://kb.tokenwave.cloud（同一服务器，独立证书）
-- **新前端预览**: https://uat.tokenwave.cloud — 深色 Liquid Glass 重构版,根 `/` 默认 302 到 `/redesign/console`。**同一服务器,独立证书,复用同一份 dist + 后端 + 数据。** 现在 `/redesign/*` 是 mock 数据状态,等逐页接 API 后即"可用的新前端"。
+- ~~新前端预览 uat.tokenwave.cloud~~ **已下线**(2026-07-14):域名保留 TLS,统一 302 到 kb.liii.in;frontend-uat 容器可停,Deploy UAT workflow 已禁用。
 - **团队看板**: https://kanban.tokenwave.cloud — Plane(开源 Jira/Linear 替代)。独立 compose `/opt/kanban`(源码在本仓 `kanban/`),独立 postgres/redis/rabbitmq/minio,由 edge nginx 持证反代到 `plane-proxy:80`,模式同 aihub。
 - 直连 IP: 34.42.241.99（80→301 跳 HTTPS）
 
@@ -24,7 +24,7 @@
 - 远程服务器: `liu@34.42.241.99` (GCP)，SSH key: `~/.ssh/id_rsa_github_deploy`
 - 远程路径: `/opt/kb-system`
 - 运行方式: Docker Compose 拉 **ghcr.io 镜像**(`ghcr.io/zhebinliu/knowledge-base-{backend,frontend-prod,frontend-uat,edge}`)— 服务器 **不在本地编译**
-- **edge 容器 = 全服务器唯一 80/443 入口**(2026-07-14 从 frontend 拆出,源码 `edge/`):持全部域名证书,按 server_name 反代到各内网容器(frontend / frontend-uat / skillhub / aihub / kanban / studio),upstream 全部 resolver+变量延迟解析。日常前后端部署只动内网容器,**不闪断 aihub/skillhub 等其它站点**;只有 `edge/` 或 `docker-compose.yml` 变更才重建 edge(全域名闪断几秒)
+- **edge 容器 = 全服务器唯一 80/443 入口**(2026-07-14 从 frontend 拆出,源码 `edge/`):持全部域名证书,按 server_name 反代到各内网容器(frontend / skillhub / aihub / kanban / studio;uat 域名只 302),upstream 全部 resolver+变量延迟解析。日常前后端部署只动内网容器,**不闪断 aihub/skillhub 等其它站点**;只有 `edge/` 或 `docker-compose.yml` 变更才重建 edge(全域名闪断几秒)
 - HTTPS: Let's Encrypt 证书在主机 `/etc/letsencrypt/live/kb.liii.in/`，挂载进 edge 容器。续期 cron `17 3 * * * /opt/kb-system/scripts/renew-ssl.sh`
 - **`meeting/` 是普通子目录**(2026-05-25 合并回主仓,之前为 git submodule 指向 zhebinliu/ai-meeting)。Dockerfile 仍用 `COPY meeting/backend/ /app/` overlay 把会议代码叠到主镜像里,详见 [PROJECT_OVERVIEW § 12](PROJECT_OVERVIEW.md)。
 - GitHub Actions `secrets.DEPLOY_HOST` 跟服务器 IP 绑定,**换服务器时除了改本仓代码,还要去 GitHub Settings → Secrets 把 `DEPLOY_HOST` 同步改了**
