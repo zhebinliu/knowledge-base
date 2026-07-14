@@ -17,6 +17,8 @@ on:
       - 'backend/services/agentic/skills_roadmap.md'
       - '.gitignore'
       - 'desktop/**'
+      # edge(80/443 入口)只随 deploy-prod 部署,跟 frontend-uat 镜像无关
+      - 'edge/**'
       - '.github/workflows/desktop-build.yml'
       - '.github/workflows/deploy-prod.yml'
       - '.github/workflows/deploy.yml'

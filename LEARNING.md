@@ -1225,3 +1225,33 @@ dig +short kb.tokenwave.cloud aihub.tokenwave.cloud uat.tokenwave.cloud kb.liii.
 
 【此后做法】凡是“客户端重连 / 连接前重试 / 403 但备用域名正常”,先查 DNS/IP/证书/SNI,
 再查应用层 SSE 或模型代理。尤其 GCP ephemeral IP 环境里,域名分叉比代码 bug 更常见。
+
+## 13. 边缘代理 edge 拆分 —— 部署不再影响其它站点(2026-07-14)
+
+**背景**:frontend 容器曾是全服务器唯一 80/443 入口(持 7 个域名证书 + 反代全部站点),
+每次 kb 前端部署重建它,aihub/skillhub/kanban/studio/uat 一起断十几秒;aihub 上正在跑的
+LLM 流式请求(/v1,600s 超时)直接被掐。加上两次 upstream 静态解析事故
+(backend 重建换 IP → /api 全 502 登不了;skillhub 容器没起 → 整个 nginx 起不来),
+决定把入口层独立出来。
+
+**方案**(复用 uat 已验证的"边缘只转发、业务在内网容器"模式):
+- 新增 `edge/` 目录 → `edge` 容器(nginx:1.27-alpine,~10MB),唯一持 80/443 + 全域名证书,
+  按 server_name 反代到各内网容器。证书裁剪 entrypoint 逻辑(SKILLHUB/AIHUB/KANBAN marker)照搬。
+- `frontend` 容器降级为纯内网 :80 dist 服务(nginx.prod.conf 重写,对齐 nginx.uat.conf 结构),
+  kb 域名的 /api 也由它转 backend —— edge 的 kb/uat server block 只有一个 `location /`。
+- deploy-prod.yml 变更检测加 edge 维度:只有 `edge/` 或 `docker-compose.yml` 变更才重建 edge;
+  部署顺序必须 backend/frontend 先、edge 最后(cutover 时旧 frontend 先释放端口)。
+- 证书续期 reload 容器改 `kb-system-edge-1`(scripts/renew-ssl.sh)。
+
+**铁律(以后新站点接入必须遵守)**:
+1. edge 里所有内网 upstream 一律 `set $var 容器名; proxy_pass http://$var:port;`
+   + 文件顶部全局 `resolver 127.0.0.11 valid=10s ipv6=off;`。静态 `proxy_pass http://容器名`
+   会在 nginx 启动时解析一次:目标重建换 IP → 一直 502;目标没起 → nginx 拒绝启动。
+2. edge 与业务容器之间零 depends_on —— edge 必须在任何业务容器缺席时都能起。
+3. 新域名接入 = edge/nginx.conf 加 server block(+证书没签发时加 STRIP marker 交给 entrypoint 裁剪),
+   业务容器只 expose 内网端口,不碰 80/443。
+4. edge-only 部署时 UP_SVCS 为空,回滚路径的 `docker compose up -d --no-deps $UP_SVCS`
+   会变全量 up —— 脚本里已用 `[ -n "$UP_SVCS" ]` 挡住,改回滚逻辑时别删。
+
+**效果**:kb 前端/后端、skillhub、aihub、kanban 各自部署只影响自己域名;
+edge 重建(罕见)才全站闪断几秒,且 kb/uat 域名在内网容器重启窗口内由 edge 兜 502/504 维护页。

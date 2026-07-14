@@ -34,7 +34,7 @@ fi
 
 # 续期成功时（证书文件被替换）reload nginx 加载新证书
 reload_needed=false
-for domain in kb.liii.in kb.tokenwave.cloud uat.tokenwave.cloud skillhub.tokenwave.cloud aihub.tokenwave.cloud kanban.tokenwave.cloud; do
+for domain in kb.liii.in kb.tokenwave.cloud uat.tokenwave.cloud skillhub.tokenwave.cloud aihub.tokenwave.cloud kanban.tokenwave.cloud studio.tokenwave.cloud; do
     cert_path="/etc/letsencrypt/live/${domain}/fullchain.pem"
     if [ -f "$cert_path" ] && [ -n "$(find "$cert_path" -mtime -1 2>/dev/null)" ]; then
         echo "$(date -Iseconds) cert renewed for ${domain}"
@@ -57,7 +57,8 @@ done
 
 if [ "$reload_needed" = true ]; then
     echo "$(date -Iseconds) reloading nginx"
-    sudo docker exec kb-system-frontend-1 nginx -s reload
+    # 2026-07-14 起证书由 edge 容器持有(80/443 入口从 frontend 拆出)
+    sudo docker exec kb-system-edge-1 nginx -s reload
 fi
 
 ping_hc ""

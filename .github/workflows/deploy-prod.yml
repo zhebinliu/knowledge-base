@@ -2,11 +2,13 @@ name: Deploy PROD
 
 # 生产部署:
 #   - 仅手动触发(workflow_dispatch),避免误推 main 把 prod 改了
-#   - 条件构建(2026-07-14):对比上次部署的 prod-live tag,只构建 / 重启变更的那边
-#     (backend / frontend);单边改动省一半构建时间。
+#   - 条件构建(2026-07-14):对比上次部署的 prod-live tag,只构建 / 重启变更的服务
+#     (backend / frontend / edge);单边改动省构建时间。
 #   - 部署前后自动 prune 镜像,根治 /opt/data 满导致 postgres 崩溃
 #   - SSH 部署:滚动重启(maintenance flag + 健康检查 + 回滚)
 #   - 影响域名:kb.liii.in / kb.tokenwave.cloud;不动 frontend-uat
+#   - edge(80/443 入口)只在 edge/ 或 docker-compose.yml 变更时才重建 —— 那是唯一
+#     会闪断 aihub/skillhub/kanban/studio 的场景;日常前后端部署不碰 edge
 on:
   workflow_dispatch:
     inputs:
@@ -15,7 +17,7 @@ on:
         required: true
         type: string
       force_all:
-        description: '强制全量构建(backend+frontend,忽略变更检测),填 "yes" 开启'
+        description: '强制全量构建(backend+frontend+edge,忽略变更检测),填 "yes" 开启'
         required: false
         type: string
         default: ''
@@ -24,6 +26,7 @@ env:
   REGISTRY: ghcr.io
   BACKEND_IMAGE:       ${{ github.repository }}-backend
   FRONTEND_PROD_IMAGE: ${{ github.repository }}-frontend-prod
+  EDGE_IMAGE_NAME:     ${{ github.repository }}-edge
   DOCKER_BUILDKIT: 1
 
 jobs:
@@ -46,6 +49,7 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
+      edge: ${{ steps.filter.outputs.edge }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -58,6 +62,7 @@ jobs:
             echo "→ force_all=yes,全量构建"
             echo "backend=true"  >> $GITHUB_OUTPUT
             echo "frontend=true" >> $GITHUB_OUTPUT
+            echo "edge=true"     >> $GITHUB_OUTPUT
             exit 0
           fi
           # 取上次部署基准(prod-live tag)
@@ -71,19 +76,25 @@ jobs:
             echo "→ 无 prod-live 基准(首次),全量构建"
             echo "backend=true"  >> $GITHUB_OUTPUT
             echo "frontend=true" >> $GITHUB_OUTPUT
+            echo "edge=true"     >> $GITHUB_OUTPUT
             exit 0
           fi
           echo "→ 对比基准 $BASE .. HEAD"
           CHANGED=$(git diff --name-only "$BASE" HEAD || echo "")
           echo "$CHANGED"
-          BE=false; FE=false
+          BE=false; FE=false; ED=false
           echo "$CHANGED" | grep -qE '^(backend/|meeting/backend/|docker-compose\.yml)' && BE=true || true
           echo "$CHANGED" | grep -qE '^(frontend/|meeting/frontend/)' && FE=true || true
-          # 兜底:没匹配到任何一边(如只改 .github / 文档)→ 两边都建,避免漏部署
-          if [ "$BE" = "false" ] && [ "$FE" = "false" ]; then BE=true; FE=true; fi
-          echo "→ backend=$BE frontend=$FE"
+          # edge = 80/443 入口,重建会闪断全部域名(含 aihub/skillhub)—— 只在
+          # edge/ 或 docker-compose.yml(服务定义)变更时才动它
+          echo "$CHANGED" | grep -qE '^(edge/|docker-compose\.yml)' && ED=true || true
+          # 兜底:没匹配到任何一边(如只改 .github / 文档)→ backend+frontend 都建;
+          # edge 不进兜底 —— 宁可漏也不无谓闪断其它站点
+          if [ "$BE" = "false" ] && [ "$FE" = "false" ] && [ "$ED" = "false" ]; then BE=true; FE=true; fi
+          echo "→ backend=$BE frontend=$FE edge=$ED"
           echo "backend=$BE"  >> $GITHUB_OUTPUT
           echo "frontend=$FE" >> $GITHUB_OUTPUT
+          echo "edge=$ED"     >> $GITHUB_OUTPUT
 
   test:
     name: Run Tests
@@ -276,16 +287,55 @@ jobs:
           cache-from: type=gha,scope=frontend-prod
           cache-to: type=gha,mode=max,scope=frontend-prod
 
+  build-edge:
+    name: Build & push edge
+    needs: changes
+    if: needs.changes.outputs.edge == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata for edge
+        id: meta-edge
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.EDGE_IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,format=short
+            latest
+      - name: Build & push edge
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./edge/Dockerfile
+          push: true
+          tags: ${{ steps.meta-edge.outputs.tags }}
+          labels: ${{ steps.meta-edge.outputs.labels }}
+          cache-from: type=gha,scope=edge
+          cache-to: type=gha,mode=max,scope=edge
+
   deploy:
     name: Deploy PROD to server
-    needs: [changes, build-backend, build-frontend]
-    # 变更检测成功 + 两个构建都没失败(可能被 skip)才部署
+    needs: [changes, build-backend, build-frontend, build-edge]
+    # 变更检测成功 + 所有构建都没失败(可能被 skip)才部署
     if: >-
       always()
       && needs.changes.result == 'success'
       && needs.build-backend.result != 'failure'
       && needs.build-frontend.result != 'failure'
-      && (needs.build-backend.result == 'success' || needs.build-frontend.result == 'success')
+      && needs.build-edge.result != 'failure'
+      && (needs.build-backend.result == 'success' || needs.build-frontend.result == 'success' || needs.build-edge.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write   # 部署成功后推 prod-live tag
@@ -303,12 +353,13 @@ jobs:
           FERNET_KEY_SECRET: ${{ secrets.FERNET_KEY }}
           DEPLOY_BE: ${{ needs.changes.outputs.backend }}
           DEPLOY_FE: ${{ needs.changes.outputs.frontend }}
+          DEPLOY_ED: ${{ needs.changes.outputs.edge }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          envs: FERNET_KEY_SECRET,DEPLOY_BE,DEPLOY_FE
+          envs: FERNET_KEY_SECRET,DEPLOY_BE,DEPLOY_FE,DEPLOY_ED
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
             git pull origin main 2>&1 | tail -5 || echo "git pull failed, continuing with docker images only"
@@ -321,18 +372,20 @@ jobs:
             SHORT_SHA="${{ steps.sha.outputs.value }}"
             BACKEND_IMAGE_FULL="${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-${SHORT_SHA}"
             FRONTEND_IMAGE_FULL="${{ env.REGISTRY }}/${{ env.FRONTEND_PROD_IMAGE }}:sha-${SHORT_SHA}"
-            echo "→ 本次部署 backend=${DEPLOY_BE} frontend=${DEPLOY_FE}"
+            EDGE_IMAGE_FULL="${{ env.REGISTRY }}/${{ env.EDGE_IMAGE_NAME }}:sha-${SHORT_SHA}"
+            echo "→ 本次部署 backend=${DEPLOY_BE} frontend=${DEPLOY_FE} edge=${DEPLOY_ED}"
 
             # ── 部署前清理旧镜像,腾空间(根治 /opt/data 满导致 pull/up 失败)──
             echo "→ 部署前清理旧镜像"
             sudo docker image prune -af 2>&1 | tail -1 || true
             df -h /opt/data 2>/dev/null | tail -1 || true
 
-            # 待操作的服务列表
+            # 待操作的服务列表(edge 单独处理:必须在 frontend 之后 up,
+            # 首次 cutover 时旧 frontend 先释放 80/443 端口 edge 才能绑上)
             UP_SVCS=""
             [ "$DEPLOY_BE" = "true" ] && UP_SVCS="$UP_SVCS backend celery_worker"
             [ "$DEPLOY_FE" = "true" ] && UP_SVCS="$UP_SVCS frontend"
-            if [ -z "$UP_SVCS" ]; then
+            if [ -z "$UP_SVCS" ] && [ "$DEPLOY_ED" != "true" ]; then
               echo "⚠️ 无变更服务,跳过镜像更新"
               exit 0
             fi
@@ -341,10 +394,19 @@ jobs:
             sudo mkdir -p /opt/kb-system/run
             sudo touch /opt/kb-system/run/.maintenance
 
-            sudo BACKEND_IMAGE="${BACKEND_IMAGE_FULL}" FRONTEND_IMAGE="${FRONTEND_IMAGE_FULL}" \
-              docker compose pull $UP_SVCS
-            sudo BACKEND_IMAGE="${BACKEND_IMAGE_FULL}" FRONTEND_IMAGE="${FRONTEND_IMAGE_FULL}" \
-              docker compose up -d --no-deps $UP_SVCS
+            # 先把所有镜像拉齐(慢操作前置,重启窗口最短)
+            PULL_SVCS="$UP_SVCS"
+            [ "$DEPLOY_ED" = "true" ] && PULL_SVCS="$PULL_SVCS edge"
+            sudo BACKEND_IMAGE="${BACKEND_IMAGE_FULL}" FRONTEND_IMAGE="${FRONTEND_IMAGE_FULL}" EDGE_IMAGE="${EDGE_IMAGE_FULL}" \
+              docker compose pull $PULL_SVCS
+            if [ -n "$UP_SVCS" ]; then
+              sudo BACKEND_IMAGE="${BACKEND_IMAGE_FULL}" FRONTEND_IMAGE="${FRONTEND_IMAGE_FULL}" EDGE_IMAGE="${EDGE_IMAGE_FULL}" \
+                docker compose up -d --no-deps $UP_SVCS
+            fi
+            if [ "$DEPLOY_ED" = "true" ]; then
+              sudo BACKEND_IMAGE="${BACKEND_IMAGE_FULL}" FRONTEND_IMAGE="${FRONTEND_IMAGE_FULL}" EDGE_IMAGE="${EDGE_IMAGE_FULL}" \
+                docker compose up -d --no-deps edge
+            fi
 
             sleep 3
             ALIGN_OK=true
@@ -360,10 +422,33 @@ jobs:
                 echo "❌ frontend 对齐失败:预期=$FRONTEND_IMAGE_FULL 实际=$FE_IMAGE"; ALIGN_OK=false
               fi
             fi
+            if [ "$DEPLOY_ED" = "true" ]; then
+              ED_IMAGE=$(sudo docker inspect kb-system-edge-1 --format '{{.Config.Image}}' 2>/dev/null || echo "")
+              if [ "$ED_IMAGE" != "$EDGE_IMAGE_FULL" ]; then
+                echo "❌ edge 对齐失败:预期=$EDGE_IMAGE_FULL 实际=$ED_IMAGE"; ALIGN_OK=false
+              fi
+            fi
             if [ "$ALIGN_OK" != "true" ]; then
               sudo rm -f /opt/kb-system/run/.maintenance; exit 1
             fi
             echo "✓ 容器 image 已对齐"
+
+            # edge 部署时:验证 80/443 入口活着(host 直接 curl :80,穿透端口绑定)
+            if [ "$DEPLOY_ED" = "true" ]; then
+              EDGE_OK=false
+              for i in $(seq 1 6); do
+                if curl -fsS http://127.0.0.1/health 2>/dev/null | grep -q ok; then
+                  EDGE_OK=true; echo "✅ edge healthy after $((i*5))s"; break
+                fi
+                sleep 5
+              done
+              if [ "$EDGE_OK" != "true" ]; then
+                echo "❌ edge 健康检查失败(80/443 入口不通,影响全部域名!)"
+                sudo docker compose logs --tail 50 edge || true
+                sudo rm -f /opt/kb-system/run/.maintenance
+                exit 1
+              fi
+            fi
 
             HEALTHY=false
             for i in $(seq 1 24); do
@@ -377,6 +462,7 @@ jobs:
               echo "$SHORT_SHA" > .last-good-sha
               [ "$DEPLOY_BE" = "true" ] && sudo docker tag "$BACKEND_IMAGE_FULL"  kb-backend:latest       || true
               [ "$DEPLOY_FE" = "true" ] && sudo docker tag "$FRONTEND_IMAGE_FULL" kb-frontend-prod:latest || true
+              [ "$DEPLOY_ED" = "true" ] && sudo docker tag "$EDGE_IMAGE_FULL"     kb-edge:latest          || true
               sudo rm -f /opt/kb-system/run/.maintenance
               # backend 容器重建后 IP 会变;前端 nginx 用静态 proxy_pass http://backend:8000,
               # 只在启动时解析一次 —— 不 reload 就会一直连旧 IP,/api 全 502 导致登录不了。
@@ -395,12 +481,12 @@ jobs:
               echo "❌ Health check failed after 120s for sha-${SHORT_SHA}"
               echo "--- backend logs ---"
               sudo docker compose logs --tail 50 backend || true
-              if [ -f .prev-good-sha ]; then
+              if [ -f .prev-good-sha ] && [ -n "$UP_SVCS" ]; then
                 PREV=$(cat .prev-good-sha)
-                echo "回滚到 sha-${PREV}(仅本次部署的服务:$UP_SVCS)"
+                echo "回滚到 sha-${PREV}(仅本次部署的服务:$UP_SVCS;edge 不自动回滚,失败需人工处理)"
                 PREV_BE="${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-${PREV}"
                 PREV_FE="${{ env.REGISTRY }}/${{ env.FRONTEND_PROD_IMAGE }}:sha-${PREV}"
-                sudo BACKEND_IMAGE="${PREV_BE}" FRONTEND_IMAGE="${PREV_FE}" \
+                sudo BACKEND_IMAGE="${PREV_BE}" FRONTEND_IMAGE="${PREV_FE}" EDGE_IMAGE="${EDGE_IMAGE_FULL}" \
                   docker compose up -d --no-deps $UP_SVCS
                 sleep 30
                 # 回滚也重建了 backend → 同样要 reload 前端 nginx 重新解析 upstream

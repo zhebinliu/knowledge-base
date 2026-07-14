@@ -588,3 +588,26 @@
 - 会议 meeting_minutes.decisions[] 元素结构是 dict `{content, owner, start_seconds, end_seconds}`,不是字符串。第一版 formatter 直接 `str(d)` 把 dict repr 打进消息里,已修(bf7eb43)。
 - docker-compose.yml 是非镜像文件,GitHub Actions 只更新镜像不同步 compose;新增 volume/network 后要 scp 覆盖 + `docker compose up -d celery_worker` recreate。命中 memory 里 [[project_server_worktree_stale]]。
 - 主导思路误判:一开始把 tap.jsonl 当唯一数据源,实际 new-api 自己有完整 DB(user/quota/token 全在),白花了半程精力在正则解析 SSE 流。教训:上下游都有存储时先看结构化的那个。
+
+---
+
+# 任务:边缘代理 edge 拆分 —— 部署不再影响 aihub/skillhub(2026-07-14)
+
+**目标**:80/443 入口从 kb 业务前端容器剥离成独立 `edge` 容器;此后 kb 前/后端日常部署只动自己的容器,aihub / skillhub / kanban / studio / uat 全程无感。edge 内所有内部反代改 `resolver + 变量` 延迟解析,容器重建换 IP 自愈,任一 upstream 缺失不挡 nginx 启动。
+
+## 子任务
+- [x] `edge/nginx.conf`:全部 TLS/域名路由(从 nginx.prod.conf 迁出),所有 upstream 改 resolver+变量;kb/uat 502/504 时出维护页
+- [x] `edge/entrypoint.sh` + `edge/Dockerfile`(nginx:1.27-alpine,证书裁剪逻辑同 frontend)
+- [x] `frontend/nginx.prod.conf` 重写为内网 :80 dist 服务(对齐 nginx.uat.conf 模式,无 302 /console)
+- [x] `frontend/nginx.uat.conf`:backend 静态 proxy_pass → resolver+变量(修 backend 重建 502 隐患)
+- [x] `docker-compose.yml`:新增 edge 服务(持 80/443 + 证书/certbot/aihub-help/htpasswd 挂载);frontend 撤 ports/证书挂载改 expose:80
+- [x] `deploy-prod.yml`:变更检测加 edge 维度;build-edge job;部署顺序 backend/frontend 先、edge 最后(cutover 时先释放端口);edge 对齐 + 健康检查
+- [x] `deploy-uat.yml` / `deploy.yml`:paths-ignore 加 edge/**
+- [x] `scripts/renew-ssl.sh`:reload 容器改 kb-system-edge-1,域名列表补 studio
+- [x] 文档:CLAUDE.md / PROJECT_OVERVIEW.md(容器清单+架构图)/ LEARNING.md 新 §13
+- [ ] 上线 cutover:修服务器脏 worktree → push(UAT 自动)→ 预检 edge 镜像(无端口试跑 nginx -t)→ deploy-prod force_all → 全域名验证
+
+## 边界 / 风险
+- 不动 skillhub/aihub/kanban 自身容器与配置,只动入口层
+- cutover 有一次 ~10-20s 全站闪断(frontend 撤端口 → edge 接管),是最后一次
+- edge 回滚:首次部署无 prev edge 镜像,健康失败走人工处理(部署时盯着)

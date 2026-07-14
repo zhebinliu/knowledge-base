@@ -5,10 +5,40 @@ x-tz: &tz_env
   TZ: Asia/Shanghai
 
 services:
-  # ── frontend-prod ────────────────────────────────────────────────────────
-  # 持有 80/443 + 三域名 TLS;kb.liii.in/kb.tokenwave.cloud 服务自己 dist;
-  # uat.tokenwave.cloud 反代到 frontend-uat。
-  # 镜像名仍叫 frontend(向后兼容老 deploy 脚本)。
+  # ── edge ─────────────────────────────────────────────────────────────────
+  # 全服务器唯一 80/443 入口(2026-07-14 从 frontend 拆出):持全部域名证书,
+  # 按 server_name 反代到各内网容器(frontend / frontend-uat / skillhub / aihub /
+  # kanban / studio)。业务部署只重建各自内网容器,edge 不动 → 互不影响。
+  # 所有 upstream 用 resolver+变量延迟解析:不依赖任何业务容器先起,故无 depends_on。
+  edge:
+    image: ${EDGE_IMAGE:-kb-edge:latest}
+    build:
+      context: .
+      dockerfile: edge/Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    mem_limit: 128m
+    environment:
+      <<: *tz_env
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+      # aihub.tokenwave.cloud/help 接入手册静态页(host 维护,改 md 后 pandoc 重渲染即可,不用 rebuild 镜像)
+      - /opt/aihub-docs:/usr/share/nginx/aihub-help:ro
+      # kanban.tokenwave.cloud 内部访问 Basic Auth 入口密码(host 维护,改密码不用 rebuild 镜像)
+      # 生成:openssl passwd -apr1 → echo "team:<hash>" > /opt/kb-system/kanban.htpasswd
+      - /opt/kb-system/kanban.htpasswd:/etc/nginx/kanban.htpasswd:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── frontend(kb 正式版)──────────────────────────────────────────────────
+  # 只对 docker 内网暴露 :80,由 edge 反代进来(模式同 frontend-uat)。无 SSL。
+  # 镜像名仍叫 frontend-prod(向后兼容 deploy 脚本)。
   frontend:
     image: ${FRONTEND_IMAGE:-kb-frontend-prod:latest}
     build:
@@ -17,33 +47,17 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         ENV: prod
-    ports:
-      - "80:80"
-      - "443:443"
     mem_limit: 256m
     environment:
       <<: *tz_env
+    expose:
+      - "80"
     volumes:
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - /var/www/certbot:/var/www/certbot:ro
       # 2026-05-12:维护标志 host 目录 → 容器 /var/run/kb-deploy/.maintenance
       - /opt/kb-system/run:/var/run/kb-deploy:ro
-      # aihub.tokenwave.cloud/help 接入手册静态页(host 维护,改 md 后 pandoc 重渲染即可,不用 rebuild 镜像)
-      - /opt/aihub-docs:/usr/share/nginx/aihub-help:ro
-      # kanban.tokenwave.cloud 内部访问 Basic Auth 入口密码(host 维护,改密码不用 rebuild 镜像)
-      # 生成:openssl passwd -apr1 → echo "team:<hash>" > /opt/kb-system/kanban.htpasswd
-      - /opt/kb-system/kanban.htpasswd:/etc/nginx/kanban.htpasswd:ro
     depends_on:
       backend:
         condition: service_healthy
-      # frontend-prod 反代 uat 域名,uat 容器要先起来(否则 nginx upstream fail)
-      frontend-uat:
-        condition: service_started
-      # skillhub.tokenwave.cloud 也由 frontend-prod 反代
-      skillhub-frontend:
-        condition: service_started
-      skillhub-backend:
-        condition: service_started
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
