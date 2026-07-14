@@ -585,7 +585,7 @@ gh workflow run deploy-prod.yml --ref main -f confirm=deploy
 gh run watch <run-id>           # 跟运行直到结束
 
 # DB 迁移仍可手动 ssh(workflow 不跑 alembic)
-ssh -i ~/.ssh/id_rsa_github_deploy liu@34.45.112.217 \
+ssh -i ~/.ssh/id_rsa_github_deploy liu@34.42.241.99 \
     "sudo docker exec kb-system-backend-1 python -m scripts.<migrate>"
 ```
 

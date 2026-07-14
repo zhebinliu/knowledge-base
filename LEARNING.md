@@ -1190,3 +1190,38 @@ SSH 报 `Connection timed out during banner exchange`——**TCP 层活但应用
 **通用教训**:GCP ephemeral IP + CI/CD 频繁 push image + 单文件 log 无 rotation
 是叠加的定时炸弹。任何一个都是常见配置,叠一起磁盘满到 99% 就是几周的事。docker
 镜像清理 + 日志 rotation + 磁盘告警是 baseline,一开始就该配好。
+
+---
+
+### 19. 客户端“先重连几次”先查域名/IP 分叉(2026-07-14)
+
+【现象】用户反馈“每次对话前都会先重连 5 次”。第一反应容易去查 QA SSE、企信 SSE
+或 aihub-tap 流式代理,但本次日志显示这些链路都正常:
+
+- 企信 SSE:`qixin_sse_connecting` 后一次 `qixin_sse_connected`,没有连续重连。
+- aihub-tap `/v1/chat/completions`:边读边写并 `Flush`,不是整段缓冲后返回。
+- 前端 nginx 日志里有大量 `/version.json?t=...`,是 `VersionWatcher` 的版本轮询,会放大
+  “一直在连接”的体感。
+
+【真正异常】域名解析分叉:
+
+```bash
+dig +short kb.tokenwave.cloud aihub.tokenwave.cloud uat.tokenwave.cloud kb.liii.in
+# tokenwave 系列 → 34.42.241.99(真实 Docker 服务)
+# kb.liii.in    → 34.45.112.217(返回 Kubernetes 403)
+```
+
+`curl https://kb.tokenwave.cloud/health` 正常 200,但 `curl https://kb.liii.in/health`
+返回 Kubernetes 风格 403(`x-kubernetes-pf-*`)。这说明不是应用重连,而是入口域名指到了
+另一套/旧的网关。
+
+【处理】
+
+1. 先用 `dig +short <所有域名>` 核对是否都指向当前真实服务器 IP。
+2. 再用 `curl --resolve <域名>:443:<真实IP> https://<域名>/health` 验证真实服务。
+3. DNS 侧把错指的域名 A 记录改到当前 IP,并尽快把 GCP 外部 IP 绑定为 static。
+4. 前端 `VersionWatcher` 不应在登录页/隐藏标签页高频轮询;本次已改为非登录页、页面可见时
+   5 分钟一次,窗口重新聚焦时补查。
+
+【此后做法】凡是“客户端重连 / 连接前重试 / 403 但备用域名正常”,先查 DNS/IP/证书/SNI,
+再查应用层 SSE 或模型代理。尤其 GCP ephemeral IP 环境里,域名分叉比代码 bug 更常见。

@@ -8,7 +8,7 @@
  *
  * 做法:
  *  - frontend Dockerfile 在 build 时把 GIT_SHA 写到 /dist/version.json
- *  - 启动 + 每 60s 拉一次 /version.json(带 cache-bust query)
+ *  - 用户已进入系统且页面可见时,每 5min 拉一次 /version.json(带 cache-bust query)
  *  - 第一次拿到的 sha 存内存里作 baseline
  *  - 后面拉到不一样的 sha → 弹一个不打扰的固定通知,「有新版本,点这里刷新」
  *  - 用户点击就 location.reload();不点也没事,等下次主动刷新
@@ -18,19 +18,29 @@
  *
  * 局部失效不阻断 app:fetch 失败 / version.json 404 直接静默。
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { RefreshCw, X } from 'lucide-react'
 
-const POLL_INTERVAL_MS = 60_000   // 1 分钟一次
+const POLL_INTERVAL_MS = 5 * 60_000   // 5 分钟一次;避免登录页/多开 tab 刷连接噪声
 const STORAGE_DISMISS_KEY = 'kb-version-update-dismissed-for-sha'
 
 interface VersionInfo { sha: string; ts: string }
 
-async function fetchVersion(): Promise<VersionInfo | null> {
+function isAuthPath(pathname: string) {
+  return pathname === '/login' || pathname === '/register' || pathname === '/change-password'
+}
+
+function isVisible() {
+  return typeof document === 'undefined' || document.visibilityState === 'visible'
+}
+
+async function fetchVersion(signal?: AbortSignal): Promise<VersionInfo | null> {
   try {
     // cache-bust:同一秒内反复拉避免被中间缓存吞掉
     const res = await fetch(`/version.json?t=${Date.now()}`, {
       cache: 'no-store',
+      signal,
       headers: { 'Cache-Control': 'no-cache' },
     })
     if (!res.ok) return null
@@ -41,24 +51,47 @@ async function fetchVersion(): Promise<VersionInfo | null> {
 }
 
 export default function VersionWatcher() {
+  const location = useLocation()
   const [baseline, setBaseline] = useState<string | null>(null)
   const [latest, setLatest] = useState<string | null>(null)
+  const baselineRef = useRef<string | null>(null)
+  const isAuthPage = isAuthPath(location.pathname)
 
   useEffect(() => {
+    if (isAuthPage) return
+
     let cancelled = false
+    let ctrl: AbortController | null = null
+
     const tick = async () => {
-      const info = await fetchVersion()
+      if (!isVisible()) return
+      ctrl?.abort()
+      ctrl = new AbortController()
+      const info = await fetchVersion(ctrl.signal)
       if (!info || cancelled) return
-      if (baseline === null) {
+      if (baselineRef.current === null) {
+        baselineRef.current = info.sha
         setBaseline(info.sha)
-      } else if (info.sha !== baseline) {
+      } else if (info.sha !== baselineRef.current) {
         setLatest(info.sha)
       }
     }
+
     tick()
     const id = window.setInterval(tick, POLL_INTERVAL_MS)
-    return () => { cancelled = true; window.clearInterval(id) }
-  }, [baseline])
+    const onFocus = () => { void tick() }
+    const onVisibility = () => { if (isVisible()) void tick() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      cancelled = true
+      ctrl?.abort()
+      window.clearInterval(id)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [isAuthPage])
 
   // 用户曾经"暂时忽略"过这个 sha → 这次不弹
   const dismissedSha = (() => {
