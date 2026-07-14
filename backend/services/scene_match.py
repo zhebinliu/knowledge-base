@@ -53,9 +53,9 @@ _KIND_LABELS = {
 }
 _MAX_CHARS_PER_DOC = 6000      # 单份产物截断字符数
 _MAX_TOTAL_CHARS = 40000       # 产物素材总量上限
-_MAX_CHARS_PER_MEETING = 3500  # 单场会议纪要截断字符数(略降以容纳更多场次,重广度)
-_MAX_MEETING_TOTAL_CHARS = 36000  # 会议纪要总量上限(glm-5 200k 上下文富余;让早期调研会也进得来)
-_MAX_MEETINGS = 14             # 最多取最近 N 场会议(覆盖到早期调研会,场景识别靠广度)
+_MAX_CHARS_PER_MEETING = 2500  # 单场会议纪要截断字符数(用纯文本渲染,密度高)
+_MAX_MEETING_TOTAL_CHARS = 20000  # 会议纪要总量上限;配合紧凑渲染可容纳 ~8-10 场,总 prompt 控在安全线内
+_MAX_MEETINGS = 14             # 最多取最近 N 场会议
 _MODEL_TASK = "scene_match"    # model_router 路由 task 名
 _MATCH_CHUNK = 30              # 每批判定的场景数(避免一次判 147 个导致输出截断)
 
@@ -119,15 +119,29 @@ def _build_material_block(bundles: list[CuratedBundle]) -> str:
     return "\n\n".join(parts)
 
 
+def _minutes_text_leaves(obj, out: list[str], budget: int = 8000) -> None:
+    """递归抽取 minutes 结构里的所有文本叶子(丢掉 JSON 键/括号/嵌套开销),供紧凑渲染。"""
+    if sum(len(x) for x in out) > budget:
+        return
+    if isinstance(obj, str):
+        t = obj.strip()
+        if t:
+            out.append(t)
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            _minutes_text_leaves(v, out, budget)
+    elif isinstance(obj, list):
+        for v in obj:
+            _minutes_text_leaves(v, out, budget)
+
+
 def _render_minutes(minutes) -> str:
-    """会议纪要 JSON → 可读文本;非 dict 返回空串。用 json.dumps 保底(LLM 能直接读结构化)。"""
+    """会议纪要 JSON → 紧凑纯文本(只留文本叶子,去掉 json.dumps 的键/括号开销,大幅省 token)。"""
     if not isinstance(minutes, dict):
         return ""
-    import json as _json
-    try:
-        return _json.dumps(minutes, ensure_ascii=False)
-    except Exception:
-        return ""
+    out: list[str] = []
+    _minutes_text_leaves(minutes, out)
+    return " / ".join(out)
 
 
 def _build_meeting_block(meetings: list[Meeting]) -> tuple[str, list[dict]]:
@@ -354,7 +368,7 @@ async def match_project_scenes(project_id: str, session: AsyncSession) -> dict:
                     task=_MODEL_TASK,
                     messages=[{"role": "system", "content": system_prompt},
                               {"role": "user", "content": user}],
-                    temperature=0.2, max_tokens=4000, validator=_json_valid,
+                    temperature=0.2, max_tokens=5000, validator=_json_valid,
                 )
                 parsed = loads_lenient(content or "", None)
                 if isinstance(parsed, dict):
