@@ -85,6 +85,7 @@ class SceneDto(BaseModel):
     business_rules: str | None = None
     process: str | None = None
     recommended_fields: list = []
+    research_questions: list = []    # 关键调研问题(字符串列表)
     tags: list = []
     ai_capabilities: list = []       # 匹配的 AI 能力 id 列表
     source_type: str
@@ -111,7 +112,8 @@ def _scene_dto(x: StandardScene) -> SceneDto:
         id=x.id, domain=x.domain, stage=x.stage, stage_label=x.stage_label,
         code=x.code, name=x.name, summary=x.summary,
         description=x.description, business_rules=x.business_rules, process=x.process,
-        recommended_fields=x.recommended_fields or [], tags=x.tags or [],
+        recommended_fields=x.recommended_fields or [],
+        research_questions=x.research_questions or [], tags=x.tags or [],
         ai_capabilities=x.ai_capabilities or [],
         source_type=x.source_type,
         source_project_name=x.source_project_name, status=x.status, version=x.version,
@@ -166,13 +168,15 @@ class SceneUpdateBody(BaseModel):
     business_rules: str | None = None
     process: str | None = None
     recommended_fields: list | None = None   # [{name,type,note,required}]
+    research_questions: list | None = None   # ["问题1", ...]
     tags: list | None = None                 # ["通用" | "L1/L2/L3/L4"...]
     ai_capabilities: list | None = None      # [ai_capabilities.id ...]
 
 
 _FIELD_LABELS = {
     "name": "名称", "description": "说明", "business_rules": "业务规则",
-    "process": "流程", "recommended_fields": "推荐字段", "tags": "标签",
+    "process": "流程", "recommended_fields": "推荐字段",
+    "research_questions": "关键调研问题", "tags": "标签",
     "ai_capabilities": "AI 能力匹配",
 }
 
@@ -190,11 +194,12 @@ async def update_scene(
     if not x:
         raise HTTPException(404, "场景不存在")
     changed: list[str] = []
-    for field in ("name", "description", "business_rules", "process", "recommended_fields", "tags", "ai_capabilities"):
+    for field in ("name", "description", "business_rules", "process", "recommended_fields",
+                  "research_questions", "tags", "ai_capabilities"):
         val = getattr(body, field)
         if val is not None and getattr(x, field) != val:
             setattr(x, field, val)
-            if field in ("recommended_fields", "tags", "ai_capabilities"):
+            if field in ("recommended_fields", "research_questions", "tags", "ai_capabilities"):
                 flag_modified(x, field)
             changed.append(_FIELD_LABELS[field])
     if not changed:
@@ -273,4 +278,30 @@ async def ai_match_scenes(
     from services.scene_ai_match import auto_match_capabilities
     result = await auto_match_capabilities(session, domain=domain)
     logger.info("scenes_ai_matched", **{k: v for k, v in result.items() if k != "per_domain"})
+    return result
+
+
+# ── 关键调研问题 AI 生成(Part1)──────────────────────────────────────────────
+
+@router.post("/scenes/{scene_id}/gen-questions", dependencies=[Depends(require_admin)])
+async def gen_scene_questions(scene_id: int, session: AsyncSession = Depends(get_session)):
+    """单场景生成关键调研问题(不落库,前端填入可编辑区)。仅管理员。"""
+    from services.scene_questions import gen_questions_for_scene
+    x = await session.get(StandardScene, scene_id)
+    if not x:
+        raise HTTPException(404, "场景不存在")
+    questions = await gen_questions_for_scene(session, x)
+    return {"questions": questions}
+
+
+@router.post("/scenes/gen-questions", dependencies=[Depends(require_admin)])
+async def batch_gen_scene_questions(
+    domain: str | None = Query(None),
+    overwrite: bool = Query(False),
+    session: AsyncSession = Depends(get_session),
+):
+    """批量生成关键调研问题并落库(可按域;默认只补空,overwrite 全量重写)。仅管理员。"""
+    from services.scene_questions import auto_gen_questions
+    result = await auto_gen_questions(session, domain=domain, overwrite=overwrite)
+    logger.info("scene_questions_batch", **{k: v for k, v in result.items() if k != "per_domain"})
     return result

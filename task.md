@@ -8,6 +8,21 @@
 
 ---
 
+# 任务:场景驱动调研引导(2026-07-14)—— 三块
+
+- **Part1 场景「关键调研问题」字段**:StandardScene 加 research_questions;AI 生成草稿 + 编辑抽屉可编辑;场景库批量生成按钮。
+- **Part2 调研议程**:项目 → 应覆盖场景(按域/阶段)+ 每场景关键问题 + 覆盖/缺口状态。
+- **Part3 会议 Copilot 接场景**:会中把项目应覆盖场景 + 关键问题作为定向引导上下文。
+
+## Part1 清单
+- [x] P1-1 StandardScene 加 research_questions(JSON)+ ALTER 迁移;DTO/PATCH 支持。
+- [x] P1-2 services/scene_questions:LLM 按域批量生成关键调研问题(问项目现状/痛点/规则)。scene_questions 静态路由 → glm-5(避推理模型截断)。
+- [x] P1-3 端点:POST /scenes/{id}/gen-questions(单,不落库)+ POST /scenes/gen-questions(批量按域,落库补空)。
+- [x] P1-4 前端:编辑抽屉「关键调研问题」区(可编辑 + AI 生成)+ 场景库「AI 生成调研问题」批量按钮。
+- [x] P1-5 py_compile + tsc 通过。→ 部署中,待实测。
+
+---
+
 # 任务:Harness Block6 — AI 能力目录 + 场景 AI 能力匹配 + 回流遵循结构化格式(2026-07-13)
 
 来源《当前AI能力.xlsx》(96 个 Skill / 20 Agent / 7 领域)。需求:场景加「AI 能力匹配」(作为 AI 优化选择,可编辑多选);以后回流优化/新增场景也遵循 Block5 结构化格式。

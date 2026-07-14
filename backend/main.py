@@ -289,6 +289,8 @@ async def startup():
             "ALTER TABLE standard_scenes ADD COLUMN IF NOT EXISTS process TEXT",
             "ALTER TABLE standard_scenes ADD COLUMN IF NOT EXISTS recommended_fields JSONB DEFAULT '[]'::jsonb",
             "ALTER TABLE standard_scenes ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb",
+            # Part1(2026-07-14):场景关键调研问题
+            "ALTER TABLE standard_scenes ADD COLUMN IF NOT EXISTS research_questions JSONB DEFAULT '[]'::jsonb",
             # Harness Block6:场景 AI 能力匹配 + 回流提案结构化载荷(2026-07-13)
             "ALTER TABLE standard_scenes ADD COLUMN IF NOT EXISTS ai_capabilities JSONB DEFAULT '[]'::jsonb",
             "ALTER TABLE scene_change_proposals ADD COLUMN IF NOT EXISTS content JSONB DEFAULT '{}'::jsonb",

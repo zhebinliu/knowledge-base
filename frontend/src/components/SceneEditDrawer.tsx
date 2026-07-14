@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { X, Plus, Trash2, Loader2, Tag as TagIcon, Sparkles, Search } from 'lucide-react'
+import { X, Plus, Trash2, Loader2, Tag as TagIcon, Sparkles, Search, MessageCircleQuestion } from 'lucide-react'
 import { toast } from './Toaster'
 import { getProjectMeta, type IndustryTree } from '../api/client'
-import { updateScene, listAiCapabilities, type Scene, type RecommendedField, type AiCapability } from '../api/scenes'
+import { updateScene, listAiCapabilities, genSceneQuestions, type Scene, type RecommendedField, type AiCapability } from '../api/scenes'
 
 const CAP_STATUS_CLS: Record<string, string> = {
   '已具备': 'bg-green-50 text-green-700 ring-green-200',
@@ -25,6 +25,8 @@ export default function SceneEditDrawer({
   const [rules, setRules] = useState('')
   const [process, setProcess] = useState('')
   const [fields, setFields] = useState<RecommendedField[]>([])
+  const [questions, setQuestions] = useState<string[]>([])
+  const [genning, setGenning] = useState(false)
   const [aiCaps, setAiCaps] = useState<number[]>([])
   const [allCaps, setAllCaps] = useState<AiCapability[]>([])
   const [capSearch, setCapSearch] = useState('')
@@ -40,6 +42,7 @@ export default function SceneEditDrawer({
     setName(scene.name || ''); setTags(scene.tags || [])
     setDescription(scene.description || ''); setRules(scene.business_rules || '')
     setProcess(scene.process || ''); setFields(scene.recommended_fields || [])
+    setQuestions(scene.research_questions || [])
     setAiCaps(scene.ai_capabilities || [])
     setL1(''); setL2(''); setL3(''); setL4(''); setCapSearch(''); setCapOpen(false)
   }, [scene])
@@ -64,6 +67,19 @@ export default function SceneEditDrawer({
   const addField = () => setFields(fs => [...fs, { name: '', type: '', note: '', required: false }])
   const delField = (i: number) => setFields(fs => fs.filter((_, idx) => idx !== i))
 
+  const setQ = (i: number, v: string) => setQuestions(qs => qs.map((q, idx) => idx === i ? v : q))
+  const addQ = () => setQuestions(qs => [...qs, ''])
+  const delQ = (i: number) => setQuestions(qs => qs.filter((_, idx) => idx !== i))
+  const genQuestions = async () => {
+    if (!scene) return
+    setGenning(true)
+    try {
+      const qs = await genSceneQuestions(scene.id)
+      if (qs.length) { setQuestions(qs); toast.success(`AI 生成 ${qs.length} 个问题,可编辑后保存`) }
+      else toast.info('未生成到问题,可手动添加')
+    } catch { /* 拦截器已 toast */ } finally { setGenning(false) }
+  }
+
   const save = async () => {
     setSaving(true)
     try {
@@ -71,6 +87,7 @@ export default function SceneEditDrawer({
         name: name.trim() || scene.name,
         description, business_rules: rules, process,
         recommended_fields: fields.filter(f => (f.name || '').trim()),
+        research_questions: questions.map(q => q.trim()).filter(Boolean),
         tags,
         ai_capabilities: aiCaps,
       })
@@ -143,6 +160,36 @@ export default function SceneEditDrawer({
           <Field label="场景说明"><TextArea value={description} onChange={setDescription} rows={4} placeholder="留空即可,后续补充…" /></Field>
           <Field label="业务规则"><TextArea value={rules} onChange={setRules} rows={4} /></Field>
           <Field label="流程"><TextArea value={process} onChange={setProcess} rows={4} /></Field>
+
+          {/* 关键调研问题(调研议程 + 会议 Copilot 定向引导的底稿) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="text-xs font-medium text-ink-secondary flex items-center gap-1.5">
+                <MessageCircleQuestion size={13} className="text-[#D96400]" />
+                关键调研问题<span className="text-ink-muted font-normal">(调研会照着问 · 会议 Copilot 定向引导用)</span>
+              </div>
+              <button onClick={genQuestions} disabled={genning}
+                className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-[#F3D6B0] bg-brand-light text-[#D96400] disabled:opacity-50">
+                {genning ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />} AI 生成
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              {questions.length === 0 && (
+                <div className="text-xs text-ink-muted px-1 py-2">暂无问题,点「AI 生成」或下方手动添加。</div>
+              )}
+              {questions.map((q, i) => (
+                <div key={i} className="flex items-start gap-1.5">
+                  <span className="mt-2 text-[11px] text-ink-muted w-4 text-right shrink-0">{i + 1}</span>
+                  <textarea value={q} onChange={e => setQ(i, e.target.value)} rows={1}
+                    className="flex-1 text-sm border border-line rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:border-[#D96400] resize-y" />
+                  <button onClick={() => delQ(i)} className="mt-1.5 p-1 text-ink-muted hover:text-red-600"><Trash2 size={12} /></button>
+                </div>
+              ))}
+            </div>
+            <button onClick={addQ} className="mt-2 inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded border border-line text-ink-secondary hover:bg-canvas">
+              <Plus size={12} /> 添加问题
+            </button>
+          </div>
 
           {/* 推荐字段(可编辑表格) */}
           <Field label="推荐字段">

@@ -37,6 +37,8 @@ class StandardScene(Base):
     business_rules: Mapped[str | None] = mapped_column(Text, nullable=True)    # 业务规则
     process: Mapped[str | None] = mapped_column(Text, nullable=True)           # 流程
     recommended_fields: Mapped[list] = mapped_column(JSON, nullable=False, default=list)  # 推荐字段表格 [{name,type,note,required}]
+    # 关键调研问题:顾问调研该场景时该问客户的问题列表 ["问题1", ...](2026-07-14 Part1,可 AI 生成 + 编辑)
+    research_questions: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     # 标签:多选,值为 "通用" 或四级行业路径 "L1/L2/L3/L4"(可只到某一级)
     tags: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     # AI 能力匹配(场景的 AI 优化选择):关联的 ai_capabilities.id 列表(2026-07-13)

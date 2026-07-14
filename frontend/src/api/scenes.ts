@@ -20,6 +20,7 @@ export interface Scene {
   business_rules?: string | null
   process?: string | null
   recommended_fields: RecommendedField[]
+  research_questions: string[]   // 关键调研问题
   tags: string[]                 // "通用" 或 四级行业路径 "L1/L2/L3/L4"
   ai_capabilities: number[]      // 匹配的 AI 能力 id(AI 优化选择)
   source_type: string            // standard | project
@@ -35,11 +36,20 @@ export interface SceneUpdate {
   business_rules?: string | null
   process?: string | null
   recommended_fields?: RecommendedField[]
+  research_questions?: string[]
   tags?: string[]
   ai_capabilities?: number[]
 }
 export const updateScene = (id: number, patch: SceneUpdate) =>
   api.patch<Scene>(`/scenes/${id}`, patch).then(r => r.data)
+
+// 关键调研问题 AI 生成:单场景(不落库,返回草稿)+ 批量(按域落库)
+export const genSceneQuestions = (id: number) =>
+  api.post<{ questions: string[] }>(`/scenes/${id}/gen-questions`).then(r => r.data.questions)
+export const batchGenSceneQuestions = (domain?: string, overwrite = false) =>
+  api.post<{ generated_scenes: number; questions: number; skipped: number; per_domain: Record<string, number> }>(
+    '/scenes/gen-questions', null, { params: { ...(domain ? { domain } : {}), overwrite } },
+  ).then(r => r.data)
 
 // 纷享 AI 能力目录(场景 AI 能力匹配的可选项)
 export interface AiCapability {
