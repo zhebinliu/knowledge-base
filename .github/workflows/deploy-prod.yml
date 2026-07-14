@@ -2,10 +2,11 @@ name: Deploy PROD
 
 # 生产部署:
 #   - 仅手动触发(workflow_dispatch),避免误推 main 把 prod 改了
-#   - 构建 / 推送 backend + frontend-prod 镜像
-#   - SSH 部署:全栈滚动重启(maintenance flag + 健康检查 + 回滚)
-#   - 影响域名:kb.liii.in / kb.tokenwave.cloud
-#   - 不动 frontend-uat 容器(uat 走自己的 deploy-uat workflow)
+#   - 条件构建(2026-07-14):对比上次部署的 prod-live tag,只构建 / 重启变更的那边
+#     (backend / frontend);单边改动省一半构建时间。
+#   - 部署前后自动 prune 镜像,根治 /opt/data 满导致 postgres 崩溃
+#   - SSH 部署:滚动重启(maintenance flag + 健康检查 + 回滚)
+#   - 影响域名:kb.liii.in / kb.tokenwave.cloud;不动 frontend-uat
 on:
   workflow_dispatch:
     inputs:
@@ -13,6 +14,11 @@ on:
         description: '部署到生产 kb.liii.in,确认请填 "deploy"'
         required: true
         type: string
+      force_all:
+        description: '强制全量构建(backend+frontend,忽略变更检测),填 "yes" 开启'
+        required: false
+        type: string
+        default: ''
 
 env:
   REGISTRY: ghcr.io
@@ -33,9 +39,56 @@ jobs:
           fi
           echo "✅ Confirmed: deploying to PROD"
 
+  changes:
+    name: Detect changed services
+    needs: guard
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Diff against last prod-live tag
+        id: filter
+        run: |
+          # 强制全量
+          if [ "${{ inputs.force_all }}" = "yes" ]; then
+            echo "→ force_all=yes,全量构建"
+            echo "backend=true"  >> $GITHUB_OUTPUT
+            echo "frontend=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          # 取上次部署基准(prod-live tag)
+          git fetch origin 'refs/tags/prod-live:refs/tags/prod-live' 2>/dev/null || true
+          if git rev-parse prod-live >/dev/null 2>&1; then
+            BASE=$(git rev-parse prod-live)
+          else
+            BASE=""
+          fi
+          if [ -z "$BASE" ]; then
+            echo "→ 无 prod-live 基准(首次),全量构建"
+            echo "backend=true"  >> $GITHUB_OUTPUT
+            echo "frontend=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "→ 对比基准 $BASE .. HEAD"
+          CHANGED=$(git diff --name-only "$BASE" HEAD || echo "")
+          echo "$CHANGED"
+          BE=false; FE=false
+          echo "$CHANGED" | grep -qE '^(backend/|meeting/backend/|docker-compose\.yml)' && BE=true || true
+          echo "$CHANGED" | grep -qE '^(frontend/|meeting/frontend/)' && FE=true || true
+          # 兜底:没匹配到任何一边(如只改 .github / 文档)→ 两边都建,避免漏部署
+          if [ "$BE" = "false" ] && [ "$FE" = "false" ]; then BE=true; FE=true; fi
+          echo "→ backend=$BE frontend=$FE"
+          echo "backend=$BE"  >> $GITHUB_OUTPUT
+          echo "frontend=$FE" >> $GITHUB_OUTPUT
+
   test:
     name: Run Tests
-    needs: guard
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -126,7 +179,8 @@ jobs:
 
   frontend-check:
     name: Frontend tsc + build
-    needs: guard
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -143,14 +197,14 @@ jobs:
       - run: cd frontend && npx tsc --noEmit -p tsconfig.json
       - run: cd frontend && npm run build
 
-  build-and-push:
-    name: Build & push backend + frontend-prod
-    needs: [test, frontend-check]
+  build-backend:
+    name: Build & push backend
+    needs: [changes, test]
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-
     steps:
       - uses: actions/checkout@v6
       - name: Set up Docker Buildx
@@ -161,7 +215,6 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Extract metadata for backend
         id: meta-backend
         uses: docker/metadata-action@v5
@@ -171,11 +224,9 @@ jobs:
             type=ref,event=branch
             type=sha,format=short
             latest
-
       - name: Build & push backend
         uses: docker/build-push-action@v5
         with:
-          # context 改为仓库根(meeting/ overlay 需要),Dockerfile 显式指定
           context: .
           file: ./backend/Dockerfile
           push: true
@@ -184,6 +235,24 @@ jobs:
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 
+  build-frontend:
+    name: Build & push frontend-prod
+    needs: [changes, frontend-check]
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Extract metadata for frontend-prod
         id: meta-frontend
         uses: docker/metadata-action@v5
@@ -193,11 +262,9 @@ jobs:
             type=ref,event=branch
             type=sha,format=short
             latest
-
       - name: Build & push frontend-prod
         uses: docker/build-push-action@v5
         with:
-          # context 改为仓库根(meeting/ overlay 需要),Dockerfile 显式指定
           context: .
           file: ./frontend/Dockerfile
           push: true
@@ -211,8 +278,17 @@ jobs:
 
   deploy:
     name: Deploy PROD to server
-    needs: build-and-push
+    needs: [changes, build-backend, build-frontend]
+    # 变更检测成功 + 两个构建都没失败(可能被 skip)才部署
+    if: >-
+      always()
+      && needs.changes.result == 'success'
+      && needs.build-backend.result != 'failure'
+      && needs.build-frontend.result != 'failure'
+      && (needs.build-backend.result == 'success' || needs.build-frontend.result == 'success')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # 部署成功后推 prod-live tag
 
     steps:
       - uses: actions/checkout@v6
@@ -224,25 +300,19 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.5
         env:
-          # Fernet 主密钥(2026-05-29):企信/飞书/sharedev 用户级凭证 secret 全靠它加密。
-          # 必须固定不变 — key 一变,所有历史密文解不开,用户得重配。
-          # GitHub Secrets 是 source of truth,服务器 .env 丢失(换机/误删)时
-          # Deploy via SSH 步骤会自动幂等写回。
           FERNET_KEY_SECRET: ${{ secrets.FERNET_KEY }}
+          DEPLOY_BE: ${{ needs.changes.outputs.backend }}
+          DEPLOY_FE: ${{ needs.changes.outputs.frontend }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          envs: FERNET_KEY_SECRET
+          envs: FERNET_KEY_SECRET,DEPLOY_BE,DEPLOY_FE
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
             git pull origin main 2>&1 | tail -5 || echo "git pull failed, continuing with docker images only"
 
-            # ── 幂等注入 FERNET_KEY 到 .env(2026-05-29) ──────────────────
-            # 第一次部署 / 换机后 .env 没有 FERNET_KEY 时,从 GitHub Secrets 写回。
-            # 已存在(常态)就跳过,保留服务器值。GitHub Secrets 没配也跳过(允许
-            # 用户先手工管 .env,等准备好再上 secrets)。
             if [ -n "$FERNET_KEY_SECRET" ] && ! grep -q '^FERNET_KEY=' .env 2>/dev/null; then
               echo "FERNET_KEY=$FERNET_KEY_SECRET" >> .env
               echo "→ FERNET_KEY 首次写入 .env(从 GitHub Secrets 恢复)"
@@ -251,72 +321,66 @@ jobs:
             SHORT_SHA="${{ steps.sha.outputs.value }}"
             BACKEND_IMAGE_FULL="${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-${SHORT_SHA}"
             FRONTEND_IMAGE_FULL="${{ env.REGISTRY }}/${{ env.FRONTEND_PROD_IMAGE }}:sha-${SHORT_SHA}"
-            echo "→ target backend:  ${BACKEND_IMAGE_FULL}"
-            echo "→ target frontend: ${FRONTEND_IMAGE_FULL}"
+            echo "→ 本次部署 backend=${DEPLOY_BE} frontend=${DEPLOY_FE}"
 
-            # 备份当前 last-good 以便回滚
-            if [ -f .last-good-sha ]; then
-              cp .last-good-sha .prev-good-sha
+            # ── 部署前清理旧镜像,腾空间(根治 /opt/data 满导致 pull/up 失败)──
+            echo "→ 部署前清理旧镜像"
+            sudo docker image prune -af 2>&1 | tail -1 || true
+            df -h /opt/data 2>/dev/null | tail -1 || true
+
+            # 待操作的服务列表
+            UP_SVCS=""
+            [ "$DEPLOY_BE" = "true" ] && UP_SVCS="$UP_SVCS backend celery_worker"
+            [ "$DEPLOY_FE" = "true" ] && UP_SVCS="$UP_SVCS frontend"
+            if [ -z "$UP_SVCS" ]; then
+              echo "⚠️ 无变更服务,跳过镜像更新"
+              exit 0
             fi
 
-            # 维护开关
+            if [ -f .last-good-sha ]; then cp .last-good-sha .prev-good-sha; fi
             sudo mkdir -p /opt/kb-system/run
             sudo touch /opt/kb-system/run/.maintenance
 
-            # sudo 默认清环境变量 — 用 sudo VAR=val 显式透传,否则 docker-compose.yml 的
-            # ${BACKEND_IMAGE:-kb-backend:latest} 会 fall back 到本地老 image
-            sudo \
-              BACKEND_IMAGE="${BACKEND_IMAGE_FULL}" \
-              FRONTEND_IMAGE="${FRONTEND_IMAGE_FULL}" \
-              docker compose pull backend celery_worker frontend
-            sudo \
-              BACKEND_IMAGE="${BACKEND_IMAGE_FULL}" \
-              FRONTEND_IMAGE="${FRONTEND_IMAGE_FULL}" \
-              docker compose up -d --no-deps backend celery_worker frontend
+            sudo BACKEND_IMAGE="${BACKEND_IMAGE_FULL}" FRONTEND_IMAGE="${FRONTEND_IMAGE_FULL}" \
+              docker compose pull $UP_SVCS
+            sudo BACKEND_IMAGE="${BACKEND_IMAGE_FULL}" FRONTEND_IMAGE="${FRONTEND_IMAGE_FULL}" \
+              docker compose up -d --no-deps $UP_SVCS
 
-            # 验证容器 image 对齐(防 pull/up 静默没换)
             sleep 3
-            FE_IMAGE=$(sudo docker inspect kb-system-frontend-1 --format '{{.Config.Image}}' 2>/dev/null || echo "")
-            BE_IMAGE=$(sudo docker inspect kb-system-backend-1 --format '{{.Config.Image}}' 2>/dev/null || echo "")
-            if [ "$FE_IMAGE" != "$FRONTEND_IMAGE_FULL" ] || [ "$BE_IMAGE" != "$BACKEND_IMAGE_FULL" ]; then
-              echo "❌ 容器 image 对齐失败:"
-              echo "  frontend  预期=$FRONTEND_IMAGE_FULL  实际=$FE_IMAGE"
-              echo "  backend   预期=$BACKEND_IMAGE_FULL   实际=$BE_IMAGE"
-              sudo rm -f /opt/kb-system/run/.maintenance
-              exit 1
+            ALIGN_OK=true
+            if [ "$DEPLOY_BE" = "true" ]; then
+              BE_IMAGE=$(sudo docker inspect kb-system-backend-1 --format '{{.Config.Image}}' 2>/dev/null || echo "")
+              if [ "$BE_IMAGE" != "$BACKEND_IMAGE_FULL" ]; then
+                echo "❌ backend 对齐失败:预期=$BACKEND_IMAGE_FULL 实际=$BE_IMAGE"; ALIGN_OK=false
+              fi
+            fi
+            if [ "$DEPLOY_FE" = "true" ]; then
+              FE_IMAGE=$(sudo docker inspect kb-system-frontend-1 --format '{{.Config.Image}}' 2>/dev/null || echo "")
+              if [ "$FE_IMAGE" != "$FRONTEND_IMAGE_FULL" ]; then
+                echo "❌ frontend 对齐失败:预期=$FRONTEND_IMAGE_FULL 实际=$FE_IMAGE"; ALIGN_OK=false
+              fi
+            fi
+            if [ "$ALIGN_OK" != "true" ]; then
+              sudo rm -f /opt/kb-system/run/.maintenance; exit 1
             fi
             echo "✓ 容器 image 已对齐"
 
-            # 健康检查
             HEALTHY=false
             for i in $(seq 1 24); do
               if curl -fsS http://127.0.0.1:8000/health > /dev/null 2>&1; then
-                HEALTHY=true
-                echo "✅ Healthy after $((i*5))s"
-                break
+                HEALTHY=true; echo "✅ Healthy after $((i*5))s"; break
               fi
               sleep 5
             done
 
             if [ "$HEALTHY" = "true" ]; then
               echo "$SHORT_SHA" > .last-good-sha
-              # 2026-06-09 修 fallback tag 老代码事故:把 docker-compose.yml 的
-              # fallback tag(kb-backend:latest / kb-frontend-prod:latest)也 retag
-              # 到当前 sha image。这样将来任何人手动 `docker compose up` 不带
-              # BACKEND_IMAGE / FRONTEND_IMAGE env,也不会拉到本地早期 build 的过期
-              # :latest tag — 不会再出"deploy 完几小时后被悄悄拽回老代码"的事故。
-              sudo docker tag "$BACKEND_IMAGE_FULL"  kb-backend:latest       || true
-              sudo docker tag "$FRONTEND_IMAGE_FULL" kb-frontend-prod:latest || true
+              [ "$DEPLOY_BE" = "true" ] && sudo docker tag "$BACKEND_IMAGE_FULL"  kb-backend:latest       || true
+              [ "$DEPLOY_FE" = "true" ] && sudo docker tag "$FRONTEND_IMAGE_FULL" kb-frontend-prod:latest || true
               sudo rm -f /opt/kb-system/run/.maintenance
-              echo "✅ PROD deployed sha-${SHORT_SHA}"
-
-              # ── 自动清理旧镜像(2026-07-14)──────────────────────────────
-              # 历史事故:每次 deploy 攒新 sha 镜像,旧的不清 → /opt/data(20G)满
-              # → postgres 写不了 WAL 崩溃回环。这里部署成功后自动 prune。
-              # 只在部署成功后清理:运行中容器引用的镜像永不被删,当前 sha 已在跑必留;
-              # 上一版 sha 镜像在下次部署 up 前一直在盘上,单步回滚仍可用。
-              # (不用 --until 年龄过滤 —— 频繁部署时镜像都很新,过滤会一个都删不掉。)
-              echo "→ 清理无用旧镜像(防 /opt/data 满导致 postgres 崩溃)"
+              echo "✅ PROD deployed sha-${SHORT_SHA}(be=$DEPLOY_BE fe=$DEPLOY_FE)"
+              # 部署后再清一次(删掉被替换的旧镜像)
+              echo "→ 部署后清理旧镜像"
               sudo docker image prune -af 2>&1 | tail -1 || true
               df -h /opt/data 2>/dev/null | tail -1 || true
             else
@@ -325,13 +389,11 @@ jobs:
               sudo docker compose logs --tail 50 backend || true
               if [ -f .prev-good-sha ]; then
                 PREV=$(cat .prev-good-sha)
-                echo "回滚到 sha-${PREV}"
+                echo "回滚到 sha-${PREV}(仅本次部署的服务:$UP_SVCS)"
                 PREV_BE="${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-${PREV}"
                 PREV_FE="${{ env.REGISTRY }}/${{ env.FRONTEND_PROD_IMAGE }}:sha-${PREV}"
-                sudo \
-                  BACKEND_IMAGE="${PREV_BE}" \
-                  FRONTEND_IMAGE="${PREV_FE}" \
-                  docker compose up -d --no-deps backend celery_worker frontend
+                sudo BACKEND_IMAGE="${PREV_BE}" FRONTEND_IMAGE="${PREV_FE}" \
+                  docker compose up -d --no-deps $UP_SVCS
                 sleep 30
                 sudo rm -f /opt/kb-system/run/.maintenance
               else
@@ -342,6 +404,12 @@ jobs:
             fi
 
             sudo docker compose ps
+
+      - name: Mark prod-live tag
+        if: success()
+        run: |
+          git tag -f prod-live ${{ github.sha }}
+          git push -f origin prod-live
 
       - name: Notify on failure
         if: failure()
