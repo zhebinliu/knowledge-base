@@ -617,6 +617,13 @@ def _format_canvas_inputs_block(canvas_inputs: list[tuple[str, dict]]) -> str:
 async def _mark(bundle_id: str, status: str, **kwargs):
     from services.output_service import _mark_bundle
     await _mark_bundle(bundle_id, status, **kwargs)
+    # 交付物完成 → 后台预算场景覆盖,前端徽标秒开(非场景类/命中没跑 → 任务内快速空跑)
+    if status in ("done", "done_with_warnings") and (kwargs.get("content_md") or "").strip():
+        try:
+            from tasks.output_tasks import precompute_scene_coverage
+            precompute_scene_coverage.delay(bundle_id)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 async def _mark_conv(bundle_id: str, status: str):

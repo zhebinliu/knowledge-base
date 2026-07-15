@@ -18,6 +18,26 @@ def _run(coro):
         loop.close()
 
 
+@celery_app.task(name="precompute_scene_coverage", bind=True, max_retries=1, soft_time_limit=200, time_limit=260)
+def precompute_scene_coverage(self, bundle_id: str):
+    """交付物完成后后台预算场景覆盖(缓存到 bundle.extra),前端徽标秒开。
+    非场景类产物 / 命中没跑过 → 服务内快速返回 applicable=False,不调 LLM。"""
+    from services.scene_coverage import bundle_scene_coverage
+    from models import async_session_maker
+    from models.curated_bundle import CuratedBundle
+
+    async def _go():
+        async with async_session_maker() as s:
+            b = await s.get(CuratedBundle, bundle_id)
+            if b and (b.content_md or "").strip():
+                await bundle_scene_coverage(b, s)
+
+    try:
+        _run(_go())
+    except Exception as e:  # noqa: BLE001
+        logger.warning("precompute_coverage_failed", bundle_id=bundle_id, error=str(e)[:150])
+
+
 @celery_app.task(name="generate_kickoff_pptx", bind=True, max_retries=2, soft_time_limit=900, time_limit=1200)
 def generate_kickoff_pptx(self, bundle_id: str, project_id: str):
     from services.output_service import generate_kickoff_pptx as _gen

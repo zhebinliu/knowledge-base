@@ -64,7 +64,10 @@ async def _judge_covered(content: str, hits: list[dict]) -> set:
 
 
 async def bundle_scene_coverage(bundle: CuratedBundle, session: AsyncSession) -> dict:
-    """产物 vs 项目命中场景 的语义覆盖校验(按内容指纹缓存)。无命中报告 → applicable=False。"""
+    """产物 vs 项目命中场景 的语义覆盖校验(按内容指纹缓存)。无命中报告 / 非场景类产物 → applicable=False。"""
+    from services.scene_brief import KIND_FACET
+    if bundle.kind not in KIND_FACET:   # 启动会等非场景类产物不做覆盖校验
+        return {"applicable": False, "total": 0, "covered": 0, "missing": []}
     report = (await session.execute(
         select(SceneHitReport).where(SceneHitReport.project_id == bundle.project_id)
     )).scalar_one_or_none()
