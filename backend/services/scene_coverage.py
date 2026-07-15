@@ -23,7 +23,7 @@ from services.llm_json import loads_lenient
 
 logger = structlog.get_logger()
 
-_MAX_CONTENT = 18000
+_MAX_CONTENT = 40000   # 交付物常几万字;glm-5 空响应会回退 minimax-m2.5(不思考),放宽窗口更准
 
 _SYSTEM = (
     "你判断一份纷享销客 CRM 实施交付物的正文,覆盖了给定「标准业务场景」中的哪些。\n"
@@ -32,6 +32,13 @@ _SYSTEM = (
     "2. 只是背景一带而过、或完全没提到,不算覆盖。\n"
     "3. 只输出严格 JSON,不要解释:{\"covered\": [\"场景编码\", ...]}。只列覆盖到的编码。"
 )
+
+
+def _valid_json(content: str | None, finish_reason: str | None) -> bool:
+    """空 / 截断(glm-5 思考吃满 tokens)/ 解析不出 dict → 判失败,触发回退到 minimax-m2.5。"""
+    if finish_reason == "length":
+        return False
+    return isinstance(loads_lenient(content or "", None), dict)
 
 
 async def _judge_covered(content: str, hits: list[dict]) -> set:
@@ -46,7 +53,7 @@ async def _judge_covered(content: str, hits: list[dict]) -> set:
             resp, _m = await model_router.chat_with_routing(
                 task="scene_match",
                 messages=[{"role": "system", "content": _SYSTEM}, {"role": "user", "content": user}],
-                temperature=0.1, max_tokens=3000,
+                temperature=0.1, max_tokens=4000, validator=_valid_json,  # 空/截断 → 回退非思考模型
             )
             parsed = loads_lenient(resp or "", None)
             if isinstance(parsed, dict):
@@ -66,7 +73,8 @@ async def bundle_scene_coverage(bundle: CuratedBundle, session: AsyncSession) ->
         return {"applicable": False, "total": 0, "covered": 0, "missing": []}
 
     content = bundle.content_md or ""
-    chash = hashlib.md5((content + "|" + str(len(hits))).encode("utf-8", "ignore")).hexdigest()
+    # 缓存键带版本号:改判官逻辑时 bump,作废旧缓存(之前 glm-5 空响应误判 0 的都会重算)
+    chash = hashlib.md5((content + "|" + str(len(hits)) + "|v2").encode("utf-8", "ignore")).hexdigest()
     extra = bundle.extra or {}
     cached = extra.get("scene_cov")
     if isinstance(cached, dict) and cached.get("hash") == chash:
