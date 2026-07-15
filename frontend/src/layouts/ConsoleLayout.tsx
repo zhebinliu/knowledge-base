@@ -16,11 +16,11 @@ type NavItem = {
   end?: boolean
   gated?: boolean   // 升级中:普通用户置灰拦截,管理员放行
 }
-// 2026-07-13:对普通用户仅保留会议纪要,其余入口置灰拦截(升级改造中);管理员放行
+// 2026-07-15:场景驱动改造完成,所有入口对全体用户开放(gated 撤销)。
 const NAV: NavItem[] = [
-  { to: '/console',          label: '工作台首页', icon: Home,          end: true, gated: true },
-  { to: '/console/qa',       label: '知识问答',   icon: MessageSquare, gated: true },
-  { to: '/console/projects', label: '项目管理',   icon: FolderKanban,  gated: true },
+  { to: '/console',          label: '工作台首页', icon: Home,          end: true },
+  { to: '/console/qa',       label: '知识问答',   icon: MessageSquare },
+  { to: '/console/projects', label: '项目管理',   icon: FolderKanban },
   { to: '/console/meeting',  label: '会议纪要',   icon: Mic },
 ]
 
@@ -65,8 +65,6 @@ export default function ConsoleLayout() {
     <div className="min-h-screen bg-canvas">
       {/* Top bar */}
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-line">
-        {/* 升级中横幅:仅普通用户可见,管理员测试时不打扰 */}
-        {!user?.is_admin && <UpgradeBanner variant="light" />}
         <div className="w-full px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
           <Link to="/console" className="flex items-center gap-2.5 flex-shrink-0">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: BRAND_GRAD }}>

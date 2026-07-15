@@ -94,11 +94,10 @@ import ConsoleMeetingDetail from './pages/console/ConsoleMeetingDetail'
 import ConsoleMeetingNew from './pages/console/ConsoleMeetingNew'
 import TermCorrectionsPage from './pages/console/TermCorrections'
 
-// 2026-07-13:工作台其余功能对普通用户显示「升级中」,但管理员放行(可操作所有模块做测试)。
-// AdminGate:管理员渲染真实功能;非管理员渲染 fallback(默认升级提示页)。
-function AdminGate({ children, fallback }: { children: ReactElement; fallback?: ReactElement }) {
-  const { user } = useAuth()
-  return user?.is_admin ? children : (fallback ?? <UpgradeNotice />)
+// 2026-07-15:场景驱动改造完成,工作台所有模块对全体用户开放(不再区分 is_admin)。
+// AdminGate 保留为直通壳(将来若要再对某模块做灰度,改这里即可)。
+function AdminGate({ children }: { children: ReactElement; fallback?: ReactElement }) {
+  return children
 }
 
 export default function App() {

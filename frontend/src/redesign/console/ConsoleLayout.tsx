@@ -32,11 +32,11 @@ type NavItem = {
   gated?: boolean   // 升级中:普通用户置灰拦截,管理员放行
 }
 
-// 2026-07-13:对普通用户仅保留会议纪要,其余入口置灰拦截(升级改造中);管理员放行
+// 2026-07-15:场景驱动改造完成,所有入口对全体用户开放(gated 撤销)。
 const NAV: NavItem[] = [
-  { to: '/console',          label: '工作台', icon: Home, end: true, gated: true },
-  { to: '/console/qa',       label: '问答',   icon: MessageSquare, gated: true },
-  { to: '/console/projects', label: '项目',   icon: FolderKanban,  gated: true },
+  { to: '/console',          label: '工作台', icon: Home, end: true },
+  { to: '/console/qa',       label: '问答',   icon: MessageSquare },
+  { to: '/console/projects', label: '项目',   icon: FolderKanban },
   { to: '/console/meeting',  label: '会议',   icon: Mic },
 ]
 
@@ -146,14 +146,6 @@ export default function NewConsoleLayout() {
             flexDirection: 'column',
           }}
         >
-          {/* 升级中横幅:仅普通用户可见,管理员测试时不打扰 */}
-          {!user?.is_admin && (
-            <div style={{ padding: '0 16px 12px' }}>
-              <div style={{ borderRadius: 12, overflow: 'hidden' }}>
-                <UpgradeBanner variant="dark" />
-              </div>
-            </div>
-          )}
           <Outlet />
         </main>
 
