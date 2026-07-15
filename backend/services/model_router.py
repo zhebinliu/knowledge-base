@@ -202,12 +202,12 @@ ROUTING_RULES = {
 
     # ── Harness 场景引擎 (Scene) ────────────────────────────────────────────
     # 场景命中 / AI 能力匹配 / 蓝图回流 / 关键调研问题生成:都是结构化 JSON 抽取。
-    # 必须用非推理模型 —— 推理模型(qwen3)会把 JSON 思考到 finish_reason=length 截断。
-    # DB agent_configs(routing_rules)可运行时覆盖。
-    "scene_match":                 {"primary": "glm-5",             "fallback": "minimax-m2.5"},
-    "scene_ai_match":              {"primary": "glm-5",             "fallback": "minimax-m2.5"},
-    "scene_reflow":                {"primary": "glm-5",             "fallback": "minimax-m2.5"},
-    "scene_questions":             {"primary": "glm-5",             "fallback": "minimax-m2.5"},
+    # 必须用非推理模型 —— 推理模型(glm-5/qwen3)会把 JSON 思考到 finish_reason=length 吐空。
+    # 所以主用 minimax-m2.5(非推理、稳),glm-5 只当兜底。DB agent_configs(routing_rules)可运行时覆盖。
+    "scene_match":                 {"primary": "minimax-m2.5",      "fallback": "glm-5"},
+    "scene_ai_match":              {"primary": "minimax-m2.5",      "fallback": "glm-5"},
+    "scene_reflow":                {"primary": "minimax-m2.5",      "fallback": "glm-5"},
+    "scene_questions":             {"primary": "minimax-m2.5",      "fallback": "glm-5"},
 
     # ── 挑战练习 (Challenge) ────────────────────────────────────────────────
     # 基于 KB chunk 出题

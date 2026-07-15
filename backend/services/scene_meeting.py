@@ -88,6 +88,24 @@ async def detect_meeting_scenes(
     in_keys, out_keys, had_signal = await _detect_meeting_delta(
         meeting, catalog, scene_index, code_only_index, meeting.project_id or "",
     )
+
+    if not had_signal:
+        # 两轮主备全空/失败 —— 别把空结果连同有效 minutes_hash 写进缓存(否则项目匹配缓存命中会把假 0 当真复用)。
+        # 保留库里已有的判定(若有),返回它;没有就返回空 + 失败标记,让前端提示重试。
+        existing = (await session.execute(
+            select(MeetingSceneDelta).where(MeetingSceneDelta.meeting_id == meeting.id)
+        )).scalar_one_or_none()
+        logger.warning("meeting_scenes_detect_no_signal", meeting_id=meeting_id,
+                       kept_existing=bool(existing))
+        return {
+            "meeting_id": meeting_id,
+            "in_scope": existing.in_scope if existing else [],
+            "out_of_scope": existing.out_of_scope if existing else [],
+            "detected_at": existing.detected_at.isoformat() if existing and existing.detected_at else None,
+            "had_signal": False,
+            "error": "detect_failed",
+        }
+
     in_scenes = _keys_to_scenes(in_keys, scene_index)
     out_scenes = _keys_to_scenes(out_keys, scene_index)
 
