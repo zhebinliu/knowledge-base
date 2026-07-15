@@ -150,6 +150,7 @@ function SectionTitle({ idx, tag, title, sub, anchor }: { idx: string; tag: stri
 // 浮动 TOC: 桌面端固定右侧, 点击跳转, 当前可见段高亮
 const TOC_ITEMS: { id: string; label: string }[] = [
   { id: 'hero',         label: '概览' },
+  { id: 'scene',        label: '场景驱动闭环' },
   { id: 'insight',      label: '项目洞察' },
   { id: 'survey',       label: '需求调研' },
   { id: 'meeting',      label: '会议智能' },
@@ -467,6 +468,58 @@ export default function Demo() {
           <StatBadge value="2 层" label="Critic + Challenger 评审" />
           <StatBadge value="3 选 1" label="会议 ASR 引擎" />
           <StatBadge value="8 个" label="MCP 工具开放" />
+        </div>
+
+        {/* ════════════════════════════════════════════════════════════════
+            主线:场景驱动实施闭环
+            ════════════════════════════════════════════════════════════════ */}
+        <div className="mb-24">
+          <SectionTitle
+            anchor="scene"
+            idx="闭环"
+            tag="Scene · 场景驱动"
+            title="一套标准场景库,串起整个实施闭环"
+            sub="—— 命中定范围 · 引导调研与方案 · 缺口与覆盖收口 · 定稿回流反哺,场景库越用越厚。"
+          />
+
+          <WhyCard
+            painPoint={
+              <>
+                每接一个项目,顾问都要从零判断<strong>"这单要覆盖哪些业务场景、调研该问什么、方案覆盖够没够"</strong> ——
+                全靠个人经验;交付物又各写各的,跟"到底应该覆盖什么"经常对不上,水平下限完全看人。
+              </>
+            }
+            goal={
+              <>
+                用一套 <strong>147 个标准场景</strong>当主干:自动判命中、排调研议程、驱动所有交付物、亮缺口、验覆盖,
+                让实施<strong>有据可依</strong>,新人也能跑出对齐的过程。
+              </>
+            }
+            metrics={
+              <>
+                <span className="block">· <strong>147</strong> 标准场景(LTC/MTL/MCR/MPR/ITR 五域)</span>
+                <span className="block">· 命中随每场调研会<strong>自动增补</strong>(晚会可取消早会)</span>
+                <span className="block">· 交付物<strong>全场景化</strong>生成 + 语义<strong>覆盖校验</strong></span>
+              </>
+            }
+            perception={
+              <>
+                项目详情一条<strong>态势条</strong>:应覆盖 N · 已识别 M · 缺口 K;调研会有 <strong>Copilot 定向追问</strong>还没聊到的场景;
+                每份交付物挂 <code className="font-mono text-[11px] px-1 bg-orange-100 text-[#D96400] rounded">场景覆盖 M/N</code> 徽标。
+              </>
+            }
+          />
+
+          <PathDivider>闭环链路 · 命中 → 引导 → 生成 → 收口 → 回流</PathDivider>
+          <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-ink-secondary">
+            {['① 场景命中(合同/SOW + 会议时序折叠)', '② 调研议程 + 会议 Copilot', '③ 交付物按场景生成',
+              '④ 缺口 + 覆盖校验', '⑤ 闸门(绑定依据交付物)', '⑥ 蓝图回流 → 回写场景库'].map((s, i, a) => (
+              <span key={s} className="inline-flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-full bg-white border border-line">{s}</span>
+                {i < a.length - 1 && <span className="text-[#D96400] font-bold">→</span>}
+              </span>
+            ))}
+          </div>
         </div>
 
         {/* ════════════════════════════════════════════════════════════════

@@ -21,6 +21,7 @@ const NAV = [
   { id: 'qa',         label: '智能问答',   icon: MessageSquare },
   { id: 'chunks',     label: '知识切片',   icon: Layers },
   { id: 'projects',   label: '项目管理',   icon: Folder },
+  { id: 'scene',      label: '场景驱动实施', icon: ClipboardList },
   { id: 'outputs',    label: '输出中心',   icon: Sparkles },
   { id: 'challenge',  label: '知识挑战',   icon: Award },
   { id: 'dashboard',  label: '总览面板',   icon: BarChart2 },
@@ -481,6 +482,66 @@ export default function Help() {
             <p className="text-sm text-ink-secondary mb-3">
               在项目卡片上点击项目名称进入详情页，可以查看项目基本信息、
               文档列表和系统自动识别的 CRM 模块覆盖情况。
+            </p>
+          </SubSection>
+        </Section>
+
+        {/* Scene-driven */}
+        <Section id="scene" title="场景驱动实施" icon={ClipboardList}>
+          <p className="text-sm text-ink-secondary mb-5 leading-relaxed">
+            系统以<strong className="text-ink">标准场景库</strong>(147 个 Core 场景,按 LTC / MTL / MCR / MPR / ITR 五域组织)为主干,
+            把整个实施串成一条闭环:<strong className="text-ink">命中</strong>定范围 →
+            <strong className="text-ink">引导</strong>调研与方案 →
+            <strong className="text-ink">收口</strong>缺口与覆盖 →
+            <strong className="text-ink">回流</strong>反哺场景库。顾问主要做三件事:建项目、传 SOW/合同、开调研会,其余系统自动推进。
+          </p>
+
+          <SubSection title="① 场景命中 —— 定项目范围">
+            <p className="text-sm text-ink-secondary mb-3">
+              项目详情顶部一条<strong className="text-ink">态势条</strong>:对照标准场景库判定「应覆盖场景」。
+              依据只用<strong className="text-ink">合同 / SOW(界定范围)+ 会议纪要(真实调研)</strong>——会议按时间从旧到新逐场折叠,
+              晚会能取消早会提到、后来砍掉的场景。展开「命中报告」看命中依据,「缺口」看还没覆盖到的场景。
+            </p>
+            <Tip>命中随调研推进而长:每开一场关联本项目的调研会,纪要里聊到的场景会自动回补进命中,不用手动维护。</Tip>
+          </SubSection>
+
+          <SubSection title="② 调研议程 + 会议 Copilot —— 引导调研">
+            <Steps items={[
+              { title: '调研议程', desc: '需求调研阶段的「调研议程」按应覆盖场景排出调研主线(从线索到回款),每个场景附该向客户问清的关键问题。' },
+              { title: '会议 Copilot', desc: '现场调研会的实时副驾,对照本项目应覆盖场景,提示还没聊到的场景该追问什么,不让漏场景、聊得浅。' },
+              { title: '会议标注场景', desc: '任何形式的会议,整理纪要时自动标注本场涉及的标准场景(会议详情页可见),关联项目则回补到命中。' },
+            ]} />
+          </SubSection>
+
+          <SubSection title="③ 交付物场景化 —— 按场景生成">
+            <p className="text-sm text-ink-secondary mb-3">
+              所有交付物(调研大纲 / 问卷 / 报告、蓝图三件套、实施 / 测试 / 验收计划)生成时都会注入本项目的应覆盖场景:
+              调研类取「关键调研问题」,方案类取「推荐字段 / 场景流程」组织内容,让产物围绕命中场景展开。
+            </p>
+          </SubSection>
+
+          <SubSection title="④ 缺口 + 覆盖校验 —— 收口">
+            <Steps items={[
+              { title: '缺口', desc: '态势条里「缺口·K」= 应覆盖 − 已覆盖,列出活跃域里还没调研 / 设计到的场景。' },
+              { title: '场景覆盖徽标', desc: '每份交付物挂「场景覆盖 M/N · 漏 K」,语义判断正文实质覆盖了哪些命中场景,点开看漏了哪些。' },
+            ]} />
+            <Note>覆盖率只作<strong>参考</strong>,不卡流程 —— 实施范围由合同人天 + 客户实际场景决定,人天少会适当砍场景,不要求全覆盖。</Note>
+          </SubSection>
+
+          <SubSection title="⑤ 阶段闸门 —— 确认得有据">
+            <p className="text-sm text-ink-secondary mb-3">
+              两道人工确认闸门,卡的是<strong className="text-ink">依据交付物已生成</strong>:
+            </p>
+            <Steps items={[
+              { title: '调研事实(进方案设计前)', desc: '依据「调研报告」——调研报告未生成时,确认按钮灰显,不能放行。' },
+              { title: '方案定稿(进项目实施前)', desc: '依据「蓝图设计」。点确认 = 放行实施 + 自动识别蓝图回流,一个动作两件事。' },
+            ]} />
+          </SubSection>
+
+          <SubSection title="⑥ 蓝图回流 —— 反哺场景库">
+            <p className="text-sm text-ink-secondary mb-3">
+              方案定稿后自动识别蓝图里长出来的场景优化 / 新增 → <strong className="text-ink">PM 确认 → 管理员审核</strong>(场景库中心「待审核回流」)→
+              通过后回写标准场景库并留痕。场景库越用越厚,下一个项目匹配更准、问题更好、方案更全。
             </p>
           </SubSection>
         </Section>
