@@ -561,10 +561,21 @@ async def _load_ctx(bundle_id: str, project_id: str, kind: str) -> dict:
     # — 让"前一阶段产物自动喂给后一阶段",打破各 stage 独立生成的孤岛
     prior_bundles = await _load_upstream_bundles(project_id, kind)
 
+    # 应覆盖场景简报(闭环:所有交付物按场景组织)。命中没跑过 / 无命中 → 空串,不影响原生成
+    scene_brief = ""
+    if project_id:
+        try:
+            from services.scene_brief import project_scene_brief
+            async with async_session_maker() as s:
+                scene_brief = await project_scene_brief(project_id, s, kind)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("scene_brief_failed", kind=kind, error=str(e)[:150])
+
     return {
         "bundle_id": bundle_id,
         "bundle_extra": extra,
         "project": project,
+        "scene_brief": scene_brief,
         "industry": (project.industry if project else None) or extra.get("industry"),
         "conv": conv,
         "transcript": transcript,
@@ -784,6 +795,7 @@ async def _run_challenge_loop(
                     web_research_refs=m9_web_refs if spec.key == "M9_industry_benchmark" else None,
                     revision_suffix=suffix,
                     prior_bundles=ctx.get("prior_bundles"),    # v3.2 上游 stage P 类源
+                    scene_brief=ctx.get("scene_brief", ""),    # 应覆盖场景简报
                 )
                 return mk, result.get("content", "")
             except Exception as e:
@@ -1234,6 +1246,7 @@ async def generate_insight(bundle_id: str, project_id: str):
                 docs_by_type=ctx.get("docs_by_type"),                                # v3
                 web_research_refs=m9_web_refs if spec.key == "M9_industry_benchmark" else None,
                 prior_bundles=ctx.get("prior_bundles"),                              # v3.2 上游 stage P 类源
+                scene_brief=ctx.get("scene_brief", ""),                              # 应覆盖场景简报
             )
             # result = {"content": str, "sources_index": dict}
             return spec.key, result.get("content", ""), result.get("sources_index", {})
@@ -1567,6 +1580,7 @@ async def generate_survey(bundle_id: str, project_id: str):
                 kb_inject_block="",
                 customer_modules=customer_modules,  # research v1:SOW 中超出字典的客户自定义模块
                 prior_bundles=ctx.get("prior_bundles"),   # v3.2: 上游 stage(insight / kickoff / outline)产物
+                scene_brief=ctx.get("scene_brief", ""),   # 应覆盖场景简报
                 outline_sessions=outline_sessions,  # 2026-06-03 给每题打 session_id 用
                 meeting_context=meeting_md,         # 2026-06-03 已完成会议纪要,LLM 据此去重
             )
@@ -1900,6 +1914,7 @@ async def generate_survey_for_role(bundle_id: str, project_id: str, role: str):
                 kb_inject_block="",
                 customer_modules=customer_modules,
                 prior_bundles=ctx.get("prior_bundles"),
+                scene_brief=ctx.get("scene_brief", ""),   # 应覆盖场景简报
                 meeting_context=meeting_md,
                 prior_role_questions=prior_role_q_md,
                 target_audience=role,
@@ -2393,6 +2408,7 @@ async def generate_survey_outline(bundle_id: str, project_id: str):
                 model=ctx["agent_model"],
                 docs_by_type=ctx.get("docs_by_type"),  # 让 executor 把 D 类源(项目文档)编入 sources_index
                 prior_bundles=ctx.get("prior_bundles"),   # v3.2: 上游 stage P 类源(insight / kickoff)
+                scene_brief=ctx.get("scene_brief", ""),   # 应覆盖场景简报
             )
             if isinstance(result, dict):
                 return spec.key, result.get("content", ""), result.get("sources_index", {})
@@ -2761,6 +2777,7 @@ async def generate_research_plan(bundle_id: str, project_id: str):
             logger.info("revision_memories_injected", kind="research_plan", memories_chars=len(_memories_block))
         raw = await _llm_call(
             user_prompt, system=_system_with_memories,
+            scene_brief=ctx.get("scene_brief", ""),   # 应覆盖场景简报(闭环)
             model=ctx["agent_model"],
             task="output_doc_generate",
             max_tokens=8000, timeout=360.0,
@@ -2945,6 +2962,7 @@ async def generate_research_report(bundle_id: str, project_id: str):
             logger.info("revision_memories_injected", kind="research_report", memories_chars=len(_memories_block))
         raw = await _llm_call(
             user_prompt, system=_system_with_memories,
+            scene_brief=ctx.get("scene_brief", ""),   # 应覆盖场景简报(闭环)
             model=ctx["agent_model"],
             max_tokens=32000, timeout=720.0,
         )
@@ -3150,6 +3168,7 @@ async def generate_test_plan(bundle_id: str, project_id: str):
             logger.info("revision_memories_injected", kind="test_plan", memories_chars=len(_memories_block))
         raw = await _llm_call(
             user_prompt, system=_system_with_memories,
+            scene_brief=ctx.get("scene_brief", ""),   # 应覆盖场景简报(闭环)
             model=ctx["agent_model"],
             max_tokens=32000, timeout=720.0,
         )
@@ -3266,6 +3285,7 @@ async def generate_acceptance_report(bundle_id: str, project_id: str):
             logger.info("revision_memories_injected", kind="acceptance_report", memories_chars=len(_memories_block))
         raw = await _llm_call(
             user_prompt, system=_system_with_memories,
+            scene_brief=ctx.get("scene_brief", ""),   # 应覆盖场景简报(闭环)
             model=ctx["agent_model"],
             max_tokens=14000, timeout=720.0,
         )
@@ -3395,6 +3415,7 @@ async def generate_implementation_plan(bundle_id: str, project_id: str):
             logger.info("revision_memories_injected", kind="implementation_plan", memories_chars=len(_memories_block))
         raw = await _llm_call(
             user_prompt, system=_system_with_memories,
+            scene_brief=ctx.get("scene_brief", ""),   # 应覆盖场景简报(闭环)
             model=ctx["agent_model"],
             max_tokens=32000, timeout=720.0,
         )
@@ -3532,6 +3553,7 @@ async def generate_blueprint_design(bundle_id: str, project_id: str):
             logger.info("revision_memories_injected", kind="blueprint_design", memories_chars=len(_memories_block))
         raw = await _llm_call(
             user_prompt, system=_system_with_memories,
+            scene_brief=ctx.get("scene_brief", ""),   # 应覆盖场景简报(闭环)
             model=ctx["agent_model"],
             max_tokens=32000, timeout=720.0,
         )
@@ -3715,6 +3737,7 @@ async def _generate_design_artifact(
             logger.info("revision_memories_injected", kind=kind, memories_chars=len(_memories_block))
         raw = await _llm_call(
             user_prompt, system=_system_with_memories,
+            scene_brief=ctx.get("scene_brief", ""),   # 应覆盖场景简报(闭环)
             model=ctx["agent_model"],
             max_tokens=18000, timeout=720.0,
         )

@@ -94,7 +94,8 @@ def _format_refs(conv: OutputConversation | None) -> str:
 
 async def _llm_call(prompt: str, system: str = "", model: str | None = None,
                     task: str | None = None,
-                    max_tokens: int | None = 8000, timeout: float = 180.0) -> str:
+                    max_tokens: int | None = 8000, timeout: float = 180.0,
+                    scene_brief: str = "") -> str:
     """LLM 调用三优先:
     1. model 显式传(用户在 agent_config 配的具体模型)→ 直传,失败时若 task 给了则降级到该 task 的 routing fallback
     2. 否则 task 传了 → 走 chat_with_routing(task),按 ROUTING_RULES 走 primary→fallback
@@ -111,6 +112,10 @@ async def _llm_call(prompt: str, system: str = "", model: str | None = None,
     主备都空 → ModelOutputError),不会把空内容当成功结果。
     """
     from services.model_router import model_router
+
+    # 应覆盖场景简报(闭环:交付物按场景组织)——置于 user prompt 顶部,命中没跑过则为空
+    if scene_brief:
+        prompt = f"{scene_brief}\n\n{prompt}"
 
     def _nonempty(content: str | None, finish: str = "") -> bool:
         return bool(content and content.strip())

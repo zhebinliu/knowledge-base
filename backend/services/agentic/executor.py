@@ -365,6 +365,7 @@ async def execute_insight_module(
     web_research_refs: list[dict] | None = None,    # v3 改:从 block 改成结构化 list
     revision_suffix: str = "",                       # v3.1 挑战循环:上轮挑战意见,追加到 user prompt 末
     prior_bundles: list[dict] | None = None,         # v3.2: 上游 stage 的 valid bundle(P 类源)
+    scene_brief: str = "",                           # 应覆盖场景简报(闭环:按场景组织内容)
 ) -> dict:
     """生成单个 insight 模块的内容 + provenance。
 
@@ -395,7 +396,8 @@ async def execute_insight_module(
         fields_block=f"【字段评估】\n{fields_block}",
         project_block=f"【项目元数据】\n{project_block}",
         evidence_block=(
-            (f"{evidence_text}\n\n" if evidence_text else "")
+            (f"{scene_brief}\n\n" if scene_brief else "")
+            + (f"{evidence_text}\n\n" if evidence_text else "")
             + f"【访谈记录】\n{transcript or '（无访谈记录,引用时不要造 ID）'}\n\n"
             + (f"{industry_block}\n\n" if industry_block else "")
             + (f"【方法论】\n{agent_prompt}\n\n" if agent_prompt else "")
@@ -503,6 +505,7 @@ async def execute_survey_subsection(
     target_audience: str | None = None,   # 本轮限定的严格 4 角色之一(executive / dept_head / frontline / it)
     # ── 2026-06-03 加 outline_sessions:让 LLM 给每题打 session_id,前端按场次分组 ──
     outline_sessions: list[dict] | None = None,
+    scene_brief: str = "",                # 应覆盖场景简报(闭环:调研题目按场景组织、取自场景库)
 ) -> dict:
     """生成单个 survey 分卷。
 
@@ -658,7 +661,7 @@ async def execute_survey_subsection(
 
     user_prompt = f"""请为本分卷生成一份**实施前调研问卷**。
 
-{ltc_dict_block}
+{scene_brief + chr(10) + chr(10) if scene_brief else ''}{ltc_dict_block}
 
 {outline_sessions_block + chr(10) if outline_sessions_block else ''}
 
