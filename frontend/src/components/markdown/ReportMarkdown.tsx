@@ -235,7 +235,7 @@ export function MermaidBlock({ code }: { code: string }) {
             <Pencil size={11} /> 可视化编辑
           </button>
         )}
-        <div className="w-full [&_svg]:!max-w-full [&_svg]:h-auto" dangerouslySetInnerHTML={{ __html: svg }} />
+        <div dangerouslySetInnerHTML={{ __html: svg }} />
       </div>
       {lightboxOpen && (
         <MermaidLightbox svg={svg} onClose={() => setLightboxOpen(false)} />
@@ -333,12 +333,12 @@ function MermaidLightbox({ svg, onClose }: { svg: string; onClose: () => void })
         滚轮缩放 · 拖拽移动 · 双击复原 · ESC 关闭
       </div>
 
-      {/* 图区:用 div 包 svg + transform */}
+      {/* 图区:白色容器撑满视口,SVG 居中自适应 */}
       <div
         className="bg-white rounded-xl shadow-2xl"
         style={{
-          maxWidth: '95vw',
-          maxHeight: '92vh',
+          width: '95vw',
+          height: '92vh',
           padding: '16px',
           overflow: 'hidden',
           cursor: dragging ? 'grabbing' : 'grab',
@@ -351,6 +351,7 @@ function MermaidLightbox({ svg, onClose }: { svg: string; onClose: () => void })
         onMouseLeave={stopDrag}
       >
         <div
+          className="w-full h-full [&_svg]:!max-w-full [&_svg]:!max-h-full [&_svg]:w-full [&_svg]:h-full"
           style={{
             transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
             transformOrigin: 'center center',
