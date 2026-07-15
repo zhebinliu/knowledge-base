@@ -98,6 +98,22 @@ async def get_scene_match(
     return _hit_dto(row) if row else None
 
 
+@router.get("/bundles/{bundle_id}/scene-coverage")
+async def bundle_coverage(
+    bundle_id: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """交付物场景覆盖校验(闭环②):该产物正文覆盖了项目多少应覆盖场景,漏了哪些。"""
+    from models.curated_bundle import CuratedBundle
+    from services.scene_coverage import bundle_scene_coverage
+    b = await session.get(CuratedBundle, bundle_id)
+    if not b:
+        raise HTTPException(404, "产物不存在")
+    await assert_project_access(current_user, b.project_id, "read")
+    return await bundle_scene_coverage(b.project_id, b.content_md or "", session)
+
+
 @router.get("/projects/{project_id}/research-agenda")
 async def research_agenda(
     project_id: str,

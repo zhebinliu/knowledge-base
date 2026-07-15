@@ -34,6 +34,7 @@ import GateConfirmBar from '../../components/console/GateConfirmBar'
 import SoftWarningChips, { toastSoftWarnings } from '../../components/console/SoftWarnings'
 import SceneHarnessPanel from '../../components/console/SceneHarnessPanel'
 import ResearchAgendaDrawer from '../../components/console/ResearchAgendaDrawer'
+import SceneCoverageChip from '../../components/console/SceneCoverageChip'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
 import { useAuth } from '../../auth/AuthContext'
 import ProjectStakeholdersDrawer from './ProjectStakeholdersDrawer'
@@ -612,6 +613,8 @@ export default function NewConsoleProjectDetail() {
 
       {/* Harness P2 软闸警告:随当前产物持续显示 */}
       <SoftWarningChips bundle={activeBundle} variant="dark" />
+      {/* 闭环②:交付物场景覆盖 */}
+      {activeBundle && !activeInflight && <SceneCoverageChip bundleId={activeBundle.id} variant="dark" />}
       {/* Harness P4:蓝图回流(design 阶段) */}
       <SceneHarnessPanel projectId={id} stageKey={activeStage?.key} variant="dark" section="reflow" reflowSignal={reflowSignal} />
       {agendaOpen && id && <ResearchAgendaDrawer projectId={id} variant="dark" onClose={() => setAgendaOpen(false)} />}

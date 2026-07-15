@@ -155,6 +155,17 @@ export const getResearchAgenda = (project_id: string, domain?: string) =>
   api.get<ResearchAgenda>(`/projects/${project_id}/research-agenda`, { params: domain ? { domain } : {} })
     .then(r => r.data)
 
+// ── 闭环②:交付物场景覆盖校验 ─────────────────────────────────────────────────
+export interface BundleCoverage {
+  applicable: boolean
+  total: number
+  covered: number
+  covered_ratio?: number | null
+  missing: SceneHit[]
+}
+export const getBundleCoverage = (bundle_id: string) =>
+  api.get<BundleCoverage>(`/bundles/${bundle_id}/scene-coverage`).then(r => r.data)
+
 // ── P4 蓝图回流提案 ─────────────────────────────────────────────────────────
 export interface SceneProposal {
   id: number
