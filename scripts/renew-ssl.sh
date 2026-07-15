@@ -34,7 +34,8 @@ fi
 
 # 续期成功时（证书文件被替换）reload nginx 加载新证书
 reload_needed=false
-for domain in kb.liii.in kb.tokenwave.cloud uat.tokenwave.cloud skillhub.tokenwave.cloud aihub.tokenwave.cloud kanban.tokenwave.cloud studio.tokenwave.cloud; do
+# kb.liii.in 已弃用(2026-07-15,DNS 指老 IP 不再管),不在续期名单
+for domain in kb.tokenwave.cloud uat.tokenwave.cloud skillhub.tokenwave.cloud aihub.tokenwave.cloud kanban.tokenwave.cloud studio.tokenwave.cloud; do
     cert_path="/etc/letsencrypt/live/${domain}/fullchain.pem"
     if [ -f "$cert_path" ] && [ -n "$(find "$cert_path" -mtime -1 2>/dev/null)" ]; then
         echo "$(date -Iseconds) cert renewed for ${domain}"

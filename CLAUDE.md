@@ -13,8 +13,8 @@
 
 ## 访问地址
 
-- 生产域名: https://kb.liii.in（强制 HTTPS）
-- 备用域名: https://kb.tokenwave.cloud（同一服务器，独立证书）
+- 生产域名: https://kb.tokenwave.cloud（强制 HTTPS）
+- ~~kb.liii.in~~ **已弃用**(2026-07-15):其 DNS A 记录指向早已回收的老服务器 IP 34.45.112.217(现为第三方 K8s 集群),用户决定不再维护;edge 已移除该 server block,证书停止续期。
 - ~~新前端预览 uat.tokenwave.cloud~~ **已下线**(2026-07-14):域名保留 TLS,统一 302 到 kb.liii.in;frontend-uat 容器可停,Deploy UAT workflow 已禁用。
 - **团队看板**: https://kanban.tokenwave.cloud — Plane(开源 Jira/Linear 替代)。独立 compose `/opt/kanban`(源码在本仓 `kanban/`),独立 postgres/redis/rabbitmq/minio,由 edge nginx 持证反代到 `plane-proxy:80`,模式同 aihub。
 - 直连 IP: 34.42.241.99（80→301 跳 HTTPS）
@@ -25,7 +25,7 @@
 - 远程路径: `/opt/kb-system`
 - 运行方式: Docker Compose 拉 **ghcr.io 镜像**(`ghcr.io/zhebinliu/knowledge-base-{backend,frontend-prod,frontend-uat,edge}`)— 服务器 **不在本地编译**
 - **edge 容器 = 全服务器唯一 80/443 入口**(2026-07-14 从 frontend 拆出,源码 `edge/`):持全部域名证书,按 server_name 反代到各内网容器(frontend / skillhub / aihub / kanban / studio;uat 域名只 302),upstream 全部 resolver+变量延迟解析。日常前后端部署只动内网容器,**不闪断 aihub/skillhub 等其它站点**;只有 `edge/` 或 `docker-compose.yml` 变更才重建 edge(全域名闪断几秒)
-- HTTPS: Let's Encrypt 证书在主机 `/etc/letsencrypt/live/kb.liii.in/`，挂载进 edge 容器。续期 cron `17 3 * * * /opt/kb-system/scripts/renew-ssl.sh`
+- HTTPS: Let's Encrypt 证书在主机 `/etc/letsencrypt/live/<域名>/`，挂载进 edge 容器。续期 cron `17 3 * * * /opt/kb-system/scripts/renew-ssl.sh`
 - **`meeting/` 是普通子目录**(2026-05-25 合并回主仓,之前为 git submodule 指向 zhebinliu/ai-meeting)。Dockerfile 仍用 `COPY meeting/backend/ /app/` overlay 把会议代码叠到主镜像里,详见 [PROJECT_OVERVIEW § 12](PROJECT_OVERVIEW.md)。
 - GitHub Actions `secrets.DEPLOY_HOST` 跟服务器 IP 绑定,**换服务器时除了改本仓代码,还要去 GitHub Settings → Secrets 把 `DEPLOY_HOST` 同步改了**
 
@@ -35,7 +35,7 @@
 # UAT(uat.tokenwave.cloud):push main 自动触发 deploy-uat.yml
 git push origin main                                          # → CI Checks + Deploy UAT
 
-# PROD(kb.liii.in / kb.tokenwave.cloud):手动触发 deploy-prod.yml
+# PROD(kb.tokenwave.cloud):手动触发 deploy-prod.yml
 gh workflow run deploy-prod.yml --ref main -f confirm=deploy
 
 # 看进度

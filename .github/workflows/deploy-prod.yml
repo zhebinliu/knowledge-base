@@ -6,14 +6,14 @@ name: Deploy PROD
 #     (backend / frontend / edge);单边改动省构建时间。
 #   - 部署前后自动 prune 镜像,根治 /opt/data 满导致 postgres 崩溃
 #   - SSH 部署:滚动重启(maintenance flag + 健康检查 + 回滚)
-#   - 影响域名:kb.liii.in / kb.tokenwave.cloud;不动 frontend-uat
+#   - 影响域名:kb.tokenwave.cloud(kb.liii.in 已弃用 2026-07-15)
 #   - edge(80/443 入口)只在 edge/ 或 docker-compose.yml 变更时才重建 —— 那是唯一
 #     会闪断 aihub/skillhub/kanban/studio 的场景;日常前后端部署不碰 edge
 on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: '部署到生产 kb.liii.in,确认请填 "deploy"'
+        description: '部署到生产 kb.tokenwave.cloud,确认请填 "deploy"'
         required: true
         type: string
       force_all:

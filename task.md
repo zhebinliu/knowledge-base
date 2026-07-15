@@ -617,3 +617,7 @@
 - **uat 已下线**(5fd7890,cutover 前 1 小时):首版 edge 配置误从旧缓存把 uat 反代带回,67a3f3b 修正为 302 到生产;Deploy UAT workflow 已被禁用。
 - **证书续期 cron 丢失**(日志止于 6/12,疑似 6/23 服务器事故后未恢复):已重新加回 liu crontab(17 3 * * *)。kb.tokenwave.cloud 手动续期成功(→10/12)并 reload edge。
 - **⚠️ kb.liii.in DNS 指向 34.45.112.217(一个 K8s API server,证书 7/13 签发),不是 KB 服务器 34.42.241.99**:主域名对公网用户实际不可用(TLS 报错 + k8s 403),ACME 续期也因此失败(本机证书 7/16 到期)。需要用户在 DNS 解析商把 kb.liii.in A 记录改回 34.42.241.99;服务器端已把续期配置从 standalone 改为 webroot(兼容 nginx 占 80),DNS 修复后次日 3:17 cron 自动续上。备用域名 kb.tokenwave.cloud 一切正常。
+
+## kb.liii.in 弃用(2026-07-15,用户决策"不用管这个域名了")
+- edge 移除 kb.liii.in server block;uat 302 目标改 kb.tokenwave.cloud;renew-ssl.sh 名单摘除;文档同步(生产域名 = kb.tokenwave.cloud)
+- 服务器:/etc/letsencrypt/renewal/kb.liii.in.conf 移出(停止续期尝试,否则每晚 certbot 失败会连累其它域名续期后的 reload);证书文件暂留
