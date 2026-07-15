@@ -38,6 +38,7 @@ export default function SceneHarnessPanel({
   const [hit, setHit] = useState<HitReport | null>(null)
   const [matching, setMatching] = useState(false)
   const [showReport, setShowReport] = useState(false)
+  const [showGap, setShowGap] = useState(false)
   const [proposals, setProposals] = useState<SceneProposal[]>([])
   const [reflowing, setReflowing] = useState(false)
   const [busyId, setBusyId] = useState<number | null>(null)
@@ -108,65 +109,84 @@ export default function SceneHarnessPanel({
     </button>
   )
 
+  // 应覆盖 = 命中 + 活跃域里的未命中(缺口);覆盖率对应覆盖算,不是对全 147 算
+  const activeDomains = new Set((hit?.hits || []).map(h => h.domain))
+  const gapScenes = (hit?.misses || []).filter(m => activeDomains.has(m.domain))
+  const shouldCover = (hit?.hit_count || 0) + gapScenes.length
+  const covPct = shouldCover ? Math.round(((hit?.hit_count || 0) / shouldCover) * 100) : 0
+  const chip = (label: string, open: boolean, onClick: () => void, danger = false): React.ReactNode => (
+    <button type="button" onClick={onClick}
+      style={{ fontSize: 12, color: danger ? (dark ? '#F0C878' : '#8A5A10') : c.sub, background: 'transparent',
+        border: `1px solid ${c.bd}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      {label} <ChevronDown size={11} style={{ transform: open ? 'rotate(180deg)' : 'none' }} />
+    </button>
+  )
+
   return (
     <div style={{ padding: dark ? '0 20px 8px' : '0 10px 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {/* 场景命中(P3) */}
+      {/* 场景命中态势条(P3)—— 一条:覆盖 + 命中报告 + 缺口 + 重新运行 */}
       {showMatch && (
-      <div style={box}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26,
-              borderRadius: 8, background: dark ? 'rgba(84,188,161,0.16)' : '#E3F0EC' }}>
-              <Target size={15} color={dark ? '#79C7B3' : '#1E6E5D'} />
-            </span>
-            <span style={{ fontSize: 13, fontWeight: 650, color: c.ink }}>场景命中</span>
-          </span>
+      <div style={{ ...box, padding: '8px 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <Target size={14} color={dark ? '#79C7B3' : '#1E6E5D'} />
           {hit ? (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 3 }}>
-                <span style={{ fontSize: 18, fontWeight: 750, color: dark ? '#79C7B3' : '#1E6E5D', fontVariantNumeric: 'tabular-nums' }}>{hit.hit_count}</span>
-                <span style={{ fontSize: 11, color: c.sub }}>命中</span>
+            <>
+              <span style={{ fontSize: 12.5, color: c.ink }}>
+                应覆盖 <b>{shouldCover}</b> · 已识别 <b style={{ color: dark ? '#79C7B3' : '#1E6E5D' }}>{hit.hit_count}</b>
+                <span style={{ color: c.sub }}> ({covPct}%)</span>
               </span>
-              <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 3 }}>
-                <span style={{ fontSize: 15, fontWeight: 650, color: c.sub, fontVariantNumeric: 'tabular-nums' }}>{hit.miss_count}</span>
-                <span style={{ fontSize: 11, color: c.sub }}>未命中</span>
-              </span>
-              {/* 覆盖条 */}
-              <span style={{ width: 90, height: 6, borderRadius: 100, background: dark ? 'rgba(255,255,255,0.1)' : '#EEF1F4', overflow: 'hidden' }}>
-                <span style={{ display: 'block', height: '100%', borderRadius: 100,
-                  width: `${Math.round((hit.hit_count / Math.max(1, hit.hit_count + hit.miss_count)) * 100)}%`,
+              <span style={{ width: 80, height: 6, borderRadius: 100, background: dark ? 'rgba(255,255,255,0.1)' : '#EEF1F4', overflow: 'hidden' }}>
+                <span style={{ display: 'block', height: '100%', borderRadius: 100, width: `${covPct}%`,
                   background: 'linear-gradient(90deg,#1E6E5D,#54BCA1)' }} />
               </span>
-            </span>
-          ) : <span style={{ fontSize: 12, color: c.sub }}>尚未运行 —— 对照标准场景库判定项目覆盖了哪些场景</span>}
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            {hit && (
-              <button type="button" onClick={() => setShowReport(s => !s)}
-                style={{ fontSize: 12, color: c.sub, background: 'transparent', border: `1px solid ${c.bd}`,
-                  borderRadius: 8, padding: '5px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                命中报告 <ChevronDown size={12} style={{ transform: showReport ? 'rotate(180deg)' : 'none' }} />
-              </button>
-            )}
+            </>
+          ) : <span style={{ fontSize: 12, color: c.sub }}>场景命中未运行</span>}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+            {hit && chip('命中报告', showReport, () => { setShowReport(s => !s); setShowGap(false) })}
+            {hit && gapScenes.length > 0 && chip(`缺口·${gapScenes.length}`, showGap, () => { setShowGap(s => !s); setShowReport(false) }, true)}
             {btn(doMatch, matching, hit ? '重新运行' : '运行命中', Target)}
           </div>
         </div>
-        {hit?.summary && <div style={{ fontSize: 11.5, color: c.sub, marginTop: 8, lineHeight: 1.6 }}>{hit.summary}</div>}
-        {(hit?.sources?.length || 0) > 0 && (
-          <div style={{ fontSize: 11, color: c.sub, marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-            <span>命中依据:</span>
-            {hit!.sources!.map((sc, i) => (
-              <span key={i} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 100,
-                background: c.chipBg, border: `1px solid ${c.bd}`, color: c.ink,
-              }} title={sc.name}>
-                {sc.kind === 'scope' ? '📄' : '📦'} {sc.type}:{sc.name.length > 18 ? sc.name.slice(0, 18) + '…' : sc.name}
-              </span>
+        {/* 缺口:活跃域里未命中的场景 —— 还没调研/没设计到的 */}
+        {showGap && hit && (
+          <div style={{ marginTop: 10, borderRadius: 10, background: c.chipBg, border: `1px solid ${c.bd}`, padding: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 650, color: c.ink, marginBottom: 8 }}>
+              缺口 {gapScenes.length} 个 —— 活跃域里还没覆盖到的场景(待调研 / 待设计)
+            </div>
+            {groupByDomain(gapScenes).map(g => (
+              <div key={g.domain} style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: c.sub, marginBottom: 5 }}>
+                  {g.domain} {DOMAIN_LABEL[g.domain] || ''} · 缺 {g.scenes.length}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {g.scenes.map(s => (
+                    <span key={s.code} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, padding: '3px 9px', borderRadius: 100,
+                      background: dark ? 'rgba(214,165,72,0.14)' : '#FBF3E2', border: `1px solid ${dark ? 'rgba(214,165,72,0.3)' : '#F0DFBB'}`,
+                      color: dark ? '#F0C878' : '#8A5A10' }}>
+                      <span style={{ fontFamily: 'var(--mono, monospace)', opacity: 0.8 }}>{s.code}</span>{s.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}
         {showReport && hit && (
           <div style={{ marginTop: 10, maxHeight: 420, overflow: 'auto', borderRadius: 10,
             background: c.chipBg, border: `1px solid ${c.bd}`, padding: 12 }}>
+            {hit.summary && <div style={{ fontSize: 11.5, color: c.sub, marginBottom: 10, lineHeight: 1.6 }}>{hit.summary}</div>}
+            {(hit.sources?.length || 0) > 0 && (
+              <div style={{ fontSize: 11, color: c.sub, marginBottom: 10, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                <span>命中依据:</span>
+                {hit.sources!.map((sc, i) => (
+                  <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 100,
+                    background: c.bg, border: `1px solid ${c.bd}`, color: c.ink }} title={sc.name}>
+                    {sc.kind === 'scope' ? '📄' : sc.kind === 'meeting' ? '🗣' : '📦'} {sc.type}:{sc.name.length > 16 ? sc.name.slice(0, 16) + '…' : sc.name}
+                  </span>
+                ))}
+              </div>
+            )}
             {/* 覆盖率概览 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
               <span style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>覆盖情况</span>
