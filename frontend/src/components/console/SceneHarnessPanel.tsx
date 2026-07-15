@@ -53,6 +53,23 @@ export default function SceneHarnessPanel({
   }, [projectId, showMatch, showReflow])
   useEffect(() => { load() }, [load])
 
+  const doReflow = useCallback(async (auto = false) => {
+    if (!projectId) return
+    setReflowing(true)
+    if (auto) toast.info('已放行实施,正在识别蓝图回流场景…')
+    try {
+      const rs = await runSceneReflow(projectId)
+      setProposals(rs)
+      if (rs.length) toast.success(`识别到 ${rs.length} 条场景回流提案,请 PM 确认`)
+      else if (!auto) toast.success('未识别到需回流的场景变更')
+    } catch { /* 拦截器已 toast */ } finally { setReflowing(false) }
+  }, [projectId])
+
+  useEffect(() => {
+    if (reflowSignal > 0 && showReflow) doReflow(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reflowSignal])
+
   if (!projectId || (!showMatch && !showReflow)) return null
 
   const c = dark
@@ -71,23 +88,6 @@ export default function SceneHarnessPanel({
       toast.success(`场景命中完成:命中 ${r.hit_count} · 未命中 ${r.miss_count}`)
     } catch { /* 拦截器已 toast */ } finally { setMatching(false) }
   }
-  const doReflow = useCallback(async (auto = false) => {
-    if (!projectId) return
-    setReflowing(true)
-    if (auto) toast.info('已放行实施,正在识别蓝图回流场景…')
-    try {
-      const rs = await runSceneReflow(projectId)
-      setProposals(rs)
-      if (rs.length) toast.success(`识别到 ${rs.length} 条场景回流提案,请 PM 确认`)
-      else if (!auto) toast.success('未识别到需回流的场景变更')
-    } catch { /* 拦截器已 toast */ } finally { setReflowing(false) }
-  }, [projectId])
-
-  // 方案定稿(tobe 闸门)确认 → 上层 bump reflowSignal → 自动识别回流(跳过初始 0)
-  useEffect(() => {
-    if (reflowSignal > 0 && showReflow) doReflow(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reflowSignal])
   const doPmConfirm = async (id: number) => {
     setBusyId(id)
     try {

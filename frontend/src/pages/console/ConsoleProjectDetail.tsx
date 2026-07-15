@@ -1596,11 +1596,12 @@ function BundlePreviewBtn({ b }: { b: CuratedBundle }) {
 
 /** 公开分享按钮:仅「客户向」交付物可见,生成免登录只读链接,可复制 / 关闭。 */
 function BundleShareBtn({ b }: { b: CuratedBundle }) {
-  if (!PUBLIC_SHAREABLE_KINDS.has(b.kind)) return null
   const [open, setOpen] = useState(false)
   const [info, setInfo] = useState<BundleShareInfo | null>(null)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  if (!PUBLIC_SHAREABLE_KINDS.has(b.kind)) return null
 
   const toggle = () => {
     const next = !open
