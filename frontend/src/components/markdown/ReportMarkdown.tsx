@@ -235,7 +235,7 @@ export function MermaidBlock({ code }: { code: string }) {
             <Pencil size={11} /> 可视化编辑
           </button>
         )}
-        <div dangerouslySetInnerHTML={{ __html: svg }} />
+        <div className="w-full [&_svg]:!max-w-full [&_svg]:h-auto" dangerouslySetInnerHTML={{ __html: svg }} />
       </div>
       {lightboxOpen && (
         <MermaidLightbox svg={svg} onClose={() => setLightboxOpen(false)} />
