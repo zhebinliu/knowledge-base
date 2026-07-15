@@ -111,7 +111,7 @@ async def bundle_coverage(
     if not b:
         raise HTTPException(404, "产物不存在")
     await assert_project_access(current_user, b.project_id, "read")
-    return await bundle_scene_coverage(b.project_id, b.content_md or "", session)
+    return await bundle_scene_coverage(b, session)
 
 
 @router.get("/projects/{project_id}/research-agenda")
