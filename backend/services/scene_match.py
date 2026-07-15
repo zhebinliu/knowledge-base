@@ -143,17 +143,18 @@ def _resolve_codes(lst, scene_index: dict, code_only_index: dict) -> set:
     return out
 
 
-# 逐场会议判「场景增量」的 system prompt —— 只标本场明确定性的,治「松」;区分纳入/取消,治「时序」
+# 逐场会议判「场景增量」的 system prompt —— 讨论到即标(别漏),区分纳入/取消(治时序)
 _MEETING_DELTA_SYSTEM = (
     "你是纷享销客 CRM 实施资深顾问。下面给你【标准场景库】和【某一场会议的纪要】。\n"
     "场景库是【细粒度】的:一个大域下有几十个细分场景,每个对应一个具体业务动作。\n"
-    "判断这一场会议给项目业务范围带来的【场景增量】,分两类:\n"
-    "- in_scope:本场会议中,客户明确讨论并确认【要做 / 已在做 / 纳入本次 CRM 项目】的【具体】业务,对应命中的细分场景。\n"
-    "- out_of_scope:本场会议中,客户明确表示【不做 / 取消 / 本期不上 / 移出本次范围】的业务,对应要剔除的细分场景。\n"
-    "严格要求:\n"
-    "1. 逐个场景独立判断,要有【针对该细分场景本身】的明确对话依据;仅提到所属大域、一带而过、举例、背景介绍、别项目的事,都不算。\n"
-    "2. 【严禁整域命中】:不能因为本场聊了某个大域,就把该域下一片场景都放进 in_scope。单场会议通常只明确定性少数几个场景。\n"
-    "3. 宁缺毋滥:拿不准就 in/out 都不放。\n"
+    "判断这一场会议涉及的【场景增量】,分两类:\n"
+    "- in_scope:本场会议**实质讨论 / 调研 / 设计**到的业务,对应的标准场景。**讨论到即可,不要求客户当场拍板确认**。\n"
+    "  例:聊到线索/公海池 → 线索类场景;聊到商机赛马、查重、赢单率 → 商机类场景;聊到客户分级/架构 → 客户类场景;聊到售后/工单 → ITR 场景。\n"
+    "- out_of_scope:本场会议中客户明确表示【不做 / 取消 / 本期不上 / 移出范围】的业务,对应要剔除的场景。\n"
+    "要求:\n"
+    "1. 把本场会议明确讨论到的相关场景**尽量都标出来,别漏**——一场实质业务会通常涉及【几个到十几个】细分场景。\n"
+    "2. 但别硬凑:纯背景一句带过、举例、别的项目的事,不标。\n"
+    "3. out_of_scope 从严:只有明确说不做/取消才放,一般为空。\n"
     "4. 只能用场景库里给出的 code。\n"
     "5. 严格输出 JSON,不要解释、不要代码围栏。"
 )
@@ -182,7 +183,7 @@ async def _detect_meeting_delta(
                 task=_MODEL_TASK,
                 messages=[{"role": "system", "content": _MEETING_DELTA_SYSTEM},
                           {"role": "user", "content": user}],
-                temperature=0.1, max_tokens=2000, validator=_json_valid,
+                temperature=0.1, max_tokens=3000, validator=_json_valid,
             )
             parsed = loads_lenient(content or "", None)
             if isinstance(parsed, dict):

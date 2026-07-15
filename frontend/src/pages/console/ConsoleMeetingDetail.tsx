@@ -229,6 +229,20 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
     mutationFn: () => runLiveAdvice(meeting.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-advice', meeting.id] }),
   })
+  // 首次进 Co-pilot 且从没生成过(上传/已完成的会议不会边录边生成)→ 自动跑一轮,省得用户再点一次
+  const autoGenTried = useRef(false)
+  useEffect(() => {
+    if (autoGenTried.current) return
+    if (isLoading || genMut.isPending) return
+    const hasTranscript = !!(meeting.raw_transcript || '').trim()
+    const neverGenerated = (data?.advice?.length || 0) === 0
+      && (data?.resolved_advice?.length || 0) === 0
+      && (data?.carryover?.length || 0) === 0
+    if (hasTranscript && neverGenerated) {
+      autoGenTried.current = true
+      genMut.mutate()
+    }
+  }, [isLoading, data, meeting.raw_transcript])
   const resolveMut = useMutation({
     mutationFn: (aid: number) => resolveLiveAdvice(meeting.id, aid),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-advice', meeting.id] }),
@@ -355,6 +369,11 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
 
       {isLoading ? (
         <div className="text-sm text-ink-muted py-10 text-center">加载中…</div>
+      ) : genMut.isPending && advice.length === 0 && resolved.length === 0 ? (
+        <div className="text-sm text-ink-muted py-12 text-center leading-relaxed flex flex-col items-center gap-2">
+          <Loader2 size={20} className="animate-spin text-brand" />
+          Co-pilot 正在基于本次会议内容分析…(约十几秒)
+        </div>
       ) : advice.length === 0 && resolved.length === 0 ? (
         <div className="text-sm text-ink-muted py-12 text-center leading-relaxed">
           还没有建议。点右上「生成建议」,让 Co-pilot 基于本次会议内容分析一轮。
