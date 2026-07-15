@@ -73,12 +73,23 @@ export default function GateConfirmBar({
           撤销
         </button>
       </span>
-    ) : (
-      <button type="button" onClick={onConfirm} disabled={busy} title={gate.desc}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, padding: '4px 12px', borderRadius: 8, border: 'none', color: '#fff', cursor: busy ? 'default' : 'pointer', background: 'linear-gradient(135deg,#E0A43A,#C07A16)', fontFamily: 'inherit' }}>
-        {busy ? <Loader2 size={11} className="animate-spin" /> : <ShieldAlert size={11} />} 确认 {short}
-      </button>
-    )
+    ) : (() => {
+      const ready = !gate.evidence_kind || !!gate.evidence_ready
+      const hint = ready ? gate.desc : `请先生成「${gate.evidence_label}」再确认${short}`
+      return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+          {gate.evidence_label && (
+            <span style={{ fontSize: 10.5, color: ready ? c.sub : warnC.fg }} title={hint}>
+              依据:{gate.evidence_label}{ready ? '' : ' · 未生成'}
+            </span>
+          )}
+          <button type="button" onClick={onConfirm} disabled={busy || !ready} title={hint}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, padding: '4px 12px', borderRadius: 8, border: 'none', color: '#fff', cursor: (busy || !ready) ? 'default' : 'pointer', background: 'linear-gradient(135deg,#E0A43A,#C07A16)', opacity: ready ? 1 : 0.5, fontFamily: 'inherit' }}>
+            {busy ? <Loader2 size={11} className="animate-spin" /> : <ShieldAlert size={11} />} 确认 {short}
+          </button>
+        </span>
+      )
+    })()
   }
 
   return (
@@ -100,6 +111,11 @@ export default function GateConfirmBar({
             {confirmed
               ? `确认人 ${gate.confirmed_by || '—'}${gate.confirmed_at ? ' · ' + new Date(gate.confirmed_at).toLocaleString('zh-CN') : ''}`
               : gate.desc}
+            {!confirmed && gate.evidence_label && (
+              <span style={{ marginLeft: 6, color: (!gate.evidence_kind || gate.evidence_ready) ? c.sub : warnC.fg }}>
+                · 依据:{gate.evidence_title || gate.evidence_label}{gate.evidence_ready ? '(已就绪)' : '(未生成)'}
+              </span>
+            )}
           </div>
         </div>
         {confirmed ? (
@@ -110,18 +126,22 @@ export default function GateConfirmBar({
             }}>
             {busy ? <Loader2 size={12} className="animate-spin" /> : '撤销确认'}
           </button>
-        ) : (
-          <button type="button" onClick={onConfirm} disabled={busy}
+        ) : (() => {
+          const ready = !gate.evidence_kind || !!gate.evidence_ready
+          return (
+          <button type="button" onClick={onConfirm} disabled={busy || !ready}
+            title={ready ? gate.desc : `请先生成「${gate.evidence_label}」`}
             style={{
               flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6,
-              fontSize: 12.5, fontWeight: 600, padding: '6px 16px', borderRadius: 8, cursor: busy ? 'default' : 'pointer',
-              border: 'none', color: '#fff', fontFamily: 'inherit',
+              fontSize: 12.5, fontWeight: 600, padding: '6px 16px', borderRadius: 8, cursor: (busy || !ready) ? 'default' : 'pointer',
+              border: 'none', color: '#fff', fontFamily: 'inherit', opacity: ready ? 1 : 0.5,
               background: 'linear-gradient(135deg,#E0A43A,#C07A16)',
             }}>
             {busy ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
             一键确认
           </button>
-        )}
+          )
+        })()}
       </div>
     </div>
   )

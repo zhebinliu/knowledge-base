@@ -28,19 +28,24 @@ router = APIRouter()
 
 # ── 闸门定义(P1 两道硬闸)──────────────────────────────────────────────────────
 # key:闸门标识;label:人看的名字;guards_stage:它守在哪个下游阶段前面;
-# desc:确认时给用户的一句话说明。
+# desc:确认时给用户的一句话说明;
+# evidence_kind/label:这道闸门确认的「依据交付物」——必须先生成(done)才能确认(2026-07-15)。
 GATE_DEFS: list[dict] = [
     {
         "key": "asis",
         "label": "调研事实",
         "guards_stage": "design",
-        "desc": "确认需求调研沉淀的业务现状(As-Is)属实后,方可进入方案设计。",
+        "evidence_kind": "research_report",
+        "evidence_label": "调研报告",
+        "desc": "确认「调研报告」沉淀的业务现状(As-Is)属实后,方可进入方案设计。",
     },
     {
         "key": "tobe",
         "label": "方案定稿",
         "guards_stage": "implement",
-        "desc": "确认方案设计产物(蓝图设计 / 对象字段表 / 流程建设表,即目标业务态 To-Be)已定稿后,方可进入项目实施。",
+        "evidence_kind": "blueprint_design",
+        "evidence_label": "蓝图设计",
+        "desc": "确认「蓝图设计」等方案产物(目标业务态 To-Be)已定稿后,方可进入项目实施。",
     },
 ]
 GATE_KEYS = {g["key"] for g in GATE_DEFS}
@@ -60,6 +65,24 @@ class GateDto(BaseModel):
     confirmed_by: str | None = None
     confirmed_at: datetime | None = None
     note: str | None = None
+    # 依据交付物(2026-07-15):确认前必须先生成 done
+    evidence_kind: str | None = None
+    evidence_label: str | None = None
+    evidence_ready: bool = False
+    evidence_title: str | None = None
+
+
+async def _latest_done_evidence(session: AsyncSession, project_id: str, kind: str | None):
+    """该项目某类交付物的最新 done bundle(闸门依据)。无 → None。"""
+    if not kind:
+        return None
+    from models.curated_bundle import CuratedBundle
+    return (await session.execute(
+        select(CuratedBundle)
+        .where(CuratedBundle.project_id == project_id,
+               CuratedBundle.kind == kind, CuratedBundle.status == "done")
+        .order_by(CuratedBundle.updated_at.desc())
+    )).scalars().first()
 
 
 async def _load_map(session: AsyncSession, project_id: str) -> dict[str, ProjectStageGate]:
@@ -92,12 +115,15 @@ async def list_gates(
     out: list[GateDto] = []
     for g in GATE_DEFS:
         row = existing.get(g["key"])
+        ev = await _latest_done_evidence(session, project_id, g.get("evidence_kind"))
         out.append(GateDto(
             key=g["key"], label=g["label"], guards_stage=g["guards_stage"], desc=g["desc"],
             status=row.status if row else "open",
             confirmed_by=row.confirmed_by if row else None,
             confirmed_at=row.confirmed_at if row else None,
             note=row.note if row else None,
+            evidence_kind=g.get("evidence_kind"), evidence_label=g.get("evidence_label"),
+            evidence_ready=ev is not None, evidence_title=getattr(ev, "title", None),
         ))
     return out
 
@@ -116,6 +142,14 @@ async def confirm_gate(
     await assert_project_access(current_user, project_id, "write")
     if not await session.get(Project, project_id):
         raise HTTPException(404, "Project not found")
+
+    # 依据交付物必须已生成(done)才能确认 —— 闸门确认得有据(2026-07-15)
+    gdef = next(d for d in GATE_DEFS if d["key"] == gate_key)
+    if gdef.get("evidence_kind"):
+        ev = await _latest_done_evidence(session, project_id, gdef["evidence_kind"])
+        if ev is None:
+            raise HTTPException(
+                409, f"「{gdef['evidence_label']}」尚未生成,不能确认「{gdef['label']}」——请先生成{gdef['evidence_label']}。")
 
     row = (await session.execute(
         select(ProjectStageGate).where(

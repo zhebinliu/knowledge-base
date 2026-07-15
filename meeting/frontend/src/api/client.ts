@@ -1152,6 +1152,10 @@ export interface ProjectGate {
   confirmed_by?: string | null
   confirmed_at?: string | null
   note?: string | null
+  evidence_kind?: string | null    // 依据交付物 kind(如 research_report / blueprint_design)
+  evidence_label?: string | null   // 依据交付物名(如 调研报告 / 蓝图设计)
+  evidence_ready?: boolean         // 依据交付物是否已生成 done(未 done 不能确认)
+  evidence_title?: string | null   // 依据交付物标题
 }
 export const listGates = (project_id: string) =>
   api.get<ProjectGate[]>(`/projects/${project_id}/gates`).then(r => r.data)
