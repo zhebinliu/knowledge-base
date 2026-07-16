@@ -79,7 +79,11 @@ _SYSTEM_PROMPT = """你是纷享销客 CRM 实施方法论专家,负责「蓝图
   ]
 }
 description/business_rules/process/recommended_fields 都要基于蓝图正文的真实内容,读不到就留空,别硬编。
-若无变更则输出 []。"""
+若无变更则输出 []。
+
+【重要·别自我过滤】你的职责是把候选**挖全**,不是替审核做减法。蓝图里凡是把某个标准场景落到了具体字段 / 流程 / 规则 / 实战做法的地方,
+哪怕看起来是这个客户特定的做法,也作为该标准场景的 optimize 候选提出来 —— 要不要沉淀成通用能力,由后续 PM 确认和后台审核判断,
+不该由你在这一步砍掉。对一份认真做的项目蓝图,通常能挖出 5-15 条 optimize / new 候选。返回 [] 只应发生在蓝图空洞、通篇没有任何比标准场景更具体的内容时。"""
 
 
 def _format_scene_library(scenes: list[StandardScene]) -> str:
@@ -301,7 +305,7 @@ async def propose_scene_changes(project_id: str, session: AsyncSession) -> list[
             content, model_used = await model_router.chat_with_routing(
                 task="scene_reflow",
                 messages=messages,
-                max_tokens=4000,
+                max_tokens=16000,   # 放宽后一次可产 5-15 条,每条带 description/规则/流程/字段,4000 会截断→校验器拒→空转
                 temperature=0.3,  # 识别任务偏稳定,不需要发散
                 validator=_reflow_output_valid,
             )
