@@ -7,7 +7,8 @@ import {
 import {
   getMeetingSurvey, getMeetingSurveyStats, updateMeetingSurvey,
   finalizeMeetingSurvey, switchToSatisfaction,
-  type MeetingSurveyData, type TimeOption, type SatisfactionQuestion,
+  type MeetingSurveyData, type MeetingSurveyResponseItem,
+  type TimeOption, type SatisfactionQuestion,
 } from '../../api/client'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -36,7 +37,7 @@ export default function MeetingSurveyDetail() {
   const [stats, setStats] = useState<Record<string, unknown>>({})
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'stats' | 'responses'>('stats')
-  const [responses, setResponses] = useState<Record<string, unknown>[]>([])
+  const [responses, setResponses] = useState<MeetingSurveyResponseItem[]>([])
 
   // 确定会议时间弹窗
   const [showFinalize, setShowFinalize] = useState(false)
@@ -66,7 +67,7 @@ export default function MeetingSurveyDetail() {
       ])
       setSurvey(s)
       setStats(st)
-      setResponses((st.responses as Record<string, unknown>[]) || [])
+      setResponses((st.responses as MeetingSurveyResponseItem[]) || [])
     } catch { /* ignore */ }
     setLoading(false)
   }, [surveyId])
@@ -373,21 +374,21 @@ export default function MeetingSurveyDetail() {
             ) : (
               <div className="space-y-2">
                 {responses.map((r, i) => (
-                  <div key={r.id as string || i} className="rounded-xl border border-line bg-white p-3">
+                  <div key={r.id != null ? r.id : i} className="rounded-xl border border-line bg-white p-3">
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-semibold text-ink">{r.respondent_name as string || '匿名'}</span>
-                      <span className="text-[10px] text-ink-muted">{r.created_at as string ? new Date(r.created_at as string).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                      <span className="text-xs font-semibold text-ink">{r.respondent_name || '匿名'}</span>
+                      <span className="text-[10px] text-ink-muted">{r.created_at ? new Date(r.created_at).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</span>
                     </div>
                     {survey.survey_type === 'time_poll' && r.selected_time_slots && (
                       <div className="flex flex-wrap gap-1">
-                        {(r.selected_time_slots as number[]).map((slotIdx, j) => (
+                        {r.selected_time_slots.map((slotIdx, j) => (
                           <span key={j} className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">
                             {survey.time_options?.[slotIdx]?.label || `时段${slotIdx + 1}`}
                           </span>
                         ))}
                       </div>
                     )}
-                    {survey.survey_type === 'attendance' && (
+                    {survey.survey_type === 'attendance' && r.can_attend != null && (
                       <span className={`text-xs flex items-center gap-1 ${
                         r.can_attend ? 'text-emerald-600' : 'text-red-500'
                       }`}>
@@ -397,19 +398,19 @@ export default function MeetingSurveyDetail() {
                     )}
                     {survey.survey_type === 'satisfaction' && r.satisfaction_answers && (
                       <div className="space-y-0.5">
-                        {Object.entries(r.satisfaction_answers as Record<string, unknown>).map(([qId, score], j) => {
-                          const q = survey.satisfaction_questions?.find(sq => sq.id === qId)
+                        {r.satisfaction_answers.map((ans, j) => {
+                          const q = survey.satisfaction_questions?.find(sq => sq.id === ans.question_id)
                           return (
                             <div key={j} className="text-[11px] text-ink-secondary flex items-center gap-2">
-                              <span className="text-ink-muted">{q?.question || qId}:</span>
-                              <span className="font-semibold">{String(score)}/5</span>
+                              <span className="text-ink-muted">{q?.question || '问题'}:</span>
+                              <span className="font-semibold">{ans.score ?? '?'}/5</span>
                             </div>
                           )
                         })}
                       </div>
                     )}
                     {r.suggestion && (
-                      <p className="text-[11px] text-ink-muted mt-1 italic">💬 {r.suggestion as string}</p>
+                      <p className="text-[11px] text-ink-muted mt-1 italic">💬 {r.suggestion}</p>
                     )}
                   </div>
                 ))}

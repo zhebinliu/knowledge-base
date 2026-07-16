@@ -2600,6 +2600,23 @@ export interface SatisfactionQuestion {
   question: string
   qtype: string
 }
+export interface SatisfactionAnswer {
+  question_id: string
+  score?: number | null
+  text?: string | null
+}
+
+export interface MeetingSurveyResponseItem {
+  id: number
+  respondent_name: string
+  respondent_user_id?: string | null
+  selected_time_slots?: number[] | null
+  can_attend?: boolean | null
+  satisfaction_answers?: SatisfactionAnswer[] | null
+  suggestion?: string | null
+  created_at: string
+}
+
 export interface MeetingSurveyData {
   id: number
   title: string
