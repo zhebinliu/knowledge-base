@@ -248,6 +248,10 @@ async def pm_confirm_proposal(
 
 class ReviewBody(BaseModel):
     note: str | None = None
+    code: str | None = None          # 管理员指定场景编码(新增场景时)
+    stage: str | None = None         # 管理员指定阶段
+    stage_label: str | None = None   # 阶段显示名
+    tags: list[str] | None = None    # 行业标签
 
 
 @router.get("/scene-proposals", response_model=list[ProposalDto], dependencies=[Depends(require_admin)])
@@ -281,6 +285,7 @@ async def approve_proposal(
 
     scene_id: int | None = None
     content = p.content or {}   # Block6 结构化内容:{description,business_rules,process,recommended_fields}
+    admin_tags = (body.tags if body else None) or []
     if p.change_type == "optimize" and p.scene_code:
         scene = (await session.execute(
             select(StandardScene).where(
@@ -297,26 +302,38 @@ async def approve_proposal(
                     setattr(scene, f, content[f])
             if not (scene.recommended_fields or []) and content.get("recommended_fields"):
                 scene.recommended_fields = content["recommended_fields"]
+            if admin_tags:
+                from sqlalchemy.orm.attributes import flag_modified
+                merged = list(dict.fromkeys((scene.tags or []) + admin_tags))
+                scene.tags = merged
+                flag_modified(scene, "tags")
             scene.version = (scene.version or 1) + 1
             scene.source_project_name = p.project_name
             scene_id = scene.id
     else:
-        # 新增场景:生成唯一编码(域-Pxx)+ 全量落结构化内容
-        code = p.scene_code or f"{(p.domain or 'GEN')}-P{p.id}"
+        # 新增场景:管理员可指定编码;否则自动生成(域-Pxx)
+        admin_code = (body.code.strip() if body and body.code else "").strip()
+        code = admin_code or p.scene_code or f"{(p.domain or 'GEN')}-P{p.id}"
+        domain = p.domain or "GEN"
         exists = (await session.execute(
-            select(StandardScene).where(StandardScene.domain == (p.domain or "GEN"),
-                                        StandardScene.code == code)
+            select(StandardScene).where(StandardScene.domain == domain, StandardScene.code == code)
         )).scalars().first()
+        if exists and admin_code:
+            raise HTTPException(409, f"场景编码 {domain}/{code} 已存在")
         if exists:
-            code = f"{(p.domain or 'GEN')}-P{p.id}"
+            code = f"{domain}-P{p.id}"
+        admin_stage = (body.stage.strip() if body and body.stage else "").strip()
+        admin_stage_label = (body.stage_label.strip() if body and body.stage_label else "").strip()
         scene = StandardScene(
-            domain=p.domain or "GEN", stage="", code=code, name=p.name,
+            domain=domain, stage=admin_stage, stage_label=admin_stage_label or None,
+            code=code, name=p.name,
             summary=p.summary, source_type="project", source_project_name=p.project_name,
             status="active",
             description=content.get("description") or None,
             business_rules=content.get("business_rules") or None,
             process=content.get("process") or None,
             recommended_fields=content.get("recommended_fields") or [],
+            tags=admin_tags,
         )
         session.add(scene)
         await session.flush()

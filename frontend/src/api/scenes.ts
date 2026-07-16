@@ -204,8 +204,15 @@ export const pmConfirmProposal = (id: number) =>
   api.post<SceneProposal>(`/scene-proposals/${id}/pm-confirm`).then(r => r.data)
 export const adminListProposals = (status = 'admin_pending') =>
   api.get<SceneProposal[]>('/scene-proposals', { params: { status } }).then(r => r.data)
-export const approveProposal = (id: number, note?: string) =>
-  api.post<SceneProposal>(`/scene-proposals/${id}/approve`, { note }).then(r => r.data)
+export interface ApprovePayload {
+  note?: string
+  code?: string
+  stage?: string
+  stage_label?: string
+  tags?: string[]
+}
+export const approveProposal = (id: number, payload?: ApprovePayload) =>
+  api.post<SceneProposal>(`/scene-proposals/${id}/approve`, payload || {}).then(r => r.data)
 export const rejectProposal = (id: number, note?: string) =>
   api.post<SceneProposal>(`/scene-proposals/${id}/reject`, { note }).then(r => r.data)
 

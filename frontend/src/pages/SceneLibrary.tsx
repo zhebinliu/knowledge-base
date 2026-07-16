@@ -7,7 +7,7 @@ import {
   adminListProposals, approveProposal, rejectProposal,
   importScenes, createScene, downloadImportTemplate,
   type Scene, type SceneChange, type SceneDomains, type SceneProposal,
-  type ImportResult,
+  type ImportResult, type ApprovePayload,
 } from '../api/scenes'
 import { Sparkles } from 'lucide-react'
 
@@ -39,6 +39,10 @@ export default function SceneLibrary() {
   const [showCreate, setShowCreate] = useState(false)
   const [createForm, setCreateForm] = useState({ domain: 'LTC', stage: '', stage_label: '', code: '', name: '', summary: '', description: '', business_rules: '', process: '', tags: '' })
   const [creating, setCreating] = useState(false)
+
+  // 审核表单
+  const [approveTarget, setApproveTarget] = useState<SceneProposal | null>(null)
+  const [approveForm, setApproveForm] = useState({ code: '', stage: '', stage_label: '', tags: '', note: '' })
 
   const runAiMatch = async () => {
     if (!confirm(`对${activeDomain ? ` ${activeDomain} 域` : '全部'}场景运行 AI 自动匹配?会写入每个场景的 AI 能力匹配(可再手动改)。`)) return
@@ -127,10 +131,39 @@ export default function SceneLibrary() {
   }
   useEffect(() => { if (tab === 'review') loadProposals() }, [tab])
 
-  const doApprove = async (id: number) => {
+  const openApproveForm = (p: SceneProposal) => {
+    setApproveForm({
+      code: p.scene_code || '',
+      stage: '',
+      stage_label: '',
+      tags: '',
+      note: '',
+    })
+    setApproveTarget(p)
+  }
+  const doApprove = async () => {
+    if (!approveTarget) return
+    const id = approveTarget.id
+    const isNew = approveTarget.change_type === 'new'
+    if (isNew && !approveForm.code.trim()) {
+      toast.error('新增场景必须填写场景编号')
+      return
+    }
     setBusyId(id)
-    try { await approveProposal(id); toast.success('已通过并回写场景库'); setProposals(p => p.filter(x => x.id !== id)) }
-    catch { /* 拦截器已 toast */ } finally { setBusyId(null) }
+    try {
+      const tags = approveForm.tags.split(';').map(t => t.trim()).filter(Boolean)
+      const payload: ApprovePayload = {
+        note: approveForm.note.trim() || undefined,
+        code: approveForm.code.trim() || undefined,
+        stage: approveForm.stage.trim() || undefined,
+        stage_label: approveForm.stage_label.trim() || undefined,
+        tags: tags.length ? tags : undefined,
+      }
+      await approveProposal(id, payload)
+      toast.success('已通过并回写场景库')
+      setProposals(p => p.filter(x => x.id !== id))
+      setApproveTarget(null)
+    } catch { /* 拦截器已 toast */ } finally { setBusyId(null) }
   }
   const doReject = async (id: number) => {
     setBusyId(id)
@@ -335,7 +368,7 @@ export default function SceneLibrary() {
                         详情 <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
                       </button>
                     )}
-                    <button onClick={() => doApprove(p.id)} disabled={busyId === p.id}
+                    <button onClick={() => openApproveForm(p)} disabled={busyId === p.id}
                       className="flex-shrink-0 inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
                       {busyId === p.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} 通过回写
                     </button>
@@ -476,6 +509,66 @@ export default function SceneLibrary() {
                 style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}>
                 {creating ? <Loader2 size={14} className="animate-spin inline mr-1" /> : null}
                 创建
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 审核通过弹窗:填写编号 + 行业标签 */}
+      {approveTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setApproveTarget(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-line">
+              <h2 className="text-base font-bold text-ink">审核通过 · 补充信息</h2>
+              <button onClick={() => setApproveTarget(null)} className="text-ink-muted hover:text-ink"><X size={18} /></button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div className="text-xs text-ink-muted mb-1">
+                <span className={`inline-block text-[11px] px-1.5 py-0.5 rounded border mr-1.5 ${approveTarget.change_type === 'new'
+                  ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                  {approveTarget.change_type === 'new' ? '新增' : '优化'}
+                </span>
+                {approveTarget.name}
+              </div>
+              {approveTarget.change_type === 'new' && (
+                <>
+                  <label className="block">
+                    <span className="text-xs text-ink-secondary">场景编号 <span className="text-red-500">*</span></span>
+                    <input value={approveForm.code} onChange={e => setApproveForm(f => ({ ...f, code: e.target.value }))}
+                      placeholder="如 LM-01" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D96400]" />
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block">
+                      <span className="text-xs text-ink-secondary">阶段</span>
+                      <input value={approveForm.stage} onChange={e => setApproveForm(f => ({ ...f, stage: e.target.value }))}
+                        placeholder="如 LeadManagement" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D96400]" />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-ink-secondary">阶段显示名</span>
+                      <input value={approveForm.stage_label} onChange={e => setApproveForm(f => ({ ...f, stage_label: e.target.value }))}
+                        placeholder="如 线索管理" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D96400]" />
+                    </label>
+                  </div>
+                </>
+              )}
+              <label className="block">
+                <span className="text-xs text-ink-secondary">行业标签(分号分隔)</span>
+                <input value={approveForm.tags} onChange={e => setApproveForm(f => ({ ...f, tags: e.target.value }))}
+                  placeholder="如 通用;制造/装备制造" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D96400]" />
+              </label>
+              <label className="block">
+                <span className="text-xs text-ink-secondary">审核备注</span>
+                <input value={approveForm.note} onChange={e => setApproveForm(f => ({ ...f, note: e.target.value }))}
+                  placeholder="可选" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D96400]" />
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3 border-t border-line">
+              <button onClick={() => setApproveTarget(null)} className="px-4 py-1.5 text-sm rounded-lg border border-line text-ink-secondary hover:bg-canvas">取消</button>
+              <button onClick={doApprove} disabled={busyId === approveTarget.id}
+                className="px-4 py-1.5 text-sm rounded-lg text-white font-medium disabled:opacity-60 bg-emerald-600 hover:bg-emerald-700">
+                {busyId === approveTarget.id ? <Loader2 size={14} className="animate-spin inline mr-1" /> : null}
+                确认通过
               </button>
             </div>
           </div>
