@@ -31,7 +31,7 @@ logger = structlog.get_logger()
 
 # 蓝图正文喂给 LLM 的字符上限:蓝图通常几千到一万余字,一万五足够覆盖正文,
 # 超出取头部(蓝图结论/场景清单一般集中在前中段),避免撑爆上下文。
-_MAX_BLUEPRINT_CHARS = 15000
+_MAX_BLUEPRINT_CHARS = 40000
 
 # 合法的变更类型
 _VALID_CHANGE_TYPES = {"new", "optimize"}
@@ -53,14 +53,13 @@ _SYSTEM_PROMPT = """你是纷享销客 CRM 实施方法论专家,负责「蓝图
 - new(全新场景):蓝图里出现了标准场景库**完全没有收录**的场景。scene_code 留空(null),
   domain 给最贴近的域(LTC/ITR/MCR/MPR/MTL 之一,拿不准就填最接近的),summary 说清这是标准库缺失的新场景、价值是什么。
 
-判定要求:
-- **底线(别破)**:每条提案都要在蓝图正文里读得到明确支撑 —— 项目真实做了 / 设计了的才提,不许凭空猜、不许编蓝图里没有的场景。
-- **optimize 门槛放低**:标准场景是通用骨架,一份认真做的项目蓝图往往把不少通用场景落到了具体字段 / 流程 / 规则 / 实战做法上。
-  只要蓝图给出了比标准场景更细、更具体、更贴合该客户的内容,就提成 optimize。**一份完整蓝图通常能回流出几条到十几条这样的优化,把有实质增量的都提出来,别只挑一两条。**
-- **唯一跳过的**:纯换措辞 / 同义复述标准场景(没加任何实质内容)、以及蓝图里根本没对应内容的。这两类不提。
-- new 从严:只有标准库**完全没收录**的场景才算 new(通常很少,甚至没有);拿不准是不是已有,就归 optimize。
-- 一条蓝图场景要么归 optimize 要么归 new,不要重复。
-- 只有通篇确实读不出任何可回流的增量,才返回空数组 [] —— 但对一份认真做的项目蓝图,这应是少数情况。
+判定要求(**接地气优先,宁可少也别编**):
+- **铁律·必须能引原文**:每条提案都要能从蓝图正文里**摘出一段原话**当依据(填进 blueprint_evidence,逐字复制,20-80 字)。摘不出原文的一律不提,哪怕你觉得"这类项目一般都会做"。
+- **严禁用常识补细节**:summary / description / 业务规则 / 流程 / 推荐字段,**只能写蓝图里明确写到的内容**。蓝图没写的具体做法(某个字段、某条规则、某项集成、某种参数),哪怕是行业惯例、哪怕听起来很合理,也**绝不许替它补上**。蓝图写多少你写多少,读不到就留空。
+- **不设数量指标**:有依据的就提,没依据的一条都别凑。可能十几条,也可能三五条,也可能 0 条 —— 完全由蓝图实际内容决定,不要为了"显得饱满"硬凑。**编造一条候选,比漏掉一条候选伤害大得多。**
+- optimize:蓝图把某标准场景落到了**具体且蓝图明确写出**的字段 / 流程 / 规则,才提,scene_code 指向该标准编码。纯换措辞、同义复述、蓝图没对应内容的,不提。
+- new:只有标准库**完全没收录**、且蓝图**明确设计了**的场景才算;拿不准是不是已有就归 optimize。
+- 一条蓝图场景要么 optimize 要么 new,不重复。
 
 输出格式(严格遵守):
 只输出一个 JSON 数组,不要任何解释文字、不要 markdown 代码围栏。数组每项按下面结构化格式给出
@@ -70,20 +69,18 @@ _SYSTEM_PROMPT = """你是纷享销客 CRM 实施方法论专家,负责「蓝图
   "domain": "LTC",              // new 必填(最贴近的域);optimize 可填该场景所在域或 null
   "scene_code": "LM-01" | null, // optimize 必填(指向标准库已有编码);new 填 null(或你建议的新编码)
   "name": "场景名称",           // 简洁,≤ 30 字
-  "summary": "一句到两句话:optimize 说清相对标准场景的优化点;new 说清标准库没有的新场景及价值",
-  "description": "场景说明:这个场景在业务里做什么、解决什么问题(2-4 句)",
-  "business_rules": "关键业务规则,分条列(用换行分隔;没有可留空字符串)",
-  "process": "主要流程步骤,简述(用换行或箭头;没有可留空字符串)",
-  "recommended_fields": [       // 推荐字段(该场景在 CRM 里建议配置的字段);没有则给 []
+  "blueprint_evidence": "从蓝图正文【逐字摘录】的一段原话(20-80字),证明本提案确有蓝图依据。必须是蓝图里真实出现的连续文字,不许改写、不许拼接、不许编造;摘不出就别提这条",
+  "summary": "一句到两句话:optimize 说清相对标准场景的优化点;new 说清标准库没有的新场景及价值。只依据蓝图,不补常识",
+  "description": "场景说明:蓝图里这个场景做什么、解决什么问题(2-4 句,只写蓝图写到的)",
+  "business_rules": "关键业务规则,分条列(用换行分隔;蓝图没写就留空字符串,别补常识)",
+  "process": "主要流程步骤,简述(用换行或箭头;蓝图没写就留空字符串)",
+  "recommended_fields": [       // 推荐字段:【仅限蓝图正文明确提到的字段】,蓝图没点名的字段不许自己加;没有则给 []
     {"name": "字段名", "type": "文本/单选/日期/数字…", "note": "字段说明", "required": true}
   ]
 }
-description/business_rules/process/recommended_fields 都要基于蓝图正文的真实内容,读不到就留空,别硬编。
-若无变更则输出 []。
-
-【重要·别自我过滤】你的职责是把候选**挖全**,不是替审核做减法。蓝图里凡是把某个标准场景落到了具体字段 / 流程 / 规则 / 实战做法的地方,
-哪怕看起来是这个客户特定的做法,也作为该标准场景的 optimize 候选提出来 —— 要不要沉淀成通用能力,由后续 PM 确认和后台审核判断,
-不该由你在这一步砍掉。对一份认真做的项目蓝图,通常能挖出 5-15 条 optimize / new 候选。返回 [] 只应发生在蓝图空洞、通篇没有任何比标准场景更具体的内容时。"""
+summary / description / business_rules / process / recommended_fields 全部只能来自蓝图正文明确写到的内容;蓝图没写的别硬编、别用常识补。
+blueprint_evidence 必须是蓝图里真实出现的原文片段(逐字),这是判断你有没有编造的依据 —— 编造原文会被直接查出来。
+若确实读不出任何有蓝图依据的增量,就输出 []。"""
 
 
 def _format_scene_library(scenes: list[StandardScene]) -> str:
@@ -153,6 +150,7 @@ def _extract_json_array(raw: str) -> list:
 def _normalize_proposals(
     raw_items: list,
     code_to_scene: dict[str, StandardScene],
+    blueprint_md: str = "",
 ) -> list[dict]:
     """清洗 LLM 输出的提案数组,过滤非法项 + 归一化字段。
 
@@ -164,6 +162,7 @@ def _normalize_proposals(
     """
     out: list[dict] = []
     seen: set[tuple] = set()
+    norm_bp = re.sub(r"\s+", "", blueprint_md) if blueprint_md else ""
     for item in raw_items:
         if not isinstance(item, dict):
             continue
@@ -175,6 +174,16 @@ def _normalize_proposals(
         name = str(item.get("name") or "").strip()
         if not name:
             continue
+
+        # 反幻觉:blueprint_evidence 必须是蓝图里真实出现的原文(去空白后子串匹配),摘不出 / 编造的直接丢弃。
+        # 这是把"编造整条候选"挡在门外的硬闸——模型引不出原文,说明这条不是从蓝图读来的。
+        evidence = str(item.get("blueprint_evidence") or "").strip()
+        if norm_bp:
+            norm_ev = re.sub(r"\s+", "", evidence)
+            if len(norm_ev) < 8 or norm_ev not in norm_bp:
+                logger.info("scene_reflow_evidence_unverified", name=name,
+                            change_type=change_type, evidence=evidence[:80])
+                continue
 
         summary = str(item.get("summary") or "").strip()
         raw_code = item.get("scene_code")
@@ -204,6 +213,7 @@ def _normalize_proposals(
         if not isinstance(rec_fields, list):
             rec_fields = []
         content = {
+            "blueprint_evidence": evidence,
             "description": str(item.get("description") or "").strip(),
             "business_rules": str(item.get("business_rules") or "").strip(),
             "process": str(item.get("process") or "").strip(),
@@ -319,7 +329,7 @@ async def propose_scene_changes(project_id: str, session: AsyncSession) -> list[
         return []
 
     raw_items = _extract_json_array(content or "")
-    proposals = _normalize_proposals(raw_items, code_to_scene)
+    proposals = _normalize_proposals(raw_items, code_to_scene, blueprint_md)
 
     logger.info(
         "scene_reflow_done",

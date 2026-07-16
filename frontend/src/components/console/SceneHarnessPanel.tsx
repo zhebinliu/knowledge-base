@@ -30,6 +30,16 @@ function groupByDomain(items: { domain: string; code: string; name: string }[]) 
   return keys.map(d => ({ domain: d, scenes: m[d] }))
 }
 
+// 回流提案展开后的一段内容(场景说明/业务规则/流程),整段来自蓝图,保留换行
+function DetailRow({ label, text, c }: { label: string; text: string; c: { ink: string; sub: string } }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: c.sub, letterSpacing: '.03em', marginBottom: 3 }}>{label}</div>
+      <div style={{ fontSize: 11.5, color: c.ink, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{text}</div>
+    </div>
+  )
+}
+
 export default function SceneHarnessPanel({
   projectId, stageKey, variant = 'light', section = 'all', reflowSignal = 0,
 }: { projectId?: string; stageKey?: string; variant?: 'light' | 'dark'; section?: 'match' | 'reflow' | 'all';
@@ -42,6 +52,10 @@ export default function SceneHarnessPanel({
   const [proposals, setProposals] = useState<SceneProposal[]>([])
   const [reflowing, setReflowing] = useState(false)
   const [showProps, setShowProps] = useState(false)   // 回流提案默认折叠,点表头展开
+  const [openProps, setOpenProps] = useState<Set<number>>(new Set())   // 逐条展开看完整内容
+  const toggleProp = (id: number) => setOpenProps(prev => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n
+  })
   const [busyId, setBusyId] = useState<number | null>(null)
   const isDesign = stageKey === 'design'
 
@@ -288,34 +302,75 @@ export default function SceneHarnessPanel({
           </div>
           {showProps && (
             <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {proposals.map(p => (
-                <div key={p.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 8,
-                  background: c.chipBg, border: `1px solid ${c.bd}`,
-                }}>
-                  <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 6px', borderRadius: 5,
-                    background: p.change_type === 'new' ? (dark ? 'rgba(84,188,161,.16)' : '#E3F0EC') : (dark ? 'rgba(214,165,72,.16)' : '#F7EDD8'),
-                    color: p.change_type === 'new' ? (dark ? '#7FD9B6' : '#1E7A5E') : (dark ? '#F0C878' : '#8A5A10') }}>
-                    {p.change_type === 'new' ? '新增' : '优化'}
-                  </span>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 12.5, color: c.ink, fontWeight: 600 }}>
-                      {p.scene_code ? `${p.scene_code} · ` : ''}{p.name}
+              {proposals.map(p => {
+                const open = openProps.has(p.id)
+                const ct = p.content || {}
+                const fields = ct.recommended_fields || []
+                const hasDetail = !!(ct.blueprint_evidence || ct.description || ct.business_rules || ct.process || fields.length)
+                return (
+                <div key={p.id} style={{ borderRadius: 8, background: c.chipBg, border: `1px solid ${c.bd}`, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px' }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 6px', borderRadius: 5, flexShrink: 0,
+                      background: p.change_type === 'new' ? (dark ? 'rgba(84,188,161,.16)' : '#E3F0EC') : (dark ? 'rgba(214,165,72,.16)' : '#F7EDD8'),
+                      color: p.change_type === 'new' ? (dark ? '#7FD9B6' : '#1E7A5E') : (dark ? '#F0C878' : '#8A5A10') }}>
+                      {p.change_type === 'new' ? '新增' : '优化'}
+                    </span>
+                    <div onClick={() => hasDetail && toggleProp(p.id)}
+                      style={{ minWidth: 0, flex: 1, cursor: hasDetail ? 'pointer' : 'default' }}>
+                      <div style={{ fontSize: 12.5, color: c.ink, fontWeight: 600 }}>
+                        {p.scene_code ? `${p.scene_code} · ` : ''}{p.name}
+                      </div>
+                      {p.summary && <div style={{ fontSize: 11, color: c.sub,
+                        overflow: open ? 'visible' : 'hidden', textOverflow: 'ellipsis', whiteSpace: open ? 'normal' : 'nowrap' }}>{p.summary}</div>}
                     </div>
-                    {p.summary && <div style={{ fontSize: 11, color: c.sub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.summary}</div>}
+                    {hasDetail && (
+                      <button type="button" onClick={() => toggleProp(p.id)}
+                        style={{ flexShrink: 0, fontSize: 11, color: c.sub, background: 'transparent', border: 'none',
+                          cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                        详情 <ChevronDown size={12} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+                      </button>
+                    )}
+                    {p.status === 'pm_pending' ? (
+                      <button type="button" onClick={() => doPmConfirm(p.id)} disabled={busyId === p.id}
+                        style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 600, padding: '4px 10px', borderRadius: 7, border: 'none',
+                          color: '#fff', background: 'linear-gradient(135deg,#6B5C93,#5E4F87)', cursor: 'pointer',
+                          display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
+                        {busyId === p.id ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />} PM 确认
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: 11, color: c.sub, flexShrink: 0 }}>{STATUS_LABEL[p.status] || p.status}</span>
+                    )}
                   </div>
-                  {p.status === 'pm_pending' ? (
-                    <button type="button" onClick={() => doPmConfirm(p.id)} disabled={busyId === p.id}
-                      style={{ fontSize: 11.5, fontWeight: 600, padding: '4px 10px', borderRadius: 7, border: 'none',
-                        color: '#fff', background: 'linear-gradient(135deg,#6B5C93,#5E4F87)', cursor: 'pointer',
-                        display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
-                      {busyId === p.id ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />} PM 确认
-                    </button>
-                  ) : (
-                    <span style={{ fontSize: 11, color: c.sub }}>{STATUS_LABEL[p.status] || p.status}</span>
+                  {open && hasDetail && (
+                    <div style={{ padding: '10px 12px', borderTop: `1px solid ${c.bd}`,
+                      display: 'flex', flexDirection: 'column', gap: 9, background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)' }}>
+                      {ct.blueprint_evidence && (
+                        <div style={{ fontSize: 11.5, color: c.ink, lineHeight: 1.6, borderLeft: `2px solid ${dark ? '#A695CE' : '#6B5C93'}`,
+                          paddingLeft: 9, background: dark ? 'rgba(166,149,206,.08)' : 'rgba(107,92,147,.06)', borderRadius: '0 6px 6px 0', padding: '6px 9px' }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: dark ? '#A695CE' : '#6B5C93', letterSpacing: '.03em' }}>蓝图原文依据</span>
+                          <div style={{ marginTop: 3, color: c.sub }}>「{ct.blueprint_evidence}」</div>
+                        </div>
+                      )}
+                      {ct.description && <DetailRow label="场景说明" text={ct.description} c={c} />}
+                      {ct.business_rules && <DetailRow label="业务规则" text={ct.business_rules} c={c} />}
+                      {ct.process && <DetailRow label="流程" text={ct.process} c={c} />}
+                      {fields.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: c.sub, letterSpacing: '.03em', marginBottom: 4 }}>推荐字段 · {fields.length}</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                            {fields.map((f, i) => (
+                              <span key={i} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 100, border: `1px solid ${c.bd}`, color: c.ink, background: c.bg }}>
+                                {f.name}{f.type ? <span style={{ color: c.sub }}> · {f.type}</span> : null}{f.required ? <span style={{ color: '#D96400' }}> *</span> : null}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

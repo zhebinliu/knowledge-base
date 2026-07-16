@@ -176,6 +176,13 @@ export interface SceneProposal {
   scene_code?: string | null
   name: string
   summary?: string | null
+  content?: {
+    blueprint_evidence?: string
+    description?: string
+    business_rules?: string
+    process?: string
+    recommended_fields?: { name: string; type?: string; note?: string; required?: boolean }[]
+  } | null
   status: 'pm_pending' | 'admin_pending' | 'approved' | 'rejected'
   created_by?: string | null
   pm_confirmed_by?: string | null
