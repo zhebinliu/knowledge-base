@@ -380,6 +380,63 @@ async def extract_stakeholders(
         result = dict(_EMPTY_STAKEHOLDERS)
     result.setdefault("stakeholders", [])
     result.setdefault("relations", [])
+
+    # 后置校验:过滤 LLM 幻觉产生的、在转录原文中完全未出现的干系人。
+    # minutes 阶段 LLM 可能在 attendees 中幻觉人名,stakeholder 阶段会继承放大。
+    # 只保留 name 或任一 alias 在 transcript 中出现的干系人。
+    stakeholders = result.get("stakeholders", [])
+    if stakeholders and transcript:
+        # 构建有效的姓名集合(取 name + aliases 所有变体)
+        valid_names = set()
+        for s in stakeholders:
+            name = (s.get("name") or "").strip()
+            if name:
+                valid_names.add(name)
+            for alias in (s.get("aliases") or []):
+                alias = (alias or "").strip()
+                if alias:
+                    valid_names.add(alias)
+
+        # 校验:姓名(或任一别名)必须在转录原文中出现
+        filtered = []
+        removed_names = []
+        for s in stakeholders:
+            name = (s.get("name") or "").strip()
+            aliases = [a.strip() for a in (s.get("aliases") or []) if (a or "").strip()]
+            all_names = [name] + aliases if name else aliases
+            found = any(n in transcript for n in all_names if n)
+            if found:
+                filtered.append(s)
+            else:
+                removed_names.append(name or "(unknown)")
+
+        if removed_names:
+            logger.warning(
+                "stakeholders_filtered_hallucinations",
+                removed=removed_names,
+                removed_count=len(removed_names),
+                original_count=len(stakeholders),
+                kept_count=len(filtered),
+            )
+            result["stakeholders"] = filtered
+            # 同时清理 relations 中引用了被移除干系人的条目
+            kept_name_set = set()
+            for s in filtered:
+                n = (s.get("name") or "").strip()
+                if n:
+                    kept_name_set.add(n)
+                for a in (s.get("aliases") or []):
+                    a = (a or "").strip()
+                    if a:
+                        kept_name_set.add(a)
+            relations = result.get("relations", [])
+            filtered_relations = [
+                r for r in relations
+                if (r.get("from", "").strip() in kept_name_set or not r.get("from"))
+                and (r.get("to", "").strip() in kept_name_set or not r.get("to"))
+            ]
+            result["relations"] = filtered_relations
+
     logger.info(
         "stakeholders_done",
         model=model,

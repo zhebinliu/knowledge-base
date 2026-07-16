@@ -91,11 +91,18 @@ def _split_by_lines(raw: str, target_chars: int) -> list[str]:
     return chunks
 
 
-async def _polish_one(text: str) -> str:
-    """单次润色调用。GLM-5.x 默认开思考(会重排时间戳),显式 thinking=disabled 关掉。"""
+async def _polish_one(text: str, term_hints: str = "") -> str:
+    """单次润色调用。GLM-5.x 默认开思考(会重排时间戳),显式 thinking=disabled 关掉。
+    
+    term_hints: 用户的名词校正清单提示词(为空则不注入)。
+    """
+    system = POLISH_SYSTEM
+    user_content = POLISH_USER.format(raw_transcript=text)
+    if term_hints:
+        user_content = term_hints + "\n\n" + user_content
     messages = [
-        {"role": "system", "content": POLISH_SYSTEM},
-        {"role": "user", "content": POLISH_USER.format(raw_transcript=text)},
+        {"role": "system", "content": system},
+        {"role": "user", "content": user_content},
     ]
     content, _model = await model_router.chat_with_routing(
         task="meeting_transcript_polish",
@@ -107,18 +114,23 @@ async def _polish_one(text: str) -> str:
     return (content or "").strip()
 
 
-async def polish_transcript(raw_transcript: str) -> str:
-    """对 ASR 原始转写做语言润色。返回纯文本。长稿自动分块并行。"""
+async def polish_transcript(raw_transcript: str, term_hints: str = "") -> str:
+    """对 ASR 原始转写做语言润色。返回纯文本。长稿自动分块并行。
+    
+    Args:
+        raw_transcript: ASR 原始转写文本。
+        term_hints: 用户的名词校正提示词(为空则不注入)。
+    """
     if not raw_transcript or not raw_transcript.strip():
         return ""
 
     if len(raw_transcript) <= _POLISH_CHUNK_THRESHOLD:
-        out = await _polish_one(raw_transcript)
+        out = await _polish_one(raw_transcript, term_hints)
         logger.info("polish_done", in_chars=len(raw_transcript), out_chars=len(out), chunks=1, failed_chunks=0)
         return out
 
     chunks = _split_by_lines(raw_transcript, _POLISH_CHUNK_CHARS)
-    results = await asyncio.gather(*[_polish_one(c) for c in chunks], return_exceptions=True)
+    results = await asyncio.gather(*[_polish_one(c, term_hints) for c in chunks], return_exceptions=True)
 
     parts: list[str] = []
     failed = 0
@@ -368,6 +380,63 @@ async def extract_stakeholders(
         result = dict(_EMPTY_STAKEHOLDERS)
     result.setdefault("stakeholders", [])
     result.setdefault("relations", [])
+
+    # 后置校验:过滤 LLM 幻觉产生的、在转录原文中完全未出现的干系人。
+    # minutes 阶段 LLM 可能在 attendees 中幻觉人名,stakeholder 阶段会继承放大。
+    # 只保留 name 或任一 alias 在 transcript 中出现的干系人。
+    stakeholders = result.get("stakeholders", [])
+    if stakeholders and transcript:
+        # 构建有效的姓名集合(取 name + aliases 所有变体)
+        valid_names = set()
+        for s in stakeholders:
+            name = (s.get("name") or "").strip()
+            if name:
+                valid_names.add(name)
+            for alias in (s.get("aliases") or []):
+                alias = (alias or "").strip()
+                if alias:
+                    valid_names.add(alias)
+
+        # 校验:姓名(或任一别名)必须在转录原文中出现
+        filtered = []
+        removed_names = []
+        for s in stakeholders:
+            name = (s.get("name") or "").strip()
+            aliases = [a.strip() for a in (s.get("aliases") or []) if (a or "").strip()]
+            all_names = [name] + aliases if name else aliases
+            found = any(n in transcript for n in all_names if n)
+            if found:
+                filtered.append(s)
+            else:
+                removed_names.append(name or "(unknown)")
+
+        if removed_names:
+            logger.warning(
+                "stakeholders_filtered_hallucinations",
+                removed=removed_names,
+                removed_count=len(removed_names),
+                original_count=len(stakeholders),
+                kept_count=len(filtered),
+            )
+            result["stakeholders"] = filtered
+            # 同时清理 relations 中引用了被移除干系人的条目
+            kept_name_set = set()
+            for s in filtered:
+                n = (s.get("name") or "").strip()
+                if n:
+                    kept_name_set.add(n)
+                for a in (s.get("aliases") or []):
+                    a = (a or "").strip()
+                    if a:
+                        kept_name_set.add(a)
+            relations = result.get("relations", [])
+            filtered_relations = [
+                r for r in relations
+                if (r.get("from", "").strip() in kept_name_set or not r.get("from"))
+                and (r.get("to", "").strip() in kept_name_set or not r.get("to"))
+            ]
+            result["relations"] = filtered_relations
+
     logger.info(
         "stakeholders_done",
         model=model,
@@ -510,6 +579,7 @@ async def run_full_pipeline(
     kb_docs: list[dict] | None = None,
     template_dict: dict | None = None,
     skip_polish: bool = False,
+    term_hints: str = "",
 ) -> dict:
     """串行 + 并行编排:polish → (minutes ∥ requirements ∥ process_flows) → stakeholders。
 
@@ -533,7 +603,7 @@ async def run_full_pipeline(
         polished = raw_transcript
     else:
         try:
-            polished = await polish_transcript(raw_transcript)
+            polished = await polish_transcript(raw_transcript, term_hints)
         except Exception as e:
             logger.exception("polish_failed", error=str(e)[:200])
             polished = raw_transcript  # 失败时直接用原文
