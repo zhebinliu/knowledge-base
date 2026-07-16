@@ -535,6 +535,20 @@ agentic 生成流水线必须过两道审:
 
 > ⚠️ **后端虽属 prod 共享镜像**:`/api/workflow-canvas` 是后端路由,UAT 与 prod 共享后端 → `deploy-uat` 不重启 backend,改后端(含本路由)即使只为 UAT 验证也得走 `deploy-prod`。前端 canvas 锁在 `IS_NEW_UI` 后,prod 部署对 kb.liii.in 用户无感。
 
+### 6.14 场景驱动 Harness(P3 命中 / 覆盖 / P4 回流,基于 147 条标准场景库,2026-07)
+
+标准场景库 = 147 条 Core 场景(LTC/MTL/MCR/MPR/ITR 五域,每条含 说明/业务规则/流程/推荐字段/关键调研问题/AI能力),贯穿项目全流程。设计原则:**靠工作流自然喂养、不做没人用的后台批量入口,闸门卡「依据交付物已 done」而非覆盖率**(memory `cocreate_closed_loop_not_features` / `scene_coverage_advisory_not_gate`)。
+
+- **P3 场景命中**([`services/scene_match.py`](backend/services/scene_match.py) `match_project_scenes`):判这个项目该做哪些标准场景。依据 = **合同/SOW + 项目元信息(doc-base)** ∪ **逐场会议增量**,**不含下游交付物**(避免循环证据)。会议增量 `_detect_meeting_delta` 逐场判 {in_scope, out_of_scope},按时间折叠(晚会取消早会),按 `minutes_hash` 缓存(纪要不变不重判 → 命中稳定)。落 `SceneHitReport`(每项目 1 行),**项目级、不随阶段变**,渲染在项目头部。⚠️ 命中总数会小幅浮动:doc-base(SOW)那部分每次「重新运行」重判无缓存,±几个;作**态势参考**不是精确 KPI。
+- **单会议场景**([`services/scene_meeting.py`](backend/services/scene_meeting.py) + [`models/meeting_scene.py`](backend/models/meeting_scene.py) `MeetingSceneDelta`):`detect_meeting_scenes` 落每场会议 in/out 场景,会议详情 `MeetingScenesPanel` 展示。⚠️ 两轮主备全空(had_signal=False)**不落库**,否则空 0 连 `minutes_hash` 投毒缓存、项目匹配当真复用。
+- **交付物覆盖校验**([`services/scene_coverage.py`](backend/services/scene_coverage.py) `bundle_scene_coverage`):某交付物覆盖了多少命中场景(语义 LLM 判官 + 内容 hash 缓存到 `bundle.extra`,Celery `precompute_scene_coverage` 预算)。**每交付物各判各的、随阶段变**(调研报告 vs 蓝图覆盖不同子集)。**只作参考不设卡** —— 实施范围由合同人天定。⚠️ 「命中(项目级不变)」和「覆盖(每交付物变)」是两个数,别混。
+- **scene_brief 注入**([`services/scene_brief.py`](backend/services/scene_brief.py)):命中场景按 kind facet(research/design/scope)注入全部 12 个交付物生成调用,产出贴合场景。
+- **P4 蓝图回流**([`services/scene_reflow.py`](backend/services/scene_reflow.py) `propose_scene_changes`):方案设计阶段蓝图定稿 → 从蓝图反推「标准库该新增/优化哪些场景」的**提案**(`SceneChangeProposal`,pm_pending → PM 确认 admin_pending → 后台审核入库)。**是给共享标准库提改进,不改本项目命中**。
+  - **异步**(2026-07-16):读全文蓝图(≤55000 字)+ 产 ≤15 条富内容一次 ~2 分钟,同步会 504。Celery task `run_scene_reflow`([`tasks/output_tasks.py`](backend/tasks/output_tasks.py))+ `POST /scene-reflow` 立即返 `task_id` + `GET /scene-reflow/status/{task_id}` 查 `AsyncResult`(redis result backend,无建表),前端每 4s 轮询、ready 重拉列表。
+  - **反幻觉**:每条带 `blueprint_evidence`(蓝图原文摘录)+ prompt「别脑补字段/参数」;提案卡可展开看 原文依据 + 说明/规则/流程/字段,给人读原文自判(evidence 的字符串核对衡量释义程度非编造,不做硬判定,详见 LEARNING §20)。
+- **模型路由**:`scene_*` 四 task 必须用**非推理模型 minimax-m2.5**(推理模型 glm-5/glm-5.1 在大场景库+结构化 JSON 上烧光 max_tokens 吐空)。⚠️ **DB `agent_configs.routing_rules` 覆盖代码默认**,改模型改 DB 不改代码(LEARNING §20)。
+- **前端总面板** [`SceneHarnessPanel.tsx`](frontend/src/components/console/SceneHarnessPanel.tsx)(命中态势条 + 回流提案折叠卡,两套项目详情页共用);闸门绑交付物 [`api/project_gates.py`](backend/api/project_gates.py)(调研事实→调研报告 done、方案定稿→蓝图 done 才能确认,且方案定稿自动触发回流;覆盖不设卡)。
+
 ---
 
 ## 7. 数据库 schema 关键表关系
@@ -560,6 +574,12 @@ users(1) ─┬─< projects.created_by, curated_bundles.created_by, ...
           └─< sharedev_credentials(sharedev sidecar 凭证)
 
 invite_codes — 注册邀请码 / captcha_challenges — 图形验证码一次性消费
+
+标准场景库(全局,不挂 project) — 见 §6.14:
+standard_scenes(147 Core:domain/code/说明/规则/流程/字段/research_questions/ai_capabilities) · ai_capabilities(纷享 AI 能力目录)
+  ├─< scene_hit_reports(每项目 1 行:P3 命中/未命中/依据/summary)
+  ├─< meeting_scene_deltas(每会议 1 行:in/out 场景 + minutes_hash + had_signal)
+  └─< scene_change_proposals(P4 回流提案:content 富载荷,pm_pending→admin_pending→approved/rejected)
 
 agent_configs (config_type, config_key) UNIQUE — 配置中心:
   - 'output_agent' / kind → {prompt, skill_ids, model}
