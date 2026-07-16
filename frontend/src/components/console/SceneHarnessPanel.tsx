@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Target, GitPullRequest, Loader2, ChevronDown, CheckCircle2 } from 'lucide-react'
 import { toast } from '../Toaster'
 import {
-  getSceneMatch, runSceneMatch, listProjectProposals, runSceneReflow, pmConfirmProposal,
+  getSceneMatch, runSceneMatch, listProjectProposals, runSceneReflow, getSceneReflowStatus, pmConfirmProposal,
   type HitReport, type SceneProposal,
 } from '../../api/scenes'
 
@@ -72,13 +72,30 @@ export default function SceneHarnessPanel({
   const doReflow = useCallback(async (auto = false) => {
     if (!projectId) return
     setReflowing(true)
-    if (auto) toast.info('已放行实施,正在识别蓝图回流场景…')
+    toast.info(auto ? '已放行实施,正在后台识别蓝图回流…' : '正在后台识别蓝图回流,约 1-2 分钟,可先做别的')
     try {
-      const rs = await runSceneReflow(projectId)
-      setProposals(rs)
-      if (rs.length) toast.success(`识别到 ${rs.length} 条场景回流提案,请 PM 确认`)
-      else if (!auto) toast.success('未识别到需回流的场景变更')
-    } catch { /* 拦截器已 toast */ } finally { setReflowing(false) }
+      const { task_id } = await runSceneReflow(projectId)
+      // 异步:轮询任务状态,ready 后重新拉提案列表(最多约 6 分钟兜底)
+      let tries = 0
+      const poll = async () => {
+        tries += 1
+        try {
+          const st = await getSceneReflowStatus(task_id)
+          if (st.ready) {
+            const rs = await listProjectProposals(projectId)
+            setProposals(rs)
+            if (st.error) toast.error('回流识别失败,请重试')
+            else if ((st.count ?? rs.length) > 0) toast.success(`识别到 ${st.count ?? rs.length} 条场景回流提案,请 PM 确认`)
+            else if (!auto) toast.success('未识别到需回流的场景变更')
+            setReflowing(false)
+            return
+          }
+        } catch { /* 单次轮询失败,继续下轮 */ }
+        if (tries >= 90) { setReflowing(false); return }   // ~6min 兜底,别无限转
+        setTimeout(poll, 4000)
+      }
+      poll()
+    } catch { setReflowing(false) /* 拦截器已 toast */ }
   }, [projectId])
 
   useEffect(() => {

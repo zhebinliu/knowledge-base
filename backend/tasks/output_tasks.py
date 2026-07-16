@@ -38,6 +38,42 @@ def precompute_scene_coverage(self, bundle_id: str):
         logger.warning("precompute_coverage_failed", bundle_id=bundle_id, error=str(e)[:150])
 
 
+@celery_app.task(name="run_scene_reflow", bind=True, track_started=True,
+                 max_retries=0, soft_time_limit=300, time_limit=340)
+def run_scene_reflow_task(self, project_id: str, username: str | None = None):
+    """蓝图回流:后台跑 LLM 识别 + 落库(pm_pending)。前端轮询任务状态,不再同步干等 ~2 分钟。
+    返回 {count};逻辑与旧同步端点一致(先清该项目在途旧提案再重建)。"""
+    from services.scene_reflow import propose_scene_changes
+    from models import async_session_maker
+    from models.scene import SceneChangeProposal
+    from models.project import Project
+    from sqlalchemy import select
+
+    async def _go():
+        async with async_session_maker() as s:
+            proj = await s.get(Project, project_id)
+            props = await propose_scene_changes(project_id, s)
+            old = (await s.execute(select(SceneChangeProposal).where(
+                SceneChangeProposal.project_id == project_id,
+                SceneChangeProposal.status.in_(["pm_pending", "admin_pending"]),
+            ))).scalars().all()
+            for o in old:
+                await s.delete(o)
+            for p in props:
+                s.add(SceneChangeProposal(
+                    project_id=project_id, project_name=proj.name if proj else None,
+                    change_type=p.get("change_type", "optimize"), domain=p.get("domain"),
+                    scene_code=p.get("scene_code"), name=p.get("name", ""), summary=p.get("summary"),
+                    content=p.get("content") or {}, status="pm_pending", created_by=username,
+                ))
+            await s.commit()
+            return len(props)
+
+    n = _run(_go())
+    logger.info("scene_reflow_task_done", project_id=project_id, n=n)
+    return {"count": n}
+
+
 @celery_app.task(name="generate_kickoff_pptx", bind=True, max_retries=2, soft_time_limit=900, time_limit=1200)
 def generate_kickoff_pptx(self, bundle_id: str, project_id: str):
     from services.output_service import generate_kickoff_pptx as _gen

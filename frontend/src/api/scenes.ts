@@ -192,8 +192,12 @@ export interface SceneProposal {
   created_at: string
   updated_at: string
 }
+export interface ReflowStart { task_id: string; status: string }
+export interface ReflowStatus { state: string; ready: boolean; count?: number | null; error?: string | null }
 export const runSceneReflow = (project_id: string) =>
-  api.post<SceneProposal[]>(`/projects/${project_id}/scene-reflow`).then(r => r.data)
+  api.post<ReflowStart>(`/projects/${project_id}/scene-reflow`).then(r => r.data)
+export const getSceneReflowStatus = (task_id: string) =>
+  api.get<ReflowStatus>(`/scene-reflow/status/${task_id}`).then(r => r.data)
 export const listProjectProposals = (project_id: string) =>
   api.get<SceneProposal[]>(`/projects/${project_id}/scene-proposals`).then(r => r.data)
 export const pmConfirmProposal = (id: number) =>

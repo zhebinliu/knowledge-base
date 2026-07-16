@@ -162,48 +162,52 @@ def _prop_dto(p: SceneChangeProposal) -> ProposalDto:
     )
 
 
-@router.post("/projects/{project_id}/scene-reflow", response_model=list[ProposalDto])
+class ReflowStartDto(BaseModel):
+    task_id: str
+    status: str = "started"
+
+
+class ReflowStatusDto(BaseModel):
+    state: str                       # PENDING / STARTED / SUCCESS / FAILURE
+    ready: bool
+    count: int | None = None
+    error: str | None = None
+
+
+@router.post("/projects/{project_id}/scene-reflow", response_model=ReflowStartDto)
 async def run_scene_reflow(
     project_id: str,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    """蓝图完成:LLM 识别优化/新增场景 → 建提案(pm_pending)。已有未处理提案先清掉重建。"""
+    """蓝图完成:后台异步跑 LLM 识别 → 建提案(pm_pending)。立即返回 task_id,前端轮询状态。
+    识别读全文蓝图 + 产十几条富内容,一次 ~2 分钟,同步会把请求干等超时,故转异步。"""
     await assert_project_access(current_user, project_id, "write")
     proj = await session.get(Project, project_id)
     if not proj:
         raise HTTPException(404, "项目不存在")
 
-    from services.scene_reflow import propose_scene_changes
-    proposals = await propose_scene_changes(project_id, session)
+    from tasks.output_tasks import run_scene_reflow_task
+    task = run_scene_reflow_task.delay(project_id, current_user.username)
+    logger.info("scene_reflow_dispatched", project_id=project_id, task_id=task.id, by=current_user.username)
+    return ReflowStartDto(task_id=task.id)
 
-    # 清掉该项目仍在流程中的旧提案(pm_pending / admin_pending),避免重复堆积
-    old = (await session.execute(
-        select(SceneChangeProposal).where(
-            SceneChangeProposal.project_id == project_id,
-            SceneChangeProposal.status.in_(["pm_pending", "admin_pending"]),
-        )
-    )).scalars().all()
-    for o in old:
-        await session.delete(o)
 
-    created: list[SceneChangeProposal] = []
-    for p in proposals:
-        row = SceneChangeProposal(
-            project_id=project_id, project_name=proj.name,
-            change_type=p.get("change_type", "optimize"),
-            domain=p.get("domain"), scene_code=p.get("scene_code"),
-            name=p.get("name", ""), summary=p.get("summary"),
-            content=p.get("content") or {},   # Block6:结构化内容载荷
-            status="pm_pending", created_by=current_user.username,
-        )
-        session.add(row)
-        created.append(row)
-    await session.commit()
-    for r in created:
-        await session.refresh(r)
-    logger.info("scene_reflow_done", project_id=project_id, n=len(created), by=current_user.username)
-    return [_prop_dto(r) for r in created]
+@router.get("/scene-reflow/status/{task_id}", response_model=ReflowStatusDto)
+async def scene_reflow_status(
+    task_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """轮询回流任务状态。ready=True 时前端重新拉 scene-proposals 刷新列表。"""
+    from tasks.convert_task import celery_app
+    res = celery_app.AsyncResult(task_id)
+    dto = ReflowStatusDto(state=res.state, ready=res.ready())
+    if res.successful():
+        r = res.result or {}
+        dto.count = r.get("count") if isinstance(r, dict) else None
+    elif res.failed():
+        dto.error = str(res.result)[:200]
+    return dto
 
 
 @router.get("/projects/{project_id}/scene-proposals", response_model=list[ProposalDto])
