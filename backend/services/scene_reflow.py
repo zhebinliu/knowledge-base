@@ -220,6 +220,16 @@ def _normalize_proposals(
     return out
 
 
+def _reflow_output_valid(content: str | None, finish_reason: str | None) -> bool:
+    """chat_with_routing 校验器:截断(finish_reason='length')或空输出都算失败,触发回退到备用模型。
+    能抓到 JSON 数组结构([ ... ])就算有效——真「无变更」时模型输出的空数组 "[]" 也算有效,不会误判触发回退。
+    没有校验器时,glm-5 思考烧光 token 吐空会被静默当成「无提案」,回流永远出 0 条。"""
+    if finish_reason == "length":
+        return False
+    c = (content or "").strip()
+    return "[" in c and "]" in c
+
+
 async def propose_scene_changes(project_id: str, session: AsyncSession) -> list[dict]:
     """读项目最新 To-Be 蓝图,对照标准场景库,用 LLM 提出场景库变更提案。
 
@@ -278,15 +288,26 @@ async def propose_scene_changes(project_id: str, session: AsyncSession) -> list[
         scene_count=len(scenes),
     )
 
-    try:
-        content, model_used = await model_router.chat_with_routing(
-            task="scene_reflow",
-            messages=messages,
-            max_tokens=4000,
-            temperature=0.3,  # 识别任务偏稳定,不需要发散
-        )
-    except Exception as e:
-        logger.warning("scene_reflow_llm_failed", project_id=project_id, error=str(e)[:200])
+    # 带校验器 + 2 轮重试:校验器让空/截断输出触发主备回退(否则 glm-5 吐空会被静默当「无提案」)。
+    # 每轮 chat_with_routing 内部走 primary(minimax)→ fallback(glm-5);2 轮都空才认输返回 []。
+    content = ""
+    model_used = ""
+    for attempt in (1, 2):
+        try:
+            content, model_used = await model_router.chat_with_routing(
+                task="scene_reflow",
+                messages=messages,
+                max_tokens=4000,
+                temperature=0.3,  # 识别任务偏稳定,不需要发散
+                validator=_reflow_output_valid,
+            )
+        except Exception as e:
+            logger.warning("scene_reflow_llm_failed", project_id=project_id, attempt=attempt, error=str(e)[:200])
+            content = ""
+        if (content or "").strip():
+            break
+    if not (content or "").strip():
+        logger.warning("scene_reflow_empty_after_retry", project_id=project_id)
         return []
 
     raw_items = _extract_json_array(content or "")
