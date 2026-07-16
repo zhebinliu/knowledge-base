@@ -178,6 +178,7 @@ export interface SceneProposal {
   summary?: string | null
   content?: {
     blueprint_evidence?: string
+    evidence_verified?: boolean
     description?: string
     business_rules?: string
     process?: string

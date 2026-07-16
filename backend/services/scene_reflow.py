@@ -53,12 +53,12 @@ _SYSTEM_PROMPT = """你是纷享销客 CRM 实施方法论专家,负责「蓝图
 - new(全新场景):蓝图里出现了标准场景库**完全没有收录**的场景。scene_code 留空(null),
   domain 给最贴近的域(LTC/ITR/MCR/MPR/MTL 之一,拿不准就填最接近的),summary 说清这是标准库缺失的新场景、价值是什么。
 
-判定要求(**挖全,但每条都要能引蓝图原文**):
-- **把蓝图写到的增量都挖出来**:蓝图里凡是把某标准场景落到了更具体的字段 / 流程 / 规则,或出现了标准库没有的场景,都提出来。一份认真做的项目蓝图**通常有几条到十几条**,别只挑一两条、别自我过滤。
-- **铁律·每条必须能引原文**:每条提案都必须能从蓝图正文里**逐字摘出一段原话**填进 blueprint_evidence(20-80 字,连续原文,不许改写/拼接/编造)。这是你有没有编造的凭证——**摘不出蓝图原话的,就是没依据,不许提**。
-- **严禁用常识补细节**:summary / description / 业务规则 / 流程 / 推荐字段,**只能写蓝图里明确写到的内容**。蓝图没写的具体做法(某个字段、某条规则、某项集成、某种参数),哪怕是行业惯例、哪怕听起来很合理,也**绝不许替它补上**;读不到就留空。宁可内容单薄,也不要编。
-- optimize:蓝图把某标准场景落到了**具体且蓝图明确写出**的字段 / 流程 / 规则,才提,scene_code 指向该标准编码。纯换措辞、同义复述、蓝图没对应内容的,不提。
-- new:只有标准库**完全没收录**、且蓝图**明确设计了**的场景才算;拿不准是不是已有就归 optimize。
+判定要求(**挖全召回,内容忠于蓝图**):
+- **把蓝图写到的增量都挖出来**:蓝图里凡是把某标准场景落到了更具体的字段 / 流程 / 规则,或出现了标准库没有的场景,都提出来。一份认真做的项目蓝图**通常有几条到十几条**,别只挑一两条、别自我过滤、**别动不动就返回空**。
+- **每条标出处**:在 blueprint_evidence 里摘一句对应的蓝图原文(逐字复制,20-80 字)。你本来就是从蓝图读出这条的,把那句原话抄过来即可——这是给审核看的依据,很容易给出。
+- **内容忠于蓝图,别拿常识硬塞**:summary / description / 业务规则 / 流程 / 推荐字段,写蓝图里讲到的即可;蓝图没细说的地方就写概括点,**别自己脑补具体字段 / 参数 / 集成方式往里填**(那会把行业惯例误当成这个项目的真实设计)。
+- optimize:蓝图把某标准场景落到了具体的字段 / 流程 / 规则,scene_code 指向该标准编码。纯换措辞、同义复述的不提。
+- new:标准库**完全没收录**、蓝图又明确设计了的场景;拿不准是不是已有就归 optimize。
 - 一条蓝图场景要么 optimize 要么 new,不重复。
 
 输出格式(严格遵守):
@@ -69,7 +69,7 @@ _SYSTEM_PROMPT = """你是纷享销客 CRM 实施方法论专家,负责「蓝图
   "domain": "LTC",              // new 必填(最贴近的域);optimize 可填该场景所在域或 null
   "scene_code": "LM-01" | null, // optimize 必填(指向标准库已有编码);new 填 null(或你建议的新编码)
   "name": "场景名称",           // 简洁,≤ 30 字
-  "blueprint_evidence": "从蓝图正文【逐字摘录】的一段原话(20-80字),证明本提案确有蓝图依据。必须是蓝图里真实出现的连续文字,不许改写、不许拼接、不许编造;摘不出就别提这条",
+  "blueprint_evidence": "对应的蓝图原文摘录(从蓝图正文逐字抄一句,20-80字),给审核看的出处。抄原文即可,别改写",
   "summary": "一句到两句话:optimize 说清相对标准场景的优化点;new 说清标准库没有的新场景及价值。只依据蓝图,不补常识",
   "description": "场景说明:蓝图里这个场景做什么、解决什么问题(2-4 句,只写蓝图写到的)",
   "business_rules": "关键业务规则,分条列(用换行分隔;蓝图没写就留空字符串,别补常识)",
@@ -78,9 +78,8 @@ _SYSTEM_PROMPT = """你是纷享销客 CRM 实施方法论专家,负责「蓝图
     {"name": "字段名", "type": "文本/单选/日期/数字…", "note": "字段说明", "required": true}
   ]
 }
-summary / description / business_rules / process / recommended_fields 全部只能来自蓝图正文明确写到的内容;蓝图没写的别硬编、别用常识补。
-blueprint_evidence 必须是蓝图里真实出现的原文片段(逐字),这是判断你有没有编造的依据 —— 编造原文会被直接查出来。
-若确实读不出任何有蓝图依据的增量,就输出 []。"""
+summary / description / business_rules / process / recommended_fields 写蓝图讲到的即可;蓝图没细说的写概括点,别用常识脑补具体字段/参数往里填。
+blueprint_evidence 抄蓝图原文即可(逐字一句)。对一份认真做的项目蓝图,正常能挖出好几条到十几条,别轻易返回空数组。"""
 
 
 def _format_scene_library(scenes: list[StandardScene]) -> str:
@@ -175,15 +174,17 @@ def _normalize_proposals(
         if not name:
             continue
 
-        # 反幻觉:blueprint_evidence 必须是蓝图里真实出现的原文(去空白后子串匹配),摘不出 / 编造的直接丢弃。
-        # 这是把"编造整条候选"挡在门外的硬闸——模型引不出原文,说明这条不是从蓝图读来的。
+        # 反幻觉:blueprint_evidence 去空白后是否是蓝图里真实出现的原文子串。
+        # 【不硬丢】——硬丢会连累召回(模型一被逼引原文就整体返回空)。改成标记 evidence_verified,
+        # 前端据此给「已核对/未定位」标签,编造的交给 PM 一眼识别 + 驳回(两道人工闸门做减法)。
         evidence = str(item.get("blueprint_evidence") or "").strip()
-        if norm_bp:
+        evidence_verified = False
+        if norm_bp and evidence:
             norm_ev = re.sub(r"\s+", "", evidence)
-            if len(norm_ev) < 8 or norm_ev not in norm_bp:
-                logger.info("scene_reflow_evidence_unverified", name=name,
-                            change_type=change_type, evidence=evidence[:80])
-                continue
+            evidence_verified = len(norm_ev) >= 8 and norm_ev in norm_bp
+        if not evidence_verified:
+            logger.info("scene_reflow_evidence_unverified", name=name,
+                        change_type=change_type, evidence=evidence[:80])
 
         summary = str(item.get("summary") or "").strip()
         raw_code = item.get("scene_code")
@@ -214,6 +215,7 @@ def _normalize_proposals(
             rec_fields = []
         content = {
             "blueprint_evidence": evidence,
+            "evidence_verified": evidence_verified,
             "description": str(item.get("description") or "").strip(),
             "business_rules": str(item.get("business_rules") or "").strip(),
             "process": str(item.get("process") or "").strip(),
