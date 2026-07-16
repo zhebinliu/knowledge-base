@@ -37,7 +37,7 @@ _MAX_BLUEPRINT_CHARS = 55000
 _VALID_CHANGE_TYPES = {"new", "optimize"}
 
 # 提案数量上限:宁缺毋滥,超过则截断(避免模型灌水)
-_MAX_PROPOSALS = 30
+_MAX_PROPOSALS = 15   # 挖全召回后一次可能十几二十条,截到 15 控制人工复核量
 
 
 _SYSTEM_PROMPT = """你是纷享销客 CRM 实施方法论专家,负责「蓝图回流」审核前的场景识别。

@@ -317,13 +317,8 @@ export default function SceneHarnessPanel({
                     </span>
                     <div onClick={() => hasDetail && toggleProp(p.id)}
                       style={{ minWidth: 0, flex: 1, cursor: hasDetail ? 'pointer' : 'default' }}>
-                      <div style={{ fontSize: 12.5, color: c.ink, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.scene_code ? `${p.scene_code} · ` : ''}{p.name}</span>
-                        {ct.evidence_verified === false && (
-                          <span title="AI 附的蓝图原文没在蓝图里定位到,展开核对是否有依据、无依据请驳回"
-                            style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 5px', borderRadius: 4, flexShrink: 0,
-                              background: dark ? 'rgba(214,100,0,.18)' : '#FBEADB', color: dark ? '#F0A860' : '#C15600' }}>待核</span>
-                        )}
+                      <div style={{ fontSize: 12.5, color: c.ink, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.scene_code ? `${p.scene_code} · ` : ''}{p.name}
                       </div>
                       {p.summary && <div style={{ fontSize: 11, color: c.sub,
                         overflow: open ? 'visible' : 'hidden', textOverflow: 'ellipsis', whiteSpace: open ? 'normal' : 'nowrap' }}>{p.summary}</div>}
@@ -349,23 +344,11 @@ export default function SceneHarnessPanel({
                   {open && hasDetail && (
                     <div style={{ padding: '10px 12px', borderTop: `1px solid ${c.bd}`,
                       display: 'flex', flexDirection: 'column', gap: 9, background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)' }}>
-                      {ct.blueprint_evidence ? (() => {
-                        const ok = ct.evidence_verified !== false   // undefined(旧数据)当已核对处理,只有显式 false 才告警
-                        const accent = ok ? (dark ? '#A695CE' : '#6B5C93') : (dark ? '#F0A860' : '#C15600')
-                        const wash = ok ? (dark ? 'rgba(166,149,206,.08)' : 'rgba(107,92,147,.06)') : (dark ? 'rgba(214,100,0,.10)' : 'rgba(193,86,0,.06)')
-                        return (
-                        <div style={{ fontSize: 11.5, color: c.ink, lineHeight: 1.6, borderLeft: `2px solid ${accent}`,
-                          background: wash, borderRadius: '0 6px 6px 0', padding: '6px 9px' }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: accent, letterSpacing: '.03em' }}>
-                            {ok ? '蓝图原文依据' : '⚠ 未在蓝图中定位到此原文,请核对'}
-                          </span>
+                      {ct.blueprint_evidence && (
+                        <div style={{ fontSize: 11.5, color: c.ink, lineHeight: 1.6, borderLeft: `2px solid ${dark ? '#A695CE' : '#6B5C93'}`,
+                          background: dark ? 'rgba(166,149,206,.08)' : 'rgba(107,92,147,.06)', borderRadius: '0 6px 6px 0', padding: '6px 9px' }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: dark ? '#A695CE' : '#6B5C93', letterSpacing: '.03em' }}>蓝图原文依据</span>
                           <div style={{ marginTop: 3, color: c.sub }}>「{ct.blueprint_evidence}」</div>
-                        </div>
-                        )
-                      })() : (
-                        <div style={{ fontSize: 11, color: dark ? '#F0A860' : '#C15600', background: dark ? 'rgba(214,100,0,.10)' : 'rgba(193,86,0,.06)',
-                          borderLeft: `2px solid ${dark ? '#F0A860' : '#C15600'}`, borderRadius: '0 6px 6px 0', padding: '6px 9px' }}>
-                          ⚠ AI 未给出蓝图原文出处,请人工核对本条是否确有蓝图依据
                         </div>
                       )}
                       {ct.description && <DetailRow label="场景说明" text={ct.description} c={c} />}
