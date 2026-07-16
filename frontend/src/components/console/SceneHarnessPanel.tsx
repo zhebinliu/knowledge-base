@@ -41,6 +41,7 @@ export default function SceneHarnessPanel({
   const [showGap, setShowGap] = useState(false)
   const [proposals, setProposals] = useState<SceneProposal[]>([])
   const [reflowing, setReflowing] = useState(false)
+  const [showProps, setShowProps] = useState(false)   // 回流提案默认折叠,点表头展开
   const [busyId, setBusyId] = useState<number | null>(null)
   const isDesign = stageKey === 'design'
 
@@ -114,6 +115,9 @@ export default function SceneHarnessPanel({
   const gapScenes = (hit?.misses || []).filter(m => activeDomains.has(m.domain))
   const shouldCover = (hit?.hit_count || 0) + gapScenes.length
   const covPct = shouldCover ? Math.round(((hit?.hit_count || 0) / shouldCover) * 100) : 0
+  const propNewN = proposals.filter(p => p.change_type === 'new').length
+  const propOptN = proposals.length - propNewN
+  const propPendN = proposals.filter(p => p.status === 'pm_pending').length
   const chip = (label: string, open: boolean, onClick: () => void, danger = false): React.ReactNode => (
     <button type="button" onClick={onClick}
       style={{ fontSize: 12, color: danger ? (dark ? '#F0C878' : '#8A5A10') : c.sub, background: 'transparent',
@@ -267,16 +271,22 @@ export default function SceneHarnessPanel({
       )}
       {showReflow && proposals.length > 0 && (
         <div style={box}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div onClick={() => setShowProps(o => !o)}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
             <GitPullRequest size={14} color={dark ? '#A695CE' : '#5E4F87'} />
             <span style={{ fontSize: 12.5, fontWeight: 600, color: c.ink }}>蓝图回流提案 · {proposals.length}</span>
-            <button type="button" onClick={() => doReflow()} disabled={reflowing}
+            <span style={{ fontSize: 11, color: c.sub }}>
+              新增 {propNewN} · 优化 {propOptN}{propPendN > 0 ? ` · 待确认 ${propPendN}` : ''}
+            </span>
+            <button type="button" onClick={(e) => { e.stopPropagation(); doReflow() }} disabled={reflowing}
               style={{ marginLeft: 'auto', fontSize: 11, color: c.sub, background: 'transparent', border: 'none',
                 textDecoration: 'underline', cursor: reflowing ? 'default' : 'pointer', fontFamily: 'inherit' }}>
               {reflowing ? '识别中…' : '重新识别'}
             </button>
+            <ChevronDown size={14} color={c.sub}
+              style={{ transform: showProps ? 'rotate(180deg)' : 'none', transition: 'transform .15s', flexShrink: 0 }} />
           </div>
-          {(
+          {showProps && (
             <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
               {proposals.map(p => (
                 <div key={p.id} style={{
