@@ -31,7 +31,7 @@ logger = structlog.get_logger()
 
 # 蓝图正文喂给 LLM 的字符上限:蓝图通常几千到一万余字,一万五足够覆盖正文,
 # 超出取头部(蓝图结论/场景清单一般集中在前中段),避免撑爆上下文。
-_MAX_BLUEPRINT_CHARS = 40000
+_MAX_BLUEPRINT_CHARS = 55000
 
 # 合法的变更类型
 _VALID_CHANGE_TYPES = {"new", "optimize"}
@@ -146,6 +146,21 @@ def _extract_json_array(raw: str) -> list:
     return []
 
 
+def _evidence_grounded(evidence: str, norm_bp: str) -> bool:
+    """blueprint_evidence 是否有蓝图依据。模型常【释义而非逐字抄】,精确子串会全判 false(误报),
+    故用 6-gram 覆盖率:evidence 去空白后,≥55% 的 6 字片段能在蓝图里找到就算有据
+    (专有对象名 / 术语会被复用,覆盖率高);编造的、或超出截断区拿常识补的,覆盖率低。"""
+    norm_ev = re.sub(r"\s+", "", evidence)
+    if len(norm_ev) < 8 or not norm_bp:
+        return False
+    if norm_ev in norm_bp:
+        return True
+    grams = [norm_ev[i:i + 6] for i in range(len(norm_ev) - 5)]
+    if not grams:
+        return False
+    return sum(1 for g in grams if g in norm_bp) / len(grams) >= 0.55
+
+
 def _normalize_proposals(
     raw_items: list,
     code_to_scene: dict[str, StandardScene],
@@ -178,10 +193,7 @@ def _normalize_proposals(
         # 【不硬丢】——硬丢会连累召回(模型一被逼引原文就整体返回空)。改成标记 evidence_verified,
         # 前端据此给「已核对/未定位」标签,编造的交给 PM 一眼识别 + 驳回(两道人工闸门做减法)。
         evidence = str(item.get("blueprint_evidence") or "").strip()
-        evidence_verified = False
-        if norm_bp and evidence:
-            norm_ev = re.sub(r"\s+", "", evidence)
-            evidence_verified = len(norm_ev) >= 8 and norm_ev in norm_bp
+        evidence_verified = _evidence_grounded(evidence, norm_bp) if norm_bp else False
         if not evidence_verified:
             logger.info("scene_reflow_evidence_unverified", name=name,
                         change_type=change_type, evidence=evidence[:80])
