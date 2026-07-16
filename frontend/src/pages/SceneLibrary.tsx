@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
-import { Layers, Search, History, BookOpen, GitPullRequest, Check, X, Loader2 } from 'lucide-react'
+import { useEffect, useState, useRef } from 'react'
+import { Layers, Search, History, BookOpen, GitPullRequest, Check, X, Loader2, Upload, Download, Plus } from 'lucide-react'
 import { toast } from '../components/Toaster'
 import SceneEditDrawer from '../components/SceneEditDrawer'
 import {
   listSceneDomains, listScenes, listRecentSceneChanges, aiMatchScenes,
   adminListProposals, approveProposal, rejectProposal,
+  importScenes, createScene, downloadImportTemplate,
   type Scene, type SceneChange, type SceneDomains, type SceneProposal,
+  type ImportResult,
 } from '../api/scenes'
 import { Sparkles } from 'lucide-react'
 
@@ -26,6 +28,14 @@ export default function SceneLibrary() {
   const [matching, setMatching] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  // 导入 / 新增
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<ImportResult | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
+  const [createForm, setCreateForm] = useState({ domain: 'LTC', stage: '', stage_label: '', code: '', name: '', summary: '', description: '', business_rules: '', process: '', tags: '' })
+  const [creating, setCreating] = useState(false)
+
   const runAiMatch = async () => {
     if (!confirm(`对${activeDomain ? ` ${activeDomain} 域` : '全部'}场景运行 AI 自动匹配?会写入每个场景的 AI 能力匹配(可再手动改)。`)) return
     setMatching(true)
@@ -35,6 +45,58 @@ export default function SceneLibrary() {
       const list = await listScenes({ domain: activeDomain || undefined, q: q || undefined })
       setScenes(list)
     } catch { /* 拦截器已 toast */ } finally { setMatching(false) }
+  }
+
+  const refreshScenes = () => {
+    listScenes({ domain: activeDomain || undefined, q: q || undefined }).then(setScenes).catch(() => {})
+    listSceneDomains().then(setDomains).catch(() => {})
+  }
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setImporting(true)
+    setImportResult(null)
+    try {
+      const r = await importScenes(f)
+      setImportResult(r)
+      if (r.created > 0 || r.updated > 0) {
+        toast.success(`导入完成:新增 ${r.created}、更新 ${r.updated}${r.skipped ? `、跳过 ${r.skipped}` : ''}`)
+        refreshScenes()
+      } else if (r.skipped > 0 && r.errors.length > 0) {
+        toast.error(`导入失败:${r.errors[0]}`)
+      } else {
+        toast.info('没有需要导入的数据')
+      }
+    } catch { /* 拦截器已 toast */ } finally {
+      setImporting(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  const handleCreate = async () => {
+    if (!createForm.code.trim() || !createForm.name.trim() || !createForm.stage.trim()) {
+      toast.error('域、阶段、编码、名称为必填')
+      return
+    }
+    setCreating(true)
+    try {
+      const tags = createForm.tags.split(';').map(t => t.trim()).filter(Boolean)
+      await createScene({
+        domain: createForm.domain, stage: createForm.stage.trim(),
+        stage_label: createForm.stage_label.trim() || undefined,
+        code: createForm.code.trim(), name: createForm.name.trim(),
+        summary: createForm.summary.trim() || undefined,
+        description: createForm.description.trim() || undefined,
+        business_rules: createForm.business_rules.trim() || undefined,
+        process: createForm.process.trim() || undefined,
+        tags: tags.length ? tags : undefined,
+      })
+      toast.success('场景创建成功')
+      setShowCreate(false)
+      setCreateForm({ domain: 'LTC', stage: '', stage_label: '', code: '', name: '', summary: '', description: '', business_rules: '', process: '', tags: '' })
+      refreshScenes()
+    } catch { /* 拦截器已 toast */ } finally { setCreating(false) }
   }
 
   useEffect(() => { listSceneDomains().then(setDomains).catch(() => {}) }, [])
@@ -111,13 +173,29 @@ export default function SceneLibrary() {
               <DomainChip key={d.domain} label={d.domain} count={d.count}
                 active={activeDomain === d.domain} onClick={() => setActiveDomain(d.domain)} />
             ))}
-            <button onClick={runAiMatch} disabled={matching}
-              className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-white font-medium disabled:opacity-60"
-              style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}
-              title={`对${activeDomain || '全部'}场景自动匹配 AI 能力`}>
-              {matching ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-              AI 自动匹配{activeDomain ? `（${activeDomain}）` : ''}
-            </button>
+            <div className="ml-auto flex items-center gap-2">
+              <button onClick={() => setShowCreate(true)}
+                className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#D96400] text-[#D96400] font-medium hover:bg-brand-light">
+                <Plus size={13} /> 新增场景
+              </button>
+              <button onClick={() => downloadImportTemplate().catch(() => {})}
+                className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-line text-ink-secondary font-medium hover:bg-canvas">
+                <Download size={13} /> 下载模板
+              </button>
+              <button onClick={() => fileRef.current?.click()} disabled={importing}
+                className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-line text-ink-secondary font-medium hover:bg-canvas disabled:opacity-60">
+                {importing ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                导入场景
+              </button>
+              <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} />
+              <button onClick={runAiMatch} disabled={matching}
+                className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-white font-medium disabled:opacity-60"
+                style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}
+                title={`对${activeDomain || '全部'}场景自动匹配 AI 能力`}>
+                {matching ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                AI 匹配{activeDomain ? `（${activeDomain}）` : ''}
+              </button>
+            </div>
             <div className="relative">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted" />
               <input
@@ -253,6 +331,96 @@ export default function SceneLibrary() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* 导入结果提示 */}
+      {importResult && (importResult.errors.length > 0) && (
+        <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm">
+          <div className="font-medium text-amber-800 mb-1">导入提示(共 {importResult.errors.length} 条警告)</div>
+          <ul className="list-disc list-inside text-xs text-amber-700 space-y-0.5 max-h-32 overflow-y-auto">
+            {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+          </ul>
+          <button onClick={() => setImportResult(null)} className="mt-2 text-xs text-amber-600 hover:underline">关闭</button>
+        </div>
+      )}
+
+      {/* 新增场景弹窗 */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowCreate(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-line">
+              <h2 className="text-base font-bold text-ink">新增场景</h2>
+              <button onClick={() => setShowCreate(false)} className="text-ink-muted hover:text-ink"><X size={18} /></button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-xs text-ink-secondary">域 <span className="text-red-500">*</span></span>
+                  <select value={createForm.domain} onChange={e => setCreateForm(f => ({ ...f, domain: e.target.value }))}
+                    className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:border-[#D96400]">
+                    {['LTC', 'MTL', 'MCR', 'MPR', 'ITR'].map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs text-ink-secondary">场景编码 <span className="text-red-500">*</span></span>
+                  <input value={createForm.code} onChange={e => setCreateForm(f => ({ ...f, code: e.target.value }))}
+                    placeholder="如 LM-01" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D96400]" />
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-xs text-ink-secondary">阶段 <span className="text-red-500">*</span></span>
+                  <input value={createForm.stage} onChange={e => setCreateForm(f => ({ ...f, stage: e.target.value }))}
+                    placeholder="如 LeadManagement" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D96400]" />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-ink-secondary">阶段显示名</span>
+                  <input value={createForm.stage_label} onChange={e => setCreateForm(f => ({ ...f, stage_label: e.target.value }))}
+                    placeholder="如 LeadManagement 线索管理" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D96400]" />
+                </label>
+              </div>
+              <label className="block">
+                <span className="text-xs text-ink-secondary">场景名称 <span className="text-red-500">*</span></span>
+                <input value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="如 管理线索录入" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D96400]" />
+              </label>
+              <label className="block">
+                <span className="text-xs text-ink-secondary">阶段定义</span>
+                <textarea value={createForm.summary} onChange={e => setCreateForm(f => ({ ...f, summary: e.target.value }))}
+                  rows={2} placeholder="该阶段的整体说明" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 resize-none focus:outline-none focus:border-[#D96400]" />
+              </label>
+              <label className="block">
+                <span className="text-xs text-ink-secondary">场景说明</span>
+                <textarea value={createForm.description} onChange={e => setCreateForm(f => ({ ...f, description: e.target.value }))}
+                  rows={2} placeholder="场景的详细描述" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 resize-none focus:outline-none focus:border-[#D96400]" />
+              </label>
+              <label className="block">
+                <span className="text-xs text-ink-secondary">业务规则</span>
+                <textarea value={createForm.business_rules} onChange={e => setCreateForm(f => ({ ...f, business_rules: e.target.value }))}
+                  rows={2} placeholder="该场景涉及的业务规则" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 resize-none focus:outline-none focus:border-[#D96400]" />
+              </label>
+              <label className="block">
+                <span className="text-xs text-ink-secondary">流程</span>
+                <textarea value={createForm.process} onChange={e => setCreateForm(f => ({ ...f, process: e.target.value }))}
+                  rows={2} placeholder="该场景的执行流程" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 resize-none focus:outline-none focus:border-[#D96400]" />
+              </label>
+              <label className="block">
+                <span className="text-xs text-ink-secondary">标签(分号分隔)</span>
+                <input value={createForm.tags} onChange={e => setCreateForm(f => ({ ...f, tags: e.target.value }))}
+                  placeholder="如 通用;制造/装备制造" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D96400]" />
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3 border-t border-line">
+              <button onClick={() => setShowCreate(false)} className="px-4 py-1.5 text-sm rounded-lg border border-line text-ink-secondary hover:bg-canvas">取消</button>
+              <button onClick={handleCreate} disabled={creating}
+                className="px-4 py-1.5 text-sm rounded-lg text-white font-medium disabled:opacity-60"
+                style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}>
+                {creating ? <Loader2 size={14} className="animate-spin inline mr-1" /> : null}
+                创建
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

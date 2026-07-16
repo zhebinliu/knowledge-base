@@ -208,3 +208,42 @@ export const approveProposal = (id: number, note?: string) =>
   api.post<SceneProposal>(`/scene-proposals/${id}/approve`, { note }).then(r => r.data)
 export const rejectProposal = (id: number, note?: string) =>
   api.post<SceneProposal>(`/scene-proposals/${id}/reject`, { note }).then(r => r.data)
+
+// ── 场景新增 / 导入 / 模板下载 ───────────────────────────────────────────────
+
+export interface SceneCreatePayload {
+  domain: string
+  stage: string
+  stage_label?: string
+  code: string
+  name: string
+  summary?: string
+  description?: string
+  business_rules?: string
+  process?: string
+  tags?: string[]
+}
+export const createScene = (payload: SceneCreatePayload) =>
+  api.post<Scene>('/scenes', payload).then(r => r.data)
+
+export interface ImportResult {
+  created: number
+  updated: number
+  skipped: number
+  errors: string[]
+}
+export const importScenes = (file: File) => {
+  const fd = new FormData()
+  fd.append('file', file)
+  return api.post<ImportResult>('/scenes/import', fd).then(r => r.data)
+}
+
+export const downloadImportTemplate = () =>
+  api.get('/scenes/import-template', { responseType: 'blob' }).then(r => {
+    const url = URL.createObjectURL(r.data as Blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = '场景导入模板.xlsx'
+    a.click()
+    URL.revokeObjectURL(url)
+  })
