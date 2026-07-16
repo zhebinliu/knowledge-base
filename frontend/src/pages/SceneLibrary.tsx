@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Layers, Search, History, BookOpen, GitPullRequest, Check, X, Loader2, Upload, Download, Plus } from 'lucide-react'
+import { Layers, Search, History, BookOpen, GitPullRequest, Check, X, Loader2, Upload, Download, Plus, ChevronDown } from 'lucide-react'
 import { toast } from '../components/Toaster'
 import SceneEditDrawer from '../components/SceneEditDrawer'
 import {
@@ -27,6 +27,10 @@ export default function SceneLibrary() {
   const [editScene, setEditScene] = useState<Scene | null>(null)
   const [matching, setMatching] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [openProposalIds, setOpenProposalIds] = useState<Set<number>>(new Set())
+  const toggleProposal = (id: number) => setOpenProposalIds(prev => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n
+  })
 
   // 导入 / 新增
   const fileRef = useRef<HTMLInputElement>(null)
@@ -304,31 +308,85 @@ export default function SceneLibrary() {
             </div>
           ) : (
             <div className="divide-y divide-line">
-              {proposals.map(p => (
-                <div key={p.id} className="flex items-center gap-3 px-4 py-3">
-                  <span className={`text-[11px] px-1.5 py-0.5 rounded border ${p.change_type === 'new'
-                    ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                    {p.change_type === 'new' ? '新增' : '优化'}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-ink truncate">
-                      {p.scene_code ? <span className="font-mono text-xs text-ink-secondary mr-1">{p.scene_code}</span> : null}
-                      {p.name}
+              {proposals.map(p => {
+                const open = openProposalIds.has(p.id)
+                const ct = p.content || {}
+                const fields = ct.recommended_fields || []
+                const hasDetail = !!(ct.blueprint_evidence || ct.description || ct.business_rules || ct.process || fields.length)
+                return (
+                <div key={p.id}>
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <span className={`flex-shrink-0 text-[11px] px-1.5 py-0.5 rounded border ${p.change_type === 'new'
+                      ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                      {p.change_type === 'new' ? '新增' : '优化'}
+                    </span>
+                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => hasDetail && toggleProposal(p.id)}>
+                      <div className="text-sm text-ink truncate">
+                        {p.scene_code ? <span className="font-mono text-xs text-ink-secondary mr-1">{p.scene_code}</span> : null}
+                        {p.name}
+                      </div>
+                      <div className="text-[11px] text-ink-muted truncate">
+                        {p.project_name || '—'} · PM {p.pm_confirmed_by || '—'} 确认{p.summary ? ` · ${p.summary}` : ''}
+                      </div>
                     </div>
-                    <div className="text-[11px] text-ink-muted truncate">
-                      {p.project_name || '—'} · PM {p.pm_confirmed_by || '—'} 确认{p.summary ? ` · ${p.summary}` : ''}
-                    </div>
+                    {hasDetail && (
+                      <button onClick={() => toggleProposal(p.id)}
+                        className="flex-shrink-0 inline-flex items-center gap-1 text-xs text-ink-secondary hover:text-ink">
+                        详情 <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+                      </button>
+                    )}
+                    <button onClick={() => doApprove(p.id)} disabled={busyId === p.id}
+                      className="flex-shrink-0 inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
+                      {busyId === p.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} 通过回写
+                    </button>
+                    <button onClick={() => doReject(p.id)} disabled={busyId === p.id}
+                      className="flex-shrink-0 inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border border-line text-ink-secondary hover:bg-canvas disabled:opacity-50">
+                      <X size={12} /> 驳回
+                    </button>
                   </div>
-                  <button onClick={() => doApprove(p.id)} disabled={busyId === p.id}
-                    className="flex-shrink-0 inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
-                    {busyId === p.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} 通过回写
-                  </button>
-                  <button onClick={() => doReject(p.id)} disabled={busyId === p.id}
-                    className="flex-shrink-0 inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border border-line text-ink-secondary hover:bg-canvas disabled:opacity-50">
-                    <X size={12} /> 驳回
-                  </button>
+                  {open && hasDetail && (
+                    <div className="px-4 pb-3 pt-0 space-y-3">
+                      {ct.blueprint_evidence && (
+                        <div className="border-l-2 border-purple-400 bg-purple-50/50 rounded-r-lg px-3 py-2">
+                          <div className="text-[10px] font-bold text-purple-700 tracking-wide mb-1">蓝图原文依据</div>
+                          <div className="text-xs text-ink-secondary leading-relaxed">「{ct.blueprint_evidence}」</div>
+                        </div>
+                      )}
+                      {ct.description && (
+                        <div>
+                          <div className="text-[10px] font-bold text-ink-secondary tracking-wide mb-1">场景说明</div>
+                          <div className="text-xs text-ink leading-relaxed whitespace-pre-wrap">{ct.description}</div>
+                        </div>
+                      )}
+                      {ct.business_rules && (
+                        <div>
+                          <div className="text-[10px] font-bold text-ink-secondary tracking-wide mb-1">业务规则</div>
+                          <div className="text-xs text-ink leading-relaxed whitespace-pre-wrap">{ct.business_rules}</div>
+                        </div>
+                      )}
+                      {ct.process && (
+                        <div>
+                          <div className="text-[10px] font-bold text-ink-secondary tracking-wide mb-1">流程</div>
+                          <div className="text-xs text-ink leading-relaxed whitespace-pre-wrap">{ct.process}</div>
+                        </div>
+                      )}
+                      {fields.length > 0 && (
+                        <div>
+                          <div className="text-[10px] font-bold text-ink-secondary tracking-wide mb-1.5">推荐字段 · {fields.length}</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {fields.map((f, i) => (
+                              <span key={i} className="text-[11px] px-2 py-0.5 rounded-full border border-line bg-canvas text-ink">
+                                {f.name}{f.type ? <span className="text-ink-muted"> · {f.type}</span> : null}{f.required ? <span className="text-[#D96400]"> *</span> : null}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
