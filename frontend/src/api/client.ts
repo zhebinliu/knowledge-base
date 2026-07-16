@@ -2588,6 +2588,101 @@ export const batchImportTermCorrections = async (
   return data
 }
 
+// ── 会议组织调查问卷(2026-07-16) ───────────────────────────────────────
+
+export interface TimeOption {
+  start: string
+  end: string
+  label: string
+}
+export interface SatisfactionQuestion {
+  id: string
+  question: string
+  qtype: string
+}
+export interface MeetingSurveyData {
+  id: number
+  title: string
+  description: string
+  survey_type: string
+  time_options: TimeOption[]
+  meeting_time: string | null
+  meeting_location: string | null
+  satisfaction_questions: SatisfactionQuestion[]
+  status: string
+  project_id: string | null
+  share_token: string
+  results_visible: boolean
+  created_at: string
+  updated_at: string
+  response_count: number
+}
+
+export const listMeetingSurveys = async (): Promise<MeetingSurveyData[]> => {
+  const { data } = await api.get<MeetingSurveyData[]>('/meeting/surveys')
+  return data
+}
+
+export const createMeetingSurvey = async (body: {
+  title: string; description?: string; survey_type?: string;
+  time_options?: TimeOption[]; meeting_time?: string; meeting_location?: string;
+  satisfaction_questions?: SatisfactionQuestion[]; project_id?: string; results_visible?: boolean
+}): Promise<MeetingSurveyData> => {
+  const { data } = await api.post<MeetingSurveyData>('/meeting/surveys', body)
+  return data
+}
+
+export const getMeetingSurvey = async (id: number): Promise<MeetingSurveyData> => {
+  const { data } = await api.get<MeetingSurveyData>(`/meeting/surveys/${id}`)
+  return data
+}
+
+export const updateMeetingSurvey = async (id: number, body: Record<string, unknown>): Promise<MeetingSurveyData> => {
+  const { data } = await api.put<MeetingSurveyData>(`/meeting/surveys/${id}`, body)
+  return data
+}
+
+export const deleteMeetingSurvey = async (id: number): Promise<{ ok: boolean }> => {
+  const { data } = await api.delete(`/meeting/surveys/${id}`)
+  return data
+}
+
+export const finalizeMeetingSurvey = async (id: number, body: {
+  meeting_time: string; meeting_location?: string
+}): Promise<MeetingSurveyData> => {
+  const { data } = await api.post<MeetingSurveyData>(`/meeting/surveys/${id}/finalize`, body)
+  return data
+}
+
+export const switchToSatisfaction = async (id: number, questions: SatisfactionQuestion[]): Promise<MeetingSurveyData> => {
+  const { data } = await api.post<MeetingSurveyData>(`/meeting/surveys/${id}/switch-satisfaction`, questions)
+  return data
+}
+
+export const getMeetingSurveyStats = async (id: number): Promise<Record<string, unknown>> => {
+  const { data } = await api.get(`/meeting/surveys/${id}/stats`)
+  return data
+}
+
+export const getPublicSurvey = async (token: string): Promise<MeetingSurveyData> => {
+  const { data } = await api.get<MeetingSurveyData>(`/public/survey/${token}`)
+  return data
+}
+
+export const submitSurveyResponse = async (token: string, body: {
+  respondent_name: string; selected_time_slots?: number[];
+  can_attend?: boolean | null; satisfaction_answers?: Record<string, unknown>[];
+  suggestion?: string
+}): Promise<{ ok: boolean; response_id: number }> => {
+  const { data } = await api.post(`/public/survey/${token}/respond`, body)
+  return data
+}
+
+export const getPublicSurveyResults = async (token: string): Promise<Record<string, unknown>> => {
+  const { data } = await api.get(`/public/survey/${token}/results`)
+  return data
+}
+
 // ── 项目待办看板 ────────────────────────────────────────────────────
 
 export const getProjectTodos = async (

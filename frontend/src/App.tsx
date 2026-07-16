@@ -93,6 +93,9 @@ import ConsoleMeeting from './pages/console/ConsoleMeeting'
 import ConsoleMeetingDetail from './pages/console/ConsoleMeetingDetail'
 import ConsoleMeetingNew from './pages/console/ConsoleMeetingNew'
 import TermCorrectionsPage from './pages/console/TermCorrections'
+import MeetingSurveys from './pages/console/MeetingSurveys'
+import MeetingSurveyDetail from './pages/console/MeetingSurveyDetail'
+import SurveyForm from './pages/SurveyForm'
 
 // 2026-07-15:场景驱动改造完成,工作台所有模块对全体用户开放(不再区分 is_admin)。
 // AdminGate 保留为直通壳(将来若要再对某模块做灰度,改这里即可)。
@@ -159,8 +162,11 @@ export default function App() {
           <Route path="meeting/new"  element={IS_NEW_UI ? <NewConsoleMeetingNew />  : <ConsoleMeetingNew />} />
           <Route path="meeting/templates" element={<NewTemplateManager variant={IS_NEW_UI ? 'redesign' : 'legacy'} />} />
           <Route path="meeting/term-corrections" element={<TermCorrectionsPage />} />
+          <Route path="meeting/surveys" element={<MeetingSurveys />} />
+          <Route path="meeting/surveys/:id" element={<MeetingSurveyDetail />} />
           <Route path="meeting/:id"  element={IS_NEW_UI ? <NewConsoleMeetingDetail /> : <ConsoleMeetingDetail />} />
         </Route>
+        <Route path="/survey/:share_token" element={<SurveyForm />} />
       </Route>
 
       {/* 知识库后台：/ —— 内部管理视图
