@@ -177,6 +177,10 @@ app.include_router(mcp.router,   prefix="/api/mcp",   tags=["mcp"])
 app.include_router(coverage.router, prefix="/api/coverage", tags=["coverage"])
 app.include_router(call_logs.router, prefix="/api/call-logs", tags=["call-logs"])
 app.include_router(outputs.router, prefix="/api/outputs", tags=["outputs"])
+from api.meeting_survey import router as meeting_survey_router  # 会议组织调查问卷(2026-07-16) — 必须在 meeting.router 之前注册，避免 /{meeting_id} 通配符拦截 /surveys 路径
+app.include_router(meeting_survey_router, prefix="/api/meeting/surveys", tags=["meeting-surveys"])
+from api.public_survey import router as public_survey_router  # 问卷公开访问(免登录)
+app.include_router(public_survey_router, prefix="/api/public", tags=["public-survey"])
 app.include_router(meeting.router, prefix="/api/meeting", tags=["meeting"])
 from api.feishu_credentials import router as feishu_creds_router  # 修复 #5:凭证独立路由
 app.include_router(feishu_creds_router)
@@ -215,10 +219,7 @@ from api.project_todos import router as project_todos_router  # 项目待办看�
 app.include_router(project_todos_router, prefix="/api", tags=["project-todos"])
 from api.term_correction import router as term_correction_router  # 名词校正词典(2026-07-13)
 app.include_router(term_correction_router, prefix="/api/term-corrections", tags=["term-corrections"])
-from api.meeting_survey import router as meeting_survey_router  # 会议组织调查问卷(2026-07-16)
-app.include_router(meeting_survey_router, prefix="/api/meeting/surveys", tags=["meeting-surveys"])
-from api.public_survey import router as public_survey_router  # 问卷公开访问(免登录)
-app.include_router(public_survey_router, prefix="/api/public", tags=["public-survey"])
+# meeting_survey_router 和 public_survey_router 已在上方 meeting.router 之前注册（路由冲突修复）
 
 
 @app.on_event("startup")
