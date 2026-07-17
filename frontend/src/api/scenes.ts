@@ -216,6 +216,11 @@ export const approveProposal = (id: number, payload?: ApprovePayload) =>
 export const rejectProposal = (id: number, note?: string) =>
   api.post<SceneProposal>(`/scene-proposals/${id}/reject`, { note }).then(r => r.data)
 
+// ── 阶段列表(审核选择用) ─────────────────────────────────────────────────
+export interface StageOption { domain: string; stage: string; stage_label: string }
+export const listStages = (domain?: string) =>
+  api.get<StageOption[]>('/scenes/stages', { params: domain ? { domain } : {} }).then(r => r.data)
+
 // ── 场景新增 / 导入 / 模板下载 ───────────────────────────────────────────────
 
 export interface SceneCreatePayload {

@@ -431,6 +431,19 @@ async def import_scenes(
     return result
 
 
+@router.get("/scenes/stages", dependencies=[Depends(get_current_user)])
+async def list_stages(domain: str | None = None, session: AsyncSession = Depends(get_session)):
+    """返回已有的不重复 (domain, stage, stage_label) 列表,供审核时选择阶段。"""
+    q = select(StandardScene.domain, StandardScene.stage, StandardScene.stage_label).where(
+        StandardScene.stage != None, StandardScene.stage != ""   # noqa: E711
+    ).distinct()
+    if domain:
+        q = q.where(StandardScene.domain == domain)
+    q = q.order_by(StandardScene.domain, StandardScene.stage)
+    rows = (await session.execute(q)).all()
+    return [{"domain": r[0], "stage": r[1], "stage_label": r[2] or ""} for r in rows]
+
+
 # ── /scenes/{scene_id} 放在具体路径之后 ──────────────────────────────────────
 
 @router.get("/scenes/{scene_id}", response_model=SceneDto, dependencies=[Depends(get_current_user)])

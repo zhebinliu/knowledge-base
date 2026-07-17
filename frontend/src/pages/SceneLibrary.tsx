@@ -5,10 +5,11 @@ import SceneEditDrawer from '../components/SceneEditDrawer'
 import {
   listSceneDomains, listScenes, listRecentSceneChanges, aiMatchScenes,
   adminListProposals, approveProposal, rejectProposal,
-  importScenes, createScene, downloadImportTemplate,
+  importScenes, createScene, downloadImportTemplate, listStages,
   type Scene, type SceneChange, type SceneDomains, type SceneProposal,
-  type ImportResult, type ApprovePayload,
+  type ImportResult, type ApprovePayload, type StageOption,
 } from '../api/scenes'
+import { getProjectMeta, type IndustryTree } from '../api/client'
 import { Sparkles } from 'lucide-react'
 
 /**
@@ -42,7 +43,12 @@ export default function SceneLibrary() {
 
   // 审核表单
   const [approveTarget, setApproveTarget] = useState<SceneProposal | null>(null)
-  const [approveForm, setApproveForm] = useState({ code: '', stage: '', stage_label: '', tags: '', note: '' })
+  const [approveForm, setApproveForm] = useState({ code: '', stage: '', stage_label: '', note: '' })
+  const [approveTags, setApproveTags] = useState<string[]>([])
+  const [stageOptions, setStageOptions] = useState<StageOption[]>([])
+  const [industryTree, setIndustryTree] = useState<IndustryTree>({})
+  const [indL1, setIndL1] = useState(''); const [indL2, setIndL2] = useState(''); const [indL3, setIndL3] = useState(''); const [indL4, setIndL4] = useState('')
+  const [customStage, setCustomStage] = useState(false)
 
   const runAiMatch = async () => {
     if (!confirm(`对${activeDomain ? ` ${activeDomain} 域` : '全部'}场景运行 AI 自动匹配?会写入每个场景的 AI 能力匹配(可再手动改)。`)) return
@@ -132,14 +138,28 @@ export default function SceneLibrary() {
   useEffect(() => { if (tab === 'review') loadProposals() }, [tab])
 
   const openApproveForm = (p: SceneProposal) => {
-    setApproveForm({
-      code: p.scene_code || '',
-      stage: '',
-      stage_label: '',
-      tags: '',
-      note: '',
-    })
+    setApproveForm({ code: p.scene_code || '', stage: '', stage_label: '', note: '' })
+    setApproveTags([])
+    setCustomStage(false)
+    setIndL1(''); setIndL2(''); setIndL3(''); setIndL4('')
     setApproveTarget(p)
+    listStages(p.domain || undefined).then(setStageOptions).catch(() => {})
+    getProjectMeta().then(m => setIndustryTree(m.industry_tree || {})).catch(() => {})
+  }
+  const onSelectStage = (v: string) => {
+    if (v === '__custom__') {
+      setCustomStage(true)
+      setApproveForm(f => ({ ...f, stage: '', stage_label: '' }))
+    } else {
+      setCustomStage(false)
+      const opt = stageOptions.find(s => s.stage === v)
+      setApproveForm(f => ({ ...f, stage: v, stage_label: opt?.stage_label || '' }))
+    }
+  }
+  const addIndustryTag = () => {
+    const path = [indL1, indL2, indL3, indL4].filter(Boolean).join('/')
+    if (path && !approveTags.includes(path)) setApproveTags(t => [...t, path])
+    setIndL1(''); setIndL2(''); setIndL3(''); setIndL4('')
   }
   const doApprove = async () => {
     if (!approveTarget) return
@@ -151,13 +171,12 @@ export default function SceneLibrary() {
     }
     setBusyId(id)
     try {
-      const tags = approveForm.tags.split(';').map(t => t.trim()).filter(Boolean)
       const payload: ApprovePayload = {
         note: approveForm.note.trim() || undefined,
         code: approveForm.code.trim() || undefined,
         stage: approveForm.stage.trim() || undefined,
         stage_label: approveForm.stage_label.trim() || undefined,
-        tags: tags.length ? tags : undefined,
+        tags: approveTags.length ? approveTags : undefined,
       }
       await approveProposal(id, payload)
       toast.success('已通过并回写场景库')
@@ -515,48 +534,100 @@ export default function SceneLibrary() {
         </div>
       )}
 
-      {/* 审核通过弹窗:填写编号 + 行业标签 */}
-      {approveTarget && (
+      {/* 审核通过弹窗:填写编号 + 阶段 + 行业标签 */}
+      {approveTarget && (() => {
+        const isNew = approveTarget.change_type === 'new'
+        const l2opts = indL1 ? Object.keys(industryTree[indL1] || {}) : []
+        const l3opts = indL1 && indL2 ? Object.keys(industryTree[indL1]?.[indL2] || {}) : []
+        const l4opts = indL1 && indL2 && indL3 ? (industryTree[indL1]?.[indL2]?.[indL3] || []) : []
+        const tagLabel = (t: string) => t === '通用' ? '通用' : t.split('/').filter(Boolean).pop() || t
+        const sel = 'flex-1 min-w-0 text-xs border border-line rounded px-1.5 py-1.5 bg-white focus:outline-none focus:border-[#D96400]'
+        return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setApproveTarget(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-line">
               <h2 className="text-base font-bold text-ink">审核通过 · 补充信息</h2>
               <button onClick={() => setApproveTarget(null)} className="text-ink-muted hover:text-ink"><X size={18} /></button>
             </div>
             <div className="px-5 py-4 space-y-3">
               <div className="text-xs text-ink-muted mb-1">
-                <span className={`inline-block text-[11px] px-1.5 py-0.5 rounded border mr-1.5 ${approveTarget.change_type === 'new'
+                <span className={`inline-block text-[11px] px-1.5 py-0.5 rounded border mr-1.5 ${isNew
                   ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                  {approveTarget.change_type === 'new' ? '新增' : '优化'}
+                  {isNew ? '新增' : '优化'}
                 </span>
                 {approveTarget.name}
+                {approveTarget.domain && <span className="ml-1.5 font-mono text-[11px] px-1 py-0.5 rounded bg-canvas">{approveTarget.domain}</span>}
               </div>
-              {approveTarget.change_type === 'new' && (
+
+              {isNew && (
                 <>
                   <label className="block">
                     <span className="text-xs text-ink-secondary">场景编号 <span className="text-red-500">*</span></span>
                     <input value={approveForm.code} onChange={e => setApproveForm(f => ({ ...f, code: e.target.value }))}
                       placeholder="如 LM-01" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D96400]" />
                   </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="block">
-                      <span className="text-xs text-ink-secondary">阶段</span>
-                      <input value={approveForm.stage} onChange={e => setApproveForm(f => ({ ...f, stage: e.target.value }))}
-                        placeholder="如 LeadManagement" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D96400]" />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs text-ink-secondary">阶段显示名</span>
-                      <input value={approveForm.stage_label} onChange={e => setApproveForm(f => ({ ...f, stage_label: e.target.value }))}
-                        placeholder="如 线索管理" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D96400]" />
-                    </label>
+
+                  <div>
+                    <span className="text-xs text-ink-secondary">阶段</span>
+                    <div className="mt-1 grid grid-cols-2 gap-2">
+                      <select value={customStage ? '__custom__' : approveForm.stage}
+                        onChange={e => onSelectStage(e.target.value)}
+                        className="text-sm border border-line rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:border-[#D96400]">
+                        <option value="">选择已有阶段…</option>
+                        {stageOptions.map(s => (
+                          <option key={s.stage} value={s.stage}>{s.stage_label ? `${s.stage_label}（${s.stage}）` : s.stage}</option>
+                        ))}
+                        <option value="__custom__">+ 新建阶段</option>
+                      </select>
+                      {!customStage && approveForm.stage_label && (
+                        <div className="flex items-center text-xs text-ink-muted px-2">显示名：{approveForm.stage_label}</div>
+                      )}
+                    </div>
+                    {customStage && (
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <input value={approveForm.stage} onChange={e => setApproveForm(f => ({ ...f, stage: e.target.value }))}
+                          placeholder="阶段标识 如 LeadManagement" className="text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D96400]" />
+                        <input value={approveForm.stage_label} onChange={e => setApproveForm(f => ({ ...f, stage_label: e.target.value }))}
+                          placeholder="显示名 如 线索管理" className="text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D96400]" />
+                      </div>
+                    )}
                   </div>
                 </>
               )}
-              <label className="block">
-                <span className="text-xs text-ink-secondary">行业标签(分号分隔)</span>
-                <input value={approveForm.tags} onChange={e => setApproveForm(f => ({ ...f, tags: e.target.value }))}
-                  placeholder="如 通用;制造/装备制造" className="mt-1 block w-full text-sm border border-line rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#D96400]" />
-              </label>
+
+              {/* 行业标签 */}
+              <div>
+                <span className="text-xs text-ink-secondary">行业标签</span>
+                {approveTags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-1.5 mb-2">
+                    {approveTags.map(t => (
+                      <span key={t} className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 ring-1 ring-blue-200">
+                        {tagLabel(t)}
+                        <button onClick={() => setApproveTags(ts => ts.filter(x => x !== t))} className="hover:text-blue-900"><X size={10} /></button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                  <button onClick={() => { if (!approveTags.includes('通用')) setApproveTags(t => [...t, '通用']) }}
+                    className="text-xs px-2 py-1 rounded border border-line text-ink-secondary hover:bg-canvas">+ 通用</button>
+                  <select value={indL1} onChange={e => { setIndL1(e.target.value); setIndL2(''); setIndL3(''); setIndL4('') }} className={sel}>
+                    <option value="">L1 大行业</option>{Object.keys(industryTree).map(k => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                  <select value={indL2} onChange={e => { setIndL2(e.target.value); setIndL3(''); setIndL4('') }} disabled={!indL1} className={sel}>
+                    <option value="">L2</option>{l2opts.map(k => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                  <select value={indL3} onChange={e => { setIndL3(e.target.value); setIndL4('') }} disabled={!indL2} className={sel}>
+                    <option value="">L3</option>{l3opts.map(k => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                  <select value={indL4} onChange={e => setIndL4(e.target.value)} disabled={!indL3} className={sel}>
+                    <option value="">L4</option>{l4opts.map(k => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                  <button onClick={addIndustryTag} disabled={!indL1}
+                    className="text-xs px-2 py-1 rounded bg-brand-light text-[#D96400] border border-[#F3D6B0] disabled:opacity-50">+ 加标签</button>
+                </div>
+              </div>
+
               <label className="block">
                 <span className="text-xs text-ink-secondary">审核备注</span>
                 <input value={approveForm.note} onChange={e => setApproveForm(f => ({ ...f, note: e.target.value }))}
@@ -573,7 +644,8 @@ export default function SceneLibrary() {
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* 场景编辑抽屉(Block5):点场景行打开 */}
       <SceneEditDrawer
