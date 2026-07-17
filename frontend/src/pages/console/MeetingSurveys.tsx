@@ -61,8 +61,24 @@ export default function MeetingSurveys() {
 
   useEffect(() => { load() }, [])
 
+  // 时间段仅要求填写起始时间,标题为空时自动用起始时间生成展示文案(2026-07-17 修复:此前要求 start 和 label 同时填写,
+  // 导致组织者只填了日期时段被整段过滤掉,问卷创建后没有任何可勾选的时间段)
+  const formatSlotLabel = (start: string) => {
+    try {
+      return new Date(start).toLocaleString('zh-CN', {
+        month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit',
+      })
+    } catch { return start }
+  }
+  const validTimeOptions = timeOptions
+    .filter((t: TimeOption) => t.start)
+    .map((t: TimeOption) => ({ ...t, label: t.label.trim() || formatSlotLabel(t.start) }))
+  const validSatisfactionQuestions = satisfactionQuestions.filter((q: SatisfactionQuestion) => q.question.trim())
+
   const handleCreate = async () => {
     if (!title.trim()) return
+    if (surveyType === 'time_poll' && validTimeOptions.length === 0) return
+    if (surveyType === 'satisfaction' && validSatisfactionQuestions.length === 0) return
     setCreating(true)
     try {
       const body: Record<string, unknown> = {
@@ -72,10 +88,10 @@ export default function MeetingSurveys() {
         project_id: projectId || undefined,
       }
       if (surveyType === 'time_poll') {
-        body.time_options = timeOptions.filter(t => t.start && t.label)
+        body.time_options = validTimeOptions
       }
       if (surveyType === 'satisfaction') {
-        body.satisfaction_questions = satisfactionQuestions.filter(q => q.question.trim())
+        body.satisfaction_questions = validSatisfactionQuestions
       }
       await createMeetingSurvey(body as Parameters<typeof createMeetingSurvey>[0])
       setShowCreate(false)
@@ -242,7 +258,7 @@ export default function MeetingSurveys() {
                       <div key={i} className="flex items-center gap-2">
                         <input value={opt.label} onChange={(e) => {
                           const next = [...timeOptions]; next[i] = { ...next[i], label: e.target.value }; setTimeOptions(next)
-                        }} placeholder="如: 周一 14:00-15:00"
+                        }} placeholder="标签(选填,默认用日期时间)"
                           className="flex-1 px-2.5 py-1.5 rounded-lg border border-line text-xs focus:outline-none focus:border-brand" />
                         <input type="datetime-local" value={opt.start} onChange={(e) => {
                           const next = [...timeOptions]; next[i] = { ...next[i], start: e.target.value }; setTimeOptions(next)
@@ -255,6 +271,9 @@ export default function MeetingSurveys() {
                     ))}
                     <button onClick={() => setTimeOptions([...timeOptions, { start: '', end: '', label: '' }])}
                       className="text-xs text-brand hover:underline">+ 添加时间段</button>
+                    {validTimeOptions.length === 0 && (
+                      <p className="text-[11px] text-red-500">请至少填写一个时间段的起始时间</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -289,7 +308,11 @@ export default function MeetingSurveys() {
                 className="px-4 py-2 rounded-lg text-sm text-ink-secondary border border-line hover:bg-slate-50">
                 取消
               </button>
-              <button onClick={handleCreate} disabled={creating || !title.trim()}
+              <button onClick={handleCreate} disabled={
+                creating || !title.trim() ||
+                (surveyType === 'time_poll' && validTimeOptions.length === 0) ||
+                (surveyType === 'satisfaction' && validSatisfactionQuestions.length === 0)
+              }
                 className="px-4 py-2 rounded-lg text-sm text-white bg-brand hover:bg-brand/90 disabled:opacity-50 inline-flex items-center gap-1.5">
                 {creating && <Loader2 size={14} className="animate-spin" />} 创建
               </button>

@@ -167,7 +167,7 @@ export default function SurveyForm() {
                       {selectedSlots.includes(i) && <CheckCircle2 size={14} className="text-white" />}
                     </div>
                     <div>
-                      <div className="text-sm font-medium text-ink">{opt.label}</div>
+                      <div className="text-sm font-medium text-ink">{opt.label || `时段${i + 1}`}</div>
                       {opt.start && (
                         <div className="text-[10px] text-ink-muted">
                           {new Date(opt.start).toLocaleString('zh-CN', {

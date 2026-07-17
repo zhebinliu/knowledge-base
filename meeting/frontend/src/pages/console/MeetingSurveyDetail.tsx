@@ -95,7 +95,7 @@ export default function MeetingSurveyDetail() {
   }
 
   const handleSwitchToSatisfaction = async () => {
-    const valid = satQuestions.filter(q => q.question.trim())
+    const valid = satQuestions.filter((q: SatisfactionQuestion) => q.question.trim())
     if (!valid.length) return
     setSwitching(true)
     try {
@@ -106,16 +106,32 @@ export default function MeetingSurveyDetail() {
     setSwitching(false)
   }
 
+  // 时间段仅要求填写起始时间,标题为空时用起始时间自动生成(2026-07-17 修复:同创建处问题,
+  // 避免编辑时因未同时填写 label 而把已有时间段整段清空)
+  const formatSlotLabel = (start: string) => {
+    try {
+      return new Date(start).toLocaleString('zh-CN', {
+        month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit',
+      })
+    } catch { return start }
+  }
+  const validEditTimeOptions = editTimeOptions
+    .filter((t: TimeOption) => t.start)
+    .map((t: TimeOption) => ({ ...t, label: t.label.trim() || formatSlotLabel(t.start) }))
+  const validEditSatQuestions = editSatQuestions.filter((q: SatisfactionQuestion) => q.question.trim())
+
   const handleSaveEdit = async () => {
     if (!editTitle.trim()) return
+    if (survey?.survey_type === 'time_poll' && validEditTimeOptions.length === 0) return
+    if (survey?.survey_type === 'satisfaction' && validEditSatQuestions.length === 0) return
     setSaving(true)
     try {
       const body: Record<string, unknown> = { title: editTitle.trim(), description: editDesc.trim() }
       if (survey?.survey_type === 'time_poll') {
-        body.time_options = editTimeOptions.filter(t => t.start && t.label)
+        body.time_options = validEditTimeOptions
       }
       if (survey?.survey_type === 'satisfaction') {
-        body.satisfaction_questions = editSatQuestions.filter(q => q.question.trim())
+        body.satisfaction_questions = validEditSatQuestions
       }
       await updateMeetingSurvey(surveyId, body)
       setShowEdit(false)
@@ -154,7 +170,7 @@ export default function MeetingSurveyDetail() {
   const satAverages = statData.satisfaction_averages as Record<string, number> || {}
 
   // 时间调查柱状图数据
-  const timeChartData = survey.time_options?.map((opt, i) => ({
+  const timeChartData = survey.time_options?.map((opt: TimeOption, i: number) => ({
     name: opt.label || `时段${i + 1}`,
     count: timeCounts[String(i)] || 0,
   })) || []
@@ -508,7 +524,7 @@ export default function MeetingSurveyDetail() {
                     <div key={i} className="flex items-center gap-2 mt-1">
                       <input value={opt.label} onChange={(e) => {
                         const next = [...editTimeOptions]; next[i] = { ...next[i], label: e.target.value }; setEditTimeOptions(next)
-                      }} placeholder="如: 周一 14:00"
+                      }} placeholder="标签(选填,默认用日期时间)"
                         className="flex-1 px-2.5 py-1.5 rounded-lg border border-line text-xs focus:outline-none focus:border-brand" />
                       <input type="datetime-local" value={opt.start} onChange={(e) => {
                         const next = [...editTimeOptions]; next[i] = { ...next[i], start: e.target.value }; setEditTimeOptions(next)
@@ -520,6 +536,9 @@ export default function MeetingSurveyDetail() {
                   ))}
                   <button onClick={() => setEditTimeOptions([...editTimeOptions, { start: '', end: '', label: '' }])}
                     className="text-xs text-brand hover:underline mt-1">+ 添加</button>
+                  {validEditTimeOptions.length === 0 && (
+                    <p className="text-[11px] text-red-500 mt-1">请至少填写一个时间段的起始时间</p>
+                  )}
                 </div>
               )}
               {survey.survey_type === 'satisfaction' && (
@@ -545,7 +564,11 @@ export default function MeetingSurveyDetail() {
             <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-line">
               <button onClick={() => setShowEdit(false)}
                 className="px-3 py-1.5 rounded-lg text-xs text-ink-secondary border border-line hover:bg-slate-50">取消</button>
-              <button onClick={handleSaveEdit} disabled={saving || !editTitle.trim()}
+              <button onClick={handleSaveEdit} disabled={
+                saving || !editTitle.trim() ||
+                (survey.survey_type === 'time_poll' && validEditTimeOptions.length === 0) ||
+                (survey.survey_type === 'satisfaction' && validEditSatQuestions.length === 0)
+              }
                 className="px-3 py-1.5 rounded-lg text-xs text-white bg-brand hover:bg-brand/90 disabled:opacity-50 inline-flex items-center gap-1">
                 {saving && <Loader2 size={12} className="animate-spin" />} 保存
               </button>
