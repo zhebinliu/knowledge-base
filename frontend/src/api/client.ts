@@ -1961,6 +1961,9 @@ export interface MeetingMinutes {
 /** 纪要导出 docx 下载 URL(2026-05-12) */
 export const exportMeetingDocxUrl = (id: number) => `/api/meeting/${id}/export-docx`
 
+/** 纪要导出 HTML 下载 URL */
+export const exportMeetingHtmlUrl = (id: number) => `/api/meeting/${id}/export-html`
+
 export interface StakeholderItem {
   name: string
   aliases?: string[]

@@ -25,7 +25,7 @@ import {
   syncActionItemsToBitable, createActionKanban, checkFeishuUrl,
   getIllustrationStyles, type IllustrationStyle, type IllustrationStylesResponse,
   listProjects, getFeishuCredentials, putFeishuCredentials, deleteFeishuCredentials,
-  exportMeetingDocxUrl, TOKEN_STORAGE_KEY,
+  exportMeetingDocxUrl, exportMeetingHtmlUrl, TOKEN_STORAGE_KEY,
   putMeetingStakeholderMap, patchMeetingRequirement, renameStakeholderRefs,
   createMeetingRequirement, deleteMeetingRequirement,
   syncMeetingStakeholdersToProject,
@@ -885,6 +885,38 @@ export function MinutesTab({ meeting }: { meeting: Meeting }) {
               title="按模板生成 docx 下载"
             >
               <Download size={13} /> 导出 docx
+            </button>
+            <button
+              onClick={() => {
+                const token = localStorage.getItem(TOKEN_STORAGE_KEY)
+                const safeTitle = (meeting.title || '会议纪要').replace(/[/\\:*?"<>|]/g, '_')
+                fetch(exportMeetingHtmlUrl(meeting.id), {
+                  headers: { Authorization: `Bearer ${token}` },
+                })
+                  .then(async resp => {
+                    if (!resp.ok) {
+                      const text = await resp.text().catch(() => '')
+                      throw new Error(text || `导出失败 (${resp.status})`)
+                    }
+                    return resp.blob()
+                  })
+                  .then(blob => {
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `${safeTitle}.html`
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                    URL.revokeObjectURL(url)
+                  })
+                  .catch(err => toast.error(`HTML 导出失败: ${err.message}`))
+              }}
+              className="px-3 py-1.5 rounded-md text-sm text-white inline-flex items-center gap-1.5 hover:opacity-90"
+              style={{ background: BRAND_GRAD }}
+              title="导出为 HTML 文件，可在浏览器中打开"
+            >
+              <Download size={13} /> 导出 html
             </button>
             <button
               onClick={() => regenMut.mutate()}

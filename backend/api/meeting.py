@@ -1250,6 +1250,60 @@ async def export_meeting_docx(
     )
 
 
+@router.get("/{meeting_id}/export-html")
+async def export_meeting_html(
+    meeting_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """导出会议纪要 HTML（参考 deepseek_html 布局风格）。
+
+    返回 text/html 流，前端 a[download] 即可下载为 .html 文件。
+    """
+    from fastapi.responses import Response
+    from urllib.parse import quote
+    from services.meeting.html_export import render_minutes_html
+
+    m = await _load_meeting_owned(meeting_id, session, user)
+    if not m.meeting_minutes:
+        raise HTTPException(400, "纪要尚未生成，无法导出")
+
+    fallback_time = ""
+    if m.start_time:
+        fallback_time = m.start_time.strftime("%Y年%m月%d日 %H:%M")
+        if m.end_time:
+            fallback_time += "～" + m.end_time.strftime("%H:%M")
+
+    try:
+        html = render_minutes_html(
+            meeting_title=m.title,
+            minutes=m.meeting_minutes,
+            fallback_time=fallback_time,
+        )
+    except Exception as e:
+        logger.exception("export_minutes_html_failed", meeting_id=meeting_id, error=str(e)[:200])
+        raise HTTPException(500, f"生成 HTML 失败：{e}")
+
+    html_bytes = html.encode("utf-8")
+
+    safe_name = quote(f"{m.title or '会议纪要'}.html")
+    ascii_name = "".join(c for c in (m.title or '') if ord(c) < 128 and c not in '\\/:*?"<>|')
+    if not ascii_name.strip():
+        ascii_name = "meeting_minutes"
+    ascii_name = (ascii_name.strip()[:50] or "meeting_minutes") + ".html"
+    return Response(
+        content=html_bytes,
+        media_type="text/html; charset=utf-8",
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename={quote(ascii_name)}; "
+                f"filename*=UTF-8''{safe_name}"
+            ),
+            "Content-Type": "text/html; charset=utf-8",
+        },
+    )
+
+
 @router.post("/{meeting_id}/actions/extract_requirements")
 async def action_extract_requirements(
     meeting_id: int,
