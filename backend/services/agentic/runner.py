@@ -2787,7 +2787,7 @@ async def generate_research_plan(bundle_id: str, project_id: str):
             scene_brief=ctx.get("scene_brief", ""),   # 应覆盖场景简报(闭环)
             model=ctx["agent_model"],
             task="output_doc_generate",
-            max_tokens=8000, timeout=360.0,
+            max_tokens=32000, timeout=720.0,
         )
         run_history.append({
             "phase": "llm_done", "ts": _ts(),

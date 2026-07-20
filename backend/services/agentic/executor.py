@@ -443,10 +443,10 @@ async def execute_insight_module(
 - 如果某段没素材支撑,写"信息缺失"或干脆别写;**绝不**裸输出无引用的事实。
 """
     async def _call_once(attempt: int) -> str:
-        # max_tokens 8000 — 推理模型(GLM-5 / minimax-m2.7)<think> 块容易吃掉 3-5k tokens,
-        # 之前 3000 时 M6 经常空输出。和 challenger 对齐到 8000。
+        # max_tokens 32000 — kimi-k2.6 等推理模型 reasoning 占 90%+ 预算,
+        # 8000 时 content 经常空(7999 reasoning + 1 content);32000 才够正文输出
         raw = await _llm_call(user_prompt, system=system, model=model,
-                              max_tokens=8000, timeout=240.0)
+                              max_tokens=32000, timeout=720.0)
         clean_len = len((raw or "").strip())
         has_think = "<think>" in (raw or "").lower()
         logger.info("insight_module_llm_returned",

@@ -543,7 +543,7 @@ async def stream_extract_brief_draft(project_id: str, output_kind: str, model: s
 
     from services.output_service import _llm_call
     try:
-        raw = await _llm_call(prompt, system=EXTRACT_SYSTEM, model=model, max_tokens=6000, timeout=240.0)
+        raw = await _llm_call(prompt, system=EXTRACT_SYSTEM, model=model, max_tokens=16000, timeout=480.0)
     except Exception as e:
         yield {"type": "error", "message": f"LLM 调用失败：{e}"}
         return
