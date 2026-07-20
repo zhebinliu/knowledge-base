@@ -24,7 +24,7 @@ import {
   CheckCircle2, Loader2, Lock, Download, ExternalLink,
   Save, X, Wand2, AlertCircle, AlertTriangle, Pencil, Home, Files, Search,
   Bot, ShieldAlert, ChevronDown, ChevronRight, ChevronLeft, Users, Eye, RotateCw, Plus, Contact,
-  Upload, Workflow,
+  Upload, Workflow, Network,
 } from 'lucide-react'
 
 // 11 个子组件全部走 Liquid Glass 新版(redesign 目录下)
@@ -33,7 +33,6 @@ import BundleOverrideModal from '../../components/console/BundleOverrideModal'
 import GateConfirmBar from '../../components/console/GateConfirmBar'
 import SoftWarningChips, { toastSoftWarnings } from '../../components/console/SoftWarnings'
 import SceneHarnessPanel from '../../components/console/SceneHarnessPanel'
-import PropositionNetworkPanel from '../../components/console/PropositionNetworkPanel'
 import ResearchAgendaDrawer from '../../components/console/ResearchAgendaDrawer'
 import SceneCoverageChip from '../../components/console/SceneCoverageChip'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
@@ -511,9 +510,14 @@ export default function NewConsoleProjectDetail() {
         <SceneHarnessPanel projectId={id} variant="dark" section="match" />
       </div>
 
-      {/* 命题网络:场景命中的证据链可视化 */}
-      <div style={{ borderBottom: '1px solid rgba(0,0,0,0.25)' }}>
-        <PropositionNetworkPanel projectId={id} />
+      {/* 命题网络入口 */}
+      <div style={{ borderBottom: '1px solid rgba(0,0,0,0.25)', padding: '8px 14px' }}>
+        <button onClick={() => nav(`/console/projects/${id}/network`)}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#c084fc', background: 'none', border: 'none', cursor: 'pointer' }}>
+          <Network size={15} />
+          <span>命题神经网络</span>
+          <ExternalLink size={11} style={{ opacity: 0.5 }} />
+        </button>
       </div>
 
       {/* ── 阶段流程栏 ── */}

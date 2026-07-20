@@ -6,13 +6,12 @@ import {
   CheckCircle2, Loader2, Lock, Download, ExternalLink, RotateCw,
   Save, X, Wand2, AlertCircle, AlertTriangle, Pencil, Home, Files, Search,
   Bot, ShieldAlert, ChevronDown, ChevronRight, Users, Eye, Plus, Contact,
-  Upload, Share2, Copy, Check, Workflow,
+  Upload, Share2, Copy, Check, Workflow, Network,
 } from 'lucide-react'
 import CollaboratorsModal from '../../components/console/CollaboratorsModal'
 import GateConfirmBar from '../../components/console/GateConfirmBar'
 import SoftWarningChips, { toastSoftWarnings } from '../../components/console/SoftWarnings'
 import SceneHarnessPanel from '../../components/console/SceneHarnessPanel'
-import PropositionNetworkPanel from '../../components/console/PropositionNetworkPanel'
 import ResearchAgendaDrawer from '../../components/console/ResearchAgendaDrawer'
 import SceneCoverageChip from '../../components/console/SceneCoverageChip'
 import BundleOverrideModal from '../../components/console/BundleOverrideModal'
@@ -469,9 +468,14 @@ export default function ConsoleProjectDetail() {
         <SceneHarnessPanel projectId={id} variant="light" section="match" />
       </div>
 
-      {/* 命题网络:场景命中的证据链可视化 */}
-      <div className="flex-shrink-0 bg-white border-b border-line">
-        <PropositionNetworkPanel projectId={id} />
+      {/* 命题网络入口 */}
+      <div className="flex-shrink-0 bg-white border-b border-line px-4 sm:px-6 py-2">
+        <button onClick={() => nav(`/console/projects/${id}/network`)}
+          className="flex items-center gap-2 text-sm text-purple-600 hover:text-purple-800 transition-colors">
+          <Network className="w-4 h-4" />
+          <span>命题神经网络</span>
+          <ExternalLink className="w-3 h-3 opacity-50" />
+        </button>
       </div>
 
       {/* 协作者管理弹窗 */}

@@ -199,6 +199,7 @@ export default function ConsoleLayout() {
         key={loc.pathname}
         className={
           /^\/console\/projects\/[^/]+$/.test(loc.pathname) ||
+          /^\/console\/projects\/[^/]+\/(network|canvas)$/.test(loc.pathname) ||
           loc.pathname === '/console/meeting'
             ? 'w-full'
             : 'w-full px-4 sm:px-6 py-6'

@@ -95,6 +95,7 @@ import ConsoleMeetingNew from './pages/console/ConsoleMeetingNew'
 import TermCorrectionsPage from './pages/console/TermCorrections'
 import MeetingSurveys from './pages/console/MeetingSurveys'
 import MeetingSurveyDetail from './pages/console/MeetingSurveyDetail'
+import PropositionNetworkPage from './pages/console/PropositionNetworkPage'
 import SurveyForm from './pages/SurveyForm'
 
 // 2026-07-15:场景驱动改造完成,工作台所有模块对全体用户开放(不再区分 is_admin)。
@@ -158,6 +159,7 @@ export default function App() {
           <Route path="projects/:id" element={<AdminGate>{IS_NEW_UI ? <NewConsoleProjectDetail /> : <ConsoleProjectDetail />}</AdminGate>} />
           <Route path="projects/:id/todos" element={<AdminGate>{IS_NEW_UI ? <NewProjectTodos /> : <ProjectTodosPage />}</AdminGate>} />
           <Route path="projects/:id/canvas" element={<AdminGate><Suspense fallback={<div style={{ flex: 1 }} />}><ProjectCanvas /></Suspense></AdminGate>} />
+          <Route path="projects/:id/network" element={<AdminGate><PropositionNetworkPage /></AdminGate>} />
           <Route path="meeting"      element={IS_NEW_UI ? <NewConsoleMeeting />     : <ConsoleMeeting />} />
           <Route path="meeting/new"  element={IS_NEW_UI ? <NewConsoleMeetingNew />  : <ConsoleMeetingNew />} />
           <Route path="meeting/templates" element={<NewTemplateManager variant={IS_NEW_UI ? 'redesign' : 'legacy'} />} />
