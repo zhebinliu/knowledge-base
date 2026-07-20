@@ -259,3 +259,42 @@ export const downloadImportTemplate = () =>
     a.click()
     URL.revokeObjectURL(url)
   })
+
+// ── 命题网络 ──────────────────────────────────────────────────────────
+export interface PropositionNetworkNode {
+  id: string
+  type: 'document' | 'proposition' | 'scene'
+  label: string
+  health?: 'alive' | 'weak' | 'dead'
+  doc_type?: string
+  doc_id?: string
+  code?: string
+  domain?: string
+  hit?: boolean
+  category?: string
+  doc_count?: number
+  scene_codes?: string[]
+  description?: string
+  members?: { doc_id: string; doc_filename: string; detail: string }[]
+}
+export interface PropositionNetworkEdge {
+  source: string
+  target: string
+  type: 'extraction' | 'supports'
+  health?: string
+}
+export interface PropositionNetworkData {
+  project_id: string
+  stats: Record<string, number>
+  network: { nodes: PropositionNetworkNode[]; edges: PropositionNetworkEdge[] }
+  doc_count: number
+  proposition_count: number
+  scene_hit_count: number
+  updated_at: string | null
+}
+export const buildPropositionNetwork = (projectId: string) =>
+  api.post<{ task_id: string; status: string }>(`/projects/${projectId}/proposition-network`).then(r => r.data)
+export const getPropositionNetworkStatus = (projectId: string, taskId: string) =>
+  api.get<{ state: string; ready: boolean; stats?: Record<string, number>; error?: string }>(`/projects/${projectId}/proposition-network/status/${taskId}`).then(r => r.data)
+export const getPropositionNetwork = (projectId: string) =>
+  api.get<PropositionNetworkData | null>(`/projects/${projectId}/proposition-network`).then(r => r.data)

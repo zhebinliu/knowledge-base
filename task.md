@@ -1,3 +1,33 @@
+# 场景命中神经网络(2026-07-20)
+
+在场景和文档之间加一个**命题层**,让每个场景"命中"从 LLM 黑盒判定变成有证据链的可追踪网络。
+
+## 任务清单
+
+### Block 1: 数据模型 + 命题抽取服务
+- [x] 1.1 新建 `models/proposition.py` — ProjectProposition + PropositionNetwork 表
+- [x] 1.2 `main.py` 注册模型(create_all)
+- [x] 1.3 新建 `services/proposition_extract.py` — 单文档命题抽取 + 跨文档聚类 + 场景对齐(全在一个服务里)
+- [x] 1.4 命题对齐用文本匹配(SequenceMatcher + 关键词交集),不靠 LLM 推理
+
+### Block 2: 项目级命题网络 API
+- [x] 2.1 新建 `api/proposition_network.py` — POST 构建 + GET 查询 + GET 轮询状态
+- [x] 2.2 `main.py` 注册路由 + model_router 添加 proposition_extract 路由规则
+- [x] 2.3 Celery 异步任务 `build_proposition_network_task` in output_tasks.py
+
+### Block 3: 前端可视化
+- [x] 3.1 `PropositionNetworkPanel.tsx` — Canvas 力导向图(三层布局:文档→命题→场景)
+- [x] 3.2 接入两套项目详情页(pages/console + redesign/console)
+- [x] 3.3 `api/scenes.ts` 添加命题网络 API 类型和函数
+
+## 设计约束
+- LLM 只做单文档命题抽取(topic + description + category),不做跨文档判断
+- 跨文档对齐靠文本匹配 + 场景编码映射,不靠 LLM 推理
+- 命题状态由拓扑决定:有后续文档提及 = 演进中;无后续 = 停滞(这就是信号)
+- SceneHitReport.hits 升级为带 supporting_propositions,下游消费者不需要改
+
+---
+
 # 任务:场景 AI 能力自动匹配 + prod 磁盘满事故处理(2026-07-13)
 
 - 新增 services/scene_ai_match(LLM 按域→≤10 小批→重试→权威覆盖)+ POST /scenes/ai-match + 场景库中心「AI 自动匹配」按钮。commit e1e129f。

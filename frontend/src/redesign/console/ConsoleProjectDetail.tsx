@@ -33,6 +33,7 @@ import BundleOverrideModal from '../../components/console/BundleOverrideModal'
 import GateConfirmBar from '../../components/console/GateConfirmBar'
 import SoftWarningChips, { toastSoftWarnings } from '../../components/console/SoftWarnings'
 import SceneHarnessPanel from '../../components/console/SceneHarnessPanel'
+import PropositionNetworkPanel from '../../components/console/PropositionNetworkPanel'
 import ResearchAgendaDrawer from '../../components/console/ResearchAgendaDrawer'
 import SceneCoverageChip from '../../components/console/SceneCoverageChip'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
@@ -508,6 +509,11 @@ export default function NewConsoleProjectDetail() {
       {/* Harness P3:场景命中 — 项目级,和项目简介放一起(不随阶段变) */}
       <div style={{ padding: '8px 4px 2px', borderBottom: '1px solid rgba(0,0,0,0.25)' }}>
         <SceneHarnessPanel projectId={id} variant="dark" section="match" />
+      </div>
+
+      {/* 命题网络:场景命中的证据链可视化 */}
+      <div style={{ borderBottom: '1px solid rgba(0,0,0,0.25)' }}>
+        <PropositionNetworkPanel projectId={id} />
       </div>
 
       {/* ── 阶段流程栏 ── */}

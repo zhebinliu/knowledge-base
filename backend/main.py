@@ -26,7 +26,7 @@ _ENC[_dt] = _utc_iso_datetime
 _ENC[_date] = lambda d: d.isoformat()  # 日期本来就无时区,保持
 
 from config import settings
-from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, workflow_canvas, research, admin_invite_codes, admin_bundle_memories, project_stakeholders, smart_advice, template, admin_daily_report, project_gates, scenes, scene_ops, meeting_scenes, term_correction, meeting_survey, public_survey
+from api import documents, chunks, qa, challenge, review, export, agent_settings, auth, projects, users, mcp, coverage, call_logs, outputs, meeting, output_chats, briefs, stage_flow, doc_checklist, virtual_artifacts, web_suggest, stakeholder_graph, workflow_canvas, research, admin_invite_codes, admin_bundle_memories, project_stakeholders, smart_advice, template, admin_daily_report, project_gates, scenes, scene_ops, meeting_scenes, term_correction, meeting_survey, public_survey, proposition_network
 from services.auth import get_current_user
 from services.rate_limit import limiter
 from services.vector_store import vector_store
@@ -214,6 +214,7 @@ app.include_router(project_gates.router, prefix="/api/projects", tags=["project-
 app.include_router(scenes.router, prefix="/api", tags=["scenes"])  # 2026-07-13 Harness P3/P4:标准场景库
 app.include_router(scene_ops.router, prefix="/api", tags=["scene-ops"])  # 2026-07-13 Harness P3/P4:命中 + 回流
 app.include_router(meeting_scenes.router, prefix="/api", tags=["meeting-scenes"])  # 2026-07-14 闭环③:会议涉及场景
+app.include_router(proposition_network.router, prefix="/api", tags=["proposition-network"])  # 2026-07-20 命题网络
 app.include_router(smart_advice.router, prefix="/api", tags=["smart-advice"])
 from api.project_todos import router as project_todos_router  # 项目待办看板(2026-06-08)
 app.include_router(project_todos_router, prefix="/api", tags=["project-todos"])
@@ -266,6 +267,7 @@ async def startup():
     from models.meeting_scene import MeetingSceneDelta  # noqa: F401  会议涉及场景(2026-07-14 闭环③)
     from models.term_correction import TermCorrection  # noqa: F401  名词校正词典(2026-07-13,create_all 建 term_corrections 表)
     from models.meeting_survey import MeetingSurvey, MeetingSurveyResponse  # noqa: F401  会议组织调查问卷(2026-07-16,create_all 建 meeting_surveys + meeting_survey_responses 表)
+    from models.proposition import ProjectProposition, PropositionNetwork  # noqa: F401  命题网络(2026-07-20,场景命中证据链)
     from sqlalchemy import text
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

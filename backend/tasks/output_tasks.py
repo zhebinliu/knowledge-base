@@ -74,6 +74,23 @@ def run_scene_reflow_task(self, project_id: str, username: str | None = None):
     return {"count": n}
 
 
+@celery_app.task(name="build_proposition_network", bind=True, track_started=True,
+                 max_retries=0, soft_time_limit=300, time_limit=360)
+def build_proposition_network_task(self, project_id: str, username: str | None = None):
+    """构建项目命题网络:逐文档 LLM 抽取 → 跨文档聚类 → 场景对齐 → 持久化。"""
+    from services.proposition_extract import build_proposition_network
+    from models import async_session_maker
+
+    async def _go():
+        async with async_session_maker() as s:
+            return await build_proposition_network(project_id, s, created_by=username)
+
+    result = _run(_go())
+    logger.info("proposition_network_task_done", project_id=project_id,
+                stats=result.get("stats") if isinstance(result, dict) else None)
+    return result.get("stats") if isinstance(result, dict) else result
+
+
 @celery_app.task(name="generate_kickoff_pptx", bind=True, max_retries=2, soft_time_limit=900, time_limit=1200)
 def generate_kickoff_pptx(self, bundle_id: str, project_id: str):
     from services.output_service import generate_kickoff_pptx as _gen

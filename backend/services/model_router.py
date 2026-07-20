@@ -208,6 +208,7 @@ ROUTING_RULES = {
     "scene_ai_match":              {"primary": "minimax-m2.5",      "fallback": "glm-5"},
     "scene_reflow":                {"primary": "minimax-m2.5",      "fallback": "glm-5"},
     "scene_questions":             {"primary": "minimax-m2.5",      "fallback": "glm-5"},
+    "proposition_extract":         {"primary": "minimax-m2.5",      "fallback": "glm-5"},
 
     # ── 挑战练习 (Challenge) ────────────────────────────────────────────────
     # 基于 KB chunk 出题
