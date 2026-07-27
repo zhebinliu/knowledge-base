@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -93,8 +94,15 @@ async def execute_pptx_code(code: str, timeout: float = 180.0) -> bytes:
 
 
 def strip_python_fences(raw: str) -> str:
-    """剥掉模型可能输出的 ```python / ``` 围栏，返回纯代码。"""
+    """剥掉模型可能输出的 <think> 推理块 + ```python / ``` 围栏，返回纯代码。"""
     s = (raw or "").strip()
+    # 推理模型(如 MiniMax-M2.5)会把 <think>...</think> 写在 content 开头，
+    # 不剥掉会让 `python gen.py` 第一行就 SyntaxError(rc=1)。闭合块直接删；
+    # 未闭合(被 max_tokens 截断)时从首个 import/from 代码行起截。
+    s = re.sub(r"<think>[\s\S]*?</think>", "", s, flags=re.IGNORECASE).strip()
+    if "<think>" in s.lower():
+        m = re.search(r"^(?:import |from )", s, flags=re.MULTILINE)
+        s = s[m.start():].strip() if m else s
     if s.startswith("```"):
         first_nl = s.find("\n")
         if first_nl >= 0:
