@@ -8,6 +8,9 @@
 from __future__ import annotations
 
 import io
+import os
+import subprocess
+import tempfile
 import wave
 import structlog
 
@@ -22,13 +25,19 @@ REQUIRED_SAMPLE_WIDTH: int = 2  # 16-bit = 2 bytes / sample
 def convert_to_pcm(audio_data: bytes, source_format: str = "wav") -> bytes:
     """将任意音频格式转成 16kHz / 16-bit / mono raw PCM。
 
+    走 ffmpeg 子进程**流式解码 + 边解码边降采样**,而非 pydub 全量载入:
+    - 内存只留最终 16k/mono PCM。旧实现 `AudioSegment.from_file` 会先把整段解成
+      原生采样率(48kHz 立体声)进内存 → 2.4h 录音 ~1.6GB 直接 OOM(worker SIGKILL)。
+    - ffmpeg 自行**探测真实容器,不信 source_format/扩展名** —— soundcore 把
+      Ogg/Opus 存成 `.m4a` 也能正确解码(旧实现按 .m4a 选 mp4 解码器 → "moov atom
+      not found")。source_format 现仅用于 raw 直通与日志。
+
     Args:
         audio_data: 原始音频 bytes。
-        source_format: 源格式提示("mp3" / "wav" / "m4a" / "ogg" / "raw"),
-                       "raw" 直通返回。
+        source_format: 源格式提示;"raw" 直通返回(已是 PCM),其余一律交 ffmpeg 探测。
 
     Raises:
-        RuntimeError: pydub 未装。
+        RuntimeError: ffmpeg 未装 / 解码失败。
         ValueError: audio_data 为空。
     """
     if not audio_data:
@@ -38,19 +47,37 @@ def convert_to_pcm(audio_data: bytes, source_format: str = "wav") -> bytes:
     if source_format == "raw":
         return audio_data
 
+    # 落临时文件让 ffmpeg 可 seek 探测容器(管道对部分格式探测不稳)
+    with tempfile.NamedTemporaryFile(prefix="asr_in_", delete=False) as tf:
+        tf.write(audio_data)
+        tmp_in = tf.name
     try:
-        from pydub import AudioSegment  # type: ignore[import-untyped]
-    except ImportError as exc:
+        proc = subprocess.run(
+            [
+                "ffmpeg", "-nostdin", "-v", "error",
+                "-i", tmp_in,
+                "-vn",  # 丢弃任何视频/封面流
+                "-ac", str(REQUIRED_CHANNELS),
+                "-ar", str(REQUIRED_SAMPLE_RATE),
+                "-f", "s16le", "-acodec", "pcm_s16le", "pipe:1",
+            ],
+            capture_output=True,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("ffmpeg 未安装,无法转换音频。apt install ffmpeg。") from exc
+    finally:
+        try:
+            os.unlink(tmp_in)
+        except OSError:
+            pass
+
+    if proc.returncode != 0 or not proc.stdout:
+        err = (proc.stderr or b"").decode("utf-8", "replace")[:400]
         raise RuntimeError(
-            "pydub 未装,无法转换非 PCM 音频。pip install pydub + apt install ffmpeg。"
-        ) from exc
+            f"ffmpeg 解码失败(rc={proc.returncode}, source_hint={source_format}): {err}"
+        )
 
-    seg: "AudioSegment" = AudioSegment.from_file(io.BytesIO(audio_data), format=source_format)
-    seg = seg.set_frame_rate(REQUIRED_SAMPLE_RATE)
-    seg = seg.set_channels(REQUIRED_CHANNELS)
-    seg = seg.set_sample_width(REQUIRED_SAMPLE_WIDTH)
-
-    pcm: bytes = seg.raw_data
+    pcm: bytes = proc.stdout
     logger.info(
         "audio_converted_to_pcm",
         source_format=source_format,

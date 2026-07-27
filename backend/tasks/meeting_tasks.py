@@ -229,7 +229,7 @@ async def _transcribe_meeting_async(meeting_id: int):
     await _process_meeting_async(meeting_id)
 
 
-@celery_app.task(name="transcribe_meeting", bind=True, max_retries=1, soft_time_limit=1800, time_limit=2100)
+@celery_app.task(name="transcribe_meeting", bind=True, max_retries=1, soft_time_limit=5400, time_limit=5700)
 def transcribe_meeting(self, meeting_id: int):
     """ASR 转写 + 自动触发后续 AI pipeline。"""
     _run(_transcribe_meeting_async(meeting_id))
