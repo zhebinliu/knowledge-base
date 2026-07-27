@@ -1281,3 +1281,33 @@ WHERE config_type='routing_rules' AND config_key IN ('scene_reflow','scene_match
 
 **20.6 会议 Co-pilot 建议对上传/已完成会议不自动生成**
 `generate_live_advice` 本身没问题,但只在边录边转时触发;上传或已完成的会议 live_advice 表 0 行 → tab 空、用户以为坏了。修:`ConsoleMeetingDetail` 的 Co-pilot tab 首次进、库里从没生成过、且有转写,自动跑一轮(ref 防重复触发)。
+
+## 21. 交付物"一直生成不了" = 推理模型吐空/太慢撞软超时 → 看门狗无限重启死循环(2026-07-27)
+
+一个项目里「调研大纲 / 启动会PPT / 蓝图」同时卡 `generating` 生成不出来,查下来是**同一家族两类根因**,外加一个 minimax 专属新坑。同 §11.7 / §17 / §20 / [[project_kb_model_routing_db]]。
+
+**21.1 症状与死循环机制(通用)**
+bundle 停在 `curated_bundles.status='generating'`、`error` 空、`extra->'progress'->>'stage'` 停在某阶段、`extra->>'auto_restart_count'` 持续爬升 = 正在**无限重启循环**。成因链:某步 LLM 调用吐空/太慢 → Celery `soft_time_limit` 到点 `SoftTimeLimitExceeded` **杀在 runner 写结果之前** → status 没翻 `failed`、停在 `generating` → `recover_stale_bundles`(30min stale 阈值)**每半小时把它再拉起** → 每轮白烧 ~15-25min 算力+token,永不收敛。**排查第一步永远是**:`SELECT status, extra->'progress'->>'stage', extra->>'auto_restart_count' FROM curated_bundles WHERE id=...` + worker 日志 grep bundle_id 抓 `SoftTimeLimit` / `challenger_raw_empty` / `pptx_failed`。
+
+**21.2 挑战者审核吐空 → survey_outline / insight 循环(glm-5.1 键被偷换成 glm-5.2 重推理)**
+`_run_challenge_loop`→`challenger.py` 用 routing `challenge_verdict_reformat`(DB `primary=glm-5.1`)。而 `model_registry` 里 **`glm-5.1` 这个键 2026-06-26 被重映射到 `model_id=glm-5.2`**(火山引擎重推理模型)——键名骗人。大挑战 prompt 下 glm-5.2 把 `max_tokens=8000` 全烧在 reasoning、`finish_reason=length`、`content=''`。`challenger._parse_critique_json` 把空当 `parse_failed` **用同模型原地重试2次**(空不算异常、不触发 fallback),每次 glm-5.2 ~8-9min → 累计超 `generate_survey_outline` 的 **1500s** 软超时被杀。curl 复现:`max_tokens=600` + 推理 prompt → glm-5.2 返回 `finish=length / content_len=0 / reasoning_len=1170`,`max_tokens=8000` 短 prompt 才有内容。
+
+**21.3 主生成太慢 → kickoff_pptx / blueprint 循环(kimi-k2.6 也是重推理、慢)**
+`kickoff_pptx_codegen` + `output_doc_generate` DB `primary=kimi-k2.6`。**kimi-k2.6 同样是重推理模型**:实测同一 codegen prompt,kimi-k2.6 用 **167s**(reasoning_len≈14k、大半预算烧在隐藏思考),minimax-m2.5 只 **39s**。32000-token codegen 静默跑满 15min → 撞 kickoff/blueprint 的 **900s** 软超时。这俩走 `_llm_call`(带 `_nonempty` validator、空会 fallback),所以不是吐空是**纯慢**。
+
+**修法(21.2+21.3):三条 routing 全切非推理的 minimax(热改 DB,60s 生效)**,切完 survey_outline / blueprint / kickoff 全部 done:
+```sql
+UPDATE agent_configs SET config_value='{"primary":"minimax-m2.7","fallback":"minimax-m2.5"}'::json
+  WHERE config_type='routing_rules' AND config_key='challenge_verdict_reformat';
+UPDATE agent_configs SET config_value='{"primary":"minimax-m2.7","fallback":"kimi-k2.6"}'::json
+  WHERE config_type='routing_rules' AND config_key IN ('kickoff_pptx_codegen','output_doc_generate');
+```
+**教训:凡是"结构化/严格格式/时限内产出"的任务,主模型一律用非推理的 minimax-m2.5/m2.7,别用 glm-5.x / kimi-k2.6 / minimax-m3 这些重推理模型——它们要么吐空要么慢到超时。选模型前先 curl 打一枪看 `finish_reason` 和 `reasoning_len`。**
+
+**21.4 ⚠ 新代码坑 — MiniMax-M2.5 把 `<think>` 写在 `content` 字段里(修于 commit `11a40d1`)**
+换 minimax 后 kickoff 不超时了,但立刻冒新错 `PPTXCodeExecError: pptx code exec failed (rc=1)`。根因:**glm/kimi 把推理放独立 `reasoning_content` 字段、content 是干净的;MiniMax-M2.5 却把 `<think>...</think>` 直接写在 `content` 开头**。kickoff codegen 的 `strip_python_fences` 只剥 ```` ``` ```` 围栏、不剥 think → 落地的 `gen.py` 第一行就是 `<think>` → `python gen.py` **`SyntaxError`**。已在 `pptx_codeexec.strip_python_fences` 加剥 `<think>`(闭合块删除;未闭合被截断则从首个 `import`/`from` 行起截)。剥掉后同一份代码成功产出 146KB pptx。**教训:把 minimax 输出当代码/严格格式执行的路径,执行前必须剥 `<think>`;解析 minimax 输出的 validator,判空要认得 content 里的 think 块(≠ 真空)。** 参见 §11.7(skillhub 那份已这么做)。
+
+**21.5 排错手法沉淀**
+- `pptx_failed` 日志**只打 message、不打子进程 stderr**(stderr 在异常对象的 `.stderr` 属性里但没记)。要真实 Python 报错,在容器里跑真实路径复现:`docker exec -w /app kb-system-celery_worker-1 python <脚本>`,脚本里 `execute_pptx_code(code)` 捕获后打 `getattr(e,'stderr',None)`。
+- **容器一次性脚本的路由陷阱(同 §17/§20.1)**:裸 `python xxx.py` 里 `model_router` 没被 app 启动流程注入 `config_service` → 走**代码默认 ROUTING_RULES 不吃 DB**。要么显式传 model / 直连 API 复现,别信容器脚本的路由解析。
+- 手动重触发某 bundle:`docker exec -w /app kb-system-celery_worker-1 python -c "from tasks.convert_task import celery_app; celery_app.send_task('generate_kickoff_pptx', args=[bundle_id, project_id])"`(`failed` 态不会被 recover_stale 自动拉起,得手动派)。
