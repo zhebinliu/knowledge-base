@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Optional
 
 import structlog
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select, delete as sql_delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -1289,6 +1289,166 @@ async def export_meeting_html(
             ),
             "Content-Type": "text/html; charset=utf-8",
         },
+    )
+
+
+# ── 模块导出 (2026-07):advice / requirements / process_flows / stakeholders ─
+
+_VALID_MODULES = {"advice", "requirements", "process_flows", "stakeholders"}
+_VALID_FORMATS = {"md", "docx", "html"}
+
+MODULE_LABELS = {
+    "advice": "Co-pilot建议",
+    "requirements": "需求清单",
+    "process_flows": "业务流程",
+    "stakeholders": "干系人",
+}
+
+
+def _validate_module_format(module: str, fmt: str):
+    if module not in _VALID_MODULES:
+        raise HTTPException(400, f"未知模块: {module}，可选: {', '.join(sorted(_VALID_MODULES))}")
+    if fmt not in _VALID_FORMATS:
+        raise HTTPException(400, f"未知格式: {fmt}，可选: md / docx / html")
+
+
+def _make_export_filename(meeting_title: str, module: str, layout_name: str, ext: str) -> str:
+    """生成 RFC 5987 兼容的 Content-Disposition 头。"""
+    from urllib.parse import quote
+    safe_name = quote(f"{meeting_title}_{MODULE_LABELS.get(module, module)}_{layout_name}.{ext}")
+    ascii_name = "".join(c for c in (meeting_title or '') if ord(c) < 128 and c not in '\\/:*?"<>|')
+    if not ascii_name.strip():
+        ascii_name = f"{module}_export"
+    ascii_name = (ascii_name.strip()[:40] or f"{module}_export") + f".{ext}"
+    return (
+        f"attachment; filename={quote(ascii_name)}; "
+        f"filename*=UTF-8''{safe_name}"
+    )
+
+
+@router.get("/{meeting_id}/export/layouts/{module}")
+async def list_module_export_layouts(
+    meeting_id: int,
+    module: str,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """获取某模块的可用导出排版列表。"""
+    await _load_meeting_owned(meeting_id, session, user)  # 仅校验权限
+    _validate_module_format(module, "md")  # 仅校验 module
+    from services.meeting.module_export import get_layouts_metadata
+    layouts = get_layouts_metadata(module)
+    return {"layouts": layouts}
+
+
+@router.get("/{meeting_id}/export/{module}/md")
+async def export_module_md(
+    meeting_id: int,
+    module: str,
+    layout: str = Query(..., description="排版 ID"),
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """导出模块为 Markdown。"""
+    _validate_module_format(module, "md")
+    m = await _load_meeting_owned(meeting_id, session, user)
+
+    from fastapi.responses import Response
+    from services.meeting.module_export import fetch_module_data, generate_markdown, get_layouts_metadata
+
+    layouts = get_layouts_metadata(module)
+    layout_ids = {l["id"] for l in layouts}
+    if layout not in layout_ids:
+        raise HTTPException(400, f"未知排版: {layout}，可选: {', '.join(sorted(layout_ids))}")
+
+    data = await fetch_module_data(meeting_id, module, session)
+    try:
+        md_text = generate_markdown(module, layout, data, m.title or "会议")
+    except Exception as e:
+        logger.exception("module_export_md_failed", meeting_id=meeting_id, module=module, error=str(e)[:200])
+        raise HTTPException(500, f"生成 Markdown 失败: {e}")
+
+    layout_name = next((l["name"] for l in layouts if l["id"] == layout), layout)
+    cd = _make_export_filename(m.title or "会议", module, layout_name, "md")
+    return Response(
+        content=md_text.encode("utf-8"),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": cd, "Content-Type": "text/markdown; charset=utf-8"},
+    )
+
+
+@router.get("/{meeting_id}/export/{module}/docx")
+async def export_module_docx(
+    meeting_id: int,
+    module: str,
+    layout: str = Query(..., description="排版 ID"),
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """导出模块为 DOCX。"""
+    _validate_module_format(module, "docx")
+    m = await _load_meeting_owned(meeting_id, session, user)
+
+    from fastapi.responses import Response
+    from services.meeting.module_export import fetch_module_data, generate_docx, get_layouts_metadata
+
+    layouts = get_layouts_metadata(module)
+    layout_ids = {l["id"] for l in layouts}
+    if layout not in layout_ids:
+        raise HTTPException(400, f"未知排版: {layout}，可选: {', '.join(sorted(layout_ids))}")
+
+    data = await fetch_module_data(meeting_id, module, session)
+    try:
+        docx_bytes = generate_docx(module, layout, data, m.title or "会议")
+    except Exception as e:
+        logger.exception("module_export_docx_failed", meeting_id=meeting_id, module=module, error=str(e)[:200])
+        raise HTTPException(500, f"生成 DOCX 失败: {e}")
+
+    layout_name = next((l["name"] for l in layouts if l["id"] == layout), layout)
+    cd = _make_export_filename(m.title or "会议", module, layout_name, "docx")
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={
+            "Content-Disposition": cd,
+            "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        },
+    )
+
+
+@router.get("/{meeting_id}/export/{module}/html")
+async def export_module_html(
+    meeting_id: int,
+    module: str,
+    layout: str = Query(..., description="排版 ID"),
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """导出模块为 HTML（供直接下载或 PNG 截图）。"""
+    _validate_module_format(module, "html")
+    m = await _load_meeting_owned(meeting_id, session, user)
+
+    from fastapi.responses import Response
+    from services.meeting.module_export import fetch_module_data, get_layouts_metadata
+
+    layouts = get_layouts_metadata(module)
+    layout_ids = {l["id"] for l in layouts}
+    if layout not in layout_ids:
+        raise HTTPException(400, f"未知排版: {layout}，可选: {', '.join(sorted(layout_ids))}")
+
+    data = await fetch_module_data(meeting_id, module, session)
+    try:
+        html_text = generate_html(module, layout, data, m.title or "会议")
+    except Exception as e:
+        logger.exception("module_export_html_failed", meeting_id=meeting_id, module=module, error=str(e)[:200])
+        raise HTTPException(500, f"生成 HTML 失败: {e}")
+
+    layout_name = next((l["name"] for l in layouts if l["id"] == layout), layout)
+    cd = _make_export_filename(m.title or "会议", module, layout_name, "html")
+    return Response(
+        content=html_text.encode("utf-8"),
+        media_type="text/html; charset=utf-8",
+        headers={"Content-Disposition": cd, "Content-Type": "text/html; charset=utf-8"},
     )
 
 
