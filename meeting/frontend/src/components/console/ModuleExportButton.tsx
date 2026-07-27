@@ -5,8 +5,8 @@
  * 提供排版选择 + 格式选择的下拉导出面板。
  *
  * 用户操作流: 点击「导出{模块名}⏷」→ 弹 popover →
- *   每套排版一个区段，内含 .md / .docx / .png 三个格式按钮
- *   - .md / .docx: 直接下载二进制
+ *   每套排版一个区段，内含 .md / .docx / .png / .html 四个格式按钮
+ *   - .md / .docx / .html: 直接下载二进制
  *   - .png: fetch HTML → 隐藏容器渲染 → html-to-image 截图 → 下载
  */
 import { useState, useRef, useEffect } from 'react'
@@ -116,10 +116,9 @@ export default function ModuleExportButton({ meetingId, meetingTitle, module, mo
       await document.fonts.ready
       await new Promise((r) => setTimeout(r, 500))
 
-      // 检查是否有 mermaid 渲染后的 SVG
+      // 检查是否有 mermaid 渲染后的 SVG，再等一轮
       const mermaidSvgs = container.querySelectorAll('pre.mermaid svg')
       if (mermaidSvgs.length === 0) {
-        // 再等一轮 Mermaid 初始化
         await new Promise((r) => setTimeout(r, 1500))
       }
 
@@ -148,7 +147,6 @@ export default function ModuleExportButton({ meetingId, meetingTitle, module, mo
       document.body.removeChild(container)
       setOpen(false)
     } catch (e: any) {
-      // 截图失败时提示用户直接下 HTML
       setError('PNG 导出失败，请尝试下载 HTML 文件后用浏览器打印为 PDF')
       console.error('PNG export error:', e)
     } finally {
@@ -211,37 +209,16 @@ export default function ModuleExportButton({ meetingId, meetingTitle, module, mo
                     </div>
                   </div>
                   <div className="flex gap-1.5">
-                    <FmtBtn
-                      icon={<FileText size={10} />}
-                      label=".md"
-                      onClick={() => doDownload(l.id, 'md', 'md')}
-                      title="下载 Markdown 文件"
-                    />
-                    <FmtBtn
-                      icon={<FileDown size={10} />}
-                      label=".docx"
-                      onClick={() => doDownload(l.id, 'docx', 'docx')}
-                      title="下载 Word 文档"
-                    />
-                    <FmtBtn
-                      icon={<Image size={10} />}
-                      label=".png"
-                      onClick={() => doPngExport(l.id)}
-                      title="以图片形式导出"
-                    />
-                    <FmtBtn
-                      icon={<FileText size={10} />}
-                      label=".html"
-                      onClick={() => doDownload(l.id, 'html', 'html')}
-                      title="下载 HTML 文件（可在浏览器打开或打印为 PDF）"
-                    />
+                    <FmtBtn icon={<FileText size={10} />} label=".md"  onClick={() => doDownload(l.id, 'md', 'md')}       title="下载 Markdown 文件" />
+                    <FmtBtn icon={<FileDown size={10} />} label=".docx" onClick={() => doDownload(l.id, 'docx', 'docx')} title="下载 Word 文档" />
+                    <FmtBtn icon={<Image size={10} />}    label=".png"  onClick={() => doPngExport(l.id)}                title="以图片形式导出" />
+                    <FmtBtn icon={<FileText size={10} />} label=".html" onClick={() => doDownload(l.id, 'html', 'html')} title="下载 HTML 文件" />
                   </div>
                 </div>
               ))
             )}
           </div>
 
-          {/* Error */}
           {error && (
             <div className="px-3 py-2 border-t border-line bg-red-50 text-[11px] text-red-600">
               {error}
@@ -254,10 +231,7 @@ export default function ModuleExportButton({ meetingId, meetingTitle, module, mo
 }
 
 function FmtBtn({
-  icon,
-  label,
-  onClick,
-  title,
+  icon, label, onClick, title,
 }: {
   icon: React.ReactNode
   label: string

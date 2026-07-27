@@ -45,6 +45,7 @@ import remarkGfm from 'remark-gfm'
 import TemplateSelector from '../../components/TemplateSelector'
 import { MermaidBlock } from '../../components/markdown/ReportMarkdown'
 import MeetingScenesPanel from '../../components/console/MeetingScenesPanel'
+import ModuleExportButton from '../../components/console/ModuleExportButton'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 type TopView = 'overview' | 'split' | 'actions'
@@ -348,6 +349,14 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
           {genMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
           {advice.length ? '重新分析' : '生成建议'}
         </button>
+        <ModuleExportButton
+          meetingId={meeting.id}
+          meetingTitle={meeting.title}
+          module="advice"
+          moduleLabel="Co-pilot 建议"
+          hasData={advice.length > 0}
+          compact
+        />
       </div>
 
       {carryover.length > 0 && (
@@ -1544,6 +1553,14 @@ export function RequirementsTab({ meeting }: { meeting: Meeting }) {
             {regenMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
             重新提取
           </button>
+          <ModuleExportButton
+            meetingId={meeting.id}
+            meetingTitle={meeting.title}
+            module="requirements"
+            moduleLabel="需求清单"
+            hasData={reqs.length > 0}
+            compact
+          />
         </div>
       </div>
 
@@ -1905,6 +1922,14 @@ export function StakeholdersTab({ meeting }: { meeting: Meeting }) {
             {regenMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
             重新提取
           </button>
+          <ModuleExportButton
+            meetingId={meeting.id}
+            meetingTitle={meeting.title}
+            module="stakeholders"
+            moduleLabel="干系人"
+            hasData={(smap.stakeholders?.length || 0) > 0}
+            compact
+          />
         </div>
       </div>
 
@@ -2003,6 +2028,14 @@ export function ProcessFlowsTab({ meeting }: { meeting: Meeting }) {
           {regenMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
           重新识别
         </button>
+        <ModuleExportButton
+          meetingId={meeting.id}
+          meetingTitle={meeting.title}
+          module="process_flows"
+          moduleLabel="业务流程"
+          hasData={flows.length > 0}
+          compact
+        />
       </div>
 
       <div className="space-y-3">

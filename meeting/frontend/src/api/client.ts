@@ -1964,6 +1964,51 @@ export const exportMeetingDocxUrl = (id: number) => `/api/meeting/${id}/export-d
 /** 纪要导出 HTML 下载 URL */
 export const exportMeetingHtmlUrl = (id: number) => `/api/meeting/${id}/export-html`
 
+// ── 模块导出 API (2026-07) ─────────────────────────────────────────────
+
+export type ExportModule = 'advice' | 'requirements' | 'process_flows' | 'stakeholders'
+
+export interface ModuleLayoutMeta {
+  id: string
+  name: string
+  description: string
+}
+
+export interface ModuleLayoutsResponse {
+  layouts: ModuleLayoutMeta[]
+}
+
+/** 获取某模块的可用导出排版列表 */
+export const listModuleLayouts = async (
+  meetingId: number,
+  module: ExportModule,
+): Promise<ModuleLayoutsResponse> => {
+  const { data } = await api.get<ModuleLayoutsResponse>(
+    `/meeting/${meetingId}/export/layouts/${module}`,
+  )
+  return data
+}
+
+/** 模块导出下载 URL */
+export const moduleExportUrl = (
+  meetingId: number,
+  module: ExportModule,
+  format: 'md' | 'docx' | 'html',
+  layout: string,
+): string => `/api/meeting/${meetingId}/export/${module}/${format}?layout=${encodeURIComponent(layout)}`
+
+/** 获取模块导出 HTML（供 PNG 截图使用） */
+export const fetchModuleExportHtml = async (
+  meetingId: number,
+  module: ExportModule,
+  layout: string,
+): Promise<string> => {
+  const response = await api.get(moduleExportUrl(meetingId, module, 'html', layout), {
+    responseType: 'text',
+  })
+  return response.data as string
+}
+
 export interface StakeholderItem {
   name: string
   aliases?: string[]
