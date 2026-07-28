@@ -205,6 +205,7 @@ async def generate_minutes(
         max_tokens=16000,
         validator=_json_output_valid,  # 空/截断/坏 JSON → 自动回退备用模型;主备都失败 → 抛错 → 会议标 failed(可重生),不再静默落空
         response_format={"type": "json_object"},
+        extra_payload={"thinking": {"type": "disabled"}},  # 关思考:JSON 抽取不需要推理,关掉更快、避免 aihub 推理模型把预算烧空/超时(minimaxi 端忽略此参,无害)
     )
     result = _safe_json_loads(content, dict(_EMPTY_MINUTES))
     logger.info(
@@ -237,6 +238,7 @@ async def extract_requirements(transcript: str) -> list[dict]:
         temperature=0.2,
         max_tokens=16000,
         response_format={"type": "json_object"},
+        extra_payload={"thinking": {"type": "disabled"}},  # 关思考(同 minutes)
     )
     result = _safe_json_loads(content, {"requirements": []})
     # 兼容模型直接吐数组的情况
@@ -295,6 +297,7 @@ async def extract_process_flows(transcript: str) -> dict:
         temperature=0.2,
         max_tokens=16000,
         response_format={"type": "json_object"},
+        extra_payload={"thinking": {"type": "disabled"}},  # 关思考(同 minutes)
     )
     result = _safe_json_loads(content, dict(_EMPTY_PROCESS_FLOWS))
     if not isinstance(result, dict):
@@ -374,6 +377,7 @@ async def extract_stakeholders(
         max_tokens=8000,
         validator=_json_output_valid,  # 同纪要:空/坏 JSON 自动回退,主备都失败抛错(干系人非阻断,仅记 stage_errors)
         response_format={"type": "json_object"},
+        extra_payload={"thinking": {"type": "disabled"}},  # 关思考(同 minutes)
     )
     result = _safe_json_loads(content, dict(_EMPTY_STAKEHOLDERS))
     if not isinstance(result, dict):
@@ -502,9 +506,11 @@ async def extract_illustrations(
         content, model = await model_router.chat_with_routing(
             task="meeting_illustrations_extract",
             messages=messages,
+            validator=_json_output_valid,  # 2026-07-27 补:此前唯一没挂 validator 的抽取步骤,截断会静默落空图列表
             temperature=0.4,
-            max_tokens=8000,
+            max_tokens=16000,              # 8000→16000:同其它抽取,防锚点 JSON 截断
             response_format={"type": "json_object"},
+            extra_payload={"thinking": {"type": "disabled"}},  # 关思考(同 minutes)
         )
     except Exception as e:
         logger.error("illustrations_step1_llm_failed", error=str(e)[:300])
