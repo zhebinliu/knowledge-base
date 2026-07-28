@@ -30,6 +30,13 @@ async def _process_meeting_async(meeting_id: int):
     from services._time import utcnow_naive
     from services.ai.template_evolver import _template_to_dict
     from services.meeting import run_full_pipeline
+    from services.model_router import model_router
+    from services.config_service import config_service
+    # 确保 celery worker 冷启动后首个任务也走 DB 模型路由。model_router 是全局单例,
+    # convert_task 各任务已各自 wire;但 process_meeting 之前没 wire —— 若 deploy 重启 worker
+    # 后本任务抢在任何 convert 任务之前跑,config_service 仍是 None → 模型解析落代码默认端点
+    # (edgefn)→ 403,整条 pipeline 全阶段失败(2026-07-28 实录)。这里补 wire,幂等。
+    model_router.set_config_service(config_service)
 
     async with async_session_maker() as session:
         meeting = await session.get(Meeting, meeting_id)
