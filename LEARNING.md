@@ -1311,3 +1311,31 @@ UPDATE agent_configs SET config_value='{"primary":"minimax-m2.7","fallback":"kim
 - `pptx_failed` 日志**只打 message、不打子进程 stderr**(stderr 在异常对象的 `.stderr` 属性里但没记)。要真实 Python 报错,在容器里跑真实路径复现:`docker exec -w /app kb-system-celery_worker-1 python <脚本>`,脚本里 `execute_pptx_code(code)` 捕获后打 `getattr(e,'stderr',None)`。
 - **容器一次性脚本的路由陷阱(同 §17/§20.1)**:裸 `python xxx.py` 里 `model_router` 没被 app 启动流程注入 `config_service` → 走**代码默认 ROUTING_RULES 不吃 DB**。要么显式传 model / 直连 API 复现,别信容器脚本的路由解析。
 - 手动重触发某 bundle:`docker exec -w /app kb-system-celery_worker-1 python -c "from tasks.convert_task import celery_app; celery_app.send_task('generate_kickoff_pptx', args=[bundle_id, project_id])"`(`failed` 态不会被 recover_stale 自动拉起,得手动派)。
+
+## 22. 会议转写"failed"排查全链 + LLM 抽取解析加固(2026-07-28)
+
+一场 2.4 小时会议(id 92「大连机床调研」)转写不出来,一路挖出 5 个独立坑,横跨音频/转写/后处理/模型解析/服务注入。会议 celery 任务:`transcribe_meeting`(ASR)→ 末尾自动接 `_process_meeting_async`(润色/纪要/需求/干系人/流程/图 六步抽取)。
+
+**22.1 soundcore 录音把 Ogg/Opus 存成 `.m4a` → 按扩展名选 mp4 解码器 → "moov atom not found"**
+`services/meeting/asr.py:_format_from_filename` + `audio_utils.convert_to_pcm` 旧实现按**文件扩展名**选 pydub 解码 format。soundcore(及类似录音 App)把 **Opus-in-Ogg 存成 `.m4a`**(文件头其实是 `OggS`+`OpusHead`,不是 mp4 的 `ftyp/moov/mdat`)→ ffmpeg 按 m4a 找 `moov atom` 找不到 → `CouldntDecodeError` 秒挂、0 分片。**排错**:`download_audio(key)` 拉出来看头 64 字节 hex(`4f676753`=OggS)+ `ffprobe -show_format` 看 `format_name`。**修**:`convert_to_pcm` 改**走 ffmpeg 子进程**(临时文件让 ffmpeg 自己**探测真实容器,不信扩展名**),见 22.2。
+
+**22.2 长音频 `convert_to_pcm` 全量载入 → worker OOM(SIGKILL/WorkerLostError)**
+旧 `AudioSegment.from_file` 把整段解成**原生采样率**(48kHz 立体声)进内存,2.4h ≈ 1.6GB → worker 2G 上限 OOM,日志 `WorkerLostError: signal 9 (SIGKILL)`,任务丢失不重试、会议卡 `processing`。**修**(commit `dcdfd7e`/`bc67f4c`):`convert_to_pcm` 用 `ffmpeg -i tmp -ac 1 -ar 16000 -f s16le pipe:1` **边解码边降采样**,内存只留最终 16k/mono PCM(2.4h≈276MB)。这一处同时治好 22.1(ffmpeg 探测容器)。**教训:音频解码永远流式 + 先降采样,别 pydub 全量载入原生采样率。**
+
+**22.3 `transcribe_meeting` soft_time_limit 太短 → 长会转到一半被杀**
+433 分片(2.4h)ASR 逐片调用,原 `soft_time_limit=1800`(30min)跑到 ~313 片撞 `SoftTimeLimitExceeded`,停 `processing` 不自愈(recover_stale 只管 output bundle,不管会议)。**修**:decorator 提到 `soft_time_limit=5400, time_limit=5700`(90min)。**应急**:不改代码也能按本次调用覆盖 —— `celery_app.send_task('transcribe_meeting', args=[92], soft_time_limit=5400, time_limit=5700)`。
+
+**22.4 LLM 结构化抽取三类偶发解析失败(通用加固,commit `5d4e7a8`)**
+需求抽取偶发 `requirements_failed`(minimax 返回 9343 字 finish=stop 却判无效)。根因是**共享解析器 `services/llm_json.loads_lenient` 不够健壮**,加三层:
+- **剥 `<think>`**:MiniMax-M2.5 把思考写进 `content`(且**关不掉**,见 22.5),思考里含大量 `{}` → `balanced_json_block` 抓错块。`loads_lenient` 先 `strip_think` 再解析。`strip_think` 提为 `llm_json` 公共函数(原散落 model_router/challenger/converter 各处)。
+- **截断修复**:`repair_truncated_json` 按括号栈补齐 `]`/`}`+闭合半截字符串、丢最后一个残缺元素、保住已完整部分(finish=length 的半截 JSON 也能救部分)。
+- **补 validator**:`pipeline.extract_illustrations` 是唯一没挂 `_json_output_valid` 的抽取步骤(截断静默落空),补上 + `max_tokens 8000→16000`。
+一处改硬化全后端所有走 `loads_lenient` 的抽取(5 会议步骤 + scene_* + proposition + live_advice/minutes)。**`llm_json.py` 无 overlay 副本,改一处即可。**
+
+**22.5 关思考(`thinking:{"type":"disabled"}`)—— 只对 aihub 端有效**
+实测:**aihub 端(glm-5.2 / minimax-m3)`thinking:{"type":"disabled"}` 有效**(reasoning_len 277→0、更快、不再把预算烧空/超时;其 reasoning 本就在独立 `reasoning_content` 字段、content 干净)。**minimaxi.com 的 MiniMax-M2.5 关不掉**(3 种写法全忽略,且 `<think>` 塞 content 里)。`model_router.chat(extra_payload=...)` 已有透传口子(`_polish_one` 现成范例)。给 5 个会议抽取步骤加 `extra_payload={"thinking":{"type":"disabled"}}` —— 对 aihub fallback(glm-5.1)是实质收益、对 minimaxi 无害。**结论:结构化抽取任务能关思考就关(aihub);关不掉的(minimaxi)靠 22.4 剥 think 兜底。**
+
+**22.6 ⚠ config_service 冷启动竞态 → 模型解析落代码默认端点 `edgefn.net` → 403(commit `2811c24`)**
+`model_router` 是**全局单例**,DB 的 `model_registry`/`routing_rules` 覆盖靠 `set_config_service` 注入。`main.py`(FastAPI 启动)和 `convert_task.py` 各任务都 wire 了,但 **`process_meeting`/`_process_meeting_async` 之前没 wire**。deploy 重启 worker 后,若 process_meeting **抢在任何 convert 任务之前**跑,`_config_service` 仍是 None → `_get_model_config` 落**代码默认 `MODEL_REGISTRY`**(minimax-m2.7/glm-5 都指 `api.edgefn.net`)→ **403 Forbidden** → 六步抽取全灭、会议标 failed。**症状**:`stage_errors=['minutes','requirements','process_flows','stakeholders']` 全灭 + 日志 `403 for url api.edgefn.net`。**易误判**为模型/网络问题,实为**服务未注入**。**修**:`_process_meeting_async` 开头补 `model_router.set_config_service(config_service)`(幂等;transcribe/finalize 都复用它,一并覆盖)。**教训:任何 celery 任务路径若直接/间接调 model_router,入口都要 wire config_service —— 不能假设别的任务先跑过。** 同 §21.5 容器脚本路由陷阱同源(model_router 全局单例 + 依赖注入)。
+
+**22.7 会议 pipeline 的批量提交设计**:`_process_meeting_async` 把 polished/minutes/stakeholders/... **整条跑完才一次性写库**(meeting_tasks.py ~L88 拿 result → L105 附近统一 commit)。只有 `minutes` 失败才标 `failed`,其余步(requirements/stakeholders)失败仅记 `stage_errors` 不阻断。**副作用**:下游某步卡住(如 22.6 的 403 或推理超时),已跑完的 polished 也**不显示**(没 commit)。用户"润色文本不显示"多半是 pipeline 没跑完,不是润色本身坏 —— 先查 pipeline 是否卡在后面某步。可优化成"润色一完成就先落库",本次未做。
