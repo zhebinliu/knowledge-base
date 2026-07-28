@@ -1339,3 +1339,20 @@ UPDATE agent_configs SET config_value='{"primary":"minimax-m2.7","fallback":"kim
 `model_router` 是**全局单例**,DB 的 `model_registry`/`routing_rules` 覆盖靠 `set_config_service` 注入。`main.py`(FastAPI 启动)和 `convert_task.py` 各任务都 wire 了,但 **`process_meeting`/`_process_meeting_async` 之前没 wire**。deploy 重启 worker 后,若 process_meeting **抢在任何 convert 任务之前**跑,`_config_service` 仍是 None → `_get_model_config` 落**代码默认 `MODEL_REGISTRY`**(minimax-m2.7/glm-5 都指 `api.edgefn.net`)→ **403 Forbidden** → 六步抽取全灭、会议标 failed。**症状**:`stage_errors=['minutes','requirements','process_flows','stakeholders']` 全灭 + 日志 `403 for url api.edgefn.net`。**易误判**为模型/网络问题,实为**服务未注入**。**修**:`_process_meeting_async` 开头补 `model_router.set_config_service(config_service)`(幂等;transcribe/finalize 都复用它,一并覆盖)。**教训:任何 celery 任务路径若直接/间接调 model_router,入口都要 wire config_service —— 不能假设别的任务先跑过。** 同 §21.5 容器脚本路由陷阱同源(model_router 全局单例 + 依赖注入)。
 
 **22.7 会议 pipeline 的批量提交设计**:`_process_meeting_async` 把 polished/minutes/stakeholders/... **整条跑完才一次性写库**(meeting_tasks.py ~L88 拿 result → L105 附近统一 commit)。只有 `minutes` 失败才标 `failed`,其余步(requirements/stakeholders)失败仅记 `stage_errors` 不阻断。**副作用**:下游某步卡住(如 22.6 的 403 或推理超时),已跑完的 polished 也**不显示**(没 commit)。用户"润色文本不显示"多半是 pipeline 没跑完,不是润色本身坏 —— 先查 pipeline 是否卡在后面某步。可优化成"润色一完成就先落库",本次未做。
+
+## 23. 部署不打断在跑的 celery 任务 —— 优雅 drain(方案A,2026-07-28)
+
+**痛点**:每次后端部署 `docker compose up -d celery_worker` 重建 worker 容器,docker 默认 `stop_grace_period` 只 **10s** → SIGTERM 后 10s 就 SIGKILL,在跑的转写/生成任务被硬杀(`WorkerLostError: signal 9`),任务丢失(会议 92 全程被反复杀即此)。而 celery 收 SIGTERM 本就会 **warm shutdown**(停止取新任务、把手上在跑的跑完再退)—— 只是 docker 没给够时间。
+
+**方案A(优雅 drain,commit `1b89460`)**:
+- `docker-compose.yml`:celery_worker 加 `stop_grace_period: 1800s`(30min 收尾窗口)。**注:该值是 `docker compose` 在 stop 时从当前 compose 文件读取并作为 `--timeout` 传入,不是建容器时烤进去的 —— 所以 git pull 新 compose 后,即使旧容器也按新 grace 停。** `docker inspect ... {{.Config.StopTimeout}}` 可验证生效(=1800)。
+- `deploy-prod.yml`:把 celery_worker **从 backend 同步批次拆出**(`UP_SVCS` 只留 backend),放到 backend 秒换 + 健康检查过 + 维护页(`.maintenance`)已清 + nginx reload **之后**,再单独 `docker compose up -d --no-deps celery_worker` 优雅重建。这样 worker 的 drain **不阻塞站点、不拖住维护页**;worker 空闲时秒换(~4s),有任务在跑时静默 drain。
+- `appleboy/ssh-action` 的 `command_timeout` 10m→**45m**:覆盖 drain 窗口,否则 drain 中途 SSH 会话被超时切断、`docker compose up` 被打断。
+
+**附带收益**:worker 只在 backend 健康检查通过后才换 → 坏部署不再把 worker 换到没验证的镜像(旧逻辑 worker 跟 backend 同批次先换、后 health-fail 再一起回滚)。
+
+**实测验证**:任务在跑时 `docker compose up -d --no-deps --force-recreate celery_worker` → 命令阻塞 **4分41秒**(等 process_meeting 跑完)而非 10s 硬杀,任务 `status=completed`、`WorkerLost/SIGKILL=0`,新 worker StopTimeout=1800。
+
+**局限**:grace 上限 30min —— >30min 的超长任务(90min 会议转写)撞上部署仍会在上限被杀,需手动重触发(少见、可接受)。要连这个也不打断,得上**方案B 滚动双 worker**(新 worker 先接管新任务、老 worker drain 完自退,`--beat` 要单独拎出防双跑),本次未做。
+
+**broker 前提**:本项目 celery broker/backend 都是 **Redis**(`Celery("kb_tasks", broker=redis, backend=redis)`,配置极简、无 acks_late)。方案A 走优雅 drain、**不依赖** acks_late 重投,故无 Redis `visibility_timeout` 导致长任务被重复投递的坑;若将来改走"被杀自动重跑"(方案B/acks_late),必须把 `visibility_timeout` 调到大于最长任务,否则 >1h(默认)的任务会被重复执行。
