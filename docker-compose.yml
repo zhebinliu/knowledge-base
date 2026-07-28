@@ -157,6 +157,12 @@ services:
       - newapi_ext
     command: celery -A tasks worker --beat --loglevel=info --concurrency=2
     restart: unless-stopped
+    # 优雅停机:docker stop 发 SIGTERM,celery 收到后**停止取新任务、把手上在跑的跑完再退**
+    # (warm shutdown)。默认 grace 只 10s → 长任务被 SIGKILL 打断。给 30min 让在跑的任务收尾。
+    # 部署脚本把 celery_worker 从同步批次拆出、放最后单独重建(见 deploy-prod.yml),
+    # 空闲时秒换、有任务在跑时静默 drain,站点已 live 不受影响。
+    # 注:>30min 的超长任务(如 90min 会议转写)仍会在 grace 上限被杀,需手动重触发(可接受、少见)。
+    stop_grace_period: 1800s
     dns_opt:
       - ndots:5
     healthcheck:

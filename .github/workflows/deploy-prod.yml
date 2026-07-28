@@ -359,6 +359,10 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          # 默认 10min 不够:celery_worker 优雅重建时若撞上在跑的长任务,会等它 drain
+          # (最长 stop_grace_period=30min)。抬到 45min 覆盖 drain 窗口,避免 SSH 会话
+          # 在 drain 中途被超时切断、把 docker compose up 打断。
+          command_timeout: 45m
           envs: FERNET_KEY_SECRET,DEPLOY_BE,DEPLOY_FE,DEPLOY_ED
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
@@ -382,8 +386,11 @@ jobs:
 
             # 待操作的服务列表(edge 单独处理:必须在 frontend 之后 up,
             # 首次 cutover 时旧 frontend 先释放 80/443 端口 edge 才能绑上)
+            # celery_worker 不进同步批次 —— 它与 backend 同镜像,但放到最后单独优雅重建
+            # (让老 worker 先 drain 完在跑的任务再换)。backend 先秒换、site 先 live,
+            # worker 的 drain 不阻塞站点、不拖住维护页。
             UP_SVCS=""
-            [ "$DEPLOY_BE" = "true" ] && UP_SVCS="$UP_SVCS backend celery_worker"
+            [ "$DEPLOY_BE" = "true" ] && UP_SVCS="$UP_SVCS backend"
             [ "$DEPLOY_FE" = "true" ] && UP_SVCS="$UP_SVCS frontend"
             if [ -z "$UP_SVCS" ] && [ "$DEPLOY_ED" != "true" ]; then
               echo "⚠️ 无变更服务,跳过镜像更新"
@@ -394,8 +401,10 @@ jobs:
             sudo mkdir -p /opt/kb-system/run
             sudo touch /opt/kb-system/run/.maintenance
 
-            # 先把所有镜像拉齐(慢操作前置,重启窗口最短)
+            # 先把所有镜像拉齐(慢操作前置,重启窗口最短)。celery_worker 虽不进同步批次,
+            # 也要预拉镜像(与 backend 同 tag,基本命中缓存),这样最后优雅重建时无需再等拉取。
             PULL_SVCS="$UP_SVCS"
+            [ "$DEPLOY_BE" = "true" ] && PULL_SVCS="$PULL_SVCS celery_worker"
             [ "$DEPLOY_ED" = "true" ] && PULL_SVCS="$PULL_SVCS edge"
             sudo BACKEND_IMAGE="${BACKEND_IMAGE_FULL}" FRONTEND_IMAGE="${FRONTEND_IMAGE_FULL}" EDGE_IMAGE="${EDGE_IMAGE_FULL}" \
               docker compose pull $PULL_SVCS
@@ -471,6 +480,18 @@ jobs:
                 echo "→ backend 已重建,reload 前端 nginx 重新解析 backend upstream"
                 sudo docker exec kb-system-frontend-1 nginx -s reload 2>&1 || true
                 sudo docker exec kb-system-frontend-uat-1 nginx -s reload 2>&1 || true
+              fi
+              # ── celery_worker 优雅重建(最后一步,此时 backend 已 live、维护页已清)──
+              # docker stop 发 SIGTERM → worker 停止取新任务、把手上在跑的任务跑完再退
+              # (stop_grace_period=30min,见 docker-compose.yml)→ 再换新镜像。
+              # 空闲时秒换;有任务在跑时在此静默等 drain(command_timeout=45min 覆盖),
+              # 期间站点/后端已正常、不受影响,也不打断在跑的转写/生成任务。
+              if [ "$DEPLOY_BE" = "true" ]; then
+                echo "→ 优雅重建 celery_worker(等在跑任务 drain,最长 30min;空闲则秒换)"
+                sudo BACKEND_IMAGE="${BACKEND_IMAGE_FULL}" FRONTEND_IMAGE="${FRONTEND_IMAGE_FULL}" EDGE_IMAGE="${EDGE_IMAGE_FULL}" \
+                  docker compose up -d --no-deps celery_worker || echo "⚠️ celery_worker 重建返回非0(不影响已 live 的 backend,需人工核查 worker)"
+                WK_IMAGE=$(sudo docker inspect kb-system-celery_worker-1 --format '{{.Config.Image}}' 2>/dev/null || echo "")
+                [ "$WK_IMAGE" = "$BACKEND_IMAGE_FULL" ] && echo "✓ celery_worker 已对齐 $WK_IMAGE" || echo "⚠️ celery_worker image 未对齐:实际=$WK_IMAGE 预期=$BACKEND_IMAGE_FULL"
               fi
               echo "✅ PROD deployed sha-${SHORT_SHA}(be=$DEPLOY_BE fe=$DEPLOY_FE)"
               # 部署后再清一次(删掉被替换的旧镜像)
