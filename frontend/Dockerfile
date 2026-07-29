@@ -1,5 +1,5 @@
 # ── Stage 1: build ───────────────────────────────────────────────────────────
-# 2026-05-19 起 build context 改为仓库根(为了让 COPY 能看到 meeting/ submodule),
+# build context 是仓库根(backend 镜像仍需 COPY meeting/backend/ overlay),
 # 所有路径都从仓库根算起。
 FROM node:20-alpine AS builder
 WORKDIR /app
@@ -8,9 +8,10 @@ COPY frontend/package*.json ./
 # --legacy-peer-deps: liquid-glass-react 声明 peer react>=19,但 React 18 运行时兼容
 RUN npm ci --prefer-offline --legacy-peer-deps
 
-# overlay:先 frontend/ 整体,再 meeting/frontend/ 把 meeting 的 6 个 tsx 落到 src/ 对应位置
+# 2026-07-29:meeting/frontend/ overlay 已拆除,会议前端代码全部合回 frontend/。
+# 曾经这里还有一行 COPY meeting/frontend/ /app/ 覆盖同名文件 —— 改主仓那份不上线,
+# 静默失效且不报错(详见 LEARNING §12.8)。前端现在只有一份源码。
 COPY frontend/ /app/
-COPY meeting/frontend/ /app/
 # 2026-06-09:写一份 version.json 到 dist 根,前端启动 + 每 60s poll 检测版本变化,
 # 变了就提示用户「有新版本,点击刷新」— 避免新部署后用户看老页面。
 # 优先用 GitHub Actions 注入的 GIT_SHA;本地 build / 无 GIT_SHA 时退到 "local"。

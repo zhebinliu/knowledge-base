@@ -170,7 +170,7 @@ export default function MeetingSurveyDetail() {
   const satAverages = statData.satisfaction_averages as Record<string, number> || {}
 
   // 时间调查柱状图数据
-  const timeChartData = survey.time_options?.map((opt, i) => ({
+  const timeChartData = survey.time_options?.map((opt: TimeOption, i: number) => ({
     name: opt.label || `时段${i + 1}`,
     count: timeCounts[String(i)] || 0,
   })) || []

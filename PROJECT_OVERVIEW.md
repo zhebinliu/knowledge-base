@@ -425,12 +425,12 @@ agentic 生成流水线必须过两道审:
 
 > 📦 **代码组织**:会议模块代码在 `meeting/` 子目录,Dockerfile 用 `COPY meeting/backend/` overlay 把它落到镜像里的原路径 —— **Python / TS 的 import 路径与主仓一致**,详见 [§ 12 Meeting 模块 overlay 布局](#12-meeting-模块-overlay-布局)。(历史:2026-05-19 曾抽出为独立仓的 git submodule,2026-05-25 合并回主仓)
 
-`meeting/backend/api/meeting.py` + `meeting/backend/services/meeting/` + `meeting/frontend/src/redesign/console/ConsoleMeetingDetail.tsx`,以下能力**已上线**:
+`meeting/backend/api/meeting.py` + `meeting/backend/services/meeting/` + `frontend/src/redesign/console/ConsoleMeetingDetail.tsx`(前端 2026-07-29 起在主仓,不再有 meeting 副本),以下能力**已上线**:
 
 | 能力 | 实现 |
 |---|---|
 | **音频上传 → 切片 ASR** | mp3/m4a → pydub/ffmpeg 转 16kHz PCM → 切 20s/片 → `asyncio.Semaphore(8)` 并发调 xiaomi mimo-v2-omni → on_chunk 回调增量写 `done_chunks/raw_transcript` → 前端轮询展示流式进度条 + 转写预览 |
-| **实时录音** | **浏览器 MediaRecorder 录音 → 停止后上传 → 后端走同一 ASR 链路**(2026-06-02,`634896d`)。**不是逐字实时转写,但多人质量稳。** 弃用此前的 Web Speech 路线(单人听写引擎,多人会议挂)。Hook 是 `meeting/frontend/src/hooks/useMediaRecorder.ts` |
+| **实时录音** | **浏览器 MediaRecorder 录音 → 停止后上传 → 后端走同一 ASR 链路**(2026-06-02,`634896d`)。**不是逐字实时转写,但多人质量稳。** 弃用此前的 Web Speech 路线(单人听写引擎,多人会议挂)。Hook 是 `frontend/src/hooks/useMediaRecorder.ts` |
 | **纪要生成失败显式标 failed** | LLM JSON 解析失败 → bundle.status='failed' + 显示「失败→重新生成」(方案 A,2026-06-02 `ab8b3d`)。JSON 解析改用 `services/llm_json.py::loads_lenient`(吃尾随逗号 / 围栏 / 注释,见 `259d82d`) |
 | **AI pipeline** | polish(润色)→ minutes / requirements / stakeholders 并发(`services/meeting/pipeline.py`)|
 | **纪要 schema 模板对齐** | 12 字段(7 元信息 + summary + attendees + key_points + decisions + action_items + unresolved),对齐「02003 纷享销客实施纪要模板」|
@@ -819,7 +819,9 @@ Docker 镜像里 overlay 后,文件落到原路径 —— Python / TS 的 import
 
 - **build context = 仓库根**(2026-05-19 起改的,沿用)
 - `backend/Dockerfile`:`COPY backend/ /app/` 然后 `COPY meeting/backend/ /app/`(overlay 覆盖到同一个 `/app/`)
-- `frontend/Dockerfile` builder 阶段同理:`COPY frontend/ /app/` 然后 `COPY meeting/frontend/ /app/`
+- `frontend/Dockerfile` builder 阶段**只有** `COPY frontend/ /app/` —— 2026-07-29 拆掉了
+  `COPY meeting/frontend/ /app/` overlay,会议前端代码已全部合回 `frontend/`,前端只有一份源码。
+  **后端 overlay 仍在**(`meeting/backend/` 覆盖 `backend/`),改后端仍要注意同名文件两份的问题
 - 仓库根 `.dockerignore` 接管所有忽略规则(旧的 `backend/.dockerignore` / `frontend/.dockerignore` 在新 context 下不再生效但留作记录)
 
 ### 12.3 开发流程

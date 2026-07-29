@@ -84,7 +84,7 @@ jobs:
           echo "$CHANGED"
           BE=false; FE=false; ED=false
           echo "$CHANGED" | grep -qE '^(backend/|meeting/backend/|docker-compose\.yml)' && BE=true || true
-          echo "$CHANGED" | grep -qE '^(frontend/|meeting/frontend/)' && FE=true || true
+          echo "$CHANGED" | grep -qE '^frontend/' && FE=true || true
           # edge = 80/443 入口,重建会闪断全部域名(含 aihub/skillhub)—— 只在
           # edge/ 或 docker-compose.yml(服务定义)变更时才动它
           echo "$CHANGED" | grep -qE '^(edge/|docker-compose\.yml)' && ED=true || true
@@ -126,11 +126,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # meeting 模块在 meeting/ 子目录,非 Docker 的 CI job 需手动 overlay
-      - name: Overlay meeting/
-        run: |
-          cp -r meeting/backend/. backend/
-          cp -r meeting/frontend/. frontend/
+      # meeting 后端代码在 meeting/backend/,非 Docker 的 CI job 需手动 overlay
+      - name: Overlay meeting/backend
+        run: cp -r meeting/backend/. backend/
 
       - name: Start MinIO manually
         run: |
@@ -195,10 +193,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Overlay meeting/
-        run: |
-          cp -r meeting/backend/. backend/
-          cp -r meeting/frontend/. frontend/
       - uses: actions/setup-node@v6
         with:
           node-version: '22'

@@ -248,8 +248,10 @@ export default function ConsoleMeetingNew() {
   }, [liveTranscript])
 
   // 目标追踪:转写分段更新时,即时检查是否命中目标/任务关键词 → 高亮 + 记录
+  // 关键词从 meetingGoals / keyTasks 提取,按 (seq, keyword) 去重,新增关键词也会回溯已有序列
   useEffect(() => {
     if (!liveSegments.length) return
+    // 构建关键词映射:keyword → {source, label}
     const goalKWs = extractKeywords(meetingGoals).map(k => ({ keyword: k, source: 'goal' as const, label: meetingGoals }))
     const taskLines = keyTasks.split('\n').map(l => l.trim()).filter(Boolean)
     const taskKWMaps: { keyword: string; source: 'task'; label: string }[] = []
@@ -693,6 +695,7 @@ export default function ConsoleMeetingNew() {
           {!boardOpen && (
             <div className={`absolute bottom-4 right-4 z-20 w-[320px] max-w-[calc(100vw-2rem)] transition-all duration-300 ${goalTrackerOpen ? '' : 'translate-y-[calc(100%-2.5rem)]'}`}>
               <div className="rounded-xl border border-line bg-white shadow-2xl overflow-hidden">
+                {/* 标题栏:点击折叠/展开 */}
                 <div
                   onClick={() => setGoalTrackerOpen(v => !v)}
                   className="flex items-center justify-between px-3 py-2 cursor-pointer bg-gradient-to-r from-amber-50/80 to-transparent border-b border-line"
@@ -706,8 +709,10 @@ export default function ConsoleMeetingNew() {
                   <ChevronDown size={15} className={`text-ink-muted transition-transform ${goalTrackerOpen ? '' : 'rotate-180'}`} />
                 </div>
 
+                {/* 展开内容 */}
                 {goalTrackerOpen && (
                   <div className="max-h-[380px] overflow-y-auto">
+                    {/* 会议目标输入 */}
                     <div className="px-3 py-2 border-b border-line">
                       <label className="text-[11px] font-semibold text-ink-muted">本场会议主要目标？</label>
                       <textarea
@@ -719,6 +724,7 @@ export default function ConsoleMeetingNew() {
                       />
                     </div>
 
+                    {/* 重点任务输入 */}
                     <div className="px-3 py-2 border-b border-line">
                       <label className="text-[11px] font-semibold text-ink-muted">重点任务是什么？</label>
                       <textarea
@@ -730,6 +736,7 @@ export default function ConsoleMeetingNew() {
                       />
                     </div>
 
+                    {/* 命中记录列表 */}
                     <div className="px-3 py-2">
                       <div className="text-[11px] font-semibold text-ink-muted mb-1.5">📍 命中记录</div>
                       {highlights.length === 0 ? (

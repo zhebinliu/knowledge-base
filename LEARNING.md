@@ -703,8 +703,11 @@ ai-meeting 仓的 `from-kb-system` 分支用跟主仓**完全一致**的目录�
 ```
 meeting/backend/api/meeting.py        ← 镜像 build 时 COPY 到 /app/api/meeting.py
 meeting/backend/services/meeting/...  ← /app/services/meeting/...
-meeting/frontend/src/redesign/console/ConsoleMeeting.tsx ← /app/src/redesign/console/...
+meeting/frontend/src/redesign/console/ConsoleMeeting.tsx ← /app/src/redesign/console/...  (已废止)
 ```
+> 2026-07-29:`meeting/frontend/` 已整个删除、合回 `frontend/`,上面第三行只剩历史意义;
+> **后端两行仍然有效**。详见 §12.8 开头的更新说明。
+
 
 关键诀窍:**Dockerfile 里二次 COPY**:
 ```dockerfile
@@ -782,6 +785,14 @@ backend 模型/迁移问题要到服务器 startup 或运行时才暴露。submo
 
 ### 12.8 ⚠️ 同名文件存在于 frontend/ 和 meeting/frontend/ 两份时,**meeting 副本覆盖、且赢**(2026-06-15 实录)
 
+> **2026-07-29:前端这层 overlay 已彻底拆除** —— `meeting/frontend/` 整个目录删掉,22 个文件合回
+> `frontend/`,`frontend/Dockerfile` 的 `COPY meeting/frontend/ /app/` 和三个 workflow 的
+> `cp -r meeting/frontend/. frontend/` 全部移除。**前端现在只有一份源码,本节对前端已成历史。**
+> 拆除依据:22 个文件里 18 个 byte 相同,3 个 overlay 是主仓的严格超集,1 个 overlay 版本更好
+> (多了显式类型标注)—— 主仓侧零独有内容,合并无损。合并后本地 build 产物 hash
+> (`index-35NtM-rp.js`)与 overlay 时代线上产物一致,可反证等价。
+> **后端 overlay(`meeting/backend/` → `backend/`)仍在**,改后端仍要按本节判定同名文件。
+
 `frontend/Dockerfile` 和 `deploy-*.yml` 的 overlay 是**后写覆盖**:
 ```dockerfile
 COPY frontend/ /app/          # 主仓副本先落
@@ -800,9 +811,11 @@ cp -r meeting/frontend/. frontend/
 
 判定踩坑的最快信号:Vite 给 bundle 按内容 hash 命名,**改了源码但线上 `index-XXXX.js` 文件名没变 = 构建没吃到你的改动**(`docker exec <fe容器> ls /usr/share/nginx/html/assets`)。
 
-**此后做法**:
-- 改会议相关、或任何疑似两份都有的前端文件,先 `diff frontend/src/.../X.tsx meeting/frontend/src/.../X.tsx`,改完**两份一起改 / `cp` 同步**再提交。两份在编辑前通常 byte 同一(同步镜像)。
-- 想知道一个路由跑哪份:看 `frontend/Dockerfile` overlay 顺序,**后 COPY 的赢**。
+**此后做法**(前端部分已随 overlay 拆除失效,保留作为后端同类问题的判定方法):
+- ~~改会议相关前端文件先 diff 两份~~ → 前端已单份,直接改 `frontend/` 即可。
+- **后端仍要**:改 `backend/services/meeting/`、`backend/api/meeting.py` 这类文件前,先
+  `ls meeting/backend/<同路径>`,存在就说明那份才是上线的,两份一起改。
+- 想知道一个路由跑哪份:看 Dockerfile overlay 顺序,**后 COPY 的赢**。
 - 验证是否真上线:不要只看 deploy run success,grep 线上 bundle 里你新加的 className / title 字符串(`docker exec <fe> grep -c '你的新串' /usr/share/nginx/html/assets/index-*.js`)。
 
 ---

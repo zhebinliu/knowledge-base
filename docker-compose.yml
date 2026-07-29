@@ -42,7 +42,8 @@ services:
   frontend:
     image: ${FRONTEND_IMAGE:-kb-frontend-prod:latest}
     build:
-      # 2026-05-19:context 改为仓库根,以便 COPY meeting/frontend/ submodule 内容
+      # context 为仓库根(Dockerfile 内路径都从根算起);前端 meeting overlay 已于
+      # 2026-07-29 拆除,会议前端代码合回 frontend/,这里不再有 overlay
       context: .
       dockerfile: frontend/Dockerfile
       args:
@@ -71,7 +72,8 @@ services:
   frontend-uat:
     image: ${FRONTEND_UAT_IMAGE:-kb-frontend-uat:latest}
     build:
-      # 2026-05-19:context 改为仓库根,以便 COPY meeting/frontend/ submodule 内容
+      # context 为仓库根(Dockerfile 内路径都从根算起);前端 meeting overlay 已于
+      # 2026-07-29 拆除,会议前端代码合回 frontend/,这里不再有 overlay
       context: .
       dockerfile: frontend/Dockerfile
       args:
