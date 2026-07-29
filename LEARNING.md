@@ -1377,3 +1377,9 @@ UPDATE agent_configs SET config_value='{"primary":"minimax-m2.7","fallback":"kim
 排查过 aihub 不供 embedding(`model_not_found: BAAI/bge-m3`)。**最省事的修法是换回 SiliconFlow 直连**(`EMBEDDING_PROVIDER` 本来就写着 siliconflow):base 改 `https://api.siliconflow.cn/v1`、配一把有效 key,**模型仍是 `BAAI/bge-m3`,已入库向量不用重算**。换成别的 embedding 模型就要**全量重新 embedding**,别顺手改。
 
 **24.4 `_mark_bundle(done)` 不清 error**:重生成成功后 bundle 还挂着上一轮的报错文本,排查时容易把"已经好了"误读成"又挂了"。已改成 done/generating 时清空(commit `d5d4cbc`)。
+
+**24.5 小米 mimo v2 全线下架 → 代码硬编码 model_id 发过去是 400(commit `6373251`)**
+`/v1/models` 实测只剩 `mimo-v2.5` / `-pro` / `-asr` / `-tts*`,**v2 系列已没了**。DB `agent_configs.model_registry` 早改对(`mimo-v2.5-pro` / `mimo-v2.5`),但代码里 `MODEL_REGISTRY` 还写 `mimo-v2-pro` / `mimo-v2-omni` → 凡是没吃到 DB 配置的路径(见 24.1)就 **400 Bad Request**。跟 24.1 是同一场故障的两面:**一个落 edgefn 403、一个落旧 model_id 400**。
+**注册表 key 不动**(`mimo-v2-pro` / `mimo-v2-omni` 是内部别名,`ROUTING_RULES` 和 DB 都按它引用),只换 `model_id`。
+**顺带:PDF OCR 的 vision 端点也坏了** —— 走的官方 `api.xiaomimimo.com` 用本项目的 key 是 `401 Invalid API Key`(**官方站和 token-plan-cn 代理的 key 不通用**),同样的图文 payload 走代理 200。改成 `token-plan-cn` + `Bearer` + `max_tokens`(原先是 `api-key` header + `max_completion_tokens`,那是官方站的形态)。实测 `_ocr_pdf_via_vision_llm` 能正确转写出图上文字。
+**教训:模型下架不会报"模型不存在",只会给一个 400/404,日志里看着像参数错误;换供应商模型版本时,DB 覆盖和代码默认要一起改 —— 只改 DB 的话,冷启动/没 wire 的路径会用着一个早就不存在的 model_id。**
