@@ -1356,3 +1356,24 @@ UPDATE agent_configs SET config_value='{"primary":"minimax-m2.7","fallback":"kim
 **局限**:grace 上限 30min —— >30min 的超长任务(90min 会议转写)撞上部署仍会在上限被杀,需手动重触发(少见、可接受)。要连这个也不打断,得上**方案B 滚动双 worker**(新 worker 先接管新任务、老 worker drain 完自退,`--beat` 要单独拎出防双跑),本次未做。
 
 **broker 前提**:本项目 celery broker/backend 都是 **Redis**(`Celery("kb_tasks", broker=redis, backend=redis)`,配置极简、无 acks_late)。方案A 走优雅 drain、**不依赖** acks_late 重投,故无 Redis `visibility_timeout` 导致长任务被重复投递的坑;若将来改走"被杀自动重跑"(方案B/acks_late),必须把 `visibility_timeout` 调到大于最长任务,否则 >1h(默认)的任务会被重复执行。
+
+## 24. 启动会 PPT 生成失败全链复盘 —— 一次故障暴露三个盲区(2026-07-29)
+
+**触发**:南天信息项目启动会 PPT 生成 failed(`trace=c5a259d92c724cd3`),bundle.error 只有一句 `PPTXCodeExecError: pptx code exec failed (rc=1)`。历史统计 `kickoff_pptx` **21 次里挂了 12 次**(57%),不是偶发。
+
+**24.1 ⚠ 真因:config_service 冷启动竞态的「第二现场」—— `output_tasks` 从来没 wire(commit `9bd21d9`)**
+`model_router` 是**进程级单例**,没挂 `config_service` 就只认代码里硬编码的 `MODEL_REGISTRY` —— 全部指向 `api.edgefn.net`;而后台 `agent_configs` 早已把 `minimax-m2.7` 改到 `api.minimaxi.com`、`kimi-k2.6` 改到 `aihub.tokenwave.cloud`。**edgefn 那个账号现在被封**(`403 {"reason":"ForbbidenUser","message":"用户已被禁止访问"}`),于是所有落硬编码的调用全挂。
+`meeting_tasks` / `convert_task` 各自 `set_config_service`(§22.6 补的),但 **`output_tasks` 没有** → 同一 fork 里**先跑过转换/会议任务**的能拿到 DB 配置(走 minimaxi 200 OK),**干净 fork 直接落 edgefn 403**。表现就是**同一个功能时好时坏**,查日志一会儿 minimaxi 一会儿 edgefn,极易误判成"模型不稳定"。
+**修法不再打补丁**:挂到 `convert_task.py` 的 `@worker_process_init` 钩子(`wire_config_service`)—— fork 后即生效,跟任务先后顺序彻底无关。§22.6 逐个任务补 wire 的做法到此终结。
+**判据**:日志里出现 `api.edgefn.net` 就说明这条路径**没拿到 DB 配置**(DB 里 minimax/kimi 早不在 edgefn 了),不用去猜是不是网络问题。
+
+**24.2 子进程 stderr 被吞 = 排查全靠重跑碰运气(commit `adc4e97`)**
+`execute_pptx_code` 里 `rc != 0` 只把 `rc=1` 写进异常消息,真正的 python traceback 全在 `stderr` 里被丢掉;更糟的是 **`kickoff_gen.py` 快照写在 execute 成功之后** —— 失败那次反而什么都不留,MinIO 里连代码都没有,想复现只能重跑(而重跑是新的 LLM 输出,错误未必一样)。
+三处改:① `summarize_stderr()` 取 traceback 尾部 4 行拼进异常消息(`bundle.error` 只有 500 字符预算,默认截 300);② 代码快照**挪到执行前**落盘;③ exec 挂了**自修一轮** —— 把 traceback + 原代码回喂模型要完整修复版再跑一次(LLM 写的 python-pptx 代码跑挂是常态,自修比让用户手点重生划算)。
+**通用教训:凡是跑子进程/外部命令的地方,失败路径必须把 stderr 带进异常;凡是"执行 LLM 产物"的地方,产物要在执行前落盘。**
+
+**24.3 附带发现:embedding 也在 edgefn 上,已全站失效(未修,待决策)**
+`EMBEDDING_API_BASE=https://api.edgefn.net/v1`(env,`agent_configs` 里**没有** embedding 覆盖行),同一个被封账号 → 所有 `search_kb` 静默 `search_kb_failed` 403,**知识库向量召回全站不可用**。生成类任务不会因此失败(warning 不阻断),但**证据全空、质量静默下降**。
+排查过 aihub 不供 embedding(`model_not_found: BAAI/bge-m3`)。**最省事的修法是换回 SiliconFlow 直连**(`EMBEDDING_PROVIDER` 本来就写着 siliconflow):base 改 `https://api.siliconflow.cn/v1`、配一把有效 key,**模型仍是 `BAAI/bge-m3`,已入库向量不用重算**。换成别的 embedding 模型就要**全量重新 embedding**,别顺手改。
+
+**24.4 `_mark_bundle(done)` 不清 error**:重生成成功后 bundle 还挂着上一轮的报错文本,排查时容易把"已经好了"误读成"又挂了"。已改成 done/generating 时清空(commit `d5d4cbc`)。
