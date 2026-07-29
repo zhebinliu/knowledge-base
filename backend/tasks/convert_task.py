@@ -45,6 +45,24 @@ def reset_db_pool_to_nullpool(**kwargs):
     _models.async_session_maker = sessionmaker(
         new_engine, class_=AsyncSession, expire_on_commit=False
     )
+
+
+@worker_process_init.connect
+def wire_config_service(**kwargs):
+    """fork 后立刻把 config_service 挂到 model_router,让 DB 配置对所有任务生效。
+
+    2026-07-29(trace=c5a259d9 南天启动会 PPT):model_router 是进程级单例,
+    没挂 config_service 时它只认代码里硬编码的 MODEL_REGISTRY / ROUTING_RULES ——
+    也就是 api.edgefn.net,而后台早已把模型改到 api.minimaxi.com / aihub。
+    之前是各任务模块自己 set(meeting_tasks / convert_task 有,output_tasks 没有),
+    于是同一个 fork 里「先跑过转换任务」的能拿到 DB 配置、干净 fork 直接落 edgefn,
+    表现为同一个功能时好时坏。挂在 fork 钩子上就没有先后顺序问题了。
+    """
+    from services.model_router import model_router
+    from services.config_service import config_service
+    model_router.set_config_service(config_service)
+
+
 celery_app.conf.task_serializer = "json"
 celery_app.conf.result_expires = 3600
 # 让 crontab 按北京时间解释(默认 UTC)。秒级 schedule 不受影响。
