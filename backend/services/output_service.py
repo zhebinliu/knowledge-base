@@ -716,7 +716,9 @@ async def generate_kickoff_pptx(bundle_id: str, project_id: str):
         # PPT 生成走 ROUTING_RULES['kickoff_pptx_codegen'];模型先 think 再出代码,需给足输出空间。
         # 2026-06-12:之前传 max_tokens=None,上游代理默认只给 4096,会把代码截断/think 撑满成空 ——
         # 跟启动会 HTML 同一个坑(trace=09085a60),统一给 32000。
-        from services.pptx_codeexec import execute_pptx_code, strip_python_fences
+        from services.pptx_codeexec import (
+            PPTXCodeExecError, execute_pptx_code, strip_python_fences, summarize_stderr,
+        )
 
         user_model = ctx["agent_model"]  # None → 走 routing 拿 fallback
         code_raw = await _llm_call(prompt, system=PPTGEN_PYTHON_SYSTEM,
@@ -727,15 +729,49 @@ async def generate_kickoff_pptx(bundle_id: str, project_id: str):
             raise RuntimeError(f"模型未输出有效 python-pptx 代码：开头 200 字符 = {code[:200]!r}")
 
         logger.info("pptx_code_received", bundle_id=bundle_id, code_len=len(code))
-        pptx_bytes = await execute_pptx_code(code, timeout=180.0)
+
+        # 生成代码快照必须在执行「之前」落盘：失败的那次才最需要看代码，
+        # 旧写法放在 save 之后 → 一 rc=1 就什么都没留下，只能靠重跑复现（trace=c5a259d9）。
+        code_key = f"outputs/{bundle_id}/kickoff_gen.py"
+        _minio_put(code_key, code.encode("utf-8"), "text/x-python; charset=utf-8")
+
+        try:
+            pptx_bytes = await execute_pptx_code(code, timeout=180.0)
+        except PPTXCodeExecError as e:
+            # LLM 写的 python-pptx 代码跑挂是常态（历史 21 次里挂了 12 次），
+            # 把 traceback 回喂给模型自修一轮，比直接判 failed 让用户手动重生划算。
+            logger.warning("pptx_exec_failed_repairing", bundle_id=bundle_id,
+                           error=str(e)[:300], stderr_tail=summarize_stderr(e.stderr, 800))
+            repair_prompt = f"""你上一轮生成的 python-pptx 代码执行失败了。请修复后重新输出完整脚本。
+
+【报错（traceback 尾部）】
+{summarize_stderr(e.stderr, 2000)}
+
+【出错的完整代码】
+```python
+{code}
+```
+
+【要求】
+1. 只修报错处及其连带问题，不要重写整体设计、不要删页、不要改配色和版式
+2. 输出**完整**的可执行脚本（从 import 行到 prs.save("out.pptx")），不是 diff、不是片段
+3. 不要 ``` 围栏，不要任何解释文字"""
+            fixed_raw = await _llm_call(repair_prompt, system=PPTGEN_PYTHON_SYSTEM,
+                                        model=user_model, task="kickoff_pptx_codegen",
+                                        max_tokens=32000, timeout=600.0)
+            fixed = strip_python_fences(fixed_raw)
+            if "prs.save" not in fixed or "from pptx" not in fixed:
+                raise PPTXCodeExecError(
+                    f"{e} · 自修轮未输出有效代码（开头 120 字符 = {fixed[:120]!r}）",
+                    stderr=e.stderr, returncode=e.returncode)
+            _minio_put(code_key, fixed.encode("utf-8"), "text/x-python; charset=utf-8")
+            pptx_bytes = await execute_pptx_code(fixed, timeout=180.0)
+            code = fixed
+            logger.info("pptx_repair_ok", bundle_id=bundle_id, code_len=len(code))
 
         pptx_key = f"outputs/{bundle_id}/kickoff.pptx"
         _minio_put(pptx_key, pptx_bytes,
                    "application/vnd.openxmlformats-officedocument.presentationml.presentation")
-
-        # 同时保留生成代码作为调试快照（次要文件，下载链接仍指向 .pptx）
-        code_key = f"outputs/{bundle_id}/kickoff_gen.py"
-        _minio_put(code_key, code.encode("utf-8"), "text/x-python; charset=utf-8")
 
         md = f"# {customer or title_name} · 启动会 PPT\n\n" \
              f"**生成日期**：{date.today().strftime('%Y-%m-%d')}  \n" \

@@ -68,8 +68,10 @@ async def execute_pptx_code(code: str, timeout: float = 180.0) -> bytes:
         stderr = (stderr_b or b"").decode("utf-8", errors="replace")
 
         if proc.returncode != 0:
+            # 2026-07-29:只写 rc=1 等于没写 —— 真正的 traceback 全在 stderr 里,
+            # 不带出来的话 bundle.error 只有一句「exec failed」,排查得靠重跑碰运气。
             raise PPTXCodeExecError(
-                f"pptx code exec failed (rc={proc.returncode})",
+                f"pptx code exec failed (rc={proc.returncode}): {summarize_stderr(stderr)}",
                 stdout=stdout, stderr=stderr, returncode=proc.returncode,
             )
 
@@ -91,6 +93,20 @@ async def execute_pptx_code(code: str, timeout: float = 180.0) -> bytes:
         return data
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def summarize_stderr(stderr: str, max_chars: int = 300) -> str:
+    """从 traceback 里挑最有信息量的尾部(出错代码行 + 异常类型 + 消息)。
+
+    python traceback 的价值全在最后几行,开头的调用栈对定位 LLM 生成代码没用;
+    bundle.error 只有 500 字符预算,所以默认只留 300。
+    """
+    s = (stderr or "").strip()
+    if not s:
+        return "(stderr 为空)"
+    lines = [ln for ln in s.splitlines() if ln.strip()]
+    tail = " | ".join(lines[-4:])
+    return tail[-max_chars:] if len(tail) > max_chars else tail
 
 
 def strip_python_fences(raw: str) -> str:
