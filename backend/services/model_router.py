@@ -86,10 +86,14 @@ MODEL_REGISTRY = {
         "max_context": 196608,
         "best_for": ["doc_generation", "office_tasks"],
     },
+    # 2026-07-29:小米把 v2 全线下掉,只剩 mimo-v2.5*(/v1/models 实测:
+    # mimo-v2.5 / -pro / -asr / -tts)。旧 model_id 发过去是 400 Bad Request。
+    # 注册表的 key(mimo-v2-pro / mimo-v2-omni)是本项目内部别名,ROUTING_RULES 和
+    # DB agent_configs 都按它引用,故只换 model_id 不换 key。
     "mimo-v2-pro": {
         "provider": "xiaomi",
         "api_base": _XIAOMI,
-        "model_id": "mimo-v2-pro",
+        "model_id": "mimo-v2.5-pro",
         "api_key_env": "xiaomi_api_key",
         "max_context": 1000000,
         "best_for": ["challenge_questioning", "agent_tasks"],
@@ -97,16 +101,15 @@ MODEL_REGISTRY = {
     "mimo-v2-omni": {
         "provider": "xiaomi",
         "api_base": _XIAOMI,
-        "model_id": "mimo-v2-omni",
+        "model_id": "mimo-v2.5",
         "api_key_env": "xiaomi_api_key",
         "max_context": 262144,
         "best_for": ["ocr_fallback", "image_understanding"],
-        # 视觉 OCR 走小米官方 endpoint(跟 chat 走的 token-plan-cn 代理是两条线)
-        # auth_header_style:小米 vision 端点要求 header 用 "api-key: xxx",不是 Bearer
-        # max_tokens_field:小米 vision payload 用 max_completion_tokens
-        "vision_endpoint": "https://api.xiaomimimo.com/v1/chat/completions",
-        "auth_header_style": "api-key",
-        "max_tokens_field": "max_completion_tokens",
+        # 视觉 OCR 也走 token-plan-cn 代理:官方 api.xiaomimimo.com 用这把 key 是
+        # 401 Invalid API Key(两条线的 key 不通用),而同样的图文 payload 走代理 200。
+        "vision_endpoint": f"{_XIAOMI}/chat/completions",
+        "auth_header_style": "bearer",
+        "max_tokens_field": "max_tokens",
     },
     "glm-5": {
         "provider": "zhipu",

@@ -299,8 +299,10 @@ def _is_scanned_pdf(text: str, page_count: int) -> bool:
 
 # 2026-05-28:vision endpoint / model / auth_header_style 改为从 MODEL_REGISTRY 的
 # mimo-v2-omni 条目读,后台 ModelsTab 编辑即生效。下面两个常量只作为最后兜底。
-_DEFAULT_XIAOMI_VISION_ENDPOINT = "https://api.xiaomimimo.com/v1/chat/completions"
-_DEFAULT_XIAOMI_VISION_MODEL = "mimo-v2-omni"
+# 2026-07-29:官方 api.xiaomimimo.com 用本项目的 key 是 401(两条线 key 不通用),
+# 图文 payload 走 token-plan-cn 代理才通;小米 v2 全线下掉,模型只剩 mimo-v2.5*。
+_DEFAULT_XIAOMI_VISION_ENDPOINT = "https://token-plan-cn.xiaomimimo.com/v1/chat/completions"
+_DEFAULT_XIAOMI_VISION_MODEL = "mimo-v2.5"
 
 
 async def _resolve_xiaomi_key() -> str:
@@ -332,8 +334,8 @@ async def _resolve_vision_config() -> dict:
     return {
         "endpoint": cfg.get("vision_endpoint") or _DEFAULT_XIAOMI_VISION_ENDPOINT,
         "model_id": cfg.get("model_id") or _DEFAULT_XIAOMI_VISION_MODEL,
-        "auth_header_style": cfg.get("auth_header_style") or "api-key",
-        "max_tokens_field": cfg.get("max_tokens_field") or "max_completion_tokens",
+        "auth_header_style": cfg.get("auth_header_style") or "bearer",
+        "max_tokens_field": cfg.get("max_tokens_field") or "max_tokens",
     }
 
 
@@ -441,11 +443,12 @@ async def _ocr_pdf_via_vision_llm(content: bytes) -> str:
     流程:
       1. PyMuPDF 把每页 render 为 PNG (dpi=180,平衡清晰度 + base64 体积)
       2. base64 编码塞 OpenAI 多模态格式 messages[].content[].image_url
-      3. 并发 5 路调 https://api.xiaomimimo.com/v1/chat/completions (mimo-v2-omni)
+      3. 并发 5 路调 token-plan-cn 代理的 /chat/completions (mimo-v2.5)
       4. 按页码拼回 markdown,失败页标占位不阻断整篇
 
-    走官方 endpoint + api-key header(不是 model_router 的 token-plan-cn 代理),
-    因为 vision 调用按官方文档形态最稳。
+    2026-07-29:原先走官方 api.xiaomimimo.com + api-key header,现已 401
+    (官方站和 token-plan-cn 代理的 key 不通用),改回代理 + Bearer。
+    endpoint / model / header 形态仍从 mimo-v2-omni 注册表条目读,后台可改。
 
     成本权衡:每页 1 次调用 ≈ 几千 token (图像编码后)。30 页 PDF 约 ¥0.5-2。
     """
