@@ -170,6 +170,10 @@ async def _mark_bundle(bundle_id: str, status: str, **kwargs):
                 if f"[trace={_trace}]" not in err:
                     kwargs["error"] = f"[trace={_trace}] {err}"[:500]
             b.status = status
+            # 重生成成功后要把上一轮的 error 清掉,否则 done 的 bundle 还挂着旧报错,
+            # 排查时容易把「已经好了」误读成「又挂了」。
+            if status in ("generating", "done") and "error" not in kwargs:
+                b.error = None
             for k, v in kwargs.items():
                 setattr(b, k, v)
             await s.commit()
