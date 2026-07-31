@@ -261,7 +261,9 @@ def _render_req_table(reqs: list[dict], cols: list[str] | None = None) -> str:
                 cells.append(f"<td>{_esc(t) or '—'}</td>")
             elif c == "module":
                 m = r.get("module", "")
-                cells.append(f"<td>{('<span class="chip">' + _esc(m) + '</span>') if m else '—'}</td>")
+                # 注意:Python 3.11 的 f-string 表达式里不能再出现同类引号,别内联这段
+                chip = f'<span class="chip">{_esc(m)}</span>' if m else "—"
+                cells.append(f"<td>{chip}</td>")
             else:
                 val = r.get(c, "")
                 cells.append(f"<td>{_esc(str(val)) if val else '—'}</td>")

@@ -149,6 +149,8 @@ def _render_decisions(decisions: list[dict]) -> str:
     if not items:
         return ""
 
+    # 注意:Python 3.11 的 f-string 表达式里不能出现反斜杠,join 要先算出来
+    items_html = "\n".join(items)
     return f"""<div class="section-title">✅ 决议事项</div>
     <div class="topic-block">
         <div class="topic-header">
@@ -157,7 +159,7 @@ def _render_decisions(decisions: list[dict]) -> str:
         </div>
         <div class="topic-body">
             <ul>
-                {"\n".join(items)}
+                {items_html}
             </ul>
         </div>
     </div>"""
@@ -187,6 +189,7 @@ def _render_action_items_table(action_items: list[dict]) -> str:
     if not rows:
         return ""
 
+    rows_html = "\n".join(rows)
     return f"""<div class="section-title">📋 待办事项 &amp; 责任人</div>
     <div class="todo-table-wrapper">
         <table class="todo-table">
@@ -194,7 +197,7 @@ def _render_action_items_table(action_items: list[dict]) -> str:
                 <tr><th style="width:58%">📌 待办内容</th><th>👤 负责人</th></tr>
             </thead>
             <tbody>
-                {"\n".join(rows)}
+                {rows_html}
             </tbody>
         </table>
     </div>"""
@@ -225,8 +228,9 @@ def _render_meta_items(
         parts.append(f'<div class="meta-item">📢 召集：{_escape(organizer)}</div>')
     if not parts:
         return ""
+    parts_html = "\n".join(parts)
     return f"""<div class="meta-grid">
-        {"\n".join(parts)}
+        {parts_html}
     </div>"""
 
 
