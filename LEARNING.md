@@ -1417,6 +1417,13 @@ UPDATE agent_configs SET config_value='{"primary":"minimax-m2.7","fallback":"kim
 
 **修法**:把表达式提到 f-string 外面先算好(`chip = ...` / `items_html = "\n".join(items)`),commit `dbc042d`。
 
+**已加闸门(commit `514bdf6`)**:`backend/Dockerfile` 在两条 `COPY`(overlay)之后加了
+```
+RUN python -m compileall -q /app && echo "syntax ok"
+```
+语法错的镜像**直接 build 失败**,不会再推到 ghcr。位置必须在 overlay 之后 —— 校验的是最终形态。
+实测:当前 /app rc=0,塞个坏文件 rc=1。CI 日志里搜 `syntax ok` 可确认闸门跑过。
+
 **教训 / 检查动作**:
 - **改完后端至少跑一次容器版本的语法检查**,别信本地 python:
   ```
