@@ -27,4 +27,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ /app/
 COPY meeting/backend/ /app/
 
+# 语法闸门(2026-07-31,见 LEARNING §25):overlay 之后把全部源码编译一遍,
+# 有 SyntaxError 直接 build 失败 —— 别再让"3.12-only 语法 + handler 内 lazy import"
+# 的死代码一路推到 ghcr、部署 healthy,等用户点按钮才 500。
+# 注意必须放在两条 COPY 之后,校验的是 overlay 后的最终形态。
+RUN python -m compileall -q /app && echo "syntax ok"
+
 EXPOSE 8000
