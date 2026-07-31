@@ -1396,3 +1396,32 @@ UPDATE agent_configs SET config_value='{"primary":"minimax-m2.7","fallback":"kim
 **注册表 key 不动**(`mimo-v2-pro` / `mimo-v2-omni` 是内部别名,`ROUTING_RULES` 和 DB 都按它引用),只换 `model_id`。
 **顺带:PDF OCR 的 vision 端点也坏了** —— 走的官方 `api.xiaomimimo.com` 用本项目的 key 是 `401 Invalid API Key`(**官方站和 token-plan-cn 代理的 key 不通用**),同样的图文 payload 走代理 200。改成 `token-plan-cn` + `Bearer` + `max_tokens`(原先是 `api-key` header + `max_completion_tokens`,那是官方站的形态)。实测 `_ocr_pdf_via_vision_llm` 能正确转写出图上文字。
 **教训:模型下架不会报"模型不存在",只会给一个 400/404,日志里看着像参数错误;换供应商模型版本时,DB 覆盖和代码默认要一起改 —— 只改 DB 的话,冷启动/没 wire 的路径会用着一个早就不存在的 model_id。**
+
+## 25. 后端跑 3.11,写了 3.12-only 的 f-string → 导出功能全线 500(2026-07-31)
+
+**触发**:会议纪要详情页点「导出需求清单」,前端弹「加载排版列表失败」。
+
+**真因:两处 f-string 用了 Python **3.12** 才放开(PEP 701)的写法,而后端容器是 **3.11**,直接 `SyntaxError`。**
+
+| 文件 | 违规写法 | 3.11 报错 |
+|---|---|---|
+| `meeting/backend/services/meeting/module_layouts.py:264` | `f"<td>{('<span class="chip">' + ...)}</td>"` —— f-string 表达式里嵌了**同类双引号** | `f-string: unterminated string` |
+| `meeting/backend/services/meeting/html_export.py`(3 处) | `f"""...{"\n".join(items)}..."""` —— 表达式里出现**反斜杠** | `f-string expression part cannot include a backslash` |
+
+**为什么拖到用户点才发现**:
+1. 两个模块都是**函数体内的 lazy import**(`api/meeting.py` 里 `from services.meeting.module_export import ...` 写在 handler 内),**进程启动不会加载**,`/health` 一直绿,容器 healthy;
+2. 仓库**没有 CI 语法检查**(`.github/workflows/` 只有 deploy 系列),`docker build` 也不做 `compileall` —— 语法错的代码能一路构建、推 ghcr、部署成功;
+3. 本地写代码的 python 版本 ≠ 容器版本(本机 3.9/3.13,容器 3.11)。
+
+**这两个功能从合并那天起就没work过**:`module_layouts` 是 commit `80fae68`(四模块导出),`html_export` 是更早的 `5719e79`(纪要导出 HTML)—— 也就是说 **"新功能上线"从来没被端到端点过一次**。
+
+**修法**:把表达式提到 f-string 外面先算好(`chip = ...` / `items_html = "\n".join(items)`),commit `dbc042d`。
+
+**教训 / 检查动作**:
+- **改完后端至少跑一次容器版本的语法检查**,别信本地 python:
+  ```
+  ssh ... "cd /opt/kb-system && docker compose exec -T backend python -c \"import sys;compile(sys.stdin.read(),'x','exec')\"" < 改过的文件.py
+  ```
+  或本地一把梭扫全仓:`compile()` 遍历 `backend/` + `meeting/backend/` 下所有 `.py`。
+- **lazy import 的模块 = 健康检查的盲区**,新增 service 模块后要显式 `docker compose exec backend python -c "import services.xxx"` 验一次。
+- `html_export.py` **两份副本**(`backend/` 和 `meeting/backend/`,overlay 关系见 §12),修的时候两份一起改;`module_layouts.py` / `module_export.py` 只有 `meeting/backend/` 一份。
