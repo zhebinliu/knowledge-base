@@ -7,6 +7,7 @@
  *
  * variant:
  *   - 'card'   : 小号垃圾桶图标按钮(列表卡片右上角,绝对定位,hover 才显形 —— 由调用方包 relative group)
+ *   - 'row'    : 小号垃圾桶图标按钮(列表视图表格行内,常驻但弱化,不绝对定位)
  *   - 'header' : 带文字的描边按钮(详情页头部)
  */
 import { useState } from 'react'
@@ -23,7 +24,7 @@ export default function DeleteProjectControl({
 }: {
   project: { id: string; name: string; document_count?: number }
   onDeleted?: () => void
-  variant?: 'card' | 'header'
+  variant?: 'card' | 'row' | 'header'
   className?: string
 }) {
   const qc = useQueryClient()
@@ -66,6 +67,15 @@ export default function DeleteProjectControl({
           onClick={openModal}
           title="删除项目"
           className={`absolute top-3 right-3 z-10 inline-flex items-center justify-center w-7 h-7 rounded-lg bg-white/90 border border-line text-ink-muted opacity-0 group-hover:opacity-100 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-all ${className}`}
+        >
+          <Trash2 size={13} />
+        </button>
+      ) : variant === 'row' ? (
+        <button
+          type="button"
+          onClick={openModal}
+          title="删除项目"
+          className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-ink-muted hover:text-red-600 hover:bg-red-50 transition-colors ${className}`}
         >
           <Trash2 size={13} />
         </button>

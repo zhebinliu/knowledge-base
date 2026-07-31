@@ -788,6 +788,10 @@
 .rd-badge.is-gray   { color: var(--rd-text-2); border-color: var(--rd-line); background: rgba(15, 18, 36, 0.04); }
 .rd-badge.is-gray::before   { background: var(--rd-text-3); }
 
+/* 表格行内的一排徽章:不折行、不被挤到文字断行 —— 列宽由内容撑开,行高才能齐 */
+.rd-badge-row { display: flex; flex-wrap: nowrap; gap: 6px; }
+.rd-badge-row > * { flex-shrink: 0; white-space: nowrap; }
+
 /* ── Avatar / 圆形项目色块 ─────────────────────────────────────────── */
 .rd-mini-ring { position: relative; width: 44px; height: 44px; flex-shrink: 0; }
 .rd-mini-ring svg { width: 100%; height: 100%; }

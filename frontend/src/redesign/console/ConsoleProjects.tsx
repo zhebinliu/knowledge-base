@@ -7,18 +7,24 @@
  *   - 3 个 stage badge(项目洞察 / 启动会 / 需求调研)— 实时状态:已生成/生成中/未开始
  *   - 点卡片跳 /console/projects/:id
  *   - 新增项目按钮 → ProjectFormModal(复用老组件,功能完整)
+ *   - 卡片 / 列表 视图切换(useProjectViewMode,与生产页共用记忆)
  */
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Search, CheckCircle2, Circle, Loader2, Building2, Calendar, Files, Plus, FolderKanban,
+  LayoutGrid, List,
 } from 'lucide-react'
 import { listProjects, listStageSummary, getProjectMeta, type StageStatusRow } from '../../api/client'
 import ProjectFormModal from '../../components/ProjectFormModal'
 import DeleteProjectControl from '../../components/DeleteProjectControl'
 import GlowCard from '../components/GlowCard'
 import { deriveStageBadges, type DerivedBadge } from '../../lib/stageBadges'
+import { useProjectViewMode } from '../../lib/projectViewMode'
+
+// 列表视图折叠徽章 —— 保证每行单行高度一致,列表才有「密集可扫」的价值
+const MAX_STAGE_BADGES_ROW = 4
 
 function StageBadge({ badge }: { badge: DerivedBadge }) {
   const { label, color, icon: Icon, status } = badge
@@ -42,6 +48,7 @@ export default function NewConsoleProjects() {
   const qc = useQueryClient()
   const [q, setQ] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
+  const [view, setView] = useProjectViewMode()
 
   const { data: projects, isLoading } = useQuery({
     queryKey: ['projects'],
@@ -88,7 +95,7 @@ export default function NewConsoleProjects() {
           letterSpacing: '-0.025em', lineHeight: 1.1, margin: 0, marginBottom: 6,
         }}>所有项目</h1>
         <p style={{ fontSize: 13.5, color: 'var(--rd-text-2)', margin: 0 }}>
-          点击项目卡片进入详情:阶段推进 · 关联文档 · 项目对话
+          点击项目进入详情:阶段推进 · 关联文档 · 项目对话
         </p>
       </div>
 
@@ -108,10 +115,45 @@ export default function NewConsoleProjects() {
           />
         </div>
         <span style={{ fontSize: 12, color: 'var(--rd-text-3)' }}>共 {filtered.length} 个项目</span>
+
+        {/* 视图切换 —— 卡片 / 列表,选择记在 localStorage */}
+        <div style={{
+          marginLeft: 'auto',
+          display: 'flex',
+          border: '1px solid var(--rd-line)',
+          borderRadius: 10,
+          padding: 2,
+          background: 'rgba(15, 18, 36, .03)',
+        }}>
+          {([['grid', LayoutGrid, '卡片视图'], ['list', List, '列表视图']] as const).map(([v, Icon, title]) => {
+            const active = view === v
+            return (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                title={title}
+                aria-label={title}
+                aria-pressed={active}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: 32, height: 28,
+                  border: 'none',
+                  background: active ? 'rgba(255,141,26,.12)' : 'transparent',
+                  color: active ? 'var(--rd-accent-2)' : 'var(--rd-text-3)',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  transition: 'all .2s',
+                }}
+              >
+                <Icon size={13} />
+              </button>
+            )
+          })}
+        </div>
+
         <button
           onClick={() => setCreateOpen(true)}
           className="rd-btn rd-btn-primary"
-          style={{ marginLeft: 'auto' }}
         >
           <Plus size={13} /> 新增项目
         </button>
@@ -146,6 +188,102 @@ export default function NewConsoleProjects() {
           <p style={{ fontSize: 13, color: 'var(--rd-text-2)', margin: 0 }}>
             {projects?.length === 0 ? '还没有项目,去后台「项目库」创建一个' : '没有匹配的项目'}
           </p>
+        </GlowCard>
+      ) : view === 'list' ? (
+        <GlowCard style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="rd-table">
+              <thead>
+                <tr>
+                  <th>项目</th>
+                  <th>客户 / 行业</th>
+                  <th>阶段进展</th>
+                  <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>文档</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>立项日期</th>
+                  <th style={{ width: 56 }} />
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(p => {
+                  const allBadges = deriveStageBadges(p.id, bundles)
+                  const shown = allBadges.slice(0, MAX_STAGE_BADGES_ROW)
+                  const extra = allBadges.length - shown.length
+                  return (
+                    <tr
+                      key={p.id}
+                      onClick={() => nav(`/console/projects/${p.id}`)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                          <div style={{
+                            width: 28, height: 28, borderRadius: 9, flexShrink: 0,
+                            background: 'linear-gradient(135deg, var(--rd-accent), var(--rd-accent-2))',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#fff',
+                          }}>
+                            <Building2 size={13} />
+                          </div>
+                          <span style={{
+                            fontSize: 13, fontWeight: 600, color: 'var(--rd-text)',
+                            maxWidth: 220,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}>{p.name}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div
+                          style={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          title={`${p.customer || '未填客户'}${p.industry ? ` · ${industryMap[p.industry] || p.industry}` : ''}`}
+                        >
+                          <span style={{ fontSize: 12.5, color: 'var(--rd-text-2)' }}>
+                            {p.customer || '未填客户'}
+                          </span>
+                          {p.industry && (
+                            <span style={{ fontSize: 12.5, color: 'var(--rd-text-3)' }}>
+                              {' '}· {industryMap[p.industry] || p.industry}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="rd-badge-row">
+                          {shown.map(badge => (
+                            <StageBadge key={badge.kind} badge={badge} />
+                          ))}
+                          {extra > 0 && (
+                            <span
+                              className="rd-badge is-gray"
+                              title={allBadges.slice(MAX_STAGE_BADGES_ROW).map(b => b.label).join('、')}
+                            >
+                              +{extra}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: 'var(--rd-text-2)' }}>
+                          <Files size={11} style={{ color: 'var(--rd-text-3)' }} />
+                          <span style={{ fontWeight: 600 }}>{p.document_count}</span>
+                        </span>
+                      </td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--rd-text-3)' }}>
+                          <Calendar size={11} />
+                          {p.kickoff_date || '未填立项'}
+                        </span>
+                      </td>
+                      <td onClick={e => e.stopPropagation()}>
+                        <div className="rd-row-actions" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <DeleteProjectControl project={p} variant="row" />
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </GlowCard>
       ) : (
         <div className="rd-grid-3 rd-stagger" style={{ gap: 16 }}>
