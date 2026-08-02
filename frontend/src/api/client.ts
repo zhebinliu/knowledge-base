@@ -2003,9 +2003,11 @@ export const fetchModuleExportHtml = async (
   module: ExportModule,
   layout: string,
 ): Promise<string> => {
-  const response = await api.get(moduleExportUrl(meetingId, module, 'html', layout), {
-    responseType: 'text',
-  })
+  // 注意: 用相对路径(不带 /api 前缀),否则会与 api 实例 baseURL('/api') 叠加成 /api/api 导致 404
+  const response = await api.get(
+    `/meeting/${meetingId}/export/${module}/html?layout=${encodeURIComponent(layout)}`,
+    { responseType: 'text' },
+  )
   return response.data as string
 }
 

@@ -1429,7 +1429,7 @@ async def export_module_html(
     m = await _load_meeting_owned(meeting_id, session, user)
 
     from fastapi.responses import Response
-    from services.meeting.module_export import fetch_module_data, get_layouts_metadata
+    from services.meeting.module_export import fetch_module_data, generate_html, get_layouts_metadata
 
     layouts = get_layouts_metadata(module)
     layout_ids = {l["id"] for l in layouts}
