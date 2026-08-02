@@ -19,6 +19,8 @@ import remarkGfm from 'remark-gfm'
 import {
   listModuleLayouts,
   moduleExportUrl,
+  exportMeetingDocxUrl,
+  exportMeetingHtmlUrl,
   TOKEN_STORAGE_KEY,
   type ExportModule,
   type ModuleLayoutMeta,
@@ -32,11 +34,15 @@ import {
   type TemplateRenderResult,
 } from '../../api/markup-template'
 
-const MODULES: Array<{ key: ExportModule; label: string; Icon: LucideIcon }> = [
-  { key: 'advice', label: '建议', Icon: Lightbulb },
-  { key: 'requirements', label: '需求', Icon: ListChecks },
-  { key: 'process_flows', label: '流程', Icon: GitBranch },
-  { key: 'stakeholders', label: '干系人', Icon: Users },
+/** 导出目标:4 个模块 + 纪要全文(__minutes 走独立导出接口) */
+type ExportTarget = ExportModule | '__minutes'
+
+const MODULES: Array<{ key: ExportTarget; label: string; Icon: LucideIcon }> = [
+  { key: '__minutes',   label: '纪要', Icon: FileText },
+  { key: 'advice',          label: '建议', Icon: Lightbulb },
+  { key: 'requirements',    label: '需求', Icon: ListChecks },
+  { key: 'process_flows',   label: '流程', Icon: GitBranch },
+  { key: 'stakeholders',    label: '干系人', Icon: Users },
 ]
 
 type Mode = 'module' | 'template'
@@ -55,7 +61,7 @@ export default function UnifiedExportButton({ meetingId, meetingTitle, variant =
   const ref = useRef<HTMLDivElement>(null)
 
   // ── 模块导出状态 ──
-  const [module, setModule] = useState<ExportModule>('requirements')
+  const [module, setModule] = useState<ExportTarget>('__minutes')
   const [layouts, setLayouts] = useState<ModuleLayoutMeta[]>([])
   const [layoutsLoading, setLayoutsLoading] = useState(false)
 
@@ -81,7 +87,7 @@ export default function UnifiedExportButton({ meetingId, meetingTitle, variant =
 
   // 打开时懒加载排版列表(模块导出)
   useEffect(() => {
-    if (!open || mode !== 'module' || layouts.length > 0) return
+    if (!open || mode !== 'module' || module === '__minutes' || layouts.length > 0) return
     setLayoutsLoading(true)
     listModuleLayouts(meetingId, module)
       .then((r) => setLayouts(r.layouts))
@@ -99,7 +105,7 @@ export default function UnifiedExportButton({ meetingId, meetingTitle, variant =
       .finally(() => setTemplatesLoading(false))
   }, [open, mode, templates, selectedTemplate])
 
-  const switchModule = (m: ExportModule) => {
+  const switchModule = (m: ExportTarget) => {
     setModule(m)
     setLayouts([])
   }
@@ -110,7 +116,8 @@ export default function UnifiedExportButton({ meetingId, meetingTitle, variant =
     setError(null)
     try {
       const token = localStorage.getItem(TOKEN_STORAGE_KEY) || ''
-      const url = moduleExportUrl(meetingId, module, format, layout)
+      // doModuleDownload 仅在非 __minutes(真实模块)分支被调用
+      const url = moduleExportUrl(meetingId, module as ExportModule, format, layout)
       const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       if (!resp.ok) {
         const text = await resp.text().catch(() => '')
@@ -127,6 +134,35 @@ export default function UnifiedExportButton({ meetingId, meetingTitle, variant =
       const a = document.createElement('a')
       a.href = dlUrl
       a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(dlUrl)
+    } catch (e: any) {
+      setError(e?.message || '导出失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // ── 纪要全文导出(docx/html,走独立接口)───────────────────────────
+  const doMinutesDownload = async (format: 'docx' | 'html') => {
+    setBusy(true)
+    setError(null)
+    try {
+      const token = localStorage.getItem(TOKEN_STORAGE_KEY) || ''
+      const url = format === 'docx' ? exportMeetingDocxUrl(meetingId) : exportMeetingHtmlUrl(meetingId)
+      const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '')
+        throw new Error(text || `导出失败 (${resp.status})`)
+      }
+      const blob = await resp.blob()
+      const safeTitle = (meetingTitle || '会议纪要').replace(/[/\\:*?"<>|]/g, '_')
+      const dlUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = dlUrl
+      a.download = `${safeTitle}.${format}`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -215,8 +251,12 @@ export default function UnifiedExportButton({ meetingId, meetingTitle, variant =
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-1 z-50 w-[400px] rounded-lg shadow-xl overflow-hidden"
+          className="absolute right-0 top-full mt-1 z-50 rounded-lg shadow-xl overflow-hidden"
           style={{
+            // 宽度/高度均按视口自适应,避免小屏/矮屏溢出页面
+            width: 'min(400px, calc(100vw - 48px))',
+            maxHeight: 'min(560px, calc(100dvh - 24px))',
+            display: 'flex', flexDirection: 'column',
             background: th.panelBg,
             border: th.panelBorder,
             boxShadow: isLegacy ? '0 12px 40px rgba(0,0,0,.12)' : '0 16px 48px rgba(0,0,0,.45)',
@@ -224,7 +264,7 @@ export default function UnifiedExportButton({ meetingId, meetingTitle, variant =
           }}
         >
           {/* 模式切换 */}
-          <div className="flex border-b" style={{ borderColor: isLegacy ? '#e2e8f0' : 'var(--rd-line)' }}>
+          <div className="flex border-b" style={{ borderColor: isLegacy ? '#e2e8f0' : 'var(--rd-line)', flexShrink: 0 }}>
             {([
               { key: 'module', label: '模块导出', Icon: Download },
               { key: 'template', label: '模板导出', Icon: LayoutTemplate },
@@ -251,7 +291,7 @@ export default function UnifiedExportButton({ meetingId, meetingTitle, variant =
 
           {/* 模块导出 */}
           {mode === 'module' && (
-            <div style={{ maxHeight: 460, overflowY: 'auto', padding: '10px 12px' }}>
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 12px' }}>
               {/* 模块选择 */}
               <div className="flex gap-1.5 flex-wrap">
                 {MODULES.map((m) => {
@@ -275,41 +315,54 @@ export default function UnifiedExportButton({ meetingId, meetingTitle, variant =
                 })}
               </div>
 
-              <div className="mt-3">
-                {layoutsLoading ? (
-                  <div className="py-8 text-center" style={{ color: th.muted, fontSize: 12 }}>
-                    <Loader2 size={16} className="animate-spin mx-auto mb-1.5" /> 加载排版…
+              {module === '__minutes' ? (
+                <div className="mt-3">
+                  <div className="text-xs font-medium mb-2" style={{ color: th.text }}>会议纪要全文</div>
+                  <div className="flex gap-1.5">
+                    <FmtBtn label=".docx" onClick={() => doMinutesDownload('docx')} th={th} />
+                    <FmtBtn label=".html" onClick={() => doMinutesDownload('html')} th={th} />
                   </div>
-                ) : layouts.length === 0 ? (
-                  <div className="py-8 text-center" style={{ color: th.muted, fontSize: 12 }}>
-                    暂无可用排版
+                  <div className="mt-2 text-[11px]" style={{ color: th.muted }}>
+                    导出整篇会议纪要;.html 内可一键保存为 PNG
                   </div>
-                ) : (
-                  <div className="divide-y" style={{ borderColor: isLegacy ? '#e2e8f0' : 'var(--rd-line)' }}>
-                    {layouts.map((l) => (
-                      <div key={l.id} className="py-2.5">
-                        <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                          <span className="text-xs font-medium" style={{ color: th.text }}>{l.name}</span>
-                          <span className="text-[10px] truncate ml-2" style={{ color: th.muted }} title={l.description}>
-                            {l.description}
-                          </span>
+                </div>
+              ) : (
+                <div className="mt-3">
+                  {layoutsLoading ? (
+                    <div className="py-8 text-center" style={{ color: th.muted, fontSize: 12 }}>
+                      <Loader2 size={16} className="animate-spin mx-auto mb-1.5" /> 加载排版…
+                    </div>
+                  ) : layouts.length === 0 ? (
+                    <div className="py-8 text-center" style={{ color: th.muted, fontSize: 12 }}>
+                      暂无可用排版
+                    </div>
+                  ) : (
+                    <div className="divide-y" style={{ borderColor: isLegacy ? '#e2e8f0' : 'var(--rd-line)' }}>
+                      {layouts.map((l) => (
+                        <div key={l.id} className="py-2.5">
+                          <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                            <span className="text-xs font-medium" style={{ color: th.text }}>{l.name}</span>
+                            <span className="text-[10px] truncate ml-2" style={{ color: th.muted }} title={l.description}>
+                              {l.description}
+                            </span>
+                          </div>
+                          <div className="flex gap-1.5">
+                            <FmtBtn label=".md"   onClick={() => doModuleDownload(l.id, 'md', 'md')}   th={th} />
+                            <FmtBtn label=".docx" onClick={() => doModuleDownload(l.id, 'docx', 'docx')} th={th} />
+                            <FmtBtn label=".html" onClick={() => doModuleDownload(l.id, 'html', 'html')} th={th} />
+                          </div>
                         </div>
-                        <div className="flex gap-1.5">
-                          <FmtBtn label=".md"   onClick={() => doModuleDownload(l.id, 'md', 'md')}   th={th} />
-                          <FmtBtn label=".docx" onClick={() => doModuleDownload(l.id, 'docx', 'docx')} th={th} />
-                          <FmtBtn label=".html" onClick={() => doModuleDownload(l.id, 'html', 'html')} th={th} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
           {/* 模板导出 */}
           {mode === 'template' && (
-            <div style={{ maxHeight: 460, overflowY: 'auto', padding: '10px 12px' }}>
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 12px' }}>
               {templatesLoading ? (
                 <div className="py-8 text-center" style={{ color: th.muted, fontSize: 12 }}>
                   <Loader2 size={16} className="animate-spin mx-auto mb-1.5" /> 加载模板…
@@ -408,7 +461,7 @@ export default function UnifiedExportButton({ meetingId, meetingTitle, variant =
 
           {error && (
             <div className="px-3 py-2 border-t text-[11px] text-red-600"
-                 style={{ borderColor: isLegacy ? '#e2e8f0' : 'var(--rd-line)', background: 'rgba(244,63,94,.10)' }}>
+                 style={{ borderColor: isLegacy ? '#e2e8f0' : 'var(--rd-line)', background: 'rgba(244,63,94,.10)', flexShrink: 0 }}>
               {error}
             </div>
           )}
