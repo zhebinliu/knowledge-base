@@ -201,18 +201,11 @@ export default function NewConsoleMeetingDetail() {
         </div>
       </GlowCard>
 
-      {/* 工具条:音频 + 统一导出(单行整合,内容区上移) */}
-      {(hasAudio || (hasContent && meeting.meeting_minutes)) && (
-        <GlowCard style={{ padding: '10px 16px', marginBottom: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {hasAudio && <AudioPlayer ref={audioPlayerRef} audioUrl={audioUrl} className="flex-1 min-w-0" />}
-            {(hasContent && meeting.meeting_minutes) && (
-              <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
-                <UnifiedExportButton meetingId={meeting.id} meetingTitle={meeting.title} />
-              </div>
-            )}
-          </div>
-        </GlowCard>
+      {/* 音频播放器(仅当有录音文件时显示) */}
+      {hasAudio && (
+        <div style={{ marginBottom: 14 }}>
+          <AudioPlayer ref={audioPlayerRef} audioUrl={audioUrl} />
+        </div>
       )}
 
       {/* 处理中细进度条(单行,不再整卡) */}
@@ -337,27 +330,30 @@ export default function NewConsoleMeetingDetail() {
                       )
                     })}
                   </div>
-                  {!rightPanelOpen && (
-                    <button
-                      type="button"
-                      onClick={() => setRightPanelOpen(true)}
-                      style={{
-                        flexShrink: 0,
-                        display: 'inline-flex', alignItems: 'center', gap: 4,
-                        padding: '11px 16px',
-                        fontSize: 13, fontWeight: 500,
-                        color: 'var(--rd-accent-2)',
-                        background: 'transparent',
-                        border: 'none',
-                        borderLeft: '1px solid var(--rd-line)',
-                        cursor: 'pointer', fontFamily: 'inherit',
-                        whiteSpace: 'nowrap',
-                      }}
-                      title="展开转写面板"
-                    >
-                      <ChevronLeft size={14} /> 转写
-                    </button>
-                  )}
+                  {/* 右侧:转写展开 + 导出(放在最后一个 tab「解释图」之后,分隔线+间隔避免被误认成 tab) */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    flexShrink: 0, padding: '0 12px',
+                    borderLeft: '1px solid var(--rd-line)',
+                  }}>
+                    {!rightPanelOpen && (
+                      <button
+                        type="button"
+                        onClick={() => setRightPanelOpen(true)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                          padding: '6px 10px', fontSize: 13, fontWeight: 500,
+                          color: 'var(--rd-accent-2)',
+                          background: 'transparent', border: 'none',
+                          cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                        }}
+                        title="展开转写面板"
+                      >
+                        <ChevronLeft size={14} /> 转写
+                      </button>
+                    )}
+                    <UnifiedExportButton meetingId={meeting.id} meetingTitle={meeting.title} />
+                  </div>
                 </div>
                 {/* 左侧内容 */}
                 <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(100dvh - 320px)', minHeight: 220 }}>

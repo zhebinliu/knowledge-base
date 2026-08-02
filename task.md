@@ -1,23 +1,19 @@
-# 任务:会议纪要模块 5 项 UI/UX 改进 + 导出面板修复
+# 任务:会议纪要模块 UI 改进记录
 
-> 前置:PNG 导出迁移到 HTML 已完成(已 commit+push 于 7787c73)。本批为追加修改。
+## 最近一批(本次)
 
-## 追加 1 — 导出面板超出页面(适配不同分辨率)
-
-- [x] UnifiedExportButton 面板宽度改 `min(400px, calc(100vw - 48px))`,高度 `min(560px, calc(100dvh - 24px))`
-- [x] 面板改 flex 纵向布局:模式切换/错误条 flexShrink,内容区 flex-1 + minHeight 0 + 内部滚动,小屏/矮屏不再溢出
-
-## 追加 2 — 纪要 docx/html 导出并入统一导出面板
-
-- [x] UnifiedExportButton 新增 `__minutes`(纪要)目标:导出整篇纪要 docx/html(复用 exportMeetingDocxUrl/exportMeetingHtmlUrl,默认选中)
-- [x] legacy MinutesTab 移除独立「导出docx/导出html」按钮,清理 TOKEN_STORAGE_KEY/exportMeetingDocxUrl/exportMeetingHtmlUrl 导入
-
-## 历史:5 项 UI/UX 改进(已 commit 7787c73)
-
-- [x] #1 统一导出入口(UnifiedExportButton 取代 ModuleExportButton+TemplateSelector)
-- [x] #2 顶栏工具条整合;#3 重新处理确认;#4 转写分段+就地润色;#5 窄屏+完成通知
-
-## 验收
-
+### 导出按钮移到「解释图」tab 右侧
+- [x] `UnifiedExportButton` 弹出层改为 **Portal 到 body + position:fixed**:不再被 `overflow:hidden` 祖先裁剪,随滚动/缩放跟随,宽高按视口自适应
+- [x] redesign 页:导出按钮从顶部工具条移到左栏 tab 栏右侧(「解释图」之后,分隔线+间隔,视觉上是按钮非 tab);工具条恢复为仅音频播放器
+- [x] legacy 页:导出按钮从头部移到左栏 tab 栏右侧(同样分隔线+间隔)
 - [x] `npx tsc --noEmit` 通过
-- [ ] 目检:导出面板在不同分辨率下不超出页面;纪要 docx/html 可从导出面板获取;纪要 tab 不再有重复导出按钮
+
+## 历史批次
+
+- [x] 导出面板适配屏幕分辨率 + 纪要导出并入(commit 87edfc4)
+- [x] 5 项 UI/UX 改进 + PNG 迁移(commit 7787c73)
+- [x] 导出 PNG/HTML 修复 + UI 一致性(commit 47dbc2c / 20214e4)
+
+## 待办
+
+- [ ] 目检:两页 tab 栏右侧导出按钮位置/间距;导出面板在 tab 栏下方打开不裁剪

@@ -3169,13 +3169,6 @@ export default function ConsoleMeetingDetail() {
           </div>
         )}
 
-        {/* 会议纪要统一导出(模块 + 模板) */}
-        {hasContent && meeting.meeting_minutes && (
-          <div className="mt-4">
-            <UnifiedExportButton meetingId={meeting.id} meetingTitle={meeting.title} variant="legacy" />
-          </div>
-        )}
-
         {/* 主内容区 — 顶栏快捷切换 + 分栏/全屏内容 */}
         <div className="mt-4 bg-white border border-line rounded-xl shadow-sm overflow-hidden">
           {/* 顶部视图切换: 分栏 / 概览 / 操作 */}
@@ -3241,6 +3234,10 @@ export default function ConsoleMeetingDetail() {
                           </button>
                         )
                       })}
+                    </div>
+                    {/* 右侧:导出(最后一个 tab「解释图」之后,分隔线+间隔避免误认成 tab) */}
+                    <div className="flex items-center gap-2 pl-3 pr-3 shrink-0 border-l border-line">
+                      <UnifiedExportButton meetingId={meeting.id} meetingTitle={meeting.title} variant="legacy" />
                     </div>
                   </div>
                   {/* 左侧内容 */}

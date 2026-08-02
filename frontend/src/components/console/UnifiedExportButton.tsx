@@ -9,6 +9,7 @@
  * variant: 'redesign'=新 UI 深色玻璃; 'legacy'=旧 UI 浅色主题。
  */
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Download, FileText, FileDown, LayoutTemplate, ListChecks, GitBranch, Users,
   Lightbulb, Loader2, ChevronDown, Eye, EyeOff,
@@ -58,7 +59,9 @@ export default function UnifiedExportButton({ meetingId, meetingTitle, variant =
   const isLegacy = variant === 'legacy'
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<Mode>('module')
-  const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null)
 
   // ── 模块导出状态 ──
   const [module, setModule] = useState<ExportTarget>('__minutes')
@@ -75,11 +78,33 @@ export default function UnifiedExportButton({ meetingId, meetingTitle, variant =
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // 点外面关闭
+  // 锚定弹出层到触发按钮右下(视口坐标),滚动/缩放时跟随
+  const updatePos = () => {
+    const el = triggerRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    setPos({ top: r.bottom + 8, right: Math.max(8, window.innerWidth - r.right) })
+  }
+
+  useEffect(() => {
+    if (!open) return
+    updatePos()
+    window.addEventListener('scroll', updatePos, true)
+    window.addEventListener('resize', updatePos)
+    return () => {
+      window.removeEventListener('scroll', updatePos, true)
+      window.removeEventListener('resize', updatePos)
+    }
+  }, [open])
+
+  // 点外面关闭(含弹出层自身)
   useEffect(() => {
     if (!open) return
     const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (popupRef.current && triggerRef.current && !popupRef.current.contains(t) && !triggerRef.current.contains(t)) {
+        setOpen(false)
+      }
     }
     document.addEventListener('mousedown', onClick)
     return () => document.removeEventListener('mousedown', onClick)
@@ -232,10 +257,11 @@ export default function UnifiedExportButton({ meetingId, meetingTitle, variant =
   const fmtBtnBase = `inline-flex items-center justify-center gap-1 px-2 py-1 text-xs rounded-md border ${isLegacy ? 'border-line' : ''}`
 
   return (
-    <div className="relative inline-block" ref={ref}>
+    <>
       {/* 触发按钮 */}
       <button
-        onClick={() => { if (!busy) setOpen((o) => !o) }}
+        ref={triggerRef}
+        onClick={() => { if (!busy) { updatePos(); setOpen((o) => !o) } }}
         disabled={busy}
         className={
           isLegacy
@@ -249,11 +275,16 @@ export default function UnifiedExportButton({ meetingId, meetingTitle, variant =
         <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open && (
+      {/* 弹出层:Portal 到 body + fixed,不受祖先 overflow 裁剪;宽高按视口自适应 */}
+      {open && pos && createPortal(
         <div
-          className="absolute right-0 top-full mt-1 z-50 rounded-lg shadow-xl overflow-hidden"
+          ref={popupRef}
+          className="rounded-lg shadow-xl overflow-hidden"
           style={{
-            // 宽度/高度均按视口自适应,避免小屏/矮屏溢出页面
+            position: 'fixed',
+            top: pos.top,
+            right: pos.right,
+            zIndex: 1000,
             width: 'min(400px, calc(100vw - 48px))',
             maxHeight: 'min(560px, calc(100dvh - 24px))',
             display: 'flex', flexDirection: 'column',
@@ -465,9 +496,10 @@ export default function UnifiedExportButton({ meetingId, meetingTitle, variant =
               {error}
             </div>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   )
 }
 
