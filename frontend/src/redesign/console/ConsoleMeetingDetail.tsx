@@ -336,7 +336,7 @@ export default function NewConsoleMeetingDetail() {
                         display: 'inline-flex', alignItems: 'center', gap: 4,
                         padding: '11px 16px',
                         fontSize: 13, fontWeight: 500,
-                        color: '#2563eb',
+                        color: 'var(--rd-accent-2)',
                         background: 'transparent',
                         border: 'none',
                         borderLeft: '1px solid var(--rd-line)',
@@ -380,10 +380,10 @@ export default function NewConsoleMeetingDetail() {
                               display: 'inline-flex', alignItems: 'center', gap: 5,
                               padding: '11px 20px',
                               fontSize: 13, fontWeight: active ? 700 : 500,
-                              color: active ? '#2563eb' : 'var(--rd-text-3)',
-                              background: active ? 'rgba(37,99,235,.06)' : 'transparent',
+                              color: active ? 'var(--rd-accent-2)' : 'var(--rd-text-3)',
+                              background: active ? 'rgba(255,141,26,.06)' : 'transparent',
                               border: 'none',
-                              borderBottom: `2px solid ${active ? '#2563eb' : 'transparent'}`,
+                              borderBottom: `2px solid ${active ? 'var(--rd-accent)' : 'transparent'}`,
                               marginBottom: -1,
                               cursor: 'pointer', transition: 'all .2s', fontFamily: 'inherit',
                             }}
@@ -414,7 +414,7 @@ export default function NewConsoleMeetingDetail() {
                     </button>
                   </div>
                   {/* 右侧内容 */}
-                  <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(100vh - 340px)', background: 'rgba(248,250,252,.35)' }}>
+                  <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(100vh - 340px)', background: 'rgba(255,255,255,.02)' }}>
                     <TranscriptPanel meeting={meeting} rightTab={rightTab} />
                   </div>
                 </div>

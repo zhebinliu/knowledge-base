@@ -20,6 +20,7 @@ export default {
         // Page & surface backgrounds
         canvas:  'var(--bg)',       // #F5F6FA  page background
         surface: 'var(--surface)', // #FFFFFF  card / panel background
+        'canvas-elevated': 'var(--bg-elevated)', // 高于 canvas 的面板/卡片/hover 背景
 
         // Borders
         line: {

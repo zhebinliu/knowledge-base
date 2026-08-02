@@ -63,7 +63,7 @@ function BeeFloatingBall({ onClick, visible }: { onClick: () => void; visible: b
     <button
       onClick={onClick}
       className="fixed bottom-6 right-6 z-50 p-1.5 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 active:scale-95 group"
-      style={{ background: 'linear-gradient(135deg,#FBBF24,#F59E0B)' }}
+      style={{ background: 'linear-gradient(135deg, var(--rd-accent, #FBBF24), var(--rd-accent-deep, #F59E0B))' }}
       title="会议智能问答"
     >
       <BeeIcon size={44} />
@@ -125,7 +125,7 @@ export function ChatSidebar({ meetingId, open, onClose }: ChatSidebarProps) {
       <div className="fixed top-0 right-0 z-50 h-full w-[420px] max-w-[90vw] bg-white shadow-2xl border-l border-line flex flex-col animate-slide-in">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-line shrink-0"
-             style={{ background: 'linear-gradient(135deg,#FFFBEB,#FEF3C7)' }}>
+             style={{ background: 'linear-gradient(135deg, var(--rd-surface, #FFFBEB), var(--rd-surface-2, #FEF3C7))' }}>
           <div className="flex items-center gap-2">
             <BeeIcon size={28} />
             <div>
@@ -151,7 +151,7 @@ export function ChatSidebar({ meetingId, open, onClose }: ChatSidebarProps) {
                     ? 'text-white whitespace-pre-wrap'
                     : 'bg-amber-50 border border-amber-100 text-ink'
                 }`}
-                style={msg.role === 'user' ? { background: 'linear-gradient(135deg,#FF8D1A,#D96400)' } : {}}
+                style={msg.role === 'user' ? { background: 'linear-gradient(135deg, var(--rd-accent, #FF8D1A), var(--rd-accent-deep, #D96400))' } : {}}
               >
                 {msg.role === 'user' ? (
                   msg.content
@@ -190,7 +190,7 @@ export function ChatSidebar({ meetingId, open, onClose }: ChatSidebarProps) {
               onClick={handleSend}
               disabled={!input.trim() || chatMut.isPending}
               className="px-3 py-2 rounded-lg text-white disabled:opacity-40 flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg,#FF8D1A,#D96400)' }}
+              style={{ background: 'linear-gradient(135deg, var(--rd-accent, #FF8D1A), var(--rd-accent-deep, #D96400))' }}
             >
               {chatMut.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
             </button>

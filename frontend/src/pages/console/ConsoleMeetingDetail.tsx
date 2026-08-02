@@ -3372,7 +3372,7 @@ export default function ConsoleMeetingDetail() {
                       type="button"
                       onClick={() => setRightPanelOpen(false)}
                       title="收起转写面板"
-                      className="absolute left-0 top-1/2 -translate-y-1/2 lg:-translate-x-1/2 z-20 flex items-center justify-center w-5 h-16 rounded-full border border-line bg-white text-ink-muted shadow-sm hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                      className="absolute left-0 top-1/2 -translate-y-1/2 lg:-translate-x-1/2 z-20 flex items-center justify-center w-5 h-16 rounded-full border border-line bg-white text-ink-muted shadow-sm hover:text-brand hover:border-brand/40 hover:bg-brand/5 transition-colors"
                     >
                       <ChevronRight size={15} />
                     </button>
@@ -3388,7 +3388,7 @@ export default function ConsoleMeetingDetail() {
                               onClick={() => setRightTab(t.key)}
                               className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
                                 active
-                                  ? 'border-blue-600 text-blue-600 bg-blue-50/50'
+                                  ? 'border-brand text-brand bg-brand/5'
                                   : 'border-transparent text-ink-muted hover:text-ink hover:bg-canvas/40'
                               }`}
                             >

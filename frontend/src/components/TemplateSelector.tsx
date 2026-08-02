@@ -88,8 +88,8 @@ export default function TemplateSelector({
           padding: '8px 14px', fontSize: 13, fontWeight: 600,
           color: '#fff',
           background: selectedTemplate
-            ? (isLegacy ? '#2563eb' : 'linear-gradient(135deg,#2563eb,#1d4ed8)')
-            : 'linear-gradient(135deg,#FF8D1A,#D96400)',
+            ? (isLegacy ? '#2563eb' : 'linear-gradient(135deg,var(--rd-accent,#FF8D1A),var(--rd-accent-deep,#D96400))')
+            : 'linear-gradient(135deg,var(--rd-accent,#FF8D1A),var(--rd-accent-deep,#D96400))',
           border: 'none', borderRadius: 8,
           cursor: 'pointer', fontFamily: 'inherit',
           transition: 'all .2s',
@@ -134,7 +134,7 @@ export default function TemplateSelector({
                   fontSize: 13, fontWeight: selectedId === tpl.id ? 600 : 400,
                   color: isLegacy ? '#334155' : 'var(--rd-text, #e2e8f0)',
                   background: selectedId === tpl.id
-                    ? (isLegacy ? '#eff6ff' : 'rgba(37,99,235,.08)')
+                    ? (isLegacy ? '#eff6ff' : 'var(--rd-accent-soft, rgba(37,99,235,.08))')
                     : 'transparent',
                   border: 'none', borderRadius: 6,
                   cursor: 'pointer', textAlign: 'left',
@@ -150,14 +150,14 @@ export default function TemplateSelector({
                   if (selectedId !== tpl.id) e.currentTarget.style.background = 'transparent'
                 }}
               >
-                <FileText size={13} style={{ color: tpl.is_builtin ? '#2563eb' : '#D96400' }} />
+                <FileText size={13} style={{ color: tpl.is_builtin ? 'var(--rd-accent-2, #2563eb)' : '#D96400' }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {tpl.name}
                   </div>
                 </div>
                 {tpl.is_builtin && (
-                  <span style={{ fontSize: 10, color: '#2563eb', background: 'rgba(37,99,235,.12)', padding: '1px 5px', borderRadius: 3 }}>
+                  <span style={{ fontSize: 10, color: 'var(--rd-accent-2, #2563eb)', background: 'var(--rd-accent-soft, rgba(37,99,235,.12))', padding: '1px 5px', borderRadius: 3 }}>
                     预置
                   </span>
                 )}
@@ -183,11 +183,11 @@ export default function TemplateSelector({
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
             padding: '8px 12px',
-            background: isLegacy ? '#eff6ff' : 'rgba(37,99,235,.06)',
+            background: isLegacy ? '#eff6ff' : 'rgba(255,141,26,.06)',
             borderRadius: 8,
-            border: isLegacy ? '1px solid #bfdbfe' : '1px solid rgba(37,99,235,.15)',
+            border: isLegacy ? '1px solid #bfdbfe' : '1px solid rgba(255,141,26,.25)',
           }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#2563eb', flex: 1 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: isLegacy ? '#2563eb' : 'var(--rd-accent-2)', flex: 1 }}>
               当前模板：{selectedTemplate.name}
             </span>
             <button
@@ -228,7 +228,7 @@ export default function TemplateSelector({
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: '5px 10px', fontSize: 12, fontWeight: 600,
                 color: '#fff',
-                background: isLegacy ? '#2563eb' : 'linear-gradient(135deg,#2563eb,#1d4ed8)',
+                background: isLegacy ? '#2563eb' : 'linear-gradient(135deg,var(--rd-accent,#FF8D1A),var(--rd-accent-deep,#D96400))',
                 border: 'none', borderRadius: 6,
                 cursor: 'pointer', fontFamily: 'inherit',
               }}

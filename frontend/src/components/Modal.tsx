@@ -173,7 +173,9 @@ export function ConfirmModal({
               onClose()
             }}
             className={`px-3 py-1.5 text-sm text-white rounded-lg ${
-              danger ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
+              danger
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-[linear-gradient(135deg,var(--rd-accent,#2563eb),var(--rd-accent-deep,#1d4ed8))] hover:bg-[linear-gradient(135deg,var(--rd-accent-2,#1d4ed8),var(--rd-accent-deep,#1d4ed8))]'
             }`}
           >
             {confirmText}

@@ -164,7 +164,7 @@ export default function ModuleExportButton({ meetingId, meetingTitle, module, mo
         disabled={busy || !hasData}
         className={`flex items-center gap-1 ${
           compact ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-1.5 text-xs'
-        } rounded border border-line text-ink-secondary bg-white hover:bg-slate-50 disabled:opacity-40 transition-colors`}
+        } rounded-md border border-line text-ink-secondary bg-white hover:bg-canvas disabled:opacity-40 transition-colors`}
         title={!hasData ? '暂无数据可导出' : `导出 ${moduleLabel}`}
       >
         {busy ? (
@@ -242,7 +242,7 @@ function FmtBtn({
     <button
       onClick={onClick}
       title={title}
-      className="flex-1 flex items-center justify-center gap-1 px-2 py-1 text-[10.5px] rounded border border-line text-ink-secondary hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 transition-colors"
+      className="flex-1 flex items-center justify-center gap-1 px-2 py-1 text-xs rounded-md border border-line text-ink-secondary hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 transition-colors"
     >
       {icon}
       <span>{label}</span>
