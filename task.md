@@ -1,31 +1,30 @@
-# 任务:会议详情页 UI 一致性修复(P0/P1/P2)
+# 任务:会议纪要模块 5 项 UI/UX 改进
 
-> 历史任务「场景命中神经网络(2026-07-20)」已完成,内容见 git 历史。
-> 范围:本次只做 UI 一致性修复,不引入新依赖,不改 API 形状。
-> 原则:共享组件用 `var(--rd-*, 旧值fallback)` —— 旧 UI(无 `.rd-root`)保持原浅色外观,新 UI(有 `.rd-root`)自动切到橙色玻璃体系。
-> 旧 UI 的 blue 主操作色是既有惯例(ChangePassword/FeishuTab/ProjectFormModal 等),不统一动;只在共享组件上做主题感知切换。
+> 前置:PNG 导出迁移到 HTML 已完成(未提交)。本文档是新一批 5 项改进。
+> 范围:全部为前端改动;不动 API 形状。
 
-## P0 — 消除同页内橙/蓝冲突
+## Block A(#1)统一导出入口 — UnifiedExportButton
 
-- [x] P0-1 `redesign/console/ConsoleMeetingDetail.tsx`:右栏 Tab 激活态蓝色 `#2563eb` → `var(--rd-accent-2)`/`var(--rd-accent)`;右栏内容区残留浅底 `rgba(248,250,252,.35)` → `rgba(255,255,255,.02)`
-- [x] P0-2 `pages/console/ConsoleMeetingDetail.tsx`:右栏 Tab 激活态 `border-blue-600 text-blue-600 bg-blue-50/50` → 品牌橙 `border-brand text-brand bg-brand/5`(与左栏一致);收起按钮 hover 蓝 → 品牌橙
-- [x] P0-3 `components/TemplateSelector.tsx`:redesign 分支(`!isLegacy`)的 `#2563eb` 蓝 → 橙 accent(选中触发按钮、选项选中底、预置标签、操作栏、Word 导出按钮);isLegacy 分支不动
+- [x] A1 新建 `frontend/src/components/console/UnifiedExportButton.tsx`(variant: redesign|legacy):
+  - 一个「导出」按钮;面板两段:模块导出(建议/需求/流程/干系人 → 排版 → md/docx/html)+ 模板导出(模板 → 预览 → docx/md)
+  - 主题感知:redesign 用 --rd-*,legacy 用浅色
+- [x] A2 redesign 详情页:替换 TemplateSelector → UnifiedExportButton(并进工具条)
+- [x] A3 legacy 详情页:移除 4 处 ModuleExportButton + 替换 TemplateSelector → UnifiedExportButton(legacy)
+- [x] 删除孤儿组件 `ModuleExportButton.tsx`、`TemplateSelector.tsx`
 
-## P1 — 深色下刺眼的脱管点
+## Block B(#2/#3/#5)redesign 详情页
 
-- [x] P1-1 `components/ChatSidebar.tsx`:Header 奶油渐变 `#FFFBEB→#FEF3C7` → `var(--rd-surface[,-2], 原值)`;悬浮球琥珀 `#FBBF24→#F59E0B` → `var(--rd-accent[,-deep], 原值)`;用户气泡/发送按钮橙渐变 → token 化(var fallback 同值)
-- [x] P1-2 `components/Modal.tsx` ConfirmModal:确认按钮 `bg-blue-600` → 主题感知橙渐变 `var(--rd-accent,#2563eb)`(redesign 橙 / legacy 蓝);danger 保留红
-- [x] P1-3 `redesign/redesign.css`:补齐语义 `border-*-100` 深色映射(StatusBadge/ChatSidebar 用的浅色边框在深色下偏亮)
+- [x] B1 顶栏整合:Header 下方单行工具条 = [AudioPlayer flex-1][UnifiedExportButton];处理中改细进度条单行(不再整卡)
+- [x] B2 「重新处理」加 window.confirm(提示会覆盖现有结果)
+- [x] B3 窄屏默认收起右栏(matchMedia ≥1024px);面板高度 100dvh + minHeight 220 兜底
+- [x] B4 处理完成主动通知(status 从 processing/recording → 完成/失败 时 toast);润色成功 toast + invalidate
 
-## P2 — 按钮形态统一与失效类
+## Block C(#4)redesign 详情页:转写结构化 + 就地 AI 润色
 
-- [x] P2-1 `components/console/ModuleExportButton.tsx`:触发按钮 `rounded`→`rounded-md`、`hover:bg-slate-50`→`hover:bg-canvas`;格式按钮 `text-[10.5px]`→`text-xs`、`rounded`→`rounded-md`
-- [x] P2-2 修复失效类 `bg-canvas-elevated`:tailwind.config.js 补 `canvas-elevated: 'var(--bg-elevated)'`;index.css `:root` 补 `--bg-elevated: #FFFFFF`
-- [ ] 注:旧详情页 arbitrary 字号(10/10.5/11/12.5/15px)全量收敛属大范围重构,本次不做,避免 3455 行旧文件回归风险(可作后续单独任务)
+- [x] C1 SpeakerTranscript:按 `说话人N MM:SS - MM:SS` 分段(说话人 chip + 可点击时间戳跳音频 + 文本)
+- [x] C2 TranscriptPanel 原文改用 SpeakerTranscript;AI 润色就地按钮(runMeetingAction 'polish' + toast + invalidate),空态不再引导跳「操作」页
 
 ## 验收
 
-- [x] `npx tsc --noEmit -p tsconfig.json` 通过
-- [x] 确认 Tailwind 生成 `bg-canvas-elevated`、Modal 的 arbitrary 渐变类(`npx tailwindcss` 编译检查)
-- [x] 新 UI(`?ui=new`):详情页右栏与左栏同为橙色;ChatSidebar 深色玻璃;Modal 确认橙色
-- [x] 旧 UI:各共享组件外观不变(ChatSidebar 奶油/琥珀、Modal 蓝、TemplateSelector 蓝)
+- [x] `npx tsc --noEmit` 通过(含删除孤儿组件后)
+- [ ] 手工目检:新 UI 导出面板含模块+模板两类;工具条单行;窄屏默认收右栏;处理完成 toast;转写分段可点时间戳跳播放;旧 UI 导出入口统一

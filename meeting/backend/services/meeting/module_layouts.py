@@ -77,6 +77,88 @@ pre.mermaid { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px
 .priority-dot.low { background: #9ca3af; }
 .label-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 4px; }
 .chip { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; border: 1px solid #e5e7eb; background: #f9fafb; color: #555; }
+.export-toolbar { position: fixed; top: 14px; right: 18px; z-index: 9999; display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 6px 10px; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+.export-toolbar button { background: linear-gradient(135deg, #FF8D1A, #D96400); color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.export-toolbar button:hover { filter: brightness(1.06); }
+.export-toolbar button:disabled { opacity: .55; cursor: not-allowed; }
+.export-toolbar .export-hint { font-size: 11px; color: #999; }
+@media print { .export-toolbar { display: none; } }
+"""
+
+
+# ── 导出 PNG 工具栏 + 脚本(注入到每个导出的 HTML,便于离线一键截图)──────────
+# 用 raw 字符串(非 f-string),避免与 JS 的花括号 / 反斜杠冲突
+
+_PNG_TOOLBAR_HTML = r"""
+<div id="export-toolbar" class="export-toolbar">
+  <button id="export-png-btn" type="button">导出PNG</button>
+  <span class="export-hint">点击后将整页内容保存为 PNG 图片</span>
+</div>
+"""
+
+_PNG_EXPORT_SCRIPT = r"""
+<script>
+(function () {
+  var BTN = document.getElementById('export-png-btn');
+  if (!BTN) return;
+
+  function exportFileName() {
+    var t = (document.title || '会议导出').replace(/[\\/:*?"<>|\s]+/g, '_');
+    return t + '.png';
+  }
+
+  // 懒加载 html-to-image(需联网;失败时提示)
+  function loadHtmlToImage() {
+    return new Promise(function (resolve, reject) {
+      if (window.htmlToImage && window.htmlToImage.toPng) { resolve(window.htmlToImage); return; }
+      var s = document.createElement('script');
+      s.src = 'https://unpkg.com/html-to-image@1.11.11/dist/html-to-image.js';
+      s.onload = function () { resolve(window.htmlToImage); };
+      s.onerror = function () { reject(new Error('加载截图组件失败，请检查网络后重试')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  // 等 mermaid 流程图渲染完成(最多等 4s)
+  function waitMermaid() {
+    var pres = document.querySelectorAll('pre.mermaid');
+    var missing = Array.prototype.filter.call(pres, function (p) { return !p.querySelector('svg'); });
+    if (!missing.length || !window.mermaid) return Promise.resolve();
+    return new Promise(function (resolve) {
+      var waited = 0;
+      var timer = setInterval(function () {
+        var remain = Array.prototype.filter.call(missing, function (p) { return !p.querySelector('svg'); });
+        waited += 200;
+        if (!remain.length || waited >= 4000) { clearInterval(timer); resolve(); }
+      }, 200);
+    });
+  }
+
+  BTN.addEventListener('click', function () {
+    var old = BTN.textContent;
+    BTN.disabled = true;
+    BTN.textContent = '生成中…';
+    loadHtmlToImage().then(function (lib) {
+      return waitMermaid().then(function () {
+        var target = document.getElementById('export-target') || document.body;
+        return lib.toPng(target, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true });
+      });
+    }).then(function (dataUrl) {
+      var a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = exportFileName();
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }).catch(function (e) {
+      alert((e && e.message) || '导出 PNG 失败');
+    }).then(function () {
+      BTN.disabled = false;
+      BTN.textContent = old;
+    });
+  });
+})();
+</script>
 """
 
 
@@ -92,9 +174,13 @@ def _html_wrap(title: str, body: str, extra_head: str = "") -> str:
 {extra_head}
 </head>
 <body>
+<div id="export-target">
 <h1>{_esc(title)}</h1>
 {body}
 <div class="footer">由 KB 知识库系统生成 · {_esc(title)}</div>
+</div>
+{_PNG_TOOLBAR_HTML}
+{_PNG_EXPORT_SCRIPT}
 </body>
 </html>"""
 

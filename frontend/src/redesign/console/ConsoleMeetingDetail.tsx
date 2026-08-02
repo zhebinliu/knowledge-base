@@ -8,7 +8,7 @@
  *
  * Tab 内部组件复用 ConsoleMeetingDetail.tsx 导出的老实现。
  */
-import { useState, useRef } from 'react'
+import { useState, useRef, useContext, useEffect, useMemo } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
@@ -17,7 +17,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import {
-  getMeeting, deleteMeeting, processMeeting,
+  getMeeting, deleteMeeting, processMeeting, runMeetingAction,
   type Meeting,
 } from '../../api/client'
 import {
@@ -30,7 +30,8 @@ import {
 import { getMeetingAudioUrl } from '../../api/meeting-ext'
 import AudioPlayer, { type AudioPlayerHandle } from '../../components/AudioPlayer'
 import ChatWidget from '../../components/ChatSidebar'
-import TemplateSelector from '../../components/TemplateSelector'
+import UnifiedExportButton from '../../components/console/UnifiedExportButton'
+import { toast } from '../../components/Toaster'
 import GlowCard from '../components/GlowCard'
 
 type LeftTab = 'minutes' | 'requirements' | 'process_flows' | 'stakeholders' | 'illustrations'
@@ -63,7 +64,10 @@ export default function NewConsoleMeetingDetail() {
   const [view, setView] = useState<'split' | 'overview' | 'actions'>('split')
   const [leftTab, setLeftTab] = useState<LeftTab>('minutes')
   const [rightTab, setRightTab] = useState<RightTab>('transcript')
-  const [rightPanelOpen, setRightPanelOpen] = useState(true)
+  // 窄屏(<1024px)默认收起右栏,避免上下堆叠占据大段屏幕
+  const [rightPanelOpen, setRightPanelOpen] = useState<boolean>(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches,
+  )
   const audioPlayerRef = useRef<AudioPlayerHandle>(null)
 
   const { data: meeting, isLoading, error } = useQuery({
@@ -85,6 +89,27 @@ export default function NewConsoleMeetingDetail() {
     mutationFn: () => deleteMeeting(meetingId),
     onSuccess: () => nav(backHref),
   })
+
+  const polishMut = useMutation({
+    mutationFn: () => runMeetingAction(meetingId, 'polish'),
+    onSuccess: () => {
+      toast.success('AI 润色完成')
+      qc.invalidateQueries({ queryKey: ['meeting', meetingId] })
+    },
+    onError: () => toast.error('触发 AI 润色失败'),
+  })
+
+  // 处理中状态 → 完成/失败 时主动通知
+  const prevStatus = useRef<string | undefined>(meeting?.status)
+  useEffect(() => {
+    const s = meeting?.status
+    if (!s) return
+    const prev = prevStatus.current
+    prevStatus.current = s
+    if (prev && (prev === 'processing' || prev === 'recording') && s !== prev) {
+      toast[s === 'failed' ? 'error' : 'success'](s === 'failed' ? '会议处理失败，请查看详情' : '会议处理完成')
+    }
+  }, [meeting?.status])
 
   if (!Number.isFinite(meetingId)) {
     return <div className="rd-page" style={{ textAlign: 'center', color: 'var(--rd-text-3)', fontSize: 13 }}>无效的会议 ID</div>
@@ -149,7 +174,11 @@ export default function NewConsoleMeetingDetail() {
           </div>
           <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
             <button
-              onClick={() => processMut.mutate()}
+              onClick={() => {
+                if (window.confirm('重新处理将重跑完整 AI pipeline，可能覆盖现有的纪要、需求、业务流程、干系人结果。确认继续？')) {
+                  processMut.mutate()
+                }
+              }}
               disabled={processMut.isPending || !meeting.raw_transcript}
               className="rd-btn"
               style={{ fontSize: 12, padding: '7px 14px' }}
@@ -172,65 +201,46 @@ export default function NewConsoleMeetingDetail() {
         </div>
       </GlowCard>
 
-      {/* 音频播放器(仅当有录音文件时显示) */}
-      {hasAudio && (
-        <div style={{ marginBottom: 14 }}>
-          <AudioPlayer ref={audioPlayerRef} audioUrl={audioUrl} />
-        </div>
-      )}
-
-      {/* 转写进度条 — processing + total_chunks > 0 才显示 */}
-      {meeting.status === 'processing' && meeting.total_chunks > 0 && (
-        <GlowCard glow style={{ padding: '14px 20px', marginBottom: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, fontSize: 12 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--rd-text-2)' }}>
-              <Loader2 size={12} className="animate-spin" color="var(--rd-accent)" />
-              正在切片并发转写 · {meeting.asr_engine || 'xiaomi'} ASR
-            </span>
-            <span className="rd-mono" style={{ color: 'var(--rd-text-3)' }}>
-              {meeting.done_chunks} / {meeting.total_chunks} 片
-              ({Math.round((meeting.done_chunks / meeting.total_chunks) * 100)}%)
-            </span>
+      {/* 工具条:音频 + 统一导出(单行整合,内容区上移) */}
+      {(hasAudio || (hasContent && meeting.meeting_minutes)) && (
+        <GlowCard style={{ padding: '10px 16px', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {hasAudio && <AudioPlayer ref={audioPlayerRef} audioUrl={audioUrl} className="flex-1 min-w-0" />}
+            {(hasContent && meeting.meeting_minutes) && (
+              <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                <UnifiedExportButton meetingId={meeting.id} meetingTitle={meeting.title} />
+              </div>
+            )}
           </div>
-          <div style={{
-            height: 5, borderRadius: 999, overflow: 'hidden',
-            background: 'rgba(255, 141, 26, 0.10)',
-          }}>
-            <div
-              style={{
-                height: '100%',
-                width: `${(meeting.done_chunks / meeting.total_chunks) * 100}%`,
-                background: 'linear-gradient(90deg, var(--rd-accent), var(--rd-accent-2))',
-                boxShadow: '0 0 8px var(--rd-accent)',
-                transition: 'width .5s var(--rd-ease)',
-              }}
-            />
-          </div>
-          {meeting.raw_transcript && (
-            <div style={{
-              marginTop: 10, fontSize: 12, color: 'var(--rd-text-2)',
-              maxHeight: 96, overflowY: 'auto',
-              background: 'rgba(15, 18, 36, .025)',
-              border: '1px solid var(--rd-line)',
-              borderRadius: 8, padding: '8px 10px',
-              lineHeight: 1.6,
-            }}>
-              {meeting.raw_transcript.slice(-400)}
-              <span style={{
-                display: 'inline-block', width: 2, height: 12,
-                background: 'var(--rd-accent)', marginLeft: 2, verticalAlign: 'middle',
-                animation: 'rd-blink 0.85s steps(2) infinite',
-              }} />
-            </div>
-          )}
         </GlowCard>
       )}
 
-      {/* 模板选择与导出（仅当有纪要内容时显示） */}
-      {hasContent && meeting.meeting_minutes && (
-        <div style={{ marginBottom: 14 }}>
-          <TemplateSelector meetingId={meeting.id} meetingTitle={meeting.title} />
-        </div>
+      {/* 处理中细进度条(单行,不再整卡) */}
+      {meeting.status === 'processing' && meeting.total_chunks > 0 && (
+        <GlowCard style={{ padding: '10px 16px', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+            <Loader2 size={13} className="animate-spin" color="var(--rd-accent)" style={{ flexShrink: 0 }} />
+            <span style={{ color: 'var(--rd-text-2)', flexShrink: 0 }}>
+              正在切片并发转写 · {meeting.asr_engine || 'xiaomi'} ASR
+            </span>
+            <div style={{ flex: 1, minWidth: 60, height: 4, borderRadius: 999, overflow: 'hidden', background: 'rgba(255,141,26,.10)' }}>
+              <div style={{
+                height: '100%',
+                width: `${(meeting.done_chunks / meeting.total_chunks) * 100}%`,
+                background: 'linear-gradient(90deg, var(--rd-accent), var(--rd-accent-2))',
+                transition: 'width .5s var(--rd-ease)',
+              }} />
+            </div>
+            <span className="rd-mono" style={{ color: 'var(--rd-text-3)', flexShrink: 0 }}>
+              {meeting.done_chunks} / {meeting.total_chunks} 片 ({Math.round((meeting.done_chunks / meeting.total_chunks) * 100)}%)
+            </span>
+            {meeting.raw_transcript && (
+              <span className="truncate" style={{ color: 'var(--rd-text-3)', fontSize: 11, minWidth: 0 }}>
+                {meeting.raw_transcript.slice(-80)}
+              </span>
+            )}
+          </div>
+        </GlowCard>
       )}
 
       {/* 主内容区 — 顶栏快捷切换 + 分栏/全屏内容 */}
@@ -350,7 +360,7 @@ export default function NewConsoleMeetingDetail() {
                   )}
                 </div>
                 {/* 左侧内容 */}
-                <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(100vh - 340px)' }}>
+                <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(100dvh - 320px)', minHeight: 220 }}>
                   {leftTab === 'minutes'       && <MinutesTab meeting={meeting} />}
                   {leftTab === 'requirements'  && <RequirementsTab meeting={meeting} />}
                   {leftTab === 'process_flows' && <ProcessFlowsTab meeting={meeting} />}
@@ -414,8 +424,8 @@ export default function NewConsoleMeetingDetail() {
                     </button>
                   </div>
                   {/* 右侧内容 */}
-                  <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(100vh - 340px)', background: 'rgba(255,255,255,.02)' }}>
-                    <TranscriptPanel meeting={meeting} rightTab={rightTab} />
+                  <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(100dvh - 320px)', minHeight: 220, background: 'rgba(255,255,255,.02)' }}>
+                    <TranscriptPanel meeting={meeting} rightTab={rightTab} onPolish={() => polishMut.mutate()} polishPending={polishMut.isPending} />
                   </div>
                 </div>
               )}
@@ -430,43 +440,150 @@ export default function NewConsoleMeetingDetail() {
   )
 }
 
-// ── 右侧转录面板: 原文 / AI润色 切换展示 ───────────────────────────────────────
+// ── 右侧转录面板: 原文(AI 分段) / AI润色 ───────────────────────────────────────
 
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
-function TranscriptPanel({ meeting, rightTab }: { meeting: Meeting; rightTab: RightTab }) {
-  const content = rightTab === 'transcript'
-    ? (meeting.raw_transcript || '暂无原始转写')
-    : (meeting.polished_transcript || '暂无润色转写，可在「操作」页触发 AI 润色')
+interface TranscriptSegment {
+  speaker: string
+  start: number
+  end?: number
+  text: string
+}
 
+/** 按「说话人N MM:SS - MM:SS」标记把转写拆成分段 */
+function parseTranscript(raw: string): TranscriptSegment[] {
+  const re = /^说话人(\d+)\s+(\d{1,2}):(\d{2})(?:\s*-\s*(\d{1,2}):(\d{2}))?\s*$/
+  const segments: TranscriptSegment[] = []
+  let cur: TranscriptSegment | null = null
+  for (const line of raw.split('\n')) {
+    const m = line.trim().match(re)
+    if (m) {
+      cur = {
+        speaker: m[1],
+        start: parseInt(m[2]) * 60 + parseInt(m[3]),
+        end: m[4] ? parseInt(m[4]) * 60 + parseInt(m[5]) : undefined,
+        text: '',
+      }
+      segments.push(cur)
+    } else if (cur) {
+      cur.text += (cur.text ? '\n' : '') + line
+    } else {
+      // 标记前的零散文本
+      cur = { speaker: '', start: 0, end: undefined, text: line }
+      segments.push(cur)
+    }
+  }
+  return segments
+}
+
+function fmtTs(s: number) {
+  const m = Math.floor(s / 60)
+  const sec = Math.floor(s % 60)
+  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+}
+
+function SpeakerTranscript({ text }: { text: string }) {
+  const seek = useContext(SeekToContext)
+  const segments = useMemo(() => parseTranscript(text), [text])
+  if (!segments.length) return <div style={{ color: 'var(--rd-text-3)', fontSize: 13 }}>暂无原始转写内容</div>
+  return (
+    <div className="space-y-3">
+      {segments.map((s, i) => (
+        <div key={i}>
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            {s.speaker && (
+              <span
+                className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-semibold"
+                style={{ background: 'var(--rd-accent-soft)', color: 'var(--rd-accent-2)' }}
+              >
+                说话人{s.speaker}
+              </span>
+            )}
+            {s.end !== undefined && (
+              <button
+                onClick={() => seek && seek(s.start)}
+                disabled={!seek}
+                title="点击跳转到该时间播放"
+                className="rd-mono text-[11px] px-1.5 py-0.5 rounded-md transition-colors"
+                style={{
+                  background: 'rgba(255,141,26,.08)',
+                  color: 'var(--rd-text-2)',
+                  border: '1px solid var(--rd-line)',
+                  cursor: seek ? 'pointer' : 'default',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {fmtTs(s.start)} - {fmtTs(s.end!)}
+              </button>
+            )}
+          </div>
+          {s.text && (
+            <div className="text-[13px] leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--rd-text-2)' }}>
+              {s.text}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function TranscriptPanel({
+  meeting, rightTab, onPolish, polishPending,
+}: {
+  meeting: Meeting
+  rightTab: RightTab
+  onPolish: () => void
+  polishPending: boolean
+}) {
   const isEmpty = rightTab === 'transcript' ? !meeting.raw_transcript : !meeting.polished_transcript
 
   if (isEmpty) {
     return (
-      <div className="text-center py-12 text-sm text-ink-muted">
-        {rightTab === 'transcript'
-          ? '暂无原始转写内容'
-          : (
-            <div className="space-y-3">
-              <p>暂无润色版本</p>
-              <p className="text-xs">切换到「操作」标签可触发 AI 润色</p>
-            </div>
-          )}
+      <div className="text-center py-12 text-sm" style={{ color: 'var(--rd-text-3)' }}>
+        {rightTab === 'transcript' ? (
+          '暂无原始转写内容'
+        ) : (
+          <div className="space-y-3">
+            <p>暂无润色版本</p>
+            <button
+              onClick={onPolish}
+              disabled={polishPending}
+              className="rd-btn"
+              style={{ fontSize: 12, padding: '6px 14px' }}
+            >
+              {polishPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              触发 AI 润色
+            </button>
+          </div>
+        )}
       </div>
     )
   }
 
   return (
-    <div className="text-[13px] leading-relaxed text-ink-secondary prose prose-sm max-w-none prose-p:my-1.5 prose-headings:mt-3 prose-headings:mb-2 prose-ul:list-disc prose-ol:list-decimal prose-li:my-0.5">
-      {/* 转录文本中可能包含说话人标记如 "说话人0 00:00:06 - 00:00:39"，用 Markdown 渲染 */}
+    <div className="text-[13px]">
       {rightTab === 'polished' ? (
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+        <div>
+          <div className="mb-2 flex justify-end">
+            <button
+              onClick={onPolish}
+              disabled={polishPending}
+              className="rd-btn"
+              style={{ fontSize: 12, padding: '5px 12px' }}
+            >
+              {polishPending ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              重新润色
+            </button>
+          </div>
+          <div className="prose prose-sm max-w-none prose-p:my-1.5 prose-headings:mt-3 prose-headings:mb-2 prose-ul:list-disc prose-ol:list-decimal prose-li:my-0.5">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{meeting.polished_transcript || ''}</ReactMarkdown>
+          </div>
+        </div>
       ) : (
-        <pre
-          className="whitespace-pre-wrap font-sans text-inherit bg-transparent p-0 m-0 border-none"
-          style={{ lineHeight: 1.8 }}
-        >{content}</pre>
+        <SpeakerTranscript text={meeting.raw_transcript || ''} />
       )}
     </div>
   )
