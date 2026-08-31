@@ -1432,3 +1432,47 @@ RUN python -m compileall -q /app && echo "syntax ok"
   或本地一把梭扫全仓:`compile()` 遍历 `backend/` + `meeting/backend/` 下所有 `.py`。
 - **lazy import 的模块 = 健康检查的盲区**,新增 service 模块后要显式 `docker compose exec backend python -c "import services.xxx"` 验一次。
 - `html_export.py` **两份副本**(`backend/` 和 `meeting/backend/`,overlay 关系见 §12),修的时候两份一起改;`module_layouts.py` / `module_export.py` 只有 `meeting/backend/` 一份。
+
+## 26. 录音上传 413 —— 应用层放 500MB,两层 nginx 只放 100m(2026-08-31)
+
+**现象**:新建会议选「上传录音」,前端直接弹 `Request failed with status code 413`,
+文案没有任何有效信息(axios 的默认 message)。
+
+**真因**:上传上限有 **四层**,只有前两层对齐了:
+
+| 层 | 位置 | 原值 |
+|---|---|---|
+| 前端页面校验 | `frontend/src/pages/console/ConsoleMeetingNew.tsx` `MAX_FILE_SIZE_MB` | 500 |
+| 后端校验 | `backend/api/meeting.py` + `meeting/backend/api/meeting.py` `_MAX_UPLOAD_MB` | 500 |
+| **frontend 容器 nginx** | `frontend/nginx.prod.conf` | **100m** ❌ |
+| **edge 容器 nginx** | `edge/nginx.conf` kb.tokenwave.cloud server block | **100m** ❌ |
+
+122MB 的录音在**最外层 edge 就被拦掉**,请求根本没到 backend,所以后端日志里什么都没有。
+实锤在 edge 容器日志(不是 backend):
+```
+docker logs kb-system-edge-1 | grep -i "too large"
+# client intended to send too large body: 128737884 bytes, server: kb.tokenwave.cloud
+```
+
+**修法**(commit `048bdc4`):edge + frontend 两处 `client_max_body_size` → `512m`;
+两处 `proxy_send_timeout` 60s → 300s(两层都 `proxy_request_buffering off` 边收边转发,
+客户端上行慢时写 upstream 的间隔可能超 60s);前端 axios 拦截器加 413 兜底文案
+(nginx 拦下时返回 HTML、没有 `detail`,原来只能显示英文 axios message)。
+
+**教训**:
+- **413 先看 edge 日志,不要在 backend 里找** —— 2026-07-14 拆出 edge 后,body 限制有两道闸,
+  改了 `frontend/nginx.prod.conf` 不改 `edge/nginx.conf` 等于没改。
+- 调应用层上传上限时(`_MAX_UPLOAD_MB` / `MAX_FILE_SIZE_MB`),**必须同步 grep 一遍
+  `client_max_body_size`**,四层保持一致。
+- 验证方法(不用真在浏览器传大文件,走服务器 loopback 秒出结果):
+  ```
+  dd if=/dev/zero of=/tmp/big.bin bs=1M count=130
+  curl -sk -o /dev/null -w "%{http_code}\n" --resolve kb.tokenwave.cloud:443:127.0.0.1 \
+    https://kb.tokenwave.cloud/api/meeting/upload -F file=@/tmp/big.bin
+  # 401 = body 已穿过两层 nginx 到 backend(只是没带 token),413 = 还被 nginx 卡着
+  ```
+
+**顺带发现:`/opt/data` 已经 99% 满(20G 盘)** —— 见 §"prod 磁盘满"。构成:containerd 镜像
+11G + docker volumes 7.1G(其中 minio 音频/文档 6.6G)。已 truncate 掉 new-api / kanban-web /
+kanban-admin 三个容器的 json 日志(313MB)腾到 609M free,**但 500MB 的录音一传就会再次撑爆
+(历史上撑爆会直接把 postgres 打崩)。真正的解法是扩盘,不是继续删日志。**
