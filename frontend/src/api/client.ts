@@ -65,7 +65,12 @@ api.interceptors.response.use(
     if (status !== 401 && status !== 422 /* 表单校验由调用方自己处理 */) {
       try {
         const detail = err?.response?.data?.detail
-        const msg = (typeof detail === 'string' && detail) || err?.message || '请求失败'
+        let msg = (typeof detail === 'string' && detail) || err?.message || '请求失败'
+        // 413 多半是 nginx 直接拦下(返回 HTML,没有 detail),axios 只给
+        // "Request failed with status code 413",对用户毫无信息量
+        if (status === 413 && !(typeof detail === 'string' && detail)) {
+          msg = '文件超过服务器上传上限(音频 500MB),请压缩或裁剪后重试'
+        }
         // 静态 import 会形成循环依赖,用动态 import
         import('../components/Toaster').then(({ toast }) => {
           toast.error(status ? `[${status}] ${msg}` : msg)
