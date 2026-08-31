@@ -119,6 +119,30 @@ def list_segments(meeting_id: int) -> list[str]:
     return sorted(o.object_name for o in mc.list_objects(_bucket_name(), prefix=prefix, recursive=True))
 
 
+def delete_segments(meeting_id: int) -> int:
+    """删掉某会议的全部录音分段。
+
+    finalize 把 seg/*.webm 拼成整段 `录音.wav` 之后,分段就是死数据 ——
+    全仓只有 finalize 这一处读它们(list_segments)。不清理的话每场半实时录音
+    会在 MinIO 里长期压着一份跟正片同量级的垃圾(2026-08-31 实测攒了 1.6G)。
+
+    返回删除个数;任何失败只记日志不抛 —— 清理失败不该影响会议流程。
+    """
+    try:
+        from minio.deleteobjects import DeleteObject
+
+        keys = list_segments(meeting_id)
+        if not keys:
+            return 0
+        errs = list(_client().remove_objects(_bucket_name(), [DeleteObject(k) for k in keys]))
+        for e in errs:
+            logger.warning("meeting_segment_delete_failed", meeting_id=meeting_id, error=str(e)[:120])
+        return len(keys) - len(errs)
+    except Exception as e:
+        logger.warning("meeting_segments_cleanup_failed", meeting_id=meeting_id, error=str(e)[:160])
+        return 0
+
+
 def delete_audio(object_key: Optional[str]):
     """删除音频(可选,会议删除时调用)。失败仅日志不抛。"""
     if not object_key:

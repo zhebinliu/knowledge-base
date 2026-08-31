@@ -274,6 +274,10 @@ async def _finalize_recording_async(meeting_id: int):
                         m.audio_object_key = key
                         await session.commit()
                 logger.info("finalize_audio_concat_done", meeting_id=meeting_id, segs=len(seg_keys), wav_bytes=len(wav))
+                # 整段 wav 已落库,分段就是死数据 —— 就地清掉,别在 MinIO 里长期压着
+                from services.meeting.storage import delete_segments
+                removed = delete_segments(meeting_id)
+                logger.info("finalize_segments_cleaned", meeting_id=meeting_id, removed=removed)
     except Exception as e:
         logger.warning("finalize_concat_failed", meeting_id=meeting_id, error=str(e)[:160])
 
