@@ -55,6 +55,20 @@ class EmbeddingService:
     async def _resolve_key(self) -> str:
         return await _resolve_config("api_key", "embedding_api_key")
 
+    async def _resolve_dimensions(self) -> int | None:
+        """可选输出维度。配了才下发 dimensions 字段 —— 不配时行为与以前完全一致。
+
+        火山 doubao-embedding-vision 原生 2048 维,支持 dimensions=1024 截断,
+        正好对齐 vector_store 的 VectorParams(size=1024),不用重建 collection。
+        bge-m3 之类不认这个字段的 provider 留空即可。
+        """
+        raw = await _resolve_config("dimensions", "embedding_dimensions")
+        try:
+            n = int(str(raw).strip())
+            return n if n > 0 else None
+        except (TypeError, ValueError):
+            return None
+
     async def _cache_key(self, text: str) -> str:
         h = hashlib.sha1(text.encode("utf-8")).hexdigest()
         model = await self._resolve_model()
@@ -85,6 +99,10 @@ class EmbeddingService:
         api_base = await self._resolve_base()
         api_key = await self._resolve_key()
         model = await self._resolve_model()
+        dims = await self._resolve_dimensions()
+        payload: dict = {"model": model, "input": texts}
+        if dims:
+            payload["dimensions"] = dims
         # 429 退避: 5s / 10s / 20s
         backoffs = [5, 10, 20]
         attempt = 0
@@ -92,7 +110,7 @@ class EmbeddingService:
             resp = await self.client.post(
                 f"{api_base}/embeddings",
                 headers={"Authorization": f"Bearer {api_key}"},
-                json={"model": model, "input": texts},
+                json=payload,
             )
             if resp.status_code == 429 and attempt < len(backoffs):
                 wait = backoffs[attempt]

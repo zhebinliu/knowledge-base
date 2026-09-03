@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     embedding_api_base: str = "https://api.siliconflow.cn/v1"
     embedding_api_key: str = ""
     embedding_model: str = "BAAI/bge-m3"
+    # 可选:指定输出维度。留空=不下发该字段(bge-m3 等不认它的 provider 保持原行为)。
+    # 火山 doubao-embedding-vision 原生 2048,设 1024 可对齐 vector_store 的 collection 维度。
+    embedding_dimensions: str = ""
 
     # Rerank
     rerank_provider: str = "siliconflow"
