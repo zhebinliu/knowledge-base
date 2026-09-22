@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import {
   getProjectTodos, syncProjectTodos, patchTodo, deleteTodo, createProjectTodo,
+  type TodoPatchBody,
   batchPatchTodos, smartAssignTodo, getProject,
   type ProjectTodo,
 } from '../../api/client'
@@ -161,7 +162,7 @@ export default function ProjectTodos({ variant = 'legacy' }: { variant?: Variant
     onError: (err: any) => toast.error(err?.response?.data?.detail || '同步失败'),
   })
   const patchMut = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: Partial<ProjectTodo> }) => patchTodo(id, body),
+    mutationFn: ({ id, body }: { id: number; body: TodoPatchBody }) => patchTodo(id, body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['project-todos', projectId] }); toast.success('已更新') },
     onError: (err: any) => toast.error(err?.response?.data?.detail || '更新失败'),
   })

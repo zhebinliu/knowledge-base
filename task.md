@@ -63,16 +63,39 @@
 - [x] 端点 `POST /{id}/actions/extract_speaker_durations`(两副本)
 - [x] 前端 `SpeakerDurationChart`(recharts 横向柱 + 「无法判断」灰柱 + 来源徽标)
 
-### B3 · 待办四象限
+### B3 · 待办四象限 — 已完成
 
-- [ ] DDL `project_todos` 加 `quadrant` / `quadrant_source` / `quadrant_meta` + 索引
-- [ ] `models/project_todo.py` 加列(补 `JSON` import)
-- [ ] `_todo_dto` / `TodoPatch` / PATCH 处理加象限字段
-- [ ] `prompts/meeting.py` 两副本加 `QUADRANT_SYSTEM` / `QUADRANT_USER`
-- [ ] 新建 `backend/tasks/insight_tasks.py` + `tasks/__init__.py` 注册
-- [ ] `classify_todos_quadrant()`(backend/api/project_todos.py)
-- [ ] 端点:classify / classify status / sync 挂分类 / meeting sync
-- [ ] 前端 `InsightTab` 加四象限 section(2×2 拖拽 + 未分类区)
+- [x] DDL `project_todos` 加 `urgency` / `necessity` / `quadrant_source` / `quadrant_meta`
+      （**不存 `quadrant` 列** —— 象限由两轴派生。计划书 §一 正文就是这么定的,
+      task.md 的勾选项写成「加 quadrant 列」是笔误,以正文为准:存了就会有两处状态）
+- [x] `models/project_todo.py` 加列(补 `JSON` import)
+- [x] `_todo_dto` 输出两轴 + 派生 `quadrant` + `quadrant_source` + `quadrant_meta`
+- [x] `TodoPatch` 加两轴(空串=清空该轴,同 `due_date` 约定);PATCH 处理置
+      `quadrant_source='manual'`;清空两轴则 source 一并清掉
+- [x] `prompts/meeting.py` 两副本加 `QUADRANT_SYSTEM` / `QUADRANT_USER`(已验逐字相同)
+- [x] 新建 `backend/tasks/insight_tasks.py`(`classify_project_todos_quadrant`)+
+      `tasks/__init__.py` 注册。**该文件只有一份,overlay 无同名副本**(新文件规则)
+- [x] `classify_todos_quadrant()`(backend/api/project_todos.py):分批 ≤40 /
+      并行 gather / 只认本批 id / 两轴非法或 null 一律保持未分类 / 绝不覆盖 manual
+- [x] 端点 `POST /projects/{id}/todos/classify` + `GET .../classify/status/{task_id}`
+      —— 两者用 `require_project_access`
+- [x] 既有 `POST /projects/{id}/todos/sync` 加 `?classify=true`(默认)异步触发分类,
+      返回 `classify_task_id`;仅在有新导入时触发,dispatch 失败不影响导入结果
+- [x] 前端 `TodoQuadrant`(2×2 拖拽 + 未分类区 + 同步/重新分类按钮 + 判定依据折叠)
+      + `InsightTab` 加 section(无 `project_id` 时降级为提示)
+- [x] `client.ts`:`ProjectTodo` 补象限字段、新 `TodoPatchBody`、`classifyProjectTodosQuadrant`、
+      `getClassifyQuadrantStatus`、`syncProjectTodos` 返回值补 `classify_task_id`
+- [x] 验证:31 项逻辑断言全绿(见下「验证记录」)
+
+**与计划的偏离(3 处,均已在代码注释里写明理由)**
+
+1. **不新增 `POST /api/meeting/{id}/todos/sync`**。前端既有入口就是
+   `POST /projects/{id}/todos/sync`,再加一个会议级端点等于复制一份同步逻辑。
+   顺带发现 `sync_todos_for_meeting()` 在仓库里**从来没有调用方**(死代码),本次不动它。
+2. 分类入参除 `only_unclassified` 外多给一个 `ids`(限定子集),便于以后只重判某几条。
+3. 前端 `patchTodo` 的 body 类型抽成 `TodoPatchBody` 并让 `ProjectTodos.tsx` 复用
+   —— 原先它传 `Partial<ProjectTodo>`,加了 `urgency: Urgency | null` 后类型不再成立
+   (`null` 在服务端意为「本次不改」,与空串「清空」是两回事,不能用宽松类型糊过去)。
 
 ### B4 · 跨会议对比
 
@@ -103,3 +126,49 @@
 6. 发言时长:飞书妙记式转写 → 「精确解析」;普通 `[MM:SS]` 转写 → 「LLM 推断」+ 置信度
 7. 拖拽象限后刷新保持(`quadrant_source='manual'` 不被自动分类覆盖)
 8. 名词校正词典修复后:加一条校正词 → 跑润色 → 输出中确实被替换
+
+---
+
+## 验证记录
+
+### B3(2026-09-22)
+
+用 stub harness 直接加载真实的 `backend/api/project_todos.py` 跑逻辑断言
+(容器里的 `structlog` 等依赖本地没有,故按 CLAUDE.md 的既有做法注入 stub 模块;
+`prompts/meeting.py` 用真实文件,顺带验证 `{{}}` 转义与 `.format` 占位符)。**31 项全绿**:
+
+| 组 | 覆盖点 |
+|---|---|
+| 1 | `derive_quadrant` 四象限映射;任一轴为 NULL → 未分类;非法值 → None |
+| 2 | 人工条目(`quadrant_source='manual'`)两轴不被覆盖;`only_unclassified` 跳过已分类;模型返回不存在的 id 被忽略;缺一轴 → 不落库;有更新才 commit |
+| 3 | `only_unclassified=False` 时已分类的被重判,但人工的仍不动 |
+| 4 | 全人工项目 → 不调模型、不 commit |
+| 5 | `QUADRANT_USER.format()` 产出合法 JSON 骨架;system prompt 的枚举值与后端常量一致 |
+| 6 | PATCH:拖到象限 → `manual`;清空两轴 → 未分类且 source 清掉;只改一轴也标 manual;不传两轴 → 不动象限字段;非法值 → 400 |
+
+另:`python -m compileall backend meeting/backend` 全绿;`npx tsc --noEmit` 全绿;
+`prompts/meeting.py` 两副本逐字相同;`api/meeting.py` 差异仍只有那 2 处刻意 hunk。
+
+**未覆盖**:`ids` 过滤是 SQL 侧的,本地无 DB 无法验;需部署后用真实项目跑一次。
+
+### 部署验证清单(等有 docker 的环境执行)
+
+```bash
+docker compose exec backend python -c "import api.meeting, api.project_todos, tasks.insight_tasks"
+docker compose exec backend python -c "from tasks.insight_tasks import classify_project_todos_quadrant; print(classify_project_todos_quadrant.name)"
+curl -X POST localhost:8000/api/projects/<pid>/todos/classify -H "Authorization: Bearer <token>" -d '{"only_unclassified":false}'
+# 查 api_call_logs:task=meeting_todo_quadrant 的 model_name 应为 minimax-m2.5(非 api.edgefn.net)
+```
+
+---
+
+## 已知既有问题(不在本次范围,仅记录)
+
+- **`/todos/*` 全部端点缺项目 ACL** —— 只校验 `get_current_user`,任何登录用户可读写
+  任意项目的待办。本次新加的两个 classify 端点已补 `require_project_access`,
+  但既有端点行为**未改**(改了就破坏既有前端调用契约)。属独立安全修复。
+- **`POST /todos/{id}/smart-assign` 复用了 `meeting_illustrations_extract` 这个 task 名**
+  (`backend/api/project_todos.py`),语义不对且导致该 key 的模型配置被两处共用。
+  改它会影响 smart-assign 的线上模型选择,需单独评估。
+- **`sync_todos_for_meeting()` 无调用方**(死代码),会议级同步入口实际走的是项目级。
+- **redesign 壳的 `LEFT_TABS` 缺 `advice`**(legacy 有)。既有差异,本次未动。

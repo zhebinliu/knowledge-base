@@ -13,13 +13,13 @@
  * 新旧两套 UI 复用同一个组件,样式只用 tailwind 令牌(text-ink / border-line / bg-white …),
  * redesign.css 已对 .rd-root 下这些 class 做覆盖,故暗色壳下同样正确,不需要 theme prop。
  */
-import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Sparkles, RefreshCw, Cloud, AlertTriangle, Users } from 'lucide-react'
+import { Loader2, Sparkles, RefreshCw, Cloud, AlertTriangle, Users, Grid2x2 } from 'lucide-react'
 import { runMeetingAction, type Meeting } from '../../../api/client'
 import { toast } from '../../Toaster'
 import KeywordCloud from './KeywordCloud'
 import SpeakerDurationChart from './SpeakerDurationChart'
+import TodoQuadrant from './TodoQuadrant'
 
 // 与 pages/console/ConsoleMeetingDetail.tsx 的 BRAND_GRAD 保持一致(品牌橙渐变)
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
@@ -181,6 +181,37 @@ function SpeakerSection({ meeting }: { meeting: Meeting }) {
   )
 }
 
+// ── 3. 待办四象限 ─────────────────────────────────────────────────────────
+//
+// 待办是**项目级**的(一个项目一套),会议只是它的一个查看入口 —— 所以这里按
+// meeting.project_id 取整个项目的待办,而不是只取这场会产出的那几条。
+// 没有归属项目的会议(临时会议)无从谈起,降级为提示文案。
+
+function QuadrantSection({ meeting }: { meeting: Meeting }) {
+  const projectId = meeting.project_id
+
+  if (!projectId) {
+    return (
+      <Section title="待办优先级四象限" desc="轴为「紧急 × 必要」,一个项目维护一套">
+        <div className="py-6 text-center text-sm text-ink-muted">
+          <Grid2x2 size={24} className="mx-auto mb-2" />
+          这场会议没有归属项目,无法查看项目待办象限
+          <p className="mt-1 text-xs">把会议归到一个项目后,这里会显示该项目的待办四象限</p>
+        </div>
+      </Section>
+    )
+  }
+
+  return (
+    <Section
+      title="待办优先级四象限"
+      desc="轴为「紧急 × 必要」(不是「重要 × 紧急」)。本项目一套,可拖拽调整"
+    >
+      <TodoQuadrant projectId={projectId} />
+    </Section>
+  )
+}
+
 // ── 容器 ──────────────────────────────────────────────────────────────────
 
 export default function InsightTab({ meeting }: { meeting: Meeting }) {
@@ -188,6 +219,7 @@ export default function InsightTab({ meeting }: { meeting: Meeting }) {
     <div className="space-y-4">
       <KeywordSection meeting={meeting} />
       <SpeakerSection meeting={meeting} />
+      <QuadrantSection meeting={meeting} />
     </div>
   )
 }

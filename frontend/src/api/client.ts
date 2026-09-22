@@ -2102,6 +2102,19 @@ export interface IllustrationStylesResponse {
 
 // ── 项目待办看板 ──────────────────────────────────────────────────
 
+/** 四象限:轴为「紧急 × 必要」(不是经典的「重要 × 紧急」) */
+export type Urgency = 'urgent' | 'not_urgent'
+export type Necessity = 'necessary' | 'not_necessary'
+export type QuadrantKey = 'urgent_necessary' | 'urgent_unnecessary' | 'necessary_not_urgent' | 'neither'
+
+/** 象限由两轴派生,`quadrant` 为 null 即「未分类」 */
+export interface QuadrantMeta {
+  reason?: string
+  confidence?: number | null
+  model?: string
+  at?: string
+}
+
 export interface ProjectTodo {
   id: number
   project_id: string
@@ -2115,10 +2128,27 @@ export interface ProjectTodo {
   note: string | null
   blocked_by: number | null
   blocked_by_content: string | null
+  // 四象限(2026-09)
+  urgency?: Urgency | null
+  necessity?: Necessity | null
+  quadrant?: QuadrantKey | null
+  quadrant_source?: 'llm' | 'manual' | null
+  quadrant_meta?: QuadrantMeta | null
   created_at: string | null
   updated_at: string | null
   meeting_title?: string | null
   meeting_date?: string | null
+}
+
+export interface QuadrantClassifyResult {
+  updated: number
+  unclassified: number
+  manual_skipped: number
+  considered: number
+  batches: number
+  model: string | null
+  truncated: boolean
+  error?: string
 }
 
 export interface MeetingRequirement {
@@ -2855,12 +2885,44 @@ export const createProjectTodo = async (
   return data
 }
 
-export const syncProjectTodos = async (projectId: string): Promise<{ imported: number; meetings_scanned: number }> => {
-  const { data } = await api.post<{ imported: number; meetings_scanned: number }>(`/projects/${projectId}/todos/sync`)
+export const syncProjectTodos = async (
+  projectId: string,
+): Promise<{ imported: number; meetings_scanned: number; classify_task_id?: string | null }> => {
+  const { data } = await api.post<{ imported: number; meetings_scanned: number; classify_task_id?: string | null }>(
+    `/projects/${projectId}/todos/sync`,
+  )
   return data
 }
 
-export const patchTodo = async (todoId: number, body: Partial<Pick<ProjectTodo, 'content' | 'assignee' | 'due_date' | 'priority' | 'status' | 'note'>>): Promise<ProjectTodo> => {
+/** 重判四象限。默认 only_unclassified=false(重新分类按钮的语义),但不会覆盖人工拖拽的条目。 */
+export const classifyProjectTodosQuadrant = async (
+  projectId: string,
+  body?: { only_unclassified?: boolean; ids?: number[] },
+): Promise<QuadrantClassifyResult> => {
+  const { data } = await api.post<QuadrantClassifyResult>(`/projects/${projectId}/todos/classify`, body ?? {})
+  return data
+}
+
+export const getClassifyQuadrantStatus = async (
+  projectId: string,
+  taskId: string,
+): Promise<{ state: string; result?: QuadrantClassifyResult; error?: string }> => {
+  const { data } = await api.get<{ state: string; result?: QuadrantClassifyResult; error?: string }>(
+    `/projects/${projectId}/todos/classify/status/${taskId}`,
+  )
+  return data
+}
+
+export type TodoPatchBody = Partial<
+  Pick<ProjectTodo, 'content' | 'assignee' | 'due_date' | 'priority' | 'status' | 'note'>
+> & {
+  /** 四象限两轴。空串 = 清空该轴(回到「未分类」),与 due_date 的约定一致；
+   *  注意 `null` 不表示清空,而是「本次不改」—— 与后端 Optional 的语义一致。 */
+  urgency?: Urgency | ''
+  necessity?: Necessity | ''
+}
+
+export const patchTodo = async (todoId: number, body: TodoPatchBody): Promise<ProjectTodo> => {
   const { data } = await api.patch<ProjectTodo>(`/todos/${todoId}`, body)
   return data
 }

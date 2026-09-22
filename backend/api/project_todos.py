@@ -10,6 +10,8 @@ from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.auth import get_current_user
+# 新加的四象限端点补上项目 ACL;既有端点缺 ACL 是既有缺口,本次不改其行为(见 task.md)
+from services.project_acl import require_project_access
 from models import get_session
 from models.project_todo import ProjectTodo
 from models.meeting import Meeting
@@ -28,6 +30,9 @@ class TodoPatch(BaseModel):
     status: Optional[str] = None
     note: Optional[str] = None
     blocked_by: Optional[int] = None
+    # 四象限两轴。空串 = 清空该轴(回到「未分类」),与 due_date 的约定一致。
+    urgency: Optional[str] = None
+    necessity: Optional[str] = None
 
 
 class TodoCreate(BaseModel):
@@ -43,6 +48,51 @@ class BatchPatch(BaseModel):
     status: Optional[str] = None
     assignee: Optional[str] = None
     priority: Optional[str] = None
+
+
+class ClassifyIn(BaseModel):
+    """四象限分类入参。"""
+    # True = 只补两轴不全的(同步后自动分类);False = 重判所有非人工的(重新分类按钮)
+    only_unclassified: bool = False
+    # 限定 id 子集;None = 全项目
+    ids: Optional[list[int]] = None
+
+
+# ── 四象限(紧急 × 必要) ──────────────────────────────────────────────
+# 用户口径:轴为「紧急 × 必要」,**不是**经典的「重要 × 紧急」。
+#
+# 象限由两轴**派生**,不单独落一列 —— 存了就会有两处状态,迟早不一致。
+# 两轴任一为 NULL 即「未分类」;这也让「只分类新增项」有可判定的条件。
+# 与既有 priority(P0/P1/P2)是两套语义,并存不改:priority 是「多重」,
+# 这里是「多急 × 多必要」,同一个待办两个维度都要看。
+
+URGENCY_VALUES = ("urgent", "not_urgent")
+NECESSITY_VALUES = ("necessary", "not_necessary")
+
+# quadrant_source:manual = 用户拖拽/手改,自动分类永不覆盖;llm = 模型判定
+QUADRANT_SOURCE_MANUAL = "manual"
+QUADRANT_SOURCE_LLM = "llm"
+
+QUADRANT_LABELS = {
+    "urgent_necessary": "必要且紧急",
+    "urgent_unnecessary": "紧急非必要",
+    "necessary_not_urgent": "必要不紧急",
+    "neither": "不紧急不必要",
+}
+
+_QUADRANT_BY_AXES = {
+    ("urgent", "necessary"): "urgent_necessary",
+    ("urgent", "not_necessary"): "urgent_unnecessary",
+    ("not_urgent", "necessary"): "necessary_not_urgent",
+    ("not_urgent", "not_necessary"): "neither",
+}
+
+
+def derive_quadrant(urgency: str | None, necessity: str | None) -> str | None:
+    """由两轴派生象限键;任一轴为空即未分类(返回 None)。"""
+    if not urgency or not necessity:
+        return None
+    return _QUADRANT_BY_AXES.get((urgency, necessity))
 
 
 # ── 序列化 ──────────────────────────────────────────────────────────
@@ -61,6 +111,12 @@ def _todo_dto(t: ProjectTodo, meeting_title: str | None = None, meeting_date: st
         "note": t.note,
         "blocked_by": t.blocked_by,
         "blocked_by_content": blocked_by_content,
+        # 四象限:两轴原值 + 派生象限键(null=未分类)+ 来源 + 判定依据
+        "urgency": t.urgency,
+        "necessity": t.necessity,
+        "quadrant": derive_quadrant(t.urgency, t.necessity),
+        "quadrant_source": t.quadrant_source,
+        "quadrant_meta": t.quadrant_meta,
         "created_at": t.created_at.isoformat() if t.created_at else None,
         "updated_at": t.updated_at.isoformat() if t.updated_at else None,
         "meeting_title": meeting_title,
@@ -251,6 +307,198 @@ async def _write_back_to_meeting(
         await session.commit()
 
 
+# ── 四象限自动分类(LLM,可复用) ──────────────────────────────────────
+
+# 每批条数:待办条目短,但要让模型逐条给理由,40 条是输出长度与调用次数的折中
+_QUADRANT_BATCH = 40
+# 批数上限:防一次请求把上千条待办全打给模型(单次同步不该跑成分钟级)
+_QUADRANT_MAX_BATCHES = 8
+
+_EMPTY_QUADRANT: dict = {"classifications": []}
+
+
+def _quadrant_prompt_item(t: ProjectTodo, today: date) -> dict:
+    """把待办压成模型好判的短结构。days_left 是模型判「紧急」最可靠的信号,
+    但 prompt 里已明确要求「以内容为准」,避免被假日期带偏。"""
+    return {
+        "id": t.id,
+        "content": t.content,
+        "assignee": t.assignee or None,
+        "due_date": t.due_date.isoformat() if t.due_date else None,
+        "days_left": (t.due_date - today).days if t.due_date else None,
+        "priority": t.priority,
+        "status": t.status,
+        "quote": t.source_quote,
+    }
+
+
+async def _classify_one_batch(batch: list[ProjectTodo], today: date) -> tuple[list[dict], str]:
+    """单批分类。返回 (classifications, model_used)。失败返回空,不抛。"""
+    import json
+
+    import structlog
+
+    from prompts.meeting import QUADRANT_SYSTEM, QUADRANT_USER
+    from services.llm_json import loads_lenient
+    from services.meeting.pipeline import _json_output_valid
+    from services.model_router import model_router
+
+    items = [_quadrant_prompt_item(t, today) for t in batch]
+    messages = [
+        {"role": "system", "content": QUADRANT_SYSTEM},
+        {
+            "role": "user",
+            "content": QUADRANT_USER.format(
+                count=len(items),
+                items=json.dumps(items, ensure_ascii=False, indent=1),
+            ),
+        },
+    ]
+    try:
+        content, model_used = await model_router.chat_with_routing(
+            task="meeting_todo_quadrant",
+            messages=messages,
+            temperature=0.2,
+            # validator 不能省:缺了它 JSON 被截断也当成功返回,是 LEARNING §11.10 的静默坑
+            validator=_json_output_valid,
+            max_tokens=8000,
+            response_format={"type": "json_object"},
+            extra_payload={"thinking": {"type": "disabled"}},
+        )
+    except Exception as e:
+        structlog.get_logger().warning(
+            "quadrant_batch_failed", error=str(e)[:200], batch_size=len(batch)
+        )
+        return [], ""
+
+    data = loads_lenient(content, None)
+    if not isinstance(data, dict):
+        structlog.get_logger().warning("quadrant_batch_bad_json", raw=(content or "")[:200])
+        return [], model_used
+
+    raw = data.get("classifications")
+    rows = [r for r in raw if isinstance(r, dict)] if isinstance(raw, list) else []
+    return rows, model_used
+
+
+async def classify_todos_quadrant(
+    project_id: str,
+    session: AsyncSession,
+    *,
+    only_unclassified: bool = True,
+    ids: list[int] | None = None,
+) -> dict:
+    """给项目待办打「紧急 × 必要」两轴,写回 urgency / necessity。
+
+    **绝不覆盖 `quadrant_source='manual'` 的条目** —— 用户拖过的位置是最终意见,
+    自动分类只能填空白(验收标准 7)。要让它重新参与自动分类,把它拖回「未分类」
+    (清空两轴)即可,那时 source 会被一并清掉。
+
+    only_unclassified=True(默认)  只补两轴不全的 → 供「同步后自动分类新增项」
+    only_unclassified=False        重判所有非 manual 的 → 供「重新分类」按钮
+    ids                            只处理指定 id(与上面两个条件取交集)
+    """
+    import asyncio
+
+    import structlog
+
+    stmt = select(ProjectTodo).where(ProjectTodo.project_id == project_id)
+    if ids:
+        stmt = stmt.where(ProjectTodo.id.in_(ids))
+    rows = list((await session.scalars(stmt.order_by(ProjectTodo.id.asc()))).all())
+
+    manual_skipped = 0
+    pending: list[ProjectTodo] = []
+    for t in rows:
+        if t.quadrant_source == QUADRANT_SOURCE_MANUAL:
+            manual_skipped += 1
+            continue
+        if only_unclassified and t.urgency and t.necessity:
+            continue
+        pending.append(t)
+
+    if not pending:
+        return {
+            "updated": 0,
+            "unclassified": 0,
+            "manual_skipped": manual_skipped,
+            "considered": len(rows),
+            "batches": 0,
+            "model": None,
+            "truncated": False,
+        }
+
+    truncated = len(pending) > _QUADRANT_BATCH * _QUADRANT_MAX_BATCHES
+    if truncated:
+        pending = pending[: _QUADRANT_BATCH * _QUADRANT_MAX_BATCHES]
+
+    batches = [pending[i : i + _QUADRANT_BATCH] for i in range(0, len(pending), _QUADRANT_BATCH)]
+    today = date.today()
+
+    # 各批互不依赖,session 不参与 LLM 调用,可安全并行
+    results = await asyncio.gather(*(_classify_one_batch(b, today) for b in batches))
+
+    by_id = {t.id: t for t in pending}
+    updated = 0
+    unclassified = 0
+    model_used = ""
+    now = datetime.utcnow()
+    for batch, (classifications, model_used_one) in zip(batches, results):
+        model_used = model_used or model_used_one
+        allowed = {t.id for t in batch}
+        for c in classifications:
+            try:
+                tid = int(c.get("id"))
+            except (TypeError, ValueError):
+                continue
+            # 只认真实存在于本批的 id:模型偶尔会回一个不存在的 id 或串批
+            if tid not in allowed:
+                continue
+            todo = by_id[tid]
+            urgency = c.get("urgency")
+            necessity = c.get("necessity")
+            # 两轴必须都是合法枚举值才落库;模型给 null / 编词一律当「判不了」,
+            # 保持未分类 —— 宁可空着,也不要一个编出来的象限
+            if urgency not in URGENCY_VALUES or necessity not in NECESSITY_VALUES:
+                unclassified += 1
+                continue
+            reason = c.get("reason")
+            confidence = c.get("confidence")
+            todo.urgency = urgency
+            todo.necessity = necessity
+            todo.quadrant_source = QUADRANT_SOURCE_LLM
+            todo.quadrant_meta = {
+                "reason": reason if isinstance(reason, str) else "",
+                "confidence": confidence if isinstance(confidence, (int, float)) else None,
+                "model": model_used_one or "",
+                "at": now.isoformat(),
+            }
+            updated += 1
+
+    if updated:
+        await session.commit()
+
+    if updated or unclassified:
+        structlog.get_logger().info(
+            "quadrant_classified",
+            project_id=project_id,
+            updated=updated,
+            unclassified=unclassified,
+            manual_skipped=manual_skipped,
+            model=model_used,
+        )
+
+    return {
+        "updated": updated,
+        "unclassified": unclassified,
+        "manual_skipped": manual_skipped,
+        "considered": len(pending),
+        "batches": len(batches),
+        "model": model_used or None,
+        "truncated": truncated,
+    }
+
+
 # ── GET /api/projects/{project_id}/todos ─────────────────────────────
 
 @router.get("/projects/{project_id}/todos")
@@ -360,10 +608,83 @@ async def create_todo(
 @router.post("/projects/{project_id}/todos/sync")
 async def sync_todos(
     project_id: str,
+    classify: bool = True,
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    return await sync_todos_for_project(project_id, session)
+    """从项目下所有会议导入待办。
+
+    `classify=True`(默认)时,导入完**异步**触发四象限分类(只补新增的未分类项)——
+    分类要调 LLM,不能让用户在这条同步请求上干等;结果由前端轮询待办列表拿到。
+    分类失败不影响导入结果,新待办会停在「未分类」区,用户可手动拖或点重新分类。
+    """
+    result = await sync_todos_for_project(project_id, session)
+
+    classify_task_id: str | None = None
+    if classify and result.get("imported"):
+        try:
+            from tasks.insight_tasks import classify_project_todos_quadrant
+
+            classify_task_id = classify_project_todos_quadrant.delay(
+                project_id, True
+            ).id
+        except Exception:
+            # broker 不可用等:不让它把已成功的导入变成 500
+            import structlog
+
+            structlog.get_logger().warning(
+                "quadrant_autoclassify_dispatch_failed", project_id=project_id, exc_info=True
+            )
+
+    return {**result, "classify_task_id": classify_task_id}
+
+
+# ── POST /api/projects/{project_id}/todos/classify ───────────────────
+
+@router.post("/projects/{project_id}/todos/classify")
+async def classify_todos(
+    project_id: str,
+    body: ClassifyIn | None = None,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_project_access("write")),
+):
+    """同步重判四象限(用户点「重新分类」时用,想要即时反馈)。
+
+    默认 `only_unclassified=False` —— 手动点重判的语义就是「把已分类的也重看一遍」,
+    但这**不会**动 `quadrant_source='manual'` 的条目(用户拖过的是最终意见)。
+    想让它参与重判,把它拖回「未分类」区。
+    """
+    opts = body or ClassifyIn()
+    return await classify_todos_quadrant(
+        project_id,
+        session,
+        only_unclassified=opts.only_unclassified,
+        ids=opts.ids,
+    )
+
+
+# ── GET /api/projects/{project_id}/todos/classify/status/{task_id} ───
+
+@router.get("/projects/{project_id}/todos/classify/status/{task_id}")
+async def classify_todos_status(
+    project_id: str,
+    task_id: str,
+    user: User = Depends(require_project_access("read")),
+):
+    """轮询异步分类任务(供同步后自动分类的那条路径)。"""
+    from celery.result import AsyncResult
+
+    from tasks.convert_task import celery_app
+
+    res = AsyncResult(task_id, app=celery_app)
+    state = res.state
+    payload: dict = {"state": state}
+    if state == "SUCCESS":
+        r = res.result
+        payload["result"] = r if isinstance(r, dict) else {"updated": 0}
+    elif state == "FAILURE":
+        payload["error"] = str(res.result)[:300] if res.result else "分类失败"
+    return payload
 
 
 # ── PATCH /api/todos/{todo_id} ───────────────────────────────────────
@@ -422,6 +743,33 @@ async def patch_todo(
             if not blocker:
                 raise HTTPException(404, "前置待办不存在")
             todo.blocked_by = body.blocked_by
+
+    # 四象限两轴:用户手改一律标 manual,自动分类从此不再碰它(验收标准 7)。
+    # 清空两轴 → 回到未分类,source 一并清掉,否则会留个「manual 但没象限」的怪状态。
+    quadrant_touched = False
+    if body.urgency is not None:
+        if body.urgency == "":
+            todo.urgency = None
+        elif body.urgency in URGENCY_VALUES:
+            todo.urgency = body.urgency
+        else:
+            raise HTTPException(400, f"urgency 需为 {'/'.join(URGENCY_VALUES)} 或空串")
+        quadrant_touched = True
+    if body.necessity is not None:
+        if body.necessity == "":
+            todo.necessity = None
+        elif body.necessity in NECESSITY_VALUES:
+            todo.necessity = body.necessity
+        else:
+            raise HTTPException(400, f"necessity 需为 {'/'.join(NECESSITY_VALUES)} 或空串")
+        quadrant_touched = True
+    if quadrant_touched:
+        if derive_quadrant(todo.urgency, todo.necessity):
+            todo.quadrant_source = QUADRANT_SOURCE_MANUAL
+            todo.quadrant_meta = None
+        else:
+            todo.quadrant_source = None
+            todo.quadrant_meta = None
 
     todo.updated_at = datetime.utcnow()
     await session.commit()
