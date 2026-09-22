@@ -14,6 +14,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   ChevronLeft, Loader2, RefreshCw, Trash2, FolderKanban,
   FileText, ListChecks, Users, Settings as SettingsIcon, Info, GitBranch, ChevronRight, Palette,
+  BarChart3,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -25,7 +26,7 @@ import {
   SeekToContext,
   OverviewTab, TranscriptTab, MinutesTab,
   RequirementsTab, ProcessFlowsTab, StakeholdersTab, ActionsTab,
-  IllustrationsTab,
+  IllustrationsTab, InsightTab,
 } from '../../pages/console/ConsoleMeetingDetail'
 import { getMeetingAudioUrl } from '../../api/meeting-ext'
 import AudioPlayer, { type AudioPlayerHandle } from '../../components/AudioPlayer'
@@ -34,7 +35,7 @@ import UnifiedExportButton from '../../components/console/UnifiedExportButton'
 import { toast } from '../../components/Toaster'
 import GlowCard from '../components/GlowCard'
 
-type LeftTab = 'minutes' | 'requirements' | 'process_flows' | 'stakeholders' | 'illustrations'
+type LeftTab = 'minutes' | 'requirements' | 'process_flows' | 'stakeholders' | 'illustrations' | 'insight'
 type RightTab = 'transcript' | 'polished'
 
 const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: LucideIcon }> = [
@@ -43,6 +44,7 @@ const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: LucideIcon }> = [
   { key: 'process_flows', label: '业务流程', Icon: GitBranch },
   { key: 'stakeholders',  label: '干系人',   Icon: Users },
   { key: 'illustrations', label: '解释图',   Icon: Palette },
+  { key: 'insight',       label: '洞察',     Icon: BarChart3 },
 ]
 
 const RIGHT_TABS: Array<{ key: RightTab; label: string; Icon: LucideIcon }> = [
@@ -362,6 +364,7 @@ export default function NewConsoleMeetingDetail() {
                   {leftTab === 'process_flows' && <ProcessFlowsTab meeting={meeting} />}
                   {leftTab === 'stakeholders'  && <StakeholdersTab meeting={meeting} />}
                   {leftTab === 'illustrations' && <IllustrationsTab meeting={meeting} />}
+                  {leftTab === 'insight'       && <InsightTab meeting={meeting} />}
                 </div>
               </div>
 

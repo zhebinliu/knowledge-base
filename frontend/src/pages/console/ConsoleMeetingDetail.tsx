@@ -16,7 +16,7 @@ import {
   ChevronLeft, Loader2, RefreshCw, Trash2, FolderKanban, CheckCircle2, AlertCircle, Mic,
   FileText, ListChecks, Users, Settings as SettingsIcon, Info, ExternalLink, Save,
   Download, Pencil, X, Check, Clock, Share2, GitBranch, ChevronRight, Palette,
-  Maximize2, Copy, Sparkles,
+  Maximize2, Copy, Sparkles, BarChart3,
 } from 'lucide-react'
 import {
   getMeeting, deleteMeeting, processMeeting, patchMeeting, linkMeetingProject,
@@ -45,9 +45,16 @@ import { MermaidBlock } from '../../components/markdown/ReportMarkdown'
 import MeetingScenesPanel from '../../components/console/MeetingScenesPanel'
 import UnifiedExportButton from '../../components/console/UnifiedExportButton'
 
+// 洞察 tab(词云 / 发言时长 / 待办四象限 / 会议对比)实现放在独立文件,避免本文件继续膨胀。
+// 先 import 再 export:redesign/console/ConsoleMeetingDetail.tsx 是靠从本文件 import tab
+// 组件来复用老实现的,想让它也能拿到 InsightTab 就必须再导出;
+// 而 `export { x } from '...'` 不建立本地绑定,本文件的 tab 分支还要用,故分两步写。
+import InsightTab from '../../components/console/meeting/InsightTab'
+export { InsightTab }
+
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 type TopView = 'overview' | 'split' | 'actions'
-type LeftTab = 'minutes' | 'advice' | 'requirements' | 'process_flows' | 'stakeholders' | 'illustrations'
+type LeftTab = 'minutes' | 'advice' | 'requirements' | 'process_flows' | 'stakeholders' | 'illustrations' | 'insight'
 type RightTab = 'transcript' | 'polished'
 
 // ── 时间戳跳转 Context ────────────────────────────────────────────────────
@@ -136,6 +143,7 @@ const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: typeof Info }> = [
   { key: 'process_flows', label: '业务流程', Icon: GitBranch },
   { key: 'stakeholders',  label: '干系人',   Icon: Users },
   { key: 'illustrations', label: '解释图',   Icon: Palette },
+  { key: 'insight',       label: '洞察',     Icon: BarChart3 },
 ]
 
 const RIGHT_TABS: Array<{ key: RightTab; label: string; Icon: typeof Info }> = [
@@ -3248,6 +3256,7 @@ export default function ConsoleMeetingDetail() {
                     {leftTab === 'process_flows' && <ProcessFlowsTab meeting={meeting} />}
                     {leftTab === 'stakeholders'   && <StakeholdersTab meeting={meeting} />}
                     {leftTab === 'illustrations' && <IllustrationsTab meeting={meeting} />}
+                    {leftTab === 'insight'       && <InsightTab meeting={meeting} />}
                   </div>
                   {/* 展开手柄 — 转写面板收起后,贴在右边缘,点一下重新展开(建议 tab 下转写已内嵌,不显示)*/}
                   {!rightPanelOpen && leftTab !== 'advice' && (

@@ -203,6 +203,21 @@ ROUTING_RULES = {
     # 长上下文 + 强语义对比 → minimax-m2.7,fallback glm-5
     "revision_learning":           {"primary": "minimax-m2.7",      "fallback": "glm-5"},
 
+    # ── 会议洞察 (Meeting Insight, 2026-09) ─────────────────────────────────
+    # 注意:这 4 个**必须是新键名**,不要复用既有的 meeting_illustrations_extract 等。
+    # _get_routing_rule 是 DB 优先(先读 config_service 的 routing_rules/*),复用旧键
+    # 会让 agent_configs 里的旧行继续生效、代码改动看不出效果。新键启动时由
+    # config_service.seed_defaults() 自动补进 DB(只补不覆盖),部署后可在 RoutingTab 直接改。
+    # 键名漏登记时的兜底是 qwen3-next-80b-a3b 且**不告警**,所以每条都得登记。
+    # 词云关键词:结构化 JSON 抽取,要稳不要发散
+    "meeting_keywords_extract":    {"primary": "minimax-m2.5",      "fallback": "glm-5"},
+    # 发言时长归因:逐行语义判断,质量敏感 → m2.7(已强制 thinking=disabled 压住推理烧 token)
+    "meeting_speaker_attribution": {"primary": "minimax-m2.7",      "fallback": "glm-5"},
+    # 待办四象限分类:机械分类,批量小 JSON
+    "meeting_todo_quadrant":       {"primary": "minimax-m2.5",      "fallback": "mimo-v2-pro"},
+    # 与上一场会议对比:长文对比 + 强语义 → 同 revision_learning
+    "meeting_compare_insight":     {"primary": "minimax-m2.7",      "fallback": "glm-5"},
+
     # ── Harness 场景引擎 (Scene) ────────────────────────────────────────────
     # 场景命中 / AI 能力匹配 / 蓝图回流 / 关键调研问题生成:都是结构化 JSON 抽取。
     # 必须用非推理模型 —— 推理模型(glm-5/qwen3)会把 JSON 思考到 finish_reason=length 吐空。

@@ -6,7 +6,7 @@
 """
 from datetime import date, datetime
 
-from sqlalchemy import String, Text, Date, DateTime, ForeignKey, Index
+from sqlalchemy import String, Text, Date, DateTime, ForeignKey, Index, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models import Base
@@ -54,6 +54,20 @@ class ProjectTodo(Base):
     blocked_by: Mapped[int | None] = mapped_column(
         ForeignKey("project_todos.id", ondelete="SET NULL"), nullable=True,
     )
+
+    # ── 四象限(2026-09):轴为「紧急 × 必要」 ──────────────────────────────
+    # 注意:与上面的 priority(P0/P1/P2) 是**两套不同语义**,并存,互不覆盖。
+    # urgency:   urgent=紧急 / not_urgent=不紧急 / NULL=未分类
+    # necessity: necessary=必要 / not_necessary=不必要 / NULL=未分类
+    # 象限由两轴派生,不单独存字段,避免两处状态不一致。
+    urgency: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    necessity: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+    # 分类来源:llm=AI 自动(可被下次自动分类覆盖) / manual=用户拖拽人工覆盖(永不被自动覆盖)
+    quadrant_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+    # 分类附带信息 {reason, confidence, model, classified_at}
+    quadrant_meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # 时间戳
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)

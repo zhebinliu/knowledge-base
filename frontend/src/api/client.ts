@@ -2134,6 +2134,80 @@ export interface MeetingRequirement {
   created_at: string
 }
 
+// ── 会议洞察(2026-09):词云 / 发言时长 / 与上一场会议对比 ────────────────
+
+export interface InsightKeyword {
+  word: string
+  weight: number      // 1-100,已由后端融合「模型判断的代表性」与「原文真实频次」
+  count: number       // 原文中真实出现次数(后端 str.count 核对过,不是模型报的)
+  category: string    // 业务 / 技术 / 组织 / 风险 / 其他
+}
+
+export interface MeetingKeywords {
+  keywords: InsightKeyword[]
+  focus: string
+  source_chars: number
+  truncated: boolean
+  model: string
+  generated_at: string
+}
+
+export interface SpeakerStat {
+  name: string
+  seconds: number
+  ratio: number       // 占比 %,分母不含「无法判断」
+  turn_count: number
+}
+
+export interface MeetingSpeakerStats {
+  source: 'parsed' | 'llm' | 'none'
+  mode: 'parsed' | 'inferred' | 'none'
+  transcript_used: string | null
+  confidence: 'high' | 'medium' | 'low' | null
+  coverage: number
+  candidates: string[]
+  note: string | null
+  model: string | null
+  speakers: SpeakerStat[]
+  unknown_seconds: number
+  total_seconds: number
+  generated_at: string
+}
+
+export type CompareTrend = '推进' | '停滞' | '新增' | '回退' | '无变化'
+
+export interface MeetingComparisonChange {
+  dimension: string
+  before: string
+  after: string
+  trend: CompareTrend | string
+  evidence: string
+}
+
+export interface MeetingComparisonSuggestion {
+  action: string
+  rationale: string
+  priority: string    // 高 / 中 / 低
+}
+
+export interface MeetingComparison {
+  status: 'running' | 'done' | 'failed'
+  prev_meeting_id: number | null
+  prev_meeting_title: string | null
+  prev_meeting_date: string | null
+  summary: string
+  changes: MeetingComparisonChange[]
+  suggestions: MeetingComparisonSuggestion[]
+  model?: string | null
+  error?: string | null
+  generated_at: string
+}
+
+export interface CompareCandidate {
+  prev: { id: number; title: string; created_at: string } | null
+  reason: string | null
+}
+
 export interface Meeting {
   id: number
   title: string
@@ -2168,11 +2242,15 @@ export interface Meeting {
   memo?: string | null
   live_minutes?: LiveMinutes | null
   live_minutes_template?: string | null
+  // 洞察(2026-09),仅详情接口返回;列表接口已 defer 掉这三个重字段
+  keywords?: MeetingKeywords | null
+  speaker_stats?: MeetingSpeakerStats | null
+  comparison_insight?: MeetingComparison | null
   // 详情接口含
   requirements?: MeetingRequirement[]
 }
 
-export type MeetingAction = 'polish' | 'summarize' | 'extract_requirements' | 'extract_process_flows' | 'extract_stakeholders' | 'extract_illustrations' | 'generate-summary'
+export type MeetingAction = 'polish' | 'summarize' | 'extract_requirements' | 'extract_process_flows' | 'extract_stakeholders' | 'extract_illustrations' | 'generate-summary' | 'extract_keywords' | 'extract_speaker_durations'
 
 // ── CRUD ─────────────────────────────────────────────────────────────────
 

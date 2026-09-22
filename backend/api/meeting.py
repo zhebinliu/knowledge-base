@@ -109,6 +109,10 @@ def _meeting_dto(m: Meeting, project_name: Optional[str] = None) -> dict:
         "memo": m.memo or "",
         "live_minutes": m.live_minutes,
         "live_minutes_template": m.live_minutes_template,
+        # 会议洞察(2026-09)
+        "keywords": m.keywords,
+        "speaker_stats": m.speaker_stats,
+        "comparison_insight": m.comparison_insight,
     }
 
 
@@ -326,6 +330,8 @@ async def list_meetings(
         defer(Meeting.raw_transcript), defer(Meeting.polished_transcript),
         defer(Meeting.illustrations), defer(Meeting.edited_minutes),
         defer(Meeting.process_flows), defer(Meeting.stakeholder_map),
+        # 洞察三个 JSON blob 单条可达 5-15KB,列表接口一并 defer 掉
+        defer(Meeting.keywords), defer(Meeting.speaker_stats), defer(Meeting.comparison_insight),
     ).order_by(Meeting.created_at.desc())
     if project_id:
         stmt = stmt.where(Meeting.project_id == project_id)
@@ -385,6 +391,8 @@ async def list_meetings_page(
         defer(Meeting.raw_transcript), defer(Meeting.polished_transcript),
         defer(Meeting.illustrations), defer(Meeting.edited_minutes),
         defer(Meeting.process_flows), defer(Meeting.stakeholder_map),
+        # 洞察三个 JSON blob 单条可达 5-15KB,列表接口一并 defer 掉
+        defer(Meeting.keywords), defer(Meeting.speaker_stats), defer(Meeting.comparison_insight),
     ).order_by(Meeting.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
     rows = (await session.scalars(stmt)).all()
 
@@ -1430,6 +1438,106 @@ async def action_extract_illustrations(
     m.illustrations = illustrations
     await session.commit()
     return {"illustrations": illustrations}
+
+
+# ── 会议洞察(2026-09):词云 / 发言时长 / 与上一场会议对比 ──────────────────
+# 服务实现只存在于 meeting/backend/services/meeting/insights.py(overlay 胜出副本),
+# 与 module_export.py 同理 —— 函数内按路径直接 import,不从 services.meeting 再导出,
+# 这样两份 services/meeting/__init__.py 才能保持逐字相同、不产生新漂移。
+
+
+class KeywordsIn(BaseModel):
+    """前端手动编辑词云后全量覆盖。"""
+    keywords: dict
+
+
+@router.post("/{meeting_id}/actions/extract_keywords")
+async def action_extract_keywords(
+    meeting_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """从转写提取关键词,生成词云(覆盖式)。同步端点。"""
+    from services.meeting.insights import extract_keywords
+    from services.model_router import ModelOutputError
+
+    m = await _load_meeting_owned(meeting_id, session, user)
+    text = m.polished_transcript or m.raw_transcript
+    if not text:
+        raise HTTPException(400, "无可用 transcript")
+    try:
+        keywords = await extract_keywords(m.title or "", text)
+    except ModelOutputError as e:
+        # 同 action_extract_process_flows:截断 / 坏 JSON 抛错可见,不静默落空词云。
+        raise HTTPException(503, "词云生成失败:AI 输出被截断或无法解析,已自动重试主备模型仍未成功,请稍后重试") from e
+    except RuntimeError as e:
+        raise HTTPException(503, f"词云生成失败:{e}") from e
+
+    m.keywords = keywords
+    await session.commit()
+    return {"keywords": keywords}
+
+
+@router.put("/{meeting_id}/keywords")
+async def put_keywords(
+    meeting_id: int,
+    body: KeywordsIn,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """直接覆盖 keywords(用于前端手动编辑后保存)。"""
+    m = await _load_meeting_owned(meeting_id, session, user)
+    m.keywords = body.keywords
+    await session.commit()
+    await session.refresh(m)
+    return _meeting_dto(m)
+
+
+@router.post("/{meeting_id}/actions/extract_speaker_durations")
+async def action_extract_speaker_durations(
+    meeting_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """计算参会人发言时长(覆盖式)。同步端点。
+
+    混合路径:转写自带真实说话人表头 → 精确解析;否则 → LLM 归因(结果是**推断**,
+    返回值里的 mode / confidence / note 会如实标注,前端必须展示出来)。
+    """
+    from models.meeting import Requirement
+    from services.meeting.insights import collect_speaker_candidates, extract_speaker_durations
+
+    m = await _load_meeting_owned(meeting_id, session, user)
+    text = m.polished_transcript or m.raw_transcript
+    if not text:
+        raise HTTPException(400, "无可用 transcript")
+
+    # 会议总时长:末段发言没有结束时间时用来收尾;拿不到就交给服务层按切片兜底
+    total_seconds = None
+    if m.start_time and m.end_time and m.end_time > m.start_time:
+        total_seconds = (m.end_time - m.start_time).total_seconds()
+
+    req_speakers = (await session.execute(
+        select(Requirement.speaker).where(
+            Requirement.meeting_id == meeting_id, Requirement.speaker.is_not(None)
+        )
+    )).scalars().all()
+
+    candidates = collect_speaker_candidates(
+        minutes=m.meeting_minutes if isinstance(m.meeting_minutes, dict) else None,
+        stakeholder_map=m.stakeholder_map if isinstance(m.stakeholder_map, dict) else None,
+        requirement_speakers=[s for s in req_speakers if s],
+    )
+
+    stats = await extract_speaker_durations(
+        raw=m.raw_transcript or "",
+        polished=m.polished_transcript or "",
+        total_seconds=total_seconds,
+        candidates=candidates,
+    )
+    m.speaker_stats = stats
+    await session.commit()
+    return {"speaker_stats": stats}
 
 
 # ── KB 同步(Block E.1) ────────────────────────────────────────────────

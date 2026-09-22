@@ -74,6 +74,17 @@ class Meeting(Base):
     live_minutes: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     live_minutes_template: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # 会议洞察(2026-09):与 process_flows / illustrations 同构的 LLM 产物 JSON blob。
+    # keywords          {keywords:[{word,weight,category,count}], focus, source_chars, truncated, model, generated_at}
+    # speaker_stats     {source:"parsed"|"llm"|"none", speakers:[{name,seconds,ratio,turn_count}],
+    #                    unknown_seconds, confidence, coverage, candidates, note, model, generated_at}
+    # comparison_insight{status, prev_meeting_id, prev_meeting_title, prev_meeting_date, summary,
+    #                    changes:[{dimension,before,after,trend,evidence}],
+    #                    suggestions:[{action,rationale,priority}], model, error, generated_at}
+    keywords: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    speaker_stats: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    comparison_insight: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
     def __repr__(self) -> str:
         return f"<Meeting id={self.id} title={self.title!r} status={self.status!r}>"
 

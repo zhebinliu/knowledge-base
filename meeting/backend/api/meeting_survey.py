@@ -56,6 +56,8 @@ class SurveyUpdate(BaseModel):
     meeting_time: Optional[str] = None
     meeting_location: Optional[str] = None
     results_visible: Optional[bool] = None
+    time_options: Optional[list[TimeOption]] = None          # 2026-07-17 修复:编辑弹窗会提交该字段但此前 schema 未定义,导致新时间段保存无效
+    satisfaction_questions: Optional[list[SatisfactionQuestion]] = None  # 同上,满意度题目编辑无效的同样原因
 
 
 class SurveyOut(BaseModel):
@@ -201,6 +203,10 @@ async def update_survey(
         s.meeting_location = body.meeting_location
     if body.results_visible is not None:
         s.results_visible = body.results_visible
+    if body.time_options is not None:
+        s.time_options = [t.model_dump() for t in body.time_options]
+    if body.satisfaction_questions is not None:
+        s.satisfaction_questions = [q.model_dump() for q in body.satisfaction_questions]
     await db.commit()
     await db.refresh(s)
     cnt = await _count_responses(db, survey_id)

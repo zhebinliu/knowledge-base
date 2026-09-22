@@ -415,6 +415,18 @@ async def startup():
             # 项目待办看板(2026-06-09):blocked_by 自引用 + 索引
             "ALTER TABLE project_todos ADD COLUMN IF NOT EXISTS blocked_by INTEGER REFERENCES project_todos(id) ON DELETE SET NULL",
             "CREATE INDEX IF NOT EXISTS ix_project_todos_due ON project_todos(due_date) WHERE due_date IS NOT NULL",
+            # 会议洞察(2026-09):词云 / 发言时长 / 与上一场会议对比。
+            # 三者都是 LLM 产物 JSON blob,与 process_flows / illustrations 同构:
+            # POST /actions/extract_* 生成 + PUT 全量覆盖 + flag_modified 落库。
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS keywords JSON",
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS speaker_stats JSON",
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS comparison_insight JSON",
+            # 项目待办四象限(2026-09):轴为「紧急 × 必要」,与既有 priority(P0/P1/P2) 是两套语义,并存不改。
+            # urgency / necessity 为 NULL 即「未分类」,让「只分类新增项」可判定。
+            "ALTER TABLE project_todos ADD COLUMN IF NOT EXISTS urgency VARCHAR(16)",
+            "ALTER TABLE project_todos ADD COLUMN IF NOT EXISTS necessity VARCHAR(16)",
+            "ALTER TABLE project_todos ADD COLUMN IF NOT EXISTS quadrant_source VARCHAR(16)",
+            "ALTER TABLE project_todos ADD COLUMN IF NOT EXISTS quadrant_meta JSON",
         ]:
             await conn.execute(text(migration))
     logger.info("DB tables & indexes ready")
