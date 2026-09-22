@@ -1476,3 +1476,133 @@ docker logs kb-system-edge-1 | grep -i "too large"
 11G + docker volumes 7.1G(其中 minio 音频/文档 6.6G)。已 truncate 掉 new-api / kanban-web /
 kanban-admin 三个容器的 json 日志(313MB)腾到 609M free,**但 500MB 的录音一传就会再次撑爆
 (历史上撑爆会直接把 postgres 打崩)。真正的解法是扩盘,不是继续删日志。**
+
+---
+
+## 27. overlay 漂移让「名词校正词典」在生产静默失效 3 个月 —— 以及本次四个新功能的取舍(2026-09-22)
+
+### 27.1 症状与真因
+
+2026-07-14 的 commit `54e6186` 加了「名词校正词典」(用户在设置里维护「错词 → 正确词」,
+跑润色时按清单替换)。功能上线后**用户反馈完全不生效**,但:
+- 前端保存/读取词典都正常
+- `backend/services/meeting/pipeline.py::polish_transcript(term_hints=...)` 形参在、逻辑在
+- 后端日志无报错
+
+真因是 **overlay 漂移**:
+
+```dockerfile
+COPY backend/ /app/
+COPY meeting/backend/ /app/      # ← 后 COPY 的赢,同名文件被整个覆盖
+```
+
+`54e6186` 只改了 `backend/tasks/meeting_tasks.py`(读 TermCorrection + 传 `term_hints`),
+**没改 `meeting/backend/tasks/meeting_tasks.py`**。而镜像里活的是后者。
+于是「读词典」那段代码在镜像里根本不存在 → `term_hints` 永远是默认空串 → 静默不生效。
+`api/meeting.py::action_polish` 同样漏改。同类漏改还有 `meeting_survey.py` 的
+`time_options` / `satisfaction_questions` PATCH 字段。
+
+**关键点:这个失败完全没有声音。** 不是报错,不是 500,是「代码根本没被加载」——
+所以只能靠「读代码 + 改镜像里的那份」发现,靠日志永远查不出来。
+
+### 27.2 判断「哪一份赢」的机械办法
+
+不要靠记忆,直接看:
+
+```bash
+diff -rq backend meeting/backend                # 谁有谁没有
+diff backend/tasks/meeting_tasks.py meeting/backend/tasks/meeting_tasks.py   # 同名文件差在哪
+```
+
+**规则(记死)**:
+1. **同名文件 → 两处都要改**,`meeting/backend/` 那份才是运行时生效的。
+2. **新文件 → 只建一处**。建在 `meeting/backend/`(overlay 专属,如
+   `services/meeting/module_export.py` / `insights.py` / `comparison.py`)或建在
+   `backend/`(如 `tasks/insight_tasks.py`)都行,**但绝不两处同名** —— 那是漂移的源头。
+3. **overlay 只「覆盖」不「删除」**。`backend/` 里有一个 `meeting/backend/` 没有的文件,
+   它照样在镜像里;反过来也一样。
+4. **不要为了「保持一致」把 overlay 独有的东西往下拷**。例如
+   `meeting/backend/api/meeting.py` 的「模块导出」block 依赖
+   `services/meeting/module_layouts.py`,而后者只存在于 overlay —— 拷到 `backend/` 会让
+   非 overlay 树直接 import 失败。所以这两个文件的差异**应该**存在,不是 bug。
+
+### 27.3 新模块的 import 写法:API 里按路径直接 import,不要从 `__init__.py` 导出
+
+`services/meeting/insights.py` 只存在于 overlay。如果按常规做法在
+`services/meeting/__init__.py` 里 `from .insights import extract_keywords`,会同时踩两个坑:
+- `backend/services/meeting/__init__.py` 那份(非 overlay 树)会 import 失败
+- 两份 `__init__.py` 从此内容不同 → **又制造一个新漂移源**
+
+正确写法(仓库既有惯例,见 `module_export`):
+
+```python
+# api/meeting.py 的函数体内
+from services.meeting.insights import extract_keywords
+```
+
+两份 `__init__.py` 保持逐字相同。
+
+### 27.4 `ROUTING_RULES` 加新 task:只加代码就够,但**绝不能复用已有 key**
+
+本次新增 4 个 task(`meeting_keywords_extract` / `meeting_speaker_attribution` /
+`meeting_todo_quadrant` / `meeting_compare_insight`)只加了
+`backend/services/model_router.py::ROUTING_RULES`,没写任何 DB 配置,验证下来直接生效。原因:
+`_get_routing_rule` 先查 DB `config_service.get("routing_rules", task)`,**查不到就落代码默认
+且不打印任何日志**;`config_service.seed_defaults()` 启动时只补缺失的 key、从不覆盖已有的。
+
+两个坑:
+- **没有 warning**。task 名拼错或忘记加,不会报错,只会静默用兜底模型
+  (`qwen3-next-80b-a3b` → `glm-5`),从「请求成功」看不出来。**验证必须看
+  `api_call_logs` 的 `model_name`,不能看 HTTP 200。**
+- **不要复用已有 key**。本次发现 `POST /todos/{id}/smart-assign` 一直在用
+  `meeting_illustrations_extract` 这个 task 名(语义完全不对),等于那个 key 的模型配置被
+  两处共用,改一处影响另一处。新功能一律起新名。
+
+### 27.5 四个新功能里值得记的两个设计取舍
+
+**(a) 让模型输出「区间」而不是「逐条」—— 发言时长归因**
+
+2 小时会议 = 360 个 20 秒切片。让模型逐行标说话人,输出会爆炸且极易超时/截断。
+改成:模型只回**说话人的行区间**(几十条),Python 再把区间摊平成逐行归属并做归一化。
+好处不只是省 token —— **归一化放在 Python 侧,才能保证「各人时长之和 + 无法判断桶
+= 全场时长」这个不变式**(模型给的重叠/空洞区间在 Python 里被强制抹平)。
+同理,分窗时对每窗内**重新编号**行号(1..N),模型不必回显全局偏移,少一类算错的机会。
+
+**(b) 反幻觉靠 Python 侧「用原文背书」,不靠 prompt 里写「不要编」**
+
+prompt 里写「只抽原文出现过的词」是没用的,模型照样会编。真正有效的是回到 Python 用
+确定性的办法验一遍:
+- 词云:模型报的 `count` 一律不信,改成 `full_text.count(word)`,**数到 0 的词直接丢**
+- 跨会议对比:每条变化强制带 `evidence` 原文摘录,再拿这段摘录回材料里做子串匹配
+  (`_ground_changes`),查无实据的**直接丢**,丢弃条数还回传给前端展示
+
+副产品是「可观测」:用户能看到「模型原本说了 5 条,被砍掉 2 条」,这比藏起来强。
+**编出来的 evidence 通常是把行业常识复述一遍,那些字在材料里根本不存在** —— 所以这个
+朴素办法的命中率比想象中高。
+
+### 27.6 本地没有容器依赖时怎么验逻辑
+
+本项目容器外的环境没有 `structlog` / docker。要验一个服务模块的逻辑,用 stub 注入
+`sys.modules` 再按路径加载真实文件:
+
+```python
+def stub(name, **attrs):
+    m = types.ModuleType(name)
+    for k, v in attrs.items(): setattr(m, k, v)
+    sys.modules[name] = m
+
+stub("structlog", get_logger=lambda *a, **k: SimpleNamespace(warning=..., info=..., error=...))
+stub("services.model_router", model_router=SimpleNamespace(chat_with_routing=fake_chat))
+
+spec = importlib.util.spec_from_file_location("pt", "backend/api/project_todos.py")
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)   # 跑真代码
+```
+
+要点:
+- **被测文件用真的**(这样连 `select()` 语句构造、DTO 派生都验到了),只 stub 外部依赖
+- 想复用某个真函数(如 `_truncate_head_tail`)时,别复制粘贴 —— 用 `ast` 抽出来 exec,
+  验的才是真实现
+- `select(SomeModel)` 要求 `SomeModel` 是真 mapped class,stub 的模型得用真
+  `DeclarativeBase` 声明几个列,不能是 `type("X", (), {})`
+- Windows 控制台是 GBK,输出中文要 `PYTHONIOENCODING=utf-8`,否则
+  `UnicodeEncodeError` 会把真正的断言结果盖掉

@@ -128,12 +128,14 @@
 前端把 `evidence` 显式渲染在每条变化下面(斜体「原文:…」)—— 这是用户自己判断
 「AI 有没有编」的唯一依据,不能藏在 tooltip 里。
 
-### B6 · 文档同步
+### B6 · 文档同步 — 已完成
 
-- [ ] `LEARNING.md` 追加本次结论
-- [ ] `PROJECT_OVERVIEW.md` §6.9 能力表补四项
-- [ ] `CHANGELOG.md` 记一条
-- [ ] 提交推送
+- [x] `LEARNING.md` 追加 §27(overlay 漂移复发的完整复盘 + 新文件落位规则 +
+      `ROUTING_RULES` 新 key 静默兜底 + 两个反幻觉模式 + 无容器依赖时的 stub 验法)
+- [x] `PROJECT_OVERVIEW.md` §6.9 能力表补四项 + 「未完成/单独立项」第三条 +
+      「改会议模块代码前必读」告警块
+- [x] `CHANGELOG.md` 记一条(2026-09-22,含 B5 修的生产 bug 说明)
+- [x] 提交推送
 
 ---
 
@@ -168,7 +170,7 @@
 | 6 | PATCH:拖到象限 → `manual`;清空两轴 → 未分类且 source 清掉;只改一轴也标 manual;不传两轴 → 不动象限字段;非法值 → 400 |
 
 另:`python -m compileall backend meeting/backend` 全绿;`npx tsc --noEmit` 全绿;
-`prompts/meeting.py` 两副本逐字相同;`api/meeting.py` 差异仍只有那 2 处刻意 hunk。
+`prompts/meeting.py` 两副本逐字相同;`api/meeting.py` 差异仍只有那 2 处刻意 hunk(165 行)。
 
 **未覆盖**:`ids` 过滤是 SQL 侧的,本地无 DB 无法验;需部署后用真实项目跑一次。
 
@@ -188,7 +190,7 @@
 | 6 | `build_comparison`:两场都无材料 → **不调模型**且如实报错;正常路径下编造的那条被剔除且 `evidence_dropped=1`;两场纪要都进了 prompt;空结果给出可读 error |
 
 另:`python -m compileall backend meeting/backend` 全绿;`npx tsc --noEmit` 全绿;
-五个双份文件里四个逐字相同,`api/meeting.py` 差异仍只有那 2 处刻意 hunk(162 行)。
+五个双份文件里四个逐字相同,`api/meeting.py` 差异仍只有那 2 处刻意 hunk(165 行:1 处 `Query` import + 1 个模块导出 block;B1–B4 的新端点在两副本里逐字对称,不出现在 diff 中)。
 
 ### 部署验证清单(等有 docker 的环境执行)
 

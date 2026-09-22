@@ -441,10 +441,21 @@ agentic 生成流水线必须过两道审:
 | **协作者权限** | `_load_meeting_owned` 支持 project.collaborator(owner/read_write/read 都能进会议详情)|
 | **快捷键 + Toast** | 编辑模式 `Cmd+S` 保存 / `Esc` 取消;全局 `components/Toaster.tsx`(纯 CustomEvent,无依赖)+ axios 拦截器 401 走 refresh / 其他错误自动 toast |
 | **会议列表搜索过滤** | `ConsoleMeeting` 顶部加搜索框 + 状态 chip(全部 / 处理中 / 完成 / 失败 / 录制中,带计数) |
+| **洞察 tab:词云** | 会议详情新增左栏「洞察」tab。`meeting/backend/services/meeting/insights.py::extract_keywords` 从转写抽关键词+权重(长文按行切窗并行),**Python 侧用原文真实词频校正权重、编造的词直接丢弃**;前端 `KeywordCloud.tsx` 确定性螺线布局自绘 canvas + top-15 chip 兜底。`meetings.keywords` JSON 列 |
+| **洞察 tab:参会人发言时长** | 同一 tab。**混合路径**:转写自带「说话人 N HH:MM:SS」表头 → 时间戳精确解析;否则 LLM 归因(按 100 行分窗并行,模型只回说话人**行区间**再由 Python 归一化成逐行归属,保证各人时长之和 + 「无法判断」桶 = 全场时长)。**本仓 ASR 无声纹分离**,故 UI 必须标注来源徽标(精确解析 / AI 推断+置信度)。`meetings.speaker_stats` JSON 列 |
+| **洞察 tab:待办四象限** | 同一 tab。轴为**「紧急 × 必要」**(不是经典的「重要 × 紧急」),一个项目一套。复用 `project_todos` 加 `urgency`/`necessity`/`quadrant_source`/`quadrant_meta` 四列 —— 象限由两轴**派生**不落库。2×2 拖拽改象限 → 标 `manual`,自动分类永不覆盖。与既有 `priority`(P0/P1/P2)语义不同、并存 |
+| **洞察 tab:与上一场会议对比** | 同一 tab。与本项目上一场**已出纪要**的会议横向比,出变化(维度/前后/趋势)+ 建议。异步 Celery(唯一长任务)+ 前端轮询,结果写 `meetings.comparison_insight`。**反幻觉取证**:每条变化强制带原文摘录,`_ground_changes()` 再把摘录拿回材料做子串校验,查无实据的直接丢弃并回传丢弃条数;两场都无材料时不调模型 |
 
 **未完成 / 单独立项**:
 - meeting 级 `relations` 可视化(项目级已有 `StakeholderCanvas`,meeting 级 relations 当前只渲染为列表;后续可在 `sync-from-meeting` 把 relations 一起搬到 stakeholder_graph 节点)
 - 跨**项目** 干系人合并(同一人在 N 个项目都出现 → 全局视图)
+- 洞察四张图**不进**导出链路(docx / md / html / PNG),本次有意不做
+
+> ⚠️ **改会议模块代码前必读**:`meeting/` 是 overlay 子目录,`backend/Dockerfile` 二次 COPY
+> 由 `meeting/backend/` 胜出。**同名文件必须在两处一起改**,否则改的那份不生效 ——
+> 2026-07 的名词校正词典就是这么在生产上失效了 3 个月(只改了 `backend/` 那份),
+> 2026-09 才借本次改动回灌。**新文件则只建一处**(建在 `meeting/backend/` 或 `backend/` 皆可,
+> 但绝不在两处同名)。详见 [§ 12](#12-meeting-模块-overlay-布局) 与 `LEARNING.md` §27。
 
 ---
 
