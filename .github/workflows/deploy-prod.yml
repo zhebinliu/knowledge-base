@@ -130,12 +130,17 @@ jobs:
       - name: Overlay meeting/backend
         run: cp -r meeting/backend/. backend/
 
+      # 2026-09-22:镜像源从 Docker Hub 改到 quay.io —— MinIO 已于 2025-10-23 停止在
+      # Docker Hub 免费分发社区版镜像,`minio/minio` 仓库被整体删除,拉取会直接报
+      # "pull access denied ... repository does not exist"(HTTP 401,不是限流/凭证问题,
+      # 登录或重试都不会恢复)。quay.io 上同名同 tag 的镜像仍在,`server /data` 用法不变。
+      # 本地 docker-compose.yml / kanban/docker-compose.yml 用的是同一个镜像,需同步。
       - name: Start MinIO manually
         run: |
           docker run -d -p 9000:9000 -p 9001:9001 --name minio \
             -e "MINIO_ROOT_USER=minioadmin" \
             -e "MINIO_ROOT_PASSWORD=minioadmin" \
-            minio/minio server /data
+            quay.io/minio/minio server /data
 
       - uses: actions/setup-python@v6
         with:

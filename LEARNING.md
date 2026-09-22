@@ -1606,3 +1606,65 @@ mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)   # �
   `DeclarativeBase` 声明几个列,不能是 `type("X", (), {})`
 - Windows 控制台是 GBK,输出中文要 `PYTHONIOENCODING=utf-8`,否则
   `UnicodeEncodeError` 会把真正的断言结果盖掉
+
+---
+
+## 28. CI 拉不到 `minio/minio`:外部镜像会凭空消失(2026-09-22)
+
+### 28.1 症状
+
+CI 的 `Run Tests` 在 **Start MinIO manually** 这一步就挂了:
+
+```
+Unable to find image 'minio/minio:latest' locally
+docker: Error response from daemon: pull access denied for minio/minio,
+repository does not exist or may require 'docker login': denied:
+requested access to the resource is denied
+Error: Process completed with exit code 125
+```
+
+**别被 "may require 'docker login'" 带偏** —— 这不是凭证问题,也不是 Docker Hub 限流。
+限流的报错是 `toomanyrequests: You have reached your pull rate limit`,措辞完全不同。
+「repository does not exist ... access to the resource is denied」对 Docker Hub 而言就是
+**仓库已不存在**(401 而非 404,故文案里带上了 "login" 的误导性提示)。
+
+### 28.2 真因
+
+MinIO 于 **2025-10-23** 停止在 Docker Hub 免费分发社区版镜像,`minio/minio` 与
+`minio/mc` 两个仓库被整体删除,官方改为「只发源码,自己 build」。所以
+`docker pull minio/minio` 是**永久性失效**,登录、重试、换网络都不会恢复。
+
+排查时**不要靠记忆判断镜像还在不在**,直接问 registry(匿名即可,不需要 docker):
+
+```bash
+# 1) 拿匿名 token
+TOKEN=$(curl -s "https://quay.io/v2/auth?service=quay.io&scope=repository:minio/minio:pull" \
+        | python -c "import sys,json;print(json.load(sys.stdin)['token'])")
+# 2) 要 manifest —— 200 说明可拉,401/404 说明不在
+curl -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $TOKEN" \
+  -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.oci.image.index.v1+json" \
+  https://quay.io/v2/minio/minio/manifests/latest
+```
+
+### 28.3 处置
+
+改用 **`quay.io/minio/minio`** —— 同项目、同 tag、同一个二进制,`server /data` 用法一字不改,
+是社区里的标准替代(activepieces / temps 等项目的修法一致)。本次一并改掉 4 处:
+
+| 文件 | 用途 |
+|---|---|
+| `.github/workflows/deploy.yml` | CI `Run Tests` job |
+| `.github/workflows/deploy-prod.yml` | 生产部署 job(同一步骤,只是还没跑到) |
+| `docker-compose.yml` | 本地/服务器主栈 |
+| `kanban/docker-compose.yml` | kanban 子模块栈 |
+
+**教训:`grep -rn "minio/minio"` 全局搜,而不是只改报错的那一处。** 同一个镜像引用
+散布在多个 workflow 和 compose 里,CI 先炸不代表只有 CI 有问题 ——
+`docker compose up` 在同一时刻也已经坏了,只是没人跑而已。
+
+### 28.4 遗留风险
+
+`quay.io` 上的镜像同样是 MinIO 停发前发布的,`latest` 停在 2025-09-07,**不会再收到安全更新**。
+若日后 quay 也清空,备选是 Chainguard 的免费重建镜像 `cgr.dev/chainguard/minio`
+(同一二进制,SLSA L3 构建,持续修补),或按官方 Dockerfile 自建。
+仓库现在只是把「随时会坏」推迟了,没根治 —— 记在这里,别下次再从头查一遍。

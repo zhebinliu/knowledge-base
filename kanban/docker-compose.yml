@@ -200,7 +200,10 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
 
   plane-minio:
-    image: minio/minio:latest
+    # 2026-09-22:MinIO 于 2025-10-23 停止在 Docker Hub 免费分发社区版镜像,
+    # `minio/minio` 仓库已被整体删除(拉取报 pull access denied,非限流/凭证问题)。
+    # 改用 quay.io 上的同名镜像,用法不变。
+    image: quay.io/minio/minio:latest
     command: server /export --console-address ":9090"
     restart: unless-stopped
     mem_limit: 256m

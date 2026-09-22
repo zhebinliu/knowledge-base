@@ -232,7 +232,10 @@ services:
       retries: 3
 
   minio:
-    image: minio/minio:latest
+    # 2026-09-22:MinIO 于 2025-10-23 停止在 Docker Hub 免费分发社区版镜像,
+    # `minio/minio` 仓库已被整体删除(拉取报 pull access denied,非限流/凭证问题)。
+    # 改用 quay.io 上的同名镜像,用法不变。CI 的 deploy.yml / deploy-prod.yml 同步改了。
+    image: quay.io/minio/minio:latest
     mem_limit: 256m
     ports:
       - "127.0.0.1:9000:9000"
