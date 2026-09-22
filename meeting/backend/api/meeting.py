@@ -1700,6 +1700,92 @@ async def action_extract_speaker_durations(
     return {"speaker_stats": stats}
 
 
+# ── 跨会议对比(2026-09) ───────────────────────────────────────────────
+# 与本项目上一场会议横向比,找变化 + 给建议。唯一的长任务,故走 Celery + 前端轮询。
+
+@router.get("/{meeting_id}/compare-candidate")
+async def get_compare_candidate(
+    meeting_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """预览「将要和哪一场比」。前端在按钮旁显示上一场标题,避免用户盲点。
+
+    首场会议 / 本项目更早的会议都还没出纪要 → prev 为 null,reason 说明原因。
+    """
+    from services.meeting.comparison import find_previous_meeting
+
+    m = await _load_meeting_owned(meeting_id, session, user)
+
+    if not m.project_id:
+        return {"prev": None, "reason": "这场会议没有归属项目,无法确定同项目的上一场会议"}
+
+    prev = await find_previous_meeting(m, session)
+    if not prev:
+        return {"prev": None, "reason": "本项目没有更早的、已出纪要的会议"}
+
+    return {
+        "prev": {
+            "id": prev.id,
+            "title": prev.title,
+            "created_at": prev.start_time.isoformat() if prev.start_time else "",
+        },
+        "reason": None,
+    }
+
+
+@router.post("/{meeting_id}/compare-insight")
+async def start_compare_insight(
+    meeting_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """异步启动跨会议对比,返回 {task_id}。结果由任务写回 comparison_insight。"""
+    from services.meeting.comparison import find_previous_meeting
+
+    m = await _load_meeting_owned(meeting_id, session, user)
+
+    if not m.project_id:
+        raise HTTPException(400, "这场会议没有归属项目,无法确定同项目的上一场会议")
+    prev = await find_previous_meeting(m, session)
+    if not prev:
+        raise HTTPException(400, "本项目没有更早的、已出纪要的会议可供对比")
+
+    from tasks.insight_tasks import compare_meeting_previous as _task
+
+    task = _task.delay(meeting_id)
+    return {"task_id": task.id, "prev_meeting_id": prev.id, "prev_meeting_title": prev.title}
+
+
+@router.get("/{meeting_id}/compare-insight/status/{task_id}")
+async def get_compare_insight_status(
+    meeting_id: int,
+    task_id: str,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """轮询对比任务状态。SUCCESS 后前端 invalidate 会议详情即可拿到新数据。
+
+    任务自己已经把结果落库,所以这里不回传结果体(可能几百 KB),只回状态 ——
+    前端真正要的数据走 GET /meeting/{id}。
+    """
+    from celery.result import AsyncResult
+
+    from tasks.convert_task import celery_app
+
+    await _load_meeting_owned(meeting_id, session, user)
+
+    res = AsyncResult(task_id, app=celery_app)
+    state = res.state
+    payload: dict = {"state": state}
+    if state == "FAILURE":
+        payload["error"] = str(res.result)[:300] if res.result else "对比失败"
+    elif state == "SUCCESS":
+        r = res.result
+        payload["ok"] = bool(r.get("ok")) if isinstance(r, dict) else True
+    return payload
+
+
 # ── KB 同步(Block E.1) ────────────────────────────────────────────────
 
 @router.post("/{meeting_id}/sync-kb")

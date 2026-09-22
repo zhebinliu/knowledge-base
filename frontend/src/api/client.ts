@@ -2230,6 +2230,8 @@ export interface MeetingComparison {
   suggestions: MeetingComparisonSuggestion[]
   model?: string | null
   error?: string | null
+  /** 因「原文中查无实据」被后端剔除的变化条数 —— 反幻觉的可见痕迹 */
+  evidence_dropped?: number
   generated_at: string
 }
 
@@ -2701,6 +2703,33 @@ export const saveMeetingMemo = async (meetingId: number, memo: string): Promise<
 
 export const runMeetingAction = async (id: number, action: MeetingAction, body?: Record<string, unknown>): Promise<unknown> => {
   const { data } = await api.post(`/meeting/${id}/actions/${action}`, body)
+  return data
+}
+
+// ── 跨会议对比(2026-09) ────────────────────────────────────────────────
+// 唯一的长任务,故异步 + 轮询;结果由后端任务直接写回 Meeting.comparison_insight。
+
+export const getCompareCandidate = async (meetingId: number): Promise<CompareCandidate> => {
+  const { data } = await api.get<CompareCandidate>(`/meeting/${meetingId}/compare-candidate`)
+  return data
+}
+
+export const startCompareInsight = async (
+  meetingId: number,
+): Promise<{ task_id: string; prev_meeting_id: number; prev_meeting_title: string }> => {
+  const { data } = await api.post<{ task_id: string; prev_meeting_id: number; prev_meeting_title: string }>(
+    `/meeting/${meetingId}/compare-insight`,
+  )
+  return data
+}
+
+export const getCompareInsightStatus = async (
+  meetingId: number,
+  taskId: string,
+): Promise<{ state: string; ok?: boolean; error?: string }> => {
+  const { data } = await api.get<{ state: string; ok?: boolean; error?: string }>(
+    `/meeting/${meetingId}/compare-insight/status/${taskId}`,
+  )
   return data
 }
 

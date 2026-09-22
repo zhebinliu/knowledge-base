@@ -20,6 +20,7 @@ import { toast } from '../../Toaster'
 import KeywordCloud from './KeywordCloud'
 import SpeakerDurationChart from './SpeakerDurationChart'
 import TodoQuadrant from './TodoQuadrant'
+import ComparisonPanel from './ComparisonPanel'
 
 // 与 pages/console/ConsoleMeetingDetail.tsx 的 BRAND_GRAD 保持一致(品牌橙渐变)
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
@@ -212,6 +213,19 @@ function QuadrantSection({ meeting }: { meeting: Meeting }) {
   )
 }
 
+// ── 4. 与上一场会议对比 ───────────────────────────────────────────────────
+
+function CompareSection({ meeting }: { meeting: Meeting }) {
+  return (
+    <Section
+      title="与上一场会议对比"
+      desc="横向比本项目上一场会议的纪要与转写,找出变化并给出建议。每条变化都附原文摘录"
+    >
+      <ComparisonPanel meeting={meeting} />
+    </Section>
+  )
+}
+
 // ── 容器 ──────────────────────────────────────────────────────────────────
 
 export default function InsightTab({ meeting }: { meeting: Meeting }) {
@@ -220,6 +234,7 @@ export default function InsightTab({ meeting }: { meeting: Meeting }) {
       <KeywordSection meeting={meeting} />
       <SpeakerSection meeting={meeting} />
       <QuadrantSection meeting={meeting} />
+      <CompareSection meeting={meeting} />
     </div>
   )
 }

@@ -97,15 +97,36 @@
    —— 原先它传 `Partial<ProjectTodo>`,加了 `urgency: Urgency | null` 后类型不再成立
    (`null` 在服务端意为「本次不改」,与空串「清空」是两回事,不能用宽松类型糊过去)。
 
-### B4 · 跨会议对比
+### B4 · 跨会议对比 — 已完成
 
-- [ ] DDL `comparison` + ORM 两副本 + DTO/defer
-- [ ] `prompts/meeting.py` 两副本加 `COMPARE_SYSTEM` / `COMPARE_USER`
-- [ ] 新建 `meeting/backend/services/meeting/comparison.py`
-- [ ] `insight_tasks.py` 加 `compare_meeting_previous`
-- [ ] `ROUTING_RULES` 加 `meeting_compare_previous`
-- [ ] 端点:compare-previous / comparison status / comparison candidates(两副本)
-- [ ] 前端 `InsightTab` 加对比 section
+- [x] DDL `comparison_insight` + ORM 两副本 + DTO/defer(B1 时已一并做完)
+- [x] `prompts/meeting.py` 两副本加 `COMPARE_SYSTEM` / `COMPARE_USER`(已验逐字相同)
+- [x] 新建 `meeting/backend/services/meeting/comparison.py`(`find_previous_meeting` /
+      `build_comparison` / `_ground_changes` 取证 / `_sanitize_suggestions`)。**只有一份**
+- [x] `insight_tasks.py` 加 `compare_meeting_previous`(soft 900 / hard 1200,
+      失败时尽力把 `status='failed'` 写回,免得前端停在永远转的圈)
+- [x] `ROUTING_RULES` 加 `meeting_compare_insight`(B1 时已加;task.md 原写
+      `meeting_compare_previous`,改为复用已有 key,避免同一功能两个 task 名)
+- [x] 端点三只(两副本各 3 处):`GET /{id}/compare-candidate`、
+      `POST /{id}/compare-insight`、`GET /{id}/compare-insight/status/{task_id}`
+- [x] 前端 `ComparisonPanel`(四态:无候选 / running / done / failed)+
+      `InsightTab` 加对比 section;`client.ts` 三个 API 函数 + `evidence_dropped` 字段
+- [x] 验证:33 项逻辑断言全绿(见下「验证记录」)
+
+**关键设计:反幻觉取证**
+
+对比最容易出的问题不是「答得不好」,是「编得像真的」—— 模型会拿行业常识补出
+「客户追加预算」「项目已延期」这类材料里根本没有的变化。所以:
+
+1. prompt 里强制每条 change 带 `evidence`,必须是原文摘录;「上一场有、这一场没提」
+   判 `停滞` 而非 `回退`;允许如实输出「无变化」,不逼它凑数。
+2. Python 侧 `_ground_changes()` 再把 evidence 拿回材料里做子串校验(去空格、取前 24 字),
+   查无实据的**直接丢弃**,并把丢弃条数回传前端(`evidence_dropped`)——
+   既挡幻觉,也让用户看得见「模型原本想说几条、被砍了几条」。
+3. 两场都没纪要也没转写 → **不调模型**,直接返回可读的 error。
+
+前端把 `evidence` 显式渲染在每条变化下面(斜体「原文:…」)—— 这是用户自己判断
+「AI 有没有编」的唯一依据,不能藏在 tooltip 里。
 
 ### B6 · 文档同步
 
@@ -151,6 +172,24 @@
 
 **未覆盖**:`ids` 过滤是 SQL 侧的,本地无 DB 无法验;需部署后用真实项目跑一次。
 
+### B4(2026-09-22)
+
+同样用 stub harness 直接加载真实的 `meeting/backend/services/meeting/comparison.py`
+(`_truncate_head_tail` 按 AST 从 `backend/services/revision_learning.py` 抽真实现执行,
+不是复制粘贴)。**33 项全绿**:
+
+| 组 | 覆盖点 |
+|---|---|
+| 1 | `_ground_changes` 取证:真在材料里的保留(容忍空格差异);编造的 / 过短的 / 缺 evidence 的一律丢弃;非法 trend 收敛为「无变化」;dimension 截断 |
+| 2 | 空格差异容忍 |
+| 3 | `_sanitize_suggestions`:空 action 丢弃;非法/缺失 priority → 「中」;最多 5 条 |
+| 4 | 需求格式化 / 空需求 / 空转写 / 超长转写截断 / 纪要 JSON 原样透出 / 润色稿优先 |
+| 5 | `COMPARE_USER.format()` 出合法骨架;system prompt 的 trend 与 priority 枚举与后端常量一致 |
+| 6 | `build_comparison`:两场都无材料 → **不调模型**且如实报错;正常路径下编造的那条被剔除且 `evidence_dropped=1`;两场纪要都进了 prompt;空结果给出可读 error |
+
+另:`python -m compileall backend meeting/backend` 全绿;`npx tsc --noEmit` 全绿;
+五个双份文件里四个逐字相同,`api/meeting.py` 差异仍只有那 2 处刻意 hunk(162 行)。
+
 ### 部署验证清单(等有 docker 的环境执行)
 
 ```bash
@@ -158,7 +197,24 @@ docker compose exec backend python -c "import api.meeting, api.project_todos, ta
 docker compose exec backend python -c "from tasks.insight_tasks import classify_project_todos_quadrant; print(classify_project_todos_quadrant.name)"
 curl -X POST localhost:8000/api/projects/<pid>/todos/classify -H "Authorization: Bearer <token>" -d '{"only_unclassified":false}'
 # 查 api_call_logs:task=meeting_todo_quadrant 的 model_name 应为 minimax-m2.5(非 api.edgefn.net)
+
+docker compose exec backend python -c "import services.meeting.comparison, services.meeting.insights"
+curl localhost:8000/api/meeting/<id>/compare-candidate -H "Authorization: Bearer <token>"
+curl -X POST localhost:8000/api/meeting/<id>/compare-insight -H "Authorization: Bearer <token>"
+# 查 api_call_logs:task=meeting_compare_insight / meeting_speaker_attribution 的 model_name 应正常
 ```
+
+**必须人工过一遍的**:
+
+1. 挑一个**有 ≥2 场已出纪要会议**的项目,开第 2 场会议的详情页
+2. 默认 UI 和 `?ui=new` **两套**下「洞察」tab 都要出现,且四块都在
+3. 词云出词;发言时长的来源徽标正确(飞书妙记式转写 → 「精确解析」,录音上传 → 「AI 推断」)
+4. 「待办四象限」:点「同步会议待办」→ 新待办自动带象限 → 拖一个到别象限 → **刷新后位置保持**
+5. 「与上一场会议对比」:按钮旁显示将对比的上一场标题 → 点下去转 1-2 分钟 → 出变化 + 建议,
+   且每条变化下面都有「原文:…」;确认没有一眼假的变化
+6. 首场会议:对比块应显示「本项目没有更早的、已出纪要的会议」而不是空面板或转不停的圈
+7. 无 `project_id` 的会议:四象限与对比都应降级为提示文案,不报错
+8. **名词校正词典**(B5 修的那个 bug):加一条校正词 → 跑润色 → 输出里确实被替换了
 
 ---
 
