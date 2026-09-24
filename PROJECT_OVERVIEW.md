@@ -754,6 +754,7 @@ ssh -i ~/.ssh/id_rsa_github_deploy ubuntu@175.27.231.228 \
 ### 11.1 域名 + 容器
 
 - **域名**:`skillhub.tokenwave.cloud`(独立证书,管理员邀请码登录)
+- **2026-09 迁腾讯云后**:对外域名是 `skillhub.sharewb.cloud`(tokenwave 未备案被拦)。安装说明/下载链接取 env `SKILLHUB_PUBLIC_URL`(默认 sharewb),LLM 评分走内网 `SKILLHUB_LLM_BASE_URL=http://10.206.0.11:8080/v1/chat/completions`。新机上代码是 `/opt/kb-system/skillhub/` **普通目录**(不是 symlink、不是 git),更新 = scp 改动文件 + `docker build -f Dockerfile.cn -t kb-skillhub-backend:latest .` + `docker compose up -d --no-deps skillhub-backend`
 - **容器**(在主 `docker-compose.yml` 里定义,build context 指向 `./skillhub/` symlink → `/opt/skillhub`):
   - `skillhub-backend`:FastAPI :8001 内网,384MB 限
   - `skillhub-frontend`:nginx + React dist :80 内网,128MB 限
