@@ -6,14 +6,17 @@ name: Deploy PROD
 #     (backend / frontend / edge);单边改动省构建时间。
 #   - 部署前后自动 prune 镜像,根治 /opt/data 满导致 postgres 崩溃
 #   - SSH 部署:滚动重启(maintenance flag + 健康检查 + 回滚)
-#   - 影响域名:kb.tokenwave.cloud(kb.liii.in 已弃用 2026-07-15)
+#   - 目标机:腾讯云南京 175.27.231.228(ubuntu),2026-09 从 GCP 34.42.241.99 迁来
+#   - 影响域名:kb/skillhub/aihub.sharewb.cloud(tokenwave.cloud 未备案,在新机上被腾讯拦截)
+#   - 新机 /opt/kb-system 不是 git 仓库且连不上 github.com → docker-compose.yml 由 runner
+#     base64 塞进 env 下发(见 Deploy via SSH),不靠 git pull
 #   - edge(80/443 入口)只在 edge/ 或 docker-compose.yml 变更时才重建 —— 那是唯一
 #     会闪断 aihub/skillhub/kanban/studio 的场景;日常前后端部署不碰 edge
 on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: '部署到生产 kb.tokenwave.cloud,确认请填 "deploy"'
+        description: '部署到生产 kb.sharewb.cloud(腾讯云新机),确认请填 "deploy"'
         required: true
         type: string
       force_all:
@@ -346,6 +349,10 @@ jobs:
         id: sha
         run: echo "value=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
+      # 新机连不上 github.com(git pull 必失败),compose 改由 runner 下发
+      - name: Pack docker-compose.yml
+        run: echo "COMPOSE_B64=$(base64 -w0 docker-compose.yml)" >> $GITHUB_ENV
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.5
         env:
@@ -362,10 +369,22 @@ jobs:
           # (最长 stop_grace_period=30min)。抬到 45min 覆盖 drain 窗口,避免 SSH 会话
           # 在 drain 中途被超时切断、把 docker compose up 打断。
           command_timeout: 45m
-          envs: FERNET_KEY_SECRET,DEPLOY_BE,DEPLOY_FE,DEPLOY_ED
+          envs: FERNET_KEY_SECRET,DEPLOY_BE,DEPLOY_FE,DEPLOY_ED,COMPOSE_B64
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
-            git pull origin main 2>&1 | tail -5 || echo "git pull failed, continuing with docker images only"
+            # 老机是 git 仓库可 pull;新机(腾讯云)不是、也连不上 github → 用 runner 下发的 compose
+            if [ -d .git ]; then
+              git pull origin main 2>&1 | tail -5 || echo "git pull failed, continuing with docker images only"
+            fi
+            if [ -n "$COMPOSE_B64" ]; then
+              echo "$COMPOSE_B64" | base64 -d > /tmp/kb-compose.new.yml
+              if ! cmp -s /tmp/kb-compose.new.yml docker-compose.yml; then
+                sudo cp docker-compose.yml docker-compose.yml.prev
+                sudo cp /tmp/kb-compose.new.yml docker-compose.yml
+                echo "→ docker-compose.yml 已更新(旧版备份 docker-compose.yml.prev)"
+              fi
+              rm -f /tmp/kb-compose.new.yml
+            fi
 
             if [ -n "$FERNET_KEY_SECRET" ] && ! grep -q '^FERNET_KEY=' .env 2>/dev/null; then
               echo "FERNET_KEY=$FERNET_KEY_SECRET" >> .env

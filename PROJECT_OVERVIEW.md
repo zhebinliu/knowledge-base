@@ -31,9 +31,9 @@ KB System 是 **纷享销客 CRM 实施咨询师** 的内部知识库 + 项目�
 | 向量库 | Qdrant 1.12 |
 | 关系库 | PostgreSQL 16 |
 | 对象存储 | MinIO 7.2(S3 协议) |
-| 部署 | Docker Compose,GCP `34.42.241.99` 单机 |
+| 部署 | Docker Compose,腾讯云南京 `175.27.231.228` 单机(2026-09 从 GCP `34.42.241.99` 迁来,老机已失联) |
 | 团队看板 | Plane v1.3.1,独立 compose `/opt/kanban` |
-| 域名 | `kb.tokenwave.cloud`(生产)/ `uat.tokenwave.cloud`(302 到生产)/ `skillhub.tokenwave.cloud` / `aihub.tokenwave.cloud` / `kanban.tokenwave.cloud` / `studio.tokenwave.cloud`(同 IP,各自证书);`kb.liii.in` 已弃用(2026-07-15,DNS 指老 IP) |
+| 域名 | **当前实际生产:`kb.sharewb.cloud` / `skillhub.sharewb.cloud` / `aihub.sharewb.cloud`**(新机只有这三张证书);tokenwave.cloud 未备案在腾讯云被拦截,以下为迁移前:`kb.tokenwave.cloud`(生产)/ `uat.tokenwave.cloud`(302 到生产)/ `skillhub.tokenwave.cloud` / `aihub.tokenwave.cloud` / `kanban.tokenwave.cloud` / `studio.tokenwave.cloud`(同 IP,各自证书);`kb.liii.in` 已弃用(2026-07-15,DNS 指老 IP) |
 
 主栈容器清单(11 个):`edge`(**唯一 80/443 入口**,持全域名证书,反代所有站点;2026-07-14 从 frontend 拆出,源码 `edge/`) `frontend`(kb 正式版 dist,:80 内网) `frontend-uat` `backend` `celery_worker` `postgres` `qdrant` `redis` `minio` `skillhub-backend`(:8001 内网) `skillhub-frontend`(:80 内网)。
 
@@ -625,7 +625,7 @@ gh workflow run deploy-prod.yml --ref main -f confirm=deploy
 gh run watch <run-id>           # 跟运行直到结束
 
 # DB 迁移仍可手动 ssh(workflow 不跑 alembic)
-ssh -i ~/.ssh/id_rsa_github_deploy liu@34.42.241.99 \
+ssh -i ~/.ssh/id_rsa_github_deploy ubuntu@175.27.231.228 \
     "sudo docker exec kb-system-backend-1 python -m scripts.<migrate>"
 ```
 
@@ -634,7 +634,8 @@ ssh -i ~/.ssh/id_rsa_github_deploy liu@34.42.241.99 \
 - 服务器只有 9.7G 磁盘,GitHub Actions 构建在 GitHub runner 做,服务器只 `docker pull` —— 不再需要本地 `docker builder prune`(但拉新版本后老镜像可能堆积,定期 `docker image prune -a`)
 - 镜像版本通过 ghcr 标签管控,部署可回滚(deploy-prod.yml 自带 `.last-good-sha` / `.prev-good-sha`)
 - 涉及 DB 的迁移要先 `--dry-run`(但 dry-run 通过 ≠ 真跑安全,见 LEARNING.md § 6.6)
-- **换服务器时**:除了改本仓 IP 硬编码,还要在 GitHub Settings → Secrets 改 `DEPLOY_HOST`(workflow 通过 `secrets.DEPLOY_HOST` 注入,不在仓库代码里)
+- **换服务器时**:除了改本仓 IP 硬编码,还要在 GitHub Settings → Secrets 改 `DEPLOY_HOST` / `DEPLOY_USER`(workflow 通过 secrets 注入,不在仓库代码里)
+- **新机(腾讯云)不是 git 仓库、连不上 github.com**:deploy-prod 由 runner 把 `docker-compose.yml` base64 塞 env 下发(改动前备份成 `.prev`);edge 配置烤在镜像里不受影响。服务器专属文件 `docker-compose.override.yml`、`newserver/skillhub-frontend.conf` 只在服务器上
 
 ---
 

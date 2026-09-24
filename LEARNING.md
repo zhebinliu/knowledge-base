@@ -1668,3 +1668,31 @@ curl -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $TOKEN" \
 若日后 quay 也清空,备选是 Chainguard 的免费重建镜像 `cgr.dev/chainguard/minio`
 (同一二进制,SLSA L3 构建,持续修补),或按官方 Dockerfile 自建。
 仓库现在只是把「随时会坏」推迟了,没根治 —— 记在这里,别下次再从头查一遍。
+
+---
+
+## 29. 服务器被悄悄换了:GCP → 腾讯云南京,CI 部署全挂(2026-09-24)
+
+### 29.1 症状
+
+2026-09-22 的 Deploy PROD 在最后一步 `Deploy via SSH` 挂掉:`dial tcp ***:22: i/o timeout`。构建、测试全绿,只是连不上机器。
+
+### 29.2 真因
+
+2026-09-03 前后生产整体迁到了**腾讯云南京 `175.27.231.228`**(`ubuntu` 用户,同一把 `id_rsa_github_deploy`),老 GCP `34.42.241.99` 已失联,但 GitHub Secrets `DEPLOY_HOST`/`DEPLOY_USER` 和所有文档都还指老机。迁移时是**在服务器上手工 build 镜像**(`backend/Dockerfile.cn` 走国内源)+ 直接改 `edge/` 文件,没有回写仓库。
+
+新机的几个坑,一次记全:
+
+| 坑 | 表现 | 处置 |
+|---|---|---|
+| **tokenwave.cloud 未备案** | 腾讯云拦截:HTTP 302 到 `dnspod.qcloud.com/static/webblock.html`,HTTPS 不通 | 对外改用 `*.sharewb.cloud`(kb/skillhub/aihub),edge 加了 sharewb 三组 vhost |
+| 新机只有 sharewb 证书 | 原 entrypoint 对 kb/uat/studio.tokenwave.cloud 缺证书 fail fast,edge 起不来 | entrypoint 改为缺证书就剥掉对应 443 块(sharewb 三个也同样兜底) |
+| `/opt/kb-system` 不是 git 仓库,且连不上 github.com | `git pull` 必失败,compose 变更同步不下去 | deploy-prod 由 runner 把 `docker-compose.yml` base64 塞进 env 下发 |
+| ghcr.io | 能拉,edge 镜像约 10s | 继续用 ghcr,不必改国内 registry |
+| kanban 没迁 | kanban.tokenwave.cloud DNS 仍指老机 | 未处理,待定 |
+
+### 29.3 教训
+
+- **服务器上手改的配置必须回写仓库**。这次 edge 的 sharewb vhost 只存在服务器上,如果直接让 CI 用仓库版 edge 覆盖,sharewb 全站会挂。换机/手改后第一件事:按 git blob hash 比对服务器文件和仓库(`sha1("blob <len>\0"+content)` 对 `git ls-tree`),把差异收回来。
+- 部署失败先看是**哪一步**挂:构建全绿、只有 SSH `i/o timeout` → 优先怀疑机器/IP 变了,而不是代码。
+- 国内机器用未备案域名等于没有域名,选域名前先确认备案状态。
