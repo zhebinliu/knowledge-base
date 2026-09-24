@@ -1,5 +1,16 @@
 FROM python:3.11-slim
 
+# 国内源(可选,2026-09):生产机在腾讯云南京,官方源 apt 拉 libreoffice 卡死、pip 只有几十 KB/s。
+# deploy-prod 在服务器上 build 时传 APT_MIRROR / PIP_MIRROR;不传(本地 / CI)就用官方源,行为不变。
+# 注意 ARG 名不能叫 PIP_INDEX_URL —— ARG 会以环境变量暴露给 RUN,空值会让 pip 找不到索引。
+ARG APT_MIRROR=
+ARG PIP_MIRROR=
+RUN if [ -n "$APT_MIRROR" ]; then \
+      sed -i -e "s|http://deb.debian.org|$APT_MIRROR|g" -e "s|http://security.debian.org|$APT_MIRROR|g" \
+        /etc/apt/sources.list.d/debian.sources; \
+    fi && \
+    if [ -n "$PIP_MIRROR" ]; then pip config set global.index-url "$PIP_MIRROR"; fi
+
 WORKDIR /app
 
 # 安装系统依赖

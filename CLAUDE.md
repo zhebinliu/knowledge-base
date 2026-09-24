@@ -22,15 +22,16 @@
 ## 部署
 
 - 远程服务器: `ubuntu@175.27.231.228`(腾讯云南京),SSH key: `~/.ssh/id_rsa_github_deploy`,docker 需 sudo(免密)
-- **新机特殊点**:`/opt/kb-system` **不是 git 仓库**,且**连不上 github.com**(ghcr.io 能拉,慢一些)→ deploy-prod 不靠 git pull,由 runner 把 `docker-compose.yml` base64 下发;服务器专属的 `docker-compose.override.yml` / `newserver/` 只在服务器上,不进仓库
+- **新机特殊点**:`/opt/kb-system` **不是 git 仓库**,且**连不上 github.com** → 源码和 `docker-compose.yml` 都由 CI rsync 下发;服务器专属的 `.env` / `docker-compose.override.yml` / `newserver/` 只在服务器上,不进仓库
 - 远程路径: `/opt/kb-system`
-- 运行方式: Docker Compose 拉 **ghcr.io 镜像**(`ghcr.io/zhebinliu/knowledge-base-{backend,frontend-prod,frontend-uat,edge}`)— 服务器 **不在本地编译**
+- 运行方式(2026-09-24 起):**CI 把源码 rsync 到服务器 `/opt/kb-build`,服务器用腾讯云内网源自己 build**,镜像只存本机(`kb-backend` / `kb-frontend-prod` / `kb-edge`,tag `:latest` / `:prev` / `:sha-xxx`)。不再用 ghcr(新机拉 ghcr 只有 ~76KB/s)
+- **完整部署规范:[docs/部署指南.md](docs/部署指南.md)** —— 所有人上线都按它来
 - **edge 容器 = 全服务器唯一 80/443 入口**(2026-07-14 从 frontend 拆出,源码 `edge/`):持全部域名证书,按 server_name 反代到各内网容器(frontend / skillhub / aihub / kanban / studio;uat 域名只 302),upstream 全部 resolver+变量延迟解析。日常前后端部署只动内网容器,**不闪断 aihub/skillhub 等其它站点**;只有 `edge/` 或 `docker-compose.yml` 变更才重建 edge(全域名闪断几秒)
 - HTTPS: Let's Encrypt 证书在主机 `/etc/letsencrypt/live/<域名>/`，挂载进 edge 容器。续期 cron(root):`17 3 * * * /opt/kb-system/scripts/renew-sharewb-ssl.sh`(新机只有 sharewb 三张证书;`renew-ssl.sh` 是老机 tokenwave 用的)
 - **`meeting/` 是普通子目录**(2026-05-25 合并回主仓,之前为 git submodule 指向 zhebinliu/ai-meeting)。Dockerfile 仍用 `COPY meeting/backend/ /app/` overlay 把会议代码叠到主镜像里,详见 [PROJECT_OVERVIEW § 12](PROJECT_OVERVIEW.md)。
 - GitHub Actions `secrets.DEPLOY_HOST` / `DEPLOY_USER` 跟服务器绑定,**换服务器时除了改本仓代码,还要去 GitHub Settings → Secrets 同步改**(2026-09-24 已改为 `175.27.231.228` / `ubuntu`)
 
-### 部署流程(只走 GitHub Actions,不再 rsync + 远端 build)
+### 部署流程(只走 GitHub Actions;细节和禁止事项见 [docs/部署指南.md](docs/部署指南.md))
 
 ```bash
 # push main 只跑 CI Checks(Deploy UAT 已禁用)
@@ -44,7 +45,7 @@ gh run list --limit 5
 gh run watch <run-id> --exit-status                           # 阻塞跟一直到结束
 ```
 
-**不要再用** rsync + 远端 `docker compose build` —— 服务器没装构建依赖,且会跟 ghcr 镜像版本不一致。
+**不要**手工 SSH 上去 `docker compose build` / 改代码 —— build 由 workflow 在服务器上做(带测试、版本记录、`:prev` 回滚点);**不要 Re-run 很久以前失败的 Deploy PROD**(会部署旧 commit 的代码和 workflow)。
 SSH 上服务器仅用于:看日志 / 进 PG / 紧急排错(命令在 [PROJECT_OVERVIEW § 9](PROJECT_OVERVIEW.md))。
 `scripts/sync-dev.sh` 是 **本地开发期** fswatch 实时同步(本地改一行就推到服务器测),**不是部署路径** —— 它会绕过 GitHub Actions / ghcr 版本管控,只在本地短平快验证后用,不要在 main 已经能 push 的场景下用。
 

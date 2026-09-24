@@ -4,6 +4,11 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# 国内 npm 源(可选,2026-09):生产机在腾讯云南京,deploy-prod 在服务器上 build 时传 NPM_REGISTRY。
+# npm 默认 replace-registry-host=npmjs,lockfile 里 registry.npmjs.org 的 resolved 地址也会被换成这个源。
+ARG NPM_REGISTRY=
+RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi
+
 COPY frontend/package*.json ./
 # --legacy-peer-deps: liquid-glass-react 声明 peer react>=19,但 React 18 运行时兼容
 RUN npm ci --prefer-offline --legacy-peer-deps

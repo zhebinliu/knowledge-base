@@ -614,10 +614,10 @@ skills(1) ─→ 被 agent_configs.config_value['skill_ids'] 引用(by uuid)
 
 ## 8. 部署流程
 
-**只走 GitHub Actions** —— 服务器拉 ghcr.io 镜像,不在本地编译。详见 [CLAUDE.md § 部署流程](CLAUDE.md)。摘要:
+**只走 GitHub Actions**。2026-09-24 起:CI 把源码 rsync 到服务器 `/opt/kb-build`,服务器用腾讯云内网源自己 build(不再用 ghcr)。**完整规范:[docs/部署指南.md](docs/部署指南.md)**。摘要:
 
 ```bash
-# UAT 自动:push main 触发 deploy-uat.yml(只重启 frontend-uat)
+# push main 只跑 CI Checks(Deploy UAT 已禁用)
 git push origin main
 
 # PROD 手动:触发 deploy-prod.yml(全栈滚动重启 + 健康检查 + 回滚)
@@ -631,8 +631,8 @@ ssh -i ~/.ssh/id_rsa_github_deploy ubuntu@175.27.231.228 \
 
 **注意**:
 - **edge(80/443 入口)只在 `edge/` 或 `docker-compose.yml` 变更时重建**,部署顺序 backend/frontend 先、edge 最后;日常前后端部署不碰 edge,aihub/skillhub/kanban/studio 无感
-- 服务器只有 9.7G 磁盘,GitHub Actions 构建在 GitHub runner 做,服务器只 `docker pull` —— 不再需要本地 `docker builder prune`(但拉新版本后老镜像可能堆积,定期 `docker image prune -a`)
-- 镜像版本通过 ghcr 标签管控,部署可回滚(deploy-prod.yml 自带 `.last-good-sha` / `.prev-good-sha`)
+- 新机 50G 盘,镜像在服务器本地 build;部署后自动只保留 `:latest` + `:prev`,并清理 7 天前的 build 缓存。**禁止 `docker image prune -a`**(会删回滚镜像和基础镜像)
+- 回滚:切换前正在跑的镜像自动打成 `:prev`,健康检查失败自动回滚 backend/frontend;edge 需手动(见部署指南 §6.2)
 - 涉及 DB 的迁移要先 `--dry-run`(但 dry-run 通过 ≠ 真跑安全,见 LEARNING.md § 6.6)
 - **换服务器时**:除了改本仓 IP 硬编码,还要在 GitHub Settings → Secrets 改 `DEPLOY_HOST` / `DEPLOY_USER`(workflow 通过 secrets 注入,不在仓库代码里)
 - **新机(腾讯云)不是 git 仓库、连不上 github.com**:deploy-prod 由 runner 把 `docker-compose.yml` base64 塞 env 下发(改动前备份成 `.prev`);edge 配置烤在镜像里不受影响。服务器专属文件 `docker-compose.override.yml`、`newserver/skillhub-frontend.conf` 只在服务器上

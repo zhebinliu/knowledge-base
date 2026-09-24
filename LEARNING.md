@@ -1696,3 +1696,18 @@ curl -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $TOKEN" \
 - **服务器上手改的配置必须回写仓库**。这次 edge 的 sharewb vhost 只存在服务器上,如果直接让 CI 用仓库版 edge 覆盖,sharewb 全站会挂。换机/手改后第一件事:按 git blob hash 比对服务器文件和仓库(`sha1("blob <len>\0"+content)` 对 `git ls-tree`),把差异收回来。
 - 部署失败先看是**哪一步**挂:构建全绿、只有 SSH `i/o timeout` → 优先怀疑机器/IP 变了,而不是代码。
 - 国内机器用未备案域名等于没有域名,选域名前先确认备案状态。
+
+### 29.4 追加:ghcr 在国内机器上等于不可用 → 改为「源码 rsync + 服务器 build」
+
+- 改完 Secrets 后第一次部署:SSH 通了,但 `docker compose pull` 拉 ghcr 的 backend 镜像只有 **~76KB/s**,必撞超时。edge 那种几十 MB 的小镜像能拉下来,是误导性的「看起来能用」。
+- 结论:不走镜像仓库。CI 只 `rsync -az --checksum --delete` 源码到 `/opt/kb-build`(frontend/public 有 100MB+ 课程音频,`--checksum` 保证不变的文件不重传),服务器 `docker build` 时通过 build-arg 用腾讯云内网 apt / PyPI / npm 源。
+- Dockerfile 里镜像源做成**可选 ARG**(`APT_MIRROR` / `PIP_MIRROR` / `NPM_REGISTRY`),不传就是官方源 —— 不要再维护 `Dockerfile.cn` 这种平行副本,迟早漂移。**ARG 不能叫 `PIP_INDEX_URL`**:ARG 会作为环境变量暴露给 RUN,空字符串会让 pip 找不到索引。
+- 回滚锚点改为「切换前正在跑的镜像打 `:prev`」。原来按 `.prev-good-sha` 找 `sha-xxx` 镜像的做法有洞:上次部署没重建的服务根本没有那个 sha 的镜像。
+- 清理不再 `prune -a`:会把 `:prev` 和 python/node 基础镜像一起删,下次 build 全量重下。
+
+### 29.5 追加:Re-run 旧的失败 run = 部署旧代码
+
+同一天有人对 9-22 失败的 Deploy PROD 点了 Re-run。Re-run 用的是**那个 commit 的 workflow 文件和代码**,只有 Secrets 是新的 —— 于是它连上新机,准备用不带 sharewb 配置的旧 edge 覆盖线上(新机没有 tokenwave 证书,旧 edge 会直接起不来,全站下线),而且和新 run 并发抢同一台机器。人工中途杀掉才没出事。
+
+- workflow 加了 `concurrency: deploy-prod`(不再并发),但**排队的旧 run 照样会跑**,所以规则是:**永远不要 Re-run 旧的 Deploy PROD,要部署就重新触发**。写进了 [docs/部署指南.md](docs/部署指南.md) §4。
+- 杀远端部署进程要杀整棵进程树(`bash -c` 父进程 + `docker compose` 子进程)。只杀子进程,父脚本会继续执行下一步(这次就是 pull 被杀后它直接进了 `up`)。
