@@ -349,6 +349,26 @@ redesign `:361` `maxHeight: calc(100dvh - 320px)`。硬编码尺寸只有词云 
 
 ---
 
+## 部署记录
+
+| 时间 | commit | 结果 |
+|---|---|---|
+| 2026-09-29 | `405148b` | ✅ 成功。`backend=true frontend=true **edge=false**`(未碰 `edge/` 与 `docker-compose.yml` → 不闪断 aihub/skillhub);`Healthy after 5s`;`celery_worker 已对齐`;`prod-live` tag = `405148b` |
+
+部署后外部核验:
+
+- `https://kb.sharewb.cloud/version.json` → `sha=405148b9439478b91797e0add85bccd0c2b363fc`,与 `prod-live` **一致**;首页 200
+- 新增路由确实注册上(未登录返回 401;对照组 `GET /meeting/1/definitely-not-a-route-xyz` 返回 404,证明 401/404 这个判据有效):
+  `GET /meeting/{id}/compare-candidate`、`POST /meeting/{id}/compare-insight`、
+  `PUT /meeting/{id}/participants`、`PATCH /meeting/{id}/speaker-stats` 全部 401 ✅
+
+> 部署日志里有一句 `docker-compose.yml 已更新(旧版备份 .prev)`,那是 `cmp -s` 发现
+> **服务器上的副本与仓库不一致**而做的同步(上一次部署遗留),**不是本轮改动** ——
+> 本轮 `edge=false` 已证明 `docker-compose.yml` 不在变更集里。且部署全程
+> `up -d --no-deps backend frontend`,**minio 未被重建**,生产 minio 不受影响。
+
+---
+
 ## 后续单独立项(本轮明确不做)
 
 - **真正的声学声纹分离** —— 用户已确认分阶段:先做本轮轻量方案,再评估是否引入。
