@@ -365,6 +365,11 @@ redesign `:361` `maxHeight: calc(100dvh - 320px)`。硬编码尺寸只有词云 
 
 ## 已知既有问题(沿用上一轮记录,本轮仍未修)
 
+- **CI 当前是红的:`quay.io/minio/minio` 也已清空(2026-09-29 发现)** —— 与本轮改动无关,
+  上一次 CI(9-28 09:28)挂在同一步。诊断与三处不兼容点已留档在
+  [LEARNING.md § 31](LEARNING.md);**用户 2026-09-29 明确决定暂不切换镜像源,自行决定**,
+  故本轮四处镜像引用一个都没动。影响:CI 的 `Run Tests` 跑不起来,
+  本轮后端改动**没有经过 pytest 验证**(仅本地桩测 + `py_compile`)。
 - **`/todos/*` 全部端点缺项目 ACL** —— 只校验 `get_current_user`,任何登录用户可读写
   任意项目的待办。属独立安全修复。
 - **`POST /todos/{id}/smart-assign` 复用了 `meeting_illustrations_extract` 这个 task 名**

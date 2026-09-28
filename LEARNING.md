@@ -1669,6 +1669,9 @@ curl -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $TOKEN" \
 (同一二进制,SLSA L3 构建,持续修补),或按官方 Dockerfile 自建。
 仓库现在只是把「随时会坏」推迟了,没根治 —— 记在这里,别下次再从头查一遍。
 
+> ⚠️ **2026-09-29:quay 已清空,本段预告应验 —— 见 [§ 31](#31-quayio-的-minio-也清空了--284-的预告应验2026-09-29)。**
+> 当时写的备选(Chainguard)确认可用,但**有三处不兼容**,别直接照抄 §28.3 的改法。
+
 ---
 
 ## 29. 服务器被悄悄换了:GCP → 腾讯云南京,CI 部署全挂(2026-09-24)
@@ -1791,3 +1794,102 @@ git diff --no-index -U0 -- backend/api/meeting.py meeting/backend/api/meeting.py
 **没有静默跳过**:task.md 里那一项划掉并写明理由,同时列进「后续单独立项」,并在交付时口头告知用户。
 
 **教训**:计划是在读代码之前写的,读完之后发现计划里某一项不成立是正常的 —— 但要**显式记录并上报**,不能默默不做(用户会以为做了),也不能硬着头皮做(会往库里塞死字段)。
+
+## 31. quay.io 的 MinIO 也清空了 —— §28.4 的预告应验(2026-09-29)
+
+**当前状态:未决。** 用户 2026-09-29 明确决定**暂不切换镜像源,自行决定**。本文只留档诊断结论,
+**任何镜像引用都没改** —— `.github/workflows/deploy.yml`、`deploy-prod.yml`、`docker-compose.yml`、
+`kanban/docker-compose.yml` 四处仍是 `quay.io/minio/minio:latest`。**CI 目前是红的。**
+
+### 31.1 症状:与 §28 同一个位置,换了措辞
+
+CI `Run Tests` 在 **Start MinIO manually** 挂掉(与 §28.1 同一步骤):
+
+```
+Unable to find image 'quay.io/minio/minio:latest' locally
+docker: Error response from daemon: unauthorized: access to the requested resource is not authorized
+ ##[error]Process completed with exit code 125.
+```
+
+**注意措辞变了**:§28.1 是 Docker Hub 的 `pull access denied ... may require 'docker login'`,
+这次 quay 只回一句 `unauthorized: access to the requested resource is not authorized` ——
+更短、更容易被误判成「token 过期」。两者都是 **401 = 仓库不存在**,不是凭证问题。
+
+⚠️ **这个失败会伪装成「你的改动弄坏了 CI」**。判断方法:**看同一 job 的上一个 run**
+(这次 `36403680165`,9-28 09:28,同一个 commit 之前的代码,挂在同一行)。CI 挂在
+**Start MinIO manually** 而非后面的 Run Tests,就说明根本没走到测试。
+
+### 31.2 下结论前先自检探针
+
+§28.2 的探针方法本身没问题,但**要拿一个肯定还在的仓库跑一遍**,否则分不清「仓库没了」
+和「我的查询写错了 / 网络不通」:
+
+```bash
+# 自检:这个一定还在,应当 200
+probe quay.io prometheus/node-exporter "https://quay.io/v2/auth?service=quay.io&scope=repository:prometheus/node-exporter:pull"
+# 再来问目标
+probe quay.io minio/minio           "https://quay.io/v2/auth?service=quay.io&scope=repository:minio/minio:pull"
+probe cgr.dev chainguard/minio      "https://cgr.dev/token?service=cgr.dev&scope=repository:chainguard/minio:pull"
+```
+
+本次实测(2026-09-29):
+
+| 查询 | 结果 |
+|---|---|
+| `quay.io/prometheus/node-exporter`(自检) | **200** ✅ 探针可信 |
+| `quay.io/minio/minio` | **401 —— 已消失** |
+| `quay.io/minio/mc` | **401 —— 已消失** |
+| `cgr.dev/chainguard/minio` | **200** ✅ 可用 |
+
+### 31.3 本机没 docker,也能查出候选镜像的运行时契约
+
+不要再靠「我记得这个镜像应该是……」判断。**镜像的运行时契约全在 config blob 里**,匿名就能读:
+
+1. 拿匿名 token → 2. 取 manifest(多架构 index 要先挑 `linux/amd64`)→ 3. 取 `config.digest` 指向的 blob。
+2. **坑**:blob 会 **302 到 CDN**,跨 host 时必须把 `Authorization` 摘掉再跟过去 ——
+   否则 CDN 拿这个它不认的 token 回 **400 Bad Request**(不是 401,极易误判成「没权限」)。
+   `curl -L` 默认就会摘,`urllib` 必须自己写 `HTTPRedirectHandler`。
+3. **光看 config 不够**:`/data` 存不存在、属主是谁,要看**层的 tar 清单**。
+   逐层下载后按 `data`/`data/` 前缀过滤,能直接读出 `uid=`/`mode=`。
+
+查出来的 `cgr.dev/chainguard/minio:latest`(2026-09-29):
+
+| 项 | 值 | 影响 |
+|---|---|---|
+| `Entrypoint` | `/usr/bin/minio` | ✅ `server /data` 用法一字不改 |
+| `/data` | 存在,`mode=0777`,`.minio.sys/*` 属 65532 | ✅ CI 里裸 `docker run`(不挂卷)能跑 |
+| `User` | **65532(nonroot)** | ⚠️ 见下 |
+| `curl` | **镜像内没有** | ⚠️ `docker-compose.yml` 的 healthcheck 会恒 unhealthy |
+| `tar` / `sh` | **没有** | ⚠️ 备份还原脚本会断 |
+
+### 31.4 三处不兼容 —— 别直接照抄 §28.3 的「改 4 处」改法
+
+§28.3 那次是**同名同 tag、行为完全一致**的平移,所以只改引用就行。**这次不是**,
+Chainguard 是 distroless + 非 root 的**重建**镜像,引用不改完会踩:
+
+1. **存量卷属主冲突(最危险)**。生产 `minio_data` 卷里的文件是旧镜像**以 root 写的**。
+   新镜像以 UID 65532 运行 → 下次 `docker compose up` 重建 minio 容器时
+   **可能在启动阶段就失败**。注意:**现在正在跑的容器不受影响**(compose 不会无故重建),
+   所以这个坑会**延迟到下一次重建才爆**,更难排查。
+   → 平滑做法是 compose 里显式 `user: "0:0"`(与今天行为一致,放弃非 root 收益),
+   或做一次性 `chown -R 65532:65532`(要停机且不可逆)。
+2. **healthcheck**。[docker-compose.yml](../docker-compose.yml) 用 `curl ... /minio/health/live`,
+   distroless 没 curl → 恒 unhealthy。所幸 `depends_on` 用的是 `service_started` 不是
+   `service_healthy`,**不阻塞启动**,只是状态显示难看。
+3. **备份 / 还原**。[scripts/backup.sh](../scripts/backup.sh) 与 [scripts/restore.sh](../scripts/restore.sh)
+   靠 `docker exec <容器> sh -c` + `tar` 打包 `/data`。distroless 里两者都没有 →
+   **每日备份会静默失效**。要么改用宿主机侧卷路径直接打包,要么保留一个带工具的镜像专做备份。
+
+### 31.5 还有一个没法在本地验证的点
+
+生产机在**腾讯云南京**,`cgr.dev` 在那儿能不能拉得动**未知** —— §29.4 记过 ghcr 只有
+~76KB/s 的教训。切之前必须上服务器实测一次 `docker pull cgr.dev/chainguard/minio`,
+否则会重演「CI 绿了但服务器拉不动」。
+
+### 31.6 教训
+
+- **「随时会坏」的推迟,会以更隐蔽的形式回来。** §28.4 已经把风险写清楚了,
+  但当时只换了引用、没做任何加固,四个月后同一个位置又炸一次。外部镜像这类依赖,
+  **要么自建,要么在换的时候就把备份/健康检查这类「依赖镜像内部工具」的耦合一起解开**。
+- **外部镜像消失是常态,不是异常。** 判断 CI 红是不是自己造成的,先看**同一 job 的上一个 run**,
+  再看挂在第几步 —— 挂在起依赖(Start MinIO)而不是跑测试,基本可以排除自己的改动。
