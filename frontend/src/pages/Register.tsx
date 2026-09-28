@@ -4,6 +4,7 @@ import { BookOpen } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import CaptchaInput, { type CaptchaInputRef } from '../components/auth/CaptchaInput'
 import PasswordStrength, { isPasswordValid } from '../components/auth/PasswordStrength'
+import IcpFooter from '../components/IcpFooter'
 
 export default function Register() {
   const { register } = useAuth()
@@ -63,7 +64,7 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 py-8">
+    <div className="relative min-h-screen flex items-center justify-center bg-gray-100 px-4 pt-8 pb-14">
       <div className="w-full max-w-sm bg-white rounded-xl shadow-sm p-8">
         <div className="flex items-center gap-2.5 mb-6">
           <div className="w-9 h-9 bg-blue-500 rounded-lg flex items-center justify-center">
@@ -107,6 +108,7 @@ export default function Register() {
           已有账号？<Link to="/login" className="text-blue-600 hover:underline">去登录</Link>
         </p>
       </div>
+      <IcpFooter />
     </div>
   )
 }

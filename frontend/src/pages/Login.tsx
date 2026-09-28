@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { BookOpen } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import CaptchaInput, { type CaptchaInputRef } from '../components/auth/CaptchaInput'
+import IcpFooter from '../components/IcpFooter'
 
 export default function Login() {
   const { login } = useAuth()
@@ -49,7 +50,7 @@ export default function Login() {
   }
 
   return (
-    <div className="auth-overlay">
+    <div className="auth-overlay relative pb-14">
       <div className="auth-card">
         <div className="auth-logo">
           <div className="auth-logo-icon">
@@ -105,6 +106,7 @@ export default function Login() {
           </Link>
         </p>
       </div>
+      <IcpFooter />
     </div>
   )
 }
