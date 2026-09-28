@@ -4,10 +4,10 @@
  *   1. 词云        这场会真正聊了什么
  *   2. 发言时长     谁在主导讨论
  *   3. 待办四象限   项目一套,轴为「紧急 × 必要」
- *   4. 会议对比     与本项目上一场会议的变化洞察 + 建议
+ *   4. 会议对比     与自选的一场同项目会议的变化洞察 + 建议
  *
  * 为什么集中在一个 tab:四者语义同类(都是「对会议/项目做分析」的产物),且各段自带
- * 触发按钮与空态,能容纳异构的数据可用性(词云只需转写,象限需要项目,对比还需上一场)。
+ * 触发按钮与空态,能容纳异构的数据可用性(词云只需转写,象限需要项目,对比还需第二场会议)。
  *
  * 本文件被 pages/console/ConsoleMeetingDetail.tsx 再导出,redesign 壳从那里 import ——
  * 新旧两套 UI 复用同一个组件,样式只用 tailwind 令牌(text-ink / border-line / bg-white …),
@@ -287,15 +287,15 @@ function QuadrantSection({ meeting, ctl }: { meeting: Meeting; ctl: CollapseCtl 
   )
 }
 
-// ── 4. 与上一场会议对比 ───────────────────────────────────────────────────
+// ── 4. 与其它会议对比 ─────────────────────────────────────────────────────
 
 function CompareSection({ meeting, ctl }: { meeting: Meeting; ctl: CollapseCtl }) {
   return (
     <Section
       id="compare"
       ctl={ctl}
-      title="与上一场会议对比"
-      desc="横向比本项目上一场会议的纪要与转写,找出变化并给出建议。每条变化都附原文摘录"
+      title="与其它会议对比"
+      desc="自选本项目任意一场已出纪要的会议横向比,找出变化并给出建议。每条变化都附原文摘录"
     >
       <ComparisonPanel meeting={meeting} />
     </Section>

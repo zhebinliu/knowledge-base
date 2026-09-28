@@ -2164,7 +2164,7 @@ export interface MeetingRequirement {
   created_at: string
 }
 
-// ── 会议洞察(2026-09):词云 / 发言时长 / 与上一场会议对比 ────────────────
+// ── 会议洞察(2026-09):词云 / 发言时长 / 与自选会议对比 ──────────────────
 
 export interface InsightKeyword {
   word: string
@@ -2235,8 +2235,21 @@ export interface MeetingComparison {
   generated_at: string
 }
 
+/** 可作对比基准的一场会议(下拉里的一项)。
+ *
+ * `start_time` 是会议时间;字段名从早先的 `created_at` 改过来 —— 那个名字是错的,
+ * 后端塞进去的一直是 `Meeting.start_time`。前端是唯一消费方,故直接改名不再兼容旧名。 */
+export interface CompareMeetingRef {
+  id: number
+  title: string
+  start_time: string
+}
+
 export interface CompareCandidate {
-  prev: { id: number; title: string; created_at: string } | null
+  /** 默认建议项(时间上更早的最近一场),没有则为 null */
+  prev: CompareMeetingRef | null
+  /** 本项目全部已出纪要的会议(非自己),供用户自选;为空时看 reason */
+  candidates: CompareMeetingRef[]
   reason: string | null
 }
 
@@ -2714,11 +2727,14 @@ export const getCompareCandidate = async (meetingId: number): Promise<CompareCan
   return data
 }
 
+/** 启动对比。`prevMeetingId` 省略时后端取「上一场」(与旧行为一致)。 */
 export const startCompareInsight = async (
   meetingId: number,
+  prevMeetingId?: number,
 ): Promise<{ task_id: string; prev_meeting_id: number; prev_meeting_title: string }> => {
   const { data } = await api.post<{ task_id: string; prev_meeting_id: number; prev_meeting_title: string }>(
     `/meeting/${meetingId}/compare-insight`,
+    prevMeetingId == null ? {} : { prev_meeting_id: prevMeetingId },
   )
   return data
 }

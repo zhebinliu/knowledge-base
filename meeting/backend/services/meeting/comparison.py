@@ -5,9 +5,11 @@
 (`COPY backend/ /app/` 之后 `COPY meeting/backend/ /app/`,后者胜),只在 overlay 建一份即可。
 两处同名 → 后 COPY 的静默胜出 → 以后改错文件不生效(名词校正词典就是这么失效的)。
 
-对外两个入口:
-- `find_previous_meeting()`  → 找出「上一场」(供 GET compare-candidate 预览用)
-- `build_comparison()`       → 真正跑对比,返回可落 `Meeting.comparison_insight` 的 dict
+对外入口:
+- `find_previous_meeting()`    → 「上一场」(默认建议项;也是旧任务的兼容兜底)
+- `find_comparable_meetings()` → 本项目全部可对比会议,供前端下拉取候选
+- `load_comparable_meeting()`  → 按 id 取并校验,**权限与数据的唯一关口**
+- `build_comparison()`         → 真正跑对比,返回可落 `Meeting.comparison_insight` 的 dict
 
 反幻觉策略(这是本模块最要紧的事):
 - 每条 change 强制带 `evidence`,且 evidence 必须是材料里的原文摘录;
@@ -53,6 +55,10 @@ async def find_previous_meeting(meeting: Meeting, session: AsyncSession) -> Meet
 
     为什么要求「有纪要」:对比的判据主要是结构化纪要,没有纪要的会议(还在录音、
     转写失败)拿来比只会得到一篇空洞的对比。宁可让前端提示「上一场还没出纪要」。
+
+    2026-09 起这只是**默认建议项**:用户可以在前端选任意一场同项目会议
+    (见 `find_comparable_meetings`),这个函数退化为「没传 prev_id 时的兜底选择」,
+    同时兼作已入队旧任务的兼容路径。
     """
     if not meeting.project_id:
         return None
@@ -70,6 +76,78 @@ async def find_previous_meeting(meeting: Meeting, session: AsyncSession) -> Meet
         .limit(1)
     )
     return (await session.scalars(stmt)).first()
+
+
+async def find_comparable_meetings(meeting: Meeting, session: AsyncSession) -> list[Meeting]:
+    """本项目里所有**可作对比基准**的会议:非自己、且已出纪要。按 start_time 倒序。
+
+    与 `find_previous_meeting` 的关键区别:**不限制早于本场**。用户可能想拿更晚的会议
+    作参照(比如回头补一次对比),所以时间先后不参与筛选。
+
+    「已出纪要」这条与 `find_previous_meeting` 一致,理由同上;也必须与
+    `load_comparable_meeting` 的校验保持一致 —— 前端下拉里拿得到的,提交时就必须通过。
+    """
+    if not meeting.project_id:
+        return []
+    stmt = (
+        select(Meeting)
+        .where(
+            and_(
+                Meeting.project_id == meeting.project_id,
+                Meeting.id != meeting.id,
+                Meeting.meeting_minutes.isnot(None),
+            )
+        )
+        .order_by(Meeting.start_time.desc())
+    )
+    return list(await session.scalars(stmt))
+
+
+async def load_comparable_meeting(
+    meeting: Meeting, prev_id: int, session: AsyncSession
+) -> Meeting | None:
+    """按 id 取一场「可对比的会议」;不满足条件返回 None,由调用方转成可读的 400。
+
+    **这是权限与数据的唯一关口**:前端传上来的 id 不可信,必须逐条校验。
+    同 project 这一条同时兜住了越权 —— `meeting` 本身已经过 `_load_meeting_owned`
+    (含 ACL),而这里要求目标会议与它同项目,所以不可能跨项目读取。
+    """
+    if not meeting.project_id:
+        return None
+    other = await session.get(Meeting, prev_id)
+    if other is None:
+        return None
+    if other.id == meeting.id:
+        return None
+    if other.project_id != meeting.project_id:
+        return None
+    if other.meeting_minutes is None:
+        return None
+    return other
+
+
+async def resolve_prev_meeting(
+    meeting: Meeting, prev_id: int | None, session: AsyncSession
+) -> tuple[Meeting | None, str | None]:
+    """决定这次拿哪一场当对比基准。返回 `(会议, 错误文案)`。
+
+    传了 `prev_id` 就用它(并走 `load_comparable_meeting` 校验);
+    没传就退回「上一场」。两条路都失败时给出**可读的中文原因** ——
+    这个文案会直接进 400 响应给用户看,不要写成英文或堆栈腔。
+
+    放在服务层而不是 API 层,是因为 api/meeting.py 有两份副本(主树 + overlay),
+    逻辑放这里只需维护一处。
+    """
+    if prev_id is not None:
+        prev = await load_comparable_meeting(meeting, prev_id, session)
+        if prev is None:
+            return None, "所选的对比会议不存在、不属于本项目,或还没出纪要"
+        return prev, None
+
+    prev = await find_previous_meeting(meeting, session)
+    if prev is None:
+        return None, "本项目没有更早的、已出纪要的会议可供对比"
+    return prev, None
 
 
 async def _requirements_of(meeting_id: int, session: AsyncSession) -> list[Requirement]:
@@ -292,4 +370,10 @@ async def build_comparison(
     return result
 
 
-__all__ = ["find_previous_meeting", "build_comparison"]
+__all__ = [
+    "find_previous_meeting",
+    "find_comparable_meetings",
+    "load_comparable_meeting",
+    "resolve_prev_meeting",
+    "build_comparison",
+]

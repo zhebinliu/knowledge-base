@@ -99,47 +99,79 @@
 - [x] 验证:`npx tsc --noEmit` exit 0;全前端 grep `IllustrationsTab|解释图` 只剩
       `RoutingTab.tsx:35` 一处(刻意保留,理由见边界段)
 
-### B · 对比可选具体会议 — 需求 2
+### B · 对比可选具体会议 — 需求 2 — 已完成
 
 现状:`find_previous_meeting()`(`meeting/backend/services/meeting/comparison.py:51-72`)
 **写死**四个条件:同 project + `start_time` 严格更早 + 已出纪要 + `start_time DESC LIMIT 1`。
 `POST /compare-insight` **不接受任何参数**;且 `_task.delay(meeting_id)` **只传了 meeting_id**,
 Celery 任务内部**又重算一次** `find_previous_meeting` —— 于是 POST 返回给前端的 prev 与
-实际对比对象可能不一致(两次调用之间上一场刚出了纪要)。**这次必须一并修掉**。
+实际对比对象可能不一致(两次调用之间上一场刚出了纪要)。**这次一并修掉了**。
 
-- [ ] 后端 · overlay 服务层 `meeting/backend/services/meeting/comparison.py`
-  - [ ] 新增 `find_comparable_meetings(meeting, session)` — 返回同项目、非自己、
-        **已出纪要**的会议列表(供前端选择器取候选),按 `start_time DESC`
-  - [ ] 新增 `load_comparable_meeting(meeting, prev_id, session)` — 按 id 取,并**校验**:
-        同 project / 不是自己 / 已有纪要;不满足返回 None(由 API 层转 400)
-  - [ ] `find_previous_meeting()` **保留**,作为 `prev_id` 未传时的兜底(兼容已入队的旧任务)
-- [ ] 后端 · 两副本 `api/meeting.py`
-  - [ ] `GET /{id}/compare-candidate` 改造:除 `prev`(默认建议项,兼容既有前端)外,
-        新增 `candidates: [{id,title,created_at,has_minutes}]` 列表
-  - [ ] `POST /{id}/compare-insight` 加 Pydantic body `{prev_meeting_id?: int}`;传了就走
-        `load_comparable_meeting` 校验(不通过 → 400 带可读中文原因)
-  - [ ] **把 `prev_id` 传给 Celery**(修掉上面那个不一致 bug)
-- [ ] 后端 · `backend/tasks/insight_tasks.py`
-  - [ ] `compare_meeting_previous(self, meeting_id, prev_id=None)` —— **必须有默认值**,
-        否则已入队的旧任务反序列化会炸
-  - [ ] `:109` 的 `prev = await find_previous_meeting(...)` 改为:有 `prev_id` 走
-        `load_comparable_meeting`,否则回退 `find_previous_meeting`
-- [ ] 后端 · prompt(两副本 `prompts/meeting.py` `COMPARE_USER` `:765-804`)
-  - [ ] **方向问题**:现模板措辞假定 prev 一定更早(「上一场会议」)。用户可能选一场**更晚**的会,
-        此时 before/after 语义反转。改为中性措辞(如「基准会议 A / 当前会议 B」),
-        并在 system prompt 里说明两者时间先后不固定
-- [ ] 前端 · `frontend/src/api/client.ts`
-  - [ ] `startCompareInsight(meetingId, prevMeetingId?)` 加参数,传 body
-  - [ ] `CompareCandidate` 类型扩 `candidates` 列表
-- [ ] 前端 · `ComparisonPanel.tsx`
-  - [ ] 加会议选择器(候选来自上述 `candidates`;**筛选条件与后端一致**:已出纪要)
-  - [ ] 「与上一场会议对比」按钮文案改为「与所选会议对比」或保留但旁边显示当前选择
-  - [ ] 结果态「对比基准」chip 点击可换会议重跑
-- [ ] 前端 · 会议选择器组件
-  - [ ] 仓库**没有**可复用的会议选择器(已 grep 确认)。项目会议可能很多,
-        `PillSelect.tsx` 无搜索框不够用 → 照 `CollaboratorsModal` 的「搜索 + 列表 + 选中」
-        范式新建轻量选择器(放 `components/console/meeting/` 下)
-- [ ] 验证:`tsc --noEmit`;`compileall`;两副本 `api/meeting.py` 差异仍只有 2 处 hunk
+- [x] 后端 · overlay 服务层 `meeting/backend/services/meeting/comparison.py`
+  - [x] `find_comparable_meetings()` — 同项目、非自己、**已出纪要**,按 `start_time DESC`。
+        **刻意不加时间约束**:用户可以拿一场更晚的会作参照
+  - [x] `load_comparable_meeting()` — 按 id 取并**逐条校验**(存在 / 非自己 / 同 project / 有纪要)。
+        注释里标明这是**权限与数据的唯一关口**:同 project 那条同时兜住越权,
+        因为 `meeting` 本身已过 `_load_meeting_owned`(含 ACL)
+  - [x] `resolve_prev_meeting()` — 统一的「传了就校验、没传退上一场」入口,返回
+        `(会议, 中文错误文案)`,端点直接把它转 400。**放服务层是因为 api 有两副本**,
+        逻辑放这里只维护一处
+  - [x] `find_previous_meeting()` **保留** —— 未传 `prev_id` 时的兜底 + 旧任务兼容路径
+  - [x] `__all__` 补齐 5 个入口;模块 docstring 从「对外两个入口」改为 4 个入口说明
+- [x] 后端 · 两副本 `api/meeting.py`(改动逐字相同)
+  - [x] 新增 `CompareStartBody{prev_meeting_id: Optional[int]}`;端点签名用
+        `body: Optional[CompareStartBody] = None`,**不带 body 的旧调用继续可用**
+  - [x] `GET /{id}/compare-candidate` 返回 `{prev, candidates[], reason}`;
+        `reason` 改为**仅在 `candidates` 为空时**给(它是给「一个空下拉」配的说明)
+  - [x] `POST /{id}/compare-insight` 走 `resolve_prev_meeting` 校验 → 400 带可读中文原因
+  - [x] **`_task.delay(meeting_id, prev.id)` 显式传 prev_id**(修掉上面那个不一致 bug),
+        并在源码里写明「任务里不能再自己算一次」的理由
+  - [x] 字段名 `created_at` → **`start_time`**:原名字是错的,后端塞进去的一直是
+        `Meeting.start_time`。`ComparisonPanel` 是唯一消费方且本轮同步重写,故直接改名不留兼容
+- [x] 后端 · `backend/tasks/insight_tasks.py`(**仅主树**,overlay 无此文件)
+  - [x] `compare_meeting_previous(self, meeting_id, prev_id=None)` —— `prev_id`
+        **必须有默认值**,否则 2026-09 之前入队/在途的旧消息反序列化会 `TypeError`
+  - [x] 传了 `prev_id` 走 `load_comparable_meeting`,否则回退 `find_previous_meeting`;
+        **在任务里重新校验一遍** —— 任务可能比请求晚几分钟才跑,期间那场会可能被删或纪要被清
+  - [x] 失败文案改为按路径区分(`miss_reason`),不再写死「没有更早的」
+- [x] 后端 · prompt(两副本 `prompts/meeting.py`,改完逐字相同)
+  - [x] 修**方向反转**问题:原措辞写死「上一场会议」。用户选了**更晚**的会时 before/after 语义反转。
+        改为「**基准会议** → 本场会议」的统一表述,并在 system prompt 里明确
+        「它可能比本场会议早,也可能晚 —— 不要假设谁先谁后,以材料里的日期为准」
+  - [x] trend 五值的定义一并改成相对表述(「本场会议相对基准会议……」)
+  - [x] suggestions 增加一条约束:**站在项目当前角度给建议**,不写「在基准会议之后应该……」这类
+        带时间方向的表述
+  - [x] **占位符名 `prev_*` 保持不动** —— 它同时是已落库 `comparison_insight` JSON 的字段名,
+        改名要动存量数据。只在文件头加注释说明「`prev_` = 对比基准,不保证更早」
+- [x] 前端 · `frontend/src/api/client.ts`
+  - [x] 新增 `CompareMeetingRef{id,title,start_time}`;`CompareCandidate` 加 `candidates[]`
+  - [x] `startCompareInsight(meetingId, prevMeetingId?)` —— 不传时 POST `{}`,
+        走后端「上一场」兜底
+- [x] 前端 · 新组件 `components/console/meeting/MeetingPicker.tsx`
+  - [x] **没复用 `redesign/components/PillSelect.tsx`**,两个原因写在组件头:
+        (a) 它只用 `rd-*` 类名,是 redesign 壳专属,而本组件要被新旧两套 UI 共用;
+        (b) 它**无搜索框** —— 项目跑到中后期几十场会,纯翻列表找不着
+  - [x] 搜索同时匹配**标题与日期**(「上周那场」通常只记得日子)
+  - [x] 点面板外 / Esc 关闭(否则下拉会一直挂着挡下面的内容);展开时聚焦搜索框并清空上次搜索词
+  - [x] 只用 tailwind 令牌(`text-ink` / `border-line` / `bg-canvas` / `text-brand`),两套 UI 通用
+- [x] 前端 · `ComparisonPanel.tsx`
+  - [x] 选择器:候选 >1 时给下拉,==1 时退化为静态 chip(摆一个只有一项的菜单是徒增噪音)
+  - [x] 默认值用 `pickedId ?? prev?.id ?? candidates[0]?.id`
+        —— **不用 `useState` 初值 + `useEffect` 同步**:candidates 是异步到的,那种写法要么闪空值,
+        要么得处理「用户已选但列表还没到」的竞态
+  - [x] 结果态区分「**结果基准**」(这份结果是跟谁比的)与「**换一场对比**」(下次跟谁比),
+        两者不同时给琥珀色提示「已改选,点『重新对比』才会生效(下方仍是旧结果)」
+  - [x] 空态文案「与上一场会议对比」→「开始对比」;`InsightTab` 的模块标题
+        「与上一场会议对比」→「与其它会议对比」,desc 同步改成「自选……任意一场」
+- [x] 验证:
+  - [x] `python -m py_compile` 6 个改动文件全过
+  - [x] `COMPARE_USER.format()` 实跑通过,11 个占位符全部被引用、无多余键;
+        断言 `COMPARE_SYSTEM`/`COMPARE_USER` 中已无「上一场」字样
+  - [x] `npx tsc --noEmit -p tsconfig.json` exit 0
+  - [x] 两副本 `prompts/meeting.py` `git diff --no-index` **为空**;
+        两副本 `api/meeting.py` 差异**仍只有那 2 处刻意 hunk**(`Query` import + 模块导出 block)
+  - [ ] **待部署后实测**:选一场更晚的会议,确认 before/after 语义与 trend 方向正确
+  - 注:本地未装后端依赖(`celery` 等),真正的 `import` 验证只能靠部署时 CI 的 build + 测试
 
 ### C · 洞察 tab 缩放 + 折叠 — 需求 3 — 已完成
 

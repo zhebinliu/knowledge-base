@@ -1541,7 +1541,17 @@ async def action_extract_speaker_durations(
 
 
 # ── 跨会议对比(2026-09) ───────────────────────────────────────────────
-# 与本项目上一场会议横向比,找变化 + 给建议。唯一的长任务,故走 Celery + 前端轮询。
+# 与本项目任意一场已出纪要的会议横向比,找变化 + 给建议。唯一的长任务,故走 Celery + 前端轮询。
+# 2026-09 迭代:基准会议从「后端写死的上一场」改为**用户可选**(见 resolve_prev_meeting)。
+
+
+class CompareStartBody(BaseModel):
+    """启动跨会议对比的参数。
+
+    `prev_meeting_id` 可省略 —— 省略时后端仍取「上一场」,兼容尚未更新的调用方。
+    """
+    prev_meeting_id: Optional[int] = None
+
 
 @router.get("/{meeting_id}/compare-candidate")
 async def get_compare_candidate(
@@ -1549,51 +1559,61 @@ async def get_compare_candidate(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    """预览「将要和哪一场比」。前端在按钮旁显示上一场标题,避免用户盲点。
+    """给出「可以和哪些会议比」。
 
-    首场会议 / 本项目更早的会议都还没出纪要 → prev 为 null,reason 说明原因。
+    - `candidates`:本项目全部已出纪要的会议(非自己),供前端下拉
+    - `prev`:默认建议项(时间上更早的最近一场),没有则为 null
+    - `reason`:`candidates` 为空时说明原因,前端据此显示提示而不是一个空下拉
     """
-    from services.meeting.comparison import find_previous_meeting
+    from services.meeting.comparison import find_comparable_meetings, find_previous_meeting
 
     m = await _load_meeting_owned(meeting_id, session, user)
 
     if not m.project_id:
-        return {"prev": None, "reason": "这场会议没有归属项目,无法确定同项目的上一场会议"}
+        return {"prev": None, "candidates": [], "reason": "这场会议没有归属项目,无法确定同项目的会议"}
 
+    candidates = await find_comparable_meetings(m, session)
     prev = await find_previous_meeting(m, session)
-    if not prev:
-        return {"prev": None, "reason": "本项目没有更早的、已出纪要的会议"}
 
     return {
-        "prev": {
-            "id": prev.id,
-            "title": prev.title,
-            "created_at": prev.start_time.isoformat() if prev.start_time else "",
-        },
-        "reason": None,
+        "prev": (
+            {"id": prev.id, "title": prev.title,
+             "start_time": prev.start_time.isoformat() if prev.start_time else ""}
+            if prev else None
+        ),
+        "candidates": [
+            {"id": c.id, "title": c.title,
+             "start_time": c.start_time.isoformat() if c.start_time else ""}
+            for c in candidates
+        ],
+        "reason": None if candidates else "本项目没有其他已出纪要的会议可供对比",
     }
 
 
 @router.post("/{meeting_id}/compare-insight")
 async def start_compare_insight(
     meeting_id: int,
+    body: Optional[CompareStartBody] = None,
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
     """异步启动跨会议对比,返回 {task_id}。结果由任务写回 comparison_insight。"""
-    from services.meeting.comparison import find_previous_meeting
+    from services.meeting.comparison import resolve_prev_meeting
 
     m = await _load_meeting_owned(meeting_id, session, user)
 
     if not m.project_id:
-        raise HTTPException(400, "这场会议没有归属项目,无法确定同项目的上一场会议")
-    prev = await find_previous_meeting(m, session)
-    if not prev:
-        raise HTTPException(400, "本项目没有更早的、已出纪要的会议可供对比")
+        raise HTTPException(400, "这场会议没有归属项目,无法确定同项目的会议")
+
+    prev, err = await resolve_prev_meeting(m, body.prev_meeting_id if body else None, session)
+    if prev is None:
+        raise HTTPException(400, err)
 
     from tasks.insight_tasks import compare_meeting_previous as _task
 
-    task = _task.delay(meeting_id)
+    # prev_id 必须显式传下去:任务里**不能**再自己算一次 —— 否则本响应里报的 prev
+    # 与实际被对比的那场可能不是同一场(两次调用之间上一场刚出了纪要就会错位)。
+    task = _task.delay(meeting_id, prev.id)
     return {"task_id": task.id, "prev_meeting_id": prev.id, "prev_meeting_title": prev.title}
 
 

@@ -1,16 +1,20 @@
 /**
- * 跨会议对比面板 — 把本场会议与本项目「上一场有纪要的会议」横向比。
+ * 跨会议对比面板 — 把本场会议与本项目**用户指定的一场**已出纪要的会议横向比。
  *
  * 唯一的长任务(要喂两场的纪要与转写摘录,单次 LLM 几十秒到两分钟),所以:
  *   POST 启动 → 拿 task_id → 每 4s 轮询状态 → SUCCESS 后 invalidate 会议详情
  * 结果不从这里取 —— 后端任务直接写回 `Meeting.comparison_insight`,轮询只用来
  * 判断「好了没」。这样刷新页面/关掉再打开也能看到上次的结果。
  *
+ * 对比基准 2026-09 起可选:后端 `compare-candidate` 给一份本项目全部可对比的会议清单,
+ * 这里用 MeetingPicker 让用户挑。没挑过时默认用后端建议的「上一场」(`prev`),
+ * 与改造前的行为一致 —— 老用户不动手就还是原来的结果。
+ *
  * 四态要分别处理,不能都渲染成空面板:
  *   running          生成中(含「正在和谁比」)
  *   done             有结果
- *   failed           有 error 文案(首场会议 / 上一场无纪要 / 模型失败)
- *   无 candidate     本项目根本没有更早的会议
+ *   failed           有 error 文案(无可比会议 / 模型失败)
+ *   无 candidate     本项目没有第二场已出纪要的会议
  *
  * ⚠️ 变化条目必须展示 `evidence`。这是对「AI 说项目推进了」唯一的取证:
  *    后端已经把「原文里查无此句」的条目丢掉了,但留下的也必须让人自己看一眼。
@@ -28,6 +32,7 @@ import {
   type Meeting,
 } from '../../../api/client'
 import { toast } from '../../Toaster'
+import MeetingPicker from './MeetingPicker'
 
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 const POLL_MS = 4000
@@ -48,14 +53,28 @@ export default function ComparisonPanel({ meeting }: { meeting: Meeting }) {
   const [taskId, setTaskId] = useState<string | null>(null)
   const [polling, setPolling] = useState(false)
   const stoppedRef = useRef(false)
+  // 用户手选的对比基准。null = 还没选过,用后端建议的 prev(见下面 effectiveId)
+  const [pickedId, setPickedId] = useState<number | null>(null)
 
   const data = meeting.comparison_insight
   const candidateQ = useQuery({
     queryKey: ['compare-candidate', meeting.id],
     queryFn: () => getCompareCandidate(meeting.id),
-    // 上一场会议不会在页面停留期间变出来,查一次就够
+    // 会议列表不会在页面停留期间变出来,查一次就够
     staleTime: 5 * 60 * 1000,
   })
+
+  const candidates = candidateQ.data?.candidates ?? []
+  const prevRef = candidateQ.data?.prev ?? null
+  // 没手选过就用「上一场」;连上一场都没有(比如选了场更晚的会议来回头看)就退到候选第一项。
+  // 用 `??` 推导而不是 useState 初值 + useEffect 同步:candidates 是异步到的,
+  // 那种写法要么闪一下空值,要么得处理「用户已选但列表还没到」的竞态。
+  const effectiveId = pickedId ?? prevRef?.id ?? candidates[0]?.id ?? null
+  const picked = candidates.find((c) => c.id === effectiveId) ?? null
+  // 结果属于哪一场 ≠ 当前选的是哪一场 → 说明用户换了选择但还没重新跑,得提示一下
+  const resultStale = Boolean(
+    data?.prev_meeting_id && effectiveId && data.prev_meeting_id !== effectiveId,
+  )
 
   // 进页面时若后端还在跑(running),自动接上轮询 —— 否则用户会看到永远转不完的圈
   useEffect(() => {
@@ -98,7 +117,9 @@ export default function ComparisonPanel({ meeting }: { meeting: Meeting }) {
   }, [data?.status, taskId, meeting.id, qc])
 
   const startMut = useMutation({
-    mutationFn: () => startCompareInsight(meeting.id),
+    // effectiveId 理论上不会为 null(能走到按钮就说明 candidates 非空),
+    // 但仍显式判一下:undefined 走「上一场」兜底,总比传个 null 给后端导致 422 强
+    mutationFn: () => startCompareInsight(meeting.id, effectiveId ?? undefined),
     onSuccess: (r) => {
       setTaskId(r.task_id)
       setPolling(true)
@@ -113,15 +134,27 @@ export default function ComparisonPanel({ meeting }: { meeting: Meeting }) {
     },
   })
 
-  const prev = candidateQ.data?.prev ?? null
   const reason = candidateQ.data?.reason ?? null
   const running = data?.status === 'running' || polling
 
-  // ── 无上一场可比的三种情形 ────────────────────────────────────────────
-  if (!meeting.project_id || (!prev && !reason && candidateQ.isFetched) || reason) {
+  // 基准会议选择器:只有一场可选时不给下拉,摆一个只有一项的菜单是徒增噪音
+  const picker =
+    candidates.length > 1 ? (
+      <MeetingPicker meetings={candidates} value={effectiveId} onChange={setPickedId} disabled={running} />
+    ) : picked ? (
+      <span className="inline-flex items-center gap-1 rounded-md border border-line bg-canvas px-2 py-0.5 text-xs text-ink-secondary">
+        <GitCompareArrows size={12} />
+        <span className="text-ink">{picked.title}</span>
+        {picked.start_time && <span className="text-ink-muted">({picked.start_time.slice(0, 10)})</span>}
+      </span>
+    ) : null
+
+  // ── 无可比会议 ────────────────────────────────────────────────────────
+  // 后端在 candidates 为空时一定给 reason;project_id 为空时连 candidates 都查不了
+  if (!meeting.project_id || (candidateQ.isFetched && candidates.length === 0)) {
     return (
       <Notice
-        text={reason || (meeting.project_id ? '本项目没有更早的、已出纪要的会议' : '这场会议没有归属项目')}
+        text={reason || (meeting.project_id ? '本项目没有其他已出纪要的会议' : '这场会议没有归属项目')}
         hint="对比需要同项目里至少两场已出纪要的会议"
       />
     )
@@ -132,10 +165,12 @@ export default function ComparisonPanel({ meeting }: { meeting: Meeting }) {
     return (
       <div>
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-          <span className="inline-flex items-center gap-1 rounded-md border border-line bg-canvas px-2 py-0.5 text-ink-secondary">
+          {/* 标的是「这份结果跟谁比的」,不是「下次跟谁比」—— 两者可能不同(见 resultStale) */}
+          <span className="inline-flex items-center gap-1 text-ink-muted">
             <GitCompareArrows size={12} />
-            对比基准:{data.prev_meeting_title || '上一场会议'}
-            {data.prev_meeting_date && `(${data.prev_meeting_date})`}
+            结果基准:
+            <span className="text-ink">{data.prev_meeting_title || '未知会议'}</span>
+            {data.prev_meeting_date && <span className="text-ink-muted">({data.prev_meeting_date})</span>}
           </span>
           {data.generated_at && (
             <span className="text-ink-muted">生成于 {data.generated_at.slice(0, 16).replace('T', ' ')}</span>
@@ -149,6 +184,16 @@ export default function ComparisonPanel({ meeting }: { meeting: Meeting }) {
             {running ? '对比中…' : '重新对比'}
           </button>
         </div>
+
+        {candidates.length > 1 && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-ink-muted">换一场对比:</span>
+            {picker}
+            {resultStale && (
+              <span className="text-amber-600">已改选,点「重新对比」才会生效(下方仍是旧结果)</span>
+            )}
+          </div>
+        )}
 
         {data.summary && (
           <p className="mb-3 rounded-md border-l-2 border-brand bg-canvas px-3 py-2 text-xs leading-relaxed text-ink-secondary">
@@ -260,12 +305,13 @@ export default function ComparisonPanel({ meeting }: { meeting: Meeting }) {
       ) : (
         <>
           <GitCompareArrows size={26} className="mx-auto mb-2 text-ink-muted" />
-          <p className="mb-1 text-sm text-ink-muted">尚未与上一场会议对比</p>
-          {prev && (
-            <p className="mb-3 text-xs text-ink-muted">
-              将对比:<span className="text-ink-secondary">{prev.title}</span>
-              {prev.created_at && `(${prev.created_at.slice(0, 10)})`}
-            </p>
+          <p className="mb-1 text-sm text-ink-muted">尚未与其它会议对比</p>
+          {picker && (
+            <div className="mb-3 flex flex-wrap items-center justify-center gap-2 text-xs text-ink-muted">
+              {/* 只有一场可选时 picker 就是个静态 chip,不需要「将对比」这个引导词 */}
+              {candidates.length > 1 && <span>将对比:</span>}
+              {picker}
+            </div>
           )}
         </>
       )}
@@ -276,7 +322,7 @@ export default function ComparisonPanel({ meeting }: { meeting: Meeting }) {
         style={{ background: BRAND_GRAD }}
       >
         {startMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <GitCompareArrows size={13} />}
-        与上一场会议对比
+        开始对比
       </button>
     </div>
   )

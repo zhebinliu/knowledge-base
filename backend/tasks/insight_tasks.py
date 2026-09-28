@@ -82,17 +82,25 @@ def classify_project_todos_quadrant(
     soft_time_limit=900,
     time_limit=1200,
 )
-def compare_meeting_previous(self, meeting_id: int):
-    """把本场会议与项目上一场会议横向对比,结果写回 `Meeting.comparison_insight`。
+def compare_meeting_previous(self, meeting_id: int, prev_id: int | None = None):
+    """把本场会议与**指定的一场**同项目会议横向对比,结果写回 `Meeting.comparison_insight`。
 
     为什么必须异步:要喂两场的纪要与转写摘录,单次 LLM 调用几十秒到两分钟,同步端点会 504。
     前端 POST 拿到 task_id 后轮询;任务自己把结果落库,前端拿到 SUCCESS 后 invalidate 会议详情。
+
+    `prev_id`:对比基准。**必须带默认值 `None`** —— 这个任务名在 2026-09 之前不带参数,
+    改签名时已入队/在途的旧消息反序列化只传 meeting_id,没有默认值就会 TypeError。
+    `None` 时退回「上一场」,与旧行为完全一致。
     """
     from models import async_session_maker
     from models.meeting import Meeting
     from services._time import iso_utc, utcnow_naive
     from services.config_service import config_service
-    from services.meeting.comparison import build_comparison, find_previous_meeting
+    from services.meeting.comparison import (
+        build_comparison,
+        find_previous_meeting,
+        load_comparable_meeting,
+    )
     from services.model_router import model_router
 
     model_router.set_config_service(config_service)
@@ -106,9 +114,18 @@ def compare_meeting_previous(self, meeting_id: int):
             if not m:
                 return {"ok": False, "error": "会议不存在"}
 
-            prev = await find_previous_meeting(m, session)
+            # 传了 prev_id 就用它(并重新校验一遍:排队期间那场会议可能被删了,
+            # 或纪要被人清掉了)。没传就退回「上一场」。
+            # 这里**不信任** API 层已校验过的结论 —— 任务可能比请求晚几分钟才跑。
+            if prev_id is not None:
+                prev = await load_comparable_meeting(m, prev_id, session)
+                miss_reason = "所选的对比会议不存在、不属于本项目,或还没出纪要"
+            else:
+                prev = await find_previous_meeting(m, session)
+                miss_reason = "本项目没有更早的、已出纪要的会议可供对比"
+
             if not prev:
-                # 首场会议 / 上一场还没出纪要:如实记下来,前端据此显示提示而不是空面板
+                # 没有可比的会议:如实记下来,前端据此显示提示而不是空面板
                 m.comparison_insight = {
                     "status": "failed",
                     "prev_meeting_id": None,
@@ -117,11 +134,11 @@ def compare_meeting_previous(self, meeting_id: int):
                     "summary": "",
                     "changes": [],
                     "suggestions": [],
-                    "error": "本项目没有更早的、已出纪要的会议可供对比",
+                    "error": miss_reason,
                     "generated_at": _now(),
                 }
                 await session.commit()
-                return {"ok": False, "error": "没有可对比的上一场会议"}
+                return {"ok": False, "error": miss_reason}
 
             # 先把 running + 上一场信息落库,让前端轮询期间也能显示「正在和谁比」
             m.comparison_insight = {
