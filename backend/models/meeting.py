@@ -85,6 +85,12 @@ class Meeting(Base):
     speaker_stats: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     comparison_insight: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
+    # 参会人名单(2026-09):{names:[str], source:"manual"|"minutes"|"stakeholders", updated_at}
+    # 由 PUT /{id}/participants 人工维护,说话人归因时作为**优先级最高**的候选名单。
+    # source 记的是「这份名单从哪来」:只有 source == "manual" 时,prompt 里才会声明
+    # 「这是人工确认过的名单」—— 将来若接日历/妙记自动同步,那句话就不成立了。
+    participants: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
     def __repr__(self) -> str:
         return f"<Meeting id={self.id} title={self.title!r} status={self.status!r}>"
 

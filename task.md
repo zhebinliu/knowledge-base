@@ -208,42 +208,100 @@ redesign `:361` `maxHeight: calc(100dvh - 320px)`。硬编码尺寸只有词云 
 - [ ] **待人工目视**:两套 UI(`/` 与 `?ui=new`)下缩放/折叠生效且不破版
       —— 本地起前端或部署后确认(需浏览器,本地无自动化)
 
-### D · 参会人名单 + 说话人人工校正 — 需求 4(轻量阶段)
+### D · 参会人名单 + 说话人人工校正 — 需求 4(轻量阶段) — 已完成
 
-- [ ] DDL + ORM
-  - [ ] `backend/main.py` 启动期 DDL 加
+设计上的一个关键取舍(**先说清楚,因为它决定了后面所有代码形状**):
+**校正不做「就地改结果」,而是存一份「原始标签 → 最终姓名」映射 + 一份不可变的 `raw_speakers`,
+每次生成时把映射重放到原始结果上。** 理由有三:
+(a) 就地改的键会漂移 —— `张三`→`张三丰`→`老张` 之后,映射表的键就对不上原始结果了,重放不幂等;
+(b) 重放让「重新生成」**免费地**不会吞掉人工校正 —— 生成完再套一次映射即可,不需要在生成路径里
+写「如果用户改过就……」这类分支;
+(c) 撤销 = 清空映射重放一次,不用存历史快照。
+
+- [x] DDL + ORM
+  - [x] `backend/main.py` 启动期 DDL 加
         `ALTER TABLE meetings ADD COLUMN IF NOT EXISTS participants JSON`
-        (与既有 `keywords`/`speaker_stats` 同处,`main.py:421-423` 附近)
-  - [ ] `models/meeting.py` **两副本同步**加列 + 结构注释:
-        `participants {names:[str], source:"manual"|"minutes"|"stakeholders", updated_at}`
-- [ ] 名单的读写
-  - [ ] `MeetingCreate` 加 `participants`(会议创建时可填,补上「创建时无处填参会人」的缺口)
-  - [ ] 新增 `PUT /{meeting_id}/participants`(两副本)—— 人工维护名单
-  - [ ] `_meeting_dto` 输出该字段(两副本);**list DTO 保持 defer**(名单不大但列表页不需要)
-- [ ] 喂给归因(这是准确率提升的核心)
-  - [ ] `insights.py::collect_speaker_candidates()` 目前顺序是「干系人 → 参会人 → 待办负责人 →
-        需求提出人」,其中「参会人」取自 `meeting_minutes.attendees`(LLM 抽的,不可靠)。
-        **改为:人工名单(`meetings.participants`)优先级最高**,置于干系人之前
-  - [ ] 名单非空时,**在 prompt 里显式告知这是人工确认的名单**,并要求优先从其中归属
-  - [ ] 名单为空时行为**完全不变**(保持向后兼容)
-- [ ] 说话人人工校正 UI(准确率的兜底 —— 无论归因多准,必须有纠错出口)
-  - [ ] 新增 `PATCH /{meeting_id}/speaker-stats`(两副本):支持
-        **改名**(`说话人1` → `张三`)、**合并**(两个说话人并成一个,时长相加)
-  - [ ] 校正后置 `speaker_stats.corrected = true` + `corrected_at`,
-        **前端徽标从「AI 推断」改为「已人工校正」** —— 数据如实性不能因为改过就模糊
-  - [ ] 校正过的名字**不能被下一次「重新生成」静默覆盖**(生成时保留人工映射,或生成前提示)
-  - [ ] 前端 `SpeakerSection`/`SpeakerDurationChart` 加校正入口(行内编辑 + 合并选择)
-- [ ] 验证:`tsc --noEmit`;`compileall backend meeting/backend`;
-      两副本 `models/meeting.py` / `prompts/meeting.py` diff 为空;
-      **名单为空时归因结果与改动前逐字一致**(回归)
+        (与既有 `keywords`/`speaker_stats` 同处,`main.py:421-423` 附近)。
+        注释写明**为什么单独一列而不塞进 `speaker_stats`**:`speaker_stats` 会被「重新生成」
+        整体覆盖,名单不能跟着没
+  - [x] `models/meeting.py` **两副本同步**加列 + 结构注释:
+        `participants {names:[str], source:"manual"|"minutes"|"stakeholders", updated_at}`。
+        `source` 记「这份名单从哪来」—— 只有 `source == "manual"` 时 prompt 里才会声明
+        「这是人工确认过的名单」;将来若接日历/妙记自动同步,那句话就不成立了
+- [x] 名单的读写
+  - [x] ~~`MeetingCreate` 加 `participants`~~ —— **刻意不做**。实测 `create_meeting` 连既有的
+        `agenda` 字段都**没有落库**,再加一个字段就是死代码;而真正的创建 UI 是一对 800 行的
+        新旧双份页面,为一个「在洞察 tab 原地就能改」的字段去动它,爆炸半径远大于收益。
+        **创建时填名单留到后续单独立项**(见文末)
+  - [x] 新增 `PUT /{meeting_id}/participants`(两副本):`ParticipantsBody{names: list[str]}`,
+        入口先 `normalize_participants()` 归一,再写
+        `{"names":…, "source":"manual", "updated_at": iso_utc(utcnow_naive())}`
+  - [x] `_meeting_dto` 输出该字段(两副本);**list DTO 保持 defer**
+        —— 列表页不显示它,且列表查询本来就 defer 了一批重字段
+- [x] 喂给归因(这是准确率提升的核心)
+  - [x] `insights.py::collect_speaker_candidates(..., participants=None)` —— 新名单
+        **置于最前**,顺序变为「人工名单 → 干系人 → 参会人 → 待办负责人 → 需求提出人」
+  - [x] 新增 `_roster_note(participants)`:名单非空时在 prompt 里显式声明「这是人工确认的名单,
+        优先考虑」;同时**明确重申**「不在名单里的候选依然可能是发言人」+「线索不足时依然必须填
+        『无法判断』」—— 否则模型会硬往名单上套,反而制造新的错归属
+  - [x] 名单为空时 `_roster_note()` 返回空串,`SPEAKER_ATTR_USER` 渲染结果**与改动前逐字一致**
+        (已断言,见验证记录)
+  - [x] `normalize_participants()`:去空白、去重、丢掉空/超 20 字/含换行的名字,
+        **上限 50 人**(`_MAX_PARTICIPANTS`)—— 名单直接进 prompt,不能让它无限长
+- [x] 说话人人工校正(准确率的兜底 —— 无论归因多准,必须有纠错出口)
+  - [x] 新增 `PATCH /{meeting_id}/speaker-stats`(两副本),`SpeakerCorrectionsBody{mapping, reset}`:
+        **改名**(`说话人1` → `张三`)、**合并**(两个说话人并成一个,时长相加)底层是同一个映射
+        (多个标签指向同一姓名就是合并);`reset=true` 撤销全部校正
+  - [x] 无 `raw_speakers` 时直接 400(上线前生成的数据没有校正基准);
+        映射里出现未知标签时 400 并**列出具体是哪些**,文案为「校正对象不存在:…。请刷新后重试」
+        —— 不静默忽略,否则用户以为改成功了
+  - [x] 校正后置 `speaker_stats.corrected = true` + `corrected_at`;
+        前端徽标「已人工校正」是**加挂不是替换** —— 来源徽标(精确解析 / AI 推断)保留,
+        因为人工只改了名字归属,**时长本身仍是推断值**,这一点不能被模糊掉
+  - [x] 校正过的名字**不会被「重新生成」静默覆盖**:生成路径末尾
+        `with_corrections(stats, old.get("corrections"), old.get("corrected_at"))` 重放映射;
+        `corrected_at` 也**沿用旧值**,否则重生成会顺手把「人工校正于何时」改成此刻
+  - [x] `apply_corrections()` 的**占比分母 = 已知 + 无法判断**(而非只除已知)——
+        这样「无法判断」的占比在改动前后可比,不会因为一次改名就跳变。
+        同名的多行合并时 `seconds`/`turn_count` **相加**、`labels` 取并集
+  - [x] 前端 `SpeakerDurationChart.tsx` 重写(`meetingId` 成为**必填** prop;
+        已 grep 确认唯一调用方是 `InsightTab.tsx:319`,无其它调用点需要跟着改)
+    - [x] 行内点姓名改名(Enter 提交 / Esc 取消 / 失焦提交);
+          一行改名时**该行全部原始标签一起改** —— 已合并的行否则会散架
+    - [x] 勾选 ≥2 行 → 「合并所选」,并到**勾选的第一行**的名字上
+          (符合直觉,也省掉再弹一个输入框问新名字)
+    - [x] 行 key 用**原始标签串**(`rowKey`),不用 `name` —— 后者改名后会漂移
+    - [x] 「撤销全部校正」用两步确认(按钮就地变「再点一次确认撤销」),不引 modal
+    - [x] 旧数据(无 `raw_speakers`)不给校正入口,但**给出说明**
+          「重新生成一次即可启用人工校正」,而不是让按钮凭空消失
+    - [x] 提交只带**改动的项** —— 后端是并入语义,不会碰其余校正
+  - [x] 前端 `InsightTab.tsx` 加 `RosterEditor`(名单编辑,textarea,一行一个或用「、」「,」分隔;
+        打开时用当前名单重置草稿 —— 沿用上次没保存的内容会让人以为已经生效)。
+        放在 `SpeakerSection` 内、图表之前,**这样空态和有结果态都有入口**
+  - [x] 诚实提示:文案明说「名单只影响**下次**生成:保存后请点右上角『重新生成』才会用上」;
+        `mode === 'inferred'` 且名单非空时显示「本次归因已优先考虑人工名单(N 人)」
+- [x] 验证:
+  - [x] `python -m py_compile` 8 个改动文件全过
+  - [x] **纯函数桩测 32/32 断言通过**(临时脚本 `_check_insights.py`,验完已删):
+        归一化(空白/重复/超长/换行/上限)、**候选顺序回归(空名单 == 改动前顺序)**、
+        改名、合并(时长相加、labels 并集)、占比分母含 unknown、**幂等(重放两次结果相同)**、
+        `with_corrections` 打标、重生成保留校正**且保留原 `corrected_at`**、reset、
+        空 speakers 安全、roster note 内容
+  - [x] `_check_speaker_prompt.py`(临时,已删):`SPEAKER_ATTR_USER.format(roster_note=…)` 通过;
+        **空名单渲染与改动前逐字一致**
+  - [x] `npx tsc --noEmit -p tsconfig.json` exit 0
+  - [x] 两副本 `models/meeting.py` / `prompts/meeting.py` **SHA256 相同**;
+        两副本 `api/meeting.py` 差异**仍只有那 2 处刻意 hunk**
+  - 注:本地未装后端依赖,`import` 级验证只能靠部署时 CI 的 build + 测试
+  - [ ] **待部署后实测**:保存名单 → 重新生成 → 归因是否确实以名单优先;
+        改名/合并后刷新保持;重生成不吞校正
 
-### E · 文档同步
+### E · 文档同步 — 已完成
 
-- [ ] `LEARNING.md` 追加:本轮踩坑(overlay 双份树改动清单、`zoom` vs `transform` 取舍、
-      对比方向反转、speaker_stats 校正与再生成的冲突)
-- [ ] `PROJECT_OVERVIEW.md`:会议模块能力表更新(去解释图 / 对比可选 / 参会人名单)
-- [ ] `CHANGELOG.md` 记一条
-- [ ] 提交推送
+- [x] `LEARNING.md` 追加本轮踩坑(见该文件 § 新章节)
+- [x] `PROJECT_OVERVIEW.md`:会议模块能力表更新(去解释图 / 对比可选 / 参会人名单)
+- [x] `CHANGELOG.md` 记一条
+- [x] 提交推送
 
 ---
 
@@ -256,8 +314,8 @@ redesign `:361` `maxHeight: calc(100dvh - 320px)`。硬编码尺寸只有词云 
 4. **解释图 tab 在 `/` 与 `?ui=new` 两套 UI 下都消失**,且无残留死代码 / 未使用 import
 5. 对比:能选任意同项目、已出纪要的会议;选**更晚**的会议时 before/after 语义不错乱
 6. 洞察:缩放比例生效且刷新后保持;各模块可折叠;待办 >6 条时自动折叠并可展开
-7. 参会人名单:创建时可填、详情页可改;名单非空时归因候选以名单为准;
-   **名单为空时归因结果与改动前一致**
+7. 参会人名单:**洞察 tab 内可改**(创建时填名单本轮刻意未做,见 D 段与「后续单独立项」);
+   名单非空时归因候选以名单为准;**名单为空时归因结果与改动前一致**
 8. 说话人校正:改名 / 合并后刷新保持,徽标显示「已人工校正」,
    且「重新生成」不会静默覆盖人工结果
 
@@ -265,7 +323,22 @@ redesign `:361` `maxHeight: calc(100dvh - 320px)`。硬编码尺寸只有词云 
 
 ## 验证记录
 
-(逐块补充)
+| Block | 验证手段 | 结果 |
+|---|---|---|
+| A | `npx tsc --noEmit` + 全前端 grep `IllustrationsTab\|解释图` | exit 0;仅剩刻意保留的 `RoutingTab.tsx:35` |
+| B | `py_compile` 6 文件 / `COMPARE_USER.format()` 11 占位符 / `tsc --noEmit` / 两副本 diff | 全过 |
+| C | `npx tsc --noEmit` | exit 0 |
+| D | `py_compile` 8 文件 / **纯函数桩测 32 断言** / prompt 渲染回归 / `tsc --noEmit` / 两副本 SHA256 | 32/32 通过;空名单渲染逐字不变;exit 0;哈希一致 |
+
+**本地无后端依赖(无 `celery` 等),故后端「可 import」这一层只能由部署时 CI 的 build + 测试兜住。**
+本地用桩注入(手工塞 `sqlalchemy`/`structlog` 等的假模块)把 `insights.py` 的纯函数摘出来单测,
+覆盖的是逻辑正确性,不是集成正确性。
+
+**待人工目视(需浏览器,本地无自动化)**:
+1. 两套 UI(`/` 与 `?ui=new`)下洞察 tab 缩放/折叠生效且不破版(需求 3)
+2. 选一场**更晚**的会议作对比基准,确认 before/after 语义与 trend 方向正确(需求 2)
+3. 保存参会人名单 → 点「重新生成」→ 确认归因确实以名单优先(需求 4)
+4. 改名 / 合并发言人 → 刷新页面 → 确认保持,且「重新生成」不吞掉校正(需求 4)
 
 ---
 
@@ -282,6 +355,9 @@ redesign `:361` `maxHeight: calc(100dvh - 320px)`。硬编码尺寸只有词云 
   - **`torch` + `pyannote` 路线基本不可行**(镜像体积 + 内存 + GCP 已迁腾讯云,
     ghcr 拉取慢的历史包袱)
 - **「参会人名单」从飞书妙记 / 日历自动同步** —— 现在只能人工维护
+- **创建会议时就能填参会人名单** —— 本轮刻意未做(理由见 D 段:`create_meeting` 连 `agenda`
+  都没落库,字段会是死代码;而创建 UI 是 800 行的双份页面)。要做需连同 `create_meeting`
+  的落库一起补,并同步改 legacy / redesign 两套创建页
 - **Path A 的「说话人N」→ 真人名映射** —— 飞书妙记格式转写即使解析精确,
   标签仍是匿名的,目前无任何映射机制
 

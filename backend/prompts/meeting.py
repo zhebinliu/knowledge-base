@@ -661,7 +661,7 @@ SPEAKER_ATTR_SYSTEM = (
     "- 只输出 JSON,不要解释、不要 markdown 围栏\n"
 )
 
-SPEAKER_ATTR_USER = """## 候选发言人(只能从中选择,或填「无法判断」)
+SPEAKER_ATTR_USER = """{roster_note}## 候选发言人(只能从中选择,或填「无法判断」)
 {candidates}
 
 ## 会议转写(每行以「行号 [MM:SS] 内容」格式给出)

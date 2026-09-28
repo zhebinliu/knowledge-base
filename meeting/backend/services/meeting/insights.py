@@ -232,6 +232,11 @@ _MIN_OCCURRENCES_PER_SPEAKER = 2
 _ATTR_LINES_PER_WINDOW = 100
 _ATTR_MAX_WINDOWS = 8
 
+# 人工参会人名单的上限。名单要原样进 prompt,不设上限会有把上下文撑爆的风险
+_MAX_PARTICIPANTS = 50
+# 人名字符数上限:与 collect_speaker_candidates 里 add() 的门槛保持一致
+_NAME_MAX_CHARS = 20
+
 
 def _hms_to_seconds(h: str, m: str, s: str) -> int:
     return int(h) * 3600 + int(m) * 60 + int(s)
@@ -325,13 +330,141 @@ def _durations_from_parsed_turns(turns: list[dict], total_seconds: float | None)
     return _aggregate_turns(out, total_seconds)
 
 
+def normalize_participants(raw: object) -> list[str]:
+    """规整参会人名单:去空白、去重、丢掉空项与超长项,上限 `_MAX_PARTICIPANTS`。
+
+    这份数据有两个去处,都要求它是干净的:落库(JSON 列),以及**直接进 LLM 的 prompt**。
+    所以收敛必须发生在入口 —— 名字过长会把 prompt 撑爆,带换行/表头的字符串则是 prompt 注入。
+    """
+    items = raw if isinstance(raw, list) else []
+    out: list[str] = []
+    seen: set[str] = set()
+    for it in items:
+        name = _clean_speaker_label(str(it or ""))
+        if not name or len(name) > _NAME_MAX_CHARS or "\n" in name:
+            continue
+        if name in seen:
+            continue
+        seen.add(name)
+        out.append(name)
+        if len(out) >= _MAX_PARTICIPANTS:
+            break
+    return out
+
+
+def clean_corrections(raw: object) -> dict[str, str]:
+    """规整人工校正映射:`{原始标签: 最终姓名}`。丢掉任一端的空值/超长值。"""
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, str] = {}
+    for k, v in raw.items():
+        label = _clean_speaker_label(str(k or ""))
+        name = _clean_speaker_label(str(v or ""))
+        if not label or not name:
+            continue
+        if len(label) > _NAME_MAX_CHARS or len(name) > _NAME_MAX_CHARS:
+            continue
+        out[label] = name
+    return out
+
+
+def apply_corrections(
+    raw_speakers: list[dict],
+    corrections: dict[str, str],
+    unknown_seconds: float = 0.0,
+) -> list[dict]:
+    """把人工校正在**原始归因结果**上重放一遍,返回展示用的 `speakers`。
+
+    改名和合并是同一个机制:`{原始标签 → 最终姓名}` 的映射里,一个标签改名 = 改名,
+    多个标签映射到同一个姓名 = 合并。所以这里不需要区分两种操作。
+
+    为什么每次都在 `raw_speakers` 上重放,而不是在已校正的结果上增量改:
+    - 增量改会变成链式映射(张三 → 张三丰 → 老张),键一路漂移,幂等性就没了;
+      重放天然幂等 —— 同一份映射跑多少遍结果都一样。
+    - 顺带解决「重新生成吞掉人工校正」:重新生成换来的是新的 `raw_speakers`,
+      既有的校正映射照样重放上去,不需要额外的「保留人工结果」特判。
+
+    `ratio` 的分母沿用原始口径(已知 + 无法判断),保证校正前后各人的占比是可比的。
+    """
+    rows: list[dict] = []
+    for s in raw_speakers:
+        if not isinstance(s, dict):
+            continue
+        label = _clean_speaker_label(str(s.get("name") or ""))
+        if not label:
+            continue
+        rows.append(
+            {
+                "labels": [label],
+                "name": _clean_speaker_label(corrections.get(label, "")) or label,
+                "seconds": max(0.0, float(s.get("seconds") or 0.0)),
+                "turn_count": int(s.get("turn_count") or 0),
+            }
+        )
+
+    merged: dict[str, dict] = {}
+    for r in rows:
+        cur = merged.get(r["name"])
+        if cur is None:
+            merged[r["name"]] = r
+            continue
+        cur["seconds"] += r["seconds"]
+        cur["turn_count"] += r["turn_count"]
+        cur["labels"].extend(r["labels"])
+
+    out = sorted(merged.values(), key=lambda r: -r["seconds"])
+    known = sum(r["seconds"] for r in out)
+    denom = known + max(0.0, float(unknown_seconds or 0.0))
+    for r in out:
+        r["seconds"] = round(r["seconds"], 1)
+        r["ratio"] = round(r["seconds"] / denom * 100, 1) if denom > 0 else 0.0
+    return out
+
+
+def with_corrections(
+    stats: dict, corrections: object = None, corrected_at: str | None = None
+) -> dict:
+    """给刚生成的 stats 挂上原始结果 + 重放既有人工校正。
+
+    两个字段的分工:
+    - `raw_speakers` 未经校正的归因结果,校正重放的基准(前端展示用不上,但少了它
+      就没法幂等重放 —— 见 `apply_corrections`)
+    - `corrections`  {原始标签: 最终姓名} 的人工映射,与 `raw_speakers` 一起持久化
+
+    `corrected_at` 只在传了映射时才有意义;重新生成时由调用方传入既有的时间戳,
+    免得「重新生成」把「人工校正于何时」这个事实改成「刚刚」。
+    """
+    corr = clean_corrections(corrections)
+    out = dict(stats)
+    raw = [s for s in (stats.get("speakers") or []) if isinstance(s, dict)]
+    out["raw_speakers"] = raw
+    out["corrections"] = corr
+    out["speakers"] = apply_corrections(raw, corr, stats.get("unknown_seconds"))
+    if corr:
+        out["corrected"] = True
+        out["corrected_at"] = corrected_at or _now_iso()
+    else:
+        out["corrected"] = False
+        out["corrected_at"] = None
+    return out
+
+
 def collect_speaker_candidates(
     minutes: dict | None,
     stakeholder_map: dict | None,
     requirement_speakers: list[str] | None = None,
     extra: list[str] | None = None,
+    participants: list[str] | None = None,
 ) -> list[str]:
-    """汇总候选发言人名单(去重,上限 20)。顺序即优先级:干系人 → 参会人 → 待办负责人 → 需求提出人。
+    """汇总候选发言人名单(去重,上限 20)。
+
+    **顺序即优先级:人工名单 → 干系人 → 参会人 → 待办负责人 → 需求提出人。**
+
+    人工名单(`meetings.participants`)排第一是 2026-09 加的,理由是准确率:
+    模型只能从这份名单里挑人,而原名单的头两位都不可靠 —— 「干系人」是**项目级**的,
+    未必出席这一场;「参会人」取自 `meeting_minutes.attendees`,那是 LLM **事后**
+    从转写里抽的,本身就可能错。人工确认过的名单是这里唯一真正可靠的信号。
+    名单为空时顺序与改动前完全一致。
 
     `meeting_minutes.attendees` 的形态是 `["客户方:张三、李四", "我方:王五"]` 这类**分组字符串**,
     需要拆开并剥掉分组前缀 —— 仓库没有现成 helper,这里自己处理。
@@ -352,6 +485,9 @@ def collect_speaker_candidates(
             return
         seen.add(name)
         out.append(name)
+
+    for name in (participants or []):
+        add(str(name or ""))
 
     smap = stakeholder_map if isinstance(stakeholder_map, dict) else {}
     for s in (smap.get("stakeholders") or []):
@@ -410,7 +546,29 @@ def _line_windows(lines: list[dict]) -> list[list[dict]]:
     return [lines[i:i + _ATTR_LINES_PER_WINDOW] for i in range(0, len(lines), _ATTR_LINES_PER_WINDOW)]
 
 
-async def _attribute_one_window(candidates: list[str], window: list[dict]) -> tuple[list[dict], str]:
+def _roster_note(participants: list[str] | None) -> str:
+    """人工参会人名单在 prompt 里的说明块。名单为空 → 空串(渲染出来什么都没有)。
+
+    ⚠️ 这里刻意**只提优先级,不提排他性**:名单是「优先考虑」不是「只能从中选」。
+    若把名单当作硬约束,用户一旦漏填了某位实际到场的人,那人的发言会整段落进
+    「无法判断」—— 比归错名字更糟。同时明确重申两条铁律不被这条削弱,
+    否则模型会为了「往名单上靠」而放弃「线索不足就填无法判断」。
+    """
+    names = normalize_participants(participants)
+    if not names:
+        return ""
+    return (
+        "## 参会人名单(会议组织者**人工确认**,可信度高于其它线索)\n"
+        + "、".join(names)
+        + "\n归因时**优先考虑**这份名单里的人:内容线索指向多人、难以取舍时,选名单内的。\n"
+        + "但这不改变上面的铁律 —— 候选名单里其余的人(非参会人)依然可以是发言人,"
+        + "线索不足时依然必须填「无法判断」。\n\n"
+    )
+
+
+async def _attribute_one_window(
+    candidates: list[str], window: list[dict], roster_note: str = ""
+) -> tuple[list[dict], str]:
     """单窗 LLM 归因。**行号用窗内局部编号**(1..len),由调用方做偏移 ——
     这样即使模型自己从 1 重编号,窗内语义依然自洽。"""
     from prompts.meeting import SPEAKER_ATTR_SYSTEM, SPEAKER_ATTR_USER
@@ -425,6 +583,7 @@ async def _attribute_one_window(candidates: list[str], window: list[dict]) -> tu
         {
             "role": "user",
             "content": SPEAKER_ATTR_USER.format(
+                roster_note=roster_note,
                 candidates=" / ".join(candidates) if candidates else "(无候选名单)",
                 transcript=body,
             ),
@@ -551,6 +710,7 @@ async def extract_speaker_durations(
     polished: str | None,
     total_seconds: float | None,
     candidates: list[str],
+    participants: list[str] | None = None,
 ) -> dict:
     """参会人发言时长。**混合路径**:
 
@@ -559,6 +719,10 @@ async def extract_speaker_durations(
 
     没有声纹分离能力,路径 B 是**推断**不是识别;结果里必须如实带 mode/confidence,
     UI 必须标注出来。宁可标「无法判断」也不要猜。
+
+    `participants` 是人工确认的参会人名单。它只影响路径 B 的 prompt(见 `_roster_note`),
+    为空时逐字回到改动前的行为。路径 A 是确定性解析,名单帮不上忙 ——
+    但那条路的「说话人 N」**可以**通过人工校正映射到真人名(见 `apply_corrections`)。
     """
     raw = raw or ""
     polished = polished or ""
@@ -598,8 +762,9 @@ async def extract_speaker_durations(
     if truncated:
         windows = windows[:_ATTR_MAX_WINDOWS]
 
+    roster_note = _roster_note(participants)
     results = await asyncio.gather(
-        *[_attribute_one_window(candidates, w) for w in windows],
+        *[_attribute_one_window(candidates, w, roster_note) for w in windows],
         return_exceptions=True,
     )
 
@@ -613,6 +778,8 @@ async def extract_speaker_durations(
         conf = "high" if coverage >= 0.9 else ("medium" if coverage >= 0.7 else "low")
 
     note = "转写不带说话人信息,以上时长由 AI 依据对话内容推断,仅供参考"
+    if roster_note:
+        note += ";归因时以人工确认的参会人名单为优先"
     if truncated:
         note += f";转写过长,仅归因了前 {_ATTR_MAX_WINDOWS * _ATTR_LINES_PER_WINDOW} 行"
     if agg["unknown_seconds"] > 0:

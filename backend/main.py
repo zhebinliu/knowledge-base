@@ -421,6 +421,13 @@ async def startup():
             "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS keywords JSON",
             "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS speaker_stats JSON",
             "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS comparison_insight JSON",
+            # 参会人名单(2026-09):人工维护,喂给说话人归因当候选名单。
+            # 为什么需要它:转写不带说话人信息(ASR 无声纹分离),归因靠 LLM 从「候选名单」里挑,
+            # 而原名单里最靠前的「干系人」是全局项目级的、未必出席,「参会人」又取自
+            # meeting_minutes.attendees(LLM 事后从转写里抽的,本身就可能是错的)。
+            # 这是唯一由人确认过的信号,故单独存一列而不是塞进 speaker_stats
+            # —— speaker_stats 会被「重新生成」整体覆盖,名单不能跟着没。
+            "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS participants JSON",
             # 项目待办四象限(2026-09):轴为「紧急 × 必要」,与既有 priority(P0/P1/P2) 是两套语义,并存不改。
             # urgency / necessity 为 NULL 即「未分类」,让「只分类新增项」可判定。
             "ALTER TABLE project_todos ADD COLUMN IF NOT EXISTS urgency VARCHAR(16)",

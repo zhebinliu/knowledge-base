@@ -17,9 +17,9 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Loader2, Sparkles, RefreshCw, Cloud, AlertTriangle, Users, Grid2x2,
-  ChevronDown, ChevronRight, Minus, Plus, ChevronsDownUp, ChevronsUpDown,
+  ChevronDown, ChevronRight, Minus, Plus, ChevronsDownUp, ChevronsUpDown, Check,
 } from 'lucide-react'
-import { runMeetingAction, type Meeting } from '../../../api/client'
+import { runMeetingAction, updateMeetingParticipants, type Meeting } from '../../../api/client'
 import { toast } from '../../Toaster'
 import KeywordCloud from './KeywordCloud'
 import SpeakerDurationChart from './SpeakerDurationChart'
@@ -202,11 +202,89 @@ function KeywordSection({ meeting, ctl, zoom }: { meeting: Meeting; ctl: Collaps
 
 // ── 2. 参会人发言时长 ─────────────────────────────────────────────────────
 
+/** 人工参会人名单的编辑器。
+ *
+ * 为什么把它放在这一节而不是会议创建页:名单**只**服务于说话人归因,而用户是在这里
+ * 看到归错人的。放在使用现场,「发现错了 → 补名单 → 重新生成」是一条连贯路径。
+ * (创建页那两个 800 行的双份 UI 不动,见 task.md 记录。)
+ */
+function RosterEditor({ meeting }: { meeting: Meeting }) {
+  const qc = useQueryClient()
+  const names = meeting.participants?.names ?? []
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+
+  const mut = useMutation({
+    mutationFn: (ns: string[]) => updateMeetingParticipants(meeting.id, ns),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
+      setOpen(false)
+      toast.success('参会人名单已保存')
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : '保存失败'),
+  })
+
+  // 后端的 normalize 才是权威(去空白/去重/截断),前端只做朴素的切分
+  const parse = (raw: string) =>
+    raw.split(/[\n,，、;；/|]+/).map((s) => s.trim()).filter(Boolean)
+
+  return (
+    <div className="mb-3 rounded-lg border border-line bg-canvas p-2.5">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <Users size={12} className="shrink-0 text-ink-muted" />
+        <span className="text-ink-secondary">参会人名单</span>
+        {names.length > 0 ? (
+          <span className="min-w-0 flex-1 truncate text-ink">{names.join('、')}</span>
+        ) : (
+          <span className="min-w-0 flex-1 text-ink-muted">未维护</span>
+        )}
+        <button
+          onClick={() => {
+            setOpen((v) => !v)
+            // 每次展开都用当前值重置草稿:沿用上次没保存的内容会让人以为已经生效了
+            setText(names.join('\n'))
+          }}
+          className="ml-auto shrink-0 rounded border border-line bg-white px-2 py-0.5 text-ink-secondary hover:bg-canvas"
+        >
+          {open ? '取消' : names.length > 0 ? '修改' : '添加'}
+        </button>
+      </div>
+
+      {open && (
+        <div className="mt-2">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={3}
+            placeholder={'一行一个,或用「、」「,」分隔\n例如:\n张三\n李四'}
+            className="w-full rounded-md border border-line bg-white px-2 py-1.5 text-xs text-ink outline-none placeholder:text-ink-muted focus:border-brand"
+          />
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
+            <button
+              onClick={() => mut.mutate(parse(text))}
+              disabled={mut.isPending}
+              className="inline-flex items-center gap-1 rounded-md px-3 py-1 text-white disabled:opacity-50"
+              style={{ background: BRAND_GRAD }}
+            >
+              {mut.isPending ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+              保存
+            </button>
+            <span className="text-ink-muted">
+              名单只影响<span className="text-ink">下次</span>生成:保存后请点右上角「重新生成」才会用上
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SpeakerSection({ meeting, ctl }: { meeting: Meeting; ctl: CollapseCtl }) {
   const qc = useQueryClient()
   const stats = meeting.speaker_stats
   const hasText = Boolean(meeting.polished_transcript || meeting.raw_transcript)
   const hasData = Boolean(stats && stats.speakers.length > 0)
+  const roster = meeting.participants?.names ?? []
 
   const genMut = useMutation({
     mutationFn: () => runMeetingAction(meeting.id, 'extract_speaker_durations'),
@@ -227,8 +305,19 @@ function SpeakerSection({ meeting, ctl }: { meeting: Meeting; ctl: CollapseCtl }
       refreshing={genMut.isPending}
       canRefresh={hasText}
     >
+      {/* 名单是归因准确率的主要抓手,所以它在有结果和没结果时都要在场 */}
+      <RosterEditor meeting={meeting} />
+
       {hasData && stats ? (
-        <SpeakerDurationChart stats={stats} />
+        <>
+          {/* 名单非空 + 走的是 AI 推断 → 说明这份归因用上了人工名单,如实标注 */}
+          {roster.length > 0 && stats.mode === 'inferred' && (
+            <p className="mb-2 text-xs text-ink-muted">
+              本次归因已优先考虑人工名单({roster.length} 人)
+            </p>
+          )}
+          <SpeakerDurationChart stats={stats} meetingId={meeting.id} />
+        </>
       ) : (
         <div className="py-8 text-center text-ink-muted">
           <Users size={26} className="mx-auto mb-2" />

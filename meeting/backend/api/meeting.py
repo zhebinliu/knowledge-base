@@ -113,6 +113,9 @@ def _meeting_dto(m: Meeting, project_name: Optional[str] = None) -> dict:
         "keywords": m.keywords,
         "speaker_stats": m.speaker_stats,
         "comparison_insight": m.comparison_insight,
+        # 人工维护的参会人名单(2026-09)。放详情 DTO,不进列表 DTO ——
+        # 列表页不显示它,而且列表查询本来就 defer 了一批重字段,不必再多带一个。
+        "participants": m.participants,
     }
 
 
@@ -1665,7 +1668,12 @@ async def action_extract_speaker_durations(
     返回值里的 mode / confidence / note 会如实标注,前端必须展示出来)。
     """
     from models.meeting import Requirement
-    from services.meeting.insights import collect_speaker_candidates, extract_speaker_durations
+    from services.meeting.insights import (
+        collect_speaker_candidates,
+        extract_speaker_durations,
+        normalize_participants,
+        with_corrections,
+    )
 
     m = await _load_meeting_owned(meeting_id, session, user)
     text = m.polished_transcript or m.raw_transcript
@@ -1683,10 +1691,14 @@ async def action_extract_speaker_durations(
         )
     )).scalars().all()
 
+    # 人工名单(可能为空)—— 排在候选名单最前,并单独传给 prompt 做「优先考虑」的说明
+    roster = normalize_participants((m.participants or {}).get("names") if isinstance(m.participants, dict) else None)
+
     candidates = collect_speaker_candidates(
         minutes=m.meeting_minutes if isinstance(m.meeting_minutes, dict) else None,
         stakeholder_map=m.stakeholder_map if isinstance(m.stakeholder_map, dict) else None,
         requirement_speakers=[s for s in req_speakers if s],
+        participants=roster,
     )
 
     stats = await extract_speaker_durations(
@@ -1694,10 +1706,118 @@ async def action_extract_speaker_durations(
         polished=m.polished_transcript or "",
         total_seconds=total_seconds,
         candidates=candidates,
+        participants=roster,
     )
+
+    # 重新生成**不能**吞掉人工校正:把既有的校正映射取出来,在新的原始结果上重放一遍。
+    # 这也是为什么 corrections 存在 speaker_stats 里却没被这次覆盖冲掉 ——
+    # 覆盖前先读出来,由 with_corrections 重新挂回去。
+    # 注意:若本次生成失败(mode="none",比如转写被清空),speakers 会是空,
+    # 但校正映射依然保留,等下一次生成成功时继续生效。
+    old = m.speaker_stats if isinstance(m.speaker_stats, dict) else {}
+    stats = with_corrections(stats, old.get("corrections"), old.get("corrected_at"))
+
     m.speaker_stats = stats
     await session.commit()
     return {"speaker_stats": stats}
+
+
+# ── 参会人名单 / 说话人人工校正(2026-09) ─────────────────────────────
+
+class ParticipantsBody(BaseModel):
+    """人工维护的参会人名单。全量覆盖 —— 名单短,不必做增量。"""
+    names: list[str] = Field(default_factory=list)
+
+
+class SpeakerCorrectionsBody(BaseModel):
+    """说话人校正:`{原始标签: 最终姓名}`。
+
+    改名和合并共用这一个映射:一个标签改名 = 改名;多个标签指向同一个姓名 = 合并。
+    `reset=true` 清空全部校正(合并这类操作会把行藏起来,得留一条退路)。
+    映射是**并入**既有校正的(同键覆盖),不是整体替换 —— 这样前端只需提交改动的那几项,
+    不会因为本地的陈旧状态把别的校正抹掉。
+    """
+    mapping: dict[str, str] = Field(default_factory=dict)
+    reset: bool = False
+
+
+@router.put("/{meeting_id}/participants")
+async def update_participants(
+    meeting_id: int,
+    body: ParticipantsBody,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """人工维护参会人名单(全量覆盖)。名单会在下次「生成发言时长」时作为最高优先候选。"""
+    from services._time import iso_utc, utcnow_naive
+    from services.meeting.insights import normalize_participants
+
+    m = await _load_meeting_owned(meeting_id, session, user)
+
+    names = normalize_participants(body.names)
+    # 整体赋新对象:JSON 列原地改字段 SQLAlchemy 认不出来
+    m.participants = {
+        "names": names,
+        "source": "manual",
+        "updated_at": iso_utc(utcnow_naive()),
+    }
+    await session.commit()
+    logger.info("meeting_participants_updated", meeting_id=meeting_id, count=len(names))
+    return {"participants": m.participants}
+
+
+@router.patch("/{meeting_id}/speaker-stats")
+async def correct_speaker_stats(
+    meeting_id: int,
+    body: SpeakerCorrectionsBody,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """人工校正发言人姓名(改名 / 合并)。
+
+    校正映射与原始归因结果(`raw_speakers`)一起存在 `speaker_stats` 里,
+    每次都在原始结果上重放 —— 所以任一次校正都是幂等的,且「重新生成」不会把它冲掉。
+
+    未生成过发言时长(`raw_speakers` 为空)时直接 400:没有可校正的对象。
+    """
+    from services._time import iso_utc, utcnow_naive
+    from services.meeting.insights import clean_corrections, with_corrections
+
+    m = await _load_meeting_owned(meeting_id, session, user)
+
+    stats = m.speaker_stats if isinstance(m.speaker_stats, dict) else None
+    raw = [s for s in ((stats or {}).get("raw_speakers") or []) if isinstance(s, dict)]
+    if not stats or not raw:
+        raise HTTPException(400, "尚未生成发言时长,没有可校正的内容")
+
+    known = {str(s.get("name") or "") for s in raw}
+    incoming = clean_corrections(body.mapping)
+    unknown = sorted(k for k in incoming if k not in known)
+    if unknown:
+        # 不静默忽略:未知标签意味着前端拿的是过期结果(比如期间重新生成过),
+        # 悄悄存下去只会让用户以为改成功了
+        raise HTTPException(400, f"校正对象不存在:{'、'.join(unknown)}。请刷新后重试")
+
+    if body.reset:
+        applied: dict[str, str] = {}
+    else:
+        applied = clean_corrections(stats.get("corrections"))
+        applied.update(incoming)
+
+    # 把 stats 还原成「刚生成完」的形状(speakers = 原始结果),再交给 with_corrections 重放。
+    # 校正派生出来的三个字段先摘掉,免得旧值被带进去 —— 它们由 with_corrections 重新算。
+    base = {
+        k: v
+        for k, v in stats.items()
+        if k not in ("speakers", "raw_speakers", "corrections", "corrected", "corrected_at")
+    }
+    base["speakers"] = raw
+    updated = with_corrections(base, applied, iso_utc(utcnow_naive()) if applied else None)
+
+    m.speaker_stats = updated
+    await session.commit()
+    logger.info("speaker_stats_corrected", meeting_id=meeting_id, rules=len(applied), reset=body.reset)
+    return {"speaker_stats": updated}
 
 
 # ── 跨会议对比(2026-09) ───────────────────────────────────────────────

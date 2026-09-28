@@ -443,13 +443,26 @@ agentic 生成流水线必须过两道审:
 | **会议列表搜索过滤** | `ConsoleMeeting` 顶部加搜索框 + 状态 chip(全部 / 处理中 / 完成 / 失败 / 录制中,带计数) |
 | **洞察 tab:词云** | 会议详情新增左栏「洞察」tab。`meeting/backend/services/meeting/insights.py::extract_keywords` 从转写抽关键词+权重(长文按行切窗并行),**Python 侧用原文真实词频校正权重、编造的词直接丢弃**;前端 `KeywordCloud.tsx` 确定性螺线布局自绘 canvas + top-15 chip 兜底。`meetings.keywords` JSON 列 |
 | **洞察 tab:参会人发言时长** | 同一 tab。**混合路径**:转写自带「说话人 N HH:MM:SS」表头 → 时间戳精确解析;否则 LLM 归因(按 100 行分窗并行,模型只回说话人**行区间**再由 Python 归一化成逐行归属,保证各人时长之和 + 「无法判断」桶 = 全场时长)。**本仓 ASR 无声纹分离**,故 UI 必须标注来源徽标(精确解析 / AI 推断+置信度)。`meetings.speaker_stats` JSON 列 |
+| **参会人名单**(2026-09-28) | 会议洞察 tab 内人工维护的参会人名单,`meetings.participants` JSON 列(`{names, source, updated_at}`,单独一列是因为 `speaker_stats` 会被「重新生成」整体覆盖)。归因时 `collect_speaker_candidates()` **把它置于候选名单最前**,并在 prompt 里声明「这是人工确认的名单」—— 同时重申「不在名单里的候选依然可能是发言人」「线索不足仍必须填『无法判断』」,避免模型硬套名单。名单为空时 `_roster_note()` 返回空串,**归因输入与改动前逐字一致** |
+| **说话人人工校正**(2026-09-28) | 发言时长图上的纠错出口:行内改名 + 勾选合并(底层同一个「原始标签 → 最终姓名」映射)。**存的是映射 + 不可变的 `raw_speakers`,每次生成时重放** —— 因此重新生成不会吞掉校正、撤销只需清空映射。占比分母含「无法判断」,改名不会让人均百分比跳变;重放映射时沿用原 `corrected_at`。徽标「已人工校正」是**加挂**在来源徽标之上,不替换(名字是人定的,时长仍是推断值)。`PUT /meeting/{id}/participants` + `PATCH /meeting/{id}/speaker-stats` |
 | **洞察 tab:待办四象限** | 同一 tab。轴为**「紧急 × 必要」**(不是经典的「重要 × 紧急」),一个项目一套。复用 `project_todos` 加 `urgency`/`necessity`/`quadrant_source`/`quadrant_meta` 四列 —— 象限由两轴**派生**不落库。2×2 拖拽改象限 → 标 `manual`,自动分类永不覆盖。与既有 `priority`(P0/P1/P2)语义不同、并存 |
-| **洞察 tab:与上一场会议对比** | 同一 tab。与本项目上一场**已出纪要**的会议横向比,出变化(维度/前后/趋势)+ 建议。异步 Celery(唯一长任务)+ 前端轮询,结果写 `meetings.comparison_insight`。**反幻觉取证**:每条变化强制带原文摘录,`_ground_changes()` 再把摘录拿回材料做子串校验,查无实据的直接丢弃并回传丢弃条数;两场都无材料时不调模型 |
+| **洞察 tab:与其它会议对比** | 同一 tab(2026-09-28 前为「与上一场」,对比对象由后端写死)。现由 `GET /meeting/{id}/compare-candidate` 给出**本项目全部已出纪要的会议**(非自己)供下拉自选,`POST .../compare-insight` 接受 `prev_meeting_id`;不传时仍退回「上一场」,兼容旧调用方。**刻意不加时间约束** —— 可以拿一场更晚的会作参照,prompt 已改为中性的「基准会议 → 本场会议」表述,不假设先后。异步 Celery(唯一长任务)+ 前端轮询,结果写 `meetings.comparison_insight`。**反幻觉取证**:每条变化强制带原文摘录,`_ground_changes()` 再把摘录拿回材料做子串校验,查无实据的直接丢弃并回传丢弃条数;两场都无材料时不调模型 |
+| **洞察 tab 缩放 + 折叠**(2026-09-28) | 洞察 tab 顶部 60%–150% 整体缩放(用 CSS `zoom` 而非 `transform: scale`,后者不参与布局会留白/溢出);4 个子模块标题可点折叠 + 一键全折叠/展开;待办 >6 条自动折叠(`TodoQuadrant.tsx::COLLAPSE_AFTER`)。缩放比例与折叠状态持久化在 `localStorage`(`kb_insight_zoom` / `kb_insight_collapsed`,带 `typeof window` 守卫 + try/catch)。`KeywordCloud` 的 canvas 后备区按 `scale` 放大位图,避免 `zoom` 拉伸导致发糊 |
+
+> ℹ️ **「解释图」tab 已于 2026-09-28 从会议详情页下线**(**只摘 UI 入口,后端能力与已有数据保留**)。
+> 刻意保留:`meetings.illustrations` 列(有生产数据,删列不可逆)、`extract_illustrations` action、
+> `/illustration-styles` 端点、`meeting_illustrations_extract` routing key、`RoutingTab.tsx` 配置项。
+> ⚠️ 其中 routing key **必须保留** —— `backend/api/project_todos.py:909` 的 `smart-assign` 一直在复用它,
+> 删掉会连带打断 smart-assign。
 
 **未完成 / 单独立项**:
 - meeting 级 `relations` 可视化(项目级已有 `StakeholderCanvas`,meeting 级 relations 当前只渲染为列表;后续可在 `sync-from-meeting` 把 relations 一起搬到 stakeholder_graph 节点)
 - 跨**项目** 干系人合并(同一人在 N 个项目都出现 → 全局视图)
 - 洞察四张图**不进**导出链路(docx / md / html / PNG),本次有意不做
+- **真正的声学声纹分离**(2026-09-28 用户已确认分阶段:先做「参会人名单 + 人工校正」轻量方案,再评估)。本仓 ASR 只回纯文本,**没有任何声学说话人信息**;若做现实选项是 `sherpa-onnx`(ONNX Runtime,不需 torch)。开工前须实测服务器 4C/7.4G 的内存与磁盘余量、celery 容器 `mem_limit: 2g` 是否要调、以及 CPU 上 2 小时会议的聚类耗时
+- **参会人名单从飞书妙记 / 日历自动同步**(现在只能人工维护;`participants.source` 已预留该语义 —— 只有 `source == "manual"` 时 prompt 才会声明「人工确认」)
+- **创建会议时填参会人名单** —— 2026-09-28 刻意未做:`create_meeting` 连既有的 `agenda` 字段都没落库,加字段是死代码;要做需连同落库一起补,并同步改 legacy / redesign 两套创建页(各 800 行)
+- **Path A 的「说话人N」→ 真人名映射** —— 飞书妙记格式转写即使解析精确,标签仍是匿名的,目前无任何映射机制
 
 > ⚠️ **改会议模块代码前必读**:`meeting/` 是 overlay 子目录,`backend/Dockerfile` 二次 COPY
 > 由 `meeting/backend/` 胜出。**同名文件必须在两处一起改**,否则改的那份不生效 ——

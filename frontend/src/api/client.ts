@@ -2185,8 +2185,11 @@ export interface MeetingKeywords {
 export interface SpeakerStat {
   name: string
   seconds: number
-  ratio: number       // 占比 %,分母不含「无法判断」
+  ratio: number       // 占比 %,分母含「无法判断」
   turn_count: number
+  /** 这一行由哪些**原始标签**合并而来(通常一个)。人工校正改名/合并时按它回写映射 ——
+   *  用 `name` 做键会漂移(张三 → 张三丰 → 老张 之后就对不上原始结果了)。 */
+  labels?: string[]
 }
 
 export interface MeetingSpeakerStats {
@@ -2202,6 +2205,22 @@ export interface MeetingSpeakerStats {
   unknown_seconds: number
   total_seconds: number
   generated_at: string
+  // ── 人工校正(2026-09)────────────────────────────────────────────────
+  /** 未经校正的原始归因结果。校正重放的基准,前端只读不展示。 */
+  raw_speakers?: SpeakerStat[]
+  /** 人工映射 `{原始标签: 最终姓名}`。改名是单项,合并是多项指向同一姓名。 */
+  corrections?: Record<string, string>
+  corrected?: boolean
+  corrected_at?: string | null
+}
+
+/** 人工维护的参会人名单(2026-09)。说话人归因时作为最高优先的候选名单。 */
+export interface MeetingParticipants {
+  names: string[]
+  /** 名单来源。只有 "manual" 才代表人工确认过 —— 归因 prompt 里那句
+   *  「人工确认的名单」也只在此时才成立。 */
+  source: 'manual' | 'minutes' | 'stakeholders' | string
+  updated_at: string | null
 }
 
 export type CompareTrend = '推进' | '停滞' | '新增' | '回退' | '无变化'
@@ -2291,6 +2310,8 @@ export interface Meeting {
   keywords?: MeetingKeywords | null
   speaker_stats?: MeetingSpeakerStats | null
   comparison_insight?: MeetingComparison | null
+  /** 人工参会人名单(2026-09),仅详情接口返回 */
+  participants?: MeetingParticipants | null
   // 详情接口含
   requirements?: MeetingRequirement[]
 }
@@ -2745,6 +2766,33 @@ export const getCompareInsightStatus = async (
 ): Promise<{ state: string; ok?: boolean; error?: string }> => {
   const { data } = await api.get<{ state: string; ok?: boolean; error?: string }>(
     `/meeting/${meetingId}/compare-insight/status/${taskId}`,
+  )
+  return data
+}
+
+// ── 参会人名单 / 说话人人工校正(2026-09) ────────────────────────────────
+
+/** 全量覆盖参会人名单。后端会去空白 / 去重 / 截断到 50 个,返回值才是权威结果。 */
+export const updateMeetingParticipants = async (
+  meetingId: number,
+  names: string[],
+): Promise<{ participants: MeetingParticipants }> => {
+  const { data } = await api.put<{ participants: MeetingParticipants }>(
+    `/meeting/${meetingId}/participants`,
+    { names },
+  )
+  return data
+}
+
+/** 人工校正发言人姓名。`mapping` 是 `{原始标签: 最终姓名}`,**并入**既有校正。
+ *  合并 = 多个标签指向同一姓名;`reset` 清空全部校正。 */
+export const correctSpeakerStats = async (
+  meetingId: number,
+  body: { mapping?: Record<string, string>; reset?: boolean },
+): Promise<{ speaker_stats: MeetingSpeakerStats }> => {
+  const { data } = await api.patch<{ speaker_stats: MeetingSpeakerStats }>(
+    `/meeting/${meetingId}/speaker-stats`,
+    body,
   )
   return data
 }
