@@ -78,6 +78,11 @@ const QUADRANTS: {
 
 const STATUS_LABEL: Record<string, string> = { pending: '待办', doing: '进行中', done: '已完成' }
 
+// 单个象限超过这个条数就先折叠 —— 项目待办动辄几十条,四象限又是 2×2 并排,
+// 不折叠会把「洞察」tab 撑成一条长走廊,反而看不出象限分布(那正是这张图的意义)。
+// 阈值可调:想一次看全就调大。
+const COLLAPSE_AFTER = 6
+
 function TodoChip({
   todo,
   dragging,
@@ -169,7 +174,9 @@ function DropZone({
   children?: React.ReactNode
 }) {
   const [over, setOver] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const active = over && dragging && Boolean(onDrop)
+  const shown = expanded ? todos : todos.slice(0, COLLAPSE_AFTER)
   return (
     <div
       onDragOver={
@@ -208,7 +215,7 @@ function DropZone({
         <span className="ml-auto text-[10px] text-ink-muted">{todos.length}</span>
       </div>
       <div className="flex flex-1 flex-col gap-1.5">
-        {todos.map((t) => (
+        {shown.map((t) => (
           <TodoChip
             key={t.id}
             todo={t}
@@ -219,6 +226,15 @@ function DropZone({
           />
         ))}
         {todos.length === 0 && <p className="m-auto text-[10px] text-ink-muted">{emptyText}</p>}
+        {todos.length > COLLAPSE_AFTER && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="mt-0.5 rounded border border-dashed border-line px-2 py-1 text-[10px] text-ink-secondary hover:bg-canvas"
+          >
+            {expanded ? '收起' : `展开全部(${todos.length})`}
+          </button>
+        )}
         {children}
       </div>
     </div>

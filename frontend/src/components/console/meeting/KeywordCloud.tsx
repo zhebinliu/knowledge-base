@@ -78,7 +78,20 @@ function layout(
   return out
 }
 
-export default function KeywordCloud({ keywords }: { keywords: InsightKeyword[] }) {
+/**
+ * `scale` = 祖先元素的 CSS `zoom` 倍数(默认 1)。
+ *
+ * 为什么需要它:canvas 的位图后备区是 `width * dpr`,而 CSS `zoom` 只是把**已画好的位图**
+ * 拉伸 —— 放大到 150% 时文字会明显发糊(等效 dpr 被除以 1.5),而「看清」恰恰是这个
+ * 缩放功能的初衷。所以后备区要按 `width * dpr * scale` 分配,再靠 `ctx.setTransform`
+ * 把逻辑坐标系留在 `width × HEIGHT`,布局算法完全不用动。
+ */
+export default function KeywordCloud({
+  keywords, scale = 1,
+}: {
+  keywords: InsightKeyword[]
+  scale?: number
+}) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [width, setWidth] = useState(0)
@@ -105,7 +118,9 @@ export default function KeywordCloud({ keywords }: { keywords: InsightKeyword[] 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const dpr = window.devicePixelRatio || 1
+    // 位图后备区按 scale 放大(见组件头的说明),style 尺寸仍用逻辑 px ——
+    // zoom 会把 style 尺寸一起放大,视觉尺寸才对得上
+    const dpr = (window.devicePixelRatio || 1) * Math.max(1, scale)
     canvas.width = width * dpr
     canvas.height = HEIGHT * dpr
     canvas.style.width = `${width}px`
@@ -122,7 +137,7 @@ export default function KeywordCloud({ keywords }: { keywords: InsightKeyword[] 
       ctx.fillStyle = p.color
       ctx.fillText(p.word, p.x, p.y)
     }
-  }, [keywords, width])
+  }, [keywords, width, scale])
 
   const top = [...keywords].sort((a, b) => b.weight - a.weight).slice(0, 15)
 

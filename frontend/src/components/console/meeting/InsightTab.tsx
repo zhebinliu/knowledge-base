@@ -13,8 +13,12 @@
  * 新旧两套 UI 复用同一个组件,样式只用 tailwind 令牌(text-ink / border-line / bg-white …),
  * redesign.css 已对 .rd-root 下这些 class 做覆盖,故暗色壳下同样正确,不需要 theme prop。
  */
+import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Sparkles, RefreshCw, Cloud, AlertTriangle, Users, Grid2x2 } from 'lucide-react'
+import {
+  Loader2, Sparkles, RefreshCw, Cloud, AlertTriangle, Users, Grid2x2,
+  ChevronDown, ChevronRight, Minus, Plus, ChevronsDownUp, ChevronsUpDown,
+} from 'lucide-react'
 import { runMeetingAction, type Meeting } from '../../../api/client'
 import { toast } from '../../Toaster'
 import KeywordCloud from './KeywordCloud'
@@ -25,23 +29,82 @@ import ComparisonPanel from './ComparisonPanel'
 // 与 pages/console/ConsoleMeetingDetail.tsx 的 BRAND_GRAD 保持一致(品牌橙渐变)
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 
+// ── 缩放 / 折叠的持久化 ────────────────────────────────────────────────────
+//
+// 洞察 tab 内容纵向很长(词云 380px 画布 + 发言时长 + 四象限 + 对比),而可见高度由父级
+// 滚动容器限制(legacy `calc(100vh - 360px)` / redesign `calc(100dvh - 320px)`),
+// 于是「一屏看不全」。两个正交的手段:
+//   - 缩放:整块内容按比例缩,快速总览(用 CSS `zoom`,不用 transform: scale
+//     —— 后者不参与布局,会留白且要手工补偿宽度、滚动条也不对)
+//   - 折叠:单个模块收起,把注意力留给还在看的模块
+// 两者都是「看一眼就忘」的偏好吗?不是,尤其缩放比例不该每次进页面重调,故持久化。
+// 沿用 DataTable 的既有写法:typeof window 守卫 + try/catch(隐私模式下 storage 会抛)。
+const ZOOM_KEY = 'kb_insight_zoom'
+const COLLAPSE_KEY = 'kb_insight_collapsed'
+const ZOOM_MIN = 0.6
+const ZOOM_MAX = 1.5
+const ZOOM_STEP = 0.1
+const ZOOM_DEFAULT = 1
+
+function readZoom(): number {
+  if (typeof window === 'undefined') return ZOOM_DEFAULT
+  const raw = Number(localStorage.getItem(ZOOM_KEY))
+  if (!Number.isFinite(raw) || raw <= 0) return ZOOM_DEFAULT
+  // 夹到合法区间:存进去的值可能来自旧版本或被人手改过
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(raw * 100) / 100))
+}
+
+function readCollapsed(): Record<string, boolean> {
+  if (typeof window === 'undefined') return {}
+  try {
+    return JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '{}') as Record<string, boolean>
+  } catch {
+    return {}
+  }
+}
+
+/** 折叠状态由容器统一持有 —— 这样「全部折叠/展开」按钮才能一次改到所有模块 */
+type CollapseCtl = {
+  isCollapsed: (id: string) => boolean
+  toggle: (id: string) => void
+}
+
 function Section({
-  title, desc, onRefresh, refreshing, canRefresh, children,
+  id, title, desc, onRefresh, refreshing, canRefresh, ctl, children,
 }: {
+  id: string
   title: string
   desc?: string
   onRefresh?: () => void
   refreshing?: boolean
   canRefresh?: boolean
+  ctl: CollapseCtl
   children: React.ReactNode
 }) {
+  const collapsed = ctl.isCollapsed(id)
   return (
     <section className="rounded-xl border border-line bg-white p-4">
-      <header className="mb-3 flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h3 className="text-sm font-semibold text-ink">{title}</h3>
-          {desc && <p className="mt-0.5 text-xs text-ink-muted">{desc}</p>}
-        </div>
+      <header className={`flex items-start justify-between gap-3 flex-wrap ${collapsed ? '' : 'mb-3'}`}>
+        {/* 标题整块可点:折叠箭头太小,单点箭头体验差。
+            结构上是 button 嵌在 h3 里(而不是反过来):h3 里放 button 合法,
+            而 h3/p 都是流内容,塞进 button 就是无效 HTML。
+            保留 h3 是为了不丢掉文档大纲;aria-expanded 让读屏也能感知折叠态。 */}
+        <h3 className="min-w-0 flex-1">
+          <button
+            type="button"
+            onClick={() => ctl.toggle(id)}
+            aria-expanded={!collapsed}
+            className="flex w-full items-start gap-1.5 text-left"
+          >
+            <span className="mt-0.5 shrink-0 text-ink-muted">
+              {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-ink">{title}</span>
+              {desc && <span className="mt-0.5 block text-xs font-normal text-ink-muted">{desc}</span>}
+            </span>
+          </button>
+        </h3>
         {onRefresh && (
           <button
             onClick={onRefresh}
@@ -53,7 +116,7 @@ function Section({
           </button>
         )}
       </header>
-      {children}
+      {!collapsed && children}
     </section>
   )
 }
@@ -83,7 +146,7 @@ function EmptyState({ text, onGenerate, generating, disabled }: {
 
 // ── 1. 词云 ───────────────────────────────────────────────────────────────
 
-function KeywordSection({ meeting }: { meeting: Meeting }) {
+function KeywordSection({ meeting, ctl, zoom }: { meeting: Meeting; ctl: CollapseCtl; zoom: number }) {
   const qc = useQueryClient()
   const data = meeting.keywords
   const hasText = Boolean(meeting.polished_transcript || meeting.raw_transcript)
@@ -101,6 +164,8 @@ function KeywordSection({ meeting }: { meeting: Meeting }) {
 
   return (
     <Section
+      id="keywords"
+      ctl={ctl}
       title="词云"
       desc="从会议转写中提取的关键词,字号与权重正相关(权重已用原文真实词频校正)"
       onRefresh={keywords.length > 0 ? () => genMut.mutate() : undefined}
@@ -115,7 +180,7 @@ function KeywordSection({ meeting }: { meeting: Meeting }) {
               {data.focus}
             </p>
           )}
-          <KeywordCloud keywords={keywords} />
+          <KeywordCloud keywords={keywords} scale={zoom} />
           {data?.truncated && (
             <p className="mt-3 flex items-center gap-1 text-xs text-amber-600">
               <AlertTriangle size={12} />
@@ -137,7 +202,7 @@ function KeywordSection({ meeting }: { meeting: Meeting }) {
 
 // ── 2. 参会人发言时长 ─────────────────────────────────────────────────────
 
-function SpeakerSection({ meeting }: { meeting: Meeting }) {
+function SpeakerSection({ meeting, ctl }: { meeting: Meeting; ctl: CollapseCtl }) {
   const qc = useQueryClient()
   const stats = meeting.speaker_stats
   const hasText = Boolean(meeting.polished_transcript || meeting.raw_transcript)
@@ -154,6 +219,8 @@ function SpeakerSection({ meeting }: { meeting: Meeting }) {
 
   return (
     <Section
+      id="speakers"
+      ctl={ctl}
       title="参会人发言时长"
       desc="谁在主导讨论。本页无声纹分离能力,时长由转写时间标记推算或由 AI 归属推断"
       onRefresh={hasData ? () => genMut.mutate() : undefined}
@@ -188,12 +255,17 @@ function SpeakerSection({ meeting }: { meeting: Meeting }) {
 // meeting.project_id 取整个项目的待办,而不是只取这场会产出的那几条。
 // 没有归属项目的会议(临时会议)无从谈起,降级为提示文案。
 
-function QuadrantSection({ meeting }: { meeting: Meeting }) {
+function QuadrantSection({ meeting, ctl }: { meeting: Meeting; ctl: CollapseCtl }) {
   const projectId = meeting.project_id
 
   if (!projectId) {
     return (
-      <Section title="待办优先级四象限" desc="轴为「紧急 × 必要」,一个项目维护一套">
+      <Section
+        id="quadrant"
+        ctl={ctl}
+        title="待办优先级四象限"
+        desc="轴为「紧急 × 必要」,一个项目维护一套"
+      >
         <div className="py-6 text-center text-sm text-ink-muted">
           <Grid2x2 size={24} className="mx-auto mb-2" />
           这场会议没有归属项目,无法查看项目待办象限
@@ -205,6 +277,8 @@ function QuadrantSection({ meeting }: { meeting: Meeting }) {
 
   return (
     <Section
+      id="quadrant"
+      ctl={ctl}
       title="待办优先级四象限"
       desc="轴为「紧急 × 必要」(不是「重要 × 紧急」)。本项目一套,可拖拽调整"
     >
@@ -215,9 +289,11 @@ function QuadrantSection({ meeting }: { meeting: Meeting }) {
 
 // ── 4. 与上一场会议对比 ───────────────────────────────────────────────────
 
-function CompareSection({ meeting }: { meeting: Meeting }) {
+function CompareSection({ meeting, ctl }: { meeting: Meeting; ctl: CollapseCtl }) {
   return (
     <Section
+      id="compare"
+      ctl={ctl}
       title="与上一场会议对比"
       desc="横向比本项目上一场会议的纪要与转写,找出变化并给出建议。每条变化都附原文摘录"
     >
@@ -228,13 +304,82 @@ function CompareSection({ meeting }: { meeting: Meeting }) {
 
 // ── 容器 ──────────────────────────────────────────────────────────────────
 
+const SECTION_IDS = ['keywords', 'speakers', 'quadrant', 'compare']
+
 export default function InsightTab({ meeting }: { meeting: Meeting }) {
+  const [zoom, setZoom] = useState(readZoom)
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(readCollapsed)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      localStorage.setItem(ZOOM_KEY, String(zoom))
+    } catch { /* 隐私模式 / 存储被禁:静默降级,不影响本次使用 */ }
+  }, [zoom])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      localStorage.setItem(COLLAPSE_KEY, JSON.stringify(collapsed))
+    } catch { /* 同上 */ }
+  }, [collapsed])
+
+  const ctl: CollapseCtl = {
+    isCollapsed: (id) => collapsed[id] === true,
+    toggle: (id) => setCollapsed((prev) => ({ ...prev, [id]: !prev[id] })),
+  }
+
+  const allCollapsed = SECTION_IDS.every((id) => collapsed[id] === true)
+  const stepZoom = (delta: number) =>
+    setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round((z + delta) * 100) / 100)))
+
+  const btnCls = 'p-1 rounded text-ink-secondary hover:bg-canvas disabled:opacity-40'
+
   return (
-    <div className="space-y-4">
-      <KeywordSection meeting={meeting} />
-      <SpeakerSection meeting={meeting} />
-      <QuadrantSection meeting={meeting} />
-      <CompareSection meeting={meeting} />
+    <div>
+      {/* 工具条刻意**不做 sticky**:父级滚动容器自带内边距(legacy `p-4` / redesign `16px 20px`),
+          sticky 会让卡片从左右留白里穿过去,要盖住就得写负 margin 出血 —— 而缩放是
+          「设一次就走」的偏好,不值得为它引入那套脆弱写法。 */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+        <div className="inline-flex items-center gap-0.5 rounded-md border border-line bg-white px-1 py-0.5">
+          <button onClick={() => stepZoom(-ZOOM_STEP)} disabled={zoom <= ZOOM_MIN} title="缩小" className={btnCls}>
+            <Minus size={12} />
+          </button>
+          <button
+            onClick={() => setZoom(ZOOM_DEFAULT)}
+            title="恢复到 100%"
+            className="px-2 py-1 rounded tabular-nums text-ink-secondary hover:bg-canvas"
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <button onClick={() => stepZoom(ZOOM_STEP)} disabled={zoom >= ZOOM_MAX} title="放大" className={btnCls}>
+            <Plus size={12} />
+          </button>
+        </div>
+
+        <button
+          onClick={() =>
+            setCollapsed(allCollapsed ? {} : Object.fromEntries(SECTION_IDS.map((id) => [id, true] as const)))
+          }
+          className="inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1 text-ink-secondary hover:bg-canvas"
+        >
+          {allCollapsed ? <ChevronsUpDown size={12} /> : <ChevronsDownUp size={12} />}
+          {allCollapsed ? '全部展开' : '全部折叠'}
+        </button>
+
+        {zoom !== ZOOM_DEFAULT && (
+          <span className="text-ink-muted">缩放只影响本页显示,与导出无关</span>
+        )}
+      </div>
+
+      <div style={{ zoom }}>
+        <div className="space-y-4">
+          <KeywordSection meeting={meeting} ctl={ctl} zoom={zoom} />
+          <SpeakerSection meeting={meeting} ctl={ctl} />
+          <QuadrantSection meeting={meeting} ctl={ctl} />
+          <CompareSection meeting={meeting} ctl={ctl} />
+        </div>
+      </div>
     </div>
   )
 }

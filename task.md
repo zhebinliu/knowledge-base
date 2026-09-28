@@ -141,30 +141,40 @@ Celery 任务内部**又重算一次** `find_previous_meeting` —— 于是 POS
         范式新建轻量选择器(放 `components/console/meeting/` 下)
 - [ ] 验证:`tsc --noEmit`;`compileall`;两副本 `api/meeting.py` 差异仍只有 2 处 hunk
 
-### C · 洞察 tab 缩放 + 折叠 — 需求 3
+### C · 洞察 tab 缩放 + 折叠 — 需求 3 — 已完成
 
 现状:洞察 tab 是 `<div className="space-y-4">` 纯纵向流,无固定高度;可见高度由**父级**
-滚动容器决定 —— legacy `:3252` `maxHeight: calc(100vh - 360px)` /
+滚动容器决定 —— legacy `:3011` `maxHeight: calc(100vh - 360px)` /
 redesign `:361` `maxHeight: calc(100dvh - 320px)`。硬编码尺寸只有词云 canvas `HEIGHT = 380`
 和四象限落点 `min-h-[128px]`。
 
-- [ ] 整体缩放
-  - [ ] 洞察 tab 顶部加缩放控件(`−  100%  +`),范围建议 60%–150%,步进 10%
-  - [ ] 用 **CSS `zoom`** 实现(改布局尺寸、滚动条自然正确),**不用** `transform: scale`
-        (后者不参与布局,会留白且需手工补偿宽度)
-  - [ ] 缩放比例**记住**(`sessionStorage`,与仓库既有「列表/卡片视图记住选择」的做法一致)
-  - [ ] 注意:仓库无现成缩放组件可复用(`PropositionNetworkPage` 那个是图谱 canvas 的
-        transform,语义不同)
-- [ ] 模块折叠
-  - [ ] `InsightTab.tsx` 的 `Section` 组件(`:28-59`)加折叠:标题行右侧 chevron,
-        点击收起/展开正文
-  - [ ] `Section` 被 4 个子模块共用,改一处即全生效
-  - [ ] 折叠状态按模块 key 记住(`sessionStorage`)
-- [ ] 待办过多自动折叠
-  - [ ] `TodoQuadrant.tsx`:单个象限落点条目数超阈值(建议 6)时,只显示前 N 条 +
-        「展开全部(37)」;展开后可「收起」
-  - [ ] 阈值写常量,便于以后调
-- [ ] 验证:`tsc --noEmit`;两套 UI(`/` 与 `?ui=new`)下目视确认缩放/折叠生效且不破版
+- [x] 整体缩放
+  - [x] 洞察 tab 顶部加缩放控件(`−  100%  +` + 点百分比复位),范围 60%–150%,步进 10%
+  - [x] 用 **CSS `zoom`**(改布局尺寸、滚动条自然正确),**未用** `transform: scale`
+        (后者不参与布局,会留白且要手工补偿宽度)
+  - [x] 缩放比例持久化到 `localStorage`(`kb_insight_zoom`),沿用
+        `DataTable.tsx:99-118` 的写法:`typeof window` 守卫 + `try/catch`
+        (隐私模式下 storage 会抛,必须静默降级)
+  - [x] 读出时夹到 `[0.6, 1.5]`:存进去的值可能来自旧版本或被人手改过
+- [x] 模块折叠
+  - [x] `Section` 加折叠,4 个子模块共用,改一处即全生效
+  - [x] 标题**整块可点**(只点箭头体验差);结构为 `h3 > button`,`aria-expanded` 跟随
+        —— 反过来把 `h3`/`p` 塞进 `button` 是**无效 HTML**(流内容不能进 button)
+  - [x] 折叠状态集中在容器(`CollapseCtl`),这样「全部折叠/展开」才能一次改到所有模块
+  - [x] 持久化到 `localStorage`(`kb_insight_collapsed`)
+- [x] 待办过多自动折叠
+  - [x] `TodoQuadrant.tsx` 加常量 `COLLAPSE_AFTER = 6`;`DropZone` 超过阈值只显示前 6 条 +
+        「展开全部(N)」/「收起」。四象限 + 未分类区共用 `DropZone`,一处改全生效
+- [x] **额外修的一个坑(词云发糊)**:canvas 位图后备区原本是 `width * dpr`,而 CSS `zoom`
+      只是把已画好的位图**拉伸** —— 放大到 150% 时文字明显发糊(等效 dpr 被除以 1.5),
+      而「看清」正是这个功能的初衷。给 `KeywordCloud` 加 `scale` prop,
+      后备区改为 `width * dpr * max(1, scale)`,逻辑坐标系仍是 `width × HEIGHT`,
+      布局算法一行没动。**注意**:`zoom` 下 `ResizeObserver` 报的局部宽度会随 zoom 变小
+      (局部宽 = 父宽 / zoom),所以 zoom 变化会触发重绘,闭环成立。
+      recharts 那两张图是 SVG(矢量),缩放天然清晰,不用处理
+- [x] 验证:`npx tsc --noEmit` exit 0
+- [ ] **待人工目视**:两套 UI(`/` 与 `?ui=new`)下缩放/折叠生效且不破版
+      —— 本地起前端或部署后确认(需浏览器,本地无自动化)
 
 ### D · 参会人名单 + 说话人人工校正 — 需求 4(轻量阶段)
 
