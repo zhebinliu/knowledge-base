@@ -330,9 +330,16 @@ redesign `:361` `maxHeight: calc(100dvh - 320px)`。硬编码尺寸只有词云 
 | C | `npx tsc --noEmit` | exit 0 |
 | D | `py_compile` 8 文件 / **纯函数桩测 32 断言** / prompt 渲染回归 / `tsc --noEmit` / 两副本 SHA256 | 32/32 通过;空名单渲染逐字不变;exit 0;哈希一致 |
 
-**本地无后端依赖(无 `celery` 等),故后端「可 import」这一层只能由部署时 CI 的 build + 测试兜住。**
+**本地无后端依赖(无 `celery` 等),故后端「可 import」这一层只能由 CI 的测试兜住。**
 本地用桩注入(手工塞 `sqlalchemy`/`structlog` 等的假模块)把 `insights.py` 的纯函数摘出来单测,
 覆盖的是逻辑正确性,不是集成正确性。
+
+**CI 实测(2026-09-29,commit `eb50ded`,MinIO 镜像修好之后的第一次真跑)**:CI Checks 两个 job 全绿
+(`Run Tests` 1m11s / `Frontend tsc + build` 1m45s),`Run Tests` 报 **7 passed**。
+即 `main.py` 能在容器里起来、新的 `ALTER TABLE meetings ADD COLUMN IF NOT EXISTS participants JSON`
+走通 —— 这是本轮后端改动唯一一次真实集成验证。
+⚠️ 但仓库现有 pytest **只有 7 个用例**,本轮新增的两个端点(`PUT /participants`、
+`PATCH /speaker-stats`)**没有任何自动化覆盖**,仍属下方「待人工目视」范围。
 
 **待人工目视(需浏览器,本地无自动化)**:
 1. 两套 UI(`/` 与 `?ui=new`)下洞察 tab 缩放/折叠生效且不破版(需求 3)
@@ -365,11 +372,17 @@ redesign `:361` `maxHeight: calc(100dvh - 320px)`。硬编码尺寸只有词云 
 
 ## 已知既有问题(沿用上一轮记录,本轮仍未修)
 
-- **CI 当前是红的:`quay.io/minio/minio` 也已清空(2026-09-29 发现)** —— 与本轮改动无关,
+- **`quay.io/minio/minio` 也已清空(2026-09-29 发现)** —— 与本轮改动无关,
   上一次 CI(9-28 09:28)挂在同一步。诊断与三处不兼容点已留档在
-  [LEARNING.md § 31](LEARNING.md);**用户 2026-09-29 明确决定暂不切换镜像源,自行决定**,
-  故本轮四处镜像引用一个都没动。影响:CI 的 `Run Tests` 跑不起来,
-  本轮后端改动**没有经过 pytest 验证**(仅本地桩测 + `py_compile`)。
+  [LEARNING.md § 31](LEARNING.md)。
+  - **CI 侧已修**(`eb50ded`):两个 workflow 的测试镜像改 `cgr.dev/chainguard/minio`,CI 已绿。
+    注意这不只是「CI 红」——`deploy` job 要求 `needs.test.result != 'failure'`,
+    此前**发布是被硬卡住的**。
+  - **生产侧仍未决**:`docker-compose.yml` 与 `kanban/docker-compose.yml` 的 minio 镜像
+    **仍是 `quay.io/minio/minio:latest`,已拉不到**。刻意没动 —— Chainguard 是 distroless + 非 root,
+    与存量 root 属主卷 / healthcheck 的 curl / 备份脚本的 tar 三处不兼容,要配维护窗口单独做。
+    现状可运行(服务器本地已有该镜像,且部署全程 `up -d --no-deps <服务名>`,服务名里没有 minio),
+    但**一旦服务器丢了那个镜像或有人手工 `up -d minio`,就恢复不了**。
 - **`/todos/*` 全部端点缺项目 ACL** —— 只校验 `get_current_user`,任何登录用户可读写
   任意项目的待办。属独立安全修复。
 - **`POST /todos/{id}/smart-assign` 复用了 `meeting_illustrations_extract` 这个 task 名**

@@ -1797,9 +1797,24 @@ git diff --no-index -U0 -- backend/api/meeting.py meeting/backend/api/meeting.py
 
 ## 31. quay.io 的 MinIO 也清空了 —— §28.4 的预告应验(2026-09-29)
 
-**当前状态:未决。** 用户 2026-09-29 明确决定**暂不切换镜像源,自行决定**。本文只留档诊断结论,
-**任何镜像引用都没改** —— `.github/workflows/deploy.yml`、`deploy-prod.yml`、`docker-compose.yml`、
-`kanban/docker-compose.yml` 四处仍是 `quay.io/minio/minio:latest`。**CI 目前是红的。**
+**当前状态:CI 侧已修,生产侧仍未决(两件事是拆开的)。**
+
+| 引用位置 | 用途 | 状态 |
+|---|---|---|
+| `.github/workflows/deploy.yml` | CI Checks 的 `Run Tests` | ✅ 已改 `cgr.dev/chainguard/minio`(2026-09-29) |
+| `.github/workflows/deploy-prod.yml` | 生产部署的 `Run Tests` 门禁 | ✅ 同上 |
+| `docker-compose.yml` | **生产 minio 服务** | ⚠️ **仍是 `quay.io/minio/minio:latest`,故意没动** |
+| `kanban/docker-compose.yml` | kanban 的 minio | ⚠️ 同上 |
+
+**为什么能拆开(关键)**:`Start MinIO manually` 跑在 **GitHub 的 runner 上,不碰生产服务器** ——
+所以解锁 CI 只需 runner 能拉到镜像,**与服务器能不能拉 `cgr.dev` 无关**,也与生产那份的
+三处不兼容无关(见 §31.4)。CI 已于 2026-09-29 转绿。
+
+> ⚠️ 但**发布此前是被硬卡住的**,不是「CI 红而已」:`deploy-prod.yml` 的 `test` job 是
+> `if: needs.changes.outputs.backend == 'true'`,而 `deploy` job 要求
+> `needs.test.result != 'failure'` —— 后端一改,`Run Tests` 就必然跑到 Start MinIO 那步挂,
+> **整个 deploy job 直接 skip,什么都部署不上去**,且入参只有 `confirm`/`force_all` 没有跳过测试的逃生舱。
+> 排查「CI 红会不会挡住发布」时,要顺着 `needs` 链把门禁走一遍,别只看 CI 本身。
 
 ### 31.1 症状:与 §28 同一个位置,换了措辞
 
@@ -1865,7 +1880,8 @@ probe cgr.dev chainguard/minio      "https://cgr.dev/token?service=cgr.dev&scope
 ### 31.4 三处不兼容 —— 别直接照抄 §28.3 的「改 4 处」改法
 
 §28.3 那次是**同名同 tag、行为完全一致**的平移,所以只改引用就行。**这次不是**,
-Chainguard 是 distroless + 非 root 的**重建**镜像,引用不改完会踩:
+Chainguard 是 distroless + 非 root 的**重建**镜像。所以 2026-09-29 只改了 CI 那 2 处
+(裸 `docker run`、不挂卷,已验证能跑),**生产 2 处没动** —— 因为引用改完会踩:
 
 1. **存量卷属主冲突(最危险)**。生产 `minio_data` 卷里的文件是旧镜像**以 root 写的**。
    新镜像以 UID 65532 运行 → 下次 `docker compose up` 重建 minio 容器时
