@@ -85,17 +85,25 @@ jobs:
       - name: Overlay meeting/backend
         run: cp -r meeting/backend/. backend/
 
-      # 2026-09-22:镜像源从 Docker Hub 改到 quay.io —— MinIO 已于 2025-10-23 停止在
-      # Docker Hub 免费分发社区版镜像,`minio/minio` 仓库被整体删除,拉取会直接报
-      # "pull access denied ... repository does not exist"(HTTP 401,不是限流/凭证问题,
-      # 登录或重试都不会恢复)。quay.io 上同名同 tag 的镜像仍在,`server /data` 用法不变。
-      # 本地 docker-compose.yml / kanban/docker-compose.yml 用的是同一个镜像,需同步。
+      # MinIO 镜像换了两次,别再往回改:
+      #   2026-09-22 Docker Hub `minio/minio` 被删(MinIO 于 2025-10-23 停发社区版)→ 改 quay.io
+      #   2026-09-29 quay.io 也被清空(401)→ 改 cgr.dev/chainguard/minio
+      # 两次都是 HTTP 401 = 仓库不存在,**不是**限流也不是凭证问题,登录/重试都不会恢复。
+      # 判断方法:拿一个肯定还在的仓库(如 quay.io/prometheus/node-exporter)跑同样的查询自检。
+      #
+      # ⚠️ 这一步跑在 GitHub 的 runner 上,**不碰生产服务器** —— 所以只需 runner 能拉到镜像,
+      # 与「服务器能不能拉 cgr.dev」无关。Chainguard 镜像已实测兼容:
+      #   Entrypoint = /usr/bin/minio  → `server /data` 用法一字不改
+      #   /data 存在且 mode=0777       → 以非 root(65532)运行也能写
+      # ⚠️ 生产 docker-compose.yml **仍指向 quay.io**(那个引用已经拉不到了),是**故意没动**的:
+      # Chainguard 是 distroless + 非 root,与存量 root 属主卷 / healthcheck 的 curl /
+      # 备份脚本的 tar 三处不兼容,要配维护窗口单独做。详见 LEARNING.md §31。
       - name: Start MinIO manually
         run: |
           docker run -d -p 9000:9000 -p 9001:9001 --name minio \
             -e "MINIO_ROOT_USER=minioadmin" \
             -e "MINIO_ROOT_PASSWORD=minioadmin" \
-            quay.io/minio/minio server /data
+            cgr.dev/chainguard/minio server /data
 
       - name: Set up Python
         uses: actions/setup-python@v6
