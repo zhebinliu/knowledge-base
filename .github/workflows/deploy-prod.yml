@@ -433,7 +433,12 @@ jobs:
               # 清理:每个镜像只留 :latest(=本次)+ :prev(上一版,手动回滚用);不再 prune -a
               # (会把回滚镜像和 python/node 基础镜像一起删掉,下次 build 全量重下)
               echo "→ 部署后清理旧镜像"
-              for repo in kb-backend kb-frontend-prod kb-edge; do
+              # 只清本次部署了的服务;没动的服务容器还挂着上次的 sha tag,删了 docker ps 只显示镜像 ID
+              CLEAN_REPOS=""
+              [ "$DEPLOY_BE" = "true" ] && CLEAN_REPOS="$CLEAN_REPOS kb-backend"
+              [ "$DEPLOY_FE" = "true" ] && CLEAN_REPOS="$CLEAN_REPOS kb-frontend-prod"
+              [ "$DEPLOY_ED" = "true" ] && CLEAN_REPOS="$CLEAN_REPOS kb-edge"
+              for repo in $CLEAN_REPOS; do
                 sudo docker images "$repo" --format '{{.Tag}}' | grep '^sha-' \
                   | grep -vx "sha-${SHORT_SHA}" \
                   | xargs -r -I{} sudo docker rmi "$repo:{}" >/dev/null 2>&1 || true
