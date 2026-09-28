@@ -13,7 +13,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   ChevronLeft, Loader2, RefreshCw, Trash2, FolderKanban,
-  FileText, ListChecks, Users, Settings as SettingsIcon, Info, GitBranch, ChevronRight, Palette,
+  FileText, ListChecks, Users, Settings as SettingsIcon, Info, GitBranch, ChevronRight,
   BarChart3,
   type LucideIcon,
 } from 'lucide-react'
@@ -26,7 +26,7 @@ import {
   SeekToContext,
   OverviewTab, TranscriptTab, MinutesTab,
   RequirementsTab, ProcessFlowsTab, StakeholdersTab, ActionsTab,
-  IllustrationsTab, InsightTab,
+  InsightTab,
 } from '../../pages/console/ConsoleMeetingDetail'
 import { getMeetingAudioUrl } from '../../api/meeting-ext'
 import AudioPlayer, { type AudioPlayerHandle } from '../../components/AudioPlayer'
@@ -35,7 +35,7 @@ import UnifiedExportButton from '../../components/console/UnifiedExportButton'
 import { toast } from '../../components/Toaster'
 import GlowCard from '../components/GlowCard'
 
-type LeftTab = 'minutes' | 'requirements' | 'process_flows' | 'stakeholders' | 'illustrations' | 'insight'
+type LeftTab = 'minutes' | 'requirements' | 'process_flows' | 'stakeholders' | 'insight'
 type RightTab = 'transcript' | 'polished'
 
 const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: LucideIcon }> = [
@@ -43,7 +43,6 @@ const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: LucideIcon }> = [
   { key: 'requirements',  label: '需求清单', Icon: ListChecks },
   { key: 'process_flows', label: '业务流程', Icon: GitBranch },
   { key: 'stakeholders',  label: '干系人',   Icon: Users },
-  { key: 'illustrations', label: '解释图',   Icon: Palette },
   { key: 'insight',       label: '洞察',     Icon: BarChart3 },
 ]
 
@@ -332,7 +331,7 @@ export default function NewConsoleMeetingDetail() {
                       )
                     })}
                   </div>
-                  {/* 右侧:转写展开 + 导出(放在最后一个 tab「解释图」之后,分隔线+间隔避免被误认成 tab) */}
+                  {/* 右侧:转写展开 + 导出(放在最后一个 tab「洞察」之后,分隔线+间隔避免被误认成 tab) */}
                   <div style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     flexShrink: 0, padding: '0 12px',
@@ -363,7 +362,6 @@ export default function NewConsoleMeetingDetail() {
                   {leftTab === 'requirements'  && <RequirementsTab meeting={meeting} />}
                   {leftTab === 'process_flows' && <ProcessFlowsTab meeting={meeting} />}
                   {leftTab === 'stakeholders'  && <StakeholdersTab meeting={meeting} />}
-                  {leftTab === 'illustrations' && <IllustrationsTab meeting={meeting} />}
                   {leftTab === 'insight'       && <InsightTab meeting={meeting} />}
                 </div>
               </div>

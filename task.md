@@ -1,232 +1,259 @@
-# 任务:会议纪要「洞察」四功能 + overlay 漂移回灌
+# 任务:会议模块迭代第二轮 — 去解释图 / 对比可选会议 / 洞察布局 / 参会人名单
 
-计划文件:`C:\Users\zzz\.claude\plans\compressed-pondering-ullman.md`
+上一轮(B1–B6,洞察四功能 + overlay 漂移回灌)已完成并上线,记录见 git 历史。
+本轮为用户的 4 个新需求。
 
 ## 目标
 
-会议详情页新增「洞察」tab,集中承载四件事:
+1. **去掉「解释图」tab** —— 该功能下线,只摘 UI 入口
+2. **「与上一场会议对比」可选具体会议** —— 现在对比对象由后端写死(本项目时间上最近的一场),
+   改为用户可选任意一场同项目会议
+3. **洞察 tab 布局适配页面** —— 加整体缩放 + 模块可折叠 + 待办过多自动折叠
+4. **说话人识别准确率优化(轻量阶段)** —— 补上「参会人名单」这个缺失输入 + 加说话人人工校正 UI
 
-1. **词云** — 这场会真正聊了什么(LLM 从转写抽关键词 + 权重)
-2. **参会人发言时长条形图** — 谁在主导讨论(有说话人表头→精确解析;否则 LLM 归因)
-3. **待办优先级四象限图** — 项目一套,轴为「紧急 × 必要」(复用 `project_todos`,不另起一套)
-4. **与上一场会议横向对比** — 变化洞察 + 建议(异步 Celery + 前端轮询)
+### 需求 4 的背景(必须先理解,否则会做错方向)
 
-同时修掉一个已存在的生产 bug:overlay 漂移导致名词校正词典从未生效。
+**本仓库没有任何声纹/说话人分离引擎。** 全仓 `pyannote`/`whisperx`/`sherpa`/`funasr`/
+`diarization` 在代码与依赖里零命中;`requirements.txt` 无 `torch`/`onnxruntime`,音频相关只有
+`pydub`(转 PCM)。ASR 走**小米 mimo-v2.5-asr 外部 API**,每 20 秒切片,**只回纯文本 + `[MM:SS]`
+时间标记,不携带任何说话人信息**。
+
+所以现有说话人归属只有两条路:
+
+| 路径 | 触发 | 原理 | 准确率 |
+|---|---|---|---|
+| `parsed` | 转写自带「说话人 N HH:MM:SS」表头(飞书妙记导出) | 正则解析时间戳 | 高,但标签永远是「说话人N」,**从不映射真人名** |
+| `inferred` | 其余全部(**录音上传走这条**) | `minimax-m2.7` 依据**对话内容猜**每句谁说的 | 不可靠 —— 纯语言推理,无声学依据 |
+
+`inferred` 的致命缺陷不只是「猜」,而是**候选名单本身不可靠**:模型只能从
+`collect_speaker_candidates()` 给的名单里挑人,名单来源是「干系人 → 纪要 attendees →
+待办负责人 → 需求提出人」,而 **attendees 是 LLM 事后从转写里抽的**,且**会议创建时根本
+无处填写参会人**(`MeetingCreate` 只有 `title/project_id/agenda`)。拿一个可能错的名单去猜
+说话人 = 错上加错。
+
+**本轮(轻量阶段)做**:补上「参会人名单」这个缺失输入 + 人工校正 UI。
+**本轮不做**:真正的声学声纹分离 —— 见下方「后续单独立项」。
 
 ---
 
 ## 边界(不做什么)
 
-- **不引入新依赖** —— 图表用已装 `recharts@^3.9.2`,词云自绘 canvas
-- **不改导出** —— 三张新图不进 docx/md/html/PNG 导出链路
-- **不动 `priority`(P0/P1/P2)** —— 象限是另一套语义,两者并存
-- **不做声纹分离** —— 仓库 ASR 无 diarization,LLM 归因结果必须标注「AI 推断」
-- **不顺手补 redesign 缺失的 `advice` tab** —— 超出范围,仅在注释记一笔
-- **不改既有 `/todos/*` 端点的 ACL 缺口行为** —— 属独立安全修复,记入文档不本次改
-- **不新建 `backend/services/meeting/insights.py` 等副本** —— 新模块只建 `meeting/backend/` 一处,避免制造新漂移源
+- **不引入任何新依赖** —— 缩放用 CSS,折叠用 React state,名单用现有 JSON 列
+- **不删解释图的后端** —— 只摘 UI 入口。理由有二:
+  (a) `meetings.illustrations` 列里已有生产数据,删列不可逆;
+  (b) `backend/api/project_todos.py:909` 的 `smart-assign` **一直在复用
+      `meeting_illustrations_extract` 这个 routing key**,删掉后端常量会连带打断 smart-assign
+      (该问题已记录在「已知既有问题」,本轮仍不动)
+- **不做声纹分离** —— 单独立项,本轮不碰 `Dockerfile` / `requirements.txt` / 容器 `mem_limit`
+- **不改 `speaker_stats` 的 JSON 形状以外的东西** —— 人工校正只加字段,不重排既有字段
+- **不动对比功能的反幻觉三道闸** —— prompt 强制 evidence / `_ground_changes` 取证 /
+  无材料不调模型,三者本轮原样保留
+- **不改既有 `/todos/*` 端点的 ACL 缺口** —— 仍属独立安全修复
+- **不修 redesign 壳 `LEFT_TABS` 缺 `advice`** —— 既有差异,本轮不动
+
+### 双份树(overlay)落位规则 —— 本轮每次改动都要对照
+
+`backend/Dockerfile` 先 `COPY backend/ /app/` 再 `COPY meeting/backend/ /app/`,**后者胜**。
+已实测对照(本轮开工时):
+
+| 文件 | 状态 | 本轮怎么改 |
+|---|---|---|
+| `api/meeting.py` | **有差异**(2 处刻意 hunk:`Query` import + 模块导出 block) | 两副本都要改,且**必须保持差异仍只有那 2 处** |
+| `models/meeting.py` | 逐字相同 | 两副本同步改,改完 diff 必须为空 |
+| `prompts/meeting.py` | 逐字相同 | 同上 |
+| `tasks/meeting_tasks.py` | 逐字相同 | 同上 |
+| `services/meeting/insights.py` | **仅 overlay** | 只改 `meeting/backend/` 那份 |
+| `services/meeting/comparison.py` | **仅 overlay** | 只改 `meeting/backend/` 那份 |
+| `tasks/insight_tasks.py` | **仅 `backend/`**(overlay 无) | 只改 `backend/` 那份 |
+
+**新文件一律只建在 overlay**(`meeting/backend/`),否则制造新漂移源。
 
 ---
 
 ## 子任务
 
-### B5 · overlay 漂移回灌(先做,低风险独立)— 已完成
+### A · 去掉「解释图」tab — 需求 1 — 已完成
 
-- [x] `meeting/backend/api/meeting.py` `action_polish` 补 term_hints 加载 + 传参
-- [x] `meeting/backend/tasks/meeting_tasks.py` 补 term_hints 加载 + 传参
-- [x] `meeting/backend/api/meeting_survey.py` 补 `time_options` / `satisfaction_questions` PATCH 字段
-- [x] 验证:两份 `meeting_tasks.py` / `meeting_survey.py` 已逐字相同;`api/meeting.py` 仅剩
-      两个**刻意**差异(`Query` import + 模块导出 block,后者依赖只存在于 overlay 的
-      `services/meeting/module_layouts.py`,不能往下拷)
+纯前端,摘干净即可。涉及点已全量 grep 确认(前端仅这两文件引用)。
 
-### B1 · 洞察 tab + 词云 — 已完成
+- [x] `frontend/src/pages/console/ConsoleMeetingDetail.tsx`(legacy,原 3362 行 → 3124 行)
+  - [x] `:55` `LeftTab` 类型删 `'illustrations'`
+  - [x] `:143` `LEFT_TABS` 删该条目
+  - [x] `:3017` 渲染分支删除
+  - [x] `:2000-2237` `IllustrationsTab` 函数整体删除(**238 行**,用标记锚定删除:
+        `// ── Tab: 解释图 ─` 到 `// ── 干系人卡片`,不依赖行号)
+  - [x] import 清理:`Palette` / `Maximize2` / `Copy` / `Download` /
+        `getIllustrationStyles` / `IllustrationStyle` / `IllustrationStylesResponse` /
+        `MeetingIllustration` 全部删除
+        —— 删组件后这些**仅**在 `IllustrationsTab` 内部使用。
+        注:`tsconfig` 里 `noUnusedLocals: false`,所以留着**不会**报错,
+        但仍按「不留死代码」清掉;`MermaidBlock`(`:44`)**保留**(`:1989` ProcessFlowsTab 在用)
+  - [x] `:3006` 注释「最后一个 tab「解释图」」改为「洞察」
+- [x] `frontend/src/redesign/console/ConsoleMeetingDetail.tsx`
+  - [x] import 删 `Palette`(该文件 `Palette` **仅** tab 条目一处使用)
+  - [x] import 删 `IllustrationsTab`
+  - [x] `LeftTab` 类型 / `LEFT_TABS` / 渲染分支 / 注释 同步改
+- [x] **保留**(刻意):`illustrations` 列、`extract_illustrations` action、
+      `/illustration-styles` 端点、`meeting_illustrations_extract` routing key、
+      `RoutingTab.tsx:35` 配置项、`client.ts` 的 `MeetingIllustration` 等类型
+- [x] 验证:`npx tsc --noEmit` exit 0;全前端 grep `IllustrationsTab|解释图` 只剩
+      `RoutingTab.tsx:35` 一处(刻意保留,理由见边界段)
 
-- [x] DDL:`meetings` 加 `keywords` JSON 列
-- [x] ORM 两副本同步
-- [x] `_meeting_dto` 两副本 + 两处 list `defer`
-- [x] `prompts/meeting.py` 两副本加 `KEYWORD_SYSTEM` / `KEYWORD_USER`
-- [x] 新建 `meeting/backend/services/meeting/insights.py`(`extract_keywords`)
-- [x] `__init__.py` **不**导出 —— 改为 API 内按路径直接 import,与 `module_export.py` 同理,
-      否则非 overlay 树 import 失败、且两份 `__init__.py` 会产生新漂移
-- [x] `ROUTING_RULES` 加 `meeting_keywords_extract`
-- [x] 端点 `POST /{id}/actions/extract_keywords` + `PUT /{id}/keywords`(两副本)
-- [x] `client.ts` 类型 + `MeetingAction` 扩值
-- [x] 前端 `InsightTab` 骨架 + `KeywordCloud`(确定性螺线布局 + top-15 chip 兜底)
-- [x] 两套 UI 各 3 处注册
+### B · 对比可选具体会议 — 需求 2
 
-### B2 · 发言时长 — 已完成
+现状:`find_previous_meeting()`(`meeting/backend/services/meeting/comparison.py:51-72`)
+**写死**四个条件:同 project + `start_time` 严格更早 + 已出纪要 + `start_time DESC LIMIT 1`。
+`POST /compare-insight` **不接受任何参数**;且 `_task.delay(meeting_id)` **只传了 meeting_id**,
+Celery 任务内部**又重算一次** `find_previous_meeting` —— 于是 POST 返回给前端的 prev 与
+实际对比对象可能不一致(两次调用之间上一场刚出了纪要)。**这次必须一并修掉**。
 
-- [x] DDL `speaker_stats` + ORM 两副本 + DTO/defer
-- [x] `prompts/meeting.py` 两副本加 `SPEAKER_ATTR_SYSTEM` / `SPEAKER_ATTR_USER`
-- [x] `insights.py`:`parse_speaker_segments`(精确解析)/ `collect_speaker_candidates` /
-      `extract_speaker_durations`(分窗并行 + 逐行归属归一化)
-- [x] `ROUTING_RULES` 加 `meeting_speaker_attribution`
-- [x] 端点 `POST /{id}/actions/extract_speaker_durations`(两副本)
-- [x] 前端 `SpeakerDurationChart`(recharts 横向柱 + 「无法判断」灰柱 + 来源徽标)
+- [ ] 后端 · overlay 服务层 `meeting/backend/services/meeting/comparison.py`
+  - [ ] 新增 `find_comparable_meetings(meeting, session)` — 返回同项目、非自己、
+        **已出纪要**的会议列表(供前端选择器取候选),按 `start_time DESC`
+  - [ ] 新增 `load_comparable_meeting(meeting, prev_id, session)` — 按 id 取,并**校验**:
+        同 project / 不是自己 / 已有纪要;不满足返回 None(由 API 层转 400)
+  - [ ] `find_previous_meeting()` **保留**,作为 `prev_id` 未传时的兜底(兼容已入队的旧任务)
+- [ ] 后端 · 两副本 `api/meeting.py`
+  - [ ] `GET /{id}/compare-candidate` 改造:除 `prev`(默认建议项,兼容既有前端)外,
+        新增 `candidates: [{id,title,created_at,has_minutes}]` 列表
+  - [ ] `POST /{id}/compare-insight` 加 Pydantic body `{prev_meeting_id?: int}`;传了就走
+        `load_comparable_meeting` 校验(不通过 → 400 带可读中文原因)
+  - [ ] **把 `prev_id` 传给 Celery**(修掉上面那个不一致 bug)
+- [ ] 后端 · `backend/tasks/insight_tasks.py`
+  - [ ] `compare_meeting_previous(self, meeting_id, prev_id=None)` —— **必须有默认值**,
+        否则已入队的旧任务反序列化会炸
+  - [ ] `:109` 的 `prev = await find_previous_meeting(...)` 改为:有 `prev_id` 走
+        `load_comparable_meeting`,否则回退 `find_previous_meeting`
+- [ ] 后端 · prompt(两副本 `prompts/meeting.py` `COMPARE_USER` `:765-804`)
+  - [ ] **方向问题**:现模板措辞假定 prev 一定更早(「上一场会议」)。用户可能选一场**更晚**的会,
+        此时 before/after 语义反转。改为中性措辞(如「基准会议 A / 当前会议 B」),
+        并在 system prompt 里说明两者时间先后不固定
+- [ ] 前端 · `frontend/src/api/client.ts`
+  - [ ] `startCompareInsight(meetingId, prevMeetingId?)` 加参数,传 body
+  - [ ] `CompareCandidate` 类型扩 `candidates` 列表
+- [ ] 前端 · `ComparisonPanel.tsx`
+  - [ ] 加会议选择器(候选来自上述 `candidates`;**筛选条件与后端一致**:已出纪要)
+  - [ ] 「与上一场会议对比」按钮文案改为「与所选会议对比」或保留但旁边显示当前选择
+  - [ ] 结果态「对比基准」chip 点击可换会议重跑
+- [ ] 前端 · 会议选择器组件
+  - [ ] 仓库**没有**可复用的会议选择器(已 grep 确认)。项目会议可能很多,
+        `PillSelect.tsx` 无搜索框不够用 → 照 `CollaboratorsModal` 的「搜索 + 列表 + 选中」
+        范式新建轻量选择器(放 `components/console/meeting/` 下)
+- [ ] 验证:`tsc --noEmit`;`compileall`;两副本 `api/meeting.py` 差异仍只有 2 处 hunk
 
-### B3 · 待办四象限 — 已完成
+### C · 洞察 tab 缩放 + 折叠 — 需求 3
 
-- [x] DDL `project_todos` 加 `urgency` / `necessity` / `quadrant_source` / `quadrant_meta`
-      （**不存 `quadrant` 列** —— 象限由两轴派生。计划书 §一 正文就是这么定的,
-      task.md 的勾选项写成「加 quadrant 列」是笔误,以正文为准:存了就会有两处状态）
-- [x] `models/project_todo.py` 加列(补 `JSON` import)
-- [x] `_todo_dto` 输出两轴 + 派生 `quadrant` + `quadrant_source` + `quadrant_meta`
-- [x] `TodoPatch` 加两轴(空串=清空该轴,同 `due_date` 约定);PATCH 处理置
-      `quadrant_source='manual'`;清空两轴则 source 一并清掉
-- [x] `prompts/meeting.py` 两副本加 `QUADRANT_SYSTEM` / `QUADRANT_USER`(已验逐字相同)
-- [x] 新建 `backend/tasks/insight_tasks.py`(`classify_project_todos_quadrant`)+
-      `tasks/__init__.py` 注册。**该文件只有一份,overlay 无同名副本**(新文件规则)
-- [x] `classify_todos_quadrant()`(backend/api/project_todos.py):分批 ≤40 /
-      并行 gather / 只认本批 id / 两轴非法或 null 一律保持未分类 / 绝不覆盖 manual
-- [x] 端点 `POST /projects/{id}/todos/classify` + `GET .../classify/status/{task_id}`
-      —— 两者用 `require_project_access`
-- [x] 既有 `POST /projects/{id}/todos/sync` 加 `?classify=true`(默认)异步触发分类,
-      返回 `classify_task_id`;仅在有新导入时触发,dispatch 失败不影响导入结果
-- [x] 前端 `TodoQuadrant`(2×2 拖拽 + 未分类区 + 同步/重新分类按钮 + 判定依据折叠)
-      + `InsightTab` 加 section(无 `project_id` 时降级为提示)
-- [x] `client.ts`:`ProjectTodo` 补象限字段、新 `TodoPatchBody`、`classifyProjectTodosQuadrant`、
-      `getClassifyQuadrantStatus`、`syncProjectTodos` 返回值补 `classify_task_id`
-- [x] 验证:31 项逻辑断言全绿(见下「验证记录」)
+现状:洞察 tab 是 `<div className="space-y-4">` 纯纵向流,无固定高度;可见高度由**父级**
+滚动容器决定 —— legacy `:3252` `maxHeight: calc(100vh - 360px)` /
+redesign `:361` `maxHeight: calc(100dvh - 320px)`。硬编码尺寸只有词云 canvas `HEIGHT = 380`
+和四象限落点 `min-h-[128px]`。
 
-**与计划的偏离(3 处,均已在代码注释里写明理由)**
+- [ ] 整体缩放
+  - [ ] 洞察 tab 顶部加缩放控件(`−  100%  +`),范围建议 60%–150%,步进 10%
+  - [ ] 用 **CSS `zoom`** 实现(改布局尺寸、滚动条自然正确),**不用** `transform: scale`
+        (后者不参与布局,会留白且需手工补偿宽度)
+  - [ ] 缩放比例**记住**(`sessionStorage`,与仓库既有「列表/卡片视图记住选择」的做法一致)
+  - [ ] 注意:仓库无现成缩放组件可复用(`PropositionNetworkPage` 那个是图谱 canvas 的
+        transform,语义不同)
+- [ ] 模块折叠
+  - [ ] `InsightTab.tsx` 的 `Section` 组件(`:28-59`)加折叠:标题行右侧 chevron,
+        点击收起/展开正文
+  - [ ] `Section` 被 4 个子模块共用,改一处即全生效
+  - [ ] 折叠状态按模块 key 记住(`sessionStorage`)
+- [ ] 待办过多自动折叠
+  - [ ] `TodoQuadrant.tsx`:单个象限落点条目数超阈值(建议 6)时,只显示前 N 条 +
+        「展开全部(37)」;展开后可「收起」
+  - [ ] 阈值写常量,便于以后调
+- [ ] 验证:`tsc --noEmit`;两套 UI(`/` 与 `?ui=new`)下目视确认缩放/折叠生效且不破版
 
-1. **不新增 `POST /api/meeting/{id}/todos/sync`**。前端既有入口就是
-   `POST /projects/{id}/todos/sync`,再加一个会议级端点等于复制一份同步逻辑。
-   顺带发现 `sync_todos_for_meeting()` 在仓库里**从来没有调用方**(死代码),本次不动它。
-2. 分类入参除 `only_unclassified` 外多给一个 `ids`(限定子集),便于以后只重判某几条。
-3. 前端 `patchTodo` 的 body 类型抽成 `TodoPatchBody` 并让 `ProjectTodos.tsx` 复用
-   —— 原先它传 `Partial<ProjectTodo>`,加了 `urgency: Urgency | null` 后类型不再成立
-   (`null` 在服务端意为「本次不改」,与空串「清空」是两回事,不能用宽松类型糊过去)。
+### D · 参会人名单 + 说话人人工校正 — 需求 4(轻量阶段)
 
-### B4 · 跨会议对比 — 已完成
+- [ ] DDL + ORM
+  - [ ] `backend/main.py` 启动期 DDL 加
+        `ALTER TABLE meetings ADD COLUMN IF NOT EXISTS participants JSON`
+        (与既有 `keywords`/`speaker_stats` 同处,`main.py:421-423` 附近)
+  - [ ] `models/meeting.py` **两副本同步**加列 + 结构注释:
+        `participants {names:[str], source:"manual"|"minutes"|"stakeholders", updated_at}`
+- [ ] 名单的读写
+  - [ ] `MeetingCreate` 加 `participants`(会议创建时可填,补上「创建时无处填参会人」的缺口)
+  - [ ] 新增 `PUT /{meeting_id}/participants`(两副本)—— 人工维护名单
+  - [ ] `_meeting_dto` 输出该字段(两副本);**list DTO 保持 defer**(名单不大但列表页不需要)
+- [ ] 喂给归因(这是准确率提升的核心)
+  - [ ] `insights.py::collect_speaker_candidates()` 目前顺序是「干系人 → 参会人 → 待办负责人 →
+        需求提出人」,其中「参会人」取自 `meeting_minutes.attendees`(LLM 抽的,不可靠)。
+        **改为:人工名单(`meetings.participants`)优先级最高**,置于干系人之前
+  - [ ] 名单非空时,**在 prompt 里显式告知这是人工确认的名单**,并要求优先从其中归属
+  - [ ] 名单为空时行为**完全不变**(保持向后兼容)
+- [ ] 说话人人工校正 UI(准确率的兜底 —— 无论归因多准,必须有纠错出口)
+  - [ ] 新增 `PATCH /{meeting_id}/speaker-stats`(两副本):支持
+        **改名**(`说话人1` → `张三`)、**合并**(两个说话人并成一个,时长相加)
+  - [ ] 校正后置 `speaker_stats.corrected = true` + `corrected_at`,
+        **前端徽标从「AI 推断」改为「已人工校正」** —— 数据如实性不能因为改过就模糊
+  - [ ] 校正过的名字**不能被下一次「重新生成」静默覆盖**(生成时保留人工映射,或生成前提示)
+  - [ ] 前端 `SpeakerSection`/`SpeakerDurationChart` 加校正入口(行内编辑 + 合并选择)
+- [ ] 验证:`tsc --noEmit`;`compileall backend meeting/backend`;
+      两副本 `models/meeting.py` / `prompts/meeting.py` diff 为空;
+      **名单为空时归因结果与改动前逐字一致**(回归)
 
-- [x] DDL `comparison_insight` + ORM 两副本 + DTO/defer(B1 时已一并做完)
-- [x] `prompts/meeting.py` 两副本加 `COMPARE_SYSTEM` / `COMPARE_USER`(已验逐字相同)
-- [x] 新建 `meeting/backend/services/meeting/comparison.py`(`find_previous_meeting` /
-      `build_comparison` / `_ground_changes` 取证 / `_sanitize_suggestions`)。**只有一份**
-- [x] `insight_tasks.py` 加 `compare_meeting_previous`(soft 900 / hard 1200,
-      失败时尽力把 `status='failed'` 写回,免得前端停在永远转的圈)
-- [x] `ROUTING_RULES` 加 `meeting_compare_insight`(B1 时已加;task.md 原写
-      `meeting_compare_previous`,改为复用已有 key,避免同一功能两个 task 名)
-- [x] 端点三只(两副本各 3 处):`GET /{id}/compare-candidate`、
-      `POST /{id}/compare-insight`、`GET /{id}/compare-insight/status/{task_id}`
-- [x] 前端 `ComparisonPanel`(四态:无候选 / running / done / failed)+
-      `InsightTab` 加对比 section;`client.ts` 三个 API 函数 + `evidence_dropped` 字段
-- [x] 验证:33 项逻辑断言全绿(见下「验证记录」)
+### E · 文档同步
 
-**关键设计:反幻觉取证**
-
-对比最容易出的问题不是「答得不好」,是「编得像真的」—— 模型会拿行业常识补出
-「客户追加预算」「项目已延期」这类材料里根本没有的变化。所以:
-
-1. prompt 里强制每条 change 带 `evidence`,必须是原文摘录;「上一场有、这一场没提」
-   判 `停滞` 而非 `回退`;允许如实输出「无变化」,不逼它凑数。
-2. Python 侧 `_ground_changes()` 再把 evidence 拿回材料里做子串校验(去空格、取前 24 字),
-   查无实据的**直接丢弃**,并把丢弃条数回传前端(`evidence_dropped`)——
-   既挡幻觉,也让用户看得见「模型原本想说几条、被砍了几条」。
-3. 两场都没纪要也没转写 → **不调模型**,直接返回可读的 error。
-
-前端把 `evidence` 显式渲染在每条变化下面(斜体「原文:…」)—— 这是用户自己判断
-「AI 有没有编」的唯一依据,不能藏在 tooltip 里。
-
-### B6 · 文档同步 — 已完成
-
-- [x] `LEARNING.md` 追加 §27(overlay 漂移复发的完整复盘 + 新文件落位规则 +
-      `ROUTING_RULES` 新 key 静默兜底 + 两个反幻觉模式 + 无容器依赖时的 stub 验法)
-- [x] `PROJECT_OVERVIEW.md` §6.9 能力表补四项 + 「未完成/单独立项」第三条 +
-      「改会议模块代码前必读」告警块
-- [x] `CHANGELOG.md` 记一条(2026-09-22,含 B5 修的生产 bug 说明)
-- [x] 提交推送
+- [ ] `LEARNING.md` 追加:本轮踩坑(overlay 双份树改动清单、`zoom` vs `transform` 取舍、
+      对比方向反转、speaker_stats 校正与再生成的冲突)
+- [ ] `PROJECT_OVERVIEW.md`:会议模块能力表更新(去解释图 / 对比可选 / 参会人名单)
+- [ ] `CHANGELOG.md` 记一条
+- [ ] 提交推送
 
 ---
 
 ## 验收标准
 
-1. `python -m compileall` 两副本全绿(镜像里的语法闸门)
-2. `npx tsc --noEmit` 全绿
-3. 部署后容器内显式 import 新模块成功(lazy import 是健康检查盲区)
-4. 两套 UI(`/` 与 `?ui=new`)下「洞察」tab 均出现且内容非空
-5. `api_call_logs` 里 4 个新 task 的 `model_name` 正常,**不出现 `api.edgefn.net`**
-6. 发言时长:飞书妙记式转写 → 「精确解析」;普通 `[MM:SS]` 转写 → 「LLM 推断」+ 置信度
-7. 拖拽象限后刷新保持(`quadrant_source='manual'` 不被自动分类覆盖)
-8. 名词校正词典修复后:加一条校正词 → 跑润色 → 输出中确实被替换
+1. `npx tsc --noEmit -p tsconfig.json` 全绿(基线:本轮开工时已确认 exit 0)
+2. `python -m compileall backend meeting/backend` 全绿
+3. 两副本 `models/meeting.py` / `prompts/meeting.py` / `tasks/meeting_tasks.py` diff 为空;
+   `api/meeting.py` 差异**仍只有那 2 处刻意 hunk**
+4. **解释图 tab 在 `/` 与 `?ui=new` 两套 UI 下都消失**,且无残留死代码 / 未使用 import
+5. 对比:能选任意同项目、已出纪要的会议;选**更晚**的会议时 before/after 语义不错乱
+6. 洞察:缩放比例生效且刷新后保持;各模块可折叠;待办 >6 条时自动折叠并可展开
+7. 参会人名单:创建时可填、详情页可改;名单非空时归因候选以名单为准;
+   **名单为空时归因结果与改动前一致**
+8. 说话人校正:改名 / 合并后刷新保持,徽标显示「已人工校正」,
+   且「重新生成」不会静默覆盖人工结果
 
 ---
 
 ## 验证记录
 
-### B3(2026-09-22)
-
-用 stub harness 直接加载真实的 `backend/api/project_todos.py` 跑逻辑断言
-(容器里的 `structlog` 等依赖本地没有,故按 CLAUDE.md 的既有做法注入 stub 模块;
-`prompts/meeting.py` 用真实文件,顺带验证 `{{}}` 转义与 `.format` 占位符)。**31 项全绿**:
-
-| 组 | 覆盖点 |
-|---|---|
-| 1 | `derive_quadrant` 四象限映射;任一轴为 NULL → 未分类;非法值 → None |
-| 2 | 人工条目(`quadrant_source='manual'`)两轴不被覆盖;`only_unclassified` 跳过已分类;模型返回不存在的 id 被忽略;缺一轴 → 不落库;有更新才 commit |
-| 3 | `only_unclassified=False` 时已分类的被重判,但人工的仍不动 |
-| 4 | 全人工项目 → 不调模型、不 commit |
-| 5 | `QUADRANT_USER.format()` 产出合法 JSON 骨架;system prompt 的枚举值与后端常量一致 |
-| 6 | PATCH:拖到象限 → `manual`;清空两轴 → 未分类且 source 清掉;只改一轴也标 manual;不传两轴 → 不动象限字段;非法值 → 400 |
-
-另:`python -m compileall backend meeting/backend` 全绿;`npx tsc --noEmit` 全绿;
-`prompts/meeting.py` 两副本逐字相同;`api/meeting.py` 差异仍只有那 2 处刻意 hunk(165 行)。
-
-**未覆盖**:`ids` 过滤是 SQL 侧的,本地无 DB 无法验;需部署后用真实项目跑一次。
-
-### B4(2026-09-22)
-
-同样用 stub harness 直接加载真实的 `meeting/backend/services/meeting/comparison.py`
-(`_truncate_head_tail` 按 AST 从 `backend/services/revision_learning.py` 抽真实现执行,
-不是复制粘贴)。**33 项全绿**:
-
-| 组 | 覆盖点 |
-|---|---|
-| 1 | `_ground_changes` 取证:真在材料里的保留(容忍空格差异);编造的 / 过短的 / 缺 evidence 的一律丢弃;非法 trend 收敛为「无变化」;dimension 截断 |
-| 2 | 空格差异容忍 |
-| 3 | `_sanitize_suggestions`:空 action 丢弃;非法/缺失 priority → 「中」;最多 5 条 |
-| 4 | 需求格式化 / 空需求 / 空转写 / 超长转写截断 / 纪要 JSON 原样透出 / 润色稿优先 |
-| 5 | `COMPARE_USER.format()` 出合法骨架;system prompt 的 trend 与 priority 枚举与后端常量一致 |
-| 6 | `build_comparison`:两场都无材料 → **不调模型**且如实报错;正常路径下编造的那条被剔除且 `evidence_dropped=1`;两场纪要都进了 prompt;空结果给出可读 error |
-
-另:`python -m compileall backend meeting/backend` 全绿;`npx tsc --noEmit` 全绿;
-五个双份文件里四个逐字相同,`api/meeting.py` 差异仍只有那 2 处刻意 hunk(165 行:1 处 `Query` import + 1 个模块导出 block;B1–B4 的新端点在两副本里逐字对称,不出现在 diff 中)。
-
-### 部署验证清单(等有 docker 的环境执行)
-
-```bash
-docker compose exec backend python -c "import api.meeting, api.project_todos, tasks.insight_tasks"
-docker compose exec backend python -c "from tasks.insight_tasks import classify_project_todos_quadrant; print(classify_project_todos_quadrant.name)"
-curl -X POST localhost:8000/api/projects/<pid>/todos/classify -H "Authorization: Bearer <token>" -d '{"only_unclassified":false}'
-# 查 api_call_logs:task=meeting_todo_quadrant 的 model_name 应为 minimax-m2.5(非 api.edgefn.net)
-
-docker compose exec backend python -c "import services.meeting.comparison, services.meeting.insights"
-curl localhost:8000/api/meeting/<id>/compare-candidate -H "Authorization: Bearer <token>"
-curl -X POST localhost:8000/api/meeting/<id>/compare-insight -H "Authorization: Bearer <token>"
-# 查 api_call_logs:task=meeting_compare_insight / meeting_speaker_attribution 的 model_name 应正常
-```
-
-**必须人工过一遍的**:
-
-1. 挑一个**有 ≥2 场已出纪要会议**的项目,开第 2 场会议的详情页
-2. 默认 UI 和 `?ui=new` **两套**下「洞察」tab 都要出现,且四块都在
-3. 词云出词;发言时长的来源徽标正确(飞书妙记式转写 → 「精确解析」,录音上传 → 「AI 推断」)
-4. 「待办四象限」:点「同步会议待办」→ 新待办自动带象限 → 拖一个到别象限 → **刷新后位置保持**
-5. 「与上一场会议对比」:按钮旁显示将对比的上一场标题 → 点下去转 1-2 分钟 → 出变化 + 建议,
-   且每条变化下面都有「原文:…」;确认没有一眼假的变化
-6. 首场会议:对比块应显示「本项目没有更早的、已出纪要的会议」而不是空面板或转不停的圈
-7. 无 `project_id` 的会议:四象限与对比都应降级为提示文案,不报错
-8. **名词校正词典**(B5 修的那个 bug):加一条校正词 → 跑润色 → 输出里确实被替换了
+(逐块补充)
 
 ---
 
-## 已知既有问题(不在本次范围,仅记录)
+## 后续单独立项(本轮明确不做)
+
+- **真正的声学声纹分离** —— 用户已确认分阶段:先做本轮轻量方案,再评估是否引入。
+  若做,现实选项是 **`sherpa-onnx`**(ONNX Runtime,**不需要 torch**,模型约 100MB,
+  用 pyannote 分割 + 3D-Speaker 声纹嵌入)。必须先核实:
+  - 服务器 **4C/7.4G/50G**,已跑 backend + frontend + postgres + redis + minio + celery
+    + edge + skillhub + aihub 一整套;磁盘余量需实测
+  - celery 容器 `mem_limit: 2g`、backend `512m`(`docker-compose.yml:100,135`)——
+        跑声学模型必然要调,且 celery 现为 `--concurrency=2`
+  - CPU 上 2 小时会议的声学聚类耗时(异步 Celery,可接受但要实测)
+  - **`torch` + `pyannote` 路线基本不可行**(镜像体积 + 内存 + GCP 已迁腾讯云,
+    ghcr 拉取慢的历史包袱)
+- **「参会人名单」从飞书妙记 / 日历自动同步** —— 现在只能人工维护
+- **Path A 的「说话人N」→ 真人名映射** —— 飞书妙记格式转写即使解析精确,
+  标签仍是匿名的,目前无任何映射机制
+
+---
+
+## 已知既有问题(沿用上一轮记录,本轮仍未修)
 
 - **`/todos/*` 全部端点缺项目 ACL** —— 只校验 `get_current_user`,任何登录用户可读写
-  任意项目的待办。本次新加的两个 classify 端点已补 `require_project_access`,
-  但既有端点行为**未改**(改了就破坏既有前端调用契约)。属独立安全修复。
+  任意项目的待办。属独立安全修复。
 - **`POST /todos/{id}/smart-assign` 复用了 `meeting_illustrations_extract` 这个 task 名**
-  (`backend/api/project_todos.py`),语义不对且导致该 key 的模型配置被两处共用。
-  改它会影响 smart-assign 的线上模型选择,需单独评估。
-- **`sync_todos_for_meeting()` 无调用方**(死代码),会议级同步入口实际走的是项目级。
-- **redesign 壳的 `LEFT_TABS` 缺 `advice`**(legacy 有)。既有差异,本次未动。
+  (`backend/api/project_todos.py:909`),语义不对且导致该 key 的模型配置被两处共用。
+  **本轮摘解释图 tab 时切勿删掉这个 routing key** —— 会连带打断 smart-assign。
+- **`sync_todos_for_meeting()` 无调用方**(死代码)。
+- **`comparison.py:290-291` 的 error 字段被前端静默忽略** —— 当所有 change 都被取证闸砍光、
+  但还剩建议时,前端走「有结果」分支,用户看到「只剩建议」而看不到 error。本轮不修,
+  但改对比功能时注意别把这个行为放大。
+- **redesign 壳的 `LEFT_TABS` 缺 `advice`**(legacy 有)。既有差异,本轮未动。
