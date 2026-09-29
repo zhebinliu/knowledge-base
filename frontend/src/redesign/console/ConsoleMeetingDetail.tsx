@@ -27,7 +27,7 @@ import {
   MD_BODY_CLS, usePanelMaxHeight,
   OverviewTab, TranscriptTab, MinutesTab,
   RequirementsTab, ProcessFlowsTab, StakeholdersTab, ActionsTab,
-  InsightTab,
+  InsightTab, SpeakerDialoguePanel,
 } from '../../pages/console/ConsoleMeetingDetail'
 import { getMeetingAudioUrl } from '../../api/meeting-ext'
 import AudioPlayer, { type AudioPlayerHandle } from '../../components/AudioPlayer'
@@ -37,7 +37,7 @@ import { toast } from '../../components/Toaster'
 import GlowCard from '../components/GlowCard'
 
 type LeftTab = 'minutes' | 'requirements' | 'process_flows' | 'stakeholders' | 'insight'
-type RightTab = 'transcript' | 'polished'
+type RightTab = 'transcript' | 'polished' | 'speakers'
 
 const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: LucideIcon }> = [
   { key: 'minutes',       label: '会议纪要', Icon: ListChecks },
@@ -48,8 +48,9 @@ const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: LucideIcon }> = [
 ]
 
 const RIGHT_TABS: Array<{ key: RightTab; label: string; Icon: LucideIcon }> = [
-  { key: 'transcript', label: '原文',   Icon: FileText },
-  { key: 'polished',   label: 'AI润色', Icon: FileText },
+  { key: 'transcript', label: '原文',       Icon: FileText },
+  { key: 'polished',   label: 'AI润色',     Icon: FileText },
+  { key: 'speakers',   label: '讲话人识别', Icon: Users },
 ]
 
 export default function NewConsoleMeetingDetail() {
@@ -554,6 +555,10 @@ function TranscriptPanel({
   onPolish: () => void
   polishPending: boolean
 }) {
+  // 讲话人识别不读 raw/polished 转写,也就没有「转写为空」这回事 ——
+  // 它的空状态由后端 speaker_stats 决定,在 SpeakerDialoguePanel 里分三种情况说。
+  if (rightTab === 'speakers') return <SpeakerDialoguePanel meeting={meeting} />
+
   const isEmpty = rightTab === 'transcript' ? !meeting.raw_transcript : !meeting.polished_transcript
 
   if (isEmpty) {

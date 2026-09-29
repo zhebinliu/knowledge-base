@@ -421,15 +421,37 @@ def apply_corrections(
     return out
 
 
+def apply_segment_corrections(raw_segments: list[dict], corrections: object = None) -> list[dict]:
+    """把人工校正映射到「讲话人识别」视图的每一段上。
+
+    为什么必须与 `apply_corrections` 用**同一份映射**:这两个视图在同一页并排出现
+    —— 发言时长图说「张三 42%」,而下面按段列出来的还写着「说话人 1」,用户会以为
+    改名没生效。校正只改名字,**不改时间区间** —— 区间是时间事实,改名不该动它的边界。
+    """
+    corr = clean_corrections(corrections)
+    out: list[dict] = []
+    for s in raw_segments or []:
+        if not isinstance(s, dict):
+            continue
+        label = _clean_speaker_label(str(s.get("name") or ""))
+        if not label:
+            continue
+        out.append({**s, "name": _clean_speaker_label(corr.get(label, "")) or label})
+    return out
+
+
 def with_corrections(
     stats: dict, corrections: object = None, corrected_at: str | None = None
 ) -> dict:
     """给刚生成的 stats 挂上原始结果 + 重放既有人工校正。
 
-    两个字段的分工:
+    四个字段的分工:
     - `raw_speakers` 未经校正的归因结果,校正重放的基准(前端展示用不上,但少了它
       就没法幂等重放 —— 见 `apply_corrections`)
+    - `raw_segments` 同上,只是形状是「按时间分段」而不是「按人聚合」;
+      两个视图必须从各自的 raw 重放,共用一份 corrections
     - `corrections`  {原始标签: 最终姓名} 的人工映射,与 `raw_speakers` 一起持久化
+    - `segments`     校正后的分段,喂前端「讲话人识别」视图
 
     `corrected_at` 只在传了映射时才有意义;重新生成时由调用方传入既有的时间戳,
     免得「重新生成」把「人工校正于何时」这个事实改成「刚刚」。
@@ -437,9 +459,12 @@ def with_corrections(
     corr = clean_corrections(corrections)
     out = dict(stats)
     raw = [s for s in (stats.get("speakers") or []) if isinstance(s, dict)]
+    raw_segs = [s for s in (stats.get("segments") or []) if isinstance(s, dict)]
     out["raw_speakers"] = raw
+    out["raw_segments"] = raw_segs
     out["corrections"] = corr
     out["speakers"] = apply_corrections(raw, corr, stats.get("unknown_seconds"))
+    out["segments"] = apply_segment_corrections(raw_segs, corr)
     if corr:
         out["corrected"] = True
         out["corrected_at"] = corrected_at or _now_iso()
@@ -671,13 +696,19 @@ def _resolve_owners(
     return [o if o is not None else UNKNOWN_SPEAKER for o in owners], confidence
 
 
-def _segments_from_owners(lines: list[dict], owners: list[str], total_seconds: float | None) -> list[dict]:
-    """逐行归属 → 连续区间 → 各区间时长。
+def _segment_runs(lines: list[dict], owners: list[str], total_seconds: float | None) -> list[dict]:
+    """逐行归属 → 连续区间。**唯一的游走实现**,由下面两个投影共用:
+
+    - `_segments_from_owners` 取 `{name, seconds}` —— 喂发言时长聚合
+    - `_spans_from_owners`    取带起止时间的区间 —— 喂「讲话人识别」视图
+
+    合并成一个实现是因为两处各写一遍时长兜底规则迟早会漂移(这里改了 600s 阈值那边没改),
+    后果是时长图和各段边界对不上,而那两个视图在同一个页面上并排展示。
 
     区间时长 = 下一区间首行时间戳 − 本区间首行时间戳;末区间用会议总时长收尾。
     这样各区间首尾相接,总和不重不漏。
     """
-    turns: list[dict] = []
+    runs: list[dict] = []
     i = 0
     n = len(owners)
     while i < n:
@@ -700,9 +731,54 @@ def _segments_from_owners(lines: list[dict], owners: list[str], total_seconds: f
         # 时间戳跨度明显不合理(为 0、负数、或超过 10 分钟)时按切片兜底,别让静音段算爆某人时长
         if secs <= 0 or secs > 600:
             secs = _ASR_CHUNK_SECONDS * line_count
-        turns.append({"name": owners[i], "seconds": secs})
+        runs.append(
+            {
+                "name": owners[i],
+                "seconds": secs,
+                "start_seconds": float(start_ts) if start_ts is not None else None,
+                "start_line": i + 1,
+                "end_line": j + 1,
+            }
+        )
         i = j + 1
-    return turns
+    return runs
+
+
+def _segments_from_owners(lines: list[dict], owners: list[str], total_seconds: float | None) -> list[dict]:
+    """`_segment_runs` → `{name, seconds}`,喂 `_aggregate_turns` 算发言时长。"""
+    return [
+        {"name": r["name"], "seconds": r["seconds"]}
+        for r in _segment_runs(lines, owners, total_seconds)
+    ]
+
+
+def _spans_from_owners(lines: list[dict], owners: list[str], total_seconds: float | None) -> list[dict]:
+    """`_segment_runs` → 带时间区间的分段,喂前端「讲话人识别」视图。
+
+    前端拿 `[start_seconds, end_seconds)` 去 `polished_transcript` 的 `[MM:SS]` 标记里
+    取该段的润色文本 —— 润色提示词要求时间戳与原文行**一一对应**,所以这个区间是能对上的
+    (见 `backend/prompts/meeting.py:13-17`)。
+
+    `end_seconds` 用 `start + seconds` 而不是原始的下一个时间戳:这样它与发言时长用的是
+    **同一个时长**,两种视图不会出现「图上说 3 分钟、分段说 4 分钟」的矛盾,且各段严格首尾相接。
+
+    `start_seconds` 为 None 表示这一段所在行没有时间标记(整份转写都没标记的情况在
+    `extract_speaker_durations` 里已提前拦掉,这里是防御)。如实传 None 让前端走兜底,
+    不要编一个 0 出来 —— 那会把该段的文本错误地对齐到开场。
+    """
+    out: list[dict] = []
+    for r in _segment_runs(lines, owners, total_seconds):
+        start = r["start_seconds"]
+        out.append(
+            {
+                "name": r["name"],
+                "start_seconds": start,
+                "end_seconds": round(start + r["seconds"], 1) if start is not None else None,
+                "start_line": r["start_line"],
+                "end_line": r["end_line"],
+            }
+        )
+    return out
 
 
 async def extract_speaker_durations(
@@ -733,6 +809,16 @@ async def extract_speaker_durations(
         if turns:
             agg = _durations_from_parsed_turns(turns, total_seconds)
             logger.info("speaker_durations_parsed", source=src_name, turns=len(turns), speakers=len(agg["speakers"]))
+            # 路径 A 的分段:表头自带起止时间,直接映射。末轮没写结束时间就留 None,
+            # 让前端按「吃到结尾」处理,不要在这里编一个结束点出来。
+            segments = [
+                {
+                    "name": t["name"],
+                    "start_seconds": float(t["start"]),
+                    "end_seconds": float(t["end"]) if t["end"] is not None else None,
+                }
+                for t in turns
+            ]
             return {
                 "source": "parsed",
                 "mode": "parsed",
@@ -743,6 +829,7 @@ async def extract_speaker_durations(
                 "note": "转写自带说话人表头,时长为表头时间戳精确推算",
                 "model": None,
                 "generated_at": _now_iso(),
+                "segments": segments,
                 **agg,
             }
 
@@ -772,6 +859,9 @@ async def extract_speaker_durations(
     covered = sum(1 for o in owners if o != UNKNOWN_SPEAKER)
     coverage = round(covered / len(owners), 3) if owners else 0.0
     turns = _segments_from_owners(lines, owners, total_seconds)
+    # 与 turns 同源(_segment_runs 的另一个投影):前者喂时长聚合,后者喂「讲话人识别」视图。
+    # 两个视图在同一页并排,必须同切分,否则对不上。
+    spans = _spans_from_owners(lines, owners, total_seconds)
     agg = _aggregate_turns(turns, total_seconds)
 
     if not conf:
@@ -800,6 +890,7 @@ async def extract_speaker_durations(
         "note": note,
         "model": None,
         "generated_at": _now_iso(),
+        "segments": spans,
         **agg,
     }
 
@@ -815,6 +906,7 @@ def _empty_speaker_stats(note: str) -> dict:
         "note": note,
         "model": None,
         "speakers": [],
+        "segments": [],
         "unknown_seconds": 0.0,
         "total_seconds": 0.0,
         "generated_at": _now_iso(),

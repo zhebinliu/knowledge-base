@@ -28,7 +28,7 @@ import {
   createMeetingRequirement, deleteMeetingRequirement,
   syncMeetingStakeholdersToProject,
   type Meeting, type MeetingStatus, type MeetingMinutes, type MeetingRequirement,
-  type StakeholderItem, type FeishuUrlCheckResult,
+  type StakeholderItem, type FeishuUrlCheckResult, type SpeakerSegment,
   getLiveAdvice, runLiveAdvice, resolveLiveAdvice, dismissLiveAdvice, pendLiveAdvice,
   type LiveAdviceItem, type LiveAdviceCategory,
 } from '../../api/client'
@@ -53,7 +53,7 @@ export { InsightTab }
 const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 type TopView = 'overview' | 'split' | 'actions'
 type LeftTab = 'minutes' | 'advice' | 'requirements' | 'process_flows' | 'stakeholders' | 'insight'
-type RightTab = 'transcript' | 'polished'
+type RightTab = 'transcript' | 'polished' | 'speakers'
 
 /** 变更类 mutation 的统一失败提示。
  *  本文件 30 个 mutation 里原有 22 个只有 onSuccess —— 失败时无 toast、无内联错误、
@@ -245,8 +245,9 @@ const LEFT_TABS: Array<{ key: LeftTab; label: string; Icon: typeof Info }> = [
 ]
 
 const RIGHT_TABS: Array<{ key: RightTab; label: string; Icon: typeof Info }> = [
-  { key: 'transcript', label: '原文',   Icon: FileText },
-  { key: 'polished',   label: 'AI润色', Icon: FileText },
+  { key: 'transcript', label: '原文',       Icon: FileText },
+  { key: 'polished',   label: 'AI润色',     Icon: FileText },
+  { key: 'speakers',   label: '讲话人识别', Icon: Users },
 ]
 
 // ── 会议 Co-pilot 建议(会后复盘:展示调研建议,先给方案再引导客户确认) ──────────
@@ -3262,6 +3263,10 @@ export default function ConsoleMeetingDetail() {
 // ── 右侧转录面板: 原文 / AI润色 切换展示 ───────────────────────────────────────
 
 function TranscriptPanel({ meeting, tab }: { meeting: Meeting; tab: RightTab }) {
+  // 讲话人识别走的是完全不同的数据源(speaker_stats 的分段 + 按时间对齐润色文本),
+  // 不是「取一段文本渲染出来」,所以在算 content 之前先分流出去。
+  if (tab === 'speakers') return <SpeakerDialoguePanel meeting={meeting} />
+
   const content = tab === 'transcript'
     ? (meeting.raw_transcript || '暂无原始转写')
     : (meeting.polished_transcript || '暂无润色转写，可在「操作」页触发 AI 润色')
@@ -3295,6 +3300,231 @@ function TranscriptPanel({ meeting, tab }: { meeting: Meeting; tab: RightTab }) 
           className="whitespace-pre-wrap font-sans text-inherit bg-transparent p-0 m-0 border-none"
           style={{ lineHeight: 1.8 }}
         >{content}</pre>
+      )}
+    </div>
+  )
+}
+
+// ── 「讲话人识别」:按说话人分段展示润色后的对话 ────────────────────────────────
+//
+// 数据来路分两半:后端 `speaker_stats.segments` 给「谁 · 从第几秒到第几秒」,
+// 正文则由前端拿这个时间区间去 `polished_transcript` 的 [MM:SS] 标记里取。
+//
+// 为什么不把正文一起存进 speaker_stats:那是个 JSON 列,塞进整份转写会让它膨胀
+// 上百 KB;而且用户重跑润色后,这里会自动跟着变,不会出现两份对不上的正文。
+//
+// 区间能对上,靠的是润色提示词要求「时间戳逐字保留、输入多少行带 [MM:SS] 的内容
+// 就输出多少个标记」——见 backend/prompts/meeting.py:13-17。
+
+/** 「无法判断」桶。与后端 insights.py 的 UNKNOWN_SPEAKER 同字面量。 */
+const SPEAKER_UNKNOWN = '无法判断'
+
+/** 每段正文的排版。比 MD_BODY_CLS 紧一档 —— 一段通常只有一两句,沿用正文那套
+ *  my-2.5 和标题上边距会把对话框撑散。与 MD_BODY_CLS 同规矩:**只管排版不管颜色**,
+ *  配色交给 redesign.css 的 `.rd-root .prose`(所以下面仍要挂 `prose` 类名)。 */
+const DIALOGUE_BODY_CLS = [
+  'text-[13px]',
+  '[&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0',
+  '[&_ul]:my-1 [&_ul]:pl-4 [&_ul]:list-disc',
+  '[&_ol]:my-1 [&_ol]:pl-4 [&_ol]:list-decimal',
+  '[&_li]:my-0.5',
+  '[&_h1]:text-[14px] [&_h2]:text-[14px] [&_h3]:text-[13px] [&_h1]:my-1.5 [&_h2]:my-1.5 [&_h3]:my-1.5',
+  '[&_code]:font-mono [&_code]:text-[12.5px]',
+].join(' ')
+
+/** `fmtClock`(本文件上方跳转条那版)的空值版本:分段起点/终点都可能为 null ——
+ *  起点为 null 表示该段所在行没有时间标记,终点为 null 表示一直说到会议结尾。 */
+const fmtClockOr = (s: number | null): string => (s === null ? '--:--' : fmtClock(s))
+
+/** 润色全文里的一块:`[MM:SS]` 标记 + 它到下一个标记之间的正文。 */
+interface DialogueChunk { sec: number; text: string }
+
+/**
+ * 扫出润色全文的所有时间标记,切成 (秒, 正文) 序列。
+ *
+ * 用「扫全文」而不是「逐行匹配行首」:润色可能把相邻行合并、也可能加上 markdown
+ * 结构(列表 / 小标题),行首匹配会成片漏掉。两个标记之间的一切就是这一块的正文。
+ * `[MM:SS]` 与 `[HH:MM:SS]` 的判定跟后端 `_TS_AT_START_RE` 一致:有第三段才算小时。
+ */
+function parseTimedChunks(text: string): DialogueChunk[] {
+  const re = /\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]/g
+  const marks: Array<{ sec: number; start: number; end: number }> = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    const sec = m[3] !== undefined
+      ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])
+      : Number(m[1]) * 60 + Number(m[2])
+    marks.push({ sec, start: m.index, end: m.index + m[0].length })
+  }
+  const out: DialogueChunk[] = []
+  for (let i = 0; i < marks.length; i++) {
+    const stop = i + 1 < marks.length ? marks[i + 1].start : text.length
+    const body = text.slice(marks[i].end, stop).trim()
+    if (body) out.push({ sec: marks[i].sec, text: body })
+  }
+  return out
+}
+
+/**
+ * 把 (秒, 正文) 块按分段区间分配下去。
+ *
+ * 用游标推进而不是「按秒查表」:归因的行时间戳可能是**继承**来的(某行没有标记就
+ * 沿用上一行的 ts,见后端 `_numbered_lines`),于是会出现重复的秒数,查表会把同一块
+ * 文本同时分给相邻两段。游标只往前走,天然不会重复分配、也不会倒序。
+ */
+function assignChunks(
+  segments: SpeakerSegment[],
+  chunks: DialogueChunk[],
+): Array<{ seg: SpeakerSegment; text: string }> {
+  const rows: Array<{ seg: SpeakerSegment; text: string }> = []
+  let ci = 0
+  for (const seg of segments) {
+    const stop = seg.end_seconds ?? Infinity
+    const buf: string[] = []
+    while (ci < chunks.length && chunks[ci].sec < stop) {
+      buf.push(chunks[ci].text)
+      ci++
+    }
+    rows.push({ seg, text: buf.join('\n') })
+  }
+  // 末段的结束时间若落在最后一个标记之前,会剩几块没分出去 —— 补给最后一段。
+  // 宁可把话多给一个人,也不要让内容凭空消失。
+  if (ci < chunks.length && rows.length > 0) {
+    const rest = chunks.slice(ci).map(c => c.text).join('\n')
+    const last = rows[rows.length - 1]
+    last.text = last.text ? `${last.text}\n${rest}` : rest
+  }
+  return rows
+}
+
+/**
+ * 「讲话人识别」面板:讲话人名 + 时间点 + 润色后的对话。
+ *
+ * 本组件由 legacy 与 redesign 两个壳共用(redesign 从本文件 import,沿用
+ * `MD_BODY_CLS` / `usePanelMaxHeight` 那套「legacy 导出、redesign 导入」的先例)。
+ */
+export function SpeakerDialoguePanel({ meeting }: { meeting: Meeting }) {
+  const stats = meeting.speaker_stats
+  const segments = (stats?.segments ?? []) as SpeakerSegment[]
+
+  // 三种空状态要分开说。合起来写一句「暂无数据」的话,用户不知道该去点哪里。
+  if (!stats) {
+    return (
+      <div className="text-center py-12 text-sm text-ink-muted">
+        <p className="mb-3">还没有做过说话人识别</p>
+        <p className="text-xs">到「洞察」标签点「生成发言时长」,生成后这里会按讲话人分段展示</p>
+      </div>
+    )
+  }
+  if (stats.mode === 'none') {
+    return (
+      <div className="text-center py-12 text-sm text-ink-muted">
+        <p className="mb-3">本次没能识别出讲话人</p>
+        <p className="text-xs">{stats.note || '可到「洞察」标签重试'}</p>
+      </div>
+    )
+  }
+  if (segments.length === 0) {
+    // 老数据:feature 上线前生成的 speaker_stats 里没有 segments 字段
+    return (
+      <div className="text-center py-12 text-sm text-ink-muted">
+        <p className="mb-3">这次的结果里没有分段数据</p>
+        <p className="text-xs">到「洞察」标签点一次「重新生成」即可(旧数据没有这个字段)</p>
+      </div>
+    )
+  }
+
+  // 正文优先用润色版;润色还没跑就退回原文,并在下面如实说明(不假装是润色过的)
+  const polished = meeting.polished_transcript || ''
+  const usedPolished = !!polished
+  const chunks = parseTimedChunks(polished || meeting.raw_transcript || '')
+  // 有一段算不出起点,就没法把正文按时段切开 —— 整块降级成「只有人 + 时间点」,
+  // 而不是硬切出一堆错位的正文。
+  const canAlign = chunks.length > 0 && segments.every(s => s.start_seconds !== null)
+  const rows = canAlign ? assignChunks(segments, chunks) : []
+
+  const confLabel =
+    stats.confidence === 'high' ? '高'
+      : stats.confidence === 'medium' ? '中'
+        : stats.confidence === 'low' ? '低' : ''
+
+  return (
+    <div className="space-y-3">
+      {/* 来源标注:与「洞察」里的发言时长图同一套口径 —— 这是推断不是声学识别,
+          必须让用户看得见,不能让它看起来像识别出来的结果。 */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-ink-muted">
+        {stats.mode === 'parsed' ? (
+          <span className="rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-green-700">
+            精确解析 · 转写自带说话人表头
+          </span>
+        ) : (
+          <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-amber-700">
+            AI 推断{confLabel ? ` · 置信度${confLabel}` : ''}
+          </span>
+        )}
+        {stats.corrected && (
+          <span className="rounded border border-line bg-canvas px-1.5 py-0.5">已人工校正</span>
+        )}
+        <span>共 {segments.length} 段</span>
+        {!usedPolished && <span>· 润色未完成,以下为原文</span>}
+      </div>
+
+      {!canAlign ? (
+        <div className="rounded-md border border-dashed border-line bg-canvas/40 p-3">
+          <p className="mb-2 text-xs text-ink-muted">
+            这份转写里没有可对齐的 [MM:SS] 时间标记,取不到每段对应的正文。下面是分段与时间点。
+          </p>
+          <ul className="space-y-1 text-xs">
+            {segments.map((s, i) => (
+              <li key={i} className="flex flex-wrap items-baseline gap-x-2">
+                <span className="text-ink-secondary">{s.name}</span>
+                <span className="tabular-nums text-ink-muted">
+                  {fmtClockOr(s.start_seconds)}
+                  {s.end_seconds !== null ? ` – ${fmtClockOr(s.end_seconds)}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {rows.map(({ seg, text }, i) => {
+            const unknown = seg.name === SPEAKER_UNKNOWN
+            return (
+              <div
+                key={i}
+                className={`rounded-md border bg-canvas/40 px-3 py-2 ${
+                  unknown ? 'border-dashed border-line' : 'border-line'
+                }`}
+              >
+                <div className="mb-1 flex flex-wrap items-baseline gap-x-2 text-[11px]">
+                  <span className={`font-semibold ${unknown ? 'text-ink-muted' : 'text-ink'}`}>
+                    {seg.name}
+                  </span>
+                  <span className="tabular-nums text-ink-muted">
+                    {fmtClockOr(seg.start_seconds)}
+                    {seg.end_seconds !== null ? ` – ${fmtClockOr(seg.end_seconds)}` : ''}
+                  </span>
+                </div>
+                {text ? (
+                  // prose 只为拿 redesign.css 的配色规则,排版由 DIALOGUE_BODY_CLS 负责
+                  <div className={`text-ink-secondary prose max-w-none ${DIALOGUE_BODY_CLS}`}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-ink-muted">(这一段没取到对应文本)</p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {stats.mode === 'inferred' && (
+        <p className="text-[11px] text-ink-muted">
+          讲话人由 AI 依据对话内容推断(转写本身不带说话人信息),不是声学识别,仅供参考。
+          到「洞察」标签可人工校正姓名。
+        </p>
       )}
     </div>
   )

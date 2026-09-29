@@ -1627,6 +1627,9 @@ async def correct_speaker_stats(
 
     stats = m.speaker_stats if isinstance(m.speaker_stats, dict) else None
     raw = [s for s in ((stats or {}).get("raw_speakers") or []) if isinstance(s, dict)]
+    # 「讲话人识别」视图的原始分段。本次改动之前生成的数据没有这个字段 → 空列表,
+    # 校正照常只作用于 speakers;等下一次重新生成就会补上。
+    raw_segs = [s for s in ((stats or {}).get("raw_segments") or []) if isinstance(s, dict)]
     if not stats or not raw:
         raise HTTPException(400, "尚未生成发言时长,没有可校正的内容")
 
@@ -1645,13 +1648,19 @@ async def correct_speaker_stats(
         applied.update(incoming)
 
     # 把 stats 还原成「刚生成完」的形状(speakers = 原始结果),再交给 with_corrections 重放。
-    # 校正派生出来的三个字段先摘掉,免得旧值被带进去 —— 它们由 with_corrections 重新算。
+    # 派生字段全部先摘掉,免得旧值被带进去 —— 它们由 with_corrections 重新算。
+    # `segments` / `raw_segments` 是「讲话人识别」视图的那一份,同样必须还原成原始态:
+    # 把**已校正**的分段当作原始态喂回去,重放就不再幂等(改一次名会叠一层)。
     base = {
         k: v
         for k, v in stats.items()
-        if k not in ("speakers", "raw_speakers", "corrections", "corrected", "corrected_at")
+        if k not in (
+            "speakers", "raw_speakers", "corrections", "corrected", "corrected_at",
+            "segments", "raw_segments",
+        )
     }
     base["speakers"] = raw
+    base["segments"] = raw_segs
     updated = with_corrections(base, applied, iso_utc(utcnow_naive()) if applied else None)
 
     m.speaker_stats = updated

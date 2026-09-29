@@ -2192,6 +2192,18 @@ export interface SpeakerStat {
   labels?: string[]
 }
 
+/** 「讲话人识别」视图的一段 —— 某人连续说的一段话。 */
+export interface SpeakerSegment {
+  name: string
+  /** 该段起点(秒,录音时间轴)。null = 该段所在行没有时间标记,前端无法定位文本。 */
+  start_seconds: number | null
+  /** 该段终点(秒)。null = 会议末尾,前端按「吃到结尾」处理。 */
+  end_seconds: number | null
+  /** 原始转写里的行号区间(1 起),排查用 */
+  start_line?: number
+  end_line?: number
+}
+
 export interface MeetingSpeakerStats {
   source: 'parsed' | 'llm' | 'none'
   mode: 'parsed' | 'inferred' | 'none'
@@ -2205,9 +2217,14 @@ export interface MeetingSpeakerStats {
   unknown_seconds: number
   total_seconds: number
   generated_at: string
+  /** 按时间排列的说话人分段,喂「讲话人识别」tab(已应用人工校正)。
+   *  与 `speakers` 同源同切分,只是形状不同:那边按人聚合,这边按时间分段。 */
+  segments?: SpeakerSegment[]
   // ── 人工校正(2026-09)────────────────────────────────────────────────
   /** 未经校正的原始归因结果。校正重放的基准,前端只读不展示。 */
   raw_speakers?: SpeakerStat[]
+  /** 未经校正的说话人分段。与 `raw_speakers` 同构,前端只读不展示。 */
+  raw_segments?: SpeakerSegment[]
   /** 人工映射 `{原始标签: 最终姓名}`。改名是单项,合并是多项指向同一姓名。 */
   corrections?: Record<string, string>
   corrected?: boolean
