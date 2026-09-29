@@ -132,7 +132,22 @@
       且带 `prose-gray` 说明作者以为装了 typography 插件。这个组件被报告类页面共用,
       影响面比详情页大,但不在本轮范围 —— 修它需要连同报告页一起走查。
 
-## 本轮人工验证清单(部署后)
+## 部署记录
+
+- `3b7456f`(Block F-1)+ `eb4a3dc`(Block F-2)→ 2026-09-29 手动触发 `deploy-prod.yml`,
+  run `36515028344`,**success**(Build & deploy on server 2m27s)。
+- **产物核对**(不只看 workflow 绿):
+  - `https://kb.sharewb.cloud/assets/index-DPFUg3to.css` 的 hash 与本地 `npm run build`
+    产物**完全一致** —— 说明上线的是我本地验证过的那份构建。
+  - 已从线上 JS 里查到本轮新增的字符串:`纪要还有未保存的改动,切走会丢失`、
+    `有未保存的改动,确定放弃吗?`、`没有改动`,以及 `toastErr` 的 action 参数
+    (`保存纪要` / `同步到项目` / `提取业务流程` / `删除干系人` …)。
+    注意:`保存纪要失败` 这种**查不到是对的** —— 文案是 `` `${action}失败` `` 拼出来的。
+  - 已从线上 CSS 里查到 `MD_BODY_CLS` 生成的规则(`li>ul`、`h1:first-child`、
+    `list-style-type:disc`、`border-current`)。
+  - 后端存活:`/api/auth/me` → 401(未带 token,符合预期)。
+
+## 本轮人工验证清单(部署后,待人工点)
 
 - [ ] 会议处于 `recording`/`processing` 时进入纪要 tab → 点「编辑」→ 连续输入 30 秒
       → 输入内容不被轮询冲掉
