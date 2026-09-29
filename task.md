@@ -205,6 +205,16 @@
   - 已从线上 CSS 里查到 `MD_BODY_CLS` 生成的规则(`li>ul`、`h1:first-child`、
     `list-style-type:disc`、`border-current`)。
   - 后端存活:`/api/auth/me` → 401(未带 token,符合预期)。
+- `ca80cc6`(Block F-3 + F-4)→ 2026-09-29 手动触发 `deploy-prod.yml`,
+  run `36524271543`,**success**(4m30s)。
+  - **教训:不要拿 CSS hash 相等当「部署的就是我这份构建」的充分证据**。
+    这次 CSS hash 仍与本地一致(`index-BtsKB29F.css`),但 **JS hash 不一致**
+    (线上 `index-CoiMMoDA.js` vs 本地 `index-BRBJdgiW.js`);清空 `dist` 重建后
+    本地仍是 `BRBJdgiW`,说明两边的构建产物本来就非逐字节一致(服务器在 Docker 里 build)。
+    上一轮我只对上了 CSS 就写了「完全一致」,那个结论比实际证据强。
+    **真正充分的证据是从线上 JS 里查到本轮新增的字符串**:
+    `移动到哪个象限`(下拉框 aria-label)、`改到其它象限`(title)、
+    `或用 chip 右下角的下拉框选`(改过的说明文案)、`Math.max(240`(新的实测钩子)。
 
 ## 本轮人工验证清单(部署后,待人工点)
 
