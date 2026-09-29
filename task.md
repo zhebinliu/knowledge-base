@@ -76,6 +76,22 @@
 - 前端 `npx tsc --noEmit -p tsconfig.json` → **exit 0**。
 - 对齐逻辑单独跑了一遍真代码(用 esbuild 把 `parseTimedChunks` / `assignChunks` 从源文件切出来转译后 import,非重写):**14 条断言全过**,覆盖 `MM:SS`/`HH:MM:SS` 混排、标记不在行首 + markdown 结构、无标记降级、空块丢弃、左闭右开边界归属、**重复秒数不重复分配**、`null` end 吃到结尾、剩余块兜底、空段占位。临时文件已删。
 
+## 部署结果(2026-09-29)
+
+- commit `e7509df` → push `main`;CI Checks(`36543041066`)success(含后端测试 + 前端 tsc/build)。
+- **Deploy PROD(`36543636697`)success**,耗时 4m30s 量级,与上一次一致。
+- 前端产物核对:线上 `https://kb.sharewb.cloud/assets/index-BGPxyABA.js` 里四个新文案全部命中
+  ——「讲话人识别」×2、「这一段没取到对应文本」、「这份转写里没有可对齐的」、「旧数据没有这个字段」。
+- 后端:workflow 自带的 `/health`(`:8000`,120s 重试,不健康则 job 失败)通过,说明容器起来了、
+  加载的是本次镜像。**但「容器内 `insights.py` 确实是新代码」这一步没能直接验证** ——
+  本机没有 `CLAUDE.md` 里写的 `~/.ssh/id_rsa_github_deploy`(见下),SSH 不进去。
+  镜像由 CI rsync 下去的同一 commit 构建 + 健康检查通过,属于强推断而非直接证据。
+- **本机缺部署私钥**:`~/.ssh/` 只有 2022 年的 `id_rsa`(服务器不认),全盘也搜不到
+  `id_rsa_github_deploy`。影响:本机无法 SSH 上去看日志 / 查 PG,只能靠 CI 和线上 curl。
+  **不影响 CI 部署**(workflow 用的是 `secrets.SSH_PRIVATE_KEY`)。
+- 待人工验证(自动化测不到,需登录态):拿一个**已生成过 speaker_stats 的老会议**看是否出现
+  「重新生成一次即可」的空状态 → 点重新生成 → 确认分段对齐、时间点连续、改名后两个视图名字一致。
+
 ---
 
 # 轮次:说话人识别准确率优化(2026-09-29)— **方案待拍板,未开工**
