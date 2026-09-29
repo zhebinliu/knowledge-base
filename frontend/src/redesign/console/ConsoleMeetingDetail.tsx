@@ -24,7 +24,7 @@ import {
 import {
   StatusBadge, fmt,
   SeekToContext,
-  MD_BODY_CLS,
+  MD_BODY_CLS, usePanelMaxHeight,
   OverviewTab, TranscriptTab, MinutesTab,
   RequirementsTab, ProcessFlowsTab, StakeholdersTab, ActionsTab,
   InsightTab,
@@ -119,6 +119,12 @@ export default function NewConsoleMeetingDetail() {
       toast[s === 'failed' ? 'error' : 'success'](s === 'failed' ? '会议处理失败，请查看详情' : '会议处理完成')
     }
   }, [meeting?.status])
+
+  // 分栏面板高度:实测替代写死的 calc(100dvh - 320px),见 usePanelMaxHeight 注释。
+  // 注意 hasAudio 在本组件里定义在下面(早退之后),所以 deps 用 meeting?.xxx 原值。
+  const [leftPaneRef, paneMaxH] = usePanelMaxHeight([
+    view, meeting?.audio_object_key, meeting?.status, meeting?.total_chunks,
+  ])
 
   if (!Number.isFinite(meetingId)) {
     return <div className="rd-page" style={{ textAlign: 'center', color: 'var(--rd-text-3)', fontSize: 13 }}>无效的会议 ID</div>
@@ -301,7 +307,11 @@ export default function NewConsoleMeetingDetail() {
 
           {view === 'split' && (
             /* ── 左右分栏 ── */
-            <div className="grid grid-cols-1 lg:grid-cols-5" style={{ minHeight: 480 }}>
+            /* minHeight 480 不能超过实测可用高度,否则矮窗口下把卡片顶出视口、双滚动条 */
+            <div
+              className="grid grid-cols-1 lg:grid-cols-5"
+              style={{ minHeight: paneMaxH === undefined ? 480 : Math.min(480, paneMaxH) }}
+            >
               {/* 左侧面板: 纪要 / 需求清单 / 干系人 */}
               <div
                 style={rightPanelOpen ? { borderRight: '1px solid var(--rd-line)' } : undefined}
@@ -365,7 +375,8 @@ export default function NewConsoleMeetingDetail() {
                   </div>
                 </div>
                 {/* 左侧内容 */}
-                <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(100dvh - 320px)', minHeight: 220 }}>
+                {/* minHeight 同理不能超过可用高度:CSS 里 min-height 会盖过 max-height */}
+                <div ref={leftPaneRef} style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: paneMaxH ?? 'calc(100dvh - 320px)', minHeight: paneMaxH === undefined ? 220 : Math.min(220, paneMaxH) }}>
                   {leftTab === 'minutes'       && <MinutesTab meeting={meeting} onDirtyChange={setMinutesDirty} />}
                   {leftTab === 'requirements'  && <RequirementsTab meeting={meeting} />}
                   {leftTab === 'process_flows' && <ProcessFlowsTab meeting={meeting} />}
@@ -429,7 +440,7 @@ export default function NewConsoleMeetingDetail() {
                     </button>
                   </div>
                   {/* 右侧内容 */}
-                  <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(100dvh - 320px)', minHeight: 220, background: 'rgba(255,255,255,.02)' }}>
+                  <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: paneMaxH ?? 'calc(100dvh - 320px)', minHeight: paneMaxH === undefined ? 220 : Math.min(220, paneMaxH), background: 'rgba(255,255,255,.02)' }}>
                     <TranscriptPanel meeting={meeting} rightTab={rightTab} onPolish={() => polishMut.mutate()} polishPending={polishMut.isPending} />
                   </div>
                 </div>

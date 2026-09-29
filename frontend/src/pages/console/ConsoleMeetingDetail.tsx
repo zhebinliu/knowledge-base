@@ -119,6 +119,43 @@ function stableKey(v: unknown): string {
   )
 }
 
+/** 分栏视图里两个内容面板的高度上限。
+ *
+ *  原来写死的是 `calc(100vh - 360px)` —— 360 是「页头 + 元信息 + tab 栏 + 播放器」
+ *  在某个状态下的实测高度。问题是这些块**随状态出现**:没录音就没有播放器(实际 ~300),
+ *  有录音再加一百多(实际 ~420),processing 时还会多一条进度条。写死的后果:
+ *    - 没播放器 → 面板底边离视口底还差一截,下方一块死白
+ *    - 有播放器 → 面板底边被顶出视口,页面和面板**同时出现滚动条**(矮窗口下尤其明显)
+ *  这里改成实测:视口高度 − 面板在文档里的绝对顶边 − 底部留白。
+ *
+ *  用绝对坐标(`rect.top + scrollY`)而不是 `rect.top`:后者随滚动位置变化,
+ *  用户一滚面板高度就跟着变,会抖。
+ *
+ *  `deps` 由调用方给「会让面板顶边位移的状态」(有没有播放器、有没有进度条等),
+ *  这些值变化时重新量一次。
+ *
+ *  返回的 maxHeight 首次渲染时是 undefined —— 调用方用原来的 `calc(100vh - 360px)`
+ *  兜底,量完再换成实测值,避免首帧跳动。 */
+export function usePanelMaxHeight(deps: unknown[], bottomGap = 24) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [maxH, setMaxH] = useState<number>()
+  useEffect(() => {
+    const measure = () => {
+      const el = ref.current
+      if (!el) return
+      const top = el.getBoundingClientRect().top + window.scrollY
+      // 下限 240:窗口特别矮时别把面板压成一条缝,宁可让整页滚
+      setMaxH(Math.max(240, window.innerHeight - top - bottomGap))
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+    // deps 由调用方决定,长度固定
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bottomGap, ...deps])
+  return [ref, maxH] as const
+}
+
 // ── 时间戳跳转 Context ────────────────────────────────────────────────────
 
 export const SeekToContext = createContext<((seconds: number) => void) | null>(null)
@@ -2964,6 +3001,11 @@ export default function ConsoleMeetingDetail() {
 
   const hasAudio = !!meeting?.audio_object_key
   const hasContent = !!(meeting && (meeting.raw_transcript || meeting.meeting_minutes))
+  // 分栏面板高度:实测替代写死的 calc(100vh - 360px),见 usePanelMaxHeight 注释。
+  // deps = 会让面板顶边位移的状态:播放器 / 转写进度条 / 分栏视图本身挂没挂载
+  const [leftPaneRef, paneMaxH] = usePanelMaxHeight([
+    topView, hasAudio, meeting?.status, meeting?.total_chunks,
+  ])
 
   if (!Number.isFinite(meetingId)) {
     return <div className="p-8 text-ink-muted">无效的会议 ID</div>
@@ -3109,7 +3151,12 @@ export default function ConsoleMeetingDetail() {
 
             {/* ── 左右分栏视图 ── */}
             {topView === 'split' && (
-              <div className="grid grid-cols-1 lg:grid-cols-5" style={{ minHeight: 480 }}>
+              // minHeight 480 是「面板别太矮」的下限,但它不能超过实测可用高度 ——
+              // 否则矮窗口下这个下限把整张卡片顶出视口,页面和面板同时出滚动条。
+              <div
+                className="grid grid-cols-1 lg:grid-cols-5"
+                style={{ minHeight: paneMaxH === undefined ? 480 : Math.min(480, paneMaxH) }}
+              >
                 {/* 左侧面板: 纪要 / 需求清单 / 干系人 */}
                 <div className={`relative ${rightPanelOpen && leftTab !== 'advice' ? 'lg:col-span-3 border-r border-line' : 'lg:col-span-5'}`}>
                   {/* 左侧 Tab 栏 */}
@@ -3138,8 +3185,8 @@ export default function ConsoleMeetingDetail() {
                       <UnifiedExportButton meetingId={meeting.id} meetingTitle={meeting.title} variant="legacy" />
                     </div>
                   </div>
-                  {/* 左侧内容 */}
-                  <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 360px)' }}>
+                  {/* 左侧内容(高度由 leftPaneRef 实测,右侧面板共用同一个值) */}
+                  <div ref={leftPaneRef} className="p-4 overflow-y-auto" style={{ maxHeight: paneMaxH ?? 'calc(100vh - 360px)' }}>
                     {leftTab === 'minutes'       && <MinutesTab meeting={meeting} onDirtyChange={setMinutesDirty} />}
                     {leftTab === 'advice'        && <AdviceTab meeting={meeting} />}
                     {leftTab === 'requirements'  && <RequirementsTab meeting={meeting} />}
@@ -3194,8 +3241,8 @@ export default function ConsoleMeetingDetail() {
                         })}
                       </div>
                     </div>
-                    {/* 右侧内容 */}
-                    <div className="p-4 overflow-y-auto bg-canvas/30" style={{ maxHeight: 'calc(100vh - 360px)' }}>
+                    {/* 右侧内容(与左侧共用实测高度,两栏底边对齐) */}
+                    <div className="p-4 overflow-y-auto bg-canvas/30" style={{ maxHeight: paneMaxH ?? 'calc(100vh - 360px)' }}>
                       <TranscriptPanel meeting={meeting} tab={rightTab} />
                     </div>
                   </div>

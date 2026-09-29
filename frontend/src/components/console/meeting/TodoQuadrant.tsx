@@ -4,9 +4,14 @@
  * ⚠️ 轴是「紧急 × 必要」,**不是**经典的「重要 × 紧急」—— 这是用户明确的口径。
  *    象限由两轴派生,`quadrant === null` 即「未分类」(新同步进来、模型判不了的都在这)。
  *
- * 交互:HTML5 拖拽把待办 chip 拖到别的象限 → `PATCH /todos/{id}` 写两轴。
- * 拖过之后后端把 quadrant_source 标成 `manual`,自动分类从此不再覆盖它
- * —— 用户拖出来的位置是最终意见。想让它重新参与自动分类,拖回「未分类」区。
+ * 交互:两条通路,都写 `PATCH /todos/{id}` 的两轴。
+ *   1. HTML5 拖拽把 chip 拖到别的象限(桌面鼠标的习惯路径)
+ *   2. chip 右下角的原生下拉框选目标象限
+ * 第 2 条不是冗余 —— **HTML5 拖拽在触屏浏览器上根本不触发**,而且原来的
+ * 「移出」按钮是 `display:none` 到 hover 才现形,`display:none` 的元素不可聚焦,
+ * 于是键盘用户也够不到。两条加起来:当年触屏和键盘用户**完全没法改象限**。
+ * 改过之后后端把 quadrant_source 标成 `manual`,自动分类从此不再覆盖它
+ * —— 用户定的位置是最终意见。想让它重新参与自动分类,选/拖「未分类」。
  *
  * 为什么不用 recharts:4 个象限各自要当拖拽落点,图表库给不了可放置区域。
  */
@@ -78,6 +83,19 @@ const QUADRANTS: {
 
 const STATUS_LABEL: Record<string, string> = { pending: '待办', doing: '进行中', done: '已完成' }
 
+/** chip 上的去向下拉框选项。含「未分类」—— 把人工判定交还给自动分类也是有效操作。 */
+const ZONE_OPTIONS: { value: ZoneKey; label: string }[] = [
+  ...QUADRANTS.map((q) => ({ value: q.key, label: q.label })),
+  { value: 'unclassified', label: '未分类' },
+]
+
+/** 一条待办当前落在哪个区。`quadrant` 可能是后端来的陌生值,一律当未分类。 */
+function zoneOf(t: ProjectTodo): ZoneKey {
+  return t.quadrant && QUADRANTS.some((q) => q.key === t.quadrant)
+    ? (t.quadrant as ZoneKey)
+    : 'unclassified'
+}
+
 // 单个象限超过这个条数就先折叠 —— 项目待办动辄几十条,四象限又是 2×2 并排,
 // 不折叠会把「洞察」tab 撑成一条长走廊,反而看不出象限分布(那正是这张图的意义)。
 // 阈值可调:想一次看全就调大。
@@ -88,13 +106,14 @@ function TodoChip({
   dragging,
   onDragStart,
   onDragEnd,
-  onClear,
+  onMove,
 }: {
   todo: ProjectTodo
   dragging: boolean
   onDragStart: () => void
   onDragEnd: () => void
-  onClear?: () => void
+  /** 改象限。拖拽之外的唯一通路 —— 键盘和触屏用户只能走这个(见文件头注释) */
+  onMove?: (zone: ZoneKey) => void
 }) {
   const done = todo.status === 'done'
   const overdue =
@@ -129,14 +148,25 @@ function TodoChip({
         <span>{STATUS_LABEL[todo.status] ?? todo.status}</span>
         {todo.quadrant_source === 'llm' && <span title="由 AI 判定,可拖拽覆盖">AI</span>}
         {todo.meeting_title && <span className="max-w-[9rem] truncate">· {todo.meeting_title}</span>}
-        {onClear && (
-          <button
-            onClick={onClear}
-            className="ml-auto hidden text-ink-muted hover:text-ink group-hover:inline"
-            title="移出象限:回到未分类,之后可被自动分类重新判定"
+        {/* 改象限的下拉框。原来是 hover 才 display:none→inline 的「移出」按钮:
+            它不在 tab 序列里(display:none 的元素不可聚焦),触屏也没有 hover,
+            所以键盘和触屏用户当年**完全没法改象限**。这里换成原生 select ——
+            始终存在、可聚焦、触屏能唤起系统选择器,拖拽照旧。
+            select 自身很安静(10px 灰字),hover/focus 才描边,不抢 chip 的视觉。 */}
+        {onMove && (
+          <select
+            value={zoneOf(todo)}
+            onChange={(e) => onMove(e.target.value as ZoneKey)}
+            // 不加这句,从 select 上起手可能被外层 draggable 抢成拖拽
+            onDragStart={(e) => e.preventDefault()}
+            aria-label={`把「${todo.content}」移动到哪个象限`}
+            title="改到其它象限。拖拽同样有效;选「未分类」交还给 AI 重新判定"
+            className="-my-0.5 ml-auto cursor-pointer rounded border border-transparent bg-transparent px-1 py-0.5 text-[10px] text-ink-muted hover:border-line hover:bg-white hover:text-ink focus:border-brand focus:text-ink focus:outline-none"
           >
-            移出
-          </button>
+            {ZONE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
         )}
       </div>
     </div>
@@ -155,7 +185,7 @@ function DropZone({
   onDrop,
   onChipDragStart,
   onChipDragEnd,
-  onClear,
+  onMove,
   emptyText,
   children,
 }: {
@@ -169,7 +199,7 @@ function DropZone({
   onDrop?: (id: number) => void
   onChipDragStart: (id: number) => void
   onChipDragEnd: () => void
-  onClear?: (id: number) => void
+  onMove?: (id: number, zone: ZoneKey) => void
   emptyText: string
   children?: React.ReactNode
 }) {
@@ -222,7 +252,7 @@ function DropZone({
             dragging={false}
             onDragStart={() => onChipDragStart(t.id)}
             onDragEnd={onChipDragEnd}
-            onClear={onClear ? () => onClear(t.id) : undefined}
+            onMove={onMove ? (z) => onMove(t.id, z) : undefined}
           />
         ))}
         {todos.length === 0 && <p className="m-auto text-[10px] text-ink-muted">{emptyText}</p>}
@@ -302,6 +332,14 @@ export default function TodoQuadrant({ projectId }: { projectId: string }) {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : '同步失败'),
   })
 
+  /** 把一条待办移到指定区。'unclassified' 用空串清空两轴 —— 后端据此把它交还自动分类。 */
+  const moveTo = (id: number, zone: ZoneKey) => {
+    const q = QUADRANTS.find((x) => x.key === zone)
+    moveMut.mutate(
+      q ? { id, urgency: q.urgency, necessity: q.necessity } : { id, urgency: '', necessity: '' },
+    )
+  }
+
   const grouped = useMemo(() => {
     const map: Record<ZoneKey, ProjectTodo[]> = {
       urgent_necessary: [],
@@ -311,8 +349,7 @@ export default function TodoQuadrant({ projectId }: { projectId: string }) {
       unclassified: [],
     }
     for (const t of todosQ.data ?? []) {
-      const zone: ZoneKey = t.quadrant && t.quadrant in map ? t.quadrant : 'unclassified'
-      map[zone].push(t)
+      map[zoneOf(t)].push(t)
     }
     return map
   }, [todosQ.data])
@@ -398,11 +435,7 @@ export default function TodoQuadrant({ projectId }: { projectId: string }) {
                 dragging={draggingId !== null}
                 onChipDragStart={setDraggingId}
                 onChipDragEnd={() => setDraggingId(null)}
-                onClear={
-                  grouped[q.key].some((t) => t.quadrant_source === 'manual')
-                    ? (id) => moveMut.mutate({ id, urgency: '', necessity: '' })
-                    : undefined
-                }
+                onMove={moveTo}
                 emptyText="拖待办到这里"
                 onDrop={(id) => moveMut.mutate({ id, urgency: q.urgency, necessity: q.necessity })}
               />
@@ -422,13 +455,14 @@ export default function TodoQuadrant({ projectId }: { projectId: string }) {
               onChipDragStart={setDraggingId}
               onChipDragEnd={() => setDraggingId(null)}
               onDrop={(id) => moveMut.mutate({ id, urgency: '', necessity: '' })}
+              onMove={moveTo}
               emptyText="全部已分类"
             />
           </div>
 
           <p className="mt-2 flex items-start gap-1 text-[11px] text-ink-muted">
             <Info size={12} className="mt-0.5 shrink-0" />
-            手动拖拽的条目会被标记为人工判定,「重新分类」不会再改动它们;要交还给 AI,把它拖回「未分类」或点 chip 上的「移出」。
+            手动改过象限的条目会被标记为人工判定,「重新分类」不会再改动它们;要交还给 AI,把它拖回「未分类」,或用 chip 右下角的下拉框选「未分类」。
           </p>
 
           {withReason.length > 0 && (
