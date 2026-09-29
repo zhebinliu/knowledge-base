@@ -9,7 +9,7 @@
  *  - stakeholders: 干系人列表 + 关系列表(reactflow 后续接入)
  *  - actions: 同步 KB / 飞书导出 / 多维表同步 / 单点 actions
  */
-import { useState, useEffect, useMemo, useRef, createContext, useContext, Fragment } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback, createContext, useContext, Fragment } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
@@ -54,6 +54,30 @@ const BRAND_GRAD = 'linear-gradient(135deg,#FF8D1A,#D96400)'
 type TopView = 'overview' | 'split' | 'actions'
 type LeftTab = 'minutes' | 'advice' | 'requirements' | 'process_flows' | 'stakeholders' | 'insight'
 type RightTab = 'transcript' | 'polished'
+
+/** 变更类 mutation 的统一失败提示。
+ *  本文件 30 个 mutation 里原有 22 个只有 onSuccess —— 失败时无 toast、无内联错误、
+ *  编辑态仍开着、按钮回到可点状态,现象和「保存成功」一模一样,用户会以为已经存上了。
+ *  所有用户可见的写操作都挂这个,文案带上具体动作。 */
+function toastErr(action: string) {
+  return (err: unknown) => {
+    const e = err as { response?: { data?: { detail?: string } }; message?: string }
+    toast.error(e?.response?.data?.detail || e?.message || `${action}失败`)
+  }
+}
+
+/** 按 key 排序后序列化 —— 用于「有没有改动」的比较。
+ *  直接 JSON.stringify 会因为键顺序不同而误判:用户改一个字段后 draft 的键顺序
+ *  可能和服务端值不同,看起来「改了」但其实值一样。 */
+function stableKey(v: unknown): string {
+  return JSON.stringify(v, (_k, val) =>
+    val && typeof val === 'object' && !Array.isArray(val)
+      ? Object.fromEntries(
+          Object.entries(val as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)),
+        )
+      : val,
+  )
+}
 
 // ── 时间戳跳转 Context ────────────────────────────────────────────────────
 
@@ -230,6 +254,7 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
   const resolved: LiveAdviceItem[] = data?.resolved_advice || []
   const carryover: LiveAdviceItem[] = data?.carryover || []
   const genMut = useMutation({
+    onError: toastErr('生成 Co-pilot 建议'),
     mutationFn: () => runLiveAdvice(meeting.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-advice', meeting.id] }),
   })
@@ -248,14 +273,17 @@ export function AdviceTab({ meeting }: { meeting: Meeting }) {
     }
   }, [isLoading, data, meeting.raw_transcript])
   const resolveMut = useMutation({
+    onError: toastErr('标记建议'),
     mutationFn: (aid: number) => resolveLiveAdvice(meeting.id, aid),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-advice', meeting.id] }),
   })
   const dismissMut = useMutation({
+    onError: toastErr('忽略建议'),
     mutationFn: (aid: number) => dismissLiveAdvice(meeting.id, aid),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-advice', meeting.id] }),
   })
   const pendMut = useMutation({
+    onError: toastErr('标记待定'),
     mutationFn: (aid: number) => pendLiveAdvice(meeting.id, aid),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting-advice', meeting.id] }),
   })
@@ -550,11 +578,13 @@ export function OverviewTab({ meeting }: { meeting: Meeting }) {
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => listProjects() })
 
   const linkMut = useMutation({
+    onError: toastErr('关联项目'),
     mutationFn: () => linkMeetingProject(meeting.id, projectId || null),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting', meeting.id] }),
   })
 
   const titleMut = useMutation({
+    onError: toastErr('保存标题'),
     mutationFn: () => patchMeeting(meeting.id, { title: title.trim() }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting', meeting.id] }),
   })
@@ -668,6 +698,7 @@ export function TranscriptTab({ meeting }: { meeting: Meeting }) {
   }, [meeting.id, meeting.raw_transcript, meeting.polished_transcript])
 
   const saveMut = useMutation({
+    onError: toastErr('保存转写'),
     mutationFn: () => patchMeeting(meeting.id, { raw_transcript: raw, polished_transcript: polished }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
@@ -676,6 +707,7 @@ export function TranscriptTab({ meeting }: { meeting: Meeting }) {
   })
 
   const polishMut = useMutation({
+    onError: toastErr('触发 AI 润色'),
     mutationFn: () => runMeetingAction(meeting.id, 'polish'),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
@@ -756,22 +788,61 @@ export function TranscriptTab({ meeting }: { meeting: Meeting }) {
 
 // ── Tab: Minutes ─────────────────────────────────────────────────────────
 
-export function MinutesTab({ meeting }: { meeting: Meeting }) {
+export function MinutesTab({ meeting, onDirtyChange }: {
+  meeting: Meeting
+  /** 上报「有未保存的改动」—— 切 tab 会卸载本组件、draft 直接蒸发,父级需要据此拦一下 */
+  onDirtyChange?: (dirty: boolean) => void
+}) {
   const qc = useQueryClient()
   const m: MeetingMinutes = meeting.meeting_minutes || {}
   const [editing, setEditing] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
 
   const regenMut = useMutation({
+    onError: toastErr('生成纪要'),
     mutationFn: () => runMeetingAction(meeting.id, 'summarize'),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting', meeting.id] }),
   })
 
   // 元信息 + 摘要的本地草稿(用户改字段时缓存,点保存才落库)
   const [draft, setDraft] = useState<MeetingMinutes>(m)
-  useEffect(() => { setDraft(m) }, [meeting.id, meeting.meeting_minutes])
+  // ⚠️ 编辑中不能被服务端值覆盖:会议还在 recording/processing 时详情页每 5 秒 refetch 一次,
+  //    每次都返回**新对象** → 本 effect 的依赖变化 → setDraft 把用户正在敲的内容冲掉,
+  //    而且无提示无报错。所以编辑态直接跳过同步(2026-09-29)。
+  useEffect(() => {
+    if (editing) return
+    setDraft(m)
+  }, [meeting.id, meeting.meeting_minutes, editing])
+
+  const dirty = useMemo(
+    () => stableKey(draft) !== stableKey(m),
+    [draft, meeting.meeting_minutes],  // eslint-disable-line react-hooks/exhaustive-deps
+  )
+  // 只有「编辑中且有改动」才需要拦切 tab / 关页面
+  const unsaved = editing && dirty
+  useEffect(() => { onDirtyChange?.(unsaved) }, [unsaved, onDirtyChange])
+  useEffect(() => () => { onDirtyChange?.(false) }, [onDirtyChange])
+
+  // 退出编辑一律走这里:有改动先确认,不要静默丢弃。
+  // 用 ref 取最新的 m —— Esc 的 effect 依赖数组里没有 m,闭包里的 m 会是挂载那一刻的。
+  const mRef = useRef(m)
+  mRef.current = m
+  const cancelEdit = useCallback(() => {
+    if (dirty && !window.confirm('有未保存的改动,确定放弃吗?')) return
+    setDraft(mRef.current)
+    setEditing(false)
+  }, [dirty])
+
+  // 关标签页 / 刷新时提醒(SPA 内的切 tab 由父级拦,见 onDirtyChange)
+  useEffect(() => {
+    if (!unsaved) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [unsaved])
 
   const saveMut = useMutation({
+    onError: toastErr('保存纪要'),
     mutationFn: () => patchMeeting(meeting.id, { meeting_minutes: { ...m, ...draft } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
@@ -786,15 +857,14 @@ export function MinutesTab({ meeting }: { meeting: Meeting }) {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
-        if (!saveMut.isPending) saveMut.mutate()
+        if (!saveMut.isPending && dirty) saveMut.mutate()
       } else if (e.key === 'Escape') {
-        setDraft(m); setEditing(false)
+        cancelEdit()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing, saveMut.isPending])
+  }, [editing, saveMut.isPending, dirty, cancelEdit])
 
   if (!meeting.meeting_minutes) {
     return (
@@ -827,14 +897,15 @@ export function MinutesTab({ meeting }: { meeting: Meeting }) {
         {editing ? (
           <>
             <button
-              onClick={() => { setDraft(m); setEditing(false) }}
+              onClick={cancelEdit}
               className="px-3 py-1.5 rounded-md text-sm border border-line bg-white hover:bg-canvas inline-flex items-center gap-1.5"
             >
               <X size={13} /> 取消
             </button>
             <button
               onClick={() => saveMut.mutate()}
-              disabled={saveMut.isPending}
+              disabled={saveMut.isPending || !dirty}
+              title={dirty ? undefined : '没有改动'}
               className="px-3 py-1.5 rounded-md text-sm text-white inline-flex items-center gap-1.5 disabled:opacity-50"
               style={{ background: BRAND_GRAD }}
             >
@@ -1395,11 +1466,13 @@ export function RequirementsTab({ meeting }: { meeting: Meeting }) {
   const [editingId, setEditingId] = useState<number | null>(null)
 
   const regenMut = useMutation({
+    onError: toastErr('提取需求'),
     mutationFn: () => runMeetingAction(meeting.id, 'extract_requirements'),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting', meeting.id] }),
   })
 
   const editMut = useMutation({
+    onError: toastErr('保存需求'),
     mutationFn: (payload: { id: number; patch: Parameters<typeof patchMeetingRequirement>[2] }) =>
       patchMeetingRequirement(meeting.id, payload.id, payload.patch),
     onSuccess: () => {
@@ -1409,6 +1482,7 @@ export function RequirementsTab({ meeting }: { meeting: Meeting }) {
   })
 
   const createMut = useMutation({
+    onError: toastErr('新增需求'),
     mutationFn: () => createMeetingRequirement(meeting.id, { description: '' }),
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ['meeting', meeting.id] })
@@ -1418,6 +1492,7 @@ export function RequirementsTab({ meeting }: { meeting: Meeting }) {
   })
 
   const delMut = useMutation({
+    onError: toastErr('删除需求'),
     mutationFn: (id: number) => deleteMeetingRequirement(meeting.id, id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting', meeting.id] }),
   })
@@ -1715,12 +1790,14 @@ export function StakeholdersTab({ meeting }: { meeting: Meeting }) {
   const [editIdx, setEditIdx] = useState<number | null>(null)
 
   const regenMut = useMutation({
+    onError: toastErr('提取干系人'),
     mutationFn: () => runMeetingAction(meeting.id, 'extract_stakeholders'),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting', meeting.id] }),
   })
 
   // 保存编辑后的 stakeholder:更新整个 map + 如果名字变了 → 触发同步
   const saveMut = useMutation({
+    onError: toastErr('保存干系人'),
     mutationFn: async (payload: { idx: number; old: StakeholderItem; next: StakeholderItem }) => {
       const newStakes = [...(smap.stakeholders || [])]
       newStakes[payload.idx] = payload.next
@@ -1746,6 +1823,7 @@ export function StakeholdersTab({ meeting }: { meeting: Meeting }) {
   })
 
   const delMut = useMutation({
+    onError: toastErr('删除干系人'),
     mutationFn: (idx: number) => {
       const newStakes = [...(smap.stakeholders || [])].filter((_, i) => i !== idx)
       return putMeetingStakeholderMap(meeting.id, { ...smap, stakeholders: newStakes })
@@ -1757,6 +1835,7 @@ export function StakeholdersTab({ meeting }: { meeting: Meeting }) {
   })
 
   const addMut = useMutation({
+    onError: toastErr('添加干系人'),
     mutationFn: () => {
       const newStakes = [...(smap.stakeholders || []), {
         name: '新干系人',
@@ -1777,6 +1856,7 @@ export function StakeholdersTab({ meeting }: { meeting: Meeting }) {
   })
 
   const syncToProjectMut = useMutation({
+    onError: toastErr('同步到项目'),
     mutationFn: () => {
       if (!meeting.project_id) throw new Error('请先关联项目')
       return syncMeetingStakeholdersToProject(meeting.project_id, meeting.id)
@@ -1905,6 +1985,7 @@ export function ProcessFlowsTab({ meeting }: { meeting: Meeting }) {
   const [expandedId, setExpandedId] = useState<string | null>(flows[0]?.flow_id ?? null)
 
   const regenMut = useMutation({
+    onError: toastErr('提取业务流程'),
     mutationFn: () => runMeetingAction(meeting.id, 'extract_process_flows'),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting', meeting.id] }),
   })
@@ -2804,6 +2885,14 @@ export default function ConsoleMeetingDetail() {
   const [topView, setTopView] = useState<TopView>('split')
   const [leftTab, setLeftTab] = useState<LeftTab>('minutes')
   const [rightTab, setRightTab] = useState<RightTab>('transcript')
+
+  // 纪要 tab 有未保存改动时,切走会卸载 MinutesTab、draft 直接蒸发 —— 由子组件上报,这里拦一下。
+  // 其它 tab 的编辑粒度是行内保存(单行编辑即存),不存在这个问题。
+  const [minutesDirty, setMinutesDirty] = useState(false)
+  const guardDirty = useCallback((next: () => void) => {
+    if (minutesDirty && !window.confirm('纪要还有未保存的改动,切走会丢失。确定切走吗?')) return
+    next()
+  }, [minutesDirty])
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
   const audioPlayerRef = useRef<AudioPlayerHandle>(null)
 
@@ -2818,11 +2907,13 @@ export default function ConsoleMeetingDetail() {
   })
 
   const processMut = useMutation({
+    onError: toastErr('触发重新处理'),
     mutationFn: () => processMeeting(meetingId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meeting', meetingId] }),
   })
 
   const delMut = useMutation({
+    onError: toastErr('删除会议'),
     mutationFn: () => deleteMeeting(meetingId),
     onSuccess: () => nav(backHref),
   })
@@ -2947,7 +3038,7 @@ export default function ConsoleMeetingDetail() {
                 return (
                   <button
                     key={v.key}
-                    onClick={() => setTopView(v.key)}
+                    onClick={() => guardDirty(() => setTopView(v.key))}
                     className={`px-5 py-3 text-sm font-medium border-b-2 -mb-px whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
                       active
                         ? 'border-brand text-brand bg-brand/5'
@@ -2990,7 +3081,7 @@ export default function ConsoleMeetingDetail() {
                         return (
                           <button
                             key={t.key}
-                            onClick={() => setLeftTab(t.key)}
+                            onClick={() => guardDirty(() => setLeftTab(t.key))}
                             className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
                               active
                                 ? 'border-brand text-brand bg-brand/5'
@@ -3009,7 +3100,7 @@ export default function ConsoleMeetingDetail() {
                   </div>
                   {/* 左侧内容 */}
                   <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 360px)' }}>
-                    {leftTab === 'minutes'       && <MinutesTab meeting={meeting} />}
+                    {leftTab === 'minutes'       && <MinutesTab meeting={meeting} onDirtyChange={setMinutesDirty} />}
                     {leftTab === 'advice'        && <AdviceTab meeting={meeting} />}
                     {leftTab === 'requirements'  && <RequirementsTab meeting={meeting} />}
                     {leftTab === 'process_flows' && <ProcessFlowsTab meeting={meeting} />}
@@ -3050,7 +3141,7 @@ export default function ConsoleMeetingDetail() {
                           return (
                             <button
                               key={t.key}
-                              onClick={() => setRightTab(t.key)}
+                              onClick={() => guardDirty(() => setRightTab(t.key))}
                               className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
                                 active
                                   ? 'border-brand text-brand bg-brand/5'

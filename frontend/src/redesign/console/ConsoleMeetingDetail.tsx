@@ -8,7 +8,7 @@
  *
  * Tab 内部组件复用 ConsoleMeetingDetail.tsx 导出的老实现。
  */
-import { useState, useRef, useContext, useEffect, useMemo } from 'react'
+import { useState, useRef, useContext, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
@@ -65,6 +65,13 @@ export default function NewConsoleMeetingDetail() {
   const [view, setView] = useState<'split' | 'overview' | 'actions'>('split')
   const [leftTab, setLeftTab] = useState<LeftTab>('minutes')
   const [rightTab, setRightTab] = useState<RightTab>('transcript')
+
+  // 纪要 tab 有未保存改动时,切走会卸载 MinutesTab、draft 直接蒸发 —— 由子组件上报,这里拦一下。
+  const [minutesDirty, setMinutesDirty] = useState(false)
+  const guardDirty = useCallback((next: () => void) => {
+    if (minutesDirty && !window.confirm('纪要还有未保存的改动,切走会丢失。确定切走吗?')) return
+    next()
+  }, [minutesDirty])
   // 窄屏(<1024px)默认收起右栏,避免上下堆叠占据大段屏幕
   const [rightPanelOpen, setRightPanelOpen] = useState<boolean>(
     () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches,
@@ -255,7 +262,7 @@ export default function NewConsoleMeetingDetail() {
             return (
               <button
                 key={v.key}
-                onClick={() => setView(v.key)}
+                onClick={() => guardDirty(() => setView(v.key))}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 5,
                   padding: '10px 18px',
@@ -312,7 +319,7 @@ export default function NewConsoleMeetingDetail() {
                       return (
                         <button
                           key={t.key}
-                          onClick={() => setLeftTab(t.key)}
+                          onClick={() => guardDirty(() => setLeftTab(t.key))}
                           style={{
                             display: 'inline-flex', alignItems: 'center', gap: 5,
                             padding: '11px 20px',
@@ -358,7 +365,7 @@ export default function NewConsoleMeetingDetail() {
                 </div>
                 {/* 左侧内容 */}
                 <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(100dvh - 320px)', minHeight: 220 }}>
-                  {leftTab === 'minutes'       && <MinutesTab meeting={meeting} />}
+                  {leftTab === 'minutes'       && <MinutesTab meeting={meeting} onDirtyChange={setMinutesDirty} />}
                   {leftTab === 'requirements'  && <RequirementsTab meeting={meeting} />}
                   {leftTab === 'process_flows' && <ProcessFlowsTab meeting={meeting} />}
                   {leftTab === 'stakeholders'  && <StakeholdersTab meeting={meeting} />}
@@ -382,7 +389,7 @@ export default function NewConsoleMeetingDetail() {
                         return (
                           <button
                             key={t.key}
-                            onClick={() => setRightTab(t.key)}
+                            onClick={() => guardDirty(() => setRightTab(t.key))}
                             style={{
                               display: 'inline-flex', alignItems: 'center', gap: 5,
                               padding: '11px 20px',

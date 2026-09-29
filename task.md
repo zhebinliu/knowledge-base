@@ -1,4 +1,122 @@
-# 任务:会议模块迭代第二轮 — 去解释图 / 对比可选会议 / 洞察布局 / 参会人名单
+# 任务日志
+
+按轮次倒序记录。最新一轮在最上面。
+
+---
+
+# 轮次:会议纪要详情页 UI 评审修复(2026-09-29)
+
+## 背景
+
+用户要求「从 UI/UX 角度给会议纪要详情页(`/console/meeting/:id`)提优化建议」,
+产出了一份 26 条发现的评审(交付物:`C:/Users/zzz/Downloads/会议纪要详情页-UI评审.html`)。
+用户确认后转入修复。本段记录修复范围。
+
+## 关键前提(决定了改法,别再搞错)
+
+- **生产跑的是 legacy 页**,不是 redesign。`IS_NEW_UI` = `hostname === 'uat.tokenwave.cloud' || ?ui=new`,
+  但 uat 2026-07-14 已下线,所以走 `ConsoleMeetingDetail.tsx`(legacy)。
+- **redesign 壳不是重写** —— `redesign/console/ConsoleMeetingDetail.tsx` 第 25-30 行把
+  **所有 tab 内容组件都从 legacy 文件 import**。所以「换皮 + 换骨架」,
+  改共用组件两个壳同时受益;只有 tab 切换外壳需要改两处。
+- 所以本轮的修法:**共用组件改一次,外壳各改一次**。
+
+## 边界
+
+- 只改 `frontend/src/pages/console/ConsoleMeetingDetail.tsx` 与
+  `frontend/src/redesign/console/ConsoleMeetingDetail.tsx`。
+- 不动后端、不动 API 形状、不引入新依赖。
+- 全局 token(`--text-muted` / `--accent`)的改动**不在本轮** —— 它影响全站,
+  需要单独决策,见下面「待用户决策」。
+
+## Block F-1:磨平「看起来存上了、其实没存」的坑 [已完成]
+
+用户可见的最高频故障模式。两条:
+
+- [x] **轮询冲掉草稿**(P0)
+      `MinutesTab` 原来是 `useEffect(() => { setDraft(m) }, [meeting.id, meeting.meeting_minutes])`。
+      会议还在 `recording`/`processing` 时详情页每 5 秒 refetch 一次,每次返回**新对象** →
+      依赖变化 → 把用户正在输入的内容覆盖掉,且无提示无报错。
+      改法:编辑态跳过同步(`if (editing) return`),草稿不再被服务端值冲掉。
+- [x] **22 个 mutation 失败静默**(P0)
+      本文件 30 个 mutation 里 22 个只有 `onSuccess`。失败时:无 toast、无内联错误、
+      编辑态仍开着、按钮回到可点状态 —— 现象与「保存成功」**完全一致**。
+      改法:抽出 `toastErr(action)`,22 处全部挂上,文案带具体动作
+      (`保存纪要` / `保存标题` / `同步到项目` …)。
+- [x] **保存按钮不判断有无改动**(P1)
+      `disabled` 原来只有 `isPending`。加 `|| !dirty`,并加 `title="没有改动"` 说明为何不可点。
+      `Cmd/Ctrl+S` 同样加 `&& dirty` 短路。
+- [x] **退出编辑无确认,改动静默丢弃**(P1)
+      「取消」按钮与 `Esc` 原来都是 `setDraft(m); setEditing(false)` —— 直接蒸发。
+      改法:统一走 `cancelEdit()`,有改动先 `window.confirm`。
+      用 `mRef` 取最新 `m`(Esc 的 effect 依赖数组里没有 `m`,闭包会捕获挂载那一刻的值)。
+- [x] **切 tab 卸载组件丢草稿**(P1)
+      `leftTab` 一切走,`MinutesTab` 卸载,`draft` 直接蒸发。
+      改法:子组件通过 `onDirtyChange` 上报「编辑中且有未保存改动」,父级 `guardDirty()`
+      包住 `setTopView` / `setLeftTab` / `setRightTab`。**两个壳都改了。**
+      其它 tab 不涉及 —— 它们是行内保存(改一行即落库),没有可丢的中间态。
+- [x] **关标签页/刷新提醒**(P1)
+      `beforeunload` 监听,只在 `unsaved` 为真时挂,避免平时弹无谓的确认框。
+- [x] 新增 `stableKey()` —— 按 key 排序后序列化再比较,否则键顺序不同会误判「有改动」。
+
+**边界说明**:这里复用 `window.confirm`,是为和页面里既有的 4 处确认弹窗保持一致
+(1518 / 1530 / 1860 / 2891)。统一换成产品自己的确认框是评审里的独立一条(P3),
+不在本轮范围。
+
+**验收**:`npx tsc --noEmit -p tsconfig.json` 退出 0。人工验证项见文末。
+
+## 明确判定为产品决策、本轮不做的
+
+- **P0-4 转写面板:唯一能改转写的 UI 是死代码**(重新核实后的准确描述)
+  - **活的**是 `TranscriptPanel`(`ConsoleMeetingDetail.tsx:3177`),legacy 右侧栏渲染它,
+    redesign 另有一份等价实现。**两份都是只读** —— 无编辑、无保存;
+    redesign 那份多一个「触发 AI 润色」按钮,legacy 那份只显示一句「切换到操作标签可触发」。
+  - **死的**是 `TranscriptTab`(同文件 `:691`,约 100 行):带编辑态、`保存转写`、
+    `触发 AI 润色`。**legacy 从不渲染它(全文件仅 1 处出现,即定义处);
+    redesign 在 `:27` import 了它但全文再无引用。** 两边都是死代码。
+  - 后果:**用户没有任何办法手工修正转写文本** —— 说话人识别错、ASR 听错字,只能重跑。
+    这也是评审把它列在 P0 的原因。
+  - **本轮不接通**,理由:接通它 = 决定「转写可编辑」这个产品能力(谁能改、改了要不要
+    留痕、要不要和 `corrected_speakers` 那套人工校正合并),不是实现细节。
+    评审原话即「接通它,**或**明确判定为产品决策并记录」—— 现在按后半句执行:记录在案。
+  - 附带说明:本轮给它内部的 `saveMut` / `polishMut` 也加了 `toastErr`
+    (`保存转写` / `触发 AI 润色`)。在死代码里加不影响行为,但将来接通时就已经是对的。
+
+## 待用户决策
+
+- **全局 token 改动**(评审 P2/P3):
+  - `--text-muted: #9CA3AF` 在白底上 2.54:1,**不达 AA**。调深会影响全站所有弱化文案。
+  - `--accent: #FF8D1A` 当作**文字色**用时白底 2.31:1(不达),深色底 7.58:1(达)。
+    同一个 token 无法同时服务两种底色 —— 需要拆出「accent 背景色」与「accent 文字色」两个 token。
+  - 这两条是**全站级**改动,不是详情页局部。建议单独排一轮,配全局视觉走查。
+
+## 后续 Block(未开始)
+
+- [ ] **Block F-2:AI 润色 tab 排版** —— `prose` 是死类。全仓 9 处使用,
+      但 `tailwind.config.js` 的 `plugins: []`、没有 `@tailwindcss/typography`,
+      `index.css` 里也没有手写 `.prose`(`redesign.css` 只定义了配色)。
+      结果:AI 润色出来的 markdown 以**无格式纯文本**渲染。
+      改法:抄 `CitedReportView.tsx:19` 的 `[&_h2]:…` 写法,零新依赖。
+- [ ] **Block F-3:字号收敛 + 滚动体系** —— 6 档字号收成 3 档;
+      左右两栏 `maxHeight: calc(100vh - 360px)` 硬编码改成 flex 滚动,
+      免得窗口一矮就双层滚动条 / 内容被裁。
+- [ ] **TodoQuadrant 键盘与触屏通路** —— 目前分类只能靠鼠标拖拽:
+      `<div draggable>` 不可聚焦,「移出」按钮 `display:none` 直到 hover。
+      触屏上 HTML5 DnD 根本不触发。这是本页可达性的硬伤。
+
+## 本轮人工验证清单(部署后)
+
+- [ ] 会议处于 `recording`/`processing` 时进入纪要 tab → 点「编辑」→ 连续输入 30 秒
+      → 输入内容不被轮询冲掉
+- [ ] 断开后端 / 制造 500 → 点保存 → 出现失败 toast(而不是静默)
+- [ ] 编辑后有改动 → 点另一个 tab → 弹确认框;选「取消」留在原 tab
+- [ ] 编辑后有改动 → 直接关标签页 → 浏览器弹离开确认
+- [ ] 未做任何改动 → 保存按钮为 disabled,`Cmd+S` 无反应
+- [ ] 以上在 `?ui=new` 下同样成立(两个壳)
+
+---
+
+# 轮次:会议模块迭代第二轮 — 去解释图 / 对比可选会议 / 洞察布局 / 参会人名单
 
 上一轮(B1–B6,洞察四功能 + overlay 漂移回灌)已完成并上线,记录见 git 历史。
 本轮为用户的 4 个新需求。
