@@ -24,6 +24,7 @@ import {
 import {
   StatusBadge, fmt,
   SeekToContext,
+  MD_BODY_CLS,
   OverviewTab, TranscriptTab, MinutesTab,
   RequirementsTab, ProcessFlowsTab, StakeholdersTab, ActionsTab,
   InsightTab,
@@ -582,7 +583,8 @@ function TranscriptPanel({
               重新润色
             </button>
           </div>
-          <div className="prose prose-sm max-w-none prose-p:my-1.5 prose-headings:mt-3 prose-headings:mb-2 prose-ul:list-disc prose-ol:list-decimal prose-li:my-0.5">
+          {/* prose 只留类名给 redesign.css 的配色规则用,排版由 MD_BODY_CLS 负责(见其注释) */}
+          <div className={`prose max-w-none ${MD_BODY_CLS}`}>
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{meeting.polished_transcript || ''}</ReactMarkdown>
           </div>
         </div>

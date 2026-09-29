@@ -90,19 +90,47 @@
     同一个 token 无法同时服务两种底色 —— 需要拆出「accent 背景色」与「accent 文字色」两个 token。
   - 这两条是**全站级**改动,不是详情页局部。建议单独排一轮,配全局视觉走查。
 
+## Block F-2:AI 润色 tab 的排版 [已完成]
+
+- [x] **`prose` 是死类,润色正文渲染成无格式纯文本**
+      全仓没装 `@tailwindcss/typography`(`package.json` 无该依赖),
+      `tailwind.config.js:104` 是 `plugins: []` —— `prose` / `prose-sm` /
+      `prose-p:my-1.5` 这些类**一个字节的 CSS 都不会生成**。
+      而 `redesign.css:1065` 的 `.rd-root .prose {...}` **只定义颜色,不定义排版**;
+      legacy 侧连颜色都没有。
+      同时 Tailwind preflight 把 h1-h6 字号字重重置成 `inherit`、`ul/ol` 的
+      `list-style` 和缩进去掉、块级 margin 归零。
+      两者叠加 → **标题和正文一样大、列表没有项目符号、段落之间没有间距**。
+      这条在**生产上是活的**(legacy 壳 `TranscriptPanel` 渲染的就是它)。
+  - 改法:新增 `MD_BODY_CLS`(`ConsoleMeetingDetail.tsx`,导出后 redesign 复用),
+    按 `CitedReportView.tsx:19` 的 arbitrary descendant 写法手写排版,零新依赖。
+  - **只放排版不放颜色** —— 因为 `.rd-root` 不重定义 `--text-primary` 等 token
+    (实测 redesign.css 里没有),`text-ink` 在深色壳里会解析成浅色主题的 `#1A1D2E`,
+    深底深字。深色壳的配色继续由 `.rd-root .prose` 接管,所以元素上保留 `prose` 类名。
+    边框一律用 `border-current`(跟随文字色),两种底色都不会错。
+  - 元素上仍留 `prose`:给 `redesign.css` 的配色规则用。
+  - ⚠️ **踩到的坑**:legacy 的 `TranscriptPanel` 里,同一个 div 既包润色分支(markdown)
+    又包原文分支(裸 `<pre>`)。`MD_BODY_CLS` 里的 `[&_pre]:p-3` / `text-[12.5px]`
+    权重是 (0,1,1),会盖过那个 `<pre>` 自己的 `p-0 m-0`(0,1,0) ——
+    原文会被顶出内边距、字号缩一号。所以类只加在 `tab === 'polished'` 分支上。
+
+**验收**:`npx tsc --noEmit` 退出 0;`npm run build` 成功,并已从产物
+`dist/assets/index-*.css` 里核对生成的规则确实存在且选择器正确
+(`.\[\&_li\>ul\]\:my-1 li>ul{margin-top:.25rem;…}`、`.\[\&_h1\:first-child\]\:mt-0 h1:first-child{margin-top:0}`
+等)—— 光看源码看不出 Tailwind 有没有生成。
+
 ## 后续 Block(未开始)
 
-- [ ] **Block F-2:AI 润色 tab 排版** —— `prose` 是死类。全仓 9 处使用,
-      但 `tailwind.config.js` 的 `plugins: []`、没有 `@tailwindcss/typography`,
-      `index.css` 里也没有手写 `.prose`(`redesign.css` 只定义了配色)。
-      结果:AI 润色出来的 markdown 以**无格式纯文本**渲染。
-      改法:抄 `CitedReportView.tsx:19` 的 `[&_h2]:…` 写法,零新依赖。
 - [ ] **Block F-3:字号收敛 + 滚动体系** —— 6 档字号收成 3 档;
       左右两栏 `maxHeight: calc(100vh - 360px)` 硬编码改成 flex 滚动,
       免得窗口一矮就双层滚动条 / 内容被裁。
 - [ ] **TodoQuadrant 键盘与触屏通路** —— 目前分类只能靠鼠标拖拽:
       `<div draggable>` 不可聚焦,「移出」按钮 `display:none` 直到 hover。
       触屏上 HTML5 DnD 根本不触发。这是本页可达性的硬伤。
+- [ ] **`MarkdownView.tsx:66` 同一个 bug(范围外,单独排)**
+      `proseCls` 同样是死类(`prose prose-xs prose-gray` / `prose prose-sm prose-gray`),
+      且带 `prose-gray` 说明作者以为装了 typography 插件。这个组件被报告类页面共用,
+      影响面比详情页大,但不在本轮范围 —— 修它需要连同报告页一起走查。
 
 ## 本轮人工验证清单(部署后)
 

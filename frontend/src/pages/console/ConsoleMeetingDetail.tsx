@@ -66,6 +66,46 @@ function toastErr(action: string) {
   }
 }
 
+/** 会议详情页 markdown 正文的排版类。legacy 与 redesign 两个壳共用。
+ *
+ *  ⚠️ 这里**只放排版,不放任何颜色**。原因:
+ *    legacy 走全局 token(--text-primary 等);redesign 的 .rd-root **不重定义**那些 token
+ *    (实测 redesign.css 里没有 --text-primary),所以 text-ink 在深色壳里会解析成浅色主题的
+ *    #1A1D2E —— 深底深字。深色壳的颜色由 redesign.css 的 `.rd-root .prose {...}` 单独接管,
+ *    所以元素上仍要保留 `prose` 类名。同理边框用 border-current(跟随文字色),
+ *    两种底色下都不会错。
+ *
+ *  为什么不能直接用 `prose`:全仓没装 @tailwindcss/typography,tailwind.config.js 的
+ *  plugins 是空的 —— `prose` / `prose-sm` / `prose-p:my-1.5` 这些类**一个字节的 CSS 都不会生成**。
+ *  而 Tailwind preflight 又把 h1-h6 的字号字重重置成 inherit、ul/ol 的 list-style 和缩进去掉、
+ *  块级元素 margin 归零。两者叠加:AI 润色出来的 markdown 渲染成**完全没有格式的纯文本**
+ *  —— 标题和正文一样大、列表没有项目符号、段落之间没有间距。
+ *  这里按 CitedReportView.tsx:19 的做法用 arbitrary descendant 选择器手写,零新依赖。 */
+export const MD_BODY_CLS = [
+  'text-[13px] leading-[1.8]',
+  '[&_h1]:text-[20px] [&_h1]:font-bold [&_h1]:mt-6 [&_h1]:mb-3',
+  '[&_h2]:text-[16px] [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2',
+  '[&_h3]:text-[14px] [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-1.5',
+  '[&_h4]:text-[13px] [&_h4]:font-semibold [&_h4]:mt-3 [&_h4]:mb-1',
+  // 首元素不要上边距,否则正文和面板顶部之间会多出一截空白
+  '[&_h1:first-child]:mt-0 [&_h2:first-child]:mt-0 [&_h3:first-child]:mt-0 [&_p:first-child]:mt-0',
+  '[&_p]:my-2.5',
+  '[&_ul]:my-2.5 [&_ul]:pl-5 [&_ul]:list-disc',
+  '[&_ol]:my-2.5 [&_ol]:pl-5 [&_ol]:list-decimal',
+  '[&_li]:my-1',
+  '[&_li>ul]:my-1 [&_li>ol]:my-1',
+  '[&_strong]:font-semibold',
+  '[&_em]:italic',
+  '[&_blockquote]:border-l-4 [&_blockquote]:border-current [&_blockquote]:pl-4 [&_blockquote]:my-3 [&_blockquote]:italic',
+  '[&_hr]:my-5 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-current [&_hr]:opacity-20',
+  '[&_table]:w-full [&_table]:my-4 [&_table]:border-collapse [&_table]:text-[12.5px]',
+  '[&_th]:border [&_th]:px-2.5 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-semibold',
+  '[&_td]:border [&_td]:px-2.5 [&_td]:py-1.5 [&_td]:align-top',
+  '[&_pre]:my-3 [&_pre]:p-3 [&_pre]:rounded-md [&_pre]:overflow-x-auto [&_pre]:text-[12.5px]',
+  '[&_code]:text-[12.5px] [&_code]:font-mono',
+  '[&_pre_code]:bg-transparent [&_pre_code]:p-0',
+].join(' ')
+
 /** 按 key 排序后序列化 —— 用于「有没有改动」的比较。
  *  直接 JSON.stringify 会因为键顺序不同而误判:用户改一个字段后 draft 的键顺序
  *  可能和服务端值不同,看起来「改了」但其实值一样。 */
@@ -3196,8 +3236,11 @@ function TranscriptPanel({ meeting, tab }: { meeting: Meeting; tab: RightTab }) 
     )
   }
 
+  // prose 只留类名给 redesign.css 的配色规则用,排版由 MD_BODY_CLS 负责(见其注释)。
+  // ⚠️ MD_BODY_CLS 只加在润色分支:原文分支是裸 <pre>,里面的 [&_pre]:p-3 / text-[12.5px]
+  //    选择器权重(0,1,1)会盖过它自己的 p-0 m-0(0,1,0),把原文顶出内边距、字号缩一号。
   return (
-    <div className="text-[13px] leading-relaxed text-ink-secondary prose prose-sm max-w-none prose-p:my-1.5 prose-headings:mt-3 prose-headings:mb-2 prose-ul:list-disc prose-ol:list-decimal prose-li:my-0.5">
+    <div className={`text-ink-secondary prose max-w-none ${tab === 'polished' ? MD_BODY_CLS : ''}`}>
       {tab === 'polished' ? (
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
       ) : (
